@@ -6,7 +6,7 @@
 //! - `entity`: SeaORM entities (mirror of `sea-orm-cli generate entity`)
 //! - `migration`: SeaORM migrations
 //! - `cache`: pluggable cache (`MokaBackend` | `RedisBackend`)
-//! - `store`: `CacheStore<RetryStore<DbStore>>`
+//! - `store`: per-entity DB+retry+cache stores composed into one `Store`
 //! - `storage`: pluggable file storage (`Local` | `S3` | `MinIO`)
 //! - `worker`: pluggable async job broker (`Redis` | `Db` | `Kafka`)
 //! - `ws`: in-process WebSocket hub (extensible to Redis fan-out)

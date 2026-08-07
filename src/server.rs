@@ -17,7 +17,22 @@ use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{AuthService, PostService, UserService};
 use crate::state::AppState;
-use crate::store::{CacheStore, DbStore, Store};
+use crate::store::{
+    CachePostStore,
+    CacheRbacStore,
+    CacheRefreshTokenStore,
+    CacheUserStore,
+    CompositeStore,
+    DbPostStore,
+    DbRbacStore,
+    DbRefreshTokenStore,
+    DbUserStore,
+    PostStore,
+    RbacStore,
+    RefreshTokenStore,
+    Store,
+    UserStore,
+};
 use crate::ws::Hub;
 
 pub async fn bootstrap() -> anyhow::Result<AppState> {
@@ -44,14 +59,35 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- Cache backend (shared via Arc<dyn CacheBackend>) ------------
     let cache: Arc<dyn CacheBackend> = cache::build_shared(&config.cache).await?;
 
-    // ---- Store: CacheStore<DbStore> -------------------------------------
-    // DbStore has #[retry] applied to every async method, so retry is
-    // built into the DB layer (no separate RetryStore wrapper).
-    let db_store = DbStore::new(db.clone());
-    let store: Arc<dyn Store> = Arc::new(CacheStore::new(
-        db_store,
+    // ---- Store: per-entity cache/retry/db composition ----------------
+    let user_store: Arc<dyn UserStore> = Arc::new(CacheUserStore::new(
+        DbUserStore::new(db.clone()),
         cache.clone(),
         config.cache.ttl(),
+    ));
+    let post_store: Arc<dyn PostStore> = Arc::new(CachePostStore::new(
+        DbPostStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
+    let rbac_store: Arc<dyn RbacStore> = Arc::new(CacheRbacStore::new(
+        DbRbacStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
+    let refresh_token_store: Arc<dyn RefreshTokenStore> = Arc::new(
+        CacheRefreshTokenStore::new(
+            DbRefreshTokenStore::new(db.clone()),
+            cache.clone(),
+            config.cache.ttl(),
+        ),
+    );
+
+    let store: Arc<dyn Store> = Arc::new(CompositeStore::new(
+        user_store,
+        post_store,
+        rbac_store,
+        refresh_token_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------
