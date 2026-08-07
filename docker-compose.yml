@@ -1,0 +1,67 @@
+# Multi-service development environment.
+#
+# Usage:
+#   docker compose up            # starts: postgres, redis, backend
+#   docker compose up backend    # just the backend (needs db + redis running)
+#
+# The backend runs migrations on startup, so the first `up` will create
+# all tables. Swagger UI at http://localhost:8080/swagger-ui.
+
+services:
+  # ---- Database (Postgres) ----
+  # Used when you build with --features postgres. For SQLite dev,
+  # comment this out and let the backend use a local file.
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---- Cache (Redis) ----
+  # Used if CACHE_BACKEND=redis or WORKER_BACKEND=redis.
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---- Backend (this app) ----
+  # Build with the postgres feature:
+  #   docker compose build --build-arg BACKEND_FEATURES=postgres
+  backend:
+    build:
+      context: .
+      args:
+        BACKEND_FEATURES: postgres
+    ports:
+      - "8080:8080"
+    environment:
+      # Point at the compose services, not localhost.
+      DATABASE_URL: postgres://postgres:postgres@db:5432/app
+      REDIS_URL: redis://redis:6379/0
+      CACHE_BACKEND: redis
+      WORKER_BACKEND: redis
+      JWT_SECRET: change-me-in-production-please-use-32-bytes-or-more
+      RUST_LOG: info,backend=debug,tower_http=warn
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -1,0 +1,52 @@
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use chrono::Duration;
+
+use crate::config::CookieConfig;
+
+pub const ACCESS_COOKIE: &str = "access_token";
+pub const REFRESH_COOKIE: &str = "refresh_token";
+pub const CSRF_COOKIE: &str = "csrf_token";
+
+/// Set the access + refresh HttpOnly cookies on the response. Caller
+/// passes the actual token values; this function packages them. Returns
+/// the new jar (jars in axum-extra are immutable, replaced on each op).
+pub fn set_auth_cookies(
+    jar: CookieJar,
+    cfg: &CookieConfig,
+    access: &str,
+    refresh: &str,
+    csrf: &str,
+) -> CookieJar {
+    let access_ttl = Duration::minutes(15);
+    let refresh_ttl = Duration::days(7);
+
+    let access_cookie = build_cookie(ACCESS_COOKIE, access, cfg, access_ttl);
+    let refresh_cookie = build_cookie(REFRESH_COOKIE, refresh, cfg, refresh_ttl);
+    let csrf_cookie = build_cookie(CSRF_COOKIE, csrf, cfg, refresh_ttl);
+
+    jar.add(access_cookie)
+        .add(refresh_cookie)
+        .add(csrf_cookie)
+}
+
+pub fn clear_auth_cookies(jar: CookieJar, cfg: &CookieConfig) -> CookieJar {
+    let mut jar = jar;
+    for name in [ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE] {
+        let c = Cookie::build(name).path("/").max_age(time::Duration::seconds(0));
+        jar = jar.remove(c.build());
+    }
+    let _ = cfg;
+    jar
+}
+
+fn build_cookie(name: &'static str, value: &str, cfg: &CookieConfig, ttl: Duration) -> Cookie<'static> {
+    let mut builder = Cookie::build((name, value.to_string()));
+    builder = builder.path("/");
+    builder = builder.http_only(true);
+    builder = builder.same_site(cfg.samesite.as_axum());
+    builder = builder.secure(cfg.secure);
+    builder = builder.max_age(time::Duration::seconds(ttl.num_seconds()));
+    // Clone domain into a 'static String so the cookie can outlive cfg.
+    builder = builder.domain(cfg.domain.clone());
+    builder.build()
+}

@@ -1,0 +1,14 @@
+[package]
+name = "store_macros"
+version = "0.1.0"
+edition = "2021"
+description = "Attribute macros for the layered store architecture"
+license = "MIT"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2", features = ["full", "extra-traits", "parsing"] }
+quote = "1"
+proc-macro2 = "1"

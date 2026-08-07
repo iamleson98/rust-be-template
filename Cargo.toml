@@ -1,0 +1,113 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+description = "12-factor Rust backend: layered store + RBAC + JWT + WS + worker"
+license = "MIT"
+
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
+[workspace]
+members = ["store_macros"]
+
+[dependencies]
+store_macros = { path = "store_macros" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Web framework
+axum = { version = "0.8", features = ["ws", "macros", "tokio"] }
+axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
+tower = { version = "0.5", features = ["util", "limit", "timeout"] }
+tower-http = { version = "0.6", features = ["compression-gzip", "compression-br", "cors", "fs", "trace", "set-header", "limit"] }
+tower_governor = "0.7"
+
+# Database — backend is selected via the `sqlite` / `postgres` feature
+# flags below. Both can be enabled simultaneously (useful for tests that
+# exercise both backends), but at runtime only one DATABASE_URL is active.
+sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid"] }
+sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls"] }
+sea-query = "0.32"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Auth
+jsonwebtoken = "9"
+argon2 = "0.5"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.8"
+constant_time_eq = "0.3"
+
+# Cache
+moka = { version = "0.12", features = ["future"] }
+redis = { version = "0.32", features = ["tokio-comp", "connection-manager", "tokio-rustls-comp"] }
+
+# Object storage
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1"
+bytes = "1"
+mime = "0.3"
+mime_guess = "2"
+tokio-util = { version = "0.7", features = ["io"] }
+
+# Worker — rdkafka is optional because librdkafka requires system libs.
+# Enable via `--features kafka` when you actually need the Kafka broker.
+rdkafka = { version = "0.36", features = ["tokio"], default-features = false, optional = true }
+
+# OpenAPI
+utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
+utoipa-swagger-ui = { version = "9", features = ["axum"] }
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Config + errors
+dotenvy = "0.15"
+figment = { version = "0.10", features = ["env", "toml"] }
+thiserror = "2"
+anyhow = "1"
+once_cell = "1"
+validator = { version = "0.20", features = ["derive"] }
+url = "2"
+parking_lot = "0.12"
+hex = "0.4"
+time = "0.3"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+[features]
+default = ["sqlite"]
+
+# Database backends — pick one (or both). At runtime, the chosen backend
+# is selected by the DATABASE_URL scheme (`sqlite://` vs `postgres://`).
+# SQLite is the default for dev/CI; switch to `--no-default-features
+# --features postgres` for production.
+sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite"]
+postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+
+# Worker — Kafka broker is optional because librdkafka requires system libs.
+kafka = ["rdkafka"]
+
+[dev-dependencies]
+tokio-test = "0.4"
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
