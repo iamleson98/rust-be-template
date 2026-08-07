@@ -22,8 +22,8 @@ use crate::ws::Hub;
 ///   `AppState`). This avoids circular `Arc` references — a common
 ///   memory leak pitfall.
 /// - **`AuthUser` extractor is generic via `FromRef`** — works with any
-///   state that can supply a `JwtValidator`, not just `AppState`. This
-///   makes it testable with a tiny mock state. See `middleware/auth_extractor.rs`.
+///   state that can supply an `AuthService`, not just `AppState`.
+///   This keeps middleware independent of the concrete app state type.
 #[derive(Clone)]
 pub struct AppState {
     // ---- Shared infrastructure ----
