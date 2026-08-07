@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::entity::user;
+use crate::entity::users;
 use crate::error::{AppError, AppResult};
 use crate::rbac::RbacChecker;
 use crate::rbac::model::consts as rbac;
@@ -24,7 +24,7 @@ impl UserService {
     }
 
     /// List all users. Caller must have `users:read`.
-    pub async fn list(&self, caller_id: Uuid) -> AppResult<Vec<user::Model>> {
+    pub async fn list(&self, caller_id: Uuid) -> AppResult<Vec<users::Model>> {
         self.rbac
             .require(caller_id, rbac::USERS_READ)
             .await
@@ -35,7 +35,7 @@ impl UserService {
     }
 
     /// Get a single user by ID. Caller must have `users:read`.
-    pub async fn get(&self, caller_id: Uuid, target_id: Uuid) -> AppResult<user::Model> {
+    pub async fn get(&self, caller_id: Uuid, target_id: Uuid) -> AppResult<users::Model> {
         self.rbac
             .require(caller_id, rbac::USERS_READ)
             .await

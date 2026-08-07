@@ -15,14 +15,14 @@ use crate::auth::jwt_validator::JwtValidator;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::{RefreshTokenManager, RefreshTokenValue};
 use crate::config::{Config, CookieConfig};
-use crate::entity::user;
+use crate::entity::users;
 use crate::error::{AppError, AppResult};
 use crate::store::Store;
 
 /// Result of a successful login or refresh — what the route handler needs
 /// to build the response + cookies.
 pub struct AuthSession {
-    pub user: user::Model,
+    pub user: users::Model,
     pub access_token: String,
     pub refresh_token: String,
     pub csrf_token: String,
@@ -86,7 +86,7 @@ impl AuthService {
         email: String,
         username: String,
         password: String,
-    ) -> AppResult<user::Model> {
+    ) -> AppResult<users::Model> {
         validate_email(&email)?;
         validate_username(&username)?;
         validate_password(&password)?;
@@ -136,7 +136,7 @@ impl AuthService {
             .await?
             .ok_or_else(|| AppError::Unauthorized("unknown refresh token".into()))?;
 
-        if model.revoked || model.expires_at < Utc::now().naive_utc() {
+        if model.revoked || model.expires_at < Utc::now() {
             return Err(AppError::Unauthorized("refresh token expired".into()));
         }
 
@@ -167,13 +167,23 @@ impl AuthService {
 
     /// Fetch the current user (after auth has been verified by the
     /// extractor). Hits the cached `get_user` path.
-    pub async fn me(&self, user_id: Uuid) -> AppResult<user::Model> {
+    pub async fn me(&self, user_id: Uuid) -> AppResult<users::Model> {
         Ok(self.store.get_user(user_id).await?)
+    }
+
+    /// Verify an access token and return the authenticated user id.
+    pub async fn verify_access_token(&self, token: &str) -> AppResult<Uuid> {
+        let claims = self
+            .jwt_validator
+            .verify(token)
+            .await
+            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+        Ok(claims.sub)
     }
 
     /// Issue a fresh auth session: new access JWT + new refresh token
     /// (persisted) + new CSRF token.
-    async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
+    async fn issue_session(&self, user: users::Model) -> AppResult<AuthSession> {
         let access = self
             .jwt
             .issue_access(user.id)

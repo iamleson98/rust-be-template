@@ -7,7 +7,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::entity::user;
+use crate::entity::users;
 use crate::error::AppResult;
 use crate::middleware::AuthUser;
 use crate::state::AppState;
@@ -20,13 +20,13 @@ pub struct UserOut {
     pub created_at: DateTime<Utc>,
 }
 
-impl From<user::Model> for UserOut {
-    fn from(m: user::Model) -> Self {
+impl From<users::Model> for UserOut {
+    fn from(m: users::Model) -> Self {
         Self {
             id: m.id,
             email: m.email,
             username: m.username,
-            created_at: m.created_at.and_utc(),
+            created_at: m.created_at,
         }
     }
 }

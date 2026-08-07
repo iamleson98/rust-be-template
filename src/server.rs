@@ -126,15 +126,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     let state = AppState {
         config: config_arc,
-        db,
         store,
-        cache,
-        rbac,
-        jwt,
-        jwt_validator,
-        refresh,
-        password,
-        csrf,
         ws_hub,
         auth: auth_service,
         posts: post_service,

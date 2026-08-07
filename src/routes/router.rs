@@ -40,7 +40,9 @@ pub fn build_router(state: AppState) -> Router<()> {
     // ---- /api sub-router (rate-limited + CSRF-checked) ----------------
     // Build as Router<AppState>, then convert to Router<()> by
     // capturing state. This is the standard axum 0.8 pattern.
-    let csrf_manager = state.csrf.clone();
+    let csrf_manager = std::sync::Arc::new(crate::auth::csrf::CsrfManager::new(
+        &state.config.jwt.secret,
+    ));
     let api_routes: Router<AppState> = Router::new()
         .route("/auth/register", post(crate::routes::auth::register))
         .route("/auth/login", post(crate::routes::auth::login))

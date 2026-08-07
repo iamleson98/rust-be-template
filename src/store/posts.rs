@@ -10,27 +10,27 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::post;
+use crate::entity::posts;
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
 
 #[async_trait]
 pub trait PostStore: Send + Sync {
-    async fn get_post(&self, id: Uuid) -> StoreResult<post::Model>;
-    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<post::Model>>;
+    async fn get_post(&self, id: Uuid) -> StoreResult<posts::Model>;
+    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<posts::Model>>;
     async fn create_post(
         &self,
         author_id: Uuid,
         title: String,
         body: String,
-    ) -> StoreResult<post::Model>;
+    ) -> StoreResult<posts::Model>;
     async fn update_post(
         &self,
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
-    ) -> StoreResult<post::Model>;
+    ) -> StoreResult<posts::Model>;
     async fn delete_post(&self, id: Uuid) -> StoreResult<()>;
 }
 
@@ -50,16 +50,16 @@ impl RetryPolicy for DbPostStore {}
 #[async_trait]
 #[retry]
 impl PostStore for DbPostStore {
-    async fn get_post(&self, id: Uuid) -> StoreResult<post::Model> {
-        post::Entity::find_by_id(id)
+    async fn get_post(&self, id: Uuid) -> StoreResult<posts::Model> {
+        posts::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| StoreError::NotFound(format!("post {id}")))
     }
 
-    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<post::Model>> {
-        let rows = post::Entity::find()
-            .order_by_desc(post::Column::CreatedAt)
+    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<posts::Model>> {
+        let rows = posts::Entity::find()
+            .order_by_desc(posts::Column::CreatedAt)
             .offset(offset)
             .limit(limit)
             .all(self.db.as_ref())
@@ -73,10 +73,10 @@ impl PostStore for DbPostStore {
         author_id: Uuid,
         title: String,
         body: String,
-    ) -> StoreResult<post::Model> {
-        let now = Utc::now().naive_utc();
+    ) -> StoreResult<posts::Model> {
+        let now = Utc::now();
         let id = Uuid::new_v4();
-        let model = post::ActiveModel {
+        let model = posts::ActiveModel {
             id: Set(id),
             author_id: Set(author_id),
             title: Set(title.clone()),
@@ -85,11 +85,11 @@ impl PostStore for DbPostStore {
             updated_at: Set(now),
         };
 
-        post::Entity::insert(model)
+        posts::Entity::insert(model)
             .exec_without_returning(self.db.as_ref())
             .await?;
 
-        Ok(post::Model {
+        Ok(posts::Model {
             id,
             author_id,
             title,
@@ -104,26 +104,26 @@ impl PostStore for DbPostStore {
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
-    ) -> StoreResult<post::Model> {
-        let existing = post::Entity::find_by_id(id)
+    ) -> StoreResult<posts::Model> {
+        let existing = posts::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| StoreError::NotFound(format!("post {id}")))?;
 
-        let mut am: post::ActiveModel = existing.into();
+        let mut am: posts::ActiveModel = existing.into();
         if let Some(t) = title {
             am.title = Set(t);
         }
         if let Some(b) = body {
             am.body = Set(b);
         }
-        am.updated_at = Set(Utc::now().naive_utc());
+        am.updated_at = Set(Utc::now());
 
         Ok(am.update(self.db.as_ref()).await?)
     }
 
     async fn delete_post(&self, id: Uuid) -> StoreResult<()> {
-        post::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
+        posts::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
         Ok(())
     }
 }
@@ -160,9 +160,9 @@ fn post_key(id: Uuid) -> String {
 
 #[async_trait]
 impl<S: PostStore> PostStore for CachePostStore<S> {
-    async fn get_post(&self, id: Uuid) -> StoreResult<post::Model> {
+    async fn get_post(&self, id: Uuid) -> StoreResult<posts::Model> {
         let key = post_key(id);
-        match get_serializable::<post::Model>(self.cache.as_ref(), &key).await {
+        match get_serializable::<posts::Model>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
@@ -179,7 +179,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
         Ok(model)
     }
 
-    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<post::Model>> {
+    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<posts::Model>> {
         self.inner.list_posts(limit, offset).await
     }
 
@@ -188,7 +188,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
         author_id: Uuid,
         title: String,
         body: String,
-    ) -> StoreResult<post::Model> {
+    ) -> StoreResult<posts::Model> {
         self.inner.create_post(author_id, title, body).await
     }
 
@@ -197,7 +197,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
-    ) -> StoreResult<post::Model> {
+    ) -> StoreResult<posts::Model> {
         let model = self.inner.update_post(id, title, body).await?;
         let key = post_key(id);
         if let Err(e) =

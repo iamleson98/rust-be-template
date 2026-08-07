@@ -8,7 +8,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::entity::user;
+use crate::entity::users;
 use crate::error::{AppError, AppResult};
 use crate::middleware::AuthUser;
 use crate::state::AppState;
@@ -40,7 +40,7 @@ pub struct AuthResponse {
 }
 
 impl AuthResponse {
-    fn from_user(u: &user::Model, access_ttl_secs: u64) -> Self {
+    fn from_user(u: &users::Model, access_ttl_secs: u64) -> Self {
         Self {
             user_id: u.id,
             username: u.username.clone(),

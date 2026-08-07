@@ -10,21 +10,21 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::user;
+use crate::entity::users;
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
 
 #[async_trait]
 pub trait UserStore: Send + Sync {
-    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model>;
-    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>>;
+    async fn get_user(&self, id: Uuid) -> StoreResult<users::Model>;
+    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<users::Model>>;
     async fn create_user(
         &self,
         email: String,
         username: String,
         password_hash: String,
-    ) -> StoreResult<user::Model>;
+    ) -> StoreResult<users::Model>;
     async fn delete_user(&self, id: Uuid) -> StoreResult<()>;
 }
 
@@ -44,16 +44,16 @@ impl RetryPolicy for DbUserStore {}
 #[async_trait]
 #[retry]
 impl UserStore for DbUserStore {
-    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model> {
-        user::Entity::find_by_id(id)
+    async fn get_user(&self, id: Uuid) -> StoreResult<users::Model> {
+        users::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| StoreError::NotFound(format!("user {id}")))
     }
 
-    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>> {
-        Ok(user::Entity::find()
-            .filter(user::Column::Email.eq(email))
+    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<users::Model>> {
+        Ok(users::Entity::find()
+            .filter(users::Column::Email.eq(email))
             .one(self.db.as_ref())
             .await?)
     }
@@ -64,10 +64,10 @@ impl UserStore for DbUserStore {
         email: String,
         username: String,
         password_hash: String,
-    ) -> StoreResult<user::Model> {
-        let now = Utc::now().naive_utc();
+    ) -> StoreResult<users::Model> {
+        let now = Utc::now();
         let id = Uuid::new_v4();
-        let model = user::ActiveModel {
+        let model = users::ActiveModel {
             id: Set(id),
             email: Set(email.clone()),
             username: Set(username.clone()),
@@ -76,11 +76,11 @@ impl UserStore for DbUserStore {
             updated_at: Set(now),
         };
 
-        match user::Entity::insert(model)
+        match users::Entity::insert(model)
             .exec_without_returning(self.db.as_ref())
             .await
         {
-            Ok(_) => Ok(user::Model {
+            Ok(_) => Ok(users::Model {
                 id,
                 email,
                 username,
@@ -100,7 +100,7 @@ impl UserStore for DbUserStore {
     }
 
     async fn delete_user(&self, id: Uuid) -> StoreResult<()> {
-        user::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
+        users::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
         Ok(())
     }
 }
@@ -141,9 +141,9 @@ fn perms_key(id: Uuid) -> String {
 
 #[async_trait]
 impl<S: UserStore> UserStore for CacheUserStore<S> {
-    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model> {
+    async fn get_user(&self, id: Uuid) -> StoreResult<users::Model> {
         let key = user_key(id);
-        match get_serializable::<user::Model>(self.cache.as_ref(), &key).await {
+        match get_serializable::<users::Model>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
@@ -160,7 +160,7 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         Ok(model)
     }
 
-    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>> {
+    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<users::Model>> {
         self.inner.get_user_by_email(email).await
     }
 
@@ -169,7 +169,7 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         email: String,
         username: String,
         password_hash: String,
-    ) -> StoreResult<user::Model> {
+    ) -> StoreResult<users::Model> {
         self.inner.create_user(email, username, password_hash).await
     }
 

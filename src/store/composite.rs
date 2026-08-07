@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use uuid::Uuid;
 
-use crate::entity::{permission, post, refresh_token, role, user};
+use crate::entity::{permissions, posts, refresh_tokens, roles, users};
 
 use super::error::StoreResult;
 use super::{PostStore, RbacStore, RefreshTokenStore, UserPermissions, UserStore};
@@ -34,11 +34,11 @@ impl CompositeStore {
 
 #[async_trait]
 impl UserStore for CompositeStore {
-    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model> {
+    async fn get_user(&self, id: Uuid) -> StoreResult<users::Model> {
         self.users.get_user(id).await
     }
 
-    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>> {
+    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<users::Model>> {
         self.users.get_user_by_email(email).await
     }
 
@@ -47,7 +47,7 @@ impl UserStore for CompositeStore {
         email: String,
         username: String,
         password_hash: String,
-    ) -> StoreResult<user::Model> {
+    ) -> StoreResult<users::Model> {
         self.users.create_user(email, username, password_hash).await
     }
 
@@ -58,11 +58,11 @@ impl UserStore for CompositeStore {
 
 #[async_trait]
 impl PostStore for CompositeStore {
-    async fn get_post(&self, id: Uuid) -> StoreResult<post::Model> {
+    async fn get_post(&self, id: Uuid) -> StoreResult<posts::Model> {
         self.posts.get_post(id).await
     }
 
-    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<post::Model>> {
+    async fn list_posts(&self, limit: u64, offset: u64) -> StoreResult<Vec<posts::Model>> {
         self.posts.list_posts(limit, offset).await
     }
 
@@ -71,7 +71,7 @@ impl PostStore for CompositeStore {
         author_id: Uuid,
         title: String,
         body: String,
-    ) -> StoreResult<post::Model> {
+    ) -> StoreResult<posts::Model> {
         self.posts.create_post(author_id, title, body).await
     }
 
@@ -80,7 +80,7 @@ impl PostStore for CompositeStore {
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
-    ) -> StoreResult<post::Model> {
+    ) -> StoreResult<posts::Model> {
         self.posts.update_post(id, title, body).await
     }
 
@@ -99,22 +99,22 @@ impl RbacStore for CompositeStore {
         self.rbac.assign_role(user_id, role_id).await
     }
 
-    async fn list_roles(&self) -> StoreResult<Vec<role::Model>> {
+    async fn list_roles(&self) -> StoreResult<Vec<roles::Model>> {
         self.rbac.list_roles().await
     }
 
-    async fn list_permissions(&self) -> StoreResult<Vec<permission::Model>> {
+    async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>> {
         self.rbac.list_permissions().await
     }
 }
 
 #[async_trait]
 impl RefreshTokenStore for CompositeStore {
-    async fn save_refresh_token(&self, token: refresh_token::Model) -> StoreResult<()> {
+    async fn save_refresh_token(&self, token: refresh_tokens::Model) -> StoreResult<()> {
         self.refresh_tokens.save_refresh_token(token).await
     }
 
-    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_token::Model>> {
+    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>> {
         self.refresh_tokens.get_refresh_token(id).await
     }
 

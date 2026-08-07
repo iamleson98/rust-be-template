@@ -8,15 +8,15 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::refresh_token;
+use crate::entity::refresh_tokens;
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
 
 #[async_trait]
 pub trait RefreshTokenStore: Send + Sync {
-    async fn save_refresh_token(&self, token: refresh_token::Model) -> StoreResult<()>;
-    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_token::Model>>;
+    async fn save_refresh_token(&self, token: refresh_tokens::Model) -> StoreResult<()>;
+    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>>;
     async fn revoke_refresh_token(&self, id: Uuid) -> StoreResult<()>;
     async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()>;
 }
@@ -38,8 +38,8 @@ impl RetryPolicy for DbRefreshTokenStore {}
 #[retry]
 impl RefreshTokenStore for DbRefreshTokenStore {
     #[store_macros::no_retry]
-    async fn save_refresh_token(&self, token: refresh_token::Model) -> StoreResult<()> {
-        let am = refresh_token::ActiveModel {
+    async fn save_refresh_token(&self, token: refresh_tokens::Model) -> StoreResult<()> {
+        let am = refresh_tokens::ActiveModel {
             id: Set(token.id),
             user_id: Set(token.user_id),
             token_hash: Set(token.token_hash),
@@ -49,30 +49,30 @@ impl RefreshTokenStore for DbRefreshTokenStore {
             user_agent: Set(token.user_agent),
             ip: Set(token.ip),
         };
-        refresh_token::Entity::insert(am).exec(self.db.as_ref()).await?;
+        refresh_tokens::Entity::insert(am).exec(self.db.as_ref()).await?;
         Ok(())
     }
 
-    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_token::Model>> {
-        Ok(refresh_token::Entity::find_by_id(id)
+    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>> {
+        Ok(refresh_tokens::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?)
     }
 
     async fn revoke_refresh_token(&self, id: Uuid) -> StoreResult<()> {
-        refresh_token::Entity::update_many()
-            .col_expr(refresh_token::Column::Revoked, Expr::value(true))
-            .filter(refresh_token::Column::Id.eq(id))
+        refresh_tokens::Entity::update_many()
+            .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
+            .filter(refresh_tokens::Column::Id.eq(id))
             .exec(self.db.as_ref())
             .await?;
         Ok(())
     }
 
     async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()> {
-        refresh_token::Entity::update_many()
-            .col_expr(refresh_token::Column::Revoked, Expr::value(true))
-            .filter(refresh_token::Column::UserId.eq(user_id))
-            .filter(refresh_token::Column::Revoked.eq(false))
+        refresh_tokens::Entity::update_many()
+            .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
+            .filter(refresh_tokens::Column::UserId.eq(user_id))
+            .filter(refresh_tokens::Column::Revoked.eq(false))
             .exec(self.db.as_ref())
             .await?;
         Ok(())
@@ -111,7 +111,7 @@ fn refresh_token_key(id: Uuid) -> String {
 
 #[async_trait]
 impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
-    async fn save_refresh_token(&self, token: refresh_token::Model) -> StoreResult<()> {
+    async fn save_refresh_token(&self, token: refresh_tokens::Model) -> StoreResult<()> {
         let token_id = token.id;
         self.inner.save_refresh_token(token.clone()).await?;
 
@@ -125,9 +125,9 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
         Ok(())
     }
 
-    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_token::Model>> {
+    async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>> {
         let key = refresh_token_key(id);
-        match get_serializable::<refresh_token::Model>(self.cache.as_ref(), &key).await {
+        match get_serializable::<refresh_tokens::Model>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(Some(v)),
             Ok(None) => {}
             Err(e) => {

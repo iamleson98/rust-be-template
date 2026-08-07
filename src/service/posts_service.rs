@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::entity::post;
+use crate::entity::posts;
 use crate::error::{AppError, AppResult};
 use crate::rbac::RbacChecker;
 use crate::rbac::model::consts as rbac;
@@ -24,14 +24,14 @@ impl PostService {
     }
 
     /// List posts (paginated). Public read — no permission required.
-    pub async fn list(&self, limit: u64, offset: u64) -> AppResult<Vec<post::Model>> {
+    pub async fn list(&self, limit: u64, offset: u64) -> AppResult<Vec<posts::Model>> {
         // Clamp limit to prevent abuse.
         let limit = limit.min(100);
         Ok(self.store.list_posts(limit, offset).await?)
     }
 
     /// Get a single post. Public read.
-    pub async fn get(&self, id: Uuid) -> AppResult<post::Model> {
+    pub async fn get(&self, id: Uuid) -> AppResult<posts::Model> {
         Ok(self.store.get_post(id).await?)
     }
 
@@ -41,7 +41,7 @@ impl PostService {
         caller_id: Uuid,
         title: String,
         body: String,
-    ) -> AppResult<post::Model> {
+    ) -> AppResult<posts::Model> {
         validate_post(&title, &body)?;
         self.rbac
             .require(caller_id, rbac::POSTS_WRITE)
@@ -57,7 +57,7 @@ impl PostService {
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
-    ) -> AppResult<post::Model> {
+    ) -> AppResult<posts::Model> {
         if let Some(ref t) = title {
             validate_title(t)?;
         }

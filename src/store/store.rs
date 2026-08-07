@@ -4,7 +4,7 @@
 //! implementations are separated per domain (`UserStore`, `PostStore`,
 //! `RbacStore`, `RefreshTokenStore`).
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
  
 use super::{PostStore, RbacStore, RefreshTokenStore, UserStore};
@@ -14,7 +14,7 @@ pub struct UserPermissions {
     pub user_id: uuid::Uuid,
     pub permission_names: Vec<String>,
     pub role_names: Vec<String>,
-    pub fetched_at: NaiveDateTime,
+    pub fetched_at: DateTime<Utc>,
 }
 
 pub trait Store:

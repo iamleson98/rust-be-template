@@ -1,11 +1,11 @@
-use chrono::{Duration, NaiveDateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::Sha256;
 use uuid::Uuid;
 
 use crate::config::JwtConfig;
-use crate::entity::refresh_token;
+use crate::entity::refresh_tokens;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -68,10 +68,10 @@ impl RefreshTokenManager {
         user_id: Uuid,
         user_agent: Option<String>,
         ip: Option<String>,
-    ) -> refresh_token::Model {
-        let now = Utc::now().naive_utc();
+    ) -> refresh_tokens::Model {
+        let now = Utc::now();
         let exp = now + Duration::seconds(self.cfg.refresh_ttl_secs as i64);
-        refresh_token::Model {
+        refresh_tokens::Model {
             id: token.id,
             user_id,
             token_hash: token.secret_hash(),
@@ -83,7 +83,7 @@ impl RefreshTokenManager {
         }
     }
 
-    pub fn expires_at(&self) -> NaiveDateTime {
-        Utc::now().naive_utc() + Duration::seconds(self.cfg.refresh_ttl_secs as i64)
+    pub fn expires_at(&self) -> DateTime<Utc> {
+        Utc::now() + Duration::seconds(self.cfg.refresh_ttl_secs as i64)
     }
 }

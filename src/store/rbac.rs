@@ -11,7 +11,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::{permission, role, role_permission, user_role};
+use crate::entity::{permissions, role_permissions, roles, user_roles};
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
@@ -21,8 +21,8 @@ use super::UserPermissions;
 pub trait RbacStore: Send + Sync {
     async fn get_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions>;
     async fn assign_role(&self, user_id: Uuid, role_id: Uuid) -> StoreResult<()>;
-    async fn list_roles(&self) -> StoreResult<Vec<role::Model>>;
-    async fn list_permissions(&self) -> StoreResult<Vec<permission::Model>>;
+    async fn list_roles(&self) -> StoreResult<Vec<roles::Model>>;
+    async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>>;
 }
 
 #[derive(Clone)]
@@ -37,21 +37,21 @@ impl DbRbacStore {
 
     async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions> {
         let db = self.db.as_ref();
-        let roles: Vec<role::Model> = role::Entity::find()
-            .join_rev(JoinType::InnerJoin, user_role::Relation::Role.def())
-            .filter(user_role::Column::UserId.eq(user_id))
+        let roles: Vec<roles::Model> = roles::Entity::find()
+            .join_rev(JoinType::InnerJoin, user_roles::Relation::Roles.def())
+            .filter(user_roles::Column::UserId.eq(user_id))
             .all(db)
             .await?;
 
         let role_ids: Vec<Uuid> = roles.iter().map(|r| r.id).collect();
         let role_names: Vec<String> = roles.iter().map(|r| r.name.clone()).collect();
 
-        let permissions: Vec<permission::Model> = if role_ids.is_empty() {
+        let permissions: Vec<permissions::Model> = if role_ids.is_empty() {
             Vec::new()
         } else {
-            permission::Entity::find()
-                .join_rev(JoinType::InnerJoin, role_permission::Relation::Permission.def())
-                .filter(role_permission::Column::RoleId.is_in(role_ids))
+            permissions::Entity::find()
+                .join_rev(JoinType::InnerJoin, role_permissions::Relation::Permissions.def())
+                .filter(role_permissions::Column::RoleId.is_in(role_ids))
                 .all(db)
                 .await?
         };
@@ -60,7 +60,7 @@ impl DbRbacStore {
             user_id,
             permission_names: permissions.iter().map(|p| p.name.clone()).collect(),
             role_names,
-            fetched_at: Utc::now().naive_utc(),
+            fetched_at: Utc::now(),
         })
     }
 }
@@ -75,17 +75,17 @@ impl RbacStore for DbRbacStore {
     }
 
     async fn assign_role(&self, user_id: Uuid, role_id: Uuid) -> StoreResult<()> {
-        let am = user_role::ActiveModel {
+        let am = user_roles::ActiveModel {
             user_id: Set(user_id),
             role_id: Set(role_id),
-            assigned_at: Set(Utc::now().naive_utc()),
+            assigned_at: Set(Utc::now()),
         };
 
-        user_role::Entity::insert(am)
+        user_roles::Entity::insert(am)
             .on_conflict(
                 sea_orm::sea_query::OnConflict::columns([
-                    user_role::Column::UserId,
-                    user_role::Column::RoleId,
+                    user_roles::Column::UserId,
+                    user_roles::Column::RoleId,
                 ])
                 .do_nothing()
                 .to_owned(),
@@ -97,16 +97,16 @@ impl RbacStore for DbRbacStore {
         Ok(())
     }
 
-    async fn list_roles(&self) -> StoreResult<Vec<role::Model>> {
-        Ok(role::Entity::find()
-            .order_by_asc(role::Column::Name)
+    async fn list_roles(&self) -> StoreResult<Vec<roles::Model>> {
+        Ok(roles::Entity::find()
+            .order_by_asc(roles::Column::Name)
             .all(self.db.as_ref())
             .await?)
     }
 
-    async fn list_permissions(&self) -> StoreResult<Vec<permission::Model>> {
-        Ok(permission::Entity::find()
-            .order_by_asc(permission::Column::Name)
+    async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>> {
+        Ok(permissions::Entity::find()
+            .order_by_asc(permissions::Column::Name)
             .all(self.db.as_ref())
             .await?)
     }
@@ -171,11 +171,11 @@ impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
         result
     }
 
-    async fn list_roles(&self) -> StoreResult<Vec<role::Model>> {
+    async fn list_roles(&self) -> StoreResult<Vec<roles::Model>> {
         self.inner.list_roles().await
     }
 
-    async fn list_permissions(&self) -> StoreResult<Vec<permission::Model>> {
+    async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>> {
         self.inner.list_permissions().await
     }
 }

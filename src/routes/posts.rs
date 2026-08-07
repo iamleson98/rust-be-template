@@ -8,7 +8,7 @@ use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::entity::post;
+use crate::entity::posts;
 use crate::error::AppResult;
 use crate::middleware::AuthUser;
 use crate::state::AppState;
@@ -23,15 +23,15 @@ pub struct PostOut {
     pub updated_at: DateTime<Utc>,
 }
 
-impl From<post::Model> for PostOut {
-    fn from(m: post::Model) -> Self {
+impl From<posts::Model> for PostOut {
+    fn from(m: posts::Model) -> Self {
         Self {
             id: m.id,
             author_id: m.author_id,
             title: m.title,
             body: m.body,
-            created_at: m.created_at.and_utc(),
-            updated_at: m.updated_at.and_utc(),
+            created_at: m.created_at,
+            updated_at: m.updated_at,
         }
     }
 }

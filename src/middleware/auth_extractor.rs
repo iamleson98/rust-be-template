@@ -18,8 +18,8 @@ use axum::http::request::Parts;
 use uuid::Uuid;
 
 use crate::auth::csrf::extract_tokens;
-use crate::auth::jwt_validator::JwtValidator;
 use crate::error::AppError;
+use crate::service::AuthService;
 
 /// Authenticated user extractor.
 ///
@@ -31,12 +31,12 @@ pub struct AuthUser(pub Uuid);
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
-    Arc<JwtValidator>: FromRef<S>,
+    Arc<AuthService>: FromRef<S>,
 {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let validator = Arc::<JwtValidator>::from_ref(state);
+        let auth = Arc::<AuthService>::from_ref(state);
 
         // The cookie jar is extracted from the same `parts` — axum-extra's
         // `CookieJar::from_request_parts` is infallible.
@@ -47,11 +47,11 @@ where
         let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
 
         // Full JWT verify (HMAC-SHA256) + revocation checks.
-        let claims = validator
-            .verify(&token)
+        let user_id = auth
+            .verify_access_token(&token)
             .await
             .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
-        Ok(AuthUser(claims.sub))
+        Ok(AuthUser(user_id))
     }
 }
 
@@ -61,20 +61,20 @@ pub struct MaybeAuthUser(pub Option<Uuid>);
 impl<S> FromRequestParts<S> for MaybeAuthUser
 where
     S: Send + Sync,
-    Arc<JwtValidator>: FromRef<S>,
+    Arc<AuthService>: FromRef<S>,
 {
     type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        let validator = Arc::<JwtValidator>::from_ref(state);
+        let auth = Arc::<AuthService>::from_ref(state);
         let jar = axum_extra::extract::CookieJar::from_request_parts(parts, state)
             .await
             .expect("cookie jar extractor never fails");
         let (access, _) = extract_tokens(&jar);
         match access {
             None => Ok(MaybeAuthUser(None)),
-            Some(tok) => match validator.verify(&tok).await {
-                Ok(c) => Ok(MaybeAuthUser(Some(c.sub))),
+            Some(tok) => match auth.verify_access_token(&tok).await {
+                Ok(user_id) => Ok(MaybeAuthUser(Some(user_id))),
                 Err(_) => Ok(MaybeAuthUser(None)),
             },
         }

@@ -61,12 +61,11 @@ pub async fn ready(State(state): State<AppState>) -> AppResult<impl IntoResponse
 /// Ping the database with a trivial query. Returns false if it fails
 /// within the timeout (5s) — the connection is probably dead.
 async fn ping_db(state: &AppState) -> bool {
-    use sea_orm::ConnectionTrait;
     use std::time::Duration;
     use tokio::time::timeout;
 
-    let db = state.db.as_ref();
-    let ping = async { db.execute_unprepared("SELECT 1").await };
+    // Readiness via store path so AppState does not need a raw DB handle.
+    let ping = async { state.store.list_roles().await };
 
     match timeout(Duration::from_secs(5), ping).await {
         Ok(Ok(_)) => true,

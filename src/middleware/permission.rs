@@ -1,9 +1,8 @@
-use std::sync::Arc;
-
 use axum::extract::Request;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::Response;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::AppError;
@@ -18,7 +17,7 @@ pub fn require_permission(
     state: AppState,
     permission: &'static str,
 ) -> impl Fn(Request, Next) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response, StatusCode>> + Send>> + Clone + Send + Sync + 'static {
-    let checker = state.rbac.clone();
+    let checker = Arc::new(RbacChecker::new(state.store.clone()));
     let permission = permission.to_string();
     move |req: Request, next: Next| {
         let checker = checker.clone();

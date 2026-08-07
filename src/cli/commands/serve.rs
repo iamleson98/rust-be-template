@@ -1,13 +1,19 @@
 //! `backend serve` — start the HTTP server.
 
+use anyhow::Context;
+
+use crate::cli::util::db_connect;
+use crate::config::Config;
 use crate::server;
 
 pub async fn run(no_migrate: bool, bind: Option<String>) -> anyhow::Result<()> {
-    let state = server::bootstrap().await?;
-
     if !no_migrate {
-        run_migrations(state.db.as_ref()).await?;
+        let cfg = Config::load().context("loading config")?;
+        let db = db_connect(&cfg).await?;
+        run_migrations(&db).await?;
     }
+
+    let state = server::bootstrap().await?;
 
     if let Some(addr) = bind {
         // Override the bind address at runtime. We have to rebuild state

@@ -2,18 +2,10 @@ use std::sync::Arc;
 
 use axum::extract::FromRef;
 
-use crate::auth::csrf::CsrfManager;
-use crate::auth::jwt::JwtManager;
-use crate::auth::jwt_validator::JwtValidator;
-use crate::auth::password::PasswordHasher;
-use crate::auth::refresh::RefreshTokenManager;
-use crate::cache::CacheBackend;
 use crate::config::Config;
-use crate::rbac::RbacChecker;
 use crate::service::{AuthService, PostService, UserService};
 use crate::store::Store;
 use crate::ws::Hub;
-use sea_orm::DatabaseConnection;
 
 /// The single application state object shared across handlers.
 ///
@@ -36,30 +28,13 @@ use sea_orm::DatabaseConnection;
 pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
-    pub db: Arc<DatabaseConnection>,
     pub store: Arc<dyn Store>,
-    pub cache: Arc<dyn CacheBackend>,
-    pub rbac: Arc<RbacChecker>,
-    pub jwt: Arc<JwtManager>,
-    pub jwt_validator: Arc<JwtValidator>,
-    pub refresh: Arc<RefreshTokenManager>,
-    pub password: Arc<PasswordHasher>,
-    pub csrf: Arc<CsrfManager>,
     pub ws_hub: Arc<Hub>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
     pub auth: Arc<AuthService>,
     pub posts: Arc<PostService>,
     pub users: Arc<UserService>,
-}
-
-/// `Arc<JwtValidator>` is extractable from `AppState` via `FromRef`.
-/// This lets the `AuthUser` extractor be generic over any state `S`
-/// where `Arc<JwtValidator>: FromRef<S>`.
-impl FromRef<AppState> for Arc<JwtValidator> {
-    fn from_ref(state: &AppState) -> Self {
-        state.jwt_validator.clone()
-    }
 }
 
 /// `Arc<Config>` is also extractable — useful for handlers that need

@@ -24,11 +24,12 @@ pub async fn ws_upgrade(
     Query(auth): Query<WsAuth>,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
-    let claims = state
-        .jwt
-        .verify_access(&auth.token)
+    let user_id = state
+        .auth
+        .verify_access_token(&auth.token)
+        .await
         .map_err(|e| AppError::Unauthorized(format!("ws auth: {e}")))?;
     Ok(ws.on_upgrade(move |socket| {
-        crate::ws::ws_handler(state.ws_hub.clone(), claims.sub, socket)
+        crate::ws::ws_handler(state.ws_hub.clone(), user_id, socket)
     }))
 }
