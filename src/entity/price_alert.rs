@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
+    /// Owner. `None` for legacy guest-created alerts (phone-only).
+    #[sea_orm(column_type = "Text", nullable)]
+    pub user_id: Option<String>,
     pub phone: String,
     pub email: Option<String>,
     pub from_name: Option<String>,
@@ -21,6 +24,10 @@ pub struct Model {
     pub created_at: String,
     #[sea_orm(column_type = "Text", nullable)]
     pub expires_at: Option<String>,
+    /// ISO timestamp of the last time this alert fired (price dropped
+    /// below target). `None` if never triggered.
+    #[sea_orm(column_type = "Text", nullable)]
+    pub last_triggered_at: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -33,11 +40,25 @@ pub enum Relation {
         on_delete = "SetNull"
     )]
     Route,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
+        from = "Column::UserId",
+        to = "super::user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    User,
 }
 
 impl Related<super::route::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Route.def()
+    }
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::User.def()
     }
 }
 

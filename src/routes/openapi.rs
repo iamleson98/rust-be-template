@@ -16,6 +16,9 @@ use utoipa::OpenApi;
         crate::routes::posts::get_post,
         crate::routes::posts::update_post,
         crate::routes::posts::delete_post,
+        crate::routes::price_alerts::list,
+        crate::routes::price_alerts::create,
+        crate::routes::price_alerts::remove,
         crate::routes::health::health,
         crate::routes::health::ready,
     ),
@@ -28,11 +31,16 @@ use utoipa::OpenApi;
         crate::routes::posts::CreatePostRequest,
         crate::routes::posts::UpdatePostRequest,
         crate::routes::posts::ListPostsResponse,
+        crate::routes::price_alerts::PriceAlertOut,
+        crate::routes::price_alerts::CreatePriceAlertRequest,
+        crate::routes::price_alerts::CreatePriceAlertResponse,
+        crate::routes::price_alerts::PriceAlertListEnvelope,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
         (name = "users", description = "User management"),
         (name = "posts", description = "Post management"),
+        (name = "price-alerts", description = "Price-drop alert subscriptions"),
         (name = "system", description = "Health & readiness"),
     )
 )]

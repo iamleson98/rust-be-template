@@ -8,6 +8,7 @@ use crate::auth::jwt::JwtManager;
 use crate::auth::jwt_validator::JwtValidator;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::{RefreshTokenManager, RefreshTokenValue};
+use crate::auth::SessionUser;
 use crate::config::{Config, CookieConfig};
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
@@ -185,6 +186,29 @@ impl AuthService {
             .await
             .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
         Ok(claims.sub)
+    }
+
+    /// Verify an access token and return the full `SessionUser` (loaded
+    /// from the user store). Used by transports that route by role/brand
+    /// (WebSocket, audio-call) where carrying just the id isn't enough.
+    pub async fn verify_access_token_session(&self, token: &str) -> AppResult<SessionUser> {
+        let user_id = self.verify_access_token(token).await?;
+        let user = self.store.user_store().get_user(user_id).await?;
+        let mut session = SessionUser::from_model(&user);
+        if let Some(brand_id) = &user.brand_id {
+            if let Ok(id) = uuid::Uuid::parse_str(brand_id) {
+                if let Ok(Some(brand)) = self
+                    .store
+                    .brand_store()
+                    .get_by_id(id)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))
+                {
+                    session.brand_name = Some(brand.name);
+                }
+            }
+        }
+        Ok(session)
     }
 
     /// Issue a fresh auth session: new access JWT + new refresh token

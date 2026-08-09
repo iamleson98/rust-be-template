@@ -17,4 +17,4 @@ pub use self::runner::run;
 mod commands;
 mod parser;
 mod runner;
-mod util;
+pub mod util;

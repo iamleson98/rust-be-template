@@ -1,0 +1,379 @@
+//! Review service — business logic for review CRUD, listing, and moderation.
+//!
+//! Ported from `booking-rs/logic/reviews.rs`, adapted to the template's
+//! store + `AppError` architecture.
+//!
+//! ## Design
+//! - Validates inputs (rating range, content length, ownership).
+//! - Uses `CompositeStore` (ReviewStore + BrandStore) for all DB access.
+//! - Maps domain rows to JSON DTOs.
+//! - Recomputes brand rating after create/update/delete.
+
+use std::sync::Arc;
+
+use chrono::Utc;
+use sea_orm::Set;
+use serde_json::{json, Value};
+use uuid::Uuid;
+
+use crate::entity::review;
+use crate::error::{AppError, AppResult};
+use crate::store::CompositeStore;
+
+// ────────────────────────────────────────────────────────────────
+//  Input DTOs
+// ────────────────────────────────────────────────────────────────
+
+/// Input for creating a review.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CreateReviewInput {
+    pub booking_id: Option<String>,
+    pub trip_session_id: Option<String>,
+    pub route_id: Option<String>,
+    pub brand_id: Option<String>,
+    pub rating: i32,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub photos: Option<Vec<String>>,
+    pub author_name: Option<String>,
+    pub author_phone: Option<String>,
+    pub user_id: Option<String>,
+}
+
+/// Input for updating a review.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct UpdateReviewInput {
+    pub rating: Option<i32>,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub photos: Option<Vec<String>>,
+}
+
+/// Filter for listing reviews.
+#[derive(Debug, Clone, Default)]
+pub struct ReviewListFilter {
+    pub brand_id: Option<String>,
+    pub route_id: Option<String>,
+    pub user_id: Option<String>,
+    pub status: Option<String>,
+    pub limit: u64,
+    pub offset: u64,
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Service
+// ────────────────────────────────────────────────────────────────
+
+pub struct ReviewService {
+    store: Arc<CompositeStore>,
+}
+
+impl ReviewService {
+    pub fn new(store: Arc<CompositeStore>) -> Self {
+        Self { store }
+    }
+
+    /// List reviews with optional filters.
+    pub async fn list(&self, filter: &ReviewListFilter) -> AppResult<Value> {
+        let limit = filter.limit.min(200);
+        let reviews = self.store.review_store()
+            .list_reviews(
+                filter.brand_id.as_deref(),
+                filter.route_id.as_deref(),
+                filter.user_id.as_deref(),
+                filter.status.as_deref(),
+                limit,
+                filter.offset,
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let items: Vec<Value> = reviews.iter().map(review_to_json).collect();
+        Ok(json!({ "items": items }))
+    }
+
+    /// Get a single review by id.
+    pub async fn get(&self, id: Uuid) -> AppResult<Value> {
+        let r = self.store.review_store()
+            .find_review_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("review not found".into()))?;
+
+        Ok(review_to_json(&r))
+    }
+
+    /// Create a new review. Validates rating range and content length.
+    /// After creation, recomputes the brand's average rating.
+    pub async fn create(&self, input: &CreateReviewInput) -> AppResult<Value> {
+        // Validate rating
+        if input.rating < 1 || input.rating > 5 {
+            return Err(AppError::Validation("rating must be 1-5".into()));
+        }
+
+        // Validate content length if provided
+        if let Some(ref content) = input.content {
+            if content.len() > 5000 {
+                return Err(AppError::Validation(
+                    "content must be at most 5000 characters".into(),
+                ));
+            }
+        }
+
+        let id = Uuid::new_v4();
+        let now = now_iso();
+        let tags_str = input
+            .tags
+            .as_ref()
+            .map(|t| t.join(","))
+            .unwrap_or_default();
+        let photos_str = input
+            .photos
+            .as_ref()
+            .map(|p| serde_json::to_string(p).unwrap_or_default())
+            .unwrap_or_default();
+
+        let model = review::ActiveModel {
+            id: Set(id),
+            booking_id: Set(input.booking_id.clone()),
+            trip_session_id: Set(input.trip_session_id.clone()),
+            route_id: Set(input.route_id.clone()),
+            brand_id: Set(input.brand_id.clone()),
+            author_name: Set(input.author_name.clone()),
+            author_phone: Set(input.author_phone.clone()),
+            rating: Set(input.rating),
+            title: Set(input.title.clone()),
+            content: Set(input.content.clone()),
+            tags: Set(if tags_str.is_empty() {
+                None
+            } else {
+                Some(tags_str)
+            }),
+            photos: Set(if photos_str.is_empty() {
+                None
+            } else {
+                Some(photos_str)
+            }),
+            status: Set("pending".to_string()),
+            helpful_count: Set(0),
+            reply: Set(None),
+            replied_at: Set(None),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+            user_id: Set(input.user_id.clone()),
+        };
+
+        self.store.review_store()
+            .insert_review(model)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Recompute brand rating (best-effort)
+        if let Some(ref bid) = input.brand_id {
+            let _ = self.recompute_brand_rating(bid).await;
+        }
+
+        Ok(json!({ "id": id }))
+    }
+
+    /// Update a review. Only the author can update their own review.
+    /// After update, recomputes the brand's average rating.
+    pub async fn update(
+        &self,
+        id: Uuid,
+        caller_user_id: Option<&str>,
+        input: &UpdateReviewInput,
+    ) -> AppResult<Value> {
+        let existing = self.store.review_store()
+            .find_review_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("review not found".into()))?;
+
+        // Ownership check
+        if let Some(uid) = caller_user_id {
+            if existing.user_id.as_deref() != Some(uid) {
+                return Err(AppError::Forbidden(
+                    "can only update your own reviews".into(),
+                ));
+            }
+        }
+
+        // Validate rating
+        if let Some(rating) = input.rating {
+            if rating < 1 || rating > 5 {
+                return Err(AppError::Validation("rating must be 1-5".into()));
+            }
+        }
+
+        let mut active: review::ActiveModel = existing.into();
+
+        if let Some(rating) = input.rating {
+            active.rating = Set(rating);
+        }
+        if let Some(ref title) = input.title {
+            active.title = Set(Some(title.clone()));
+        }
+        if let Some(ref content) = input.content {
+            if content.len() > 5000 {
+                return Err(AppError::Validation(
+                    "content must be at most 5000 characters".into(),
+                ));
+            }
+            active.content = Set(Some(content.clone()));
+        }
+        if let Some(ref tags) = input.tags {
+            active.tags = Set(Some(tags.join(",")));
+        }
+        if let Some(ref photos) = input.photos {
+            active.photos = Set(Some(serde_json::to_string(photos).unwrap_or_default()));
+        }
+
+        active.updated_at = Set(now_iso());
+
+        let result = self.store.review_store()
+            .update_review(active)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Recompute brand rating (best-effort)
+        if let Some(ref bid) = result.brand_id {
+            let _ = self.recompute_brand_rating(bid).await;
+        }
+
+        Ok(json!({ "id": id }))
+    }
+
+    /// Delete a review. Only the author or an admin can delete.
+    pub async fn remove(&self, id: Uuid, caller_user_id: Option<&str>) -> AppResult<()> {
+        let existing = self.store.review_store()
+            .find_review_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("review not found".into()))?;
+
+        // Ownership check (admin bypass is handled at the route level)
+        if let Some(uid) = caller_user_id {
+            if existing.user_id.as_deref() != Some(uid) {
+                return Err(AppError::Forbidden(
+                    "can only delete your own reviews".into(),
+                ));
+            }
+        }
+
+        let brand_id = existing.brand_id.clone();
+
+        self.store.review_store()
+            .delete_review(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Recompute brand rating (best-effort)
+        if let Some(bid) = brand_id {
+            let _ = self.recompute_brand_rating(&bid).await;
+        }
+
+        Ok(())
+    }
+
+    /// List available review tags (distinct tags from all reviews).
+    pub async fn tags_index(&self) -> AppResult<Value> {
+        // Get all reviews and extract unique tags
+        let reviews = self.store.review_store()
+            .list_all_reviews()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut tags: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for r in &reviews {
+            if let Some(t) = &r.tags {
+                for tag in t.split(',') {
+                    let trimmed = tag.trim();
+                    if !trimmed.is_empty() {
+                        tags.insert(trimmed.to_string());
+                    }
+                }
+            }
+        }
+
+        let mut tag_list: Vec<String> = tags.into_iter().collect();
+        tag_list.sort();
+
+        Ok(json!({ "items": tag_list }))
+    }
+
+    // ── Private helpers ─────────────────────────────────────────
+
+    /// Recompute the average rating for a brand from all its approved reviews.
+    async fn recompute_brand_rating(&self, brand_id: &str) -> AppResult<()> {
+        let reviews = self.store.review_store()
+            .list_reviews_by_brand(brand_id, "approved")
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let avg = if reviews.is_empty() {
+            None
+        } else {
+            let sum: i32 = reviews.iter().map(|r| r.rating).sum();
+            Some(sum as f64 / reviews.len() as f64)
+        };
+
+        // Update the brand's rating
+        let brand_id_uuid = Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        self.store.brand_store()
+            .update_brand_rating(brand_id_uuid, avg)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(())
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Serialization helpers
+// ────────────────────────────────────────────────────────────────
+
+fn review_to_json(r: &review::Model) -> Value {
+    let tags: Vec<&str> = r
+        .tags
+        .as_deref()
+        .unwrap_or("")
+        .split(',')
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let photos: Vec<String> = r
+        .photos
+        .as_deref()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default();
+
+    json!({
+        "id": r.id,
+        "bookingId": r.booking_id,
+        "tripSessionId": r.trip_session_id,
+        "routeId": r.route_id,
+        "brandId": r.brand_id,
+        "authorName": r.author_name,
+        "authorPhone": r.author_phone,
+        "rating": r.rating,
+        "title": r.title,
+        "content": r.content,
+        "tags": tags,
+        "photos": photos,
+        "status": r.status,
+        "helpfulCount": r.helpful_count,
+        "reply": r.reply,
+        "repliedAt": r.replied_at,
+        "createdAt": r.created_at,
+        "updatedAt": r.updated_at,
+        "userId": r.user_id,
+    })
+}
+
+/// Current UTC time as ISO 8601 string.
+fn now_iso() -> String {
+    Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}

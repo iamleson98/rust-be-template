@@ -66,6 +66,24 @@ tokio-util = { version = "0.7", features = ["io"] }
 # Enable via `--features kafka` when you actually need the Kafka broker.
 rdkafka = { version = "0.36", features = ["tokio"], default-features = false, optional = true }
 
+# HTTP client (for Valhalla routing proxy)
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+
+# Search / OSM place index (Tantivy fulltext + geo + OSM PBF ingestion)
+tantivy = "0.22"
+osmpbf = "0.3"
+geo = "0.29"
+rstar = "0.12"
+deunicode = "1"
+regex = "1"
+num_cpus = "1"
+
+# High-concurrency maps for WS hubs
+dashmap = "6"
+
+# Vietnamese text helpers
+unidecode = "0.3"
+
 # OpenAPI
 utoipa = { version = "5", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
@@ -88,6 +106,7 @@ time = "0.3"
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
+tempfile = "3.27.0"
 
 [features]
 default = ["sqlite"]

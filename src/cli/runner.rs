@@ -26,6 +26,12 @@ pub async fn run() -> anyhow::Result<()> {
             println!("{}", crate::cli::util::db_backend_name());
             Ok(())
         }
+        Command::ImportOsm {
+            pbf_path,
+            index_dir,
+            heap_bytes,
+            threads,
+        } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
     }
 }
 

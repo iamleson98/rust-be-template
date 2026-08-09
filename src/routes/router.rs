@@ -11,7 +11,6 @@ use utoipa::OpenApi;
 
 use crate::middleware::request_id::request_id_layer;
 use crate::state::AppState;
-
 /// Build the complete app router. The state is captured by `api_routes`
 /// via `.with_state(state.clone())`, which converts that sub-router to
 /// `Router<()>`. The outer router is then also `Router<()>` so it can be
@@ -55,7 +54,50 @@ pub fn build_router(state: AppState) -> Router<()> {
         .route("/posts/{id}", get(crate::routes::posts::get_post))
         .route("/posts/{id}", patch(crate::routes::posts::update_post))
         .route("/posts/{id}", delete(crate::routes::posts::delete_post))
-        .route("/ws", get(crate::routes::ws::ws_upgrade))
+        // ── Booking-domain routes ──────────────────────────────────────
+        .route("/bookings", get(crate::routes::bookings::list))
+        .route("/bookings", post(crate::routes::bookings::hold))
+        .route("/bookings/hold", post(crate::routes::bookings::hold))
+        .route("/bookings/lookup", get(crate::routes::bookings::lookup))
+        .route("/bookings/{id}", get(crate::routes::bookings::detail))
+        .route("/bookings/{id}/cancel", post(crate::routes::bookings::cancel))
+        .route("/bookings/{id}/confirm", post(crate::routes::bookings::confirm))
+        // ── Public catalog ─────────────────────────────────────────────
+        .route("/brands", get(crate::routes::public::brands))
+        .route("/brands/{slug}", get(crate::routes::public::brand_detail))
+        .route("/routes", get(crate::routes::public::routes))
+        .route("/trips/{id}", get(crate::routes::public::trip_detail))
+        .route("/search", get(crate::routes::public::search_trips))
+        .route("/recommendations", get(crate::routes::public::recommendations))
+        .route("/campaigns", get(crate::routes::public::campaigns))
+        .route("/campaigns/validate", get(crate::routes::public::validate_campaign))
+        .route("/stats", get(crate::routes::public::stats))
+        // ── Places (OSM search) ────────────────────────────────────────
+        .route("/places", get(crate::routes::places::list))
+        .route("/places/search", get(crate::routes::places::search))
+        .route("/places/reverse", get(crate::routes::places::reverse))
+        // ── Routing (Valhalla proxy) ───────────────────────────────────
+        .route("/routing/directions", get(crate::routes::routing::directions))
+        .route("/routing/matrix", get(crate::routes::routing::matrix))
+        .route("/routing/isochrone", get(crate::routes::routing::isochrone))
+        // ── Reviews ────────────────────────────────────────────────────
+        .route("/reviews/tags", get(crate::routes::reviews::tags))
+        .route("/reviews", get(crate::routes::reviews::list))
+        .route("/reviews", post(crate::routes::reviews::create))
+        .route("/reviews/{id}", get(crate::routes::reviews::get))
+        .route("/reviews/{id}", patch(crate::routes::reviews::update))
+        .route("/reviews/{id}", delete(crate::routes::reviews::remove))
+        // ── Price alerts ───────────────────────────────────────────────
+        .route("/price-alerts", get(crate::routes::price_alerts::list))
+        .route("/price-alerts", post(crate::routes::price_alerts::create))
+        .route("/price-alerts/{id}", delete(crate::routes::price_alerts::remove))
+        // ── Chat (REST fallback for WS) ────────────────────────────────
+        .route("/chat/channels", get(crate::routes::chat::list_channels))
+        .route("/chat/channels/{id}/messages", get(crate::routes::chat::list_messages))
+        .route("/chat/channels/{id}/read", post(crate::routes::chat::mark_read))
+        // ── ZeroClaw ───────────────────────────────────────────────────
+        .route("/zeroclaw/status", get(crate::routes::zeroclaw::status))
+        .route("/zeroclaw/exchanges", get(crate::routes::zeroclaw::list_exchanges))
         // CSRF check — runs on every mutating request. Safe methods + the
         // auth endpoints that establish the session are exempt (see impl).
         .layer(axum::middleware::from_fn_with_state(
@@ -102,6 +144,13 @@ pub fn build_router(state: AppState) -> Router<()> {
         .route("/health", get(crate::routes::health::health))
         .route("/ready", get(crate::routes::health::ready))
         .nest("/api", api_routes)
+        // Chat WebSocket hub (`/ws`) — mounted at the root (not under /api)
+        // so the frontend can connect to `/ws` directly. JWT auth via
+        // `?token=` query param.
+        .merge(crate::ws::handler::router())
+        // Audio-call signaling relay (`/ws-call`) — WebRTC offer/answer/ice
+        // relay between customers and support agents. Gated by config.
+        .merge(crate::audio_call::handler::router())
         .merge(swagger)
         .merge(static_router)
         // Request body size limit — protects against memory DoS.

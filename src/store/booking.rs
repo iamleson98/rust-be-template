@@ -1,0 +1,269 @@
+//! Booking store — read/write access to the `booking` and `booking_seat` tables.
+//!
+//! Follows the template's store pattern: `BookingStore` trait +
+//! `DbBookingStore` (`#[retry]`).
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+};
+use store_macros::retry;
+use uuid::Uuid;
+
+use crate::entity::{booking, booking_seat};
+
+use super::error::{StoreError, StoreResult};
+use super::retry::RetryPolicy;
+
+// ────────────────────────────────────────────────────────────────
+//  Trait
+// ────────────────────────────────────────────────────────────────
+
+#[async_trait]
+pub trait BookingStore: Send + Sync {
+    // ── Booking ─────────────────────────────────────────────────
+
+    async fn find_booking_by_id(&self, id: Uuid) -> StoreResult<Option<booking::Model>>;
+    async fn list_bookings_by_user(
+        &self,
+        user_id: &str,
+        status: &str,
+        trip_session_ids: Vec<String>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>>;
+    async fn lookup_bookings(
+        &self,
+        code: Option<&str>,
+        phone: Option<&str>,
+        limit: u64,
+    ) -> StoreResult<Vec<booking::Model>>;
+    async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()>;
+    async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model>;
+
+    /// Count bookings matching an optional status filter. Uses `COUNT(*)`
+    /// — does NOT load rows into memory.
+    async fn count_bookings_by_status(
+        &self,
+        status: Option<&str>,
+    ) -> StoreResult<u64>;
+
+    /// List bookings matching an optional status filter, with pagination.
+    /// Ordered by `created_at DESC`.
+    async fn list_bookings_by_status(
+        &self,
+        status: Option<&str>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>>;
+
+    /// List ALL bookings matching an optional status filter (no pagination).
+    /// Used by stats / export which need to iterate every row. Avoid using
+    /// this for list endpoints — use `list_bookings_by_status` instead.
+    async fn list_all_bookings_by_status(
+        &self,
+        status: Option<&str>,
+    ) -> StoreResult<Vec<booking::Model>>;
+
+    // ── BookingSeat ─────────────────────────────────────────────
+
+    async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>>;
+    async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()>;
+    async fn update_seat_inventory_status(
+        &self,
+        trip_session_id: &str,
+        seat_id: &str,
+        status: &str,
+    ) -> StoreResult<()>;
+    async fn list_booking_seats_by_booking_ids(&self, booking_ids: Vec<String>) -> StoreResult<Vec<booking_seat::Model>>;
+}
+
+// ────────────────────────────────────────────────────────────────
+//  DB implementation
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+pub struct DbBookingStore {
+    db: Arc<DatabaseConnection>,
+}
+
+impl DbBookingStore {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+}
+
+impl RetryPolicy for DbBookingStore {}
+
+#[async_trait]
+#[retry]
+impl BookingStore for DbBookingStore {
+    async fn find_booking_by_id(&self, id: Uuid) -> StoreResult<Option<booking::Model>> {
+        Ok(booking::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_bookings_by_user(
+        &self,
+        user_id: &str,
+        status: &str,
+        trip_session_ids: Vec<String>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>> {
+        let mut query = booking::Entity::find()
+            .filter(booking::Column::UserId.eq(user_id.to_string()));
+
+        match status {
+            "confirmed" | "upcoming" => {
+                query = query.filter(booking::Column::Status.eq("confirmed"));
+                if !trip_session_ids.is_empty() {
+                    query =
+                        query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                }
+            }
+            "completed" | "past" => {
+                query = query.filter(booking::Column::Status.eq("completed"));
+                if !trip_session_ids.is_empty() {
+                    query =
+                        query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                }
+            }
+            "cancelled" => {
+                query = query.filter(booking::Column::Status.eq("cancelled"));
+            }
+            "all" => {}
+            _ => {}
+        }
+
+        Ok(query
+            .order_by_desc(booking::Column::CreatedAt)
+            .limit(limit)
+            .offset(offset)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn lookup_bookings(
+        &self,
+        code: Option<&str>,
+        phone: Option<&str>,
+        limit: u64,
+    ) -> StoreResult<Vec<booking::Model>> {
+        // Exact-match lookups (indexed). Avoids `LIKE '%phone%'` which
+        // forces a full table scan and can't use the index.
+        let mut query = booking::Entity::find();
+
+        if let Some(c) = code {
+            query = query.filter(booking::Column::Code.eq(c.to_string()));
+        }
+        if let Some(p) = phone {
+            query = query.filter(booking::Column::ContactPhone.eq(p.to_string()));
+        }
+
+        Ok(query.limit(limit).all(self.db.as_ref()).await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()> {
+        booking::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model> {
+        Ok(booking::Entity::update(model)
+            .exec(self.db.as_ref())
+            .await?)
+    }
+
+    async fn count_bookings_by_status(
+        &self,
+        status: Option<&str>,
+    ) -> StoreResult<u64> {
+        let mut query = booking::Entity::find();
+        if let Some(s) = status {
+            query = query.filter(booking::Column::Status.eq(s.to_string()));
+        }
+        Ok(query.count(self.db.as_ref()).await?)
+    }
+
+    async fn list_bookings_by_status(
+        &self,
+        status: Option<&str>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>> {
+        let mut query = booking::Entity::find();
+        if let Some(s) = status {
+            query = query.filter(booking::Column::Status.eq(s.to_string()));
+        }
+        Ok(query
+            .order_by_desc(booking::Column::CreatedAt)
+            .limit(limit)
+            .offset(offset)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_all_bookings_by_status(
+        &self,
+        status: Option<&str>,
+    ) -> StoreResult<Vec<booking::Model>> {
+        let mut query = booking::Entity::find();
+        if let Some(s) = status {
+            query = query.filter(booking::Column::Status.eq(s.to_string()));
+        }
+        Ok(query.all(self.db.as_ref()).await?)
+    }
+
+    async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>> {
+        Ok(booking_seat::Entity::find()
+            .filter(booking_seat::Column::BookingId.eq(booking_id.to_string()))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()> {
+        booking_seat::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    async fn update_seat_inventory_status(
+        &self,
+        trip_session_id: &str,
+        seat_id: &str,
+        status: &str,
+    ) -> StoreResult<()> {
+        // Atomic conditional UPDATE — only updates the seat if it exists.
+        // This avoids the read-then-write TOCTOU race of the previous
+        // implementation (which loaded the row, then wrote it back).
+        use sea_orm::sea_query::Expr;
+        use crate::entity::seat_inventory;
+        let res = seat_inventory::Entity::update_many()
+            .col_expr(seat_inventory::Column::Status, Expr::value(status))
+            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
+            .filter(seat_inventory::Column::SeatId.eq(seat_id.to_string()))
+            .exec(self.db.as_ref())
+            .await?;
+        if res.rows_affected == 0 {
+            return Err(StoreError::NotFound(format!("seat inventory {seat_id}")));
+        }
+        Ok(())
+    }
+
+    async fn list_booking_seats_by_booking_ids(&self, booking_ids: Vec<String>) -> StoreResult<Vec<booking_seat::Model>> {
+        Ok(booking_seat::Entity::find()
+            .filter(booking_seat::Column::BookingId.is_in(booking_ids))
+            .all(self.db.as_ref())
+            .await?)
+    }
+}

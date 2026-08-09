@@ -57,6 +57,22 @@ pub enum Command {
     /// Print the database backend that the build supports
     /// (`sqlite` or `postgres`), based on which cargo feature is enabled.
     DbBackend,
+
+    /// Build the Tantivy place-search index from an OSM PBF file.
+    /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
+    ImportOsm {
+        /// Path to the `.osm.pbf` file (e.g. `vietnam-latest.osm.pbf`).
+        pbf_path: PathBuf,
+        /// Output index directory (default: `SEARCH__INDEX_DIR` or `./place-index`).
+        #[arg(long, env = "SEARCH__INDEX_DIR")]
+        index_dir: Option<PathBuf>,
+        /// Max heap bytes for the indexer (default: 1 GiB).
+        #[arg(long, default_value_t = 1_073_741_824u64)]
+        heap_bytes: u64,
+        /// Number of indexer threads (default: all CPUs).
+        #[arg(long)]
+        threads: Option<usize>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
