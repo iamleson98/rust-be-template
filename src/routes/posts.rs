@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use chrono::{DateTime, Utc};
@@ -95,11 +93,9 @@ pub async fn create_post(
     AuthUser(user_id): AuthUser,
     Json(body): Json<CreatePostRequest>,
 ) -> AppResult<Json<PostOut>> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
-    let post = state
-        .posts
-        .create(user_id, body.title, body.body)
-        .await?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    let post = state.posts.create(user_id, body.title, body.body).await?;
     Ok(Json(PostOut::from(post)))
 }
 
@@ -145,7 +141,8 @@ pub async fn update_post(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePostRequest>,
 ) -> AppResult<Json<PostOut>> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let post = state
         .posts
         .update(user_id, id, body.title, body.body)

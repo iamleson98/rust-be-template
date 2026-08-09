@@ -1,5 +1,7 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
+use crate::migration::m20260809_013648_places_brands::Brand;
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -9,44 +11,95 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(Users::Table)
+                    .table(User::Table)
                     .if_not_exists()
-                    .col(pk_uuid(Users::Id))
-                    .col(string_len_uniq(Users::Email, 254))
-                    .col(string_len_uniq(Users::Username, 64))
-                    .col(string_len(Users::PasswordHash, 256))
-                    .col(timestamp(Users::CreatedAt).default(Expr::current_timestamp()))
-                    .col(timestamp(Users::UpdatedAt).default(Expr::current_timestamp()))
+                    .col(pk_uuid(User::Id)) // Use pk_uuid(User::Id) if you switch to UUID type
+                    .col(text_null(User::BrandId))
+                    .col(string_len(User::FullName, 255))
+                    .col(string_len_uniq(User::Email, 255))
+                    .col(string_len_uniq(User::Phone, 20))
+                    .col(text_null(User::EmailVerifiedAt))
+                    .col(text_null(User::PhoneVerifiedAt))
+                    .col(string_len(User::Status, 30).default("active"))
+                    .col(text_null(User::BlockReason))
+                    .col(string_len_null(User::PasswordHash, 255))
+                    .col(string_len_null(User::AvatarUrl, 500))
+                    .col(string_len(User::Locale, 10).default("vi"))
+                    .col(boolean(User::IsGuest).default(false))
+                    .col(string_len(User::Role, 30).default("user"))
+                    .col(integer(User::FailedLoginAttempts).default(0))
+                    .col(text_null(User::LockedUntil))
+                    .col(text_null(User::LastLoginAt))
+                    .col(string_len_null(User::LastLoginIp, 45))
+                    .col(text_null(User::PasswordChangedAt))
+                    .col(timestamp(User::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(User::UpdatedAt).default(Expr::current_timestamp()))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_user_brand")
+                            .from(User::Table, User::BrandId)
+                            .to(Brand::Table, Brand::Id)
+                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;
+
         manager
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("idx_users_email")
-                    .table(Users::Table)
-                    .col(Users::Email)
+                    .name("User_status_idx")
+                    .table(User::Table)
+                    .col(User::Status)
                     .to_owned(),
             )
             .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("User_brandId_idx")
+                    .table(User::Table)
+                    .col(User::BrandId)
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Users::Table).to_owned())
+            .drop_table(Table::drop().table(User::Table).to_owned())
             .await
     }
 }
 
-#[derive(DeriveIden)]
-enum Users {
+#[derive(Iden)]
+pub enum User {
     Table,
     Id,
+    BrandId,
+    FullName,
     Email,
-    Username,
+    Phone,
+    EmailVerifiedAt,
+    PhoneVerifiedAt,
+    Status,
+    BlockReason,
     PasswordHash,
+    AvatarUrl,
+    Locale,
+    IsGuest,
+    Role,
+    FailedLoginAttempts,
+    LockedUntil,
+    LastLoginAt,
+    LastLoginIp,
+    PasswordChangedAt,
     CreatedAt,
     UpdatedAt,
 }

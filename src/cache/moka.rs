@@ -55,7 +55,12 @@ impl CacheBackend for MokaBackend {
         Ok(self.inner.get(key).await)
     }
 
-    async fn set(&self, key: &str, value: CacheValue, _ttl: Option<Duration>) -> anyhow::Result<()> {
+    async fn set(
+        &self,
+        key: &str,
+        value: CacheValue,
+        _ttl: Option<Duration>,
+    ) -> anyhow::Result<()> {
         // Per-entry TTL would require storing the TTL alongside the value.
         // For now, the default TTL configured at construction time applies.
         // (See `PerEntryExpiry` above — adding per-entry support is a

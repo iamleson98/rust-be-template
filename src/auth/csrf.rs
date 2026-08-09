@@ -82,11 +82,7 @@ impl CsrfManager {
     /// Check the double-submit pattern against a request. Reads the
     /// `csrf_token` cookie + `X-CSRF-Token` header; both must be present
     /// and equal (and signature-valid).
-    pub fn check_request(
-        &self,
-        jar: &CookieJar,
-        header: Option<&str>,
-    ) -> Result<(), CsrfError> {
+    pub fn check_request(&self, jar: &CookieJar, header: Option<&str>) -> Result<(), CsrfError> {
         let cookie = jar
             .get(CSRF_COOKIE)
             .ok_or(CsrfError::MissingCookie)?

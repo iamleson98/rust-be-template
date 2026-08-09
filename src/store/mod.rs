@@ -11,7 +11,7 @@
 
 pub use self::error::{StoreError, StoreResult};
 pub use self::retry::RetryPolicy;
-pub use self::store::{Store, UserPermissions};
+pub use self::rbac::{UserPermissions};
 pub use self::users::{CacheUserStore, DbUserStore, UserStore};
 pub use self::posts::{CachePostStore, DbPostStore, PostStore};
 pub use self::rbac::{CacheRbacStore, DbRbacStore, RbacStore};
@@ -26,7 +26,6 @@ pub use self::composite::CompositeStore;
 mod macros;
 mod error;
 mod retry;
-mod store;
 mod users;
 mod posts;
 mod rbac;

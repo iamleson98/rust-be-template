@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
 use axum::extract::State;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
 
-use crate::entity::users;
+use crate::entity::user;
 use crate::error::{AppError, AppResult};
 use crate::middleware::AuthUser;
 use crate::state::AppState;
@@ -33,18 +30,18 @@ pub struct LoginRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
-    pub user_id: Uuid,
-    pub username: String,
+    pub user_id: String,
+    pub full_name: String,
     pub email: String,
     pub expires_at: DateTime<Utc>,
 }
 
 impl AuthResponse {
-    fn from_user(u: &users::Model, access_ttl_secs: u64) -> Self {
+    fn from_user(u: &user::Model, access_ttl_secs: u64) -> Self {
         Self {
-            user_id: u.id,
-            username: u.username.clone(),
-            email: u.email.clone(),
+            user_id: u.id.clone(),
+            full_name: u.full_name.clone(),
+            email: u.email.clone().unwrap_or("".into()),
             expires_at: Utc::now() + chrono::Duration::seconds(access_ttl_secs as i64),
         }
     }
@@ -65,7 +62,8 @@ pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterRequest>,
 ) -> AppResult<Json<AuthResponse>> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let user = state
         .auth
         .register(body.email, body.username, body.password)
@@ -92,12 +90,16 @@ pub async fn login(
     jar: axum_extra::extract::CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let session = state.auth.login(body.email, body.password).await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())),
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
     ))
 }
 
@@ -123,7 +125,10 @@ pub async fn refresh(
     let jar = session.set_cookies(jar, state.auth.cookie_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())),
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
     ))
 }
 

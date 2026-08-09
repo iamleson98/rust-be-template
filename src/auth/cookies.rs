@@ -1,4 +1,4 @@
-use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use axum_extra::extract::cookie::{Cookie, CookieJar};
 use chrono::Duration;
 
 use crate::config::CookieConfig;
@@ -24,22 +24,27 @@ pub fn set_auth_cookies(
     let refresh_cookie = build_cookie(REFRESH_COOKIE, refresh, cfg, refresh_ttl);
     let csrf_cookie = build_cookie(CSRF_COOKIE, csrf, cfg, refresh_ttl);
 
-    jar.add(access_cookie)
-        .add(refresh_cookie)
-        .add(csrf_cookie)
+    jar.add(access_cookie).add(refresh_cookie).add(csrf_cookie)
 }
 
 pub fn clear_auth_cookies(jar: CookieJar, cfg: &CookieConfig) -> CookieJar {
     let mut jar = jar;
     for name in [ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE] {
-        let c = Cookie::build(name).path("/").max_age(time::Duration::seconds(0));
+        let c = Cookie::build(name)
+            .path("/")
+            .max_age(time::Duration::seconds(0));
         jar = jar.remove(c.build());
     }
     let _ = cfg;
     jar
 }
 
-fn build_cookie(name: &'static str, value: &str, cfg: &CookieConfig, ttl: Duration) -> Cookie<'static> {
+fn build_cookie(
+    name: &'static str,
+    value: &str,
+    cfg: &CookieConfig,
+    ttl: Duration,
+) -> Cookie<'static> {
     let mut builder = Cookie::build((name, value.to_string()));
     builder = builder.path("/");
     builder = builder.http_only(true);

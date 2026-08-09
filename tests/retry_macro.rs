@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use sea_orm::{ConnectOptions, Database};
 
-use backend::store::{DbStore, RetryPolicy, Store, StoreError};
+use backend::store::{RetryPolicy, StoreError};
 
 #[tokio::test]
 #[ignore = "needs unreachable Postgres at port 5433 to fail; run manually"]
@@ -26,12 +26,18 @@ async fn retry_macro_fires_on_db_errors() {
     let elapsed = start.elapsed();
 
     // Should have retried 3 times (default) before failing.
-    assert!(matches!(result, Err(StoreError::Exhausted { retries: 3, .. })),
-        "expected Exhausted after 3 retries, got: {:?}", result);
+    assert!(
+        matches!(result, Err(StoreError::Exhausted { retries: 3, .. })),
+        "expected Exhausted after 3 retries, got: {:?}",
+        result
+    );
 
     // Total delay should be at least 100+200+400 = 700ms (exponential).
-    assert!(elapsed >= Duration::from_millis(700),
-        "expected at least 700ms of backoff, got {:?}", elapsed);
+    assert!(
+        elapsed >= Duration::from_millis(700),
+        "expected at least 700ms of backoff, got {:?}",
+        elapsed
+    );
 }
 
 #[test]

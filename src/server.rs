@@ -18,20 +18,9 @@ use crate::routes::build_router;
 use crate::service::{AuthService, PostService, UserService};
 use crate::state::AppState;
 use crate::store::{
-    CachePostStore,
-    CacheRbacStore,
-    CacheRefreshTokenStore,
-    CacheUserStore,
-    CompositeStore,
-    DbPostStore,
-    DbRbacStore,
-    DbRefreshTokenStore,
-    DbUserStore,
-    PostStore,
-    RbacStore,
-    RefreshTokenStore,
-    Store,
-    UserStore,
+    CachePostStore, CacheRbacStore, CacheRefreshTokenStore, CacheUserStore, CompositeStore,
+    DbPostStore, DbRbacStore, DbRefreshTokenStore, DbUserStore, PostStore, RbacStore,
+    RefreshTokenStore, Store, UserStore,
 };
 use crate::ws::Hub;
 
@@ -75,13 +64,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         cache.clone(),
         config.cache.ttl(),
     ));
-    let refresh_token_store: Arc<dyn RefreshTokenStore> = Arc::new(
-        CacheRefreshTokenStore::new(
-            DbRefreshTokenStore::new(db.clone()),
-            cache.clone(),
-            config.cache.ttl(),
-        ),
-    );
+    let refresh_token_store: Arc<dyn RefreshTokenStore> = Arc::new(CacheRefreshTokenStore::new(
+        DbRefreshTokenStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
 
     let store: Arc<dyn Store> = Arc::new(CompositeStore::new(
         user_store,
@@ -100,10 +87,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let csrf = Arc::new(CsrfManager::new(&config.jwt.secret));
     // JWT validator with revocation cache (per-token + per-user).
     // Needed for logout to immediately invalidate access tokens.
-    let jwt_validator = Arc::new(crate::auth::JwtValidator::new(
-        jwt.clone(),
-        &config.jwt,
-    ));
+    let jwt_validator = Arc::new(crate::auth::JwtValidator::new(jwt.clone(), &config.jwt));
 
     // ---- WebSocket hub (in-process) ----------------------------------
     let ws_hub = Hub::new();

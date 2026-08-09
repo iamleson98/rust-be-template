@@ -4,7 +4,7 @@ use axum::extract::FromRef;
 
 use crate::config::Config;
 use crate::service::{AuthService, PostService, UserService};
-use crate::store::Store;
+use crate::store::CompositeStore;
 use crate::ws::Hub;
 
 /// The single application state object shared across handlers.
@@ -28,7 +28,7 @@ use crate::ws::Hub;
 pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
-    pub store: Arc<dyn Store>,
+    pub store: Arc<CompositeStore>,
     pub ws_hub: Arc<Hub>,
 
     // ---- Domain services (pre-built, shared via Arc) ----

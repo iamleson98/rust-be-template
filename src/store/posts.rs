@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{
-    ActiveModelTrait, DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, Set,
-};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryOrder, QuerySelect, Set};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -123,7 +121,9 @@ impl PostStore for DbPostStore {
     }
 
     async fn delete_post(&self, id: Uuid) -> StoreResult<()> {
-        posts::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
+        posts::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 }
@@ -171,9 +171,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
         }
 
         let model = self.inner.get_post(id).await?;
-        if let Err(e) =
-            set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await
-        {
+        if let Err(e) = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await {
             tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(model)
@@ -200,9 +198,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
     ) -> StoreResult<posts::Model> {
         let model = self.inner.update_post(id, title, body).await?;
         let key = post_key(id);
-        if let Err(e) =
-            set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await
-        {
+        if let Err(e) = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await {
             tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(model)

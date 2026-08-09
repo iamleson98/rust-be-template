@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::routing::{delete, get, patch, post};
 use axum::Router;
 use tower_governor::governor::GovernorConfigBuilder;
@@ -86,10 +84,8 @@ pub fn build_router(state: AppState) -> Router<()> {
         .route_service("/{*path}", static_service)
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
-            axum::http::HeaderValue::from_str(&format!(
-                "public, max-age={static_cache_age}"
-            ))
-            .expect("valid header value"),
+            axum::http::HeaderValue::from_str(&format!("public, max-age={static_cache_age}"))
+                .expect("valid header value"),
         ));
 
     // Capture timeout + body limit before state is moved into the router.
@@ -109,12 +105,16 @@ pub fn build_router(state: AppState) -> Router<()> {
         .merge(swagger)
         .merge(static_router)
         // Request body size limit — protects against memory DoS.
-        .layer(tower_http::limit::RequestBodyLimitLayer::new(max_body_bytes))
+        .layer(tower_http::limit::RequestBodyLimitLayer::new(
+            max_body_bytes,
+        ))
         // Per-request timeout — protects against slowloris + slow handlers.
-        .layer(axum::middleware::from_fn(move |req, next: axum::middleware::Next| {
-            let duration = std::time::Duration::from_secs(request_timeout_secs);
-            crate::middleware::request_timeout(req, next, duration)
-        }))
+        .layer(axum::middleware::from_fn(
+            move |req, next: axum::middleware::Next| {
+                let duration = std::time::Duration::from_secs(request_timeout_secs);
+                crate::middleware::request_timeout(req, next, duration)
+            },
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(CompressionLayer::new())
         .layer(

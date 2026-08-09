@@ -1,10 +1,5 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-#[derive(DeriveIden)]
-enum UsersRef {
-    Table,
-    Id,
-}
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

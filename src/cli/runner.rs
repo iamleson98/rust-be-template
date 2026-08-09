@@ -1,6 +1,5 @@
 //! Dispatches parsed CLI commands to handler functions.
 
-use anyhow::Context;
 use clap::Parser;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -19,14 +18,13 @@ pub async fn run() -> anyhow::Result<()> {
     });
 
     match command {
-        Command::Serve { no_migrate, bind } => {
-            commands::serve::run(no_migrate, bind).await
-        }
+        Command::Serve { no_migrate, bind } => commands::serve::run(no_migrate, bind).await,
         Command::Migrate { action } => commands::migrate::run(action).await,
         Command::MigrationNew { name } => commands::migration_new::run(&name),
-        Command::EntityGenerate { output, with_relations } => {
-            commands::entity_generate::run(&output, with_relations).await
-        }
+        Command::EntityGenerate {
+            output,
+            with_relations,
+        } => commands::entity_generate::run(&output, with_relations).await,
         Command::Db { action } => commands::db::run(action).await,
         Command::RoutesList => commands::routes_list::run(),
         Command::ConfigShow => commands::config_show::run(),

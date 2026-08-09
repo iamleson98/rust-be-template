@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::extract::ws::WebSocketUpgrade;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
@@ -29,7 +27,5 @@ pub async fn ws_upgrade(
         .verify_access_token(&auth.token)
         .await
         .map_err(|e| AppError::Unauthorized(format!("ws auth: {e}")))?;
-    Ok(ws.on_upgrade(move |socket| {
-        crate::ws::ws_handler(state.ws_hub.clone(), user_id, socket)
-    }))
+    Ok(ws.on_upgrade(move |socket| crate::ws::ws_handler(state.ws_hub.clone(), user_id, socket)))
 }

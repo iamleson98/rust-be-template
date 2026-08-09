@@ -7,12 +7,15 @@ use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use backend::state::AppState;
+use backend::{migration, server};
 use http_body_util::BodyExt;
+use sea_orm_migration::MigratorTrait;
 use serde_json::Value;
 use tower::ServiceExt;
 
 /// Helper: build a full AppState against an in-memory SQLite DB.
-async fn build_test_state() -> Arc<crate::state::AppState> {
+async fn build_test_state() -> Arc<AppState> {
     // Use an in-memory SQLite — each test gets a fresh DB.
     std::env::set_var("DATABASE_URL", "sqlite::memory:");
     std::env::set_var("JWT_SECRET", "test-secret-32-bytes-minimum-length!!");
@@ -20,10 +23,9 @@ async fn build_test_state() -> Arc<crate::state::AppState> {
     std::env::set_var("WORKER_BACKEND", "redis");
     std::env::set_var("REDIS_URL", "redis://localhost:6379/0");
 
-    let state = crate::server::bootstrap().await.expect("bootstrap");
+    let state = server::bootstrap().await.expect("bootstrap");
     // Apply migrations.
-    use sea_orm_migration::MigratorTrait;
-    crate::migration::Migrator::up(state.db.as_ref(), None)
+    migration::Migrator::up(state.db.as_ref(), None)
         .await
         .expect("migrations");
     state
@@ -31,7 +33,7 @@ async fn build_test_state() -> Arc<crate::state::AppState> {
 
 /// Helper: send a request to the test app and return (status, body_json).
 async fn send(
-    state: Arc<crate::state::AppState>,
+    state: Arc<AppState>,
     method: &str,
     path: &str,
     body: Option<Value>,
@@ -48,7 +50,9 @@ async fn send(
     if !cookies.is_empty() {
         req = req.header("cookie", cookies.join("; "));
     }
-    let body = body.map(|b| Body::from(b.to_string())).unwrap_or(Body::empty());
+    let body = body
+        .map(|b| Body::from(b.to_string()))
+        .unwrap_or(Body::empty());
     let req = req.body(body).unwrap();
 
     let resp = router.oneshot(req).await.unwrap();
@@ -59,7 +63,11 @@ async fn send(
         .headers()
         .get_all("set-cookie")
         .iter()
-        .filter_map(|v| v.to_str().ok().map(|s| s.split(';').next().unwrap_or("").to_string()))
+        .filter_map(|v| {
+            v.to_str()
+                .ok()
+                .map(|s| s.split(';').next().unwrap_or("").to_string())
+        })
         .collect();
     for c in &new_cookies {
         if !cookies.iter().any(|existing| {
@@ -226,7 +234,8 @@ async fn full_auth_flow_with_csrf() {
 async fn health_endpoints_work() {
     let state = build_test_state().await;
 
-    let (status, body, _) = send(state.clone(), "GET", "/health", None, &mut Vec::new(), None).await;
+    let (status, body, _) =
+        send(state.clone(), "GET", "/health", None, &mut Vec::new(), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "ok");
 
