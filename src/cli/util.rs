@@ -54,8 +54,11 @@ pub fn db_backend_name() -> &'static str {
 /// Mask a secret string, showing only the first 4 and last 4 characters
 /// (or full string if shorter than 12 chars).
 pub fn mask_secret(s: &str) -> String {
+    if s.is_empty() {
+        return String::new();
+    }
     if s.len() < 12 {
-        return "*".repeat(s.len().max(1));
+        return "*".repeat(s.len());
     }
     let head = &s[..4];
     let tail = &s[s.len() - 4..];

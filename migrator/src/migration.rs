@@ -1,6 +1,6 @@
 //! SeaORM migrations.
 //!
-//! Apply via `backend migrate up` (see `src/cli/commands/migrate.rs`).
+//! Apply via `migrator up` (see `migrator/src/main.rs`).
 
 pub use sea_orm_migration::prelude::*;
 
@@ -31,16 +31,16 @@ impl MigratorTrait for Migrator {
             Box::new(m20250101_000003_create_rbac::Migration),
             Box::new(m20250101_000004_create_refresh_tokens::Migration),
             Box::new(m20250101_000005_seed_rbac::Migration),
-            Box::new(m20260809_021759_zeroclaw::Migration),
-            Box::new(m20260809_021550_discounts::Migration),
-            Box::new(m20260809_021431_notifications_wishlist_alerts::Migration),
-            Box::new(m20260809_021323_chat::Migration),
-            Box::new(m20260809_021159_reviews::Migration),
-            Box::new(m20260809_021017_auth_audit::Migration),
-            Box::new(m20260809_020741_bookings::Migration),
-            Box::new(m20260809_020540_schedules_trips_campaigns::Migration),
-            Box::new(m20260809_014716_routes_pickups_buslayout_seats::Migration),
             Box::new(m20260809_013648_places_brands::Migration),
+            Box::new(m20260809_014716_routes_pickups_buslayout_seats::Migration),
+            Box::new(m20260809_020540_schedules_trips_campaigns::Migration),
+            Box::new(m20260809_020741_bookings::Migration),
+            Box::new(m20260809_021017_auth_audit::Migration),
+            Box::new(m20260809_021159_reviews::Migration),
+            Box::new(m20260809_021323_chat::Migration),
+            Box::new(m20260809_021431_notifications_wishlist_alerts::Migration),
+            Box::new(m20260809_021550_discounts::Migration),
+            Box::new(m20260809_021759_zeroclaw::Migration),
         ]
     }
 }

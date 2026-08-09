@@ -114,7 +114,12 @@ impl AuthService {
             .await?
             .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
 
-        if !self.password.verify(&password, &user.password_hash) {
+        let hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
+
+        if !self.password.verify(&password, hash) {
             return Err(AppError::Unauthorized("invalid credentials".into()));
         }
 
@@ -185,12 +190,7 @@ impl AuthService {
     /// Issue a fresh auth session: new access JWT + new refresh token
     /// (persisted) + new CSRF token.
     async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
-        let id = match Uuid::parse_str(&user.id) {
-            Ok(id) => id,
-            Err(e) => {
-                return Err(AppError::Internal(e.to_string()));
-            }
-        };
+        let id = user.id;
         let access = self
             .jwt
             .issue_access(id)

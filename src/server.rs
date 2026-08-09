@@ -20,7 +20,7 @@ use crate::state::AppState;
 use crate::store::{
     CachePostStore, CacheRbacStore, CacheRefreshTokenStore, CacheUserStore, CompositeStore,
     DbPostStore, DbRbacStore, DbRefreshTokenStore, DbUserStore, PostStore, RbacStore,
-    RefreshTokenStore, Store, UserStore,
+    RefreshTokenStore, UserStore,
 };
 use crate::ws::Hub;
 
@@ -70,7 +70,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         config.cache.ttl(),
     ));
 
-    let store: Arc<dyn Store> = Arc::new(CompositeStore::new(
+    let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         user_store,
         post_store,
         rbac_store,

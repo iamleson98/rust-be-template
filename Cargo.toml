@@ -10,10 +10,11 @@ name = "backend"
 path = "src/main.rs"
 
 [workspace]
-members = ["store_macros"]
+members = ["store_macros", "migrator"]
 
 [dependencies]
 store_macros = { path = "store_macros" }
+migrator = { path = "migrator" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

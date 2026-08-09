@@ -1,7 +1,5 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::migration::m20260809_013648_places_brands::Brand;
-
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -34,14 +32,6 @@ impl MigrationTrait for Migration {
                     .col(text_null(User::PasswordChangedAt))
                     .col(timestamp(User::CreatedAt).default(Expr::current_timestamp()))
                     .col(timestamp(User::UpdatedAt).default(Expr::current_timestamp()))
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_user_brand")
-                            .from(User::Table, User::BrandId)
-                            .to(Brand::Table, Brand::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
                     .to_owned(),
             )
             .await?;

@@ -18,12 +18,13 @@ pub struct KafkaBroker {
     producer: rdkafka::producer::FutureProducer,
     #[cfg(feature = "kafka")]
     consumer: rdkafka::consumer::StreamConsumer,
+    #[allow(dead_code)]
     topic: String,
     shutdown: Arc<Notify>,
 }
 
 impl KafkaBroker {
-    pub async fn new(cfg: &WorkerConfig) -> anyhow::Result<Self> {
+    pub async fn new(_cfg: &WorkerConfig) -> anyhow::Result<Self> {
         #[cfg(feature = "kafka")]
         {
             use rdkafka::config::{ClientConfig, RDKafkaLogLevel};

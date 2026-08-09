@@ -60,7 +60,7 @@ pub enum Campaign {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Schedule
+        // ── Schedule ──────────────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
@@ -68,13 +68,13 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_uuid(Schedule::Id))
                     .col(text(Schedule::RouteId))
-                    .col(string_len(Schedule::DepartureTime, 10))
+                    .col(text(Schedule::DepartureTime))
                     .col(text_null(Schedule::EffectiveFrom))
                     .col(text_null(Schedule::EffectiveTo))
                     .col(text_null(Schedule::DaysOfWeek))
                     .col(text_null(Schedule::BusLayoutId))
-                    .col(integer(Schedule::BasePriceAdult).default(0))
-                    .col(integer_null(Schedule::BasePriceChild))
+                    .col(big_integer(Schedule::BasePriceAdult).default(0))
+                    .col(big_integer_null(Schedule::BasePriceChild))
                     .col(text_null(Schedule::Amenities))
                     .col(text(Schedule::CreatedAt))
                     .foreign_key(
@@ -97,6 +97,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Index: look up schedules by route
         manager
             .create_index(
                 Index::create()
@@ -107,6 +108,7 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Index: find schedules for a route at a given departure time
         manager
             .create_index(
                 Index::create()
@@ -118,8 +120,20 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Index: filter schedules by effective date range
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("Schedule_effective_range_idx")
+                    .table(Schedule::Table)
+                    .col(Schedule::EffectiveFrom)
+                    .col(Schedule::EffectiveTo)
+                    .to_owned(),
+            )
+            .await?;
 
-        // TripSession
+        // ── TripSession ──────────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
@@ -132,8 +146,8 @@ impl MigrationTrait for Migration {
                     .col(string_len_null(TripSession::DriverName, 255))
                     .col(string_len_null(TripSession::DriverPhone, 20))
                     .col(string_len(TripSession::Status, 30).default("scheduled"))
-                    .col(small_integer(TripSession::TotalSeats).default(0))
-                    .col(integer(TripSession::AvailableSeats).default(0))
+                    .col(big_integer(TripSession::TotalSeats).default(0))
+                    .col(big_integer(TripSession::AvailableSeats).default(0))
                     .col(text(TripSession::CreatedAt))
                     .col(text(TripSession::UpdatedAt))
                     .foreign_key(
@@ -148,6 +162,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Index: look up trips by schedule
         manager
             .create_index(
                 Index::create()
@@ -158,6 +173,7 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Index: look up trips by departure date
         manager
             .create_index(
                 Index::create()
@@ -168,22 +184,25 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Unique index: one trip per schedule per date
         manager
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("TripSession_schedule_date_idx")
+                    .name("TripSession_schedule_date_uniq")
                     .table(TripSession::Table)
                     .col(TripSession::ScheduleId)
                     .col(TripSession::DepartureDate)
+                    .unique()
                     .to_owned(),
             )
             .await?;
+        // Index: filter trips by date + status
         manager
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("TripSession_departureDate_status_idx")
+                    .name("TripSession_date_status_idx")
                     .table(TripSession::Table)
                     .col(TripSession::DepartureDate)
                     .col(TripSession::Status)
@@ -191,7 +210,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Campaign
+        // ── Campaign ─────────────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
@@ -201,9 +220,9 @@ impl MigrationTrait for Migration {
                     .col(text_null(Campaign::BrandId))
                     .col(string_len_uniq(Campaign::Code, 50))
                     .col(string_len(Campaign::DiscountType, 10))
-                    .col(integer(Campaign::DiscountValue))
-                    .col(small_integer_null(Campaign::MaxUses))
-                    .col(integer(Campaign::UsedCount).default(0))
+                    .col(big_integer(Campaign::DiscountValue))
+                    .col(big_integer_null(Campaign::MaxUses))
+                    .col(big_integer(Campaign::UsedCount).default(0))
                     .col(text_null(Campaign::StartsAt))
                     .col(text_null(Campaign::EndsAt))
                     .col(string_len(Campaign::Status, 30).default("active"))
@@ -221,6 +240,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        // Index: look up campaigns by brand
         manager
             .create_index(
                 Index::create()
@@ -231,6 +251,7 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Index: filter campaigns by status
         manager
             .create_index(
                 Index::create()
@@ -241,11 +262,25 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
+        // Index: find active campaigns within a date range
+        manager
+            .create_index(
+                Index::create()
+                    .if_not_exists()
+                    .name("Campaign_date_range_status_idx")
+                    .table(Campaign::Table)
+                    .col(Campaign::StartsAt)
+                    .col(Campaign::EndsAt)
+                    .col(Campaign::Status)
+                    .to_owned(),
+            )
+            .await?;
 
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // Drop in reverse dependency order: Campaign → TripSession → Schedule
         manager
             .drop_table(Table::drop().table(Campaign::Table).cascade().to_owned())
             .await?;

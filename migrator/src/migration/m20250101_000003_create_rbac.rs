@@ -49,7 +49,7 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_user_roles_user")
                             .from(UserRoles::Table, UserRoles::UserId)
-                            .to(sea_orm::sea_query::Alias::new("users"), sea_orm::sea_query::Alias::new("id"))
+                            .to(sea_orm::sea_query::Alias::new("user"), sea_orm::sea_query::Alias::new("id"))
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(

@@ -829,6 +829,7 @@ dependencies = [
  "hmac 0.12.1",
  "http-body-util",
  "jsonwebtoken",
+ "migrator",
  "mime",
  "mime_guess",
  "moka",
@@ -2567,6 +2568,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
+]
+
+[[package]]
+name = "migrator"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "clap",
+ "dotenvy",
+ "sea-orm",
+ "sea-orm-migration",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]

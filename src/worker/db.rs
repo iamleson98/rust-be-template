@@ -107,6 +107,7 @@ impl WorkerBroker for DbBroker {
         // Build: DELETE FROM jobs WHERE id = (SELECT id FROM jobs
         //         WHERE available_at <= ? ORDER BY available_at LIMIT 1)
         //        RETURNING id, job_type, payload, attempts
+        #[allow(unused_mut)]
         let mut select_oldest = SelectStatement::new()
             .column(Jobs::Id)
             .from(Jobs::Table)

@@ -4,7 +4,7 @@
 //! - `config`: typed `.env`-driven config
 //! - `error`: unified `AppError` → HTTP response mapping
 //! - `entity`: SeaORM entities (mirror of `sea-orm-cli generate entity`)
-//! - `migration`: SeaORM migrations
+//! - `migration`: SeaORM migrations (moved to the `migrator` crate)
 //! - `cache`: pluggable cache (`MokaBackend` | `RedisBackend`)
 //! - `store`: per-entity DB+retry+cache stores composed into one `Store`
 //! - `storage`: pluggable file storage (`Local` | `S3` | `MinIO`)
@@ -24,7 +24,6 @@ pub mod config;
 pub mod entity;
 pub mod error;
 pub mod middleware;
-pub mod migration;
 pub mod rbac;
 pub mod routes;
 pub mod server;
@@ -35,12 +34,15 @@ pub mod store;
 pub mod worker;
 pub mod ws;
 
+// Re-export the Migrator from the standalone migrator crate.
+pub use migrator::Migrator;
+
 use sea_orm::DatabaseConnection;
 
 /// Apply all pending SeaORM migrations. Idempotent — safe to call on
 /// every startup.
 pub async fn run_migrations(db: &DatabaseConnection) -> anyhow::Result<()> {
     use sea_orm_migration::MigratorTrait;
-    migration::Migrator::up(db, None).await?;
+    Migrator::up(db, None).await?;
     Ok(())
 }

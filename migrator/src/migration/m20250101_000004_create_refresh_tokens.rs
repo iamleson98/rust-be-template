@@ -24,7 +24,7 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_refresh_tokens_user")
                             .from(RefreshTokens::Table, RefreshTokens::UserId)
-                            .to(sea_orm::sea_query::Alias::new("users"), sea_orm::sea_query::Alias::new("id"))
+                            .to(sea_orm::sea_query::Alias::new("user"), sea_orm::sea_query::Alias::new("id"))
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),

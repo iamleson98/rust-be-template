@@ -40,7 +40,7 @@ impl UserService {
             .require(caller_id, rbac::USERS_READ)
             .await
             .map_err(AppError::from)?;
-        Ok(self.store.get_user(target_id).await?)
+        Ok(self.store.user_store().get_user(target_id).await?)
     }
 
     /// Delete a user. Caller must have `user:delete`.
@@ -49,7 +49,7 @@ impl UserService {
             .require(caller_id, rbac::USERS_DELETE)
             .await
             .map_err(AppError::from)?;
-        self.store.delete_user(target_id).await?;
+        self.store.user_store().delete_user(target_id).await?;
         Ok(())
     }
 }

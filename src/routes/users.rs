@@ -20,10 +20,10 @@ pub struct UserOut {
 impl From<user::Model> for UserOut {
     fn from(m: user::Model) -> Self {
         Self {
-            id: Uuid::parse_str(&m.id).unwrap_or(Uuid::default()),
-            email: m.email,
+            id: m.id,
+            email: Some(m.email),
             full_name: m.full_name,
-            created_at: m.created_at,
+            created_at: m.created_at.to_rfc3339(),
         }
     }
 }

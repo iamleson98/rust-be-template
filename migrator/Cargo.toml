@@ -1,0 +1,38 @@
+[package]
+name = "migrator"
+version = "0.1.0"
+edition = "2021"
+description = "Standalone database migration CLI — independent of the main backend"
+
+[[bin]]
+name = "migrator"
+path = "src/main.rs"
+
+[lib]
+name = "migrator"
+path = "src/lib.rs"
+
+[dependencies]
+# Database
+sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite", "macros", "with-chrono", "with-uuid", "with-json"] }
+sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Serialization / config
+dotenvy = "0.15"
+
+# Utilities
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+url = "2"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

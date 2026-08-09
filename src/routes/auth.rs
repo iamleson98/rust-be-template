@@ -39,9 +39,9 @@ pub struct AuthResponse {
 impl AuthResponse {
     fn from_user(u: &user::Model, access_ttl_secs: u64) -> Self {
         Self {
-            user_id: u.id.clone(),
+            user_id: u.id.to_string(),
             full_name: u.full_name.clone(),
-            email: u.email.clone().unwrap_or("".into()),
+            email: u.email.clone(),
             expires_at: Utc::now() + chrono::Duration::seconds(access_ttl_secs as i64),
         }
     }
