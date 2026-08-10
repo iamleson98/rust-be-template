@@ -540,7 +540,7 @@ impl AdminService {
             address: Set(opt_str_field(body, "address")),
             lat: Set(body.get("lat").and_then(|v| v.as_f64())),
             lon: Set(body.get("lon").and_then(|v| v.as_f64())),
-            stop_order: Set(body.get("stopOrder").and_then(|v| v.as_i64()).unwrap_or(0) as i32),
+            stop_order: Set(body.get("stopOrder").and_then(|v| v.as_i64()).unwrap_or(0)),
             kind: Set(opt_str_field(body, "kind")),
             created_at: Set(now),
         };
@@ -576,7 +576,7 @@ impl AdminService {
             active.lon = Set(v.as_f64());
         }
         if let Some(v) = body.get("stopOrder") {
-            active.stop_order = Set(v.as_i64().unwrap_or(0) as i32);
+            active.stop_order = Set(v.as_i64().unwrap_or(0));
         }
         if let Some(opt) = opt_string_field(body, "kind") {
             active.kind = Set(opt);

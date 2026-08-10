@@ -19,9 +19,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::entity::{
-    booking, booking_seat, campaign, seat, seat_inventory, trip_session,
-};
+use crate::entity::{booking, booking_seat, campaign, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
@@ -115,7 +113,8 @@ impl BookingService {
         // Resolve trip session IDs by departure-date bucket
         let trip_ids_gte: Vec<String> = if status_param == "confirmed" || status_param == "upcoming"
         {
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .list_trips_departing_after(&today_prefix)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -127,7 +126,8 @@ impl BookingService {
         };
 
         let trip_ids_lt: Vec<String> = if status_param == "completed" || status_param == "past" {
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .list_trips_departing_before(&today_prefix)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -157,7 +157,9 @@ impl BookingService {
             _ => None,
         };
 
-        let bookings = self.store.booking_store()
+        let bookings = self
+            .store
+            .booking_store()
             .list_bookings_by_user(
                 user_id,
                 &status_param,
@@ -169,9 +171,7 @@ impl BookingService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Batch serialize
-        let items = self
-            .serialize_bookings_batched(&bookings, true)
-            .await?;
+        let items = self.serialize_bookings_batched(&bookings, true).await?;
 
         Ok(json!({ "items": items, "total": items.len() }))
     }
@@ -185,14 +185,14 @@ impl BookingService {
             return Ok(json!({ "items": [] }));
         }
 
-        let bookings = self.store.booking_store()
+        let bookings = self
+            .store
+            .booking_store()
             .lookup_bookings(code, phone, 20)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items = self
-            .serialize_bookings_batched(&bookings, false)
-            .await?;
+        let items = self.serialize_bookings_batched(&bookings, false).await?;
 
         Ok(json!({ "items": items }))
     }
@@ -208,7 +208,9 @@ impl BookingService {
     /// independent — we fetch them concurrently with `tokio::try_join!`
     /// to cut latency from ~7 sequential round-trips to ~4.
     pub async fn detail(&self, user_id: Option<&str>, id: Uuid) -> AppResult<Value> {
-        let b = self.store.booking_store()
+        let b = self
+            .store
+            .booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -223,19 +225,21 @@ impl BookingService {
 
         // Fetch booking seats + trip concurrently (independent of each other).
         let booking_id_str = b.id.to_string();
-        let trip_id = Uuid::parse_str(&b.trip_session_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip_id =
+            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
 
         let store = self.store.clone();
         let (seats, trip) = tokio::try_join!(
             async {
-                store.booking_store()
+                store
+                    .booking_store()
                     .list_booking_seats(&booking_id_str)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))
             },
             async {
-                store.trip_store()
+                store
+                    .trip_store()
                     .find_trip_by_id(trip_id)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?
@@ -248,18 +252,22 @@ impl BookingService {
         let seat_defs = self.fetch_seat_defs(&seat_ids).await?;
 
         // Fetch schedule (depends on trip).
-        let schedule_id = Uuid::parse_str(&trip.schedule_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let schedule = self.store.schedule_store()
+        let schedule_id =
+            Uuid::parse_str(&trip.schedule_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let schedule = self
+            .store
+            .schedule_store()
             .find_schedule_by_id(schedule_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
         // Fetch route (depends on schedule).
-        let route_id = Uuid::parse_str(&schedule.route_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let route_model = self.store.route_store()
+        let route_id =
+            Uuid::parse_str(&schedule.route_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let route_model = self
+            .store
+            .route_store()
             .find_route_by_id(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -280,7 +288,9 @@ impl BookingService {
             async {
                 // Brand
                 match brand_id.as_ref().and_then(|bid| Uuid::parse_str(bid).ok()) {
-                    Some(uid) => store.brand_store().get_by_id(uid)
+                    Some(uid) => store
+                        .brand_store()
+                        .get_by_id(uid)
                         .await
                         .map_err(|e| AppError::Internal(e.to_string())),
                     None => Ok(None),
@@ -288,8 +298,13 @@ impl BookingService {
             },
             async {
                 // Start place
-                match start_location_id.as_ref().and_then(|id| Uuid::parse_str(id).ok()) {
-                    Some(uid) => store.place_store().find_place_by_id(uid)
+                match start_location_id
+                    .as_ref()
+                    .and_then(|id| Uuid::parse_str(id).ok())
+                {
+                    Some(uid) => store
+                        .place_store()
+                        .find_place_by_id(uid)
                         .await
                         .map_err(|e| AppError::Internal(e.to_string())),
                     None => Ok(None),
@@ -297,8 +312,13 @@ impl BookingService {
             },
             async {
                 // End place
-                match end_location_id.as_ref().and_then(|id| Uuid::parse_str(id).ok()) {
-                    Some(uid) => store.place_store().find_place_by_id(uid)
+                match end_location_id
+                    .as_ref()
+                    .and_then(|id| Uuid::parse_str(id).ok())
+                {
+                    Some(uid) => store
+                        .place_store()
+                        .find_place_by_id(uid)
                         .await
                         .map_err(|e| AppError::Internal(e.to_string())),
                     None => Ok(None),
@@ -306,8 +326,13 @@ impl BookingService {
             },
             async {
                 // Bus layout
-                match bus_layout_id.as_ref().and_then(|blid| Uuid::parse_str(blid).ok()) {
-                    Some(uid) => store.schedule_store().find_bus_layout_by_id(uid)
+                match bus_layout_id
+                    .as_ref()
+                    .and_then(|blid| Uuid::parse_str(blid).ok())
+                {
+                    Some(uid) => store
+                        .schedule_store()
+                        .find_bus_layout_by_id(uid)
                         .await
                         .map_err(|e| AppError::Internal(e.to_string())),
                     None => Ok(None),
@@ -315,7 +340,9 @@ impl BookingService {
             },
             async {
                 // Pickup points
-                store.route_store().list_pickup_points_by_route(&route_id_str)
+                store
+                    .route_store()
+                    .list_pickup_points_by_route(&route_id_str)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))
             }
@@ -423,7 +450,9 @@ impl BookingService {
         // Fetch trip
         let trip_id = Uuid::parse_str(&req.trip_id)
             .map_err(|e| AppError::BadRequest(format!("invalid trip_id: {e}")))?;
-        let trip = self.store.trip_store()
+        let trip = self
+            .store
+            .trip_store()
             .find_trip_by_id(trip_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -434,17 +463,21 @@ impl BookingService {
         }
 
         // Fetch schedule + route + brand
-        let schedule_id = Uuid::parse_str(&trip.schedule_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let schedule = self.store.schedule_store()
+        let schedule_id =
+            Uuid::parse_str(&trip.schedule_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let schedule = self
+            .store
+            .schedule_store()
             .find_schedule_by_id(schedule_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
-        let route_id = Uuid::parse_str(&schedule.route_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let route_model = self.store.route_store()
+        let route_id =
+            Uuid::parse_str(&schedule.route_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let route_model = self
+            .store
+            .route_store()
             .find_route_by_id(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -452,7 +485,8 @@ impl BookingService {
 
         let brand_model = if let Some(ref bid) = route_model.brand_id {
             if let Ok(uid) = Uuid::parse_str(bid) {
-                self.store.brand_store()
+                self.store
+                    .brand_store()
                     .get_by_id(uid)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?
@@ -469,7 +503,9 @@ impl BookingService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok().map(|u| u.to_string()))
             .collect();
-        let seat_invs = self.store.trip_store()
+        let seat_invs = self
+            .store
+            .trip_store()
             .list_seat_inventories(&req.trip_id, seat_uuids.clone())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -486,7 +522,9 @@ impl BookingService {
             .filter(|s| s.status != "available")
             .collect();
         if !unavailable.is_empty() {
-            return Err(AppError::Conflict("some seats are no longer available".into()));
+            return Err(AppError::Conflict(
+                "some seats are no longer available".into(),
+            ));
         }
 
         // Pricing
@@ -494,16 +532,13 @@ impl BookingService {
             .passengers
             .iter()
             .filter(|p| p.passenger_type == "adult")
-            .count() as i32;
+            .count() as i64;
         let child_count = req
             .passengers
             .iter()
             .filter(|p| p.passenger_type == "child")
-            .count() as i32;
-        let seat_prices: Vec<i64> = seat_invs
-            .iter()
-            .map(|s| s.final_price as i64)
-            .collect();
+            .count() as i64;
+        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price as i64).collect();
         let subtotal: i64 = seat_prices.iter().sum();
 
         // Campaign discount
@@ -512,7 +547,9 @@ impl BookingService {
         if let Some(ref cc) = req.campaign_code {
             let code = cc.trim().to_uppercase();
             let now = now_iso();
-            let campaign = self.store.trip_store()
+            let campaign = self
+                .store
+                .trip_store()
                 .find_active_campaign(&code, &now)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -520,9 +557,8 @@ impl BookingService {
             if let Some(c) = campaign {
                 match c.discount_type.as_str() {
                     "percent" => {
-                        let raw = ((subtotal as f64) * c.discount_value as f64
-                            / 100.0)
-                            .round() as i64;
+                        let raw =
+                            ((subtotal as f64) * c.discount_value as f64 / 100.0).round() as i64;
                         discount = raw;
                     }
                     "fixed_amount" => {
@@ -565,10 +601,10 @@ impl BookingService {
             dropping_point_id: Set(Some(req.dropping_point_id.clone())),
             adult_count: Set(adult_count),
             child_count: Set(child_count),
-            subtotal: Set(subtotal as i32),
-            discount: Set(discount as i32),
-            fees: Set(fees as i32),
-            total: Set(total as i32),
+            subtotal: Set(subtotal),
+            discount: Set(discount),
+            fees: Set(fees),
+            total: Set(total),
             currency: Set("VND".to_string()),
             status: Set("pending".to_string()),
             payment_method: Set(None),
@@ -581,7 +617,8 @@ impl BookingService {
             ..Default::default()
         };
 
-        self.store.booking_store()
+        self.store
+            .booking_store()
             .insert_booking(booking_model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -599,7 +636,8 @@ impl BookingService {
                 price: Set(inv.final_price),
                 ..Default::default()
             };
-            self.store.booking_store()
+            self.store
+                .booking_store()
                 .insert_booking_seat(bs_model)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -619,13 +657,10 @@ impl BookingService {
         let mut claimed: Vec<String> = Vec::with_capacity(seat_invs.len());
         let mut conflict = false;
         for inv in &seat_invs {
-            let ok = self.store.trip_store()
-                .try_hold_seat(
-                    &req.trip_id,
-                    &inv.seat_id,
-                    &booking_id_str,
-                    &expires_at,
-                )
+            let ok = self
+                .store
+                .trip_store()
+                .try_hold_seat(&req.trip_id, &inv.seat_id, &booking_id_str, &expires_at)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             if ok {
@@ -641,7 +676,9 @@ impl BookingService {
             // Uses a conditional UPDATE (only releases seats held by THIS
             // booking) so we never clobber a different booking's hold.
             for seat_id in &claimed {
-                let _ = self.store.trip_store()
+                let _ = self
+                    .store
+                    .trip_store()
                     .release_held_seat(&req.trip_id, seat_id, &booking_id_str)
                     .await;
             }
@@ -654,7 +691,8 @@ impl BookingService {
         let current_available = trip.available_seats;
         let mut trip_active: trip_session::ActiveModel = trip.into();
         trip_active.available_seats = Set(current_available - req.seat_ids.len() as i64);
-        self.store.trip_store()
+        self.store
+            .trip_store()
             .update_trip_session(trip_active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -662,7 +700,9 @@ impl BookingService {
         // Increment campaign usage
         if let Some(ref cid) = applied_campaign_id {
             let c_uuid = Uuid::parse_str(cid).map_err(|e| AppError::Internal(e.to_string()))?;
-            if let Some(c) = self.store.trip_store()
+            if let Some(c) = self
+                .store
+                .trip_store()
                 .find_campaign_by_id(c_uuid)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -670,9 +710,7 @@ impl BookingService {
                 let current_used = c.used_count;
                 let mut active: campaign::ActiveModel = c.into();
                 active.used_count = Set(current_used + 1);
-                let _ = self.store.trip_store()
-                    .update_campaign(active)
-                    .await;
+                let _ = self.store.trip_store().update_campaign(active).await;
             }
         }
 
@@ -711,12 +749,10 @@ impl BookingService {
     ///   - > 24h before departure → 90% refund
     ///   - > 4h before departure → 50% refund
     ///   - ≤ 4h before departure → 0% refund
-    pub async fn cancel(
-        &self,
-        id: Uuid,
-        reason: Option<&str>,
-    ) -> AppResult<Value> {
-        let b = self.store.booking_store()
+    pub async fn cancel(&self, id: Uuid, reason: Option<&str>) -> AppResult<Value> {
+        let b = self
+            .store
+            .booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -727,20 +763,23 @@ impl BookingService {
         }
 
         // Fetch trip for refund calculation
-        let trip_id = Uuid::parse_str(&b.trip_session_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let trip = self.store.trip_store()
+        let trip_id =
+            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip = self
+            .store
+            .trip_store()
             .find_trip_by_id(trip_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let hours_until = if let Some(ref dep) = trip.as_ref().and_then(|t| t.actual_departure_at.clone()) {
-            chrono::DateTime::parse_from_rfc3339(dep)
-                .map(|dt| (dt.with_timezone(&Utc) - Utc::now()).num_hours() as f64)
-                .unwrap_or(24.0)
-        } else {
-            24.0 // default to full refund if no departure time
-        };
+        let hours_until =
+            if let Some(ref dep) = trip.as_ref().and_then(|t| t.actual_departure_at.clone()) {
+                chrono::DateTime::parse_from_rfc3339(dep)
+                    .map(|dt| (dt.with_timezone(&Utc) - Utc::now()).num_hours() as f64)
+                    .unwrap_or(24.0)
+            } else {
+                24.0 // default to full refund if no departure time
+            };
 
         let refund_percent: i64 = if hours_until > 24.0 {
             90
@@ -752,7 +791,9 @@ impl BookingService {
         let refund_amount = b.total as i64 * refund_percent / 100;
 
         // Release held seats
-        let seat_invs = self.store.trip_store()
+        let seat_invs = self
+            .store
+            .trip_store()
             .list_seat_inventories_by_held_booking(&b.id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -763,7 +804,8 @@ impl BookingService {
             active.status = Set("available".to_string());
             active.held_until = Set(None);
             active.held_by_booking_id = Set(None);
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .update_seat_inventory(active)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -774,7 +816,8 @@ impl BookingService {
             let current_available = t.available_seats;
             let mut trip_active: trip_session::ActiveModel = t.into();
             trip_active.available_seats = Set(current_available + seat_count);
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .update_trip_session(trip_active)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -785,14 +828,19 @@ impl BookingService {
         let mut booking_active: booking::ActiveModel = b.into();
         booking_active.status = Set("cancelled".to_string());
         booking_active.updated_at = Set(now_iso());
-        self.store.booking_store()
+        self.store
+            .booking_store()
             .update_booking(booking_active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Generate cancellation reference code
         let ts_b36 = to_base36(Utc::now().timestamp_millis());
-        let ref_code = format!("HX-{}-{}", booking_code.to_uppercase(), ts_b36.to_uppercase());
+        let ref_code = format!(
+            "HX-{}-{}",
+            booking_code.to_uppercase(),
+            ts_b36.to_uppercase()
+        );
 
         Ok(json!({
             "success": true,
@@ -805,19 +853,19 @@ impl BookingService {
     }
 
     /// Confirm a booking (mark paid — locked → booked).
-    pub async fn confirm(
-        &self,
-        id: Uuid,
-        payment_method: &str,
-    ) -> AppResult<Value> {
-        let b = self.store.booking_store()
+    pub async fn confirm(&self, id: Uuid, payment_method: &str) -> AppResult<Value> {
+        let b = self
+            .store
+            .booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
         if b.status != "pending" {
-            return Err(AppError::BadRequest("booking is not in pending status".into()));
+            return Err(AppError::BadRequest(
+                "booking is not in pending status".into(),
+            ));
         }
 
         // Check expiry
@@ -825,7 +873,9 @@ impl BookingService {
             if let Ok(t) = chrono::DateTime::parse_from_rfc3339(exp) {
                 if t.with_timezone(&Utc) < Utc::now() {
                     // Expired — release seats, mark cancelled
-                    let seat_invs = self.store.trip_store()
+                    let seat_invs = self
+                        .store
+                        .trip_store()
                         .list_seat_inventories_by_held_booking(&b.id.to_string())
                         .await
                         .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -834,14 +884,14 @@ impl BookingService {
                         active.status = Set("available".to_string());
                         active.held_until = Set(None);
                         active.held_by_booking_id = Set(None);
-                        let _ = self.store.trip_store()
-                            .update_seat_inventory(active)
-                            .await;
+                        let _ = self.store.trip_store().update_seat_inventory(active).await;
                     }
                     let mut booking_active: booking::ActiveModel = b.into();
                     booking_active.status = Set("cancelled".to_string());
                     booking_active.updated_at = Set(now_iso());
-                    let _ = self.store.booking_store()
+                    let _ = self
+                        .store
+                        .booking_store()
                         .update_booking(booking_active)
                         .await;
 
@@ -851,7 +901,9 @@ impl BookingService {
         }
 
         // Convert locked → booked
-        let seat_invs = self.store.trip_store()
+        let seat_invs = self
+            .store
+            .trip_store()
             .list_seat_inventories_by_held_booking(&b.id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -860,7 +912,8 @@ impl BookingService {
             let mut active: seat_inventory::ActiveModel = inv.clone().into();
             active.status = Set("booked".to_string());
             active.held_until = Set(None);
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .update_seat_inventory(active)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -871,7 +924,8 @@ impl BookingService {
         booking_active.status = Set("confirmed".to_string());
         booking_active.payment_method = Set(Some(payment_method.to_string()));
         booking_active.updated_at = Set(now_iso());
-        self.store.booking_store()
+        self.store
+            .booking_store()
             .update_booking(booking_active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -896,17 +950,17 @@ impl BookingService {
         }
 
         // Collect trip session IDs
-        let trip_session_ids: Vec<String> = bookings
-            .iter()
-            .map(|b| b.trip_session_id.clone())
-            .collect();
+        let trip_session_ids: Vec<String> =
+            bookings.iter().map(|b| b.trip_session_id.clone()).collect();
 
         // Batch fetch trip sessions
         let trip_uuids: Vec<Uuid> = trip_session_ids
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let trips: HashMap<String, trip_session::Model> = self.store.trip_store()
+        let trips: HashMap<String, trip_session::Model> = self
+            .store
+            .trip_store()
             .list_trips_by_ids(trip_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -915,15 +969,14 @@ impl BookingService {
             .collect();
 
         // Batch fetch schedules
-        let schedule_ids: Vec<String> = trips
-            .values()
-            .map(|t| t.schedule_id.clone())
-            .collect();
+        let schedule_ids: Vec<String> = trips.values().map(|t| t.schedule_id.clone()).collect();
         let schedule_uuids: Vec<Uuid> = schedule_ids
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let schedules: HashMap<String, crate::entity::schedule::Model> = self.store.schedule_store()
+        let schedules: HashMap<String, crate::entity::schedule::Model> = self
+            .store
+            .schedule_store()
             .list_schedules_by_ids(schedule_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -932,15 +985,14 @@ impl BookingService {
             .collect();
 
         // Batch fetch routes
-        let route_ids: Vec<String> = schedules
-            .values()
-            .map(|s| s.route_id.clone())
-            .collect();
+        let route_ids: Vec<String> = schedules.values().map(|s| s.route_id.clone()).collect();
         let route_uuids: Vec<Uuid> = route_ids
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let routes: HashMap<String, crate::entity::route::Model> = self.store.route_store()
+        let routes: HashMap<String, crate::entity::route::Model> = self
+            .store
+            .route_store()
             .list_routes_by_ids(route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -949,15 +1001,14 @@ impl BookingService {
             .collect();
 
         // Batch fetch brands
-        let brand_ids: Vec<String> = routes
-            .values()
-            .filter_map(|r| r.brand_id.clone())
-            .collect();
+        let brand_ids: Vec<String> = routes.values().filter_map(|r| r.brand_id.clone()).collect();
         let brand_uuids: Vec<Uuid> = brand_ids
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let brands: HashMap<String, crate::entity::brand::Model> = self.store.brand_store()
+        let brands: HashMap<String, crate::entity::brand::Model> = self
+            .store
+            .brand_store()
             .list_brands_by_ids(brand_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -967,7 +1018,9 @@ impl BookingService {
 
         // Batch fetch booking seats
         let booking_ids: Vec<String> = bookings.iter().map(|b| b.id.to_string()).collect();
-        let all_seats: Vec<booking_seat::Model> = self.store.booking_store()
+        let all_seats: Vec<booking_seat::Model> = self
+            .store
+            .booking_store()
             .list_booking_seats_by_booking_ids(booking_ids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -1090,14 +1143,13 @@ impl BookingService {
         if seat_ids.is_empty() {
             return Ok(HashMap::new());
         }
-        let rows = self.store.trip_store()
+        let rows = self
+            .store
+            .trip_store()
             .list_seats_by_ids(seat_ids.to_vec())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(rows
-            .into_iter()
-            .map(|s| (s.id.to_string(), s))
-            .collect())
+        Ok(rows.into_iter().map(|s| (s.id.to_string(), s)).collect())
     }
 }
 

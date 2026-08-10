@@ -197,7 +197,7 @@ impl PriceAlertService {
             from_name: Set(Some(input.from_name.trim().to_string())),
             to_name: Set(Some(input.to_name.trim().to_string())),
             route_id: Set(input.route_id.as_ref().map(|r| r.trim().to_string())),
-            target_price: Set(Some(input.target_price as i32)),
+            target_price: Set(Some(input.target_price)),
             frequency: Set(freq),
             status: Set("active".to_string()),
             created_at: Set(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),

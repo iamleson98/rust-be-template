@@ -143,7 +143,7 @@ impl ReviewService {
             brand_id: Set(input.brand_id.clone()),
             author_name: Set(input.author_name.clone()),
             author_phone: Set(input.author_phone.clone()),
-            rating: Set(input.rating),
+            rating: Set(input.rating as i64),
             title: Set(input.title.clone()),
             content: Set(input.content.clone()),
             tags: Set(if tags_str.is_empty() {
@@ -211,7 +211,7 @@ impl ReviewService {
         let mut active: review::ActiveModel = existing.into();
 
         if let Some(rating) = input.rating {
-            active.rating = Set(rating);
+            active.rating = Set(rating as i64);
         }
         if let Some(ref title) = input.title {
             active.title = Set(Some(title.clone()));
@@ -316,7 +316,7 @@ impl ReviewService {
         let avg = if reviews.is_empty() {
             None
         } else {
-            let sum: i32 = reviews.iter().map(|r| r.rating).sum();
+            let sum: i64 = reviews.iter().map(|r| r.rating).sum();
             Some(sum as f64 / reviews.len() as f64)
         };
 

@@ -43,7 +43,7 @@ pub struct PriceAlertOut {
     pub from_name: Option<String>,
     pub to_name: Option<String>,
     pub route_id: Option<String>,
-    pub target_price: Option<i32>,
+    pub target_price: Option<i64>,
     pub frequency: String,
     pub status: String,
     pub created_at: String,
