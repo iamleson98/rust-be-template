@@ -118,7 +118,7 @@ export function GuestLookupForm({
         noValidate
         aria-label="Tra cứu vé"
       >
-        <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-end">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
           <FormField
             control={form.control}
             name="code"

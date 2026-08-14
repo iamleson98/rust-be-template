@@ -49,7 +49,7 @@ import {
 } from './booking-types'
 import { BookingList } from './booking-list'
 import { GuestLookupForm } from './guest-lookup-form'
-import { StatCard, StatsRow, UserTabTrigger, ReviewCard } from './booking-stats'
+import { StatsRow, UserTabTrigger, ReviewCard } from './booking-stats'
 import { NoResultsFound, NoBookingsYet, NoReviewsYet } from './empty-states'
 import { MyBookingsSkeleton } from './skeletons'
 import { Card as UiCard } from '@/components/ui/card'

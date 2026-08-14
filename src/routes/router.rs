@@ -4,7 +4,7 @@ use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::services::ServeDir;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
@@ -23,9 +23,14 @@ pub fn build_router(state: AppState) -> Router<()> {
     // PeerIpKeyExtractor. If you run behind a reverse proxy, switch to
     // `PeerIpKeyExtractor::new().with_trusted_proxy(...)` or use the
     // `GlobalKeyExtractor` for per-route limits.
+    //
+    // `per_second(n)` means "1 request every n seconds", so to convert
+    // from requests-per-minute we compute: interval = 60 / rpm.
+    let rpm = state.config.rate_limit.rpm.max(1) as u64;
+    let interval_secs = 60 / rpm; // e.g. 60 rpm → 1 req/s, 120 rpm → 0 (clamped to 1)
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
-            .per_second(state.config.rate_limit.rpm as u64)
+            .per_second(interval_secs.max(1))
             .burst_size(state.config.rate_limit.burst as u32)
             .finish()
             .unwrap_or_else(|| GovernorConfigBuilder::default().finish().unwrap()),
@@ -43,6 +48,10 @@ pub fn build_router(state: AppState) -> Router<()> {
     let api_routes: Router<AppState> = Router::new()
         .route("/auth/register", post(crate::routes::auth::register))
         .route("/auth/login", post(crate::routes::auth::login))
+        .route(
+            "/auth/employee-login",
+            post(crate::routes::auth::employee_login),
+        )
         .route("/auth/refresh", post(crate::routes::auth::refresh))
         .route("/auth/logout", post(crate::routes::auth::logout))
         .route("/auth/me", get(crate::routes::auth::me))
@@ -141,13 +150,17 @@ pub fn build_router(state: AppState) -> Router<()> {
     // cache the asset in their private cache (faster than revalidating).
     let static_dir = state.config.static_files.dir.clone();
     let static_cache_age = state.config.static_files.cache_max_age;
-    let static_service = ServeDir::new(static_dir)
+    let index_html_path = std::path::Path::new(&static_dir).join("index.html");
+    let static_service = ServeDir::new(&static_dir)
         .append_index_html_on_directories(true)
         // Pre-compressed variants: ServeDir will serve `file.gz` /
         // `file.br` if they exist alongside the original. Generate them
         // at build time with `gzip -k file` / `brotli -k file`.
         .precompressed_gzip()
-        .precompressed_br();
+        .precompressed_br()
+        // SPA fallback: if the requested file doesn't exist, serve index.html
+        // so client-side routing (TanStack Router) can handle the path.
+        .fallback(ServeFile::new(&index_html_path));
     let static_router: Router<AppState> = Router::new()
         .route_service("/", static_service.clone())
         .route_service("/{*path}", static_service)

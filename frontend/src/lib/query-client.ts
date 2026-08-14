@@ -37,9 +37,19 @@ export function createQueryClient() {
         refetchOnMount: 'always',
         // Refetch when network is restored after offline.
         refetchOnReconnect: true,
-        // Retry once on failure (network blips). More retries feel sluggish.
-        retry: 1,
-        retryDelay: 1000,
+        // Retry up to 3 times on failure. 429 (rate-limit) responses get
+        // exponential backoff so we don't hammer the server; other errors
+        // retry once with a 1s delay.
+        retry: (failureCount, error) => {
+          const status = (error as { status?: number })?.status
+          if (status === 429) return failureCount < 3
+          return failureCount < 1
+        },
+        retryDelay: (attempt, error) => {
+          const status = (error as { status?: number })?.status
+          if (status === 429) return Math.min(1000 * 2 ** attempt, 10_000)
+          return 1000
+        },
       },
       mutations: {
         // Mutations don't retry by default — if a booking fails, show the

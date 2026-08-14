@@ -3,7 +3,6 @@
 import { memo } from 'react'
 import { useApp } from '@/lib/store'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatCurrency } from '@/lib/currency'
 import {

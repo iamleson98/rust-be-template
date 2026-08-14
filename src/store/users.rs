@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -22,8 +22,10 @@ pub trait UserStore: Send + Sync {
         email: String,
         username: String,
         password_hash: String,
+        role: String,
     ) -> StoreResult<user::Model>;
     async fn delete_user(&self, id: Uuid) -> StoreResult<()>;
+    async fn count_users(&self) -> StoreResult<u64>;
 }
 
 #[derive(Clone)]
@@ -62,6 +64,7 @@ impl UserStore for DbUserStore {
         email: String,
         full_name: String,
         password_hash: String,
+        role: String,
     ) -> StoreResult<user::Model> {
         let now = Utc::now();
         let id = Uuid::new_v4();
@@ -81,7 +84,7 @@ impl UserStore for DbUserStore {
             avatar_url: Set(None),
             locale: Set("vi".into()),
             is_guest: Set(false),
-            role: Set("user".into()),
+            role: Set(role.clone()),
             failed_login_attempts: Set(0),
             locked_until: Set(None),
             last_login_at: Set(None),
@@ -109,7 +112,7 @@ impl UserStore for DbUserStore {
                 avatar_url: None,
                 locale: "vi".into(),
                 is_guest: false,
-                role: "user".into(),
+                role,
                 failed_login_attempts: 0,
                 locked_until: None,
                 last_login_at: None,
@@ -132,6 +135,10 @@ impl UserStore for DbUserStore {
             .exec(self.db.as_ref())
             .await?;
         Ok(())
+    }
+
+    async fn count_users(&self) -> StoreResult<u64> {
+        Ok(user::Entity::find().count(self.db.as_ref()).await?)
     }
 }
 
@@ -197,8 +204,9 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         email: String,
         username: String,
         password_hash: String,
+        role: String,
     ) -> StoreResult<user::Model> {
-        self.inner.create_user(email, username, password_hash).await
+        self.inner.create_user(email, username, password_hash, role).await
     }
 
     async fn delete_user(&self, id: Uuid) -> StoreResult<()> {
@@ -208,5 +216,9 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
             let _ = self.cache.delete(&perms_key(id)).await;
         }
         result
+    }
+
+    async fn count_users(&self) -> StoreResult<u64> {
+        self.inner.count_users().await
     }
 }

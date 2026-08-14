@@ -168,7 +168,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
 
               {/* Scroll fade indicators */}
               <div className="pointer-events-none absolute top-0 left-0 bottom-4 w-8 bg-linear-to-r from-background to-transparent" />
-              <div className="pointer-events-none absolute top-0 right-0 bottom-4 w-8 bg-gradient-to-l from-background to-transparent" />
+              <div className="pointer-events-none absolute top-0 right-0 bottom-4 w-8 bg-linear-to-l from-background to-transparent" />
             </div>
           </>
         )}

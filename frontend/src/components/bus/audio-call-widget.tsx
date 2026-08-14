@@ -68,15 +68,10 @@ export function AudioCallWidget() {
   const audioRef = useRef<HTMLAudioElement>(null)
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Only show for authenticated users. Customers need calls.initiate;
-  // employees (agents) need calls.receive. We don't have permissions in
-  // the store yet, so for v1 we just show it for any authed user — the
-  // server enforces the actual permission.
-  if (!user) return null
-
   // Initialize client when the panel is first opened.
   const ensureClient = useCallback(async () => {
     if (clientRef.current) return clientRef.current
+    if (!user) throw new Error('Not authenticated')
     const { AudioCallClient } = await import('@/lib/audio-call-client')
     const role = user.type === 'employee' ? 'agent' : 'customer'
     const client = new AudioCallClient({
@@ -188,6 +183,8 @@ export function AudioCallWidget() {
     })
     return () => { cancelled = true }
   }, [open, ensureClient])
+
+  if (!user) return null
 
   // Agent status text.
   const isAgent = user.type === 'employee'

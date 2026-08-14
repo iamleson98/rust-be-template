@@ -76,6 +76,7 @@ impl AuthService {
     }
 
     /// Register a new user account. Assigns the default `user` role.
+    /// The first registered user automatically gets the `admin` role.
     pub async fn register(
         &self,
         email: String,
@@ -86,20 +87,26 @@ impl AuthService {
         validate_username(&username)?;
         validate_password(&password)?;
 
+        // Check if this is the first user (will become admin)
+        let user_count = self.store.user_store().count_users().await?;
+        let is_first_user = user_count == 0;
+
         let hash = self
             .password
             .hash(&password)
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        let role_name = if is_first_user { "employee" } else { "user" };
+
         let model = self
             .store
             .user_store()
-            .create_user(email, username, hash)
+            .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // Assign the default "user" role by looking it up by name.
+        // Assign role: first user gets "admin", others get "user"
         let roles = self.store.rbac_store().list_roles().await?;
-        if let Some(role) = roles.iter().find(|r| r.name == "user") {
+        if let Some(role) = roles.iter().find(|r| r.name == role_name) {
             let _ = self.store.rbac_store().assign_role(model.id, role.id).await;
         }
 

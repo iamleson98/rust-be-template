@@ -76,3 +76,6 @@ server.log
 /agent-ctx/
 /db
 
+/data
+/osm-index
+

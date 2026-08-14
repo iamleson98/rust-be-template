@@ -21,7 +21,7 @@ pub async fn run(
     threads: Option<usize>,
 ) -> anyhow::Result<()> {
     let index_dir = index_dir
-        .unwrap_or_else(|| PathBuf::from("./place-index"));
+        .unwrap_or_else(|| PathBuf::from("./osm-index"));
 
     if !pbf_path.exists() {
         anyhow::bail!("OSM PBF file not found: {}", pbf_path.display());

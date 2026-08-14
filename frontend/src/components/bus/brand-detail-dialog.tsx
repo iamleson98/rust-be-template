@@ -9,7 +9,6 @@ import { useApp } from '@/lib/store'
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
@@ -543,11 +542,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                       {[1, 2, 3, 4, 5].map((n) => (
                                         <Star
                                           key={n}
-                                          className={`h-3 w-3 ${
-                                            n <= r.rating
+                                          className={`h-3 w-3 ${n <= r.rating
                                               ? 'fill-amber-400 text-amber-400'
                                               : 'fill-slate-200 text-slate-200'
-                                          }`}
+                                            }`}
                                         />
                                       ))}
                                     </div>

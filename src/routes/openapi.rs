@@ -5,6 +5,7 @@ use utoipa::OpenApi;
     paths(
         crate::routes::auth::register,
         crate::routes::auth::login,
+        crate::routes::auth::employee_login,
         crate::routes::auth::refresh,
         crate::routes::auth::logout,
         crate::routes::auth::me,

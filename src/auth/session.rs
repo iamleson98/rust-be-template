@@ -41,15 +41,15 @@ impl SessionUser {
     /// `brand_name` is left `None` here — the caller (typically the auth
     /// service) fills it in via a brand lookup when the user has a brand.
     pub fn from_model(m: &user::Model) -> Self {
-        let actor_type = if m.role == "user" { "user" } else { "employee" };
-        let employee_role = if actor_type == "employee" {
+        // let actor_type = if m.role == "user" { "user" } else { "employee" };
+        let employee_role = if m.role == "admin" {
             Some(m.role.clone())
         } else {
             None
         };
         Self {
             id: m.id.to_string(),
-            actor_type: actor_type.to_string(),
+            actor_type: m.role.to_string(),
             role: m.role.clone(),
             name: m.full_name.clone(),
             email: Some(m.email.clone()),

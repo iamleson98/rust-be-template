@@ -8,6 +8,10 @@ use super::parser::{Cli, Command};
 
 /// Entry point for the CLI. Parses args, sets up logging, dispatches.
 pub async fn run() -> anyhow::Result<()> {
+    // Load .env into process env BEFORE clap parses, so that `#[arg(env = ...)]`
+    // attributes (e.g. SEARCH__INDEX_DIR) can pick up values from the file.
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
 
     init_tracing(cli.verbose);

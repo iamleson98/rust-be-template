@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,6 @@ import {
   AlertTriangle,
   UserPlus,
   ShieldCheck,
-  Bell,
   Users,
 } from 'lucide-react'
 

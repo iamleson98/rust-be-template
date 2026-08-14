@@ -42,7 +42,7 @@ pub async fn csrf_check(
     let path = req.uri().path().to_string();
     if matches!(
         path.as_str(),
-        "/auth/login" | "/auth/register" | "/auth/refresh"
+        "/auth/login" | "/auth/employee-login" | "/auth/register" | "/auth/refresh"
     ) {
         return Ok(next.run(req).await);
     }

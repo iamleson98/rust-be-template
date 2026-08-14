@@ -25,7 +25,6 @@ import { cn } from '@/lib/utils'
 import { buildSearchInput } from '@/lib/search-params'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { toast } from 'sonner'
 import {
   MapPin,
   CalendarDays,
@@ -236,7 +235,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
 
           <div
             className={cn(
-              'grid grid-cols-1 gap-3 items-end',
+              'grid grid-cols-1 gap-3 items-start',
               searchParams.roundTrip
                 ? 'md:grid-cols-[1fr_auto_1fr_1fr_1fr_1fr]'
                 : 'md:grid-cols-[1fr_auto_1fr_1fr_1fr]',
