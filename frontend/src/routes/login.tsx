@@ -1,5 +1,5 @@
 /** Login route — `/login` */
-import { LoginPage } from '@/components/bus/login-page'
+import { LoginPage } from '@/components/auth/login-page'
 
 export function LoginPageRoute() {
   return <LoginPage />
