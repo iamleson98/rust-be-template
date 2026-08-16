@@ -18,9 +18,9 @@ pub use self::users::{CacheUserStore, DbUserStore, UserStore};
 pub use self::posts::{CachePostStore, DbPostStore, PostStore};
 pub use self::rbac::{CacheRbacStore, DbRbacStore, RbacStore};
 pub use self::refresh_tokens::{
-	CacheRefreshTokenStore,
-	DbRefreshTokenStore,
-	RefreshTokenStore,
+        CacheRefreshTokenStore,
+        DbRefreshTokenStore,
+        RefreshTokenStore,
 };
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewZeroClawExchange};
@@ -32,6 +32,8 @@ pub use self::trip::{DbTripStore, TripStore};
 pub use self::place::{DbPlaceStore, PlaceStore};
 pub use self::price_alert::{DbPriceAlertStore, PriceAlertStore};
 pub use self::audit::{AuditStore, DbAuditStore};
+pub use self::notification::{DbNotificationStore, NotificationStore};
+pub use self::wishlist::{DbWishlistStore, WishlistStore};
 pub use self::composite::CompositeStore;
 
 #[macro_use]
@@ -52,4 +54,6 @@ mod trip;
 mod place;
 mod price_alert;
 mod audit;
+mod notification;
+mod wishlist;
 mod composite;

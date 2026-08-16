@@ -230,6 +230,9 @@ export type NotificationItem = {
   body: string
   link: string | null
   iconKey: string | null
+  /// `true` when the notification has been read (backend field).
+  /// The frontend's optimistic-read layer may also set `readAt`.
+  read?: boolean
   readAt: string | null
   createdAt: string
 }

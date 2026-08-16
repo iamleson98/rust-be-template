@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
 import { useNotifications, useMarkNotificationsRead } from '@/lib/queries'
+import type { NotificationItem } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -48,19 +49,22 @@ export function NotificationBell() {
   const [optimisticReads, setOptimisticReads] = useState<Record<string, string>>({})
 
   const items = data?.items ?? []
-  const serverUnread = data?.unread ?? 0
+  const serverUnread = data?.unreadCount ?? data?.unread ?? 0
   // Apply optimistic reads to the items list + unread count.
+  // A notification is "read" when either the backend's `read` flag is
+  // true OR the frontend's optimistic `readAt` timestamp is set.
+  const isRead = (n: NotificationItem) => n.read === true || !!optimisticReads[n.id]
   const effectiveItems = items.map((n) =>
     optimisticReads[n.id] ? { ...n, readAt: optimisticReads[n.id] } : n,
   )
   const unread = Math.max(
     0,
-    serverUnread - effectiveItems.filter((n) => optimisticReads[n.id] && !n.readAt).length,
+    serverUnread - effectiveItems.filter((n) => optimisticReads[n.id]).length,
   )
 
   const markAllRead = async () => {
     if (!isLoggedIn) return
-    const unreadIds = effectiveItems.filter((n) => !n.readAt).map((n) => n.id)
+    const unreadIds = effectiveItems.filter((n) => !isRead(n)).map((n) => n.id)
     if (unreadIds.length === 0) return
     // Optimistic update
     const nowIso = new Date().toISOString()
@@ -177,7 +181,7 @@ export function NotificationBell() {
                 <div className="divide-y">
                   {effectiveItems.map((n) => {
                     const cfg = ICONS[n.type] ?? ICONS.system
-                    const isUnread = !n.readAt
+                    const isUnread = !isRead(n)
                     return (
                       <button
                         key={n.id}

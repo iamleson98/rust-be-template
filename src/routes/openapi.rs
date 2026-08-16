@@ -43,8 +43,17 @@ use utoipa::OpenApi;
         crate::routes::bookings::confirm,
         // chat
         crate::routes::chat::list_channels,
+        crate::routes::chat::create_channel,
         crate::routes::chat::list_messages,
+        crate::routes::chat::post_message,
         crate::routes::chat::mark_read,
+        // notifications
+        crate::routes::notifications::list,
+        crate::routes::notifications::mark_read,
+        // wishlist
+        crate::routes::wishlist::list,
+        crate::routes::wishlist::toggle,
+        crate::routes::wishlist::remove,
         // places
         crate::routes::places::list,
         crate::routes::places::search,
@@ -146,6 +155,27 @@ use utoipa::OpenApi;
         crate::dto::public::CampaignListResponse,
         crate::dto::public::CampaignValidateResponse,
         crate::dto::public::StatsResponse,
+        // chat
+        crate::dto::chat::ChatChannelOut,
+        crate::dto::chat::ChatChannelListResponse,
+        crate::dto::chat::ChatMessageOut,
+        crate::dto::chat::ChatMessageListResponse,
+        crate::dto::chat::CreateChannelRequest,
+        crate::dto::chat::CreateChannelResponse,
+        crate::dto::chat::CreateMessageRequest,
+        crate::dto::chat::CreateMessageResponse,
+        crate::dto::chat::MarkChannelReadResponse,
+        // notifications
+        crate::dto::notification::NotificationOut,
+        crate::dto::notification::NotificationListResponse,
+        crate::dto::notification::MarkNotificationsReadRequest,
+        crate::dto::notification::MarkNotificationsReadResponse,
+        // wishlist
+        crate::dto::wishlist::WishlistItemOut,
+        crate::dto::wishlist::WishlistListResponse,
+        crate::dto::wishlist::ToggleWishlistRequest,
+        crate::dto::wishlist::ToggleWishlistResponse,
+        crate::dto::wishlist::DeleteWishlistResponse,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
@@ -156,6 +186,8 @@ use utoipa::OpenApi;
         (name = "reviews", description = "Review management"),
         (name = "bookings", description = "Booking management"),
         (name = "chat", description = "Chat channels & messages"),
+        (name = "notifications", description = "User notifications"),
+        (name = "wishlist", description = "Saved routes / trips"),
         (name = "places", description = "Place search & geocoding (OSM)"),
         (name = "public", description = "Public catalog (brands, routes, trips, campaigns)"),
         (name = "routing", description = "Routing & directions (Valhalla proxy)"),

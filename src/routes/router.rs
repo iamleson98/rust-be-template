@@ -118,12 +118,33 @@ pub fn build_router(state: AppState) -> Router<()> {
         // ── Chat (REST fallback for WS) ────────────────────────────────
         .route("/chat/channels", get(crate::routes::chat::list_channels))
         .route(
+            "/chat/channels",
+            post(crate::routes::chat::create_channel),
+        )
+        .route(
             "/chat/channels/{id}/messages",
             get(crate::routes::chat::list_messages),
         )
         .route(
+            "/chat/channels/{id}/messages",
+            post(crate::routes::chat::post_message),
+        )
+        .route(
             "/chat/channels/{id}/read",
             post(crate::routes::chat::mark_read),
+        )
+        // ── Notifications ──────────────────────────────────────────────
+        .route("/notifications", get(crate::routes::notifications::list))
+        .route(
+            "/notifications/read",
+            post(crate::routes::notifications::mark_read),
+        )
+        // ── Wishlist ───────────────────────────────────────────────────
+        .route("/wishlist", get(crate::routes::wishlist::list))
+        .route("/wishlist", post(crate::routes::wishlist::toggle))
+        .route(
+            "/wishlist/{id}",
+            delete(crate::routes::wishlist::remove),
         )
         // ── ZeroClaw ───────────────────────────────────────────────────
         .route("/zeroclaw/status", get(crate::routes::zeroclaw::status))

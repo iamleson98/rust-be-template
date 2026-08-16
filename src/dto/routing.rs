@@ -13,6 +13,7 @@ use utoipa::ToSchema;
 /// Valhalla versions emit slightly different shapes; we expose the
 /// top-level summary fields the UI cares about).
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct DirectionsResponse {
     /// Raw Valhalla `trip` object (opaque — passed through as-is).
     pub valhalla: serde_json::Value,
@@ -20,10 +21,8 @@ pub struct DirectionsResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shape: Option<String>,
     /// Total trip length in kilometers.
-    #[serde(rename = "distanceKm")]
     pub distance_km: f64,
     /// Total trip time in minutes.
-    #[serde(rename = "timeMin")]
     pub time_min: f64,
 }
 
@@ -34,12 +33,11 @@ pub struct DirectionsResponse {
 /// `distancesKm[i][j]` is the distance in km. `None` cells mean
 /// Valhalla could not route between that pair.
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct MatrixResponse {
     /// `times_min[i][j]` = minutes from source `i` to target `j`.
-    #[serde(rename = "timesMin")]
     pub times_min: Vec<Vec<Option<f64>>>,
     /// `distances_km[i][j]` = km from source `i` to target `j`.
-    #[serde(rename = "distancesKm")]
     pub distances_km: Vec<Vec<Option<f64>>>,
 }
 
@@ -49,18 +47,20 @@ pub struct MatrixResponse {
 /// the raw Valhalla isochrone response (a FeatureCollection of polygons
 /// — one per contour time).
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct IsochroneResponse {
     /// Raw Valhalla isochrone GeoJSON FeatureCollection.
     pub geojson: serde_json::Value,
 }
 
-// Re-export the request-side query structs so the route layer doesn't
-// have to redefine them. They mirror the existing `DirectionsQuery`,
-// `MatrixQuery`, `IsochroneQuery` in `routes/routing.rs` — kept here
-// so the OpenAPI `params(...)` reference can point at a single place.
+// ────────────────────────────────────────────────────────────────
+//  Query params — re-exported so the route layer's `params(...)` and
+//  the OpenAPI spec reference a single source of truth.
+// ────────────────────────────────────────────────────────────────
 
 /// Query params for `GET /api/routing/directions`.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct DirectionsQueryDto {
     /// Costing model: `auto`, `bicycle`, `pedestrian`, ...
     pub costing: Option<String>,
@@ -72,6 +72,7 @@ pub struct DirectionsQueryDto {
 
 /// Query params for `GET /api/routing/matrix`.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct MatrixQueryDto {
     pub costing: Option<String>,
     /// Semicolon-separated `lat,lon` pairs for sources.
@@ -82,6 +83,7 @@ pub struct MatrixQueryDto {
 
 /// Query params for `GET /api/routing/isochrone`.
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct IsochroneQueryDto {
     pub costing: Option<String>,
     pub lat: f64,

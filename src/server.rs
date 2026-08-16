@@ -15,15 +15,16 @@ use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, PlaceService, PostService, PriceAlertService,
-    PublicService, ReviewService, RoutingService, UserService,
+    AdminService, AuthService, BookingService, NotificationService, PlaceService, PostService,
+    PriceAlertService, PublicService, ReviewService, RoutingService, UserService, WishlistService,
 };
 use crate::state::AppState;
 use crate::store::{
     CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore, CacheRefreshTokenStore,
     CacheUserStore, CompositeStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
     DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
-    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, PostStore, RbacStore,
+    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbNotificationStore,
+    DbWishlistStore, PostStore, RbacStore,
     RefreshTokenStore, UserStore, BrandStore, ChatStore,
 };
 use crate::ws;
@@ -96,6 +97,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let place_store = Arc::new(DbPlaceStore::new(db.clone()));
     let price_alert_store = Arc::new(DbPriceAlertStore::new(db.clone()));
     let audit_store = Arc::new(DbAuditStore::new(db.clone()));
+    let notification_store = Arc::new(DbNotificationStore::new(db.clone()));
+    let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
 
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         user_store,
@@ -112,6 +115,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         place_store,
         price_alert_store,
         audit_store,
+        notification_store,
+        wishlist_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------
@@ -186,6 +191,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         place_searcher,
     ));
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
+    let notification_service = Arc::new(NotificationService::new(store.clone()));
+    let wishlist_service = Arc::new(WishlistService::new(store.clone()));
 
     let state = AppState {
         config: config_arc,
@@ -200,6 +207,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         routing: routing_service,
         places: place_service,
         price_alerts: price_alert_service,
+        notifications: notification_service,
+        wishlist: wishlist_service,
     };
 
     Ok(state)

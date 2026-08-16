@@ -167,25 +167,26 @@ export function ReviewDialog({
     setSubmitting(true)
     try {
       // Backend route: `POST /api/reviews` with body `CreateReviewInput` —
-      // snake_case. The `user_id` field is overwritten by the server from
-      // the authenticated user, so we don't send it. Send `credentials:
-      // 'include'` so the httpOnly JWT cookie is attached.
+      // camelCase on the wire (Rust struct has `#[serde(rename_all =
+      // "camelCase")]`). The `userId` field is overwritten by the server
+      // from the authenticated user, so we don't send it. Send
+      // `credentials: 'include'` so the httpOnly JWT cookie is attached.
       const res = await fetch('/api/reviews', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          trip_session_id: tripSessionId,
-          booking_id: bookingId,
-          route_id: routeId,
-          brand_id: brandId,
+          tripSessionId,
+          bookingId,
+          routeId,
+          brandId,
           rating: values.rating,
           title: values.title.trim(),
           content: values.content.trim(),
           tags: values.tags,
           photos: values.photos,
-          author_name: values.author.trim() || 'Hành khách',
-          author_phone: authorPhone,
+          authorName: values.author.trim() || 'Hành khách',
+          authorPhone: authorPhone,
         }),
       })
       const data = await res.json()

@@ -309,55 +309,59 @@ export function useCancelBooking() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Notifications  (NO BACKEND SUPPORT)
+// Notifications
 // ─────────────────────────────────────────────────────────────
-//
-// The Rust backend has no `/api/notifications` endpoint. These hooks are
-// stubbed to return empty data so the `<NotificationBell>` UI doesn't crash
-// or spam 404s in the console. When the backend adds a notifications
-// endpoint, restore the real implementation.
+// Backend routes: `GET /api/notifications?limit=&offset=`
+//                `POST /api/notifications/read` (body: `{ ids: [] }`)
+// Both require authentication (httpOnly JWT cookie).
 
-export function useNotifications(_limit = 20, opts?: { enabled?: boolean }) {
-  return useQuery<ListEnvelope<NotificationItem>>({
-    queryKey: queryKeys.notifications,
-    queryFn: async () => ({ items: [], total: 0, limit: _limit, offset: 0 }),
+export function useNotifications(limit = 20, opts?: { enabled?: boolean }) {
+  return useQuery<ListEnvelope<NotificationItem> & { unreadCount?: number }>({
+    queryKey: [...queryKeys.notifications, { limit }],
+    queryFn: () => apiJson(`/api/notifications?limit=${limit}`),
     enabled: opts?.enabled ?? true,
-    staleTime: Infinity,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000, // poll every 60s for new notifications
   })
 }
 
 export function useMarkNotificationsRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (_ids: string[]) => ({ ok: true }),
+    mutationFn: async (ids: string[]) =>
+      apiJson('/api/notifications/read', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Wishlist  (NO BACKEND SUPPORT)
+// Wishlist
 // ─────────────────────────────────────────────────────────────
-//
-// The Rust backend has no `/api/wishlist` endpoint. These hooks are stubbed
-// to return empty data / no-ops so the `<WishlistButton>` UI doesn't crash
-// or spam 404s. The wishlist state is kept in localStorage only.
+// Backend routes: `GET /api/wishlist`
+//                `POST /api/wishlist` (body: `{ routeId?, tripId?, fromName?, toName? }`)
+//                `DELETE /api/wishlist/{id}`
+// All require authentication.
 
 export function useWishlist(opts?: { enabled?: boolean }) {
   return useQuery<ListEnvelope<WishlistItem>>({
     queryKey: queryKeys.wishlist,
-    queryFn: async () => ({ items: [], total: 0, limit: 50, offset: 0 }),
+    queryFn: () => apiJson('/api/wishlist'),
     enabled: opts?.enabled ?? true,
-    staleTime: Infinity,
+    staleTime: 60 * 1000,
   })
 }
 
 export function useToggleWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (_payload: { tripId?: string; routeId?: string; fromName: string; toName: string }) => {
-      // No backend endpoint — pretend success so the UI updates locally.
-      return { ok: true }
-    },
+    mutationFn: async (payload: { tripId?: string; routeId?: string; fromName: string; toName: string }) =>
+      apiJson('/api/wishlist', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.wishlist }),
   })
 }
@@ -365,7 +369,7 @@ export function useToggleWishlist() {
 export function useRemoveWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (_id: string) => ({ ok: true }),
+    mutationFn: async (id: string) => apiJson(`/api/wishlist/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.wishlist }),
   })
 }

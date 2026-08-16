@@ -412,28 +412,29 @@ export function BookingDialog() {
     setSubmitting(true)
     try {
       // Backend route: `POST /api/bookings/hold` (alias of `POST /api/bookings`).
-      // Body is `HoldReq` — snake_case. `passengers[].type` matches
-      // `#[serde(rename = "type")]`; extra fields like `gender`/`seatId`
-      // are ignored by serde. Send `credentials: 'include'` so the booking
-      // is attached to the logged-in user (or treated as guest).
+      // Body is `HoldReq` — camelCase on the wire (Rust struct has
+      // `#[serde(rename_all = "camelCase")]`). The `passengers[].type`
+      // field uses `#[serde(rename = "type")]` (legacy single-field
+      // rename). Send `credentials: 'include'` so the booking is
+      // attached to the logged-in user (or treated as guest).
       const res = await fetch('/api/bookings/hold', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          trip_id: bookingContext.tripId,
-          seat_ids: bookingContext.seatIds,
+          tripId: bookingContext.tripId,
+          seatIds: bookingContext.seatIds,
           passengers: values.passengers.map((p) => ({
             name: p.name,
             type: getPassengerType(p.age),
             age: p.age,
           })),
-          boarding_point_id: bookingContext.boardingPointId,
-          dropping_point_id: bookingContext.droppingPointId,
-          contact_name: values.contactName,
-          contact_phone: normalizePhone(values.contactPhone),
-          contact_email: values.contactEmail || undefined,
-          campaign_code: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+          boardingPointId: bookingContext.boardingPointId,
+          droppingPointId: bookingContext.droppingPointId,
+          contactName: values.contactName,
+          contactPhone: normalizePhone(values.contactPhone),
+          contactEmail: values.contactEmail || undefined,
+          campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
         }),
       })
       const data = await res.json()
@@ -443,12 +444,12 @@ export function BookingDialog() {
       }
       // Backend returns `{ bookingId, code, total, ... }` (camelCase) from `hold()`.
       // Confirm the booking via `POST /api/bookings/{id}/confirm` with
-      // body `{ payment_method }` (snake_case — matches `ConfirmReq`).
+      // body `{ paymentMethod }` (camelCase — matches `ConfirmReq`).
       const confirmRes = await fetch(`/api/bookings/${data.bookingId}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ payment_method: paymentMethod }),
+        body: JSON.stringify({ paymentMethod }),
       })
       const confirmData = await confirmRes.json()
       if (!confirmRes.ok) {

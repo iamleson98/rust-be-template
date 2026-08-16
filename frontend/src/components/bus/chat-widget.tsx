@@ -470,12 +470,34 @@ export function ChatWidget() {
   }
 
   const startNewChat = async () => {
-    // The Rust backend has no `POST /api/chat/channels` endpoint —
-    // channels are created server-side when a booking is made or by
-    // an admin. We show a hint instead of failing.
-    toast.info('Vui lòng đặt vé hoặc liên hệ tổng đài để mở kênh trò chuyện.', {
-      description: 'Kênh chat tự động tạo khi bạn đặt vé thành công.',
-    })
+    if (!chatUser) return
+    try {
+      // Backend route: `POST /api/chat/channels` (authed). Body is
+      // `{ topic?, brandId? }` (camelCase — matches `CreateChannelRequest`).
+      const res = await fetch('/api/chat/channels', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          topic: 'Hỗ trợ đặt vé',
+          brandId: null,
+        }),
+      })
+      const data = await res.json()
+      if (data.channel) {
+        // Reload channel list
+        fetch('/api/chat/channels?limit=50', { credentials: 'include' })
+          .then((r) => r.json())
+          .then((d) => setChannels(d.items ?? []))
+          .catch(() => { })
+        openChannel(data.channel)
+      } else if (data?.error?.message) {
+        toast.error(data.error.message)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Không thể tạo kênh chat')
+    }
   }
 
   const quickActions = [
@@ -497,13 +519,31 @@ export function ChatWidget() {
     return true
   }
 
-  const postMessageRest = async (_content: string, _optimistic: Message) => {
-    // The Rust backend has no `POST /api/chat/channels/{id}/messages` REST
-    // endpoint — messages go via the WS protocol only. This function is a
-    // no-op kept for backward compatibility with callers that fall back
-    // to REST when the WS is disconnected. The polling fallback in
-    // `useEffect` above will pick up messages sent by the other party.
-    return
+  const postMessageRest = async (content: string, optimistic: Message) => {
+    // Backend route: `POST /api/chat/channels/{id}/messages` (authed).
+    // Body is `{ content?, kind, attachments?, clientMsgId? }` (camelCase —
+    // matches `CreateMessageRequest`). This is the REST fallback for when
+    // the WebSocket is unavailable.
+    if (!activeChannel) return
+    try {
+      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content,
+          kind: 'text',
+          clientMsgId: optimistic.clientMsgId,
+        }),
+      })
+      const data = await res.json()
+      if (data.message) {
+        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? data.message : m)))
+        lastMsgIdRef.current = data.message.id
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const sendMessage = async (text?: string) => {

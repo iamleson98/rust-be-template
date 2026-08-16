@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use super::{
-    AuditStore, BookingStore, BrandStore, ChatStore, PlaceStore, PostStore, PriceAlertStore,
-    ReviewStore, RbacStore, RefreshTokenStore, RouteStore, ScheduleStore, TripStore, UserStore,
+    AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PlaceStore, PostStore,
+    PriceAlertStore, ReviewStore, RbacStore, RefreshTokenStore, RouteStore, ScheduleStore,
+    TripStore, UserStore, WishlistStore,
 };
 
 #[derive(Clone)]
@@ -21,6 +22,8 @@ pub struct CompositeStore {
     places: Arc<dyn PlaceStore>,
     price_alerts: Arc<dyn PriceAlertStore>,
     audit: Arc<dyn AuditStore>,
+    notifications: Arc<dyn NotificationStore>,
+    wishlist: Arc<dyn WishlistStore>,
 }
 
 impl CompositeStore {
@@ -40,6 +43,8 @@ impl CompositeStore {
         places: Arc<dyn PlaceStore>,
         price_alerts: Arc<dyn PriceAlertStore>,
         audit: Arc<dyn AuditStore>,
+        notifications: Arc<dyn NotificationStore>,
+        wishlist: Arc<dyn WishlistStore>,
     ) -> Self {
         Self {
             users,
@@ -56,6 +61,8 @@ impl CompositeStore {
             places,
             price_alerts,
             audit,
+            notifications,
+            wishlist,
         }
     }
 
@@ -113,5 +120,13 @@ impl CompositeStore {
 
     pub fn audit_store(&self) -> Arc<dyn AuditStore> {
         self.audit.clone()
+    }
+
+    pub fn notification_store(&self) -> Arc<dyn NotificationStore> {
+        self.notifications.clone()
+    }
+
+    pub fn wishlist_store(&self) -> Arc<dyn WishlistStore> {
+        self.wishlist.clone()
     }
 }
