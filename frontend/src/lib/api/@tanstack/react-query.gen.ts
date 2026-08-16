@@ -3,8 +3,625 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, confirm, create, create2, createPost, deletePost, deleteUser, detail, directions, employeeLogin, get, getPost, getUser, health, hold, isochrone, list, list2, list3, list4, listChannels, listExchanges, listMessages, listPosts, listUsers, login, logout, lookup, markRead, matrix, me, type Options, ready, recommendations, refresh, register, remove, remove2, reverse, routes, search, searchTrips, stats, status, tags, tripDetail, update, updatePost, validateCampaign } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, CreateData, CreatePostData, CreatePostResponse, CreateResponse, DeletePostData, DeletePostResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, GetData, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, ListChannelsData, ListData, ListExchangesData, ListMessagesData, ListPostsData, ListPostsResponse2, ListResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkReadData, MatrixData, MatrixResponse2, MeData, MeResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, RemoveData, RemoveResponse, ReverseData, ReverseResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, StatsData, StatsResponse2, StatusData, TagsData, TagsResponse, TripDetailData, TripDetailResponse, UpdateData, UpdatePostData, UpdatePostResponse, UpdateResponse, ValidateCampaignData, ValidateCampaignResponse } from '../types.gen';
+import { bookingExport, bookingStats, brandDetail, brands, campaigns, cancel, confirm, create, create2, createBrand, createChannel, createPickupPoint, createPost, createRoute, createSchedule, deleteBrand, deletePickupPoint, deletePost, deleteReview, deleteRoute, deleteSchedule, deleteUser, detail, directions, employeeLogin, get, getBooking, getPost, getUser, health, hold, isochrone, list, list2, list3, list4, list5, list6, listBookings, listBrands, listBusLayouts, listChannels, listExchanges, listMessages, listPickupPoints, listPosts, listReviews, listRoutes, listSchedules, listUsers, login, logout, lookup, markRead, markRead2, matrix, me, moderateReview, type Options, postMessage, ready, recommendations, refresh, register, remove, remove2, remove3, reverse, routes, search, searchTrips, stats, status, tags, toggle, tripDetail, update, updateBookingStatus, updateBrand, updatePickupPoint, updatePost, updateRoute, updateSchedule, validateCampaign } from '../sdk.gen';
+import type { BookingExportData, BookingExportResponse, BookingStatsData, BookingStatsResponse, BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, CreateBrandData, CreateBrandResponse, CreateChannelData, CreateChannelResponse2, CreateData, CreatePickupPointData, CreatePickupPointResponse, CreatePostData, CreatePostResponse, CreateResponse, CreateRouteData, CreateRouteResponse, CreateScheduleData, CreateScheduleResponse, DeleteBrandData, DeleteBrandResponse, DeletePickupPointData, DeletePickupPointResponse, DeletePostData, DeletePostResponse, DeleteReviewData, DeleteReviewResponse, DeleteRouteData, DeleteRouteResponse, DeleteScheduleData, DeleteScheduleResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, GetBookingData, GetBookingResponse, GetData, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, ListBookingsData, ListBookingsResponse, ListBrandsData, ListBrandsResponse, ListBusLayoutsData, ListBusLayoutsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListMessagesData, ListMessagesResponse, ListPickupPointsData, ListPickupPointsResponse, ListPostsData, ListPostsResponse2, ListResponse, ListReviewsData, ListReviewsResponse, ListRoutesData, ListRoutesResponse, ListSchedulesData, ListSchedulesResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateReviewData, ModerateReviewResponse2, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReverseData, ReverseResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, StatsData, StatsResponse2, StatusData, TagsData, TagsResponse, ToggleData, ToggleResponse, TripDetailData, TripDetailResponse, UpdateBookingStatusData, UpdateBookingStatusResponse2, UpdateBrandData, UpdateBrandResponse, UpdateData, UpdatePickupPointData, UpdatePickupPointResponse, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateRouteData, UpdateRouteResponse, UpdateScheduleData, UpdateScheduleResponse, ValidateCampaignData, ValidateCampaignResponse } from '../types.gen';
+
+export type QueryKey<TOptions extends Options> = [
+    Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
+        _id: string;
+        _infinite?: boolean;
+        tags?: ReadonlyArray<string>;
+    }
+];
+
+const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions, infinite?: boolean, tags?: ReadonlyArray<string>): [
+    QueryKey<TOptions>[0]
+] => {
+    const params: QueryKey<TOptions>[0] = { _id: id, baseUrl: options?.baseUrl || (options?.client ?? client).getConfig().baseUrl } as QueryKey<TOptions>[0];
+    if (infinite) {
+        params._infinite = infinite;
+    }
+    if (tags) {
+        params.tags = tags;
+    }
+    if (options?.body) {
+        params.body = options.body;
+    }
+    if (options?.headers) {
+        params.headers = options.headers;
+    }
+    if (options?.path) {
+        params.path = options.path;
+    }
+    if (options?.query) {
+        params.query = options.query;
+    }
+    return [params];
+};
+
+export const listBookingsQueryKey = (options?: Options<ListBookingsData>) => createQueryKey('listBookings', options);
+
+/**
+ * `GET /api/admin/bookings` — list bookings with admin filters.
+ */
+export const listBookingsOptions = (options?: Options<ListBookingsData>) => queryOptions<ListBookingsResponse, DefaultError, ListBookingsResponse, ReturnType<typeof listBookingsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBookings({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBookingsQueryKey(options)
+});
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const listBookingsInfiniteQueryKey = (options?: Options<ListBookingsData>): QueryKey<Options<ListBookingsData>> => createQueryKey('listBookings', options, true);
+
+/**
+ * `GET /api/admin/bookings` — list bookings with admin filters.
+ */
+export const listBookingsInfiniteOptions = (options?: Options<ListBookingsData>) => {
+    const opts = infiniteQueryOptions<ListBookingsResponse, DefaultError, InfiniteData<ListBookingsResponse>, QueryKey<Options<ListBookingsData>>, number | Pick<QueryKey<Options<ListBookingsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListBookingsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listBookings({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listBookingsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const bookingExportQueryKey = (options?: Options<BookingExportData>) => createQueryKey('bookingExport', options);
+
+/**
+ * `GET /api/admin/bookings/export` — CSV export.
+ */
+export const bookingExportOptions = (options?: Options<BookingExportData>) => queryOptions<BookingExportResponse, DefaultError, BookingExportResponse, ReturnType<typeof bookingExportQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await bookingExport({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: bookingExportQueryKey(options)
+});
+
+export const bookingExportInfiniteQueryKey = (options?: Options<BookingExportData>): QueryKey<Options<BookingExportData>> => createQueryKey('bookingExport', options, true);
+
+/**
+ * `GET /api/admin/bookings/export` — CSV export.
+ */
+export const bookingExportInfiniteOptions = (options?: Options<BookingExportData>) => {
+    const opts = infiniteQueryOptions<BookingExportResponse, DefaultError, InfiniteData<BookingExportResponse>, QueryKey<Options<BookingExportData>>, number | Pick<QueryKey<Options<BookingExportData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<BookingExportData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await bookingExport({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: bookingExportInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const bookingStatsQueryKey = (options?: Options<BookingStatsData>) => createQueryKey('bookingStats', options);
+
+/**
+ * `GET /api/admin/bookings/stats` — aggregate booking stats.
+ */
+export const bookingStatsOptions = (options?: Options<BookingStatsData>) => queryOptions<BookingStatsResponse, DefaultError, BookingStatsResponse, ReturnType<typeof bookingStatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await bookingStats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: bookingStatsQueryKey(options)
+});
+
+export const bookingStatsInfiniteQueryKey = (options?: Options<BookingStatsData>): QueryKey<Options<BookingStatsData>> => createQueryKey('bookingStats', options, true);
+
+/**
+ * `GET /api/admin/bookings/stats` — aggregate booking stats.
+ */
+export const bookingStatsInfiniteOptions = (options?: Options<BookingStatsData>) => {
+    const opts = infiniteQueryOptions<BookingStatsResponse, DefaultError, InfiniteData<BookingStatsResponse>, QueryKey<Options<BookingStatsData>>, number | Pick<QueryKey<Options<BookingStatsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<BookingStatsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await bookingStats({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: bookingStatsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const getBookingQueryKey = (options: Options<GetBookingData>) => createQueryKey('getBooking', options);
+
+/**
+ * `GET /api/admin/bookings/{id}` — admin booking detail.
+ */
+export const getBookingOptions = (options: Options<GetBookingData>) => queryOptions<GetBookingResponse, DefaultError, GetBookingResponse, ReturnType<typeof getBookingQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getBooking({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getBookingQueryKey(options)
+});
+
+/**
+ * `PATCH /api/admin/bookings/{id}` — update booking status (admin override).
+ */
+export const updateBookingStatusMutation = (options?: Partial<Options<UpdateBookingStatusData>>): UseMutationOptions<UpdateBookingStatusResponse2, DefaultError, Options<UpdateBookingStatusData>> => {
+    const mutationOptions: UseMutationOptions<UpdateBookingStatusResponse2, DefaultError, Options<UpdateBookingStatusData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateBookingStatus({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listBrandsQueryKey = (options?: Options<ListBrandsData>) => createQueryKey('listBrands', options);
+
+/**
+ * `GET /api/admin/brands` — list all brands (admin).
+ */
+export const listBrandsOptions = (options?: Options<ListBrandsData>) => queryOptions<ListBrandsResponse, DefaultError, ListBrandsResponse, ReturnType<typeof listBrandsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBrands({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBrandsQueryKey(options)
+});
+
+/**
+ * `POST /api/admin/brands` — create a brand.
+ */
+export const createBrandMutation = (options?: Partial<Options<CreateBrandData>>): UseMutationOptions<CreateBrandResponse, DefaultError, Options<CreateBrandData>> => {
+    const mutationOptions: UseMutationOptions<CreateBrandResponse, DefaultError, Options<CreateBrandData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createBrand({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/brands/{id}` — delete a brand.
+ */
+export const deleteBrandMutation = (options?: Partial<Options<DeleteBrandData>>): UseMutationOptions<DeleteBrandResponse, DefaultError, Options<DeleteBrandData>> => {
+    const mutationOptions: UseMutationOptions<DeleteBrandResponse, DefaultError, Options<DeleteBrandData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteBrand({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PUT /api/admin/brands/{id}` — update a brand.
+ */
+export const updateBrandMutation = (options?: Partial<Options<UpdateBrandData>>): UseMutationOptions<UpdateBrandResponse, DefaultError, Options<UpdateBrandData>> => {
+    const mutationOptions: UseMutationOptions<UpdateBrandResponse, DefaultError, Options<UpdateBrandData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateBrand({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listBusLayoutsQueryKey = (options?: Options<ListBusLayoutsData>) => createQueryKey('listBusLayouts', options);
+
+/**
+ * `GET /api/admin/bus-layouts` — list all bus layouts.
+ */
+export const listBusLayoutsOptions = (options?: Options<ListBusLayoutsData>) => queryOptions<ListBusLayoutsResponse, DefaultError, ListBusLayoutsResponse, ReturnType<typeof listBusLayoutsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBusLayouts({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBusLayoutsQueryKey(options)
+});
+
+export const listPickupPointsQueryKey = (options?: Options<ListPickupPointsData>) => createQueryKey('listPickupPoints', options);
+
+/**
+ * `GET /api/admin/pickup-points?routeId=` — list pickup points for a route.
+ */
+export const listPickupPointsOptions = (options?: Options<ListPickupPointsData>) => queryOptions<ListPickupPointsResponse, DefaultError, ListPickupPointsResponse, ReturnType<typeof listPickupPointsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPickupPoints({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPickupPointsQueryKey(options)
+});
+
+/**
+ * `POST /api/admin/pickup-points` — create a pickup point.
+ */
+export const createPickupPointMutation = (options?: Partial<Options<CreatePickupPointData>>): UseMutationOptions<CreatePickupPointResponse, DefaultError, Options<CreatePickupPointData>> => {
+    const mutationOptions: UseMutationOptions<CreatePickupPointResponse, DefaultError, Options<CreatePickupPointData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createPickupPoint({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/pickup-points/{id}` — delete a pickup point.
+ */
+export const deletePickupPointMutation = (options?: Partial<Options<DeletePickupPointData>>): UseMutationOptions<DeletePickupPointResponse, DefaultError, Options<DeletePickupPointData>> => {
+    const mutationOptions: UseMutationOptions<DeletePickupPointResponse, DefaultError, Options<DeletePickupPointData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deletePickupPoint({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PUT /api/admin/pickup-points/{id}` — update a pickup point.
+ */
+export const updatePickupPointMutation = (options?: Partial<Options<UpdatePickupPointData>>): UseMutationOptions<UpdatePickupPointResponse, DefaultError, Options<UpdatePickupPointData>> => {
+    const mutationOptions: UseMutationOptions<UpdatePickupPointResponse, DefaultError, Options<UpdatePickupPointData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updatePickupPoint({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listReviewsQueryKey = (options?: Options<ListReviewsData>) => createQueryKey('listReviews', options);
+
+/**
+ * `GET /api/admin/reviews` — list reviews with admin filters.
+ */
+export const listReviewsOptions = (options?: Options<ListReviewsData>) => queryOptions<ListReviewsResponse, DefaultError, ListReviewsResponse, ReturnType<typeof listReviewsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listReviews({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listReviewsQueryKey(options)
+});
+
+export const listReviewsInfiniteQueryKey = (options?: Options<ListReviewsData>): QueryKey<Options<ListReviewsData>> => createQueryKey('listReviews', options, true);
+
+/**
+ * `GET /api/admin/reviews` — list reviews with admin filters.
+ */
+export const listReviewsInfiniteOptions = (options?: Options<ListReviewsData>) => {
+    const opts = infiniteQueryOptions<ListReviewsResponse, DefaultError, InfiniteData<ListReviewsResponse>, QueryKey<Options<ListReviewsData>>, number | Pick<QueryKey<Options<ListReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListReviewsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listReviews({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listReviewsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * `DELETE /api/admin/reviews/{id}` — delete a review (admin override).
+ */
+export const deleteReviewMutation = (options?: Partial<Options<DeleteReviewData>>): UseMutationOptions<DeleteReviewResponse, DefaultError, Options<DeleteReviewData>> => {
+    const mutationOptions: UseMutationOptions<DeleteReviewResponse, DefaultError, Options<DeleteReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PATCH /api/admin/reviews/{id}` — moderate a review (status + reply).
+ */
+export const moderateReviewMutation = (options?: Partial<Options<ModerateReviewData>>): UseMutationOptions<ModerateReviewResponse2, DefaultError, Options<ModerateReviewData>> => {
+    const mutationOptions: UseMutationOptions<ModerateReviewResponse2, DefaultError, Options<ModerateReviewData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await moderateReview({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listRoutesQueryKey = (options?: Options<ListRoutesData>) => createQueryKey('listRoutes', options);
+
+/**
+ * `GET /api/admin/routes` — list all routes (admin).
+ */
+export const listRoutesOptions = (options?: Options<ListRoutesData>) => queryOptions<ListRoutesResponse, DefaultError, ListRoutesResponse, ReturnType<typeof listRoutesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listRoutes({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listRoutesQueryKey(options)
+});
+
+/**
+ * `POST /api/admin/routes` — create a route.
+ */
+export const createRouteMutation = (options?: Partial<Options<CreateRouteData>>): UseMutationOptions<CreateRouteResponse, DefaultError, Options<CreateRouteData>> => {
+    const mutationOptions: UseMutationOptions<CreateRouteResponse, DefaultError, Options<CreateRouteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createRoute({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/routes/{id}` — delete a route.
+ */
+export const deleteRouteMutation = (options?: Partial<Options<DeleteRouteData>>): UseMutationOptions<DeleteRouteResponse, DefaultError, Options<DeleteRouteData>> => {
+    const mutationOptions: UseMutationOptions<DeleteRouteResponse, DefaultError, Options<DeleteRouteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteRoute({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PUT /api/admin/routes/{id}` — update a route.
+ */
+export const updateRouteMutation = (options?: Partial<Options<UpdateRouteData>>): UseMutationOptions<UpdateRouteResponse, DefaultError, Options<UpdateRouteData>> => {
+    const mutationOptions: UseMutationOptions<UpdateRouteResponse, DefaultError, Options<UpdateRouteData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateRoute({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listSchedulesQueryKey = (options?: Options<ListSchedulesData>) => createQueryKey('listSchedules', options);
+
+/**
+ * `GET /api/admin/schedules?routeId=` — list schedules for a route.
+ */
+export const listSchedulesOptions = (options?: Options<ListSchedulesData>) => queryOptions<ListSchedulesResponse, DefaultError, ListSchedulesResponse, ReturnType<typeof listSchedulesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listSchedules({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listSchedulesQueryKey(options)
+});
+
+/**
+ * `POST /api/admin/schedules` — create a schedule.
+ */
+export const createScheduleMutation = (options?: Partial<Options<CreateScheduleData>>): UseMutationOptions<CreateScheduleResponse, DefaultError, Options<CreateScheduleData>> => {
+    const mutationOptions: UseMutationOptions<CreateScheduleResponse, DefaultError, Options<CreateScheduleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createSchedule({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/schedules/{id}` — delete a schedule.
+ */
+export const deleteScheduleMutation = (options?: Partial<Options<DeleteScheduleData>>): UseMutationOptions<DeleteScheduleResponse, DefaultError, Options<DeleteScheduleData>> => {
+    const mutationOptions: UseMutationOptions<DeleteScheduleResponse, DefaultError, Options<DeleteScheduleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteSchedule({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PUT /api/admin/schedules/{id}` — update a schedule.
+ */
+export const updateScheduleMutation = (options?: Partial<Options<UpdateScheduleData>>): UseMutationOptions<UpdateScheduleResponse, DefaultError, Options<UpdateScheduleData>> => {
+    const mutationOptions: UseMutationOptions<UpdateScheduleResponse, DefaultError, Options<UpdateScheduleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateSchedule({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * `POST /api/auth/employee-login` — employee-only login (rejects regular users).
@@ -55,39 +672,6 @@ export const logoutMutation = (options?: Partial<Options<LogoutData>>): UseMutat
         }
     };
     return mutationOptions;
-};
-
-export type QueryKey<TOptions extends Options> = [
-    Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
-        _id: string;
-        _infinite?: boolean;
-        tags?: ReadonlyArray<string>;
-    }
-];
-
-const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions, infinite?: boolean, tags?: ReadonlyArray<string>): [
-    QueryKey<TOptions>[0]
-] => {
-    const params: QueryKey<TOptions>[0] = { _id: id, baseUrl: options?.baseUrl || (options?.client ?? client).getConfig().baseUrl } as QueryKey<TOptions>[0];
-    if (infinite) {
-        params._infinite = infinite;
-    }
-    if (tags) {
-        params.tags = tags;
-    }
-    if (options?.body) {
-        params.body = options.body;
-    }
-    if (options?.headers) {
-        params.headers = options.headers;
-    }
-    if (options?.path) {
-        params.path = options.path;
-    }
-    if (options?.query) {
-        params.query = options.query;
-    }
-    return [params];
 };
 
 export const meQueryKey = (options?: Options<MeData>) => createQueryKey('me', options);
@@ -159,35 +743,6 @@ export const listOptions = (options?: Options<ListData>) => queryOptions<ListRes
     },
     queryKey: listQueryKey(options)
 });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
 
 export const listInfiniteQueryKey = (options?: Options<ListData>): QueryKey<Options<ListData>> => createQueryKey('list', options, true);
 
@@ -383,7 +938,7 @@ export const listChannelsQueryKey = (options?: Options<ListChannelsData>) => cre
 /**
  * `GET /api/chat/channels` — list chat channels for the authenticated user.
  */
-export const listChannelsOptions = (options?: Options<ListChannelsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof listChannelsQueryKey>>({
+export const listChannelsOptions = (options?: Options<ListChannelsData>) => queryOptions<ListChannelsResponse, DefaultError, ListChannelsResponse, ReturnType<typeof listChannelsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await listChannels({
             ...options,
@@ -396,12 +951,30 @@ export const listChannelsOptions = (options?: Options<ListChannelsData>) => quer
     queryKey: listChannelsQueryKey(options)
 });
 
+/**
+ * `POST /api/chat/channels` — create a new chat channel for the
+ * authenticated user.
+ */
+export const createChannelMutation = (options?: Partial<Options<CreateChannelData>>): UseMutationOptions<CreateChannelResponse2, DefaultError, Options<CreateChannelData>> => {
+    const mutationOptions: UseMutationOptions<CreateChannelResponse2, DefaultError, Options<CreateChannelData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createChannel({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listMessagesQueryKey = (options: Options<ListMessagesData>) => createQueryKey('listMessages', options);
 
 /**
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
  */
-export const listMessagesOptions = (options: Options<ListMessagesData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof listMessagesQueryKey>>({
+export const listMessagesOptions = (options: Options<ListMessagesData>) => queryOptions<ListMessagesResponse, DefaultError, ListMessagesResponse, ReturnType<typeof listMessagesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await listMessages({
             ...options,
@@ -420,7 +993,7 @@ export const listMessagesInfiniteQueryKey = (options: Options<ListMessagesData>)
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
  */
 export const listMessagesInfiniteOptions = (options: Options<ListMessagesData>) => {
-    const opts = infiniteQueryOptions<unknown, DefaultError, InfiniteData<unknown>, QueryKey<Options<ListMessagesData>>, number | null | Pick<QueryKey<Options<ListMessagesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<ListMessagesResponse, DefaultError, InfiniteData<ListMessagesResponse>, QueryKey<Options<ListMessagesData>>, number | Pick<QueryKey<Options<ListMessagesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -445,10 +1018,31 @@ export const listMessagesInfiniteOptions = (options: Options<ListMessagesData>) 
 };
 
 /**
+ * `POST /api/chat/channels/{id}/messages` — REST fallback for posting
+ * a chat message when the WebSocket connection is unavailable.
+ *
+ * Auth required: the caller must be the channel's owner (user side)
+ * or an employee. Idempotent via `client_msg_id`.
+ */
+export const postMessageMutation = (options?: Partial<Options<PostMessageData>>): UseMutationOptions<PostMessageResponse, DefaultError, Options<PostMessageData>> => {
+    const mutationOptions: UseMutationOptions<PostMessageResponse, DefaultError, Options<PostMessageData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await postMessage({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
  * `POST /api/chat/channels/{id}/read` — mark messages as read.
  */
-export const markReadMutation = (options?: Partial<Options<MarkReadData>>): UseMutationOptions<unknown, DefaultError, Options<MarkReadData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<MarkReadData>> = {
+export const markReadMutation = (options?: Partial<Options<MarkReadData>>): UseMutationOptions<MarkReadResponse, DefaultError, Options<MarkReadData>> => {
+    const mutationOptions: UseMutationOptions<MarkReadResponse, DefaultError, Options<MarkReadData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await markRead({
                 ...options,
@@ -464,7 +1058,7 @@ export const markReadMutation = (options?: Partial<Options<MarkReadData>>): UseM
 export const list2QueryKey = (options?: Options<List2Data>) => createQueryKey('list2', options);
 
 /**
- * `GET /api/places` — list places.
+ * `GET /api/notifications` — list the authenticated user's notifications.
  */
 export const list2Options = (options?: Options<List2Data>) => queryOptions<List2Response, DefaultError, List2Response, ReturnType<typeof list2QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -482,10 +1076,10 @@ export const list2Options = (options?: Options<List2Data>) => queryOptions<List2
 export const list2InfiniteQueryKey = (options?: Options<List2Data>): QueryKey<Options<List2Data>> => createQueryKey('list2', options, true);
 
 /**
- * `GET /api/places` — list places.
+ * `GET /api/notifications` — list the authenticated user's notifications.
  */
 export const list2InfiniteOptions = (options?: Options<List2Data>) => {
-    const opts = infiniteQueryOptions<List2Response, DefaultError, InfiniteData<List2Response>, QueryKey<Options<List2Data>>, number | null | Pick<QueryKey<Options<List2Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<List2Response, DefaultError, InfiniteData<List2Response>, QueryKey<Options<List2Data>>, number | Pick<QueryKey<Options<List2Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -505,6 +1099,75 @@ export const list2InfiniteOptions = (options?: Options<List2Data>) => {
             return data;
         },
         queryKey: list2InfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * `POST /api/notifications/read` — mark notifications as read.
+ *
+ * If the request body's `ids` array is empty, ALL of the user's unread
+ * notifications are marked read. Otherwise only the listed ids are
+ * marked (ownership-checked — ids not owned by the caller are ignored).
+ */
+export const markRead2Mutation = (options?: Partial<Options<MarkRead2Data>>): UseMutationOptions<MarkRead2Response, DefaultError, Options<MarkRead2Data>> => {
+    const mutationOptions: UseMutationOptions<MarkRead2Response, DefaultError, Options<MarkRead2Data>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await markRead2({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const list3QueryKey = (options?: Options<List3Data>) => createQueryKey('list3', options);
+
+/**
+ * `GET /api/places` — list places.
+ */
+export const list3Options = (options?: Options<List3Data>) => queryOptions<List3Response, DefaultError, List3Response, ReturnType<typeof list3QueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await list3({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: list3QueryKey(options)
+});
+
+export const list3InfiniteQueryKey = (options?: Options<List3Data>): QueryKey<Options<List3Data>> => createQueryKey('list3', options, true);
+
+/**
+ * `GET /api/places` — list places.
+ */
+export const list3InfiniteOptions = (options?: Options<List3Data>) => {
+    const opts = infiniteQueryOptions<List3Response, DefaultError, InfiniteData<List3Response>, QueryKey<Options<List3Data>>, number | null | Pick<QueryKey<Options<List3Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<List3Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await list3({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: list3InfiniteQueryKey(options)
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
@@ -662,7 +1325,7 @@ export const updatePostMutation = (options?: Partial<Options<UpdatePostData>>): 
     return mutationOptions;
 };
 
-export const list3QueryKey = (options?: Options<List3Data>) => createQueryKey('list3', options);
+export const list4QueryKey = (options?: Options<List4Data>) => createQueryKey('list4', options);
 
 /**
  * `GET /api/price-alerts` — list price alerts.
@@ -670,9 +1333,9 @@ export const list3QueryKey = (options?: Options<List3Data>) => createQueryKey('l
  * - If `phone` is provided: guest lookup (public, no auth required).
  * - Otherwise: returns the authenticated user's alerts.
  */
-export const list3Options = (options?: Options<List3Data>) => queryOptions<List3Response, DefaultError, List3Response, ReturnType<typeof list3QueryKey>>({
+export const list4Options = (options?: Options<List4Data>) => queryOptions<List4Response, DefaultError, List4Response, ReturnType<typeof list4QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await list3({
+        const { data } = await list4({
             ...options,
             ...queryKey[0],
             signal,
@@ -680,10 +1343,10 @@ export const list3Options = (options?: Options<List3Data>) => queryOptions<List3
         });
         return data;
     },
-    queryKey: list3QueryKey(options)
+    queryKey: list4QueryKey(options)
 });
 
-export const list3InfiniteQueryKey = (options?: Options<List3Data>): QueryKey<Options<List3Data>> => createQueryKey('list3', options, true);
+export const list4InfiniteQueryKey = (options?: Options<List4Data>): QueryKey<Options<List4Data>> => createQueryKey('list4', options, true);
 
 /**
  * `GET /api/price-alerts` — list price alerts.
@@ -691,19 +1354,19 @@ export const list3InfiniteQueryKey = (options?: Options<List3Data>): QueryKey<Op
  * - If `phone` is provided: guest lookup (public, no auth required).
  * - Otherwise: returns the authenticated user's alerts.
  */
-export const list3InfiniteOptions = (options?: Options<List3Data>) => {
-    const opts = infiniteQueryOptions<List3Response, DefaultError, InfiniteData<List3Response>, QueryKey<Options<List3Data>>, number | Pick<QueryKey<Options<List3Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+export const list4InfiniteOptions = (options?: Options<List4Data>) => {
+    const opts = infiniteQueryOptions<List4Response, DefaultError, InfiniteData<List4Response>, QueryKey<Options<List4Data>>, number | Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
             // @ts-ignore
-            const page: Pick<QueryKey<Options<List3Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+            const page: Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
                 query: {
                     offset: pageParam
                 }
             };
             const params = createInfiniteParams(queryKey, page);
-            const { data } = await list3({
+            const { data } = await list4({
                 ...options,
                 ...params,
                 signal,
@@ -711,7 +1374,7 @@ export const list3InfiniteOptions = (options?: Options<List3Data>) => {
             });
             return data;
         },
-        queryKey: list3InfiniteQueryKey(options)
+        queryKey: list4InfiniteQueryKey(options)
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
@@ -774,14 +1437,14 @@ export const recommendationsOptions = (options?: Options<RecommendationsData>) =
     queryKey: recommendationsQueryKey(options)
 });
 
-export const list4QueryKey = (options?: Options<List4Data>) => createQueryKey('list4', options);
+export const list5QueryKey = (options?: Options<List5Data>) => createQueryKey('list5', options);
 
 /**
  * `GET /api/reviews` — list reviews with optional filters.
  */
-export const list4Options = (options?: Options<List4Data>) => queryOptions<List4Response, DefaultError, List4Response, ReturnType<typeof list4QueryKey>>({
+export const list5Options = (options?: Options<List5Data>) => queryOptions<List5Response, DefaultError, List5Response, ReturnType<typeof list5QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
-        const { data } = await list4({
+        const { data } = await list5({
             ...options,
             ...queryKey[0],
             signal,
@@ -789,27 +1452,27 @@ export const list4Options = (options?: Options<List4Data>) => queryOptions<List4
         });
         return data;
     },
-    queryKey: list4QueryKey(options)
+    queryKey: list5QueryKey(options)
 });
 
-export const list4InfiniteQueryKey = (options?: Options<List4Data>): QueryKey<Options<List4Data>> => createQueryKey('list4', options, true);
+export const list5InfiniteQueryKey = (options?: Options<List5Data>): QueryKey<Options<List5Data>> => createQueryKey('list5', options, true);
 
 /**
  * `GET /api/reviews` — list reviews with optional filters.
  */
-export const list4InfiniteOptions = (options?: Options<List4Data>) => {
-    const opts = infiniteQueryOptions<List4Response, DefaultError, InfiniteData<List4Response>, QueryKey<Options<List4Data>>, number | null | Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+export const list5InfiniteOptions = (options?: Options<List5Data>) => {
+    const opts = infiniteQueryOptions<List5Response, DefaultError, InfiniteData<List5Response>, QueryKey<Options<List5Data>>, number | null | Pick<QueryKey<Options<List5Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
             // @ts-ignore
-            const page: Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+            const page: Pick<QueryKey<Options<List5Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
                 query: {
                     offset: pageParam
                 }
             };
             const params = createInfiniteParams(queryKey, page);
-            const { data } = await list4({
+            const { data } = await list5({
                 ...options,
                 ...params,
                 signal,
@@ -817,7 +1480,7 @@ export const list4InfiniteOptions = (options?: Options<List4Data>) => {
             });
             return data;
         },
-        queryKey: list4InfiniteQueryKey(options)
+        queryKey: list5InfiniteQueryKey(options)
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
@@ -1087,6 +1750,91 @@ export const getUserOptions = (options: Options<GetUserData>) => queryOptions<Ge
     },
     queryKey: getUserQueryKey(options)
 });
+
+export const list6QueryKey = (options?: Options<List6Data>) => createQueryKey('list6', options);
+
+/**
+ * `GET /api/wishlist` — list the authenticated user's wishlist items.
+ */
+export const list6Options = (options?: Options<List6Data>) => queryOptions<List6Response, DefaultError, List6Response, ReturnType<typeof list6QueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await list6({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: list6QueryKey(options)
+});
+
+export const list6InfiniteQueryKey = (options?: Options<List6Data>): QueryKey<Options<List6Data>> => createQueryKey('list6', options, true);
+
+/**
+ * `GET /api/wishlist` — list the authenticated user's wishlist items.
+ */
+export const list6InfiniteOptions = (options?: Options<List6Data>) => {
+    const opts = infiniteQueryOptions<List6Response, DefaultError, InfiniteData<List6Response>, QueryKey<Options<List6Data>>, number | Pick<QueryKey<Options<List6Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<List6Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await list6({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: list6InfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * `POST /api/wishlist` — toggle a route in the wishlist.
+ *
+ * If the route is already in the wishlist, it's removed (returns
+ * `added=false`). Otherwise it's added (returns `added=true`).
+ */
+export const toggleMutation = (options?: Partial<Options<ToggleData>>): UseMutationOptions<ToggleResponse, DefaultError, Options<ToggleData>> => {
+    const mutationOptions: UseMutationOptions<ToggleResponse, DefaultError, Options<ToggleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await toggle({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/wishlist/{id}` — remove a single wishlist item by id.
+ */
+export const remove3Mutation = (options?: Partial<Options<Remove3Data>>): UseMutationOptions<Remove3Response, DefaultError, Options<Remove3Data>> => {
+    const mutationOptions: UseMutationOptions<Remove3Response, DefaultError, Options<Remove3Data>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await remove3({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export const listExchangesQueryKey = (options?: Options<ListExchangesData>) => createQueryKey('listExchanges', options);
 

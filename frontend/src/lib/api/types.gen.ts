@@ -4,6 +4,259 @@ export type ClientOptions = {
     baseUrl: 'http://localhost:8080' | (string & {});
 };
 
+export type AdminBookingDayBucket = {
+    cancelled: number;
+    completed: number;
+    confirmed: number;
+    count: number;
+    date: string;
+    pending: number;
+    revenue: number;
+};
+
+/**
+ * Admin booking detail — full shape with seats.
+ */
+export type AdminBookingDetail = {
+    code: string;
+    contactEmail?: string | null;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    createdAt: string;
+    currency: string;
+    discount: number;
+    dropoffName?: string | null;
+    expiresAt?: string | null;
+    fees: number;
+    id: string;
+    paymentMethod?: string | null;
+    pickupName?: string | null;
+    seats: Array<AdminBookingSeatOut>;
+    status: string;
+    subtotal: number;
+    total: number;
+    updatedAt: string;
+};
+
+/**
+ * Response of `GET /api/admin/bookings/{id}`.
+ */
+export type AdminBookingDetailResponse = {
+    item: AdminBookingDetail;
+};
+
+/**
+ * Response of `GET /api/admin/bookings/export`.
+ */
+export type AdminBookingExportResponse = {
+    columns: Array<string>;
+    count: number;
+    /**
+     * CSV text with UTF-8 BOM (Excel-friendly).
+     */
+    csv: string;
+    filename: string;
+};
+
+/**
+ * Response of `GET /api/admin/bookings`.
+ */
+export type AdminBookingListResponse = {
+    items: Array<AdminBookingOut>;
+    limit: number;
+    offset: number;
+    total: number;
+};
+
+/**
+ * Admin booking list item — slim shape for the table view.
+ */
+export type AdminBookingOut = {
+    code: string;
+    contactEmail?: string | null;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    createdAt: string;
+    currency: string;
+    dropoffName?: string | null;
+    expiresAt?: string | null;
+    id: string;
+    paymentMethod?: string | null;
+    pickupName?: string | null;
+    status: string;
+    total: number;
+    updatedAt: string;
+};
+
+export type AdminBookingSeatOut = {
+    passengerAge?: number | null;
+    passengerName?: string | null;
+    passengerType?: string | null;
+    price: number;
+    seatId?: string | null;
+};
+
+/**
+ * Response of `GET /api/admin/bookings/stats`.
+ */
+export type AdminBookingStatsResponse = {
+    byDay: Array<AdminBookingDayBucket>;
+    totals: AdminBookingTotals;
+};
+
+export type AdminBookingStatusUpdate = {
+    id: string;
+    /**
+     * The original requested status (before normalization). Useful
+     * when the caller sends `paid` and we store `confirmed`.
+     */
+    previousStatus?: string | null;
+    status: string;
+    updatedAt: string;
+};
+
+export type AdminBookingTotals = {
+    cancelled: number;
+    completed: number;
+    confirmed: number;
+    pending: number;
+    revenue: number;
+    total: number;
+};
+
+/**
+ * Response of `GET /api/admin/brands`.
+ */
+export type AdminBrandListResponse = {
+    items: Array<AdminBrandOut>;
+};
+
+/**
+ * Admin brand list item — like `BrandOut` but with `routeCount` + `layoutCount`.
+ */
+export type AdminBrandOut = {
+    accentColor?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    createdAt: string;
+    description?: string | null;
+    id: string;
+    layoutCount: number;
+    logoUrl?: string | null;
+    name: string;
+    rating?: number | null;
+    routeCount: number;
+    slug: string;
+    status: string;
+    totalTrips: number;
+    updatedAt: string;
+};
+
+/**
+ * Response of `GET /api/admin/bus-layouts`.
+ */
+export type AdminBusLayoutListResponse = {
+    items: Array<AdminBusLayoutOut>;
+};
+
+export type AdminBusLayoutOut = {
+    brandId?: string | null;
+    createdAt: string;
+    id: string;
+    name?: string | null;
+    totalSeats?: number | null;
+    updatedAt: string;
+    vehicleType?: string | null;
+};
+
+/**
+ * Response of `POST /api/admin/brands` + `PUT /api/admin/brands/{id}` + `DELETE`.
+ */
+export type AdminMutationResponse = {
+    id: string;
+};
+
+/**
+ * Response of `GET /api/admin/pickup-points`.
+ */
+export type AdminPickupPointListResponse = {
+    items: Array<AdminPickupPointOut>;
+};
+
+export type AdminPickupPointOut = {
+    address?: string | null;
+    createdAt: string;
+    id: string;
+    kind?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+    name?: string | null;
+    routeId: string;
+    stopOrder: number;
+};
+
+export type AdminPlacePreview = {
+    id: string;
+    name: string;
+    province?: string | null;
+};
+
+/**
+ * Response of `GET /api/admin/reviews`.
+ */
+export type AdminReviewListResponse = {
+    items: Array<ReviewOut>;
+};
+
+/**
+ * Response of `GET /api/admin/routes`.
+ */
+export type AdminRouteListResponse = {
+    items: Array<AdminRouteOut>;
+};
+
+/**
+ * Admin route list item — like `RouteOut` but with start/end place
+ * previews and schedule/pickup-point counts.
+ */
+export type AdminRouteOut = {
+    brandId?: string | null;
+    createdAt: string;
+    distanceKm?: number | null;
+    durationMin?: number | null;
+    endLocation?: null | AdminPlacePreview;
+    endLocationId?: string | null;
+    id: string;
+    name: string;
+    pickupPointCount: number;
+    scheduleCount: number;
+    startLocation?: null | AdminPlacePreview;
+    startLocationId?: string | null;
+    status: string;
+    updatedAt: string;
+};
+
+/**
+ * Response of `GET /api/admin/schedules`.
+ */
+export type AdminScheduleListResponse = {
+    items: Array<AdminScheduleOut>;
+};
+
+export type AdminScheduleOut = {
+    amenities?: string | null;
+    basePriceAdult: number;
+    basePriceChild?: number | null;
+    busLayoutId?: string | null;
+    createdAt: string;
+    daysOfWeek?: string | null;
+    departureTime: string;
+    effectiveFrom?: string | null;
+    effectiveTo?: string | null;
+    id: string;
+    routeId: string;
+};
+
 export type AuthResponse = {
     expires_at: string;
     user: SessionUser;
@@ -251,10 +504,110 @@ export type CancelReq = {
 };
 
 /**
+ * Response of `GET /api/chat/channels`.
+ */
+export type ChatChannelListResponse = {
+    items: Array<ChatChannelOut>;
+};
+
+/**
+ * A chat channel, as returned by `GET /api/chat/channels` and the
+ * create-channel endpoint.
+ */
+export type ChatChannelOut = {
+    brandId?: string | null;
+    createdAt: string;
+    id: string;
+    lastMessageAt?: string | null;
+    lastMessagePreview?: string | null;
+    status: string;
+    topic?: string | null;
+    unreadEmployee: number;
+    unreadUser: number;
+    userId: string;
+};
+
+/**
+ * Response of `GET /api/chat/channels/{id}/messages`.
+ */
+export type ChatMessageListResponse = {
+    items: Array<ChatMessageOut>;
+};
+
+/**
+ * A chat message, as returned by `GET /api/chat/channels/{id}/messages`
+ * and the post-message endpoint.
+ */
+export type ChatMessageOut = {
+    attachments?: string | null;
+    channelId: string;
+    content?: string | null;
+    createdAt: string;
+    id: string;
+    kind: string;
+    senderId?: string | null;
+    senderType: string;
+};
+
+/**
  * Request body for `POST /api/bookings/:id/confirm`.
  */
 export type ConfirmReq = {
-    payment_method?: string;
+    paymentMethod?: string;
+};
+
+/**
+ * Request body for `POST /api/chat/channels` (create a new chat channel).
+ */
+export type CreateChannelRequest = {
+    /**
+     * Optional brand id — when the user is asking about a specific
+     * brand, this routes the channel to that brand's support queue.
+     */
+    brandId?: string | null;
+    /**
+     * Optional topic (e.g. "Hỗ trợ đặt vé"). Defaults to "Hỗ trợ" when omitted.
+     */
+    topic?: string | null;
+};
+
+/**
+ * Response of `POST /api/chat/channels`.
+ */
+export type CreateChannelResponse = {
+    channel: ChatChannelOut;
+};
+
+/**
+ * Request body for `POST /api/chat/channels/{id}/messages` (REST
+ * fallback for when the WebSocket is unavailable).
+ */
+export type CreateMessageRequest = {
+    /**
+     * Optional JSON-encoded attachments (e.g. ticket-card payload).
+     */
+    attachments?: string | null;
+    /**
+     * Client-side correlation id for idempotency. When the same
+     * `client_msg_id` is sent twice, the second request returns the
+     * stored message instead of duplicating it.
+     */
+    clientMsgId?: string | null;
+    /**
+     * Message text. Required for `kind="text"`.
+     */
+    content?: string | null;
+    /**
+     * Message kind: `text` (default), `ticket`, `system`, ...
+     */
+    kind?: string;
+};
+
+/**
+ * Response of `POST /api/chat/channels/{id}/messages`.
+ */
+export type CreateMessageResponse = {
+    message: ChatMessageOut;
 };
 
 export type CreatePostRequest = {
@@ -290,24 +643,33 @@ export type CreatePriceAlertResponse = PriceAlertOut & {
 };
 
 /**
- * Input for creating a review.
+ * Input for creating a review. Field names on the wire are camelCase
+ * (so the frontend can send `{ bookingId, routeId, brandId, rating, ... }`)
+ * but the Rust struct uses snake_case.
  */
 export type CreateReviewInput = {
-    author_name?: string | null;
-    author_phone?: string | null;
-    booking_id?: string | null;
-    brand_id?: string | null;
+    authorName?: string | null;
+    authorPhone?: string | null;
+    bookingId?: string | null;
+    brandId?: string | null;
     content?: string | null;
     photos?: Array<string> | null;
     rating: number;
-    route_id?: string | null;
+    routeId?: string | null;
     tags?: Array<string> | null;
     title?: string | null;
-    trip_session_id?: string | null;
+    tripSessionId?: string | null;
     /**
      * Overwritten by the server from the authenticated user.
      */
-    user_id?: string | null;
+    userId?: string | null;
+};
+
+/**
+ * Response of `DELETE /api/wishlist/{id}`.
+ */
+export type DeleteWishlistResponse = {
+    ok: boolean;
 };
 
 /**
@@ -346,15 +708,15 @@ export type HealthResponse = {
  * Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
  */
 export type HoldReq = {
-    boarding_point_id: string;
-    campaign_code?: string | null;
-    contact_email?: string | null;
-    contact_name: string;
-    contact_phone: string;
-    dropping_point_id: string;
+    boardingPointId: string;
+    campaignCode?: string | null;
+    contactEmail?: string | null;
+    contactName: string;
+    contactPhone: string;
+    droppingPointId: string;
     passengers: Array<PassengerReq>;
-    seat_ids: Array<string>;
-    trip_id: string;
+    seatIds: Array<string>;
+    tripId: string;
 };
 
 /**
@@ -383,6 +745,35 @@ export type LoginRequest = {
 };
 
 /**
+ * Response of `POST /api/chat/channels/{id}/read`.
+ */
+export type MarkChannelReadResponse = {
+    ok: boolean;
+};
+
+/**
+ * Request body for `POST /api/notifications/read`.
+ */
+export type MarkNotificationsReadRequest = {
+    /**
+     * Notification ids to mark as read. When empty, ALL of the user's
+     * unread notifications are marked read.
+     */
+    ids?: Array<string>;
+};
+
+/**
+ * Response of `POST /api/notifications/read`.
+ */
+export type MarkNotificationsReadResponse = {
+    ok: boolean;
+    /**
+     * Number of rows actually updated.
+     */
+    updated: number;
+};
+
+/**
  * Many-to-many travel time / distance matrix.
  *
  * Returned by `GET /api/routing/matrix`. `timesMin[i][j]` is the
@@ -402,11 +793,69 @@ export type MatrixResponse = {
 };
 
 /**
+ * Request body for `PATCH /api/admin/reviews/{id}` (moderation).
+ */
+export type ModerateReviewRequest = {
+    /**
+     * Brand's reply text (sets `replied_at` automatically).
+     */
+    brandReply?: string | null;
+    /**
+     * `pending` | `approved` | `rejected` | `hidden`
+     */
+    status?: string | null;
+};
+
+/**
+ * Response of `PATCH /api/admin/reviews/{id}`.
+ */
+export type ModerateReviewResponse = {
+    id: string;
+    status: string;
+};
+
+/**
+ * Response of `GET /api/notifications`.
+ */
+export type NotificationListResponse = {
+    items: Array<NotificationOut>;
+    limit: number;
+    offset: number;
+    total: number;
+    unreadCount: number;
+};
+
+/**
+ * A notification row, as returned by `GET /api/notifications`.
+ */
+export type NotificationOut = {
+    body?: string | null;
+    createdAt: string;
+    /**
+     * Optional JSON-encoded payload (e.g. the booking id for a
+     * booking_confirmed notification).
+     */
+    data?: string | null;
+    id: string;
+    read: boolean;
+    title?: string | null;
+    /**
+     * Notification kind: `booking_confirmed` | `price_drop` | `review_reply` | ...
+     */
+    type: string;
+    userId: string;
+};
+
+/**
  * One passenger on a booking.
  */
 export type PassengerReq = {
     age?: number;
     name: string;
+    /**
+     * `adult` | `child` | `infant`. Serialized as `type` on the wire
+     * (matches the legacy field name the frontend sends).
+     */
     type: string;
 };
 
@@ -416,10 +865,10 @@ export type PassengerReq = {
 export type PickupPointOut = {
     address?: string | null;
     id: string;
+    kind?: string | null;
     lat?: number | null;
     lon?: number | null;
     name?: string | null;
-    pickupType?: string | null;
     stopOrder?: number | null;
 };
 
@@ -448,8 +897,6 @@ export type PlaceOut = {
 };
 
 /**
- * Optional fields populated by the Tantivy fulltext index. Present on
- * `PlaceSearchHit` but NOT on `PlaceOut` (which comes from the DB).
  * A search hit returned by `GET /api/places/search?q=`.
  *
  * When the Tantivy index is configured, fields like `osmId`, `ward`,
@@ -464,7 +911,7 @@ export type PlaceSearchHit = {
      */
     distanceKm?: number | null;
     district?: string | null;
-    house_number?: string | null;
+    houseNumber?: string | null;
     /**
      * DB row id (only set when the hit comes from the `place` table).
      */
@@ -475,7 +922,7 @@ export type PlaceSearchHit = {
     /**
      * OSM node/way id (only set for Tantivy hits).
      */
-    osm_id?: number | null;
+    osmId?: number | null;
     /**
      * OSM place kind (Tantivy hits only).
      */
@@ -690,6 +1137,38 @@ export type StatsResponse = {
     trips: number;
 };
 
+/**
+ * Request body for `POST /api/wishlist`. Toggles the route in the
+ * user's wishlist — if it's already wishlisted, the existing item is
+ * removed (toggle off); otherwise a new item is created (toggle on).
+ */
+export type ToggleWishlistRequest = {
+    /**
+     * From/To labels shown in the wishlist UI. Stored as metadata
+     * (not enforced by the schema, but useful for display).
+     */
+    fromName?: string | null;
+    routeId?: string | null;
+    toName?: string | null;
+    tripId?: string | null;
+};
+
+/**
+ * Response of `POST /api/wishlist`.
+ */
+export type ToggleWishlistResponse = {
+    /**
+     * `true` when the route is now in the wishlist; `false` when it was
+     * removed by the toggle.
+     */
+    added: boolean;
+    /**
+     * The wishlist item id (present when `added=true`).
+     */
+    id?: string | null;
+    ok: boolean;
+};
+
 export type TripAmenity = {
     key: string;
     label: string;
@@ -767,10 +1246,10 @@ export type TripEndpoint = {
 export type TripPickupPoint = {
     address?: string | null;
     id: string;
+    kind?: string | null;
     lat?: number | null;
     lon?: number | null;
     name?: string | null;
-    pickupType?: string | null;
     stopOrder?: number | null;
 };
 
@@ -866,6 +1345,30 @@ export type TripSeatRow = {
     seats: Array<TripSeat>;
 };
 
+/**
+ * Request body for `PATCH /api/admin/bookings/{id}`.
+ */
+export type UpdateBookingStatusRequest = {
+    /**
+     * When `true`, skips the state-machine transition check (admin override).
+     */
+    force?: boolean;
+    reason?: string | null;
+    /**
+     * `pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.
+     * `paid` is normalized to `confirmed`; `refunded` to `cancelled`.
+     */
+    status: string;
+};
+
+/**
+ * Response of `PATCH /api/admin/bookings/{id}`.
+ */
+export type UpdateBookingStatusResponse = {
+    item: AdminBookingStatusUpdate;
+    reason?: string | null;
+};
+
 export type UpdatePostRequest = {
     body?: string | null;
     title?: string | null;
@@ -882,12 +1385,917 @@ export type UpdateReviewInput = {
     title?: string | null;
 };
 
+/**
+ * Request body for `POST /api/admin/brands` (create) and
+ * `PUT /api/admin/brands/{id}` (update — all fields optional).
+ */
+export type UpsertBrandRequest = {
+    accentColor?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    description?: string | null;
+    logoUrl?: string | null;
+    name?: string | null;
+    rating?: number | null;
+    slug?: string | null;
+    status?: string | null;
+};
+
+/**
+ * Request body for `POST /api/admin/pickup-points` + `PUT /api/admin/pickup-points/{id}`.
+ */
+export type UpsertPickupPointRequest = {
+    address?: string | null;
+    kind?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+    name?: string | null;
+    routeId?: string | null;
+    stopOrder?: number | null;
+};
+
+/**
+ * Request body for `POST /api/admin/routes` + `PUT /api/admin/routes/{id}`.
+ */
+export type UpsertRouteRequest = {
+    brandId?: string | null;
+    distanceKm?: number | null;
+    durationMin?: number | null;
+    endLocationId?: string | null;
+    name?: string | null;
+    startLocationId?: string | null;
+    status?: string | null;
+};
+
+/**
+ * Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.
+ */
+export type UpsertScheduleRequest = {
+    amenities?: string | null;
+    basePriceAdult?: number | null;
+    basePriceChild?: number | null;
+    busLayoutId?: string | null;
+    daysOfWeek?: string | null;
+    departureTime?: string | null;
+    effectiveFrom?: string | null;
+    effectiveTo?: string | null;
+    routeId?: string | null;
+};
+
 export type UserOut = {
     created_at: string;
     email?: string | null;
     full_name: string;
     id: string;
 };
+
+/**
+ * A wishlist item, as returned by `GET /api/wishlist`.
+ */
+export type WishlistItemOut = {
+    createdAt: string;
+    id: string;
+    routeId: string;
+    userId: string;
+};
+
+/**
+ * Response of `GET /api/wishlist`.
+ */
+export type WishlistListResponse = {
+    items: Array<WishlistItemOut>;
+    limit: number;
+    offset: number;
+    total: number;
+};
+
+export type ListBookingsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        status?: string;
+        brandId?: string;
+        routeId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        search?: string;
+        limit?: number;
+        offset?: number;
+        sort?: string;
+    };
+    url: '/api/admin/bookings';
+};
+
+export type ListBookingsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListBookingsResponses = {
+    /**
+     * Booking list
+     */
+    200: AdminBookingListResponse;
+};
+
+export type ListBookingsResponse = ListBookingsResponses[keyof ListBookingsResponses];
+
+export type BookingExportData = {
+    body?: never;
+    path?: never;
+    query?: {
+        status?: string;
+        brandId?: string;
+        routeId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        search?: string;
+        limit?: number;
+        offset?: number;
+        sort?: string;
+    };
+    url: '/api/admin/bookings/export';
+};
+
+export type BookingExportErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type BookingExportResponses = {
+    /**
+     * CSV export
+     */
+    200: AdminBookingExportResponse;
+};
+
+export type BookingExportResponse = BookingExportResponses[keyof BookingExportResponses];
+
+export type BookingStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        status?: string;
+        brandId?: string;
+        routeId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        search?: string;
+        limit?: number;
+        offset?: number;
+        sort?: string;
+    };
+    url: '/api/admin/bookings/stats';
+};
+
+export type BookingStatsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type BookingStatsResponses = {
+    /**
+     * Booking stats
+     */
+    200: AdminBookingStatsResponse;
+};
+
+export type BookingStatsResponse = BookingStatsResponses[keyof BookingStatsResponses];
+
+export type GetBookingData = {
+    body?: never;
+    path: {
+        /**
+         * Booking ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/bookings/{id}';
+};
+
+export type GetBookingErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type GetBookingResponses = {
+    /**
+     * Booking detail
+     */
+    200: AdminBookingDetailResponse;
+};
+
+export type GetBookingResponse = GetBookingResponses[keyof GetBookingResponses];
+
+export type UpdateBookingStatusData = {
+    body: UpdateBookingStatusRequest;
+    path: {
+        /**
+         * Booking ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/bookings/{id}';
+};
+
+export type UpdateBookingStatusErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdateBookingStatusResponses = {
+    /**
+     * Status updated
+     */
+    200: UpdateBookingStatusResponse;
+};
+
+export type UpdateBookingStatusResponse2 = UpdateBookingStatusResponses[keyof UpdateBookingStatusResponses];
+
+export type ListBrandsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/brands';
+};
+
+export type ListBrandsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — employee role required
+     */
+    403: unknown;
+};
+
+export type ListBrandsResponses = {
+    /**
+     * Brand list
+     */
+    200: AdminBrandListResponse;
+};
+
+export type ListBrandsResponse = ListBrandsResponses[keyof ListBrandsResponses];
+
+export type CreateBrandData = {
+    body: UpsertBrandRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/brands';
+};
+
+export type CreateBrandErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type CreateBrandResponses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type CreateBrandResponse = CreateBrandResponses[keyof CreateBrandResponses];
+
+export type DeleteBrandData = {
+    body?: never;
+    path: {
+        /**
+         * Brand ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/brands/{id}';
+};
+
+export type DeleteBrandErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteBrandResponses = {
+    /**
+     * Deleted
+     */
+    200: AdminMutationResponse;
+};
+
+export type DeleteBrandResponse = DeleteBrandResponses[keyof DeleteBrandResponses];
+
+export type UpdateBrandData = {
+    body: UpsertBrandRequest;
+    path: {
+        /**
+         * Brand ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/brands/{id}';
+};
+
+export type UpdateBrandErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdateBrandResponses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type UpdateBrandResponse = UpdateBrandResponses[keyof UpdateBrandResponses];
+
+export type ListBusLayoutsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        brandId?: string;
+    };
+    url: '/api/admin/bus-layouts';
+};
+
+export type ListBusLayoutsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListBusLayoutsResponses = {
+    /**
+     * Bus layout list
+     */
+    200: AdminBusLayoutListResponse;
+};
+
+export type ListBusLayoutsResponse = ListBusLayoutsResponses[keyof ListBusLayoutsResponses];
+
+export type ListPickupPointsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        routeId?: string;
+    };
+    url: '/api/admin/pickup-points';
+};
+
+export type ListPickupPointsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListPickupPointsResponses = {
+    /**
+     * Pickup point list
+     */
+    200: AdminPickupPointListResponse;
+};
+
+export type ListPickupPointsResponse = ListPickupPointsResponses[keyof ListPickupPointsResponses];
+
+export type CreatePickupPointData = {
+    body: UpsertPickupPointRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/pickup-points';
+};
+
+export type CreatePickupPointErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type CreatePickupPointResponses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type CreatePickupPointResponse = CreatePickupPointResponses[keyof CreatePickupPointResponses];
+
+export type DeletePickupPointData = {
+    body?: never;
+    path: {
+        /**
+         * Pickup point ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/pickup-points/{id}';
+};
+
+export type DeletePickupPointErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeletePickupPointResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeletePickupPointResponse = DeletePickupPointResponses[keyof DeletePickupPointResponses];
+
+export type UpdatePickupPointData = {
+    body: UpsertPickupPointRequest;
+    path: {
+        /**
+         * Pickup point ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/pickup-points/{id}';
+};
+
+export type UpdatePickupPointErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdatePickupPointResponses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type UpdatePickupPointResponse = UpdatePickupPointResponses[keyof UpdatePickupPointResponses];
+
+export type ListReviewsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        status?: string;
+        brandId?: string;
+        routeId?: string;
+        search?: string;
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/admin/reviews';
+};
+
+export type ListReviewsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListReviewsResponses = {
+    /**
+     * Review list
+     */
+    200: AdminReviewListResponse;
+};
+
+export type ListReviewsResponse = ListReviewsResponses[keyof ListReviewsResponses];
+
+export type DeleteReviewData = {
+    body?: never;
+    path: {
+        /**
+         * Review ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/reviews/{id}';
+};
+
+export type DeleteReviewErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteReviewResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeleteReviewResponse = DeleteReviewResponses[keyof DeleteReviewResponses];
+
+export type ModerateReviewData = {
+    body: ModerateReviewRequest;
+    path: {
+        /**
+         * Review ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/reviews/{id}';
+};
+
+export type ModerateReviewErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type ModerateReviewResponses = {
+    /**
+     * Moderated
+     */
+    200: ModerateReviewResponse;
+};
+
+export type ModerateReviewResponse2 = ModerateReviewResponses[keyof ModerateReviewResponses];
+
+export type ListRoutesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        brandId?: string;
+    };
+    url: '/api/admin/routes';
+};
+
+export type ListRoutesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListRoutesResponses = {
+    /**
+     * Route list
+     */
+    200: AdminRouteListResponse;
+};
+
+export type ListRoutesResponse = ListRoutesResponses[keyof ListRoutesResponses];
+
+export type CreateRouteData = {
+    body: UpsertRouteRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/routes';
+};
+
+export type CreateRouteErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type CreateRouteResponses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type CreateRouteResponse = CreateRouteResponses[keyof CreateRouteResponses];
+
+export type DeleteRouteData = {
+    body?: never;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}';
+};
+
+export type DeleteRouteErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteRouteResponses = {
+    /**
+     * Deleted
+     */
+    200: AdminMutationResponse;
+};
+
+export type DeleteRouteResponse = DeleteRouteResponses[keyof DeleteRouteResponses];
+
+export type UpdateRouteData = {
+    body: UpsertRouteRequest;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}';
+};
+
+export type UpdateRouteErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdateRouteResponses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type UpdateRouteResponse = UpdateRouteResponses[keyof UpdateRouteResponses];
+
+export type ListSchedulesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        routeId?: string;
+    };
+    url: '/api/admin/schedules';
+};
+
+export type ListSchedulesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListSchedulesResponses = {
+    /**
+     * Schedule list
+     */
+    200: AdminScheduleListResponse;
+};
+
+export type ListSchedulesResponse = ListSchedulesResponses[keyof ListSchedulesResponses];
+
+export type CreateScheduleData = {
+    body: UpsertScheduleRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/schedules';
+};
+
+export type CreateScheduleErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type CreateScheduleResponses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type CreateScheduleResponse = CreateScheduleResponses[keyof CreateScheduleResponses];
+
+export type DeleteScheduleData = {
+    body?: never;
+    path: {
+        /**
+         * Schedule ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/schedules/{id}';
+};
+
+export type DeleteScheduleErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type DeleteScheduleResponses = {
+    /**
+     * Deleted
+     */
+    204: void;
+};
+
+export type DeleteScheduleResponse = DeleteScheduleResponses[keyof DeleteScheduleResponses];
+
+export type UpdateScheduleData = {
+    body: UpsertScheduleRequest;
+    path: {
+        /**
+         * Schedule ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/schedules/{id}';
+};
+
+export type UpdateScheduleErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type UpdateScheduleResponses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type UpdateScheduleResponse = UpdateScheduleResponses[keyof UpdateScheduleResponses];
 
 export type EmployeeLoginData = {
     body: LoginRequest;
@@ -1274,7 +2682,7 @@ export type ListChannelsData = {
     body?: never;
     path?: never;
     query?: {
-        limit?: number | null;
+        limit?: number;
     };
     url: '/api/chat/channels';
 };
@@ -1290,8 +2698,33 @@ export type ListChannelsResponses = {
     /**
      * Channel list
      */
-    200: unknown;
+    200: ChatChannelListResponse;
 };
+
+export type ListChannelsResponse = ListChannelsResponses[keyof ListChannelsResponses];
+
+export type CreateChannelData = {
+    body: CreateChannelRequest;
+    path?: never;
+    query?: never;
+    url: '/api/chat/channels';
+};
+
+export type CreateChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type CreateChannelResponses = {
+    /**
+     * Channel created
+     */
+    201: CreateChannelResponse;
+};
+
+export type CreateChannelResponse2 = CreateChannelResponses[keyof CreateChannelResponses];
 
 export type ListMessagesData = {
     body?: never;
@@ -1302,8 +2735,8 @@ export type ListMessagesData = {
         id: string;
     };
     query?: {
-        limit?: number | null;
-        offset?: number | null;
+        limit?: number;
+        offset?: number;
     };
     url: '/api/chat/channels/{id}/messages';
 };
@@ -1319,8 +2752,46 @@ export type ListMessagesResponses = {
     /**
      * Message list
      */
-    200: unknown;
+    200: ChatMessageListResponse;
 };
+
+export type ListMessagesResponse = ListMessagesResponses[keyof ListMessagesResponses];
+
+export type PostMessageData = {
+    body: CreateMessageRequest;
+    path: {
+        /**
+         * Channel ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/chat/channels/{id}/messages';
+};
+
+export type PostMessageErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Channel not found
+     */
+    404: unknown;
+};
+
+export type PostMessageResponses = {
+    /**
+     * Message stored
+     */
+    201: CreateMessageResponse;
+};
+
+export type PostMessageResponse = PostMessageResponses[keyof PostMessageResponses];
 
 export type MarkReadData = {
     body?: never;
@@ -1345,10 +2816,61 @@ export type MarkReadResponses = {
     /**
      * Marked as read
      */
-    200: unknown;
+    200: MarkChannelReadResponse;
 };
 
+export type MarkReadResponse = MarkReadResponses[keyof MarkReadResponses];
+
 export type List2Data = {
+    body?: never;
+    path?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/notifications';
+};
+
+export type List2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type List2Responses = {
+    /**
+     * Notification list
+     */
+    200: NotificationListResponse;
+};
+
+export type List2Response = List2Responses[keyof List2Responses];
+
+export type MarkRead2Data = {
+    body: MarkNotificationsReadRequest;
+    path?: never;
+    query?: never;
+    url: '/api/notifications/read';
+};
+
+export type MarkRead2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type MarkRead2Responses = {
+    /**
+     * Marked as read
+     */
+    200: MarkNotificationsReadResponse;
+};
+
+export type MarkRead2Response = MarkRead2Responses[keyof MarkRead2Responses];
+
+export type List3Data = {
     body?: never;
     path?: never;
     query?: {
@@ -1358,14 +2880,14 @@ export type List2Data = {
     url: '/api/places';
 };
 
-export type List2Responses = {
+export type List3Responses = {
     /**
      * Place list
      */
     200: PlaceListResponse;
 };
 
-export type List2Response = List2Responses[keyof List2Responses];
+export type List3Response = List3Responses[keyof List3Responses];
 
 export type ReverseData = {
     body?: never;
@@ -1527,7 +3049,7 @@ export type UpdatePostResponses = {
 
 export type UpdatePostResponse = UpdatePostResponses[keyof UpdatePostResponses];
 
-export type List3Data = {
+export type List4Data = {
     body?: never;
     path?: never;
     query?: {
@@ -1557,21 +3079,21 @@ export type List3Data = {
     url: '/api/price-alerts';
 };
 
-export type List3Errors = {
+export type List4Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type List3Responses = {
+export type List4Responses = {
     /**
      * Price alert list
      */
     200: PriceAlertListEnvelope;
 };
 
-export type List3Response = List3Responses[keyof List3Responses];
+export type List4Response = List4Responses[keyof List4Responses];
 
 export type CreateData = {
     body: CreatePriceAlertRequest;
@@ -1652,7 +3174,7 @@ export type RecommendationsResponses = {
 
 export type RecommendationsResponse = RecommendationsResponses[keyof RecommendationsResponses];
 
-export type List4Data = {
+export type List5Data = {
     body?: never;
     path?: never;
     query?: {
@@ -1666,14 +3188,14 @@ export type List4Data = {
     url: '/api/reviews';
 };
 
-export type List4Responses = {
+export type List5Responses = {
     /**
      * Review list
      */
     200: ReviewListResponse;
 };
 
-export type List4Response = List4Responses[keyof List4Responses];
+export type List5Response = List5Responses[keyof List5Responses];
 
 export type Create2Data = {
     body: CreateReviewInput;
@@ -1933,9 +3455,9 @@ export type SearchTripsData = {
         to: string;
         date: string;
         limit?: number | null;
-        vehicle_types?: string | null;
+        vehicleTypes?: string | null;
         sort?: string | null;
-        min_seats?: number | null;
+        minSeats?: number | null;
     };
     url: '/api/search';
 };
@@ -2075,6 +3597,87 @@ export type GetUserResponses = {
 };
 
 export type GetUserResponse = GetUserResponses[keyof GetUserResponses];
+
+export type List6Data = {
+    body?: never;
+    path?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/wishlist';
+};
+
+export type List6Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type List6Responses = {
+    /**
+     * Wishlist items
+     */
+    200: WishlistListResponse;
+};
+
+export type List6Response = List6Responses[keyof List6Responses];
+
+export type ToggleData = {
+    body: ToggleWishlistRequest;
+    path?: never;
+    query?: never;
+    url: '/api/wishlist';
+};
+
+export type ToggleErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type ToggleResponses = {
+    /**
+     * Toggled
+     */
+    200: ToggleWishlistResponse;
+};
+
+export type ToggleResponse = ToggleResponses[keyof ToggleResponses];
+
+export type Remove3Data = {
+    body?: never;
+    path: {
+        /**
+         * Wishlist item ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/wishlist/{id}';
+};
+
+export type Remove3Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type Remove3Responses = {
+    /**
+     * Removed
+     */
+    200: DeleteWishlistResponse;
+};
+
+export type Remove3Response = Remove3Responses[keyof Remove3Responses];
 
 export type ListExchangesData = {
     body?: never;
