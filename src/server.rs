@@ -7,7 +7,6 @@ use anyhow::Context;
 use sea_orm::{ConnectOptions, Database};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-use crate::auth::csrf::CsrfManager;
 use crate::auth::jwt::JwtManager;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::RefreshTokenManager;
@@ -15,25 +14,19 @@ use crate::cache::{self, CacheBackend};
 use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
-use crate::service::{AuthService, PostService, UserService};
+use crate::service::{
+    AdminService, AuthService, BookingService, PlaceService, PostService, PriceAlertService,
+    PublicService, ReviewService, RoutingService, UserService,
+};
 use crate::state::AppState;
 use crate::store::{
-    CachePostStore,
-    CacheRbacStore,
-    CacheRefreshTokenStore,
-    CacheUserStore,
-    CompositeStore,
-    DbPostStore,
-    DbRbacStore,
-    DbRefreshTokenStore,
-    DbUserStore,
-    PostStore,
-    RbacStore,
-    RefreshTokenStore,
-    Store,
-    UserStore,
+    CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore, CacheRefreshTokenStore,
+    CacheUserStore, CompositeStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
+    DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
+    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, PostStore, RbacStore,
+    RefreshTokenStore, UserStore, BrandStore, ChatStore,
 };
-use crate::ws::Hub;
+use crate::ws;
 
 pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- Config -------------------------------------------------------
@@ -41,6 +34,9 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     // ---- Tracing ------------------------------------------------------
     init_tracing(&config.server.rust_log);
+
+    // ---- Log active config -------------------------------------------
+    config.log_active();
 
     // ---- DB pool ------------------------------------------------------
     let mut opts = ConnectOptions::new(&config.database.url);
@@ -75,19 +71,47 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         cache.clone(),
         config.cache.ttl(),
     ));
-    let refresh_token_store: Arc<dyn RefreshTokenStore> = Arc::new(
-        CacheRefreshTokenStore::new(
-            DbRefreshTokenStore::new(db.clone()),
-            cache.clone(),
-            config.cache.ttl(),
-        ),
-    );
+    let refresh_token_store: Arc<dyn RefreshTokenStore> = Arc::new(CacheRefreshTokenStore::new(
+        DbRefreshTokenStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
+    let brand_store: Arc<dyn BrandStore> = Arc::new(CacheBrandStore::new(
+        DbBrandStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
+    let chat_store: Arc<dyn ChatStore> = Arc::new(CacheChatStore::new(
+        DbChatStore::new(db.clone()),
+        cache.clone(),
+        config.cache.ttl(),
+    ));
 
-    let store: Arc<dyn Store> = Arc::new(CompositeStore::new(
+    // ---- New entity stores (booking domain) -------------------------
+    let booking_store = Arc::new(DbBookingStore::new(db.clone()));
+    let review_store = Arc::new(DbReviewStore::new(db.clone()));
+    let route_store = Arc::new(DbRouteStore::new(db.clone()));
+    let schedule_store = Arc::new(DbScheduleStore::new(db.clone()));
+    let trip_store = Arc::new(DbTripStore::new(db.clone()));
+    let place_store = Arc::new(DbPlaceStore::new(db.clone()));
+    let price_alert_store = Arc::new(DbPriceAlertStore::new(db.clone()));
+    let audit_store = Arc::new(DbAuditStore::new(db.clone()));
+
+    let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         user_store,
         post_store,
         rbac_store,
         refresh_token_store,
+        brand_store,
+        chat_store,
+        booking_store,
+        review_store,
+        route_store,
+        schedule_store,
+        trip_store,
+        place_store,
+        price_alert_store,
+        audit_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------
@@ -97,16 +121,19 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let jwt = Arc::new(JwtManager::new(config.jwt.clone()));
     let refresh = Arc::new(RefreshTokenManager::new(config.jwt.clone()));
     let password = Arc::new(PasswordHasher::new());
-    let csrf = Arc::new(CsrfManager::new(&config.jwt.secret));
     // JWT validator with revocation cache (per-token + per-user).
     // Needed for logout to immediately invalidate access tokens.
-    let jwt_validator = Arc::new(crate::auth::JwtValidator::new(
-        jwt.clone(),
-        &config.jwt,
-    ));
+    let jwt_validator = Arc::new(crate::auth::JwtValidator::new(jwt.clone(), &config.jwt));
 
-    // ---- WebSocket hub (in-process) ----------------------------------
-    let ws_hub = Hub::new();
+    // ---- WebSocket hubs (in-process global singletons) --------------
+    // The chat hub (`ws::hub::hub()`) and audio-call hub
+    // (`audio_call::hub::call_hub()`) are lazily-initialised process
+    // singletons — no per-instance state on AppState.
+    crate::zeroclaw::init(&config.zeroclaw);
+
+    // Spawn WS background maintenance tasks (idempotency GC + metrics).
+    ws::spawn_idem_gc();
+    ws::spawn_metrics_logger();
 
     // ---- Domain services (pre-built, shared via Arc) -----------------
     // Each service holds its deps directly — no back-reference to
@@ -118,19 +145,61 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         jwt_validator.clone(),
         refresh.clone(),
         password.clone(),
-        csrf.clone(),
         config_arc.clone(),
     ));
     let user_service = Arc::new(UserService::new(store.clone(), rbac.clone()));
     let post_service = Arc::new(PostService::new(store.clone(), rbac.clone()));
 
+    // ---- Optional Tantivy place-search index ──────────────────────────
+    // Opened only when `search.index_dir` points at a built index. When
+    // absent, PlaceService falls back to SQL LIKE queries.
+    let place_searcher = match &config.search.index_dir {
+        Some(dir) if dir.exists() => {
+            match crate::osm::searcher::PlaceSearcher::open(dir) {
+                Ok(s) => {
+                    tracing::info!(index_dir = %dir.display(), "place search index opened");
+                    Some(Arc::new(s))
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, index_dir = %dir.display(), "failed to open place search index; search will use SQL fallback");
+                    None
+                }
+            }
+        }
+        _ => {
+            tracing::info!("no place search index configured; run `backend import-osm` to enable");
+            None
+        }
+    };
+
+    // ---- New domain services (booking logic) -------------------------
+    let admin_service = Arc::new(AdminService::new(
+        store.clone(),
+        rbac.clone(),
+    ));
+    let review_service = Arc::new(ReviewService::new(store.clone()));
+    let booking_service = Arc::new(BookingService::new(store.clone()));
+    let public_service = Arc::new(PublicService::new(store.clone()));
+    let routing_service = Arc::new(RoutingService::new(&config));
+    let place_service = Arc::new(PlaceService::with_searcher(
+        store.clone(),
+        place_searcher,
+    ));
+    let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
+
     let state = AppState {
         config: config_arc,
         store,
-        ws_hub,
         auth: auth_service,
         posts: post_service,
         users: user_service,
+        admin: admin_service,
+        reviews: review_service,
+        bookings: booking_service,
+        public: public_service,
+        routing: routing_service,
+        places: place_service,
+        price_alerts: price_alert_service,
     };
 
     Ok(state)
@@ -167,7 +236,11 @@ pub async fn run(state: AppState) -> anyhow::Result<()> {
         listener,
         router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-    .with_graceful_shutdown(shutdown_signal())
+    .with_graceful_shutdown(async {
+        shutdown_signal().await;
+        // Drain live WS connections before exiting.
+        crate::ws::drain_all_connections(800).await;
+    })
     .await
     .context("server runtime")?;
     Ok(())

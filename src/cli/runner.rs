@@ -1,6 +1,5 @@
 //! Dispatches parsed CLI commands to handler functions.
 
-use anyhow::Context;
 use clap::Parser;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -9,6 +8,10 @@ use super::parser::{Cli, Command};
 
 /// Entry point for the CLI. Parses args, sets up logging, dispatches.
 pub async fn run() -> anyhow::Result<()> {
+    // Load .env into process env BEFORE clap parses, so that `#[arg(env = ...)]`
+    // attributes (e.g. SEARCH__INDEX_DIR) can pick up values from the file.
+    let _ = dotenvy::dotenv();
+
     let cli = Cli::parse();
 
     init_tracing(cli.verbose);
@@ -19,15 +22,7 @@ pub async fn run() -> anyhow::Result<()> {
     });
 
     match command {
-        Command::Serve { no_migrate, bind } => {
-            commands::serve::run(no_migrate, bind).await
-        }
-        Command::Migrate { action } => commands::migrate::run(action).await,
-        Command::MigrationNew { name } => commands::migration_new::run(&name),
-        Command::EntityGenerate { output, with_relations } => {
-            commands::entity_generate::run(&output, with_relations).await
-        }
-        Command::Db { action } => commands::db::run(action).await,
+        Command::Serve { no_migrate, bind } => commands::serve::run(no_migrate, bind).await,
         Command::RoutesList => commands::routes_list::run(),
         Command::ConfigShow => commands::config_show::run(),
         Command::Key { action } => commands::key::run(action),
@@ -35,6 +30,12 @@ pub async fn run() -> anyhow::Result<()> {
             println!("{}", crate::cli::util::db_backend_name());
             Ok(())
         }
+        Command::ImportOsm {
+            pbf_path,
+            index_dir,
+            heap_bytes,
+            threads,
+        } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
     }
 }
 

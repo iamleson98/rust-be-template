@@ -1,13 +1,10 @@
-use std::sync::Arc;
-
 use axum::extract::{Path, State};
 use axum::Json;
-use chrono::{DateTime, Utc};
 use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-use crate::entity::users;
+use crate::entity::user;
 use crate::error::AppResult;
 use crate::middleware::AuthUser;
 use crate::state::AppState;
@@ -15,18 +12,18 @@ use crate::state::AppState;
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UserOut {
     pub id: Uuid,
-    pub email: String,
-    pub username: String,
-    pub created_at: DateTime<Utc>,
+    pub email: Option<String>,
+    pub full_name: String,
+    pub created_at: String,
 }
 
-impl From<users::Model> for UserOut {
-    fn from(m: users::Model) -> Self {
+impl From<user::Model> for UserOut {
+    fn from(m: user::Model) -> Self {
         Self {
             id: m.id,
-            email: m.email,
-            username: m.username,
-            created_at: m.created_at,
+            email: Some(m.email),
+            full_name: m.full_name,
+            created_at: m.created_at.to_rfc3339(),
         }
     }
 }
@@ -70,10 +67,10 @@ pub async fn get_user(
     Ok(Json(UserOut::from(user)))
 }
 
-#[derive(Debug, validator::Validate, utoipa::ToSchema, serde::Deserialize)]
-pub struct DeleteUserRequest {
-    pub confirm: bool,
-}
+// #[derive(Debug, validator::Validate, utoipa::ToSchema, serde::Deserialize)]
+// pub struct DeleteUserRequest {
+//     pub confirm: bool,
+// }
 
 /// `DELETE /api/users/{id}` — delete a user. Requires `users:delete`.
 #[utoipa::path(

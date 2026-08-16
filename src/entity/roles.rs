@@ -43,9 +43,9 @@ impl Related<super::permissions::Entity> for Entity {
     }
 }
 
-impl Related<super::users::Entity> for Entity {
+impl Related<super::user::Entity> for Entity {
     fn to() -> RelationDef {
-        super::user_roles::Relation::Users.def()
+        super::user_roles::Relation::User.def()
     }
     fn via() -> Option<RelationDef> {
         Some(super::user_roles::Relation::Roles.def().rev())

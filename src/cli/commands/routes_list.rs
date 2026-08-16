@@ -32,6 +32,7 @@ const ROUTES: &[(&str, &str)] = &[
     ("/ready", "GET"),
     ("/api/auth/register", "POST"),
     ("/api/auth/login", "POST"),
+    ("/api/auth/employee-login", "POST"),
     ("/api/auth/refresh", "POST"),
     ("/api/auth/logout", "POST"),
     ("/api/auth/me", "GET"),

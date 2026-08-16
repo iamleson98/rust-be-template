@@ -9,9 +9,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
-use syn::{
-    parse_macro_input, FnArg, Ident, ImplItem, ItemImpl, Pat, ReturnType,
-};
+use syn::{parse_macro_input, FnArg, Ident, ImplItem, ItemImpl, Pat, ReturnType};
 
 /// No-op attribute marker. Just removed by the compiler; the `#[retry]`
 /// macro looks for it on methods and skips wrapping them.
@@ -109,11 +107,19 @@ pub fn retry(_attr: TokenStream, item: TokenStream) -> TokenStream {
         // by the time `#[retry]` sees the method, the attribute is still
         // present on the method. We detect it via path matching.
         let has_no_retry = method.attrs.iter().any(|a| {
-            a.path().segments.last().map(|s| s.ident == "no_retry").unwrap_or(false)
+            a.path()
+                .segments
+                .last()
+                .map(|s| s.ident == "no_retry")
+                .unwrap_or(false)
         });
         if has_no_retry {
             method.attrs.retain(|a| {
-                !a.path().segments.last().map(|s| s.ident == "no_retry").unwrap_or(false)
+                !a.path()
+                    .segments
+                    .last()
+                    .map(|s| s.ident == "no_retry")
+                    .unwrap_or(false)
             });
             continue;
         }

@@ -18,13 +18,16 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub jwt: JwtConfig,
     pub cookie: CookieConfig,
-    pub csrf: CsrfConfig,
     pub cache: CacheConfig,
     pub storage: StorageConfig,
     pub worker: WorkerConfig,
     pub rate_limit: RateLimitConfig,
     pub static_files: StaticFilesConfig,
     pub cors: CorsConfig,
+    pub zeroclaw: ZeroClawConfig,
+    pub audio_call: AudioCallConfig,
+    pub search: SearchConfig,
+    pub ws: WsConfig,
 }
 
 impl Default for Config {
@@ -34,13 +37,16 @@ impl Default for Config {
             database: DatabaseConfig::default(),
             jwt: JwtConfig::default(),
             cookie: CookieConfig::default(),
-            csrf: CsrfConfig::default(),
             cache: CacheConfig::default(),
             storage: StorageConfig::default(),
             worker: WorkerConfig::default(),
             rate_limit: RateLimitConfig::default(),
             static_files: StaticFilesConfig::default(),
             cors: CorsConfig::default(),
+            zeroclaw: ZeroClawConfig::default(),
+            audio_call: AudioCallConfig::default(),
+            search: SearchConfig::default(),
+            ws: WsConfig::default(),
         }
     }
 }
@@ -61,6 +67,9 @@ pub struct ServerConfig {
     pub tcp_keepalive_secs: Option<u64>,
     /// TCP_NODELAY — disable Nagle's algorithm for lower latency.
     pub tcp_nodelay: bool,
+    /// Valhalla routing service URL (optional). If not set, routing endpoints
+    /// return 503. Example: `http://localhost:8002`
+    pub valhalla_url: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -73,6 +82,7 @@ impl Default for ServerConfig {
             max_request_body_bytes: 2 * 1024 * 1024, // 2 MB
             tcp_keepalive_secs: Some(60),
             tcp_nodelay: true,
+            valhalla_url: None,
         }
     }
 }
@@ -196,26 +206,6 @@ impl SameSite {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-pub struct CsrfConfig {
-    pub token_ttl_secs: u64,
-}
-
-impl Default for CsrfConfig {
-    fn default() -> Self {
-        Self {
-            token_ttl_secs: 3600,
-        }
-    }
-}
-
-impl CsrfConfig {
-    pub fn ttl(&self) -> Duration {
-        Duration::from_secs(self.token_ttl_secs)
-    }
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheBackend {
     Moka,
@@ -379,11 +369,150 @@ impl CorsConfig {
     }
 }
 
+// ────────────────────────────────────────────────────────────────
+//  ZeroClaw AI assistant
+// ────────────────────────────────────────────────────────────────
+
+/// Configuration for the ZeroClaw AI assistant. When `enabled` is false
+/// (or no `api_url`/`api_key` is set), a no-op provider is used and chat
+/// messages are never forwarded to an external model.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ZeroClawConfig {
+    pub enabled: bool,
+    pub api_url: String,
+    pub api_key: String,
+    pub model: String,
+    /// Request timeout in milliseconds.
+    pub timeout_ms: u64,
+    /// Max conversation turns sent to the model as context.
+    pub max_history: usize,
+    /// If at least this many employees are online, skip the AI reply and
+    /// let humans handle the conversation.
+    pub fallback_online_employees: usize,
+}
+
+impl Default for ZeroClawConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            api_url: String::new(),
+            api_key: String::new(),
+            model: "zeroclaw-default".into(),
+            timeout_ms: 15_000,
+            max_history: 12,
+            fallback_online_employees: 1,
+        }
+    }
+}
+
+impl ZeroClawConfig {
+    /// True when the HTTP provider should be used.
+    pub fn is_active(&self) -> bool {
+        self.enabled && !self.api_url.is_empty() && !self.api_key.is_empty()
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Audio call (WebRTC signaling relay)
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct AudioCallConfig {
+    pub enabled: bool,
+    /// ICE servers (STUN/TURN) delivered to clients on `register`.
+    /// Parsed from a JSON env var: `[{"urls":"stun:..."},{"urls":"turn:...","username":"...","credential":"..."}]`.
+    pub ice_servers: String,
+}
+
+impl Default for AudioCallConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            ice_servers: String::new(),
+        }
+    }
+}
+
+impl AudioCallConfig {
+    /// Parse the `ice_servers` JSON into a `serde_json::Value` array.
+    /// Returns an empty array on parse failure (clients get no ICE servers
+    /// and will fall back to host candidates only).
+    pub fn ice_servers_json(&self) -> serde_json::Value {
+        if self.ice_servers.is_empty() {
+            return serde_json::Value::Array(vec![]);
+        }
+        serde_json::from_str(&self.ice_servers).unwrap_or_else(|_| serde_json::Value::Array(vec![]))
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Search / OSM place index
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct SearchConfig {
+    /// Directory containing the Tantivy place index. If the directory does
+    /// not exist or is empty, place search/reverse-geocode return 503.
+    pub index_dir: Option<PathBuf>,
+    /// Path to the OSM PBF file used by `import-osm` to build the index.
+    pub osm_pbf_path: Option<PathBuf>,
+}
+
+impl Default for SearchConfig {
+    fn default() -> Self {
+        Self {
+            index_dir: None,
+            osm_pbf_path: None,
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  WebSocket chat hub
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct WsConfig {
+    /// Hard cap on total live WS connections across the server. 0 = unlimited.
+    pub max_connections: usize,
+    /// Max concurrent connections per client IP.
+    pub max_per_ip: usize,
+    /// Bounded outbound channel capacity per session. A slow consumer fills
+    /// the queue, then `try_send` drops further messages.
+    pub channel_capacity: usize,
+    /// Server-initiated Ping interval (seconds). Keeps NAT bindings warm.
+    pub heartbeat_sec: u64,
+    /// Idle timeout (seconds). A socket with no inbound frame is force-closed.
+    pub idle_timeout_sec: u64,
+    /// Max WS message size (bytes).
+    pub max_message_bytes: usize,
+    /// Max WS frame size (bytes).
+    pub max_frame_bytes: usize,
+}
+
+impl Default for WsConfig {
+    fn default() -> Self {
+        Self {
+            max_connections: 50_000,
+            max_per_ip: 10,
+            channel_capacity: 256,
+            heartbeat_sec: 30,
+            idle_timeout_sec: 90,
+            max_message_bytes: 64 * 1024,
+            max_frame_bytes: 64 * 1024,
+        }
+    }
+}
+
 impl Config {
     /// Load config in this order, last wins:
     /// 1. built-in defaults
     /// 2. `backend.toml` if present
-    /// 3. environment variables (prefixed with no separator, e.g. `DATABASE_URL`)
+    /// 3. environment variables with `__` nesting (e.g. `DATABASE__URL` → `database.url`)
     /// 4. `.env` file (loaded explicitly by `dotenvy::dotenv()`)
     pub fn load() -> anyhow::Result<Self> {
         // Load .env into process env if present. Ignore errors (file may not exist).
@@ -406,5 +535,76 @@ impl Config {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
         }
         Ok(())
+    }
+
+    /// Log the active configuration at startup. Secrets are masked so they
+    /// never appear in plain text in log output.
+    pub fn log_active(&self) {
+        use crate::cli::util::mask_secret;
+
+        tracing::info!("active configuration (from .env / environment / backend.toml):");
+
+        tracing::info!("  server:");
+        tracing::info!("    host:               {}", self.server.host);
+        tracing::info!("    port:               {}", self.server.port);
+        tracing::info!("    rust_log:           {}", self.server.rust_log);
+        tracing::info!("    request_timeout:    {}s", self.server.request_timeout_secs);
+        tracing::info!("    max_body_bytes:     {}", self.server.max_request_body_bytes);
+        tracing::info!("    tcp_keepalive:      {:?}", self.server.tcp_keepalive_secs);
+        tracing::info!("    tcp_nodelay:        {}", self.server.tcp_nodelay);
+        tracing::info!("    valhalla_url:       {:?}", self.server.valhalla_url);
+
+        tracing::info!("  database:");
+        tracing::info!("    url:                {}", self.database.url);
+        tracing::info!("    max_connections:    {}", self.database.max_connections);
+        tracing::info!("    min_connections:    {}", self.database.min_connections);
+        tracing::info!("    connect_timeout:    {}s", self.database.connect_timeout_secs);
+        tracing::info!("    idle_timeout:       {}s", self.database.idle_timeout_secs);
+        tracing::info!("    max_lifetime:       {}s", self.database.max_lifetime_secs);
+        tracing::info!("    statement_cache:    {}", self.database.statement_cache_capacity);
+        tracing::info!("    sqlx_logs:          {}", self.database.enable_sqlx_logs);
+
+        tracing::info!("  jwt:");
+        tracing::info!("    secret:             {}", mask_secret(&self.jwt.secret));
+        tracing::info!("    access_ttl:         {}s", self.jwt.access_ttl_secs);
+        tracing::info!("    refresh_ttl:        {}s", self.jwt.refresh_ttl_secs);
+        tracing::info!("    issuer:             {}", self.jwt.issuer);
+
+        tracing::info!("  cookie:");
+        tracing::info!("    domain:             {}", self.cookie.domain);
+        tracing::info!("    secure:             {}", self.cookie.secure);
+        tracing::info!("    samesite:           {:?}", self.cookie.samesite);
+
+        tracing::info!("  cache:");
+        tracing::info!("    backend:            {:?}", self.cache.backend);
+        tracing::info!("    ttl:                {}s", self.cache.ttl_secs);
+        tracing::info!("    max_capacity:       {}", self.cache.max_capacity);
+        tracing::info!("    redis_url:          {}", self.cache.redis_url);
+
+        tracing::info!("  storage:");
+        tracing::info!("    backend:            {:?}", self.storage.backend);
+        tracing::info!("    local_root:         {:?}", self.storage.local_root);
+        tracing::info!("    s3_bucket:          {}", self.storage.s3_bucket);
+        tracing::info!("    s3_region:          {}", self.storage.s3_region);
+        tracing::info!("    s3_endpoint:        {:?}", self.storage.s3_endpoint);
+        tracing::info!("    s3_access_key_id:   {}", mask_secret(&self.storage.s3_access_key_id));
+        tracing::info!("    s3_secret_access:   {}", mask_secret(&self.storage.s3_secret_access_key));
+        tracing::info!("    s3_force_path_style:{}", self.storage.s3_force_path_style);
+
+        tracing::info!("  worker:");
+        tracing::info!("    kafka_brokers:      {}", self.worker.kafka_brokers);
+        tracing::info!("    kafka_group_id:     {}", self.worker.kafka_group_id);
+        tracing::info!("    kafka_topic:        {}", self.worker.kafka_topic);
+
+        tracing::info!("  rate_limit:");
+        tracing::info!("    rpm:                {}", self.rate_limit.rpm);
+        tracing::info!("    burst:              {}", self.rate_limit.burst);
+
+        tracing::info!("  static_files:");
+        tracing::info!("    dir:                {:?}", self.static_files.dir);
+        tracing::info!("    cache_max_age:      {}s", self.static_files.cache_max_age);
+
+        tracing::info!("  cors:");
+        tracing::info!("    origins:            {:?}", self.cors.origin_list());
     }
 }

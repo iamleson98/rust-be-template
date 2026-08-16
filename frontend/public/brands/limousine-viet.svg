@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="g3" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#9f1239"/>
+    </linearGradient>
+  </defs>
+  <rect width="200" height="200" rx="40" fill="url(#g3)"/>
+  <text x="100" y="92" text-anchor="middle" font-family="system-ui, sans-serif" font-size="60" font-weight="800" fill="white">LV</text>
+  <text x="100" y="140" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#fecdd3">LIMOUSINE VIỆT</text>
+  <path d="M40 165 L160 165 L150 180 L50 180 Z" fill="#fda4af" opacity="0.6"/>
+</svg>

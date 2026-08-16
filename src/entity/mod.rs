@@ -2,10 +2,33 @@
 
 pub mod prelude;
 
+pub mod audit_log;
+pub mod booking;
+pub mod booking_seat;
+pub mod brand;
+pub mod bus_layout;
+pub mod campaign;
+pub mod chat_assignment;
+pub mod chat_channel;
+pub mod chat_message;
+pub mod discount_program;
+pub mod notification;
 pub mod permissions;
+pub mod pickup_point;
+pub mod place;
 pub mod posts;
+pub mod price_alert;
 pub mod refresh_tokens;
+pub mod review;
 pub mod role_permissions;
 pub mod roles;
+pub mod route;
+pub mod schedule;
+pub mod seat;
+pub mod seat_inventory;
+pub mod trip_session;
+pub mod user;
 pub mod user_roles;
-pub mod users;
+pub mod user_verification;
+pub mod wishlist_item;
+pub mod zero_claw_exchange;

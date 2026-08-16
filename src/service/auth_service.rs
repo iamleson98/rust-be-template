@@ -1,35 +1,28 @@
-//! Auth service — registration, login, refresh rotation, logout.
-//!
-//! Holds its dependencies directly (no `ServiceContext` intermediary, no
-//! back-reference to `AppState`). This avoids circular `Arc` references
-//! and keeps the dependency surface explicit.
-
 use std::sync::Arc;
 
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::auth::csrf::CsrfManager;
 use crate::auth::jwt::JwtManager;
 use crate::auth::jwt_validator::JwtValidator;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::{RefreshTokenManager, RefreshTokenValue};
+use crate::auth::SessionUser;
 use crate::config::{Config, CookieConfig};
-use crate::entity::users;
+use crate::entity::user;
 use crate::error::{AppError, AppResult};
-use crate::store::Store;
+use crate::store::CompositeStore;
 
 /// Result of a successful login or refresh — what the route handler needs
 /// to build the response + cookies.
 pub struct AuthSession {
-    pub user: users::Model,
+    pub user: user::Model,
     pub access_token: String,
     pub refresh_token: String,
-    pub csrf_token: String,
 }
 
 impl AuthSession {
-    /// Set the auth + CSRF cookies on a `CookieJar` and return the updated jar.
+    /// Set the auth cookies on a `CookieJar` and return the updated jar.
     pub fn set_cookies(
         &self,
         jar: axum_extra::extract::CookieJar,
@@ -40,7 +33,6 @@ impl AuthSession {
             cfg,
             &self.access_token,
             &self.refresh_token,
-            &self.csrf_token,
         )
     }
 }
@@ -48,12 +40,11 @@ impl AuthSession {
 /// Auth service. Constructed once at startup with shared `Arc<T>` deps
 /// and stored as `Arc<AuthService>` on `AppState`.
 pub struct AuthService {
-    store: Arc<dyn Store>,
+    store: Arc<CompositeStore>,
     jwt: Arc<JwtManager>,
     jwt_validator: Arc<JwtValidator>,
     refresh: Arc<RefreshTokenManager>,
     password: Arc<PasswordHasher>,
-    csrf: Arc<CsrfManager>,
     config: Arc<Config>,
 }
 
@@ -61,12 +52,11 @@ impl AuthService {
     /// Construct from shared deps. Each dep is an `Arc<T>` cloned from
     /// the bootstrap phase — cheap (refcount bump), no allocation.
     pub fn new(
-        store: Arc<dyn Store>,
+        store: Arc<CompositeStore>,
         jwt: Arc<JwtManager>,
         jwt_validator: Arc<JwtValidator>,
         refresh: Arc<RefreshTokenManager>,
         password: Arc<PasswordHasher>,
-        csrf: Arc<CsrfManager>,
         config: Arc<Config>,
     ) -> Self {
         Self {
@@ -75,50 +65,63 @@ impl AuthService {
             jwt_validator,
             refresh,
             password,
-            csrf,
             config,
         }
     }
 
     /// Register a new user account. Assigns the default `user` role.
+    /// The first registered user automatically gets the `admin` role.
     pub async fn register(
         &self,
         email: String,
         username: String,
         password: String,
-    ) -> AppResult<users::Model> {
+    ) -> AppResult<user::Model> {
         validate_email(&email)?;
         validate_username(&username)?;
         validate_password(&password)?;
+
+        // Check if this is the first user (will become admin)
+        let user_count = self.store.user_store().count_users().await?;
+        let is_first_user = user_count == 0;
 
         let hash = self
             .password
             .hash(&password)
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        let role_name = if is_first_user { "employee" } else { "user" };
+
         let model = self
             .store
-            .create_user(email, username, hash)
+            .user_store()
+            .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // Assign the default "user" role by looking it up by name.
-        let roles = self.store.list_roles().await?;
-        if let Some(role) = roles.iter().find(|r| r.name == "user") {
-            let _ = self.store.assign_role(model.id, role.id).await;
+        // Assign role: first user gets "admin", others get "user"
+        let roles = self.store.rbac_store().list_roles().await?;
+        if let Some(role) = roles.iter().find(|r| r.name == role_name) {
+            let _ = self.store.rbac_store().assign_role(model.id, role.id).await;
         }
 
         Ok(model)
     }
 
-    /// Exchange credentials for an auth session (access + refresh + csrf).
+    /// Exchange credentials for an auth session (access + refresh).
     pub async fn login(&self, email: String, password: String) -> AppResult<AuthSession> {
         let user = self
             .store
+            .user_store()
             .get_user_by_email(email)
             .await?
             .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
 
-        if !self.password.verify(&password, &user.password_hash) {
+        let hash = user
+            .password_hash
+            .as_deref()
+            .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
+
+        if !self.password.verify(&password, hash) {
             return Err(AppError::Unauthorized("invalid credentials".into()));
         }
 
@@ -132,6 +135,7 @@ impl AuthService {
 
         let model = self
             .store
+            .refresh_token_store()
             .get_refresh_token(value.id)
             .await?
             .ok_or_else(|| AppError::Unauthorized("unknown refresh token".into()))?;
@@ -149,9 +153,12 @@ impl AuthService {
 
         // Rotate: revoke the old token, issue a new one for the same user.
         let user_id = model.user_id;
-        self.store.revoke_refresh_token(value.id).await?;
+        self.store
+            .refresh_token_store()
+            .revoke_refresh_token(value.id)
+            .await?;
 
-        let user = self.store.get_user(user_id).await?;
+        let user = self.store.user_store().get_user(user_id).await?;
         self.issue_session(user).await
     }
 
@@ -159,6 +166,7 @@ impl AuthService {
     /// the access token stops working immediately.
     pub async fn logout(&self, user_id: Uuid) -> AppResult<()> {
         self.store
+            .refresh_token_store()
             .revoke_all_refresh_tokens_for_user(user_id)
             .await?;
         self.jwt_validator.revoke_all_for_user(user_id).await;
@@ -167,8 +175,8 @@ impl AuthService {
 
     /// Fetch the current user (after auth has been verified by the
     /// extractor). Hits the cached `get_user` path.
-    pub async fn me(&self, user_id: Uuid) -> AppResult<users::Model> {
-        Ok(self.store.get_user(user_id).await?)
+    pub async fn me(&self, user_id: Uuid) -> AppResult<user::Model> {
+        Ok(self.store.user_store().get_user(user_id).await?)
     }
 
     /// Verify an access token and return the authenticated user id.
@@ -181,29 +189,49 @@ impl AuthService {
         Ok(claims.sub)
     }
 
+    /// Verify an access token and return the full `SessionUser` (loaded
+    /// from the user store). Used by transports that route by role/brand
+    /// (WebSocket, audio-call) where carrying just the id isn't enough.
+    pub async fn verify_access_token_session(&self, token: &str) -> AppResult<SessionUser> {
+        let user_id = self.verify_access_token(token).await?;
+        let user = self.store.user_store().get_user(user_id).await?;
+        let mut session = SessionUser::from_model(&user);
+        if let Some(brand_id) = &user.brand_id {
+            if let Ok(id) = uuid::Uuid::parse_str(brand_id) {
+                if let Ok(Some(brand)) = self
+                    .store
+                    .brand_store()
+                    .get_by_id(id)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))
+                {
+                    session.brand_name = Some(brand.name);
+                }
+            }
+        }
+        Ok(session)
+    }
+
     /// Issue a fresh auth session: new access JWT + new refresh token
-    /// (persisted) + new CSRF token.
-    async fn issue_session(&self, user: users::Model) -> AppResult<AuthSession> {
+    /// (persisted).
+    async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
+        let id = user.id;
         let access = self
             .jwt
-            .issue_access(user.id)
+            .issue_access(id)
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let refresh_value = RefreshTokenValue::generate();
-        let refresh_model = self
-            .refresh
-            .build_model(&refresh_value, user.id, None, None);
-        self.store.save_refresh_token(refresh_model).await?;
-
-        let csrf = self
-            .csrf
-            .issue(chrono::Duration::seconds(self.config.csrf.token_ttl_secs as i64));
+        let refresh_model = self.refresh.build_model(&refresh_value, id, None, None);
+        self.store
+            .refresh_token_store()
+            .save_refresh_token(refresh_model)
+            .await?;
 
         Ok(AuthSession {
             user,
             access_token: access,
             refresh_token: refresh_value.to_cookie_value(),
-            csrf_token: csrf,
         })
     }
 

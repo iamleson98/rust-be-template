@@ -1,15 +1,32 @@
-//! In-process WebSocket hub.
+//! WebSocket module — axum `ws` upgrade handler + in-memory connection hub.
 //!
-//! `Hub` holds all live connections keyed by `UserId`. Channels broadcast
-//! to all subscribers of a topic; topic membership is tracked per-user so
-//! a future Redis-backed fan-out implementation can swap in without
-//! changing the public API.
+//! The hub (`hub.rs`) is a process-local singleton built on `DashMap` for
+//! lock-free concurrent connection/room/presence tracking. The handler
+//! (`handler.rs`) implements the socket.io-like message protocol the frontend
+//! `socket.io-client` speaks (join/read/message/typing events with
+//! client-message-id idempotency).
 //!
-//! Designed to be extended: replace `Hub` with a Redis-backed fan-out
-//! variant later and call sites stay the same.
+//! ## Concurrency design (high-level)
+//!
+//! * **Bounded outbound channel** per session (`ws_channel_capacity`, default
+//!   256) — a slow consumer fills its queue, then `try_send` drops further
+//!   messages; the heartbeat sweep eventually reaps the socket. No unbounded
+//!   memory growth per client.
+//! * **Global connection cap** (`ws_max_connections`, default 50_000) —
+//!   atomic admission check at upgrade time; over-cap upgrades get HTTP 503.
+//! * **Server-initiated heartbeat** (`ws_heartbeat_sec`, default 30s) —
+//!   Ping frames keep NAT bindings warm and probe for dead peers.
+//! * **Idle timeout** (`ws_idle_timeout_sec`, default 90s) — half-open
+//!   sockets (no frame received) are force-closed, freeing the slot.
+//! * **Channel-exists cache** (moka, 60s TTL) — short-circuits the DB
+//!   `SELECT` on every `join` re-entry.
+//! * **Graceful drain** — on shutdown, every live socket receives a
+//!   `system:shutdown` notice + Close frame before the process exits.
 
-pub use self::hub::Hub;
-pub use self::handler::run_socket as ws_handler;
+pub mod handler;
+pub mod hub;
 
-mod hub;
-mod handler;
+pub use handler::{
+    drain_all_connections, router, spawn_idem_gc, spawn_metrics_logger,
+};
+pub use hub::{hub, ChatHub, ClientTx, HubStats, Session};

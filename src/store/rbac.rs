@@ -2,11 +2,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, JoinType, QueryFilter, QueryOrder, QuerySelect,
     RelationTrait, Set,
 };
+use serde::{Deserialize, Serialize};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -15,7 +16,14 @@ use crate::entity::{permissions, role_permissions, roles, user_roles};
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
-use super::UserPermissions;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPermissions {
+    pub user_id: uuid::Uuid,
+    pub permission_names: Vec<String>,
+    pub role_names: Vec<String>,
+    pub fetched_at: DateTime<Utc>,
+}
 
 #[async_trait]
 pub trait RbacStore: Send + Sync {
@@ -23,49 +31,20 @@ pub trait RbacStore: Send + Sync {
     async fn assign_role(&self, user_id: Uuid, role_id: Uuid) -> StoreResult<()>;
     async fn list_roles(&self) -> StoreResult<Vec<roles::Model>>;
     async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>>;
+    async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions>;
 }
 
 #[derive(Clone)]
 pub struct DbRbacStore {
     db: Arc<DatabaseConnection>,
 }
+impl RetryPolicy for DbRbacStore {}
 
 impl DbRbacStore {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-
-    async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions> {
-        let db = self.db.as_ref();
-        let roles: Vec<roles::Model> = roles::Entity::find()
-            .join_rev(JoinType::InnerJoin, user_roles::Relation::Roles.def())
-            .filter(user_roles::Column::UserId.eq(user_id))
-            .all(db)
-            .await?;
-
-        let role_ids: Vec<Uuid> = roles.iter().map(|r| r.id).collect();
-        let role_names: Vec<String> = roles.iter().map(|r| r.name.clone()).collect();
-
-        let permissions: Vec<permissions::Model> = if role_ids.is_empty() {
-            Vec::new()
-        } else {
-            permissions::Entity::find()
-                .join_rev(JoinType::InnerJoin, role_permissions::Relation::Permissions.def())
-                .filter(role_permissions::Column::RoleId.is_in(role_ids))
-                .all(db)
-                .await?
-        };
-
-        Ok(UserPermissions {
-            user_id,
-            permission_names: permissions.iter().map(|p| p.name.clone()).collect(),
-            role_names,
-            fetched_at: Utc::now(),
-        })
-    }
 }
-
-impl RetryPolicy for DbRbacStore {}
 
 #[async_trait]
 #[retry]
@@ -109,6 +88,38 @@ impl RbacStore for DbRbacStore {
             .order_by_asc(permissions::Column::Name)
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions> {
+        let db: &DatabaseConnection = self.db.as_ref();
+        let roles: Vec<roles::Model> = roles::Entity::find()
+            .join_rev(JoinType::InnerJoin, user_roles::Relation::Roles.def())
+            .filter(user_roles::Column::UserId.eq(user_id))
+            .all(db)
+            .await?;
+
+        let role_ids: Vec<Uuid> = roles.iter().map(|r| r.id).collect();
+        let role_names: Vec<String> = roles.iter().map(|r| r.name.clone()).collect();
+
+        let permissions: Vec<permissions::Model> = if role_ids.is_empty() {
+            Vec::new()
+        } else {
+            permissions::Entity::find()
+                .join_rev(
+                    JoinType::InnerJoin,
+                    role_permissions::Relation::Permissions.def(),
+                )
+                .filter(role_permissions::Column::RoleId.is_in(role_ids))
+                .all(db)
+                .await?
+        };
+
+        Ok(UserPermissions {
+            user_id,
+            permission_names: permissions.iter().map(|p| p.name.clone()).collect(),
+            role_names,
+            fetched_at: Utc::now(),
+        })
     }
 }
 
@@ -155,9 +166,7 @@ impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
         }
 
         let perms = self.inner.get_user_permissions(user_id).await?;
-        if let Err(e) =
-            set_serializable(self.cache.as_ref(), &key, &perms, Some(self.ttl)).await
-        {
+        if let Err(e) = set_serializable(self.cache.as_ref(), &key, &perms, Some(self.ttl)).await {
             tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(perms)
@@ -177,5 +186,9 @@ impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
 
     async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>> {
         self.inner.list_permissions().await
+    }
+
+    async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions> {
+        self.inner.fetch_user_permissions(user_id).await
     }
 }

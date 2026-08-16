@@ -29,6 +29,6 @@ pub async fn run(no_migrate: bool, bind: Option<String>) -> anyhow::Result<()> {
 
 async fn run_migrations(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
     use sea_orm_migration::MigratorTrait;
-    crate::migration::Migrator::up(db, None).await?;
+    crate::Migrator::up(db, None).await?;
     Ok(())
 }

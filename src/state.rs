@@ -3,9 +3,11 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 
 use crate::config::Config;
-use crate::service::{AuthService, PostService, UserService};
-use crate::store::Store;
-use crate::ws::Hub;
+use crate::service::{
+    AdminService, AuthService, BookingService, PlaceService, PostService, PriceAlertService,
+    PublicService, ReviewService, RoutingService, UserService,
+};
+use crate::store::CompositeStore;
 
 /// The single application state object shared across handlers.
 ///
@@ -24,17 +26,30 @@ use crate::ws::Hub;
 /// - **`AuthUser` extractor is generic via `FromRef`** — works with any
 ///   state that can supply an `AuthService`, not just `AppState`.
 ///   This keeps middleware independent of the concrete app state type.
+///
+/// ## WebSocket hubs
+///
+/// The chat (`/ws`) and audio-call (`/ws-call`) hubs are process-global
+/// singletons (see `ws::hub::hub()` and `audio_call::hub::call_hub()`).
+/// They are NOT stored on `AppState` — this matches the booking-rs
+/// design and keeps `AppState` focused on per-request deps.
 #[derive(Clone)]
 pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
-    pub store: Arc<dyn Store>,
-    pub ws_hub: Arc<Hub>,
+    pub store: Arc<CompositeStore>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
     pub auth: Arc<AuthService>,
     pub posts: Arc<PostService>,
     pub users: Arc<UserService>,
+    pub admin: Arc<AdminService>,
+    pub reviews: Arc<ReviewService>,
+    pub bookings: Arc<BookingService>,
+    pub public: Arc<PublicService>,
+    pub routing: Arc<RoutingService>,
+    pub places: Arc<PlaceService>,
+    pub price_alerts: Arc<PriceAlertService>,
 }
 
 /// `Arc<Config>` is also extractable — useful for handlers that need
@@ -60,5 +75,47 @@ impl FromRef<AppState> for Arc<PostService> {
 impl FromRef<AppState> for Arc<UserService> {
     fn from_ref(state: &AppState) -> Self {
         state.users.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<AdminService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.admin.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ReviewService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.reviews.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<BookingService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.bookings.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<PublicService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.public.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<RoutingService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.routing.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<PlaceService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.places.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<PriceAlertService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.price_alerts.clone()
     }
 }

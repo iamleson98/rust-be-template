@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use futures::FutureExt;
 use tokio::task::JoinHandle;
 
 use super::backend::WorkerBroker;

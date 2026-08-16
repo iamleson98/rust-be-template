@@ -47,6 +47,9 @@ pub enum AppError {
     #[error("auth error: {0}")]
     Auth(String),
 
+    #[error("resource gone: {0}")]
+    Gone(String),
+
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -74,6 +77,7 @@ impl AppError {
             AppError::Cache(_) | AppError::Storage(_) | AppError::Worker(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            AppError::Gone(_) => StatusCode::GONE,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -90,6 +94,7 @@ impl AppError {
             AppError::Cache(_) => "cache_error",
             AppError::Storage(_) => "storage_error",
             AppError::Worker(_) => "worker_error",
+            AppError::Gone(_) => "gone",
             AppError::Internal(_) => "internal_error",
         }
     }

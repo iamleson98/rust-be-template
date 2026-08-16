@@ -1,26 +1,34 @@
-use std::sync::Arc;
-
 use axum::extract::State;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
 
-use crate::entity::users;
+use crate::entity::user;
 use crate::error::{AppError, AppResult};
 use crate::middleware::AuthUser;
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct RegisterRequest {
+    #[validate(length(min = 1, max = 128))]
+    pub full_name: String,
     #[validate(email)]
-    pub email: String,
-    #[validate(length(min = 3, max = 64))]
-    pub username: String,
-    #[validate(length(min = 8, max = 128))]
+    pub email: Option<String>,
+    #[validate(custom(function = "validate_phone"))]
+    pub phone: Option<String>,
+    #[validate(length(min = 6, max = 128))]
     pub password: String,
+}
+
+fn validate_phone(phone: &str) -> Result<(), validator::ValidationError> {
+    if phone.is_empty() || (phone.starts_with('0') && phone.len() >= 9 && phone.len() <= 11) {
+        Ok(())
+    } else {
+        Err(validator::ValidationError::new("invalid_phone"))
+    }
 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
@@ -33,18 +41,14 @@ pub struct LoginRequest {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
-    pub user_id: Uuid,
-    pub username: String,
-    pub email: String,
+    pub user: crate::auth::SessionUser,
     pub expires_at: DateTime<Utc>,
 }
 
 impl AuthResponse {
-    fn from_user(u: &users::Model, access_ttl_secs: u64) -> Self {
+    fn from_user(u: &user::Model, access_ttl_secs: u64) -> Self {
         Self {
-            user_id: u.id,
-            username: u.username.clone(),
-            email: u.email.clone(),
+            user: crate::auth::SessionUser::from_model(u),
             expires_at: Utc::now() + chrono::Duration::seconds(access_ttl_secs as i64),
         }
     }
@@ -65,10 +69,18 @@ pub async fn register(
     State(state): State<AppState>,
     Json(body): Json<RegisterRequest>,
 ) -> AppResult<Json<AuthResponse>> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    
+    // Require either email or phone
+    let email = body.email.filter(|e| !e.is_empty())
+        .or(body.phone.filter(|p| !p.is_empty()))
+        .ok_or_else(|| AppError::Validation("Email or phone is required".into()))?;
+    
+    // Use full_name as username
     let user = state
         .auth
-        .register(body.email, body.username, body.password)
+        .register(email, body.full_name, body.password)
         .await?;
     Ok(Json(AuthResponse::from_user(
         &user,
@@ -92,12 +104,67 @@ pub async fn login(
     jar: axum_extra::extract::CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let session = state.auth.login(body.email, body.password).await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())),
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
+    ))
+}
+
+/// `POST /api/auth/employee-login` — employee-only login (rejects regular users).
+#[utoipa::path(
+    post,
+    path = "/api/auth/employee-login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Employee login successful", body = AuthResponse),
+        (status = 401, description = "Invalid credentials"),
+        (status = 403, description = "Not an employee"),
+    )
+)]
+pub async fn employee_login(
+    State(state): State<AppState>,
+    jar: axum_extra::extract::CookieJar,
+    Json(body): Json<LoginRequest>,
+) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let session = state.auth.login(body.email, body.password).await?;
+
+    // Check the user_roles table (source of truth) for non-"user" roles
+    let user_perms = state
+        .store
+        .rbac_store()
+        .get_user_permissions(session.user.id)
+        .await
+        .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
+
+    // Only allow employees (must have at least one role that isn't "user")
+    let is_employee = user_perms
+        .role_names
+        .iter()
+        .any(|role| role != "user");
+
+    if !is_employee {
+        return Err(AppError::Forbidden(
+            "This endpoint is for employees only".into(),
+        ));
+    }
+
+    let jar = session.set_cookies(jar, state.auth.cookie_config());
+    Ok((
+        jar,
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
     ))
 }
 
@@ -123,7 +190,10 @@ pub async fn refresh(
     let jar = session.set_cookies(jar, state.auth.cookie_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())),
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
     ))
 }
 

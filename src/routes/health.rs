@@ -1,10 +1,11 @@
-use std::sync::Arc;
+use std::time::Duration;
 
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::Serialize;
+use tokio::time::timeout;
 use utoipa::ToSchema;
 
 use crate::error::AppResult;
@@ -61,11 +62,8 @@ pub async fn ready(State(state): State<AppState>) -> AppResult<impl IntoResponse
 /// Ping the database with a trivial query. Returns false if it fails
 /// within the timeout (5s) — the connection is probably dead.
 async fn ping_db(state: &AppState) -> bool {
-    use std::time::Duration;
-    use tokio::time::timeout;
-
     // Readiness via store path so AppState does not need a raw DB handle.
-    let ping = async { state.store.list_roles().await };
+    let ping = async { state.store.rbac_store().list_roles().await };
 
     match timeout(Duration::from_secs(5), ping).await {
         Ok(Ok(_)) => true,
