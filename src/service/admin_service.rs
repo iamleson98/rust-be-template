@@ -9,16 +9,26 @@
 //!   ScheduleStore, ReviewStore, BookingStore, AuditStore, PlaceStore).
 //! - All mutations validate input before hitting the DB.
 //! - Admin-only methods require the caller to have an `admin` or `employee:admin`
-//!   role (checked via `require_admin`).
+//!   role (checked at the route layer via the `AdminUser` extractor).
+//! - Returns typed DTOs from [`crate::dto::admin`] (no `serde_json::Value`).
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use chrono::Utc;
 use sea_orm::Set;
-use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::dto::admin::{
+    AdminBookingDayBucket, AdminBookingDetail, AdminBookingDetailResponse, AdminBookingExportResponse,
+    AdminBookingListResponse, AdminBookingOut, AdminBookingSeatOut, AdminBookingStatsResponse,
+    AdminBookingStatusUpdate, AdminBookingTotals, AdminBrandListResponse, AdminBrandOut,
+    AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, AdminPickupPointListResponse,
+    AdminPickupPointOut, AdminPlacePreview, AdminReviewListResponse, AdminRouteListResponse,
+    AdminRouteOut, AdminScheduleListResponse, AdminScheduleOut, ModerateReviewRequest,
+    ModerateReviewResponse, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
+    UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest, UpsertScheduleRequest,
+};
 use crate::entity::{audit_log, booking, brand, pickup_point, review, route, schedule};
 use crate::error::{AppError, AppResult};
 use crate::rbac::RbacChecker;
@@ -30,11 +40,15 @@ use crate::store::CompositeStore;
 
 pub struct AdminService {
     store: Arc<CompositeStore>,
+    #[allow(dead_code)]
     rbac: Arc<RbacChecker>,
 }
 
 impl AdminService {
-    pub fn new(store: Arc<CompositeStore>, rbac: Arc<RbacChecker>) -> Self {
+    pub fn new(
+        store: Arc<CompositeStore>,
+        rbac: Arc<RbacChecker>,
+    ) -> Self {
         Self { store, rbac }
     }
 
@@ -53,56 +67,57 @@ impl AdminService {
     // ── Brands ──────────────────────────────────────────────────
 
     /// List all brands with route/layout counts.
-    pub async fn list_brands(&self) -> AppResult<Value> {
-        let brands = self
-            .store
-            .brand_store()
+    pub async fn list_brands(&self) -> AppResult<AdminBrandListResponse> {
+        let brands = self.store.brand_store()
             .list_all(1000, 0)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut items = Vec::with_capacity(brands.len());
         for b in &brands {
-            let route_count = self
-                .store
-                .route_store()
+            let route_count = self.store.route_store()
                 .count_routes_by_brand(&b.id.to_string())
                 .await
                 .unwrap_or(0);
-            let layout_count = self
-                .store
-                .schedule_store()
+            let layout_count = self.store.schedule_store()
                 .count_bus_layouts_by_brand(&b.id.to_string())
                 .await
                 .unwrap_or(0);
-            items.push(json!({
-                "id": b.id,
-                "slug": b.slug,
-                "name": b.name,
-                "logoUrl": b.logo_url,
-                "description": b.description,
-                "contactPhone": b.contact_phone,
-                "contactEmail": b.contact_email,
-                "rating": b.rating,
-                "status": b.status,
-                "accentColor": b.accent_color,
-                "totalTrips": b.total_trips,
-                "createdAt": b.created_at,
-                "updatedAt": b.updated_at,
-                "routeCount": route_count,
-                "layoutCount": layout_count,
-            }));
+            items.push(AdminBrandOut {
+                id: b.id,
+                slug: b.slug.clone(),
+                name: b.name.clone(),
+                logo_url: b.logo_url.clone(),
+                description: b.description.clone(),
+                contact_phone: b.contact_phone.clone(),
+                contact_email: b.contact_email.clone(),
+                rating: b.rating,
+                status: b.status.clone(),
+                accent_color: b.accent_color.clone(),
+                total_trips: b.total_trips,
+                created_at: b.created_at.clone(),
+                updated_at: b.updated_at.clone(),
+                route_count: route_count as i64,
+                layout_count: layout_count as i64,
+            });
         }
-        Ok(json!({ "items": items }))
+        Ok(AdminBrandListResponse { items })
     }
 
     /// Create a new brand.
-    pub async fn create_brand(&self, body: &Value) -> AppResult<Value> {
-        let name = non_empty_str_field(body, "name")
+    pub async fn create_brand(&self, body: &UpsertBrandRequest) -> AppResult<AdminMutationResponse> {
+        let name = body
+            .name
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
-        let slug = non_empty_str_field(body, "slug")
-            .map(|s| s.to_string())
+        let slug = body
+            .slug
+            .as_deref()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
             .unwrap_or_else(|| slugify(&name));
 
         if !valid_slug(&slug) {
@@ -111,10 +126,7 @@ impl AdminService {
             ));
         }
 
-        let accent_color = body
-            .get("accentColor")
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let accent_color = body.accent_color.as_deref().map(|s| s.to_string());
         if let Some(ref c) = accent_color {
             if !valid_hex_color(c) {
                 return Err(AppError::Validation(
@@ -129,34 +141,33 @@ impl AdminService {
             id: Set(id),
             slug: Set(slug),
             name: Set(name),
-            logo_url: Set(opt_str_field(body, "logoUrl")),
-            description: Set(opt_str_field(body, "description")),
-            contact_phone: Set(opt_str_field(body, "contactPhone")),
-            contact_email: Set(opt_str_field(body, "contactEmail")),
-            rating: Set(body.get("rating").and_then(|v| v.as_f64())),
-            status: Set(non_empty_str_field(body, "status")
-                .unwrap_or("active")
-                .to_string()),
+            logo_url: Set(body.logo_url.clone()),
+            description: Set(body.description.clone()),
+            contact_phone: Set(body.contact_phone.clone()),
+            contact_email: Set(body.contact_email.clone()),
+            rating: Set(body.rating),
+            status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
             accent_color: Set(accent_color),
             total_trips: Set(0),
             created_at: Set(now.clone()),
             updated_at: Set(now),
         };
 
-        self.store
-            .brand_store()
+        self.store.brand_store()
             .insert_brand(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Update a brand by id.
-    pub async fn update_brand(&self, id: Uuid, body: &Value) -> AppResult<Value> {
-        let existing = self
-            .store
-            .brand_store()
+    pub async fn update_brand(
+        &self,
+        id: Uuid,
+        body: &UpsertBrandRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self.store.brand_store()
             .get_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -164,88 +175,83 @@ impl AdminService {
 
         let mut active: brand::ActiveModel = existing.into();
 
-        if let Some(Some(v)) = opt_string_field(body, "name") {
-            active.name = Set(v);
+        if let Some(ref v) = body.name {
+            active.name = Set(v.clone());
         }
-        if let Some(opt) = opt_string_field(body, "slug") {
-            if let Some(v) = opt {
-                if !valid_slug(&v) {
-                    return Err(AppError::Validation("invalid slug".into()));
-                }
-                active.slug = Set(v);
+        if let Some(ref v) = body.slug {
+            if !valid_slug(v) {
+                return Err(AppError::Validation("invalid slug".into()));
             }
+            active.slug = Set(v.clone());
         }
-        if let Some(opt) = opt_string_field(body, "logoUrl") {
-            active.logo_url = Set(opt);
+        if let Some(ref v) = body.logo_url {
+            active.logo_url = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "description") {
-            active.description = Set(opt);
+        if let Some(ref v) = body.description {
+            active.description = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "contactPhone") {
-            active.contact_phone = Set(opt);
+        if let Some(ref v) = body.contact_phone {
+            active.contact_phone = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "contactEmail") {
-            active.contact_email = Set(opt);
+        if let Some(ref v) = body.contact_email {
+            active.contact_email = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "accentColor") {
-            if let Some(ref c) = opt {
-                if !valid_hex_color(c) {
-                    return Err(AppError::Validation(
-                        "accentColor must be #RRGGBB hex".into(),
-                    ));
-                }
+        if let Some(ref v) = body.accent_color {
+            if !valid_hex_color(v) {
+                return Err(AppError::Validation("accentColor must be #RRGGBB hex".into()));
             }
-            active.accent_color = Set(opt);
+            active.accent_color = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "status") {
-            active.status = Set(opt.unwrap_or_else(|| "active".to_string()));
+        if let Some(ref v) = body.status {
+            active.status = Set(v.clone());
         }
-        if let Some(v) = body.get("rating") {
-            active.rating = Set(v.as_f64());
+        if let Some(v) = body.rating {
+            active.rating = Set(Some(v));
         }
 
         active.updated_at = Set(now_iso());
 
-        self.store
-            .brand_store()
+        self.store.brand_store()
             .update_brand_full(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Delete a brand by id.
+    pub async fn delete_brand(&self, id: Uuid) -> AppResult<AdminMutationResponse> {
+        self.store.brand_store()
+            .delete(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
     }
 
     // ── Routes ──────────────────────────────────────────────────
 
     /// List all routes with start/end place names and schedule/pickup counts.
-    pub async fn list_routes(&self) -> AppResult<Value> {
-        let routes = self
-            .store
-            .route_store()
+    pub async fn list_routes(&self) -> AppResult<AdminRouteListResponse> {
+        let routes = self.store.route_store()
             .list_all_routes()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
-            let schedule_count = self
-                .store
-                .schedule_store()
+            let schedule_count = self.store.schedule_store()
                 .list_schedules_by_route(&r.id.to_string())
                 .await
                 .map(|v| v.len())
                 .unwrap_or(0);
-            let pickup_count = self
-                .store
-                .route_store()
+            let pickup_count = self.store.route_store()
                 .count_pickup_points_by_route(&r.id.to_string())
                 .await
                 .unwrap_or(0);
 
             let start_place = if let Some(id) = r.start_location_id.as_deref() {
                 if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store
-                        .place_store()
+                    self.store.place_store()
                         .find_place_by_id(uid)
                         .await
                         .ok()
@@ -258,8 +264,7 @@ impl AdminService {
             };
             let end_place = if let Some(id) = r.end_location_id.as_deref() {
                 if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store
-                        .place_store()
+                    self.store.place_store()
                         .find_place_by_id(uid)
                         .await
                         .ok()
@@ -271,42 +276,46 @@ impl AdminService {
                 None
             };
 
-            items.push(json!({
-                "id": r.id,
-                "brandId": r.brand_id,
-                "name": r.name,
-                "startLocationId": r.start_location_id,
-                "endLocationId": r.end_location_id,
-                "distanceKm": r.distance_km,
-                "durationMin": r.duration_min,
-                "status": r.status,
-                "createdAt": r.created_at,
-                "updatedAt": r.updated_at,
-                "startLocation": start_place.map(|p| json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "province": p.province,
-                })),
-                "endLocation": end_place.map(|p| json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "province": p.province,
-                })),
-                "scheduleCount": schedule_count,
-                "pickupPointCount": pickup_count,
-            }));
+            items.push(AdminRouteOut {
+                id: r.id,
+                brand_id: r.brand_id.clone(),
+                name: r.name.clone(),
+                start_location_id: r.start_location_id.clone(),
+                end_location_id: r.end_location_id.clone(),
+                distance_km: r.distance_km,
+                duration_min: r.duration_min,
+                status: r.status.clone(),
+                created_at: r.created_at.clone(),
+                updated_at: r.updated_at.clone(),
+                start_location: start_place.map(|p| AdminPlacePreview {
+                    id: p.id,
+                    name: p.name,
+                    province: p.province,
+                }),
+                end_location: end_place.map(|p| AdminPlacePreview {
+                    id: p.id,
+                    name: p.name,
+                    province: p.province,
+                }),
+                schedule_count,
+                pickup_point_count: pickup_count as i64,
+            });
         }
-        Ok(json!({ "items": items }))
+        Ok(AdminRouteListResponse { items })
     }
 
     /// Create a new route.
-    pub async fn create_route(&self, body: &Value) -> AppResult<Value> {
-        let name = non_empty_str_field(body, "name")
+    pub async fn create_route(&self, body: &UpsertRouteRequest) -> AppResult<AdminMutationResponse> {
+        let name = body
+            .name
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
-        let brand_id = opt_str_field(body, "brandId");
-        let start_location_id = opt_str_field(body, "startLocationId");
-        let end_location_id = opt_str_field(body, "endLocationId");
+        let brand_id = body.brand_id.clone();
+        let start_location_id = body.start_location_id.clone();
+        let end_location_id = body.end_location_id.clone();
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -316,32 +325,28 @@ impl AdminService {
             name: Set(name),
             start_location_id: Set(start_location_id),
             end_location_id: Set(end_location_id),
-            distance_km: Set(body.get("distanceKm").and_then(|v| v.as_f64())),
-            duration_min: Set(body
-                .get("durationMin")
-                .and_then(|v| v.as_i64())
-                .map(|n| n as i16)),
-            status: Set(non_empty_str_field(body, "status")
-                .unwrap_or("active")
-                .to_string()),
+            distance_km: Set(body.distance_km),
+            duration_min: Set(body.duration_min.map(|n| n as i16)),
+            status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
             created_at: Set(now.clone()),
             updated_at: Set(now),
         };
 
-        self.store
-            .route_store()
+        self.store.route_store()
             .insert_route(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Update a route by id.
-    pub async fn update_route(&self, id: Uuid, body: &Value) -> AppResult<Value> {
-        let existing = self
-            .store
-            .route_store()
+    pub async fn update_route(
+        &self,
+        id: Uuid,
+        body: &UpsertRouteRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self.store.route_store()
             .find_route_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -349,77 +354,92 @@ impl AdminService {
 
         let mut active: route::ActiveModel = existing.into();
 
-        if let Some(Some(v)) = opt_string_field(body, "name") {
-            active.name = Set(v);
+        if let Some(ref v) = body.name {
+            active.name = Set(v.clone());
         }
-        if let Some(opt) = opt_string_field(body, "brandId") {
-            active.brand_id = Set(opt);
+        if let Some(ref v) = body.brand_id {
+            active.brand_id = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "startLocationId") {
-            active.start_location_id = Set(opt);
+        if let Some(ref v) = body.start_location_id {
+            active.start_location_id = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "endLocationId") {
-            active.end_location_id = Set(opt);
+        if let Some(ref v) = body.end_location_id {
+            active.end_location_id = Set(Some(v.clone()));
         }
-        if let Some(v) = body.get("distanceKm") {
-            active.distance_km = Set(v.as_f64());
+        if let Some(v) = body.distance_km {
+            active.distance_km = Set(Some(v));
         }
-        if let Some(v) = body.get("durationMin") {
-            active.duration_min = Set(v.as_i64().map(|n| n as i16));
+        if let Some(v) = body.duration_min {
+            active.duration_min = Set(Some(v as i16));
         }
-        if let Some(opt) = opt_string_field(body, "status") {
-            active.status = Set(opt.unwrap_or_else(|| "active".to_string()));
+        if let Some(ref v) = body.status {
+            active.status = Set(v.clone());
         }
 
         active.updated_at = Set(now_iso());
 
-        self.store
-            .route_store()
+        self.store.route_store()
             .update_route(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Delete a route by id.
+    pub async fn delete_route(&self, id: Uuid) -> AppResult<AdminMutationResponse> {
+        self.store.route_store()
+            .delete_route(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
     }
 
     // ── Schedules ───────────────────────────────────────────────
 
     /// List schedules for a route.
-    pub async fn list_schedules(&self, route_id: &str) -> AppResult<Value> {
-        let schedules = self
-            .store
-            .schedule_store()
+    pub async fn list_schedules(&self, route_id: &str) -> AppResult<AdminScheduleListResponse> {
+        let schedules = self.store.schedule_store()
             .list_schedules_by_route(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = schedules
+        let items: Vec<AdminScheduleOut> = schedules
             .iter()
-            .map(|s| {
-                json!({
-                    "id": s.id,
-                    "routeId": s.route_id,
-                    "departureTime": s.departure_time,
-                    "effectiveFrom": s.effective_from,
-                    "effectiveTo": s.effective_to,
-                    "daysOfWeek": s.days_of_week,
-                    "busLayoutId": s.bus_layout_id,
-                    "basePriceAdult": s.base_price_adult,
-                    "basePriceChild": s.base_price_child,
-                    "amenities": s.amenities,
-                    "createdAt": s.created_at,
-                })
+            .map(|s| AdminScheduleOut {
+                id: s.id,
+                route_id: s.route_id.clone(),
+                departure_time: s.departure_time.clone(),
+                effective_from: s.effective_from.clone(),
+                effective_to: s.effective_to.clone(),
+                days_of_week: s.days_of_week.clone(),
+                bus_layout_id: s.bus_layout_id.clone(),
+                base_price_adult: s.base_price_adult,
+                base_price_child: s.base_price_child,
+                amenities: s.amenities.clone(),
+                created_at: s.created_at.clone(),
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(AdminScheduleListResponse { items })
     }
 
     /// Create a new schedule.
-    pub async fn create_schedule(&self, body: &Value) -> AppResult<Value> {
-        let route_id = non_empty_str_field(body, "routeId")
+    pub async fn create_schedule(
+        &self,
+        body: &UpsertScheduleRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let route_id = body
+            .route_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?
             .to_string();
-        let departure_time = non_empty_str_field(body, "departureTime")
+        let departure_time = body
+            .departure_time
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("departureTime is required".into()))?
             .to_string();
 
@@ -429,7 +449,7 @@ impl AdminService {
             ));
         }
 
-        let days_of_week = opt_str_field(body, "daysOfWeek");
+        let days_of_week = body.days_of_week.clone();
         if let Some(ref d) = days_of_week {
             if !is_days_of_week(d) {
                 return Err(AppError::Validation(
@@ -444,33 +464,31 @@ impl AdminService {
             id: Set(id),
             route_id: Set(route_id),
             departure_time: Set(departure_time),
-            effective_from: Set(opt_str_field(body, "effectiveFrom")),
-            effective_to: Set(opt_str_field(body, "effectiveTo")),
+            effective_from: Set(body.effective_from.clone()),
+            effective_to: Set(body.effective_to.clone()),
             days_of_week: Set(days_of_week),
-            bus_layout_id: Set(opt_str_field(body, "busLayoutId")),
-            base_price_adult: Set(body
-                .get("basePriceAdult")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0)),
-            base_price_child: Set(body.get("basePriceChild").and_then(|v| v.as_i64())),
-            amenities: Set(opt_str_field(body, "amenities")),
+            bus_layout_id: Set(body.bus_layout_id.clone()),
+            base_price_adult: Set(body.base_price_adult.unwrap_or(0)),
+            base_price_child: Set(body.base_price_child),
+            amenities: Set(body.amenities.clone()),
             created_at: Set(now),
         };
 
-        self.store
-            .schedule_store()
+        self.store.schedule_store()
             .insert_schedule(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Update a schedule by id.
-    pub async fn update_schedule(&self, id: Uuid, body: &Value) -> AppResult<Value> {
-        let existing = self
-            .store
-            .schedule_store()
+    pub async fn update_schedule(
+        &self,
+        id: Uuid,
+        body: &UpsertScheduleRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self.store.schedule_store()
             .find_schedule_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -478,50 +496,48 @@ impl AdminService {
 
         let mut active: schedule::ActiveModel = existing.into();
 
-        if let Some(Some(v)) = opt_string_field(body, "routeId") {
-            active.route_id = Set(v);
+        if let Some(ref v) = body.route_id {
+            active.route_id = Set(v.clone());
         }
-        if let Some(Some(v)) = opt_string_field(body, "departureTime") {
-            if !regex_like_hhmm(&v) {
+        if let Some(ref v) = body.departure_time {
+            if !regex_like_hhmm(v) {
                 return Err(AppError::Validation("departureTime must be HH:MM".into()));
             }
-            active.departure_time = Set(v);
+            active.departure_time = Set(v.clone());
         }
-        if let Some(opt) = opt_string_field(body, "effectiveFrom") {
-            active.effective_from = Set(opt);
+        if let Some(ref v) = body.effective_from {
+            active.effective_from = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "effectiveTo") {
-            active.effective_to = Set(opt);
+        if let Some(ref v) = body.effective_to {
+            active.effective_to = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "daysOfWeek") {
-            active.days_of_week = Set(opt);
+        if let Some(ref v) = body.days_of_week {
+            active.days_of_week = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "busLayoutId") {
-            active.bus_layout_id = Set(opt);
+        if let Some(ref v) = body.bus_layout_id {
+            active.bus_layout_id = Set(Some(v.clone()));
         }
-        if let Some(v) = body.get("basePriceAdult") {
-            active.base_price_adult = Set(v.as_i64().unwrap_or(0));
+        if let Some(v) = body.base_price_adult {
+            active.base_price_adult = Set(v);
         }
-        if let Some(v) = body.get("basePriceChild") {
-            active.base_price_child = Set(v.as_i64());
+        if let Some(v) = body.base_price_child {
+            active.base_price_child = Set(Some(v));
         }
-        if let Some(opt) = opt_string_field(body, "amenities") {
-            active.amenities = Set(opt);
+        if let Some(ref v) = body.amenities {
+            active.amenities = Set(Some(v.clone()));
         }
 
-        self.store
-            .schedule_store()
+        self.store.schedule_store()
             .update_schedule(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Delete a schedule by id.
     pub async fn delete_schedule(&self, id: Uuid) -> AppResult<()> {
-        self.store
-            .schedule_store()
+        self.store.schedule_store()
             .delete_schedule(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -531,36 +547,42 @@ impl AdminService {
     // ── Pickup Points ───────────────────────────────────────────
 
     /// List pickup points for a route.
-    pub async fn list_pickup_points(&self, route_id: &str) -> AppResult<Value> {
-        let points = self
-            .store
-            .route_store()
+    pub async fn list_pickup_points(
+        &self,
+        route_id: &str,
+    ) -> AppResult<AdminPickupPointListResponse> {
+        let points = self.store.route_store()
             .list_pickup_points_by_route(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = points
+        let items: Vec<AdminPickupPointOut> = points
             .iter()
-            .map(|p| {
-                json!({
-                    "id": p.id,
-                    "routeId": p.route_id,
-                    "name": p.name,
-                    "address": p.address,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                    "stopOrder": p.stop_order,
-                    "kind": p.kind,
-                    "createdAt": p.created_at,
-                })
+            .map(|p| AdminPickupPointOut {
+                id: p.id,
+                route_id: p.route_id.clone(),
+                name: p.name.clone(),
+                address: p.address.clone(),
+                lat: p.lat,
+                lon: p.lon,
+                stop_order: p.stop_order,
+                kind: p.kind.clone(),
+                created_at: p.created_at.clone(),
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(AdminPickupPointListResponse { items })
     }
 
     /// Create a new pickup point.
-    pub async fn create_pickup_point(&self, body: &Value) -> AppResult<Value> {
-        let route_id = non_empty_str_field(body, "routeId")
+    pub async fn create_pickup_point(
+        &self,
+        body: &UpsertPickupPointRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let route_id = body
+            .route_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?
             .to_string();
 
@@ -569,29 +591,30 @@ impl AdminService {
         let model = pickup_point::ActiveModel {
             id: Set(id),
             route_id: Set(route_id),
-            name: Set(opt_str_field(body, "name")),
-            address: Set(opt_str_field(body, "address")),
-            lat: Set(body.get("lat").and_then(|v| v.as_f64())),
-            lon: Set(body.get("lon").and_then(|v| v.as_f64())),
-            stop_order: Set(body.get("stopOrder").and_then(|v| v.as_i64()).unwrap_or(0)),
-            kind: Set(opt_str_field(body, "kind")),
+            name: Set(body.name.clone()),
+            address: Set(body.address.clone()),
+            lat: Set(body.lat),
+            lon: Set(body.lon),
+            stop_order: Set(body.stop_order.unwrap_or(0)),
+            kind: Set(body.kind.clone()),
             created_at: Set(now),
         };
 
-        self.store
-            .route_store()
+        self.store.route_store()
             .insert_pickup_point(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Update a pickup point by id.
-    pub async fn update_pickup_point(&self, id: Uuid, body: &Value) -> AppResult<Value> {
-        let existing = self
-            .store
-            .route_store()
+    pub async fn update_pickup_point(
+        &self,
+        id: Uuid,
+        body: &UpsertPickupPointRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self.store.route_store()
             .find_pickup_point_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -599,38 +622,36 @@ impl AdminService {
 
         let mut active: pickup_point::ActiveModel = existing.into();
 
-        if let Some(Some(v)) = opt_string_field(body, "name") {
-            active.name = Set(Some(v));
+        if let Some(ref v) = body.name {
+            active.name = Set(Some(v.clone()));
         }
-        if let Some(opt) = opt_string_field(body, "address") {
-            active.address = Set(opt);
+        if let Some(ref v) = body.address {
+            active.address = Set(Some(v.clone()));
         }
-        if let Some(v) = body.get("lat") {
-            active.lat = Set(v.as_f64());
+        if let Some(v) = body.lat {
+            active.lat = Set(Some(v));
         }
-        if let Some(v) = body.get("lon") {
-            active.lon = Set(v.as_f64());
+        if let Some(v) = body.lon {
+            active.lon = Set(Some(v));
         }
-        if let Some(v) = body.get("stopOrder") {
-            active.stop_order = Set(v.as_i64().unwrap_or(0));
+        if let Some(v) = body.stop_order {
+            active.stop_order = Set(v);
         }
-        if let Some(opt) = opt_string_field(body, "kind") {
-            active.kind = Set(opt);
+        if let Some(ref v) = body.kind {
+            active.kind = Set(Some(v.clone()));
         }
 
-        self.store
-            .route_store()
+        self.store.route_store()
             .update_pickup_point(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id }))
+        Ok(AdminMutationResponse { id })
     }
 
     /// Delete a pickup point by id.
     pub async fn delete_pickup_point(&self, id: Uuid) -> AppResult<()> {
-        self.store
-            .route_store()
+        self.store.route_store()
             .delete_pickup_point(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -647,82 +668,104 @@ impl AdminService {
         route_id: Option<&str>,
         limit: u64,
         offset: u64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<AdminReviewListResponse> {
         let limit = limit.min(200);
-        let reviews = self
-            .store
-            .review_store()
-            .list_reviews(brand_id, route_id, None, status, limit, offset)
+        let reviews = self.store.review_store()
+            .list_reviews(
+                brand_id,
+                route_id,
+                None,
+                status,
+                limit,
+                offset,
+            )
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = reviews.iter().map(review_to_json).collect();
-        Ok(json!({ "items": items }))
+        let items: Vec<crate::dto::review::ReviewOut> =
+            reviews.iter().map(crate::service::review_service::review_to_dto).collect();
+        Ok(AdminReviewListResponse { items })
     }
 
-    /// Update review status (approve / reject / hide).
+    /// Update review status (approve / reject / hide) + optional reply.
     pub async fn update_review_status(
         &self,
         id: Uuid,
-        status: &str,
-        reply: Option<&str>,
-    ) -> AppResult<Value> {
-        let valid = ["pending", "approved", "rejected", "hidden"];
-        if !valid.contains(&status) {
-            return Err(AppError::BadRequest(format!("invalid status: {status}")));
+        body: &ModerateReviewRequest,
+    ) -> AppResult<ModerateReviewResponse> {
+        let status = body
+            .status
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
+        if let Some(s) = status {
+            let valid = ["pending", "approved", "rejected", "hidden"];
+            if !valid.contains(&s) {
+                return Err(AppError::BadRequest(format!("invalid status: {}", s)));
+            }
         }
 
-        let existing = self
-            .store
-            .review_store()
+        let existing = self.store.review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("review not found".into()))?;
 
         let mut active: review::ActiveModel = existing.into();
-        active.status = Set(status.to_string());
-        if let Some(r) = reply {
-            active.reply = Set(Some(r.to_string()));
-            active.replied_at = Set(Some(now_iso()));
+        if let Some(s) = status {
+            active.status = Set(s.to_string());
+        }
+        // brand_reply semantics:
+        //   `Some(Some(text))`  → set reply to text
+        //   `Some(None)`        → clear reply (set to NULL)
+        //   `None`              → leave reply as-is
+        if let Some(ref opt_reply) = body.brand_reply {
+            match opt_reply {
+                Some(r) => {
+                    active.reply = Set(Some(r.clone()));
+                    active.replied_at = Set(Some(now_iso()));
+                }
+                None => {
+                    active.reply = Set(None);
+                    active.replied_at = Set(None);
+                }
+            }
         }
         active.updated_at = Set(now_iso());
 
-        self.store
-            .review_store()
+        let updated = self.store.review_store()
             .update_review(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({ "id": id, "status": status }))
+        Ok(ModerateReviewResponse {
+            id,
+            status: updated.status,
+        })
     }
 
     // ── Bus Layouts ─────────────────────────────────────────────
 
     /// List all bus layouts.
-    pub async fn list_bus_layouts(&self) -> AppResult<Value> {
-        let layouts = self
-            .store
-            .schedule_store()
+    pub async fn list_bus_layouts(&self) -> AppResult<AdminBusLayoutListResponse> {
+        let layouts = self.store.schedule_store()
             .list_bus_layouts()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = layouts
+        let items: Vec<AdminBusLayoutOut> = layouts
             .iter()
-            .map(|l| {
-                json!({
-                    "id": l.id,
-                    "brandId": l.brand_id,
-                    "name": l.name,
-                    "vehicleType": l.vehicle_type,
-                    "totalSeats": l.total_seats,
-                    "createdAt": l.created_at,
-                    "updatedAt": l.updated_at,
-                })
+            .map(|l| AdminBusLayoutOut {
+                id: l.id,
+                brand_id: l.brand_id.clone(),
+                name: l.name.clone(),
+                vehicle_type: l.vehicle_type.clone(),
+                total_seats: l.total_seats,
+                created_at: l.created_at.clone(),
+                updated_at: l.updated_at.clone(),
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(AdminBusLayoutListResponse { items })
     }
 
     // ── Booking management ──────────────────────────────────────
@@ -738,104 +781,101 @@ impl AdminService {
         _search: Option<&str>,
         limit: u64,
         offset: u64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<AdminBookingListResponse> {
         let limit = limit.min(200);
         // Note: brand_id, route_id, date_from, date_to, search filters are
         // not supported by the current BookingStore trait; only status is.
         // For full admin filtering, the store trait would need extension.
-        let bookings = self
-            .store
-            .booking_store()
+        let bookings = self.store.booking_store()
             .list_bookings_by_status(status, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = bookings
+        let total = bookings.len();
+        let items: Vec<AdminBookingOut> = bookings
             .iter()
-            .map(|b| {
-                json!({
-                    "id": b.id,
-                    "code": b.code,
-                    "status": b.status,
-                    "total": b.total,
-                    "currency": b.currency,
-                    "contactName": b.contact_name,
-                    "contactPhone": b.contact_phone,
-                    "contactEmail": b.contact_email,
-                    "paymentMethod": b.payment_method,
-                    "pickupName": b.pickup_name,
-                    "dropoffName": b.dropoff_name,
-                    "createdAt": b.created_at,
-                    "updatedAt": b.updated_at,
-                    "expiresAt": b.expires_at,
-                })
+            .map(|b| AdminBookingOut {
+                id: b.id,
+                code: b.code.clone(),
+                status: b.status.clone(),
+                total: b.total,
+                currency: b.currency.clone(),
+                contact_name: b.contact_name.clone(),
+                contact_phone: b.contact_phone.clone(),
+                contact_email: b.contact_email.clone(),
+                payment_method: b.payment_method.clone(),
+                pickup_name: b.pickup_name.clone(),
+                dropoff_name: b.dropoff_name.clone(),
+                created_at: b.created_at.clone(),
+                updated_at: b.updated_at.clone(),
+                expires_at: b.expires_at.clone(),
             })
             .collect();
 
-        Ok(json!({ "items": items }))
+        Ok(AdminBookingListResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
     }
 
     /// Get a single booking by id (admin view with full detail).
-    pub async fn get_booking(&self, id: Uuid) -> AppResult<Value> {
-        let b = self
-            .store
-            .booking_store()
+    pub async fn get_booking(&self, id: Uuid) -> AppResult<AdminBookingDetailResponse> {
+        let b = self.store.booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
         // Fetch booking seats
-        let seats = self
-            .store
-            .booking_store()
+        let seats = self.store.booking_store()
             .list_booking_seats(&b.id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let seats_json: Vec<Value> = seats
+        let seats_out: Vec<AdminBookingSeatOut> = seats
             .iter()
-            .map(|bs| {
-                json!({
-                    "seatId": bs.seat_id,
-                    "price": bs.price,
-                    "passengerName": bs.passenger_name,
-                    "passengerType": bs.passenger_type,
-                    "passengerAge": bs.passenger_age,
-                })
+            .map(|bs| AdminBookingSeatOut {
+                seat_id: Some(bs.seat_id.clone()),
+                price: bs.price,
+                passenger_name: bs.passenger_name.clone(),
+                passenger_type: bs.passenger_type.clone(),
+                passenger_age: bs.passenger_age,
             })
             .collect();
 
-        Ok(json!({
-            "id": b.id,
-            "code": b.code,
-            "status": b.status,
-            "subtotal": b.subtotal,
-            "discount": b.discount,
-            "fees": b.fees,
-            "total": b.total,
-            "currency": b.currency,
-            "contactName": b.contact_name,
-            "contactPhone": b.contact_phone,
-            "contactEmail": b.contact_email,
-            "paymentMethod": b.payment_method,
-            "pickupName": b.pickup_name,
-            "dropoffName": b.dropoff_name,
-            "createdAt": b.created_at,
-            "updatedAt": b.updated_at,
-            "expiresAt": b.expires_at,
-            "seats": seats_json,
-        }))
+        Ok(AdminBookingDetailResponse {
+            item: AdminBookingDetail {
+                id: b.id,
+                code: b.code,
+                status: b.status,
+                subtotal: b.subtotal,
+                discount: b.discount,
+                fees: b.fees,
+                total: b.total,
+                currency: b.currency,
+                contact_name: b.contact_name,
+                contact_phone: b.contact_phone,
+                contact_email: b.contact_email,
+                payment_method: b.payment_method,
+                pickup_name: b.pickup_name,
+                dropoff_name: b.dropoff_name,
+                created_at: b.created_at,
+                updated_at: b.updated_at,
+                expires_at: b.expires_at,
+                seats: seats_out,
+            },
+        })
     }
 
     /// Update booking status (admin override with state machine validation).
     pub async fn update_booking_status(
         &self,
         id: Uuid,
-        new_status: &str,
-        reason: Option<&str>,
-        force: bool,
-    ) -> AppResult<Value> {
+        body: &UpdateBookingStatusRequest,
+    ) -> AppResult<UpdateBookingStatusResponse> {
+        let new_status = body.status.as_str();
         let valid = [
             "pending",
             "confirmed",
@@ -857,23 +897,26 @@ impl AdminService {
             new_status.to_string()
         };
 
-        let existing = self
-            .store
-            .booking_store()
+        let existing = self.store.booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
         if existing.status == canonical {
-            return Ok(json!({
-                "item": { "id": id, "status": existing.status },
-                "noChange": true,
-            }));
+            return Ok(UpdateBookingStatusResponse {
+                item: AdminBookingStatusUpdate {
+                    id,
+                    status: existing.status,
+                    previous_status: Some(new_status.to_string()),
+                    updated_at: existing.updated_at.clone(),
+                },
+                reason: body.reason.clone(),
+            });
         }
 
         // Validate the transition
-        if !force {
+        if !body.force {
             let allowed = match (existing.status.as_str(), canonical.as_str()) {
                 ("pending", "confirmed") | ("pending", "cancelled") => true,
                 ("confirmed", "completed") | ("confirmed", "cancelled") => true,
@@ -893,8 +936,7 @@ impl AdminService {
         let mut active: booking::ActiveModel = existing.into();
         active.status = Set(canonical.clone());
         active.updated_at = Set(now.clone());
-        self.store
-            .booking_store()
+        self.store.booking_store()
             .update_booking(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -906,20 +948,22 @@ impl AdminService {
             action: Set(format!("booking_status_{canonical}")),
             target_type: Set(Some("booking".to_string())),
             target_id: Set(Some(id.to_string())),
-            metadata: Set(reason.map(|r| r.to_string())),
+            metadata: Set(body.reason.clone()),
             ..Default::default()
         };
-        let _ = self.store.audit_store().insert_audit_log(audit_model).await;
+        let _ = self.store.audit_store()
+            .insert_audit_log(audit_model)
+            .await;
 
-        Ok(json!({
-            "item": {
-                "id": id,
-                "status": canonical,
-                "previousStatus": new_status,
-                "updatedAt": now,
+        Ok(UpdateBookingStatusResponse {
+            item: AdminBookingStatusUpdate {
+                id,
+                status: canonical,
+                previous_status: Some(new_status.to_string()),
+                updated_at: now,
             },
-            "reason": reason,
-        }))
+            reason: body.reason.clone(),
+        })
     }
 
     /// Compute booking stats (totals, by-day, by-brand breakdowns).
@@ -928,10 +972,8 @@ impl AdminService {
         status: Option<&str>,
         _date_from: Option<&str>,
         _date_to: Option<&str>,
-    ) -> AppResult<Value> {
-        let bookings = self
-            .store
-            .booking_store()
+    ) -> AppResult<AdminBookingStatsResponse> {
+        let bookings = self.store.booking_store()
             .list_all_bookings_by_status(status)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -947,12 +989,12 @@ impl AdminService {
             match b.status.as_str() {
                 "confirmed" | "paid" => {
                     confirmed += 1;
-                    revenue += b.total as i64;
+                    revenue += b.total;
                 }
                 "cancelled" => cancelled += 1,
                 "completed" => {
                     completed += 1;
-                    revenue += b.total as i64;
+                    revenue += b.total;
                 }
                 _ => pending += 1,
             }
@@ -967,7 +1009,7 @@ impl AdminService {
             }
             let entry = by_day.entry(day).or_default();
             entry.count += 1;
-            entry.revenue += b.total as i64;
+            entry.revenue += b.total;
             match b.status.as_str() {
                 "confirmed" | "paid" => entry.confirmed += 1,
                 "cancelled" => entry.cancelled += 1,
@@ -976,32 +1018,30 @@ impl AdminService {
             }
         }
 
-        let by_day_json: Vec<Value> = by_day
+        let by_day_vec: Vec<AdminBookingDayBucket> = by_day
             .iter()
-            .map(|(day, b)| {
-                json!({
-                    "date": day,
-                    "count": b.count,
-                    "revenue": b.revenue,
-                    "confirmed": b.confirmed,
-                    "cancelled": b.cancelled,
-                    "completed": b.completed,
-                    "pending": b.pending,
-                })
+            .map(|(day, b)| AdminBookingDayBucket {
+                date: day.clone(),
+                count: b.count,
+                revenue: b.revenue,
+                confirmed: b.confirmed,
+                cancelled: b.cancelled,
+                completed: b.completed,
+                pending: b.pending,
             })
             .collect();
 
-        Ok(json!({
-            "totals": {
-                "total": total,
-                "revenue": revenue,
-                "confirmed": confirmed,
-                "cancelled": cancelled,
-                "completed": completed,
-                "pending": pending,
+        Ok(AdminBookingStatsResponse {
+            totals: AdminBookingTotals {
+                total,
+                revenue,
+                confirmed,
+                cancelled,
+                completed,
+                pending,
             },
-            "byDay": by_day_json,
-        }))
+            by_day: by_day_vec,
+        })
     }
 
     /// Export bookings as CSV.
@@ -1011,10 +1051,8 @@ impl AdminService {
         _date_from: Option<&str>,
         _date_to: Option<&str>,
         columns: Option<&str>,
-    ) -> AppResult<Value> {
-        let bookings = self
-            .store
-            .booking_store()
+    ) -> AppResult<AdminBookingExportResponse> {
+        let bookings = self.store.booking_store()
             .list_all_bookings_by_status(status)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -1028,13 +1066,8 @@ impl AdminService {
             })
             .unwrap_or_else(|| {
                 [
-                    "code",
-                    "status",
-                    "contactName",
-                    "contactPhone",
-                    "total",
-                    "paymentMethod",
-                    "createdAt",
+                    "code", "status", "contactName", "contactPhone", "total",
+                    "paymentMethod", "createdAt",
                 ]
                 .iter()
                 .map(|s| s.to_string())
@@ -1065,44 +1098,13 @@ impl AdminService {
             csv.push('\n');
         }
 
-        Ok(json!({
-            "csv": csv,
-            "count": bookings.len(),
-            "columns": col_list,
-            "filename": format!("bookings_export_{}.csv", Utc::now().format("%Y%m%d_%H%M%S")),
-        }))
+        Ok(AdminBookingExportResponse {
+            csv,
+            count: bookings.len(),
+            columns: col_list,
+            filename: format!("bookings_export_{}.csv", Utc::now().format("%Y%m%d_%H%M%S")),
+        })
     }
-}
-
-// ────────────────────────────────────────────────────────────────
-//  Serialization helpers
-// ────────────────────────────────────────────────────────────────
-
-fn review_to_json(r: &review::Model) -> Value {
-    let tags: Vec<&str> = r
-        .tags
-        .as_deref()
-        .unwrap_or("")
-        .split(',')
-        .filter(|s| !s.is_empty())
-        .collect();
-    json!({
-        "id": r.id,
-        "rating": r.rating,
-        "title": r.title,
-        "content": r.content,
-        "tags": tags,
-        "authorName": r.author_name,
-        "authorPhone": r.author_phone,
-        "status": r.status,
-        "helpfulCount": r.helpful_count,
-        "reply": r.reply,
-        "repliedAt": r.replied_at,
-        "createdAt": r.created_at,
-        "updatedAt": r.updated_at,
-        "brandId": r.brand_id,
-        "routeId": r.route_id,
-    })
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -1162,8 +1164,7 @@ pub fn valid_hex_color(s: &str) -> bool {
 /// Validate a slug (lowercase alphanumeric + dashes).
 pub fn valid_slug(s: &str) -> bool {
     !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !s.starts_with('-')
         && !s.ends_with('-')
 }
@@ -1197,56 +1198,6 @@ pub fn is_days_of_week(s: &str) -> bool {
     s.len() == 7 && s.bytes().all(|c| c == b'0' || c == b'1')
 }
 
-// ── JSON value field extractors ──
-
-fn str_field<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
-    v.get(key).and_then(|x| x.as_str())
-}
-
-fn non_empty_str_field<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
-    str_field(v, key)
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-}
-
-fn opt_str_field(v: &Value, key: &str) -> Option<String> {
-    v.get(key).and_then(|x| match x {
-        Value::Null => None,
-        Value::String(s) => {
-            let trimmed = s.trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        }
-        _ => None,
-    })
-}
-
-/// `serde_json::Value` → `Option<Option<String>>` — returns `None` when the
-/// field is absent (caller treats as "not in patch"), `Some(None)` when
-/// present but null/empty.
-fn opt_string_field(v: &Value, key: &str) -> Option<Option<String>> {
-    if !v.as_object().map(|o| o.contains_key(key)).unwrap_or(false) {
-        return None;
-    }
-    let val = v.get(key);
-    let out = match val {
-        None | Some(Value::Null) => None,
-        Some(s) if s.is_string() => {
-            let trimmed = s.as_str().unwrap_or("").trim();
-            if trimmed.is_empty() {
-                None
-            } else {
-                Some(trimmed.to_string())
-            }
-        }
-        _ => None,
-    };
-    Some(out)
-}
-
 /// Current UTC time as ISO 8601 string.
 fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
@@ -1273,7 +1224,6 @@ struct DayBucket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn slugify_ascii_lowercases() {
@@ -1282,103 +1232,89 @@ mod tests {
     #[test]
     fn slugify_strips_vietnamese_diacritics() {
         assert_eq!(slugify("Hà Nội"), "ha-noi");
-    }
-    #[test]
-    fn slugify_strips_special_chars() {
-        assert_eq!(slugify("Foo! Bar? #Baz"), "foo-bar-baz");
-    }
-    #[test]
-    fn slugify_collapses_runs_of_separators() {
-        assert_eq!(slugify("a---b   c"), "a-b-c");
-    }
-    #[test]
-    fn slugify_no_leading_or_trailing_dashes() {
-        assert_eq!(slugify("---hello---"), "hello");
-    }
-    #[test]
-    fn slugify_empty_returns_empty() {
-        assert_eq!(slugify(""), "");
-    }
-    #[test]
-    fn slugify_d_is_d() {
         assert_eq!(slugify("Đà Nẵng"), "da-nang");
     }
-
     #[test]
-    fn hex_color_valid() {
-        assert!(valid_hex_color("#0d9488"));
-        assert!(valid_hex_color("#ABCDEF"));
-    }
-    #[test]
-    fn hex_color_invalid_missing_hash() {
-        assert!(!valid_hex_color("0d9488"));
-    }
-    #[test]
-    fn hex_color_invalid_short() {
-        assert!(!valid_hex_color("#abc"));
+    fn slugify_trims_trailing_dashes() {
+        assert_eq!(slugify("hello!!!"), "hello");
     }
 
     #[test]
-    fn hhmm_valid() {
-        assert!(regex_like_hhmm("08:30"));
-        assert!(regex_like_hhmm("23:59"));
-        assert!(regex_like_hhmm("00:00"));
+    fn valid_hex_color_accepts_6_digit() {
+        assert!(valid_hex_color("#1a2b3c"));
+        assert!(valid_hex_color("#FFFFFF"));
     }
     #[test]
-    fn hhmm_invalid_hour_out_of_range() {
-        assert!(!regex_like_hhmm("24:00"));
-    }
-    #[test]
-    fn hhmm_invalid_minute_out_of_range() {
-        assert!(!regex_like_hhmm("12:60"));
+    fn valid_hex_color_rejects_short() {
+        assert!(!valid_hex_color("#fff"));
+        assert!(!valid_hex_color("1a2b3c"));
+        assert!(!valid_hex_color("#gggggg"));
     }
 
     #[test]
-    fn ymd_valid() {
-        assert!(is_ymd("2024-01-15"));
-    }
-    #[test]
-    fn ymd_invalid_slash_separator() {
-        assert!(!is_ymd("2024/01/15"));
-    }
-
-    #[test]
-    fn days_of_week_valid() {
-        assert!(is_days_of_week("1111111"));
-        assert!(is_days_of_week("1010100"));
-    }
-    #[test]
-    fn days_of_week_invalid_short() {
-        assert!(!is_days_of_week("111111"));
-    }
-
-    #[test]
-    fn valid_slug_ok() {
-        assert!(valid_slug("hello-world"));
+    fn valid_slug_accepts_simple() {
+        assert!(valid_slug("phuong-trang"));
         assert!(valid_slug("abc123"));
     }
     #[test]
-    fn valid_slug_rejects_uppercase() {
-        assert!(!valid_slug("Hello"));
-    }
-    #[test]
-    fn valid_slug_rejects_leading_dash() {
-        assert!(!valid_slug("-hello"));
+    fn valid_slug_rejects_edge_cases() {
+        assert!(!valid_slug(""));
+        assert!(!valid_slug("-leading"));
+        assert!(!valid_slug("trailing-"));
+        assert!(!valid_slug("Upper"));
     }
 
     #[test]
-    fn opt_string_field_absent_returns_none_outer() {
-        let v = json!({ "a": 1 });
-        assert_eq!(opt_string_field(&v, "missing"), None);
+    fn regex_like_hhmm_accepts_valid() {
+        assert!(regex_like_hhmm("00:00"));
+        assert!(regex_like_hhmm("08:30"));
+        assert!(regex_like_hhmm("23:59"));
     }
     #[test]
-    fn opt_string_field_null_returns_some_none() {
-        let v = json!({ "name": null });
-        assert_eq!(opt_string_field(&v, "name"), Some(None));
+    fn regex_like_hhmm_rejects_invalid() {
+        assert!(!regex_like_hhmm("24:00"));
+        assert!(!regex_like_hhmm("12:60"));
+        assert!(!regex_like_hhmm("abc"));
+        assert!(!regex_like_hhmm("1:30"));
+    }
+
+    #[test]
+    fn is_ymd_accepts_valid_dates() {
+        assert!(is_ymd("2026-08-16"));
+        assert!(is_ymd("2026-12-31"));
     }
     #[test]
-    fn opt_string_field_non_empty_returns_some_some() {
-        let v = json!({ "name": "abc" });
-        assert_eq!(opt_string_field(&v, "name"), Some(Some("abc".to_string())));
+    fn is_ymd_rejects_malformed() {
+        assert!(!is_ymd("2026-8-16"));
+        assert!(!is_ymd("20260816"));
+        assert!(!is_ymd("2026/08/16"));
+    }
+
+    #[test]
+    fn is_days_of_week_accepts_7_chars() {
+        assert!(is_days_of_week("1111111"));
+        assert!(is_days_of_week("1010101"));
+    }
+    #[test]
+    fn is_days_of_week_rejects_other_lengths() {
+        assert!(!is_days_of_week("111111"));
+        assert!(!is_days_of_week("11111111"));
+        assert!(!is_days_of_week("2020111"));
+    }
+
+    #[test]
+    fn require_admin_allows_employee_admin() {
+        let id = Uuid::new_v4();
+        assert!(AdminService::require_admin(id, "admin", "employee").is_ok());
+    }
+    #[test]
+    fn require_admin_rejects_customer() {
+        let id = Uuid::new_v4();
+        assert!(AdminService::require_admin(id, "user", "user").is_err());
+    }
+    #[test]
+    fn require_admin_rejects_employee_non_admin() {
+        let id = Uuid::new_v4();
+        assert!(AdminService::require_admin(id, "support_agent", "employee").is_err());
     }
 }

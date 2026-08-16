@@ -3,6 +3,7 @@
 pub use self::openapi::ApiDoc;
 pub use self::router::build_router;
 
+mod admin;
 mod auth;
 mod bookings;
 mod chat;

@@ -80,3 +80,41 @@ where
         }
     }
 }
+
+/// Admin-only extractor.
+///
+/// Like `AuthUser`, but additionally loads the full [`SessionUser`] and
+/// verifies the caller has an employee (non-`"user"`) role. Returns:
+/// - `401 Unauthorized` when no token / invalid token.
+/// - `403 Forbidden` when the caller is authenticated but not an employee.
+///
+/// The wrapped `SessionUser` is the full identity (id, name, role,
+/// brand_id, ...) — useful for handlers that need to scope writes by
+/// the employee's brand.
+pub struct AdminUser(pub crate::auth::SessionUser);
+
+impl<S> FromRequestParts<S> for AdminUser
+where
+    S: Send + Sync,
+    Arc<AuthService>: FromRef<S>,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+        let auth = Arc::<AuthService>::from_ref(state);
+        let jar = axum_extra::extract::CookieJar::from_request_parts(parts, state)
+            .await
+            .expect("cookie jar extractor never fails");
+        let (access, _refresh) = extract_tokens(&jar);
+        let token = access
+            .ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
+        let session = auth
+            .verify_access_token_session(&token)
+            .await
+            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+        if !session.is_employee() {
+            return Err(AppError::Forbidden("admin access required".into()));
+        }
+        Ok(AdminUser(session))
+    }
+}
