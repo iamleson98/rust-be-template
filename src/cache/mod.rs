@@ -23,6 +23,8 @@ use crate::config::{CacheBackend as CacheBackendCfg, CacheConfig};
 pub async fn build_shared(cfg: &CacheConfig) -> anyhow::Result<Arc<dyn CacheBackend>> {
     match cfg.backend {
         CacheBackendCfg::Moka => Ok(Arc::new(MokaBackend::new(cfg.max_capacity, cfg.ttl()))),
-        CacheBackendCfg::Redis => Ok(Arc::new(RedisBackend::connect(&cfg.redis_url, cfg.ttl()).await?)),
+        CacheBackendCfg::Redis => Ok(Arc::new(
+            RedisBackend::connect(&cfg.redis_url, cfg.ttl()).await?,
+        )),
     }
 }

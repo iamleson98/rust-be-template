@@ -22,8 +22,7 @@ pub struct RedisBroker {
 
 impl RedisBroker {
     pub async fn connect(cfg: &WorkerConfig) -> anyhow::Result<Self> {
-        let url = std::env::var("REDIS_URL")
-            .unwrap_or_else(|_| "redis://localhost:6379/0".into());
+        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379/0".into());
         let client = redis::Client::open(url)?;
         let conn = ConnectionManager::new(client).await?;
         Ok(Self {

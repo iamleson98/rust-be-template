@@ -32,7 +32,11 @@ pub trait ReviewStore: Send + Sync {
         offset: u64,
     ) -> StoreResult<Vec<review::Model>>;
     async fn list_all_reviews(&self) -> StoreResult<Vec<review::Model>>;
-    async fn list_reviews_by_brand(&self, brand_id: &str, status: &str) -> StoreResult<Vec<review::Model>>;
+    async fn list_reviews_by_brand(
+        &self,
+        brand_id: &str,
+        status: &str,
+    ) -> StoreResult<Vec<review::Model>>;
     async fn insert_review(&self, model: review::ActiveModel) -> StoreResult<()>;
     async fn update_review(&self, model: review::ActiveModel) -> StoreResult<review::Model>;
     async fn delete_review(&self, id: Uuid) -> StoreResult<()>;
@@ -59,9 +63,7 @@ impl RetryPolicy for DbReviewStore {}
 #[retry]
 impl ReviewStore for DbReviewStore {
     async fn find_review_by_id(&self, id: Uuid) -> StoreResult<Option<review::Model>> {
-        Ok(review::Entity::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?)
+        Ok(review::Entity::find_by_id(id).one(self.db.as_ref()).await?)
     }
 
     async fn list_reviews(
@@ -100,7 +102,11 @@ impl ReviewStore for DbReviewStore {
         Ok(review::Entity::find().all(self.db.as_ref()).await?)
     }
 
-    async fn list_reviews_by_brand(&self, brand_id: &str, status: &str) -> StoreResult<Vec<review::Model>> {
+    async fn list_reviews_by_brand(
+        &self,
+        brand_id: &str,
+        status: &str,
+    ) -> StoreResult<Vec<review::Model>> {
         Ok(review::Entity::find()
             .filter(review::Column::BrandId.eq(brand_id.to_string()))
             .filter(review::Column::Status.eq(status.to_string()))
@@ -110,16 +116,12 @@ impl ReviewStore for DbReviewStore {
 
     #[store_macros::no_retry]
     async fn insert_review(&self, model: review::ActiveModel) -> StoreResult<()> {
-        review::Entity::insert(model)
-            .exec(self.db.as_ref())
-            .await?;
+        review::Entity::insert(model).exec(self.db.as_ref()).await?;
         Ok(())
     }
 
     async fn update_review(&self, model: review::ActiveModel) -> StoreResult<review::Model> {
-        Ok(review::Entity::update(model)
-            .exec(self.db.as_ref())
-            .await?)
+        Ok(review::Entity::update(model).exec(self.db.as_ref()).await?)
     }
 
     async fn delete_review(&self, id: Uuid) -> StoreResult<()> {

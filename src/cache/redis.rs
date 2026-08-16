@@ -19,10 +19,7 @@ impl RedisBackend {
     pub async fn connect(url: &str, default_ttl: Duration) -> anyhow::Result<Self> {
         let client = redis::Client::open(url)?;
         let conn = ConnectionManager::new(client).await?;
-        Ok(Self {
-            conn,
-            default_ttl,
-        })
+        Ok(Self { conn, default_ttl })
     }
 }
 

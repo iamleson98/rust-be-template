@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use sea_orm::sea_query::Expr;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -49,7 +49,9 @@ impl RefreshTokenStore for DbRefreshTokenStore {
             user_agent: Set(token.user_agent),
             ip: Set(token.ip),
         };
-        refresh_tokens::Entity::insert(am).exec(self.db.as_ref()).await?;
+        refresh_tokens::Entity::insert(am)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -116,9 +118,7 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
         self.inner.save_refresh_token(token.clone()).await?;
 
         let key = refresh_token_key(token_id);
-        if let Err(e) =
-            set_serializable(self.cache.as_ref(), &key, &token, Some(self.ttl)).await
-        {
+        if let Err(e) = set_serializable(self.cache.as_ref(), &key, &token, Some(self.ttl)).await {
             tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
 
@@ -137,8 +137,7 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
 
         let model = self.inner.get_refresh_token(id).await?;
         if let Some(ref token) = model {
-            if let Err(e) =
-                set_serializable(self.cache.as_ref(), &key, token, Some(self.ttl)).await
+            if let Err(e) = set_serializable(self.cache.as_ref(), &key, token, Some(self.ttl)).await
             {
                 tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
             }

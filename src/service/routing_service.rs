@@ -36,9 +36,7 @@ impl RoutingService {
 
     fn require_valhalla(&self) -> AppResult<&str> {
         self.valhalla_url.as_deref().ok_or_else(|| {
-            AppError::Internal(
-                "Valhalla routing service not configured. Set VALHALLA_URL.".into(),
-            )
+            AppError::Internal("Valhalla routing service not configured. Set VALHALLA_URL.".into())
         })
     }
 
@@ -80,9 +78,7 @@ impl RoutingService {
         locations: &[(f64, f64)],
     ) -> AppResult<DirectionsResponse> {
         if locations.len() < 2 {
-            return Err(AppError::BadRequest(
-                "at least 2 locations required".into(),
-            ));
+            return Err(AppError::BadRequest("at least 2 locations required".into()));
         }
         let locs: Vec<Value> = locations
             .iter()
@@ -101,11 +97,7 @@ impl RoutingService {
             .get("length")
             .and_then(|d| d.as_f64())
             .unwrap_or(0.0);
-        let time_min = summary
-            .get("time")
-            .and_then(|t| t.as_f64())
-            .unwrap_or(0.0)
-            / 60.0;
+        let time_min = summary.get("time").and_then(|t| t.as_f64()).unwrap_or(0.0) / 60.0;
         let shape = trip
             .get("shape")
             .and_then(|s| s.as_str())
@@ -157,10 +149,7 @@ impl RoutingService {
                 let mut d_row = Vec::new();
                 if let Some(cells) = row.as_array() {
                     for cell in cells {
-                        let time = cell
-                            .get("time")
-                            .and_then(|t| t.as_f64())
-                            .map(|t| t / 60.0);
+                        let time = cell.get("time").and_then(|t| t.as_f64()).map(|t| t / 60.0);
                         let dist = cell.get("distance").and_then(|d| d.as_f64());
                         t_row.push(time);
                         d_row.push(dist);
@@ -188,10 +177,7 @@ impl RoutingService {
                 "at least 1 contour time required".into(),
             ));
         }
-        let contours: Vec<Value> = contours_min
-            .iter()
-            .map(|t| json!({ "time": t }))
-            .collect();
+        let contours: Vec<Value> = contours_min.iter().map(|t| json!({ "time": t })).collect();
         let body = json!({
             "costing": costing,
             "locations": [{ "lat": center.0, "lon": center.1 }],

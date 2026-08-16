@@ -159,9 +159,7 @@ impl PriceAlertService {
             ));
         }
         if input.target_price <= 0 {
-            return Err(AppError::BadRequest(
-                "target_price must be positive".into(),
-            ));
+            return Err(AppError::BadRequest("target_price must be positive".into()));
         }
         let freq = if input.frequency.trim().is_empty() {
             "daily".to_string()
@@ -201,7 +199,9 @@ impl PriceAlertService {
             frequency: Set(freq),
             status: Set("active".to_string()),
             created_at: Set(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)),
-            expires_at: Set(Some(expires_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))),
+            expires_at: Set(Some(
+                expires_at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            )),
             last_triggered_at: Set(None),
         };
 

@@ -68,9 +68,10 @@ impl WorkerRunner {
                                 // spawn a sub-task and check if it panicked.
                                 let env_for_panic = env.clone();
                                 let handler_for_panic = handler.clone();
-                                let join = tokio::spawn(async move {
-                                    handler_for_panic(env_for_panic).await
-                                });
+                                let join =
+                                    tokio::spawn(
+                                        async move { handler_for_panic(env_for_panic).await },
+                                    );
                                 match join.await {
                                     Ok(Ok(())) => {
                                         let _ = b.ack(&env).await;
@@ -83,9 +84,11 @@ impl WorkerRunner {
                                         let msg = if join_err.is_panic() {
                                             // Recover the panic payload.
                                             let payload = join_err.into_panic();
-                                            if let Some(s) = payload.downcast_ref::<&'static str>() {
+                                            if let Some(s) = payload.downcast_ref::<&'static str>()
+                                            {
                                                 s.to_string()
-                                            } else if let Some(s) = payload.downcast_ref::<String>() {
+                                            } else if let Some(s) = payload.downcast_ref::<String>()
+                                            {
                                                 s.clone()
                                             } else {
                                                 "panic with unknown payload".to_string()
@@ -117,4 +120,3 @@ impl WorkerRunner {
         })
     }
 }
-

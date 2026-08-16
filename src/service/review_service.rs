@@ -16,8 +16,8 @@ use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::dto::review::{
-    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse,
-    ReviewOut, ReviewTagsResponse, UpdateReviewInput,
+    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
+    ReviewTagsResponse, UpdateReviewInput,
 };
 use crate::entity::review;
 use crate::error::{AppError, AppResult};
@@ -54,7 +54,9 @@ impl ReviewService {
     /// List reviews with optional filters.
     pub async fn list(&self, filter: &ReviewListFilter) -> AppResult<ReviewListResponse> {
         let limit = filter.limit.min(200);
-        let reviews = self.store.review_store()
+        let reviews = self
+            .store
+            .review_store()
             .list_reviews(
                 filter.brand_id.as_deref(),
                 filter.route_id.as_deref(),
@@ -72,7 +74,9 @@ impl ReviewService {
 
     /// Get a single review by id.
     pub async fn get(&self, id: Uuid) -> AppResult<ReviewOut> {
-        let r = self.store.review_store()
+        let r = self
+            .store
+            .review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -100,11 +104,7 @@ impl ReviewService {
 
         let id = Uuid::new_v4();
         let now = now_iso();
-        let tags_str = input
-            .tags
-            .as_ref()
-            .map(|t| t.join(","))
-            .unwrap_or_default();
+        let tags_str = input.tags.as_ref().map(|t| t.join(",")).unwrap_or_default();
         let photos_str = input
             .photos
             .as_ref()
@@ -141,7 +141,8 @@ impl ReviewService {
             user_id: Set(input.user_id.clone()),
         };
 
-        self.store.review_store()
+        self.store
+            .review_store()
             .insert_review(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -162,7 +163,9 @@ impl ReviewService {
         caller_user_id: Option<&str>,
         input: &UpdateReviewInput,
     ) -> AppResult<ReviewMutationResponse> {
-        let existing = self.store.review_store()
+        let existing = self
+            .store
+            .review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -209,7 +212,9 @@ impl ReviewService {
 
         active.updated_at = Set(now_iso());
 
-        let result = self.store.review_store()
+        let result = self
+            .store
+            .review_store()
             .update_review(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -223,8 +228,14 @@ impl ReviewService {
     }
 
     /// Delete a review. Only the author or an admin can delete.
-    pub async fn remove(&self, id: Uuid, caller_user_id: Option<&str>) -> AppResult<ReviewDeleteResponse> {
-        let existing = self.store.review_store()
+    pub async fn remove(
+        &self,
+        id: Uuid,
+        caller_user_id: Option<&str>,
+    ) -> AppResult<ReviewDeleteResponse> {
+        let existing = self
+            .store
+            .review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -241,7 +252,8 @@ impl ReviewService {
 
         let brand_id = existing.brand_id.clone();
 
-        self.store.review_store()
+        self.store
+            .review_store()
             .delete_review(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -257,7 +269,9 @@ impl ReviewService {
     /// List available review tags (distinct tags from all reviews).
     pub async fn tags_index(&self) -> AppResult<ReviewTagsResponse> {
         // Get all reviews and extract unique tags
-        let reviews = self.store.review_store()
+        let reviews = self
+            .store
+            .review_store()
             .list_all_reviews()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -284,7 +298,9 @@ impl ReviewService {
 
     /// Recompute the average rating for a brand from all its approved reviews.
     async fn recompute_brand_rating(&self, brand_id: &str) -> AppResult<()> {
-        let reviews = self.store.review_store()
+        let reviews = self
+            .store
+            .review_store()
             .list_reviews_by_brand(brand_id, "approved")
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -297,8 +313,10 @@ impl ReviewService {
         };
 
         // Update the brand's rating
-        let brand_id_uuid = Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
-        self.store.brand_store()
+        let brand_id_uuid =
+            Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        self.store
+            .brand_store()
             .update_brand_rating(brand_id_uuid, avg)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;

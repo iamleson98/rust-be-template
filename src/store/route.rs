@@ -6,7 +6,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -24,7 +27,11 @@ pub trait RouteStore: Send + Sync {
     // ── Route ───────────────────────────────────────────────────
 
     async fn find_route_by_id(&self, id: Uuid) -> StoreResult<Option<route::Model>>;
-    async fn list_routes_by_status(&self, status: &str, limit: u64) -> StoreResult<Vec<route::Model>>;
+    async fn list_routes_by_status(
+        &self,
+        status: &str,
+        limit: u64,
+    ) -> StoreResult<Vec<route::Model>>;
     async fn list_routes_by_brand(&self, brand_id: &str) -> StoreResult<Vec<route::Model>>;
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>>;
     async fn insert_route(&self, model: route::ActiveModel) -> StoreResult<()>;
@@ -33,11 +40,17 @@ pub trait RouteStore: Send + Sync {
 
     // ── PickupPoint ─────────────────────────────────────────────
 
-    async fn list_pickup_points_by_route(&self, route_id: &str) -> StoreResult<Vec<pickup_point::Model>>;
+    async fn list_pickup_points_by_route(
+        &self,
+        route_id: &str,
+    ) -> StoreResult<Vec<pickup_point::Model>>;
     async fn count_pickup_points_by_route(&self, route_id: &str) -> StoreResult<usize>;
     async fn insert_pickup_point(&self, model: pickup_point::ActiveModel) -> StoreResult<()>;
     async fn find_pickup_point_by_id(&self, id: Uuid) -> StoreResult<Option<pickup_point::Model>>;
-    async fn update_pickup_point(&self, model: pickup_point::ActiveModel) -> StoreResult<pickup_point::Model>;
+    async fn update_pickup_point(
+        &self,
+        model: pickup_point::ActiveModel,
+    ) -> StoreResult<pickup_point::Model>;
     async fn delete_pickup_point(&self, id: Uuid) -> StoreResult<()>;
     async fn list_routes_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<route::Model>>;
     async fn count_active_routes(&self) -> StoreResult<u64>;
@@ -66,12 +79,14 @@ impl RouteStore for DbRouteStore {
     // ── Route ───────────────────────────────────────────────────
 
     async fn find_route_by_id(&self, id: Uuid) -> StoreResult<Option<route::Model>> {
-        Ok(route::Entity::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?)
+        Ok(route::Entity::find_by_id(id).one(self.db.as_ref()).await?)
     }
 
-    async fn list_routes_by_status(&self, status: &str, limit: u64) -> StoreResult<Vec<route::Model>> {
+    async fn list_routes_by_status(
+        &self,
+        status: &str,
+        limit: u64,
+    ) -> StoreResult<Vec<route::Model>> {
         Ok(route::Entity::find()
             .filter(route::Column::Status.eq(status.to_string()))
             .order_by_asc(route::Column::Name)
@@ -88,23 +103,17 @@ impl RouteStore for DbRouteStore {
     }
 
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>> {
-        Ok(route::Entity::find()
-            .all(self.db.as_ref())
-            .await?)
+        Ok(route::Entity::find().all(self.db.as_ref()).await?)
     }
 
     #[store_macros::no_retry]
     async fn insert_route(&self, model: route::ActiveModel) -> StoreResult<()> {
-        route::Entity::insert(model)
-            .exec(self.db.as_ref())
-            .await?;
+        route::Entity::insert(model).exec(self.db.as_ref()).await?;
         Ok(())
     }
 
     async fn update_route(&self, model: route::ActiveModel) -> StoreResult<route::Model> {
-        Ok(route::Entity::update(model)
-            .exec(self.db.as_ref())
-            .await?)
+        Ok(route::Entity::update(model).exec(self.db.as_ref()).await?)
     }
 
     async fn count_routes_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
@@ -117,7 +126,10 @@ impl RouteStore for DbRouteStore {
 
     // ── PickupPoint ─────────────────────────────────────────────
 
-    async fn list_pickup_points_by_route(&self, route_id: &str) -> StoreResult<Vec<pickup_point::Model>> {
+    async fn list_pickup_points_by_route(
+        &self,
+        route_id: &str,
+    ) -> StoreResult<Vec<pickup_point::Model>> {
         Ok(pickup_point::Entity::find()
             .filter(pickup_point::Column::RouteId.eq(route_id.to_string()))
             .all(self.db.as_ref())
@@ -146,7 +158,10 @@ impl RouteStore for DbRouteStore {
             .await?)
     }
 
-    async fn update_pickup_point(&self, model: pickup_point::ActiveModel) -> StoreResult<pickup_point::Model> {
+    async fn update_pickup_point(
+        &self,
+        model: pickup_point::ActiveModel,
+    ) -> StoreResult<pickup_point::Model> {
         Ok(pickup_point::Entity::update(model)
             .exec(self.db.as_ref())
             .await?)

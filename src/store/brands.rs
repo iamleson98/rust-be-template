@@ -7,7 +7,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
+};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -24,7 +27,12 @@ pub trait BrandStore: Send + Sync {
     async fn list_active(&self, limit: u64) -> StoreResult<Vec<brand::Model>>;
     async fn list_all(&self, limit: u64, offset: u64) -> StoreResult<Vec<brand::Model>>;
     async fn create(&self, slug: String, name: String) -> StoreResult<brand::Model>;
-    async fn update(&self, id: Uuid, name: Option<String>, status: Option<String>) -> StoreResult<brand::Model>;
+    async fn update(
+        &self,
+        id: Uuid,
+        name: Option<String>,
+        status: Option<String>,
+    ) -> StoreResult<brand::Model>;
     async fn delete(&self, id: Uuid) -> StoreResult<()>;
     async fn update_brand_rating(&self, id: Uuid, rating: Option<f64>) -> StoreResult<()>;
     async fn list_brands_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<brand::Model>>;
@@ -56,12 +64,10 @@ impl BrandStore for DbBrandStore {
     }
 
     async fn get_by_slug(&self, slug: &str) -> StoreResult<Option<brand::Model>> {
-        Ok(
-            brand::Entity::find()
-                .filter(brand::Column::Slug.eq(slug))
-                .one(self.db.as_ref())
-                .await?,
-        )
+        Ok(brand::Entity::find()
+            .filter(brand::Column::Slug.eq(slug))
+            .one(self.db.as_ref())
+            .await?)
     }
 
     async fn list_active(&self, limit: u64) -> StoreResult<Vec<brand::Model>> {
@@ -102,7 +108,9 @@ impl BrandStore for DbBrandStore {
             created_at: Set(now.clone()),
             updated_at: Set(now),
         };
-        brand::Entity::insert(model).exec_without_returning(self.db.as_ref()).await?;
+        brand::Entity::insert(model)
+            .exec_without_returning(self.db.as_ref())
+            .await?;
         Ok(brand::Model {
             id,
             slug,
@@ -120,7 +128,12 @@ impl BrandStore for DbBrandStore {
         })
     }
 
-    async fn update(&self, id: Uuid, name: Option<String>, status: Option<String>) -> StoreResult<brand::Model> {
+    async fn update(
+        &self,
+        id: Uuid,
+        name: Option<String>,
+        status: Option<String>,
+    ) -> StoreResult<brand::Model> {
         let existing = brand::Entity::find_by_id(id)
             .one(self.db.as_ref())
             .await?
@@ -137,7 +150,9 @@ impl BrandStore for DbBrandStore {
     }
 
     async fn delete(&self, id: Uuid) -> StoreResult<()> {
-        brand::Entity::delete_by_id(id).exec(self.db.as_ref()).await?;
+        brand::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -161,16 +176,12 @@ impl BrandStore for DbBrandStore {
     }
 
     async fn insert_brand(&self, model: brand::ActiveModel) -> StoreResult<()> {
-        brand::Entity::insert(model)
-            .exec(self.db.as_ref())
-            .await?;
+        brand::Entity::insert(model).exec(self.db.as_ref()).await?;
         Ok(())
     }
 
     async fn update_brand_full(&self, model: brand::ActiveModel) -> StoreResult<brand::Model> {
-        Ok(brand::Entity::update(model)
-            .exec(self.db.as_ref())
-            .await?)
+        Ok(brand::Entity::update(model).exec(self.db.as_ref()).await?)
     }
 
     async fn count_active_brands(&self) -> StoreResult<u64> {
@@ -191,13 +202,21 @@ pub struct CacheBrandStore<S: BrandStore> {
 
 impl<S: BrandStore> CacheBrandStore<S> {
     pub fn new(inner: S, cache: Arc<dyn CacheBackend>, ttl: Duration) -> Self {
-        Self { inner: Arc::new(inner), cache, ttl }
+        Self {
+            inner: Arc::new(inner),
+            cache,
+            ttl,
+        }
     }
 }
 
 impl<S: BrandStore> Clone for CacheBrandStore<S> {
     fn clone(&self) -> Self {
-        Self { inner: self.inner.clone(), cache: self.cache.clone(), ttl: self.ttl }
+        Self {
+            inner: self.inner.clone(),
+            cache: self.cache.clone(),
+            ttl: self.ttl,
+        }
     }
 }
 
@@ -218,7 +237,9 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         match get_serializable::<Option<brand::Model>>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
-            Err(e) => tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB"),
+            Err(e) => {
+                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+            }
         }
         let model = self.inner.get_by_id(id).await?;
         let _ = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await;
@@ -230,7 +251,9 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         match get_serializable::<Option<brand::Model>>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
-            Err(e) => tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB"),
+            Err(e) => {
+                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+            }
         }
         let model = self.inner.get_by_slug(slug).await?;
         let _ = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await;
@@ -242,7 +265,9 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         match get_serializable::<Vec<brand::Model>>(self.cache.as_ref(), &key).await {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
-            Err(e) => tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB"),
+            Err(e) => {
+                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+            }
         }
         let rows = self.inner.list_active(limit).await?;
         let _ = set_serializable(self.cache.as_ref(), &key, &rows, Some(self.ttl)).await;
@@ -257,11 +282,22 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         self.inner.create(slug, name).await
     }
 
-    async fn update(&self, id: Uuid, name: Option<String>, status: Option<String>) -> StoreResult<brand::Model> {
+    async fn update(
+        &self,
+        id: Uuid,
+        name: Option<String>,
+        status: Option<String>,
+    ) -> StoreResult<brand::Model> {
         let model = self.inner.update(id, name, status).await?;
         let _ = self.cache.delete(&key_by_id(id)).await;
         let _ = self.cache.delete(&key_by_slug(&model.slug)).await;
-        let _ = set_serializable(self.cache.as_ref(), &key_by_id(id), &Some(model.clone()), Some(self.ttl)).await;
+        let _ = set_serializable(
+            self.cache.as_ref(),
+            &key_by_id(id),
+            &Some(model.clone()),
+            Some(self.ttl),
+        )
+        .await;
         Ok(model)
     }
 

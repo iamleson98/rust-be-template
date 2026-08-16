@@ -71,12 +71,14 @@ pub async fn register(
 ) -> AppResult<Json<AuthResponse>> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    
+
     // Require either email or phone
-    let email = body.email.filter(|e| !e.is_empty())
+    let email = body
+        .email
+        .filter(|e| !e.is_empty())
         .or(body.phone.filter(|p| !p.is_empty()))
         .ok_or_else(|| AppError::Validation("Email or phone is required".into()))?;
-    
+
     // Use full_name as username
     let user = state
         .auth
@@ -147,10 +149,7 @@ pub async fn employee_login(
         .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
 
     // Only allow employees (must have at least one role that isn't "user")
-    let is_employee = user_perms
-        .role_names
-        .iter()
-        .any(|role| role != "user");
+    let is_employee = user_perms.role_names.iter().any(|role| role != "user");
 
     if !is_employee {
         return Err(AppError::Forbidden(

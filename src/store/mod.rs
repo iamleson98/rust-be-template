@@ -11,11 +11,16 @@
 //! - `CompositeStore`: combines per-entity stores into one object used by
 //!   services as `Arc<dyn Store>`.
 
+pub use self::audit::{AuditStore, DbAuditStore};
+pub use self::booking::{BookingStore, DbBookingStore};
+pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
+pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewZeroClawExchange};
+pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
-pub use self::retry::RetryPolicy;
-pub use self::rbac::{UserPermissions};
-pub use self::users::{CacheUserStore, DbUserStore, UserStore};
+pub use self::place::{DbPlaceStore, PlaceStore};
 pub use self::posts::{CachePostStore, DbPostStore, PostStore};
+pub use self::price_alert::{DbPriceAlertStore, PriceAlertStore};
+pub use self::rbac::UserPermissions;
 pub use self::rbac::{CacheRbacStore, DbRbacStore, RbacStore};
 pub use self::refresh_tokens::{
         CacheRefreshTokenStore,
@@ -38,15 +43,18 @@ pub use self::composite::CompositeStore;
 
 #[macro_use]
 mod macros;
-mod error;
-mod retry;
-mod users;
-mod posts;
-mod rbac;
-mod refresh_tokens;
+mod audit;
+mod booking;
 mod brands;
 pub mod chat;
-mod booking;
+mod composite;
+mod error;
+mod place;
+mod posts;
+mod price_alert;
+mod rbac;
+mod refresh_tokens;
+mod retry;
 mod review;
 mod route;
 mod schedule;

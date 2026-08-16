@@ -6,7 +6,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect,
+};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -60,8 +63,14 @@ pub trait PriceAlertStore: Send + Sync {
         route_id: Option<&str>,
         target_price: i64,
     ) -> StoreResult<Option<price_alert::Model>>;
-    async fn insert_price_alert(&self, model: price_alert::ActiveModel) -> StoreResult<price_alert::Model>;
-    async fn update_price_alert(&self, model: price_alert::ActiveModel) -> StoreResult<price_alert::Model>;
+    async fn insert_price_alert(
+        &self,
+        model: price_alert::ActiveModel,
+    ) -> StoreResult<price_alert::Model>;
+    async fn update_price_alert(
+        &self,
+        model: price_alert::ActiveModel,
+    ) -> StoreResult<price_alert::Model>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -97,8 +106,8 @@ impl PriceAlertStore for DbPriceAlertStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<price_alert::Model>> {
-        let mut q = price_alert::Entity::find()
-            .filter(price_alert::Column::UserId.eq(user_id.to_string()));
+        let mut q =
+            price_alert::Entity::find().filter(price_alert::Column::UserId.eq(user_id.to_string()));
         if let Some(s) = status {
             q = q.filter(price_alert::Column::Status.eq(s.to_string()));
         }
@@ -116,8 +125,8 @@ impl PriceAlertStore for DbPriceAlertStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<price_alert::Model>> {
-        let mut q = price_alert::Entity::find()
-            .filter(price_alert::Column::Phone.eq(phone.to_string()));
+        let mut q =
+            price_alert::Entity::find().filter(price_alert::Column::Phone.eq(phone.to_string()));
         if let Some(s) = status {
             q = q.filter(price_alert::Column::Status.eq(s.to_string()));
         }
@@ -176,7 +185,8 @@ impl PriceAlertStore for DbPriceAlertStore {
                 q = q.filter(price_alert::Column::UserId.eq(uid.to_string()));
             }
             None => {
-                q = q.filter(price_alert::Column::Phone.eq(phone.to_string()))
+                q = q
+                    .filter(price_alert::Column::Phone.eq(phone.to_string()))
                     .filter(price_alert::Column::UserId.is_null());
             }
         }
@@ -184,11 +194,17 @@ impl PriceAlertStore for DbPriceAlertStore {
     }
 
     #[store_macros::no_retry]
-    async fn insert_price_alert(&self, model: price_alert::ActiveModel) -> StoreResult<price_alert::Model> {
+    async fn insert_price_alert(
+        &self,
+        model: price_alert::ActiveModel,
+    ) -> StoreResult<price_alert::Model> {
         Ok(model.insert(self.db.as_ref()).await?)
     }
 
-    async fn update_price_alert(&self, model: price_alert::ActiveModel) -> StoreResult<price_alert::Model> {
+    async fn update_price_alert(
+        &self,
+        model: price_alert::ActiveModel,
+    ) -> StoreResult<price_alert::Model> {
         Ok(model.update(self.db.as_ref()).await?)
     }
 }

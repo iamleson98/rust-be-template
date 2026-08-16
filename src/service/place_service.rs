@@ -33,14 +33,14 @@ pub struct PlaceService {
 
 impl PlaceService {
     pub fn new(store: Arc<CompositeStore>) -> Self {
-        Self { store, searcher: None }
+        Self {
+            store,
+            searcher: None,
+        }
     }
 
     /// Construct with an optional Tantivy place-search index.
-    pub fn with_searcher(
-        store: Arc<CompositeStore>,
-        searcher: Option<Arc<PlaceSearcher>>,
-    ) -> Self {
+    pub fn with_searcher(store: Arc<CompositeStore>, searcher: Option<Arc<PlaceSearcher>>) -> Self {
         Self { store, searcher }
     }
 
@@ -55,7 +55,9 @@ impl PlaceService {
     pub async fn list(&self, limit: u64, offset: u64) -> AppResult<PlaceListResponse> {
         let limit = limit.clamp(1, 200);
         let offset = offset.max(0);
-        let places = self.store.place_store()
+        let places = self
+            .store
+            .place_store()
             .list_places(limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -91,7 +93,10 @@ impl PlaceService {
     ) -> AppResult<PlaceSearchResponse> {
         let q_trim = query.trim();
         if q_trim.is_empty() {
-            return Ok(PlaceSearchResponse { items: Vec::new(), engine: None });
+            return Ok(PlaceSearchResponse {
+                items: Vec::new(),
+                engine: None,
+            });
         }
         let limit = limit.clamp(1, 50);
 
@@ -127,14 +132,18 @@ impl PlaceService {
 
         // ── SQL LIKE fallback ─────────────────────────────────────────────
         let pattern = format!("%{q_trim}%");
-        let mut places = self.store.place_store()
+        let mut places = self
+            .store
+            .place_store()
             .search_places_by_name(&pattern, limit * 5)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Also search by name_no_tones for Vietnamese accent-insensitive matching
         let pattern_no_tones = format!("%{}%", remove_vietnamese_tones(q_trim));
-        let places_no_tones = self.store.place_store()
+        let places_no_tones = self
+            .store
+            .place_store()
             .search_places_by_name_no_tones(&pattern_no_tones, limit * 5)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -176,7 +185,10 @@ impl PlaceService {
                 distance_km: None,
             })
             .collect();
-        Ok(PlaceSearchResponse { items, engine: None })
+        Ok(PlaceSearchResponse {
+            items,
+            engine: None,
+        })
     }
 
     // ── Reverse geocode ─────────────────────────────────────────
@@ -185,12 +197,7 @@ impl PlaceService {
     ///
     /// Uses a simple bounding-box + sort approach. For production,
     /// consider PostGIS or a dedicated geocoding service.
-    pub async fn reverse(
-        &self,
-        lat: f64,
-        lon: f64,
-        limit: u64,
-    ) -> AppResult<PlaceReverseResponse> {
+    pub async fn reverse(&self, lat: f64, lon: f64, limit: u64) -> AppResult<PlaceReverseResponse> {
         let limit = limit.clamp(1, 50);
 
         // ── Tantivy reverse-geocode path (preferred) ──────────────────────
@@ -221,7 +228,9 @@ impl PlaceService {
         }
 
         // ── SQL bounding-box fallback ─────────────────────────────────────
-        let places = self.store.place_store()
+        let places = self
+            .store
+            .place_store()
             .search_places_in_bbox(lat, lon, 200)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -269,9 +278,7 @@ fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let d_lat = (lat2 - lat1).to_radians();
     let d_lon = (lon2 - lon1).to_radians();
     let a = (d_lat / 2.0).sin().powi(2)
-        + lat1.to_radians().cos()
-            * lat2.to_radians().cos()
-            * (d_lon / 2.0).sin().powi(2);
+        + lat1.to_radians().cos() * lat2.to_radians().cos() * (d_lon / 2.0).sin().powi(2);
     let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
     r * c
 }
@@ -281,22 +288,30 @@ fn remove_vietnamese_tones(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     for c in s.chars() {
         let replacement = match c {
-            'á' | 'à' | 'ả' | 'ã' | 'ạ' | 'ă' | 'ắ' | 'ằ' | 'ẳ' | 'ẵ' | 'ặ' | 'â' | 'ấ'
-            | 'ầ' | 'ẩ' | 'ẫ' | 'ậ' => 'a',
-            'é' | 'è' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ế' | 'ề' | 'ể' | 'ễ' | 'ệ' => 'e',
+            'á' | 'à' | 'ả' | 'ã' | 'ạ' | 'ă' | 'ắ' | 'ằ' | 'ẳ' | 'ẵ' | 'ặ' | 'â' | 'ấ' | 'ầ'
+            | 'ẩ' | 'ẫ' | 'ậ' => 'a',
+            'é' | 'è' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ế' | 'ề' | 'ể' | 'ễ' | 'ệ' => {
+                'e'
+            }
             'í' | 'ì' | 'ỉ' | 'ĩ' | 'ị' => 'i',
-            'ó' | 'ò' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ố' | 'ồ' | 'ổ' | 'ỗ' | 'ộ' | 'ơ' | 'ớ'
-            | 'ờ' | 'ở' | 'ỡ' | 'ợ' => 'o',
-            'ú' | 'ù' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ứ' | 'ừ' | 'ử' | 'ữ' | 'ự' => 'u',
+            'ó' | 'ò' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ố' | 'ồ' | 'ổ' | 'ỗ' | 'ộ' | 'ơ' | 'ớ' | 'ờ'
+            | 'ở' | 'ỡ' | 'ợ' => 'o',
+            'ú' | 'ù' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ứ' | 'ừ' | 'ử' | 'ữ' | 'ự' => {
+                'u'
+            }
             'ý' | 'ỳ' | 'ỷ' | 'ỹ' | 'ỵ' => 'y',
             'đ' => 'd',
-            'Á' | 'À' | 'Ả' | 'Ã' | 'Ạ' | 'Ă' | 'Ắ' | 'Ằ' | 'Ẳ' | 'Ẵ' | 'Ặ' | 'Â' | 'Ấ'
-            | 'Ầ' | 'Ẩ' | 'Ẫ' | 'Ậ' => 'A',
-            'É' | 'È' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ế' | 'Ề' | 'Ể' | 'Ễ' | 'Ệ' => 'E',
+            'Á' | 'À' | 'Ả' | 'Ã' | 'Ạ' | 'Ă' | 'Ắ' | 'Ằ' | 'Ẳ' | 'Ẵ' | 'Ặ' | 'Â' | 'Ấ' | 'Ầ'
+            | 'Ẩ' | 'Ẫ' | 'Ậ' => 'A',
+            'É' | 'È' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ế' | 'Ề' | 'Ể' | 'Ễ' | 'Ệ' => {
+                'E'
+            }
             'Í' | 'Ì' | 'Ỉ' | 'Ĩ' | 'Ị' => 'I',
-            'Ó' | 'Ò' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ố' | 'Ồ' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ơ' | 'Ớ'
-            | 'Ờ' | 'Ở' | 'Ỡ' | 'Ợ' => 'O',
-            'Ú' | 'Ù' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ứ' | 'Ừ' | 'Ử' | 'Ữ' | 'Ự' => 'U',
+            'Ó' | 'Ò' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ố' | 'Ồ' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ơ' | 'Ớ' | 'Ờ'
+            | 'Ở' | 'Ỡ' | 'Ợ' => 'O',
+            'Ú' | 'Ù' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ứ' | 'Ừ' | 'Ử' | 'Ữ' | 'Ự' => {
+                'U'
+            }
             'Ý' | 'Ỳ' | 'Ỷ' | 'Ỹ' | 'Ỵ' => 'Y',
             'Đ' => 'D',
             _ => c,
@@ -333,7 +348,10 @@ mod tests {
     fn remove_vietnamese_tones_basic() {
         assert_eq!(remove_vietnamese_tones("Hà Nội"), "Ha Noi");
         assert_eq!(remove_vietnamese_tones("Đà Nẵng"), "Da Nang");
-        assert_eq!(remove_vietnamese_tones("TP. Hồ Chí Minh"), "TP. Ho Chi Minh");
+        assert_eq!(
+            remove_vietnamese_tones("TP. Hồ Chí Minh"),
+            "TP. Ho Chi Minh"
+        );
     }
 
     #[test]

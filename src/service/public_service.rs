@@ -18,7 +18,7 @@ use crate::dto::public::{
     BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
     CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
     StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore, TripDetail,
-    TripEndpoint, TripPricing, TripPickupPoint, TripResult, TripRouteDetail, TripSearchResponse,
+    TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
     TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
 use crate::entity::{brand, bus_layout, place, route, schedule, seat_inventory};
@@ -191,7 +191,9 @@ impl PublicService {
     /// List active brands (slim DTO for the homepage grid).
     pub async fn list_brands(&self, limit: u64) -> AppResult<BrandListResponse> {
         let limit = limit.clamp(1, 500);
-        let brands = self.store.brand_store()
+        let brands = self
+            .store
+            .brand_store()
             .list_active(limit)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -213,7 +215,9 @@ impl PublicService {
 
     /// Brand detail by slug.
     pub async fn brand_detail(&self, slug: &str) -> AppResult<BrandDetailOut> {
-        let b = self.store.brand_store()
+        let b = self
+            .store
+            .brand_store()
             .get_by_slug(slug)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -246,28 +250,33 @@ impl PublicService {
         // Note: BrandStore.list_routes_by_status doesn't support brand_id filter.
         // If brand_id is provided, use list_routes_by_brand; otherwise list_routes_by_status.
         let routes = if let Some(bid) = brand_id {
-            self.store.route_store()
+            self.store
+                .route_store()
                 .list_routes_by_brand(bid)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
         } else {
-            self.store.route_store()
+            self.store
+                .route_store()
                 .list_routes_by_status("active", limit)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
         };
-        let routes: Vec<_> = routes.into_iter().filter(|r| r.status == "active").take(limit as usize).collect();
+        let routes: Vec<_> = routes
+            .into_iter()
+            .filter(|r| r.status == "active")
+            .take(limit as usize)
+            .collect();
 
         // Batch fetch brands
-        let brand_ids: Vec<String> = routes
-            .iter()
-            .filter_map(|r| r.brand_id.clone())
-            .collect();
+        let brand_ids: Vec<String> = routes.iter().filter_map(|r| r.brand_id.clone()).collect();
         let brand_uuids: Vec<Uuid> = brand_ids
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let brands: std::collections::HashMap<String, brand::Model> = self.store.brand_store()
+        let brands: std::collections::HashMap<String, brand::Model> = self
+            .store
+            .brand_store()
             .list_brands_by_ids(brand_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -281,7 +290,9 @@ impl PublicService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let schedules = self.store.schedule_store()
+        let schedules = self
+            .store
+            .schedule_store()
             .list_schedules_by_routes(route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -295,10 +306,7 @@ impl PublicService {
         let items: Vec<RouteOut> = routes
             .iter()
             .map(|r| {
-                let brand = r
-                    .brand_id
-                    .as_deref()
-                    .and_then(|bid| brands.get(bid));
+                let brand = r.brand_id.as_deref().and_then(|bid| brands.get(bid));
                 let (from_name, to_name) = r
                     .name
                     .split_once(" → ")
@@ -318,8 +326,16 @@ impl PublicService {
                         logo_url: brand.and_then(|b| b.logo_url.clone()),
                         rating: brand.and_then(|b| b.rating),
                     },
-                    from: RouteEndpoint { name: from_name, lat: 0.0, lon: 0.0 },
-                    to: RouteEndpoint { name: to_name, lat: 0.0, lon: 0.0 },
+                    from: RouteEndpoint {
+                        name: from_name,
+                        lat: 0.0,
+                        lon: 0.0,
+                    },
+                    to: RouteEndpoint {
+                        name: to_name,
+                        lat: 0.0,
+                        lon: 0.0,
+                    },
                     schedule_count: schedule_count.get(&r.id.to_string()).copied().unwrap_or(0),
                 }
             })
@@ -347,7 +363,9 @@ impl PublicService {
         let to = to.trim();
         let date = date.trim();
         if from.is_empty() {
-            return Err(AppError::BadRequest("missing departure location (from)".into()));
+            return Err(AppError::BadRequest(
+                "missing departure location (from)".into(),
+            ));
         }
         if to.is_empty() {
             return Err(AppError::BadRequest("missing arrival location (to)".into()));
@@ -360,7 +378,9 @@ impl PublicService {
         let min_seats = min_seats.max(1);
 
         // Find routes matching from/to names
-        let all_routes = self.store.route_store()
+        let all_routes = self
+            .store
+            .route_store()
             .list_routes_by_status("active", 1000)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -387,7 +407,9 @@ impl PublicService {
             .collect();
 
         // Find schedules for these routes
-        let schedules = self.store.schedule_store()
+        let schedules = self
+            .store
+            .schedule_store()
             .list_schedules_by_routes(route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -399,7 +421,9 @@ impl PublicService {
             .collect();
 
         // Find trip sessions for these schedules on the given date
-        let trips = self.store.trip_store()
+        let trips = self
+            .store
+            .trip_store()
             .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, limit)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -410,7 +434,9 @@ impl PublicService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let sched_map: std::collections::HashMap<String, schedule::Model> = self.store.schedule_store()
+        let sched_map: std::collections::HashMap<String, schedule::Model> = self
+            .store
+            .schedule_store()
             .list_schedules_by_ids(trip_sched_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -423,7 +449,9 @@ impl PublicService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let route_map: std::collections::HashMap<String, route::Model> = self.store.route_store()
+        let route_map: std::collections::HashMap<String, route::Model> = self
+            .store
+            .route_store()
             .list_routes_by_ids(sched_route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -439,7 +467,9 @@ impl PublicService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let brand_map: std::collections::HashMap<String, brand::Model> = self.store.brand_store()
+        let brand_map: std::collections::HashMap<String, brand::Model> = self
+            .store
+            .brand_store()
             .list_brands_by_ids(route_brand_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -477,7 +507,9 @@ impl PublicService {
             .iter()
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
-        let place_map: std::collections::HashMap<String, place::Model> = self.store.place_store()
+        let place_map: std::collections::HashMap<String, place::Model> = self
+            .store
+            .place_store()
             .find_places_by_ids(place_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -491,10 +523,7 @@ impl PublicService {
             .filter_map(|t| {
                 let sched = sched_map.get(&t.schedule_id)?;
                 let route = route_map.get(&sched.route_id)?;
-                let brand = route
-                    .brand_id
-                    .as_deref()
-                    .and_then(|bid| brand_map.get(bid));
+                let brand = route.brand_id.as_deref().and_then(|bid| brand_map.get(bid));
                 let layout = sched
                     .bus_layout_id
                     .as_deref()
@@ -504,9 +533,7 @@ impl PublicService {
                 let vehicle_type = layout
                     .and_then(|l| l.vehicle_type.clone())
                     .unwrap_or_else(|| "standard".into());
-                if !vehicle_types.is_empty()
-                    && !vehicle_types.contains(&vehicle_type)
-                {
+                if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
                     return None;
                 }
 
@@ -573,23 +600,29 @@ impl PublicService {
 
     /// Trip detail by id — full enriched TripDetail shape.
     pub async fn trip_detail(&self, id: Uuid) -> AppResult<TripDetail> {
-        let trip = self.store.trip_store()
+        let trip = self
+            .store
+            .trip_store()
             .find_trip_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("trip not found".into()))?;
 
-        let schedule_id = Uuid::parse_str(&trip.schedule_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let schedule = self.store.schedule_store()
+        let schedule_id =
+            Uuid::parse_str(&trip.schedule_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let schedule = self
+            .store
+            .schedule_store()
             .find_schedule_by_id(schedule_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
-        let route_id = Uuid::parse_str(&schedule.route_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let route = self.store.route_store()
+        let route_id =
+            Uuid::parse_str(&schedule.route_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let route = self
+            .store
+            .route_store()
             .find_route_by_id(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -597,12 +630,12 @@ impl PublicService {
 
         let brand = if let Some(ref bid) = route.brand_id {
             match Uuid::parse_str(bid) {
-                Ok(uid) => {
-                    self.store.brand_store()
-                        .get_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?
-                }
+                Ok(uid) => self
+                    .store
+                    .brand_store()
+                    .get_by_id(uid)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
                 Err(_) => None,
             }
         } else {
@@ -611,12 +644,12 @@ impl PublicService {
 
         let start_place = if let Some(ref id) = route.start_location_id {
             match Uuid::parse_str(id) {
-                Ok(uid) => {
-                    self.store.place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?
-                }
+                Ok(uid) => self
+                    .store
+                    .place_store()
+                    .find_place_by_id(uid)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
                 Err(_) => None,
             }
         } else {
@@ -625,12 +658,12 @@ impl PublicService {
 
         let end_place = if let Some(ref id) = route.end_location_id {
             match Uuid::parse_str(id) {
-                Ok(uid) => {
-                    self.store.place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?
-                }
+                Ok(uid) => self
+                    .store
+                    .place_store()
+                    .find_place_by_id(uid)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
                 Err(_) => None,
             }
         } else {
@@ -639,12 +672,12 @@ impl PublicService {
 
         let bus_layout = if let Some(ref blid) = schedule.bus_layout_id {
             match Uuid::parse_str(blid) {
-                Ok(uid) => {
-                    self.store.schedule_store()
-                        .find_bus_layout_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?
-                }
+                Ok(uid) => self
+                    .store
+                    .schedule_store()
+                    .find_bus_layout_by_id(uid)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
                 Err(_) => None,
             }
         } else {
@@ -652,7 +685,9 @@ impl PublicService {
         };
 
         // Pickup points
-        let pickup_points = self.store.route_store()
+        let pickup_points = self
+            .store
+            .route_store()
             .list_pickup_points_by_route(&route.id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -672,7 +707,8 @@ impl PublicService {
 
         // Seat map — fetch all seats for the bus layout + their inventory
         let seat_rows = if let Some(ref blid) = schedule.bus_layout_id {
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .list_seats_by_bus_layout_id(blid)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -682,7 +718,8 @@ impl PublicService {
 
         let seat_ids: Vec<String> = seat_rows.iter().map(|s| s.id.to_string()).collect();
         let seat_inv = if !seat_ids.is_empty() {
-            self.store.trip_store()
+            self.store
+                .trip_store()
                 .list_seat_inventories(&trip.id.to_string(), seat_ids)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -690,10 +727,8 @@ impl PublicService {
             Vec::new()
         };
 
-        let inv_map: std::collections::HashMap<String, &seat_inventory::Model> = seat_inv
-            .iter()
-            .map(|si| (si.seat_id.clone(), si))
-            .collect();
+        let inv_map: std::collections::HashMap<String, &seat_inventory::Model> =
+            seat_inv.iter().map(|si| (si.seat_id.clone(), si)).collect();
 
         // Group seats by deck → row
         let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
@@ -709,7 +744,9 @@ impl PublicService {
                 col: s.col_num.unwrap_or(0),
                 deck,
                 seat_class: s.seat_class.clone(),
-                status: inv.map(|i| i.status.clone()).unwrap_or_else(|| "available".into()),
+                status: inv
+                    .map(|i| i.status.clone())
+                    .unwrap_or_else(|| "available".into()),
                 final_price: inv.map(|i| i.final_price).unwrap_or(0),
             };
             decks_map
@@ -725,14 +762,19 @@ impl PublicService {
             .map(|(deck, rows_map)| {
                 let rows: Vec<TripSeatRow> = rows_map
                     .into_iter()
-                    .map(|(row_num, seats)| TripSeatRow { row: row_num, seats })
+                    .map(|(row_num, seats)| TripSeatRow {
+                        row: row_num,
+                        seats,
+                    })
                     .collect();
                 TripSeatDeck { deck, rows }
             })
             .collect();
 
         // Active campaigns
-        let campaigns = self.store.trip_store()
+        let campaigns = self
+            .store
+            .trip_store()
             .list_active_campaigns(10)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -830,7 +872,9 @@ impl PublicService {
     /// Recommended trips (up to 4) — upcoming trips with available seats.
     pub async fn recommendations(&self) -> AppResult<TripSearchResponse> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let trips = self.store.trip_store()
+        let trips = self
+            .store
+            .trip_store()
             .list_upcoming_trips(&today, 4)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -843,14 +887,15 @@ impl PublicService {
                 .iter()
                 .filter_map(|s| Uuid::parse_str(s).ok())
                 .collect();
-            let sched_map: std::collections::HashMap<String, schedule::Model> =
-                self.store.schedule_store()
-                    .list_schedules_by_ids(trip_sched_uuids)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?
-                    .into_iter()
-                    .map(|s| (s.id.to_string(), s))
-                    .collect();
+            let sched_map: std::collections::HashMap<String, schedule::Model> = self
+                .store
+                .schedule_store()
+                .list_schedules_by_ids(trip_sched_uuids)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?
+                .into_iter()
+                .map(|s| (s.id.to_string(), s))
+                .collect();
 
             let sched_route_ids: Vec<String> =
                 sched_map.values().map(|s| s.route_id.clone()).collect();
@@ -858,7 +903,9 @@ impl PublicService {
                 .iter()
                 .filter_map(|s| Uuid::parse_str(s).ok())
                 .collect();
-            let route_map: std::collections::HashMap<String, route::Model> = self.store.route_store()
+            let route_map: std::collections::HashMap<String, route::Model> = self
+                .store
+                .route_store()
                 .list_routes_by_ids(sched_route_uuids)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -874,7 +921,9 @@ impl PublicService {
                 .iter()
                 .filter_map(|s| Uuid::parse_str(s).ok())
                 .collect();
-            let brand_map: std::collections::HashMap<String, brand::Model> = self.store.brand_store()
+            let brand_map: std::collections::HashMap<String, brand::Model> = self
+                .store
+                .brand_store()
                 .list_brands_by_ids(route_brand_uuids)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
@@ -887,10 +936,7 @@ impl PublicService {
                 .filter_map(|t| {
                     let sched = sched_map.get(&t.schedule_id)?;
                     let route = route_map.get(&sched.route_id)?;
-                    let brand = route
-                        .brand_id
-                        .as_deref()
-                        .and_then(|bid| brand_map.get(bid));
+                    let brand = route.brand_id.as_deref().and_then(|bid| brand_map.get(bid));
                     let amenities = parse_amenities(&sched.amenities);
                     let (dep_iso, arr_iso) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
@@ -949,7 +995,9 @@ impl PublicService {
 
     /// List active campaigns.
     pub async fn list_campaigns(&self) -> AppResult<CampaignListResponse> {
-        let campaigns = self.store.trip_store()
+        let campaigns = self
+            .store
+            .trip_store()
             .list_active_campaigns(100)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -978,7 +1026,9 @@ impl PublicService {
             return Err(AppError::BadRequest("missing campaign code".into()));
         }
         let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-        let c = self.store.trip_store()
+        let c = self
+            .store
+            .trip_store()
             .find_active_campaign(&code.to_uppercase(), &now)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -986,14 +1036,21 @@ impl PublicService {
         match c {
             Some(c) => {
                 let discount = match c.discount_type.as_str() {
-                    "percent" => ((subtotal as f64) * c.discount_value as f64 / 100.0).round()
-                        as i64,
+                    "percent" => {
+                        ((subtotal as f64) * c.discount_value as f64 / 100.0).round() as i64
+                    }
                     "fixed_amount" => c.discount_value,
                     _ => 0,
                 };
-                Ok(CampaignValidateResponse { valid: true, discount })
+                Ok(CampaignValidateResponse {
+                    valid: true,
+                    discount,
+                })
             }
-            None => Ok(CampaignValidateResponse { valid: false, discount: 0 }),
+            None => Ok(CampaignValidateResponse {
+                valid: false,
+                discount: 0,
+            }),
         }
     }
 
@@ -1001,15 +1058,21 @@ impl PublicService {
 
     /// Public stats for the homepage.
     pub async fn stats(&self) -> AppResult<StatsResponse> {
-        let brand_count = self.store.brand_store()
+        let brand_count = self
+            .store
+            .brand_store()
             .count_active_brands()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let route_count = self.store.route_store()
+        let route_count = self
+            .store
+            .route_store()
             .count_active_routes()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
-        let trip_count = self.store.trip_store()
+        let trip_count = self
+            .store
+            .trip_store()
             .count_trips_by_status("scheduled")
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -1090,22 +1153,10 @@ mod tests {
 
     #[test]
     fn add_days_to_ymd_handles_month_boundary() {
-        assert_eq!(
-            add_days_to_ymd("2026-01-31", 1),
-            Some("2026-02-01".into())
-        );
-        assert_eq!(
-            add_days_to_ymd("2026-12-31", 1),
-            Some("2027-01-01".into())
-        );
-        assert_eq!(
-            add_days_to_ymd("2024-02-28", 1),
-            Some("2024-02-29".into())
-        );
-        assert_eq!(
-            add_days_to_ymd("2026-02-28", 1),
-            Some("2026-03-01".into())
-        );
+        assert_eq!(add_days_to_ymd("2026-01-31", 1), Some("2026-02-01".into()));
+        assert_eq!(add_days_to_ymd("2026-12-31", 1), Some("2027-01-01".into()));
+        assert_eq!(add_days_to_ymd("2024-02-28", 1), Some("2024-02-29".into()));
+        assert_eq!(add_days_to_ymd("2026-02-28", 1), Some("2026-03-01".into()));
     }
 
     #[test]

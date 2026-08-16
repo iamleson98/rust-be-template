@@ -10,6 +10,240 @@ export type AuthResponse = {
 };
 
 /**
+ * Brand preview embedded in `BookingRoutePreview`.
+ */
+export type BookingBrandPreview = {
+    accentColor?: string | null;
+    logoUrl?: string | null;
+    name?: string | null;
+};
+
+/**
+ * Bus layout preview embedded in `BookingTripPreview`.
+ */
+export type BookingBusLayoutPreview = {
+    name?: string | null;
+    vehicleType?: string | null;
+};
+
+/**
+ * Response of `POST /api/bookings/{id}/cancel`.
+ */
+export type BookingCancelResponse = {
+    cancelledAt: string;
+    reason?: string | null;
+    refCode: string;
+    refundAmount: number;
+    refundPercent: number;
+    success: boolean;
+};
+
+/**
+ * Response of `POST /api/bookings/{id}/confirm`.
+ */
+export type BookingConfirmResponse = {
+    bookingId: string;
+    paymentMethod: string;
+    status: string;
+};
+
+/**
+ * Response of `POST /api/bookings` and `POST /api/bookings/hold`.
+ */
+export type BookingHoldResponse = {
+    bookingId: string;
+    campaignId?: string | null;
+    code: string;
+    discount: number;
+    expiresAt: string;
+    fees: number;
+    seats: Array<BookingSeatOut>;
+    status: string;
+    subtotal: number;
+    total: number;
+};
+
+/**
+ * Response of `GET /api/bookings` (list item) and `GET /api/bookings/{id}`
+ * (detail — same shape, just with the full trip preview filled in).
+ */
+export type BookingListItem = {
+    adultCount?: number | null;
+    /**
+     * Present on the list-with-detail shape (`include_boarding_dropping_ids=true`).
+     */
+    boardingPointId?: string | null;
+    childCount?: number | null;
+    code: string;
+    contactEmail?: string | null;
+    contactName?: string | null;
+    contactPhone?: string | null;
+    createdAt: string;
+    currency: string;
+    discount: number;
+    /**
+     * Present on the list-with-detail shape.
+     */
+    droppingPointId?: string | null;
+    expiresAt?: string | null;
+    fees: number;
+    id: string;
+    /**
+     * Timestamp when the booking was paid (`updated_at` snapshot at status=confirmed).
+     */
+    paidAt?: string | null;
+    paymentMethod?: string | null;
+    seats: Array<BookingSeatOut>;
+    status: string;
+    subtotal: number;
+    total: number;
+    trip?: null | BookingTripPreview;
+    updatedAt?: string | null;
+};
+
+/**
+ * Response of `GET /api/bookings`.
+ */
+export type BookingListResponse = {
+    items: Array<BookingListItem>;
+    total: number;
+};
+
+/**
+ * Response of `GET /api/bookings/lookup`. Same shape as the list, but
+ * without the `total` field (the lookup endpoint doesn't paginate).
+ */
+export type BookingLookupResponse = {
+    items: Array<BookingListItem>;
+};
+
+/**
+ * Route preview embedded in `BookingTripPreview`.
+ */
+export type BookingRoutePreview = {
+    brand: BookingBrandPreview;
+    distanceKm?: number | null;
+    durationMin?: number | null;
+    from?: string | null;
+    name: string;
+    to?: string | null;
+};
+
+/**
+ * A held seat inside a booking response.
+ */
+export type BookingSeatOut = {
+    passengerAge?: number | null;
+    passengerName?: string | null;
+    passengerType?: string | null;
+    price?: number | null;
+    seatClass?: string | null;
+    seatCode?: string | null;
+    seatId?: string | null;
+};
+
+/**
+ * Slim trip preview embedded in `BookingListItem`.
+ */
+export type BookingTripPreview = {
+    /**
+     * Present on the booking-list payload (not the detail payload).
+     */
+    brandAccent?: string | null;
+    /**
+     * Present on the booking-list payload (not the detail payload).
+     */
+    brandLogo?: string | null;
+    /**
+     * Present on the booking-list payload (not the detail payload).
+     */
+    brandName?: string | null;
+    busLayout?: null | BookingBusLayoutPreview;
+    departureAt?: string | null;
+    departureDate?: string | null;
+    id: string;
+    /**
+     * Present on the detail payload (not the list payload).
+     */
+    pickupPoints?: Array<PickupPointOut>;
+    route?: null | BookingRoutePreview;
+    /**
+     * Present on the booking-list payload (not the detail payload).
+     */
+    routeName?: string | null;
+    status?: string | null;
+    /**
+     * Present on the booking-list payload (not the detail payload).
+     */
+    vehicleType?: string | null;
+};
+
+/**
+ * Brand detail returned by `GET /api/brands/{slug}`.
+ */
+export type BrandDetailOut = {
+    accentColor?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
+    description?: string | null;
+    id: string;
+    logoUrl?: string | null;
+    name: string;
+    rating?: number | null;
+    slug: string;
+    totalTrips: number;
+};
+
+/**
+ * Response of `GET /api/brands`.
+ */
+export type BrandListResponse = {
+    items: Array<BrandOut>;
+};
+
+/**
+ * Slim brand entry returned by `GET /api/brands`.
+ */
+export type BrandOut = {
+    accentColor?: string | null;
+    id: string;
+    logoUrl?: string | null;
+    name: string;
+    rating?: number | null;
+    slug: string;
+    totalTrips: number;
+};
+
+/**
+ * Response of `GET /api/campaigns`.
+ */
+export type CampaignListResponse = {
+    items: Array<CampaignOut>;
+};
+
+/**
+ * Campaign list item returned by `GET /api/campaigns`.
+ */
+export type CampaignOut = {
+    code: string;
+    discountType: string;
+    discountValue: number;
+    endsAt?: string | null;
+    id: string;
+};
+
+/**
+ * Response of `GET /api/campaigns/validate?code=&subtotal=`.
+ */
+export type CampaignValidateResponse = {
+    /**
+     * Discount amount (VND) applied to the subtotal. 0 when invalid.
+     */
+    discount: number;
+    valid: boolean;
+};
+
+/**
  * Request body for `POST /api/bookings/:id/cancel`.
  */
 export type CancelReq = {
@@ -70,7 +304,37 @@ export type CreateReviewInput = {
     tags?: Array<string> | null;
     title?: string | null;
     trip_session_id?: string | null;
+    /**
+     * Overwritten by the server from the authenticated user.
+     */
     user_id?: string | null;
+};
+
+/**
+ * Turn-by-turn driving directions.
+ *
+ * Returned by `GET /api/routing/directions`. The `valhalla` field
+ * carries the raw Valhalla `trip` object (kept opaque — different
+ * Valhalla versions emit slightly different shapes; we expose the
+ * top-level summary fields the UI cares about).
+ */
+export type DirectionsResponse = {
+    /**
+     * Total trip length in kilometers.
+     */
+    distanceKm: number;
+    /**
+     * Encoded polyline of the route, if Valhalla returned one.
+     */
+    shape?: string | null;
+    /**
+     * Total trip time in minutes.
+     */
+    timeMin: number;
+    /**
+     * Raw Valhalla `trip` object (opaque — passed through as-is).
+     */
+    valhalla: unknown;
 };
 
 export type HealthResponse = {
@@ -93,6 +357,20 @@ export type HoldReq = {
     trip_id: string;
 };
 
+/**
+ * Reachability polygons (isochrones).
+ *
+ * Returned by `GET /api/routing/isochrone`. The `geojson` field is
+ * the raw Valhalla isochrone response (a FeatureCollection of polygons
+ * — one per contour time).
+ */
+export type IsochroneResponse = {
+    /**
+     * Raw Valhalla isochrone GeoJSON FeatureCollection.
+     */
+    geojson: unknown;
+};
+
 export type ListPostsResponse = {
     items: Array<PostOut>;
     limit: number;
@@ -105,12 +383,125 @@ export type LoginRequest = {
 };
 
 /**
+ * Many-to-many travel time / distance matrix.
+ *
+ * Returned by `GET /api/routing/matrix`. `timesMin[i][j]` is the
+ * travel time (in minutes) from source `i` to target `j`;
+ * `distancesKm[i][j]` is the distance in km. `None` cells mean
+ * Valhalla could not route between that pair.
+ */
+export type MatrixResponse = {
+    /**
+     * `distances_km[i][j]` = km from source `i` to target `j`.
+     */
+    distancesKm: Array<Array<number | null>>;
+    /**
+     * `times_min[i][j]` = minutes from source `i` to target `j`.
+     */
+    timesMin: Array<Array<number | null>>;
+};
+
+/**
  * One passenger on a booking.
  */
 export type PassengerReq = {
     age?: number;
     name: string;
     type: string;
+};
+
+/**
+ * Pickup point embedded in `BookingTripPreview.pickup_points`.
+ */
+export type PickupPointOut = {
+    address?: string | null;
+    id: string;
+    lat?: number | null;
+    lon?: number | null;
+    name?: string | null;
+    pickupType?: string | null;
+    stopOrder?: number | null;
+};
+
+/**
+ * Response of `GET /api/places`.
+ */
+export type PlaceListResponse = {
+    items: Array<PlaceOut>;
+};
+
+/**
+ * A place row from the database, as returned by `GET /api/places`.
+ */
+export type PlaceOut = {
+    id: string;
+    lat: number;
+    lon: number;
+    name: string;
+    population: number;
+    province?: string | null;
+    /**
+     * OSM place kind (city / town / village / suburb ...). Mirrors the
+     * DB column `place.type` (renamed because `type` is a Rust keyword).
+     */
+    type: string;
+};
+
+/**
+ * Optional fields populated by the Tantivy fulltext index. Present on
+ * `PlaceSearchHit` but NOT on `PlaceOut` (which comes from the DB).
+ * A search hit returned by `GET /api/places/search?q=`.
+ *
+ * When the Tantivy index is configured, fields like `osmId`, `ward`,
+ * `district`, `city`, `score`, `distanceKm` are populated. When the
+ * SQL LIKE fallback is used, only the DB-backed fields are set.
+ */
+export type PlaceSearchHit = {
+    city?: string | null;
+    /**
+     * Distance from the `lat` / `lon` query param, in km. Set when
+     * the caller passes `lat` + `lon` (geo-bias).
+     */
+    distanceKm?: number | null;
+    district?: string | null;
+    house_number?: string | null;
+    /**
+     * DB row id (only set when the hit comes from the `place` table).
+     */
+    id?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+    name: string;
+    /**
+     * OSM node/way id (only set for Tantivy hits).
+     */
+    osm_id?: number | null;
+    /**
+     * OSM place kind (Tantivy hits only).
+     */
+    placeKind?: string | null;
+    province?: string | null;
+    /**
+     * Tantivy relevance score (0..1). Only set for Tantivy hits.
+     */
+    score?: number | null;
+    /**
+     * `place.type` (DB hits only — present on SQL LIKE fallback).
+     */
+    type?: string | null;
+    ward?: string | null;
+};
+
+/**
+ * Response of `GET /api/places/search?q=`.
+ */
+export type PlaceSearchResponse = {
+    /**
+     * Which engine produced the results: `tantivy` (fulltext index) or
+     * `sql` (LIKE fallback). Omitted for the SQL fallback.
+     */
+    engine?: string | null;
+    items: Array<PlaceSearchHit>;
 };
 
 export type PostOut = {
@@ -165,6 +556,111 @@ export type RegisterRequest = {
 };
 
 /**
+ * Response of `DELETE /api/reviews/{id}`.
+ */
+export type ReviewDeleteResponse = {
+    ok: boolean;
+};
+
+/**
+ * Response of `GET /api/reviews`.
+ */
+export type ReviewListResponse = {
+    items: Array<ReviewOut>;
+};
+
+/**
+ * Response of `POST /api/reviews` and `PATCH /api/reviews/{id}`.
+ */
+export type ReviewMutationResponse = {
+    id: string;
+};
+
+/**
+ * A review row, as returned by `GET /api/reviews` and `GET /api/reviews/{id}`.
+ */
+export type ReviewOut = {
+    authorName?: string | null;
+    authorPhone?: string | null;
+    bookingId?: string | null;
+    brandId?: string | null;
+    content?: string | null;
+    createdAt: string;
+    helpfulCount: number;
+    id: string;
+    photos: Array<string>;
+    /**
+     * 1..=5
+     */
+    rating: number;
+    repliedAt?: string | null;
+    /**
+     * Brand's reply (admin-written).
+     */
+    reply?: string | null;
+    routeId?: string | null;
+    /**
+     * `pending` | `approved` | `rejected`
+     */
+    status: string;
+    tags: Array<string>;
+    title?: string | null;
+    tripSessionId?: string | null;
+    updatedAt: string;
+    userId?: string | null;
+};
+
+/**
+ * Response of `GET /api/reviews/tags`. Returns the distinct set of
+ * tags across all reviews (used by the frontend to render tag filters).
+ */
+export type ReviewTagsResponse = {
+    items: Array<string>;
+};
+
+/**
+ * Brand preview embedded in `RouteOut`.
+ */
+export type RouteBrandPreview = {
+    accentColor?: string | null;
+    logoUrl?: string | null;
+    name?: string | null;
+    rating?: number | null;
+    slug?: string | null;
+};
+
+/**
+ * From/To endpoint embedded in `RouteOut`.
+ */
+export type RouteEndpoint = {
+    lat: number;
+    lon: number;
+    name: string;
+};
+
+/**
+ * Response of `GET /api/routes`.
+ */
+export type RouteListResponse = {
+    items: Array<RouteOut>;
+};
+
+/**
+ * A route list item returned by `GET /api/routes`.
+ */
+export type RouteOut = {
+    brand: RouteBrandPreview;
+    brandId?: string | null;
+    distanceKm?: number | null;
+    durationMin?: number | null;
+    from: RouteEndpoint;
+    id: string;
+    name: string;
+    scheduleCount: number;
+    to: RouteEndpoint;
+};
+
+/**
  * Identity of an authenticated actor, derived from the `user` row.
  *
  * `actor_type` is `"user"` for customers and `"employee"` for staff. The
@@ -183,6 +679,191 @@ export type SessionUser = {
     phone?: string | null;
     role: string;
     type: string;
+};
+
+/**
+ * Public homepage stats returned by `GET /api/stats`.
+ */
+export type StatsResponse = {
+    brands: number;
+    routes: number;
+    trips: number;
+};
+
+export type TripAmenity = {
+    key: string;
+    label: string;
+};
+
+export type TripBrandDetail = {
+    accentColor?: string | null;
+    id?: string | null;
+    logoUrl?: string | null;
+    name?: string | null;
+    rating: number;
+    slug?: string | null;
+};
+
+export type TripBusLayout = {
+    capacity?: number | null;
+    id?: string | null;
+    name?: string | null;
+    vehicleType: string;
+    vehicleTypeLabel: string;
+};
+
+export type TripCampaign = {
+    code: string;
+    discountType: string;
+    discountValue: number;
+    endsAt?: string | null;
+    id: string;
+    maxUses?: number | null;
+    startsAt?: string | null;
+    status: string;
+    usedCount: number;
+};
+
+export type TripCore = {
+    arrivalAt?: string | null;
+    availableSeats: number;
+    departureAt?: string | null;
+    departureDate: string;
+    departureTime?: string | null;
+    driverName?: string | null;
+    id: string;
+    status: string;
+    totalSeats: number;
+};
+
+/**
+ * Trip detail returned by `GET /api/trips/{id}`.
+ */
+export type TripDetail = {
+    amenities: Array<TripAmenity>;
+    brand: TripBrandDetail;
+    busLayout: TripBusLayout;
+    campaigns: Array<TripCampaign>;
+    from: TripEndpoint;
+    pickupPoints: Array<TripPickupPoint>;
+    pricing: TripPricing;
+    route: TripRouteDetail;
+    seatMap: TripSeatMap;
+    to: TripEndpoint;
+    /**
+     * The trip + nested route + brand + bus layout + pickup points +
+     * seat map + campaigns, all in one response (frontend's
+     * TripDetailDialog consumes it).
+     */
+    trip: TripCore;
+};
+
+export type TripEndpoint = {
+    lat: number;
+    lon: number;
+    name?: string | null;
+};
+
+export type TripPickupPoint = {
+    address?: string | null;
+    id: string;
+    lat?: number | null;
+    lon?: number | null;
+    name?: string | null;
+    pickupType?: string | null;
+    stopOrder?: number | null;
+};
+
+export type TripPricing = {
+    basePriceAdult: number;
+    basePriceChild: number;
+};
+
+/**
+ * A trip search result returned by `GET /api/search` and
+ * `GET /api/recommendations`.
+ */
+export type TripResult = {
+    amenities: Array<string>;
+    arrivalAt?: string | null;
+    availableSeats: number;
+    brandAccent: string;
+    brandId?: string | null;
+    brandLogo?: string | null;
+    brandName: string;
+    brandRating: number;
+    brandSlug: string;
+    busLayoutId?: string | null;
+    capacity?: number | null;
+    departureAt?: string | null;
+    departureDate: string;
+    departureTime?: string | null;
+    distanceKm: number;
+    durationMin: number;
+    fromLat: number;
+    fromLon: number;
+    fromName: string;
+    /**
+     * Same as `min_price` for now (backend doesn't have a max price per trip).
+     */
+    maxPrice: number;
+    /**
+     * Adult ticket price (VND).
+     */
+    minPrice: number;
+    priceAdult: number;
+    priceChild: number;
+    routeId: string;
+    routeName: string;
+    scheduleId: string;
+    status: string;
+    toLat: number;
+    toLon: number;
+    toName: string;
+    totalSeats: number;
+    tripId: string;
+    vehicleType: string;
+    vehicleTypeLabel: string;
+};
+
+export type TripRouteDetail = {
+    distanceKm: number;
+    durationMin?: number | null;
+    id: string;
+    name: string;
+};
+
+/**
+ * Response of `GET /api/search` and `GET /api/recommendations`.
+ */
+export type TripSearchResponse = {
+    items: Array<TripResult>;
+};
+
+export type TripSeat = {
+    code: string;
+    col: number;
+    deck: number;
+    finalPrice: number;
+    id: string;
+    row: number;
+    seatClass?: string | null;
+    seatLabel: string;
+    status: string;
+};
+
+export type TripSeatDeck = {
+    deck: number;
+    rows: Array<TripSeatRow>;
+};
+
+export type TripSeatMap = {
+    decks: Array<TripSeatDeck>;
+};
+
+export type TripSeatRow = {
+    row: number;
+    seats: Array<TripSeat>;
 };
 
 export type UpdatePostRequest = {
@@ -351,8 +1032,10 @@ export type ListResponses = {
     /**
      * Booking list
      */
-    200: unknown;
+    200: BookingListResponse;
 };
+
+export type ListResponse = ListResponses[keyof ListResponses];
 
 export type HoldData = {
     body: HoldReq;
@@ -372,8 +1055,10 @@ export type HoldResponses = {
     /**
      * Booking held
      */
-    201: unknown;
+    201: BookingHoldResponse;
 };
+
+export type HoldResponse = HoldResponses[keyof HoldResponses];
 
 export type LookupData = {
     body?: never;
@@ -396,8 +1081,10 @@ export type LookupResponses = {
     /**
      * Booking found
      */
-    200: unknown;
+    200: BookingLookupResponse;
 };
+
+export type LookupResponse = LookupResponses[keyof LookupResponses];
 
 export type DetailData = {
     body?: never;
@@ -426,8 +1113,10 @@ export type DetailResponses = {
     /**
      * Booking detail
      */
-    200: unknown;
+    200: BookingListItem;
 };
+
+export type DetailResponse = DetailResponses[keyof DetailResponses];
 
 export type CancelData = {
     body: CancelReq;
@@ -456,8 +1145,10 @@ export type CancelResponses = {
     /**
      * Booking cancelled
      */
-    200: unknown;
+    200: BookingCancelResponse;
 };
+
+export type CancelResponse = CancelResponses[keyof CancelResponses];
 
 export type ConfirmData = {
     body: ConfirmReq;
@@ -486,8 +1177,10 @@ export type ConfirmResponses = {
     /**
      * Booking confirmed
      */
-    200: unknown;
+    200: BookingConfirmResponse;
 };
+
+export type ConfirmResponse = ConfirmResponses[keyof ConfirmResponses];
 
 export type BrandsData = {
     body?: never;
@@ -502,8 +1195,10 @@ export type BrandsResponses = {
     /**
      * Brand list
      */
-    200: unknown;
+    200: BrandListResponse;
 };
+
+export type BrandsResponse = BrandsResponses[keyof BrandsResponses];
 
 export type BrandDetailData = {
     body?: never;
@@ -528,8 +1223,10 @@ export type BrandDetailResponses = {
     /**
      * Brand detail
      */
-    200: unknown;
+    200: BrandDetailOut;
 };
+
+export type BrandDetailResponse = BrandDetailResponses[keyof BrandDetailResponses];
 
 export type CampaignsData = {
     body?: never;
@@ -542,8 +1239,10 @@ export type CampaignsResponses = {
     /**
      * Campaign list
      */
-    200: unknown;
+    200: CampaignListResponse;
 };
+
+export type CampaignsResponse = CampaignsResponses[keyof CampaignsResponses];
 
 export type ValidateCampaignData = {
     body?: never;
@@ -566,8 +1265,10 @@ export type ValidateCampaignResponses = {
     /**
      * Validation result
      */
-    200: unknown;
+    200: CampaignValidateResponse;
 };
+
+export type ValidateCampaignResponse = ValidateCampaignResponses[keyof ValidateCampaignResponses];
 
 export type ListChannelsData = {
     body?: never;
@@ -661,8 +1362,10 @@ export type List2Responses = {
     /**
      * Place list
      */
-    200: unknown;
+    200: PlaceListResponse;
 };
+
+export type List2Response = List2Responses[keyof List2Responses];
 
 export type ReverseData = {
     body?: never;
@@ -679,8 +1382,10 @@ export type ReverseResponses = {
     /**
      * Reverse geocode results
      */
-    200: unknown;
+    200: Array<PlaceSearchHit>;
 };
+
+export type ReverseResponse = ReverseResponses[keyof ReverseResponses];
 
 export type SearchData = {
     body?: never;
@@ -698,8 +1403,10 @@ export type SearchResponses = {
     /**
      * Search results
      */
-    200: unknown;
+    200: PlaceSearchResponse;
 };
+
+export type SearchResponse = SearchResponses[keyof SearchResponses];
 
 export type ListPostsData = {
     body?: never;
@@ -940,8 +1647,10 @@ export type RecommendationsResponses = {
     /**
      * Recommendations
      */
-    200: unknown;
+    200: TripSearchResponse;
 };
+
+export type RecommendationsResponse = RecommendationsResponses[keyof RecommendationsResponses];
 
 export type List4Data = {
     body?: never;
@@ -961,8 +1670,10 @@ export type List4Responses = {
     /**
      * Review list
      */
-    200: unknown;
+    200: ReviewListResponse;
 };
+
+export type List4Response = List4Responses[keyof List4Responses];
 
 export type Create2Data = {
     body: CreateReviewInput;
@@ -982,8 +1693,10 @@ export type Create2Responses = {
     /**
      * Created review
      */
-    201: unknown;
+    201: ReviewMutationResponse;
 };
+
+export type Create2Response = Create2Responses[keyof Create2Responses];
 
 export type TagsData = {
     body?: never;
@@ -996,8 +1709,10 @@ export type TagsResponses = {
     /**
      * Tags index
      */
-    200: unknown;
+    200: ReviewTagsResponse;
 };
+
+export type TagsResponse = TagsResponses[keyof TagsResponses];
 
 export type Remove2Data = {
     body?: never;
@@ -1026,8 +1741,10 @@ export type Remove2Responses = {
     /**
      * Deleted
      */
-    200: unknown;
+    200: ReviewDeleteResponse;
 };
+
+export type Remove2Response = Remove2Responses[keyof Remove2Responses];
 
 export type GetData = {
     body?: never;
@@ -1052,8 +1769,10 @@ export type GetResponses = {
     /**
      * Review detail
      */
-    200: unknown;
+    200: ReviewOut;
 };
+
+export type GetResponse = GetResponses[keyof GetResponses];
 
 export type UpdateData = {
     body: UpdateReviewInput;
@@ -1082,8 +1801,10 @@ export type UpdateResponses = {
     /**
      * Updated review
      */
-    200: unknown;
+    200: ReviewMutationResponse;
 };
+
+export type UpdateResponse = UpdateResponses[keyof UpdateResponses];
 
 export type RoutesData = {
     body?: never;
@@ -1099,15 +1820,26 @@ export type RoutesResponses = {
     /**
      * Route list
      */
-    200: unknown;
+    200: RouteListResponse;
 };
+
+export type RoutesResponse = RoutesResponses[keyof RoutesResponses];
 
 export type DirectionsData = {
     body?: never;
     path?: never;
     query: {
+        /**
+         * Costing model: `auto`, `bicycle`, `pedestrian`, ...
+         */
         costing?: string | null;
+        /**
+         * Response language (`vi`, `en`, ...).
+         */
         language?: string | null;
+        /**
+         * Semicolon-separated `lat,lon` pairs: `lat,lon;lat,lon;...`.
+         */
         locations: string;
     };
     url: '/api/routing/directions';
@@ -1124,8 +1856,10 @@ export type DirectionsResponses = {
     /**
      * Directions
      */
-    200: unknown;
+    200: DirectionsResponse;
 };
+
+export type DirectionsResponse2 = DirectionsResponses[keyof DirectionsResponses];
 
 export type IsochroneData = {
     body?: never;
@@ -1134,6 +1868,9 @@ export type IsochroneData = {
         costing?: string | null;
         lat: number;
         lon: number;
+        /**
+         * Comma-separated contour minutes: `15,30,60`.
+         */
         contours?: string | null;
     };
     url: '/api/routing/isochrone';
@@ -1150,15 +1887,23 @@ export type IsochroneResponses = {
     /**
      * Isochrone result
      */
-    200: unknown;
+    200: IsochroneResponse;
 };
+
+export type IsochroneResponse2 = IsochroneResponses[keyof IsochroneResponses];
 
 export type MatrixData = {
     body?: never;
     path?: never;
     query: {
         costing?: string | null;
+        /**
+         * Semicolon-separated `lat,lon` pairs for sources.
+         */
         sources: string;
+        /**
+         * Semicolon-separated `lat,lon` pairs for targets.
+         */
         targets: string;
     };
     url: '/api/routing/matrix';
@@ -1175,8 +1920,10 @@ export type MatrixResponses = {
     /**
      * Matrix result
      */
-    200: unknown;
+    200: MatrixResponse;
 };
+
+export type MatrixResponse2 = MatrixResponses[keyof MatrixResponses];
 
 export type SearchTripsData = {
     body?: never;
@@ -1197,8 +1944,10 @@ export type SearchTripsResponses = {
     /**
      * Search results
      */
-    200: unknown;
+    200: TripSearchResponse;
 };
+
+export type SearchTripsResponse = SearchTripsResponses[keyof SearchTripsResponses];
 
 export type StatsData = {
     body?: never;
@@ -1211,8 +1960,10 @@ export type StatsResponses = {
     /**
      * Public stats
      */
-    200: unknown;
+    200: StatsResponse;
 };
+
+export type StatsResponse2 = StatsResponses[keyof StatsResponses];
 
 export type TripDetailData = {
     body?: never;
@@ -1237,8 +1988,10 @@ export type TripDetailResponses = {
     /**
      * Trip detail
      */
-    200: unknown;
+    200: TripDetail;
 };
+
+export type TripDetailResponse = TripDetailResponses[keyof TripDetailResponses];
 
 export type ListUsersData = {
     body?: never;

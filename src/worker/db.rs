@@ -27,8 +27,8 @@ pub struct DbBroker {
 
 impl DbBroker {
     pub async fn new() -> anyhow::Result<Self> {
-        let url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite://./app.db?mode=rwc".into());
+        let url =
+            std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./app.db?mode=rwc".into());
         let mut opts = sea_orm::ConnectOptions::new(url);
         opts.max_connections(8);
         let db = sea_orm::Database::connect(opts).await?;

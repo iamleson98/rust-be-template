@@ -28,7 +28,10 @@ use crate::store::CompositeStore;
 
 // Re-export the request DTOs at the service-module root so existing
 // `use crate::service::booking_service::HoldReq` references still resolve.
-pub use crate::dto::booking::{CancelReq as CancelReqDto, ConfirmReq as ConfirmReqDto, HoldReq as HoldReqDto, PassengerReq as PassengerReqDto};
+pub use crate::dto::booking::{
+    CancelReq as CancelReqDto, ConfirmReq as ConfirmReqDto, HoldReq as HoldReqDto,
+    PassengerReq as PassengerReqDto,
+};
 
 // ────────────────────────────────────────────────────────────────
 //  Service
@@ -137,7 +140,11 @@ impl BookingService {
     }
 
     /// Guest lookup by booking code and/or phone.
-    pub async fn lookup(&self, phone: Option<&str>, code: Option<&str>) -> AppResult<BookingLookupResponse> {
+    pub async fn lookup(
+        &self,
+        phone: Option<&str>,
+        code: Option<&str>,
+    ) -> AppResult<BookingLookupResponse> {
         let code = code.map(|s| s.trim()).filter(|s| !s.is_empty());
         let phone = phone.map(|s| s.trim()).filter(|s| !s.is_empty());
 
@@ -825,7 +832,11 @@ impl BookingService {
     }
 
     /// Confirm a booking (mark paid — locked → booked).
-    pub async fn confirm(&self, id: Uuid, payment_method: &str) -> AppResult<BookingConfirmResponse> {
+    pub async fn confirm(
+        &self,
+        id: Uuid,
+        payment_method: &str,
+    ) -> AppResult<BookingConfirmResponse> {
         let b = self
             .store
             .booking_store()
@@ -1063,11 +1074,16 @@ impl BookingService {
             // When `include_boarding_dropping_ids=false` (lookup path),
             // we omit the boarding/dropping point ids + payment method from
             // the response — they're considered sensitive/internal.
-            let (boarding_point_id, dropping_point_id, payment_method) = if include_boarding_dropping_ids {
-                (b.boarding_point_id.clone(), b.dropping_point_id.clone(), b.payment_method.clone())
-            } else {
-                (None, None, None)
-            };
+            let (boarding_point_id, dropping_point_id, payment_method) =
+                if include_boarding_dropping_ids {
+                    (
+                        b.boarding_point_id.clone(),
+                        b.dropping_point_id.clone(),
+                        b.payment_method.clone(),
+                    )
+                } else {
+                    (None, None, None)
+                };
 
             items.push(BookingListItem {
                 id: b.id,

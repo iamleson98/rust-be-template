@@ -120,7 +120,7 @@ impl Default for DatabaseConfig {
             min_connections: 5,
             connect_timeout_secs: 10,
             idle_timeout_secs: 600,
-            max_lifetime_secs: 1800,           // 30 minutes
+            max_lifetime_secs: 1800, // 30 minutes
             statement_cache_capacity: 100,
             enable_sqlx_logs: false,
         }
@@ -321,10 +321,7 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        Self {
-            rpm: 60,
-            burst: 10,
-        }
+        Self { rpm: 60, burst: 10 }
     }
 }
 
@@ -522,7 +519,9 @@ impl Config {
             .merge(Toml::file("backend.toml").nested())
             .merge(Env::prefixed("").split("__"));
 
-        let cfg: Config = fig.extract().map_err(|e| anyhow::anyhow!("config error: {e}"))?;
+        let cfg: Config = fig
+            .extract()
+            .map_err(|e| anyhow::anyhow!("config error: {e}"))?;
         cfg.validate()?;
         Ok(cfg)
     }
@@ -548,9 +547,18 @@ impl Config {
         tracing::info!("    host:               {}", self.server.host);
         tracing::info!("    port:               {}", self.server.port);
         tracing::info!("    rust_log:           {}", self.server.rust_log);
-        tracing::info!("    request_timeout:    {}s", self.server.request_timeout_secs);
-        tracing::info!("    max_body_bytes:     {}", self.server.max_request_body_bytes);
-        tracing::info!("    tcp_keepalive:      {:?}", self.server.tcp_keepalive_secs);
+        tracing::info!(
+            "    request_timeout:    {}s",
+            self.server.request_timeout_secs
+        );
+        tracing::info!(
+            "    max_body_bytes:     {}",
+            self.server.max_request_body_bytes
+        );
+        tracing::info!(
+            "    tcp_keepalive:      {:?}",
+            self.server.tcp_keepalive_secs
+        );
         tracing::info!("    tcp_nodelay:        {}", self.server.tcp_nodelay);
         tracing::info!("    valhalla_url:       {:?}", self.server.valhalla_url);
 
@@ -558,10 +566,22 @@ impl Config {
         tracing::info!("    url:                {}", self.database.url);
         tracing::info!("    max_connections:    {}", self.database.max_connections);
         tracing::info!("    min_connections:    {}", self.database.min_connections);
-        tracing::info!("    connect_timeout:    {}s", self.database.connect_timeout_secs);
-        tracing::info!("    idle_timeout:       {}s", self.database.idle_timeout_secs);
-        tracing::info!("    max_lifetime:       {}s", self.database.max_lifetime_secs);
-        tracing::info!("    statement_cache:    {}", self.database.statement_cache_capacity);
+        tracing::info!(
+            "    connect_timeout:    {}s",
+            self.database.connect_timeout_secs
+        );
+        tracing::info!(
+            "    idle_timeout:       {}s",
+            self.database.idle_timeout_secs
+        );
+        tracing::info!(
+            "    max_lifetime:       {}s",
+            self.database.max_lifetime_secs
+        );
+        tracing::info!(
+            "    statement_cache:    {}",
+            self.database.statement_cache_capacity
+        );
         tracing::info!("    sqlx_logs:          {}", self.database.enable_sqlx_logs);
 
         tracing::info!("  jwt:");
@@ -587,9 +607,18 @@ impl Config {
         tracing::info!("    s3_bucket:          {}", self.storage.s3_bucket);
         tracing::info!("    s3_region:          {}", self.storage.s3_region);
         tracing::info!("    s3_endpoint:        {:?}", self.storage.s3_endpoint);
-        tracing::info!("    s3_access_key_id:   {}", mask_secret(&self.storage.s3_access_key_id));
-        tracing::info!("    s3_secret_access:   {}", mask_secret(&self.storage.s3_secret_access_key));
-        tracing::info!("    s3_force_path_style:{}", self.storage.s3_force_path_style);
+        tracing::info!(
+            "    s3_access_key_id:   {}",
+            mask_secret(&self.storage.s3_access_key_id)
+        );
+        tracing::info!(
+            "    s3_secret_access:   {}",
+            mask_secret(&self.storage.s3_secret_access_key)
+        );
+        tracing::info!(
+            "    s3_force_path_style:{}",
+            self.storage.s3_force_path_style
+        );
 
         tracing::info!("  worker:");
         tracing::info!("    kafka_brokers:      {}", self.worker.kafka_brokers);
@@ -602,7 +631,10 @@ impl Config {
 
         tracing::info!("  static_files:");
         tracing::info!("    dir:                {:?}", self.static_files.dir);
-        tracing::info!("    cache_max_age:      {}s", self.static_files.cache_max_age);
+        tracing::info!(
+            "    cache_max_age:      {}s",
+            self.static_files.cache_max_age
+        );
 
         tracing::info!("  cors:");
         tracing::info!("    origins:            {:?}", self.cors.origin_list());

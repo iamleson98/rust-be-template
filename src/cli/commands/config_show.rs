@@ -14,7 +14,10 @@ pub fn run() -> anyhow::Result<()> {
     println!("  port:               {}", cfg.server.port);
     println!("  rust_log:           {}", cfg.server.rust_log);
     println!("  request_timeout:    {}s", cfg.server.request_timeout_secs);
-    println!("  max_body_bytes:     {}", cfg.server.max_request_body_bytes);
+    println!(
+        "  max_body_bytes:     {}",
+        cfg.server.max_request_body_bytes
+    );
     println!("  tcp_keepalive:      {:?}", cfg.server.tcp_keepalive_secs);
     println!("  tcp_nodelay:        {}", cfg.server.tcp_nodelay);
     println!();
@@ -22,10 +25,16 @@ pub fn run() -> anyhow::Result<()> {
     println!("  url:                {}", cfg.database.url);
     println!("  max_conns:          {}", cfg.database.max_connections);
     println!("  min_conns:          {}", cfg.database.min_connections);
-    println!("  conn_timeout:       {}s", cfg.database.connect_timeout_secs);
+    println!(
+        "  conn_timeout:       {}s",
+        cfg.database.connect_timeout_secs
+    );
     println!("  idle_timeout:       {}s", cfg.database.idle_timeout_secs);
     println!("  max_lifetime:       {}s", cfg.database.max_lifetime_secs);
-    println!("  statement_cache:    {}", cfg.database.statement_cache_capacity);
+    println!(
+        "  statement_cache:    {}",
+        cfg.database.statement_cache_capacity
+    );
     println!("  sqlx_logs:          {}", cfg.database.enable_sqlx_logs);
     println!();
     println!("JWT:");
@@ -51,8 +60,14 @@ pub fn run() -> anyhow::Result<()> {
     println!("  s3_bucket:          {}", cfg.storage.s3_bucket);
     println!("  s3_region:          {}", cfg.storage.s3_region);
     println!("  s3_endpoint:        {:?}", cfg.storage.s3_endpoint);
-    println!("  s3_access_key_id:   {}", mask_secret(&cfg.storage.s3_access_key_id));
-    println!("  s3_secret_access:   {}", mask_secret(&cfg.storage.s3_secret_access_key));
+    println!(
+        "  s3_access_key_id:   {}",
+        mask_secret(&cfg.storage.s3_access_key_id)
+    );
+    println!(
+        "  s3_secret_access:   {}",
+        mask_secret(&cfg.storage.s3_secret_access_key)
+    );
     println!("  s3_force_path_style:{}", cfg.storage.s3_force_path_style);
     println!();
     println!("Worker:");

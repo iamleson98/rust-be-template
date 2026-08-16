@@ -20,15 +20,15 @@
 //! - `state`: AppState
 //! - `server`: bootstrap + run
 
-pub mod auth;
 pub mod audio_call;
+pub mod auth;
 pub mod cache;
 pub mod cli;
 pub mod config;
+pub mod dto;
 pub mod entity;
 pub mod error;
 pub mod middleware;
-pub mod dto;
 pub mod osm;
 pub mod rbac;
 pub mod routes;

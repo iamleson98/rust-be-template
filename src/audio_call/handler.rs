@@ -66,7 +66,9 @@ pub async fn ws_upgrade(
     } else {
         None
     };
-    let user = user.ok_or_else(|| AppError::Unauthorized("ws-call handshake: missing or invalid token".into()))?;
+    let user = user.ok_or_else(|| {
+        AppError::Unauthorized("ws-call handshake: missing or invalid token".into())
+    })?;
 
     let _ip = addr.ip().to_string();
 

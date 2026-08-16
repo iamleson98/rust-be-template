@@ -206,7 +206,9 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         password_hash: String,
         role: String,
     ) -> StoreResult<user::Model> {
-        self.inner.create_user(email, username, password_hash, role).await
+        self.inner
+            .create_user(email, username, password_hash, role)
+            .await
     }
 
     async fn delete_user(&self, id: Uuid) -> StoreResult<()> {

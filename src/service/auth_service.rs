@@ -28,12 +28,7 @@ impl AuthSession {
         jar: axum_extra::extract::CookieJar,
         cfg: &CookieConfig,
     ) -> axum_extra::extract::CookieJar {
-        crate::auth::cookies::set_auth_cookies(
-            jar,
-            cfg,
-            &self.access_token,
-            &self.refresh_token,
-        )
+        crate::auth::cookies::set_auth_cookies(jar, cfg, &self.access_token, &self.refresh_token)
     }
 }
 
