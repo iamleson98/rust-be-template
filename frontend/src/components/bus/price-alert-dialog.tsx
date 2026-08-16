@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useApp } from '@/lib/store'
 import { useCreatePriceAlert, usePriceAlerts, useRemovePriceAlert } from '@/lib/queries'
-import type { PriceAlert } from '@/lib/queries/types'
+import type { PriceAlertOut as PriceAlert } from '@/lib/api/types.gen'
 import {
   Dialog,
   DialogContent,
@@ -465,7 +465,7 @@ export function PriceAlertDialog() {
                         </Badge>
                         <div className="text-xs flex-1 min-w-0 truncate">
                           <span className="font-medium">{a.fromName} → {a.toName}</span>
-                          <span className="text-muted-foreground"> ≤ {formatVND(a.targetPrice)}</span>
+                          <span className="text-muted-foreground"> ≤ {formatVND(a.targetPrice ?? 0)}</span>
                         </div>
                         <button
                           type="button"

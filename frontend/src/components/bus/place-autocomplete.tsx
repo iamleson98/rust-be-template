@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import type { Place } from '@/lib/store'
 import { usePlaceSearch } from '@/lib/queries'
+import type { PlaceSearchHit } from '@/lib/api/types.gen'
 import { MapPin, Loader2, MapIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
@@ -59,7 +59,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
   const { data: placesData, isLoading: loading } = usePlaceSearch(debouncedQuery, {
     enabled: open || debouncedQuery.trim().length >= 1,
   })
-  const items: Place[] = placesData?.items ?? []
+  const items: PlaceSearchHit[] = placesData?.items ?? []
 
   // Keep `highlight` within bounds as items change.
   useEffect(() => {
@@ -74,7 +74,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
     debounceRef.current = setTimeout(() => setDebouncedQuery(val), 180)
   }
 
-  const pick = (p: Place) => {
+  const pick = (p: PlaceSearchHit) => {
     setQuery(p.name)
     onChange(p.name)
     setOpen(false)
@@ -175,7 +175,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
         <div className="absolute z-60 mt-1 w-full rounded-lg border bg-popover overflow-hidden shadow-xl shadow-slate-900/10">
           <ul className="max-h-72 overflow-y-auto py-1">
             {items.map((p, i) => (
-              <li key={p.id}>
+              <li key={p.id ?? p.name + i}>
                 <button
                   type="button"
                   onMouseEnter={() => setHighlight(i)}
@@ -189,7 +189,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{p.name}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {typeLabel(p.type)} {p.province ? `• ${p.province}` : ''}
+                      {p.type ? typeLabel(p.type) : ''} {p.province ? `• ${p.province}` : ''}
                     </div>
                   </div>
                 </button>

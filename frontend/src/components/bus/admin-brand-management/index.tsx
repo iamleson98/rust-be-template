@@ -47,7 +47,6 @@ import {
   useDeleteAdminSchedule,
   useDeleteAdminPickupPoint,
 } from '@/lib/queries'
-import { apiJson } from '@/lib/api-client'
 import { queryKeys } from '@/lib/query-client'
 import type {
   Brand,
@@ -84,7 +83,7 @@ export function AdminBrandManagement() {
 
   const placesQuery = useQuery({
     queryKey: queryKeys.places.all,
-    queryFn: () => apiJson<{ items: Place[] }>('/api/places?limit=200'),
+    queryFn: () => fetch('/api/places?limit=200', { credentials: 'include' }).then(r => r.json()),
     staleTime: 10 * 60 * 1000,
   })
   const places: Place[] = placesQuery.data?.items ?? []

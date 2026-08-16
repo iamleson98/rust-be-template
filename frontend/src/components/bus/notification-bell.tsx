@@ -49,7 +49,7 @@ export function NotificationBell() {
   const [optimisticReads, setOptimisticReads] = useState<Record<string, string>>({})
 
   const items = data?.items ?? []
-  const serverUnread = data?.unreadCount ?? data?.unread ?? 0
+  const serverUnread = data?.unreadCount ?? 0
   // Apply optimistic reads to the items list + unread count.
   // A notification is "read" when either the backend's `read` flag is
   // true OR the frontend's optimistic `readAt` timestamp is set.
@@ -188,7 +188,19 @@ export function NotificationBell() {
                         onClick={() => {
                           // Mark as read on click (if unread)
                           if (isUnread) void markSingleRead(n.id)
-                          if (n.link?.includes('my-bookings')) {
+                          // Some notification payloads include a deep-link in the `data` JSON
+                          // field. Parse it and route to the matching app section.
+                          const link = (() => {
+                            try {
+                              const parsed = n.data ? JSON.parse(n.data) : null
+                              return parsed && typeof parsed === 'object' && 'link' in parsed
+                                ? String((parsed as { link?: unknown }).link)
+                                : undefined
+                            } catch {
+                              return undefined
+                            }
+                          })()
+                          if (link?.includes('my-bookings')) {
                             navigate({ to: '/bookings' })
                             setNotifOpen(false)
                           }

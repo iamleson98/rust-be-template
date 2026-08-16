@@ -14,12 +14,8 @@ export const BrandShowcase = memo(function BrandShowcase() {
   const { data, isLoading, isError, refetch } = useBrands()
   const navigate = useNavigate()
   // Map the API brand shape to what the card UI expects.
-  // (`Brand` already has `routeCount` from the API; we fall back to
-  // `totalTrips` for safety against older API responses.)
-  const brands: Brand[] = (data?.items ?? []).map((b) => ({
-    ...b,
-    routeCount: b.routeCount ?? b.totalTrips ?? 0,
-  }))
+  // `BrandOut` doesn't expose `routeCount`, so we fall back to `totalTrips`.
+  const brands: Brand[] = data?.items ?? []
 
   /** Get initials from brand name (up to 2 chars) */
   const getInitials = (name: string) => {
@@ -99,7 +95,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                       <div
                         className="h-1.5"
                         style={{
-                          background: `linear-gradient(90deg, ${brand.accentColor}, transparent)`,
+                          background: `linear-gradient(90deg, ${brand.accentColor ?? '#2563eb'}, transparent)`,
                         }}
                       />
 
@@ -108,7 +104,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                         <div className="flex items-center gap-3">
                           <div
                             className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
-                            style={{ backgroundColor: brand.accentColor }}
+                            style={{ backgroundColor: brand.accentColor ?? '#2563eb' }}
                           >
                             {brand.logoUrl ? (
                               <img
@@ -127,9 +123,9 @@ export const BrandShowcase = memo(function BrandShowcase() {
                               {brand.name}
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
-                              {renderStars(brand.rating)}
+                              {renderStars(brand.rating ?? 0)}
                               <span className="text-xs font-medium text-amber-600 ml-1">
-                                {brand.rating.toFixed(1)}
+                                {(brand.rating ?? 0).toFixed(1)}
                               </span>
                             </div>
                           </div>
@@ -142,7 +138,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                             className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40"
                           >
                             <Bus className="h-3 w-3" />
-                            {brand.routeCount} tuyến
+                            {brand.totalTrips} tuyến
                           </Badge>
                         </div>
 

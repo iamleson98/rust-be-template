@@ -113,8 +113,10 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId, p
     try {
       await removeMutation.mutateAsync(id)
       toast.success('Đã xoá khỏi yêu thích')
-      // Refresh the local label cache so the bell badge count stays in sync
-      saveCacheLabels(items.filter((i) => i.id !== id).map((i) => `${i.fromName} → ${i.toName}`))
+      // Refresh the local label cache so the bell badge count stays in sync.
+      // `WishlistItemOut` only exposes `routeId` (no from/to names), so we use
+      // routeId as the cache label.
+      saveCacheLabels(items.filter((i) => i.id !== id).map((i) => i.routeId))
     } catch {
       toast.error('Không thể xoá')
     }
@@ -146,7 +148,7 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId, p
     // Persist label cache whenever items change so the next mount can show
     // an accurate badge instantly.
     if (items.length > 0) {
-      saveCacheLabels(items.map((i) => `${i.fromName} → ${i.toName}`))
+      saveCacheLabels(items.map((i) => i.routeId))
     }
     return (
       <>
@@ -275,13 +277,9 @@ function WishlistPanel({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
-                              <span>{it.fromName}</span>
+                              <span>Tuyến {it.routeId.slice(0, 8)}</span>
                               <MapPin className="h-3 w-3 text-rose-500" />
-                              <span>{it.toName}</span>
                             </div>
-                            {it.brandName && (
-                              <div className="text-xs text-muted-foreground mt-0.5">{it.brandName}</div>
-                            )}
                             <div className="text-[10px] text-muted-foreground mt-1">
                               Đã lưu {relativeTime(it.createdAt)}
                             </div>
@@ -301,7 +299,7 @@ function WishlistPanel({
                           onClick={() => {
                             navigate({
                               to: '/search',
-                              search: buildSearchInput({ from: it.fromName, to: it.toName }),
+                              search: buildSearchInput({ from: '', to: '', date: '' }),
                             })
                             onClose()
                           }}

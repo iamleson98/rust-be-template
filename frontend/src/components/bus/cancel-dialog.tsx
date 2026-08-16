@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { apiJson } from '@/lib/api-client'
 import { useApp } from '@/lib/store'
 import { queryKeys } from '@/lib/query-client'
 import { useT } from '@/lib/i18n'
@@ -106,14 +105,18 @@ export function CancelDialog() {
   // endpoint to populate the success step. The centralized hook uses
   // DELETE which doesn't return refund data.
   const cancelMutation = useMutation({
-    mutationFn: async (payload: { bookingId: string; reason: string; otherReason?: string }) =>
-      apiJson<CancelResponse>(`/api/bookings/${payload.bookingId}/cancel`, {
+    mutationFn: async (payload: { bookingId: string; reason: string; otherReason?: string }) => {
+      const res = await fetch(`/api/bookings/${payload.bookingId}/cancel`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           reason: payload.reason,
           otherReason: payload.otherReason,
         }),
-      }),
+      })
+      return (await res.json()) as CancelResponse
+    },
     onSuccess: () => {
       // Invalidate the bookings query so the list refreshes with the
       // cancelled status (used by my-bookings.tsx + booking-detail.tsx).

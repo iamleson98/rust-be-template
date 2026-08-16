@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useBrand, useReviewsByBrand, usePopularRoutes } from '@/lib/queries'
-import { apiJson } from '@/lib/api-client'
 import { useNavigate } from '@/router'
 import { useApp } from '@/lib/store'
 import {
@@ -159,7 +158,8 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   // tag index. We filter client-side by brandId if the items carry it.
   const tagStatsQuery = useQuery<TagStatsResponse>({
     queryKey: ['reviews', 'tags', 'brand', brand?.id ?? ''],
-    queryFn: () => apiJson('/api/reviews/tags'),
+    queryFn: () =>
+      fetch('/api/reviews/tags', { credentials: 'include' }).then((r) => r.json() as Promise<TagStatsResponse>),
     enabled: !!brand?.id,
     staleTime: 60 * 1000,
   })
@@ -414,11 +414,11 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
                                 <span className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
-                                  {formatDuration(r.durationMin)}
+                                  {formatDuration(r.durationMin ?? 0)}
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <MapPin className="h-3 w-3" />
-                                  {Math.round(r.distanceKm)} km
+                                  {Math.round(r.distanceKm ?? 0)} km
                                 </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
