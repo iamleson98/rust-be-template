@@ -77,7 +77,11 @@ pub async fn list_messages(
     let msgs = st
         .store
         .chat_store()
-        .list_messages(&id.to_string(), q.limit.unwrap_or(50), q.offset.unwrap_or(0))
+        .list_messages(
+            &id.to_string(),
+            q.limit.unwrap_or(50),
+            q.offset.unwrap_or(0),
+        )
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let items: Vec<ChatMessageOut> = msgs.into_iter().map(message_to_dto).collect();
@@ -100,8 +104,16 @@ pub async fn mark_read(
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MarkChannelReadResponse>, AppError> {
-    let side = if uid.to_string().is_empty() { "user" } else { "user" };
-    let _ = st.store.chat_store().clear_unread(&id.to_string(), side).await;
+    let side = if uid.to_string().is_empty() {
+        "user"
+    } else {
+        "user"
+    };
+    let _ = st
+        .store
+        .chat_store()
+        .clear_unread(&id.to_string(), side)
+        .await;
     Ok(Json(MarkChannelReadResponse { ok: true }))
 }
 
@@ -196,9 +208,10 @@ pub async fn post_message(
                     .list_messages(&channel_id, 100, 0)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?;
-                if let Some(m) = recent.into_iter().find(|m| {
-                    m.client_msg_id.as_deref() == Some(client_msg_id)
-                }) {
+                if let Some(m) = recent
+                    .into_iter()
+                    .find(|m| m.client_msg_id.as_deref() == Some(client_msg_id))
+                {
                     return Ok(Json(CreateMessageResponse {
                         message: message_to_dto(m),
                     }));
@@ -216,11 +229,7 @@ pub async fn post_message(
         .get_user_permissions(uid)
         .await
         .map_err(|e| AppError::Internal(format!("failed to load user roles: {e}")))?;
-    let sender_type = if user_perms
-        .role_names
-        .iter()
-        .any(|r| r != "user")
-    {
+    let sender_type = if user_perms.role_names.iter().any(|r| r != "user") {
         "employee"
     } else {
         "user"

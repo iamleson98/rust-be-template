@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::{
     AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PlaceStore, PostStore,
-    PriceAlertStore, ReviewStore, RbacStore, RefreshTokenStore, RouteStore, ScheduleStore,
+    PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore, ScheduleStore,
     TripStore, UserStore, WishlistStore,
 };
 

@@ -151,11 +151,7 @@ impl WishlistService {
 
     /// Delete a single wishlist item by id. Ownership is enforced —
     /// only the item's owner can delete it.
-    pub async fn remove(
-        &self,
-        user_id: Uuid,
-        id: Uuid,
-    ) -> AppResult<DeleteWishlistResponse> {
+    pub async fn remove(&self, user_id: Uuid, id: Uuid) -> AppResult<DeleteWishlistResponse> {
         let uid_str = user_id.to_string();
         let existing = self
             .store

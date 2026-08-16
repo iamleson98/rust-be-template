@@ -24,11 +24,7 @@ pub use self::posts::{CachePostStore, DbPostStore, PostStore};
 pub use self::price_alert::{DbPriceAlertStore, PriceAlertStore};
 pub use self::rbac::UserPermissions;
 pub use self::rbac::{CacheRbacStore, DbRbacStore, RbacStore};
-pub use self::refresh_tokens::{
-    CacheRefreshTokenStore,
-    DbRefreshTokenStore,
-    RefreshTokenStore,
-};
+pub use self::refresh_tokens::{CacheRefreshTokenStore, DbRefreshTokenStore, RefreshTokenStore};
 pub use self::review::{DbReviewStore, ReviewStore};
 pub use self::route::{DbRouteStore, RouteStore};
 pub use self::schedule::{DbScheduleStore, ScheduleStore};

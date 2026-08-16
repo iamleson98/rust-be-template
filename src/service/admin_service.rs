@@ -20,14 +20,15 @@ use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::dto::admin::{
-    AdminBookingDayBucket, AdminBookingDetail, AdminBookingDetailResponse, AdminBookingExportResponse,
-    AdminBookingListResponse, AdminBookingOut, AdminBookingSeatOut, AdminBookingStatsResponse,
-    AdminBookingStatusUpdate, AdminBookingTotals, AdminBrandListResponse, AdminBrandOut,
-    AdminBusLayoutListResponse, AdminBusLayoutOut, AdminMutationResponse, AdminPickupPointListResponse,
-    AdminPickupPointOut, AdminPlacePreview, AdminReviewListResponse, AdminRouteListResponse,
-    AdminRouteOut, AdminScheduleListResponse, AdminScheduleOut, ModerateReviewRequest,
-    ModerateReviewResponse, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
-    UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest, UpsertScheduleRequest,
+    AdminBookingDayBucket, AdminBookingDetail, AdminBookingDetailResponse,
+    AdminBookingExportResponse, AdminBookingListResponse, AdminBookingOut, AdminBookingSeatOut,
+    AdminBookingStatsResponse, AdminBookingStatusUpdate, AdminBookingTotals,
+    AdminBrandListResponse, AdminBrandOut, AdminBusLayoutListResponse, AdminBusLayoutOut,
+    AdminMutationResponse, AdminPickupPointListResponse, AdminPickupPointOut, AdminPlacePreview,
+    AdminReviewListResponse, AdminRouteListResponse, AdminRouteOut, AdminScheduleListResponse,
+    AdminScheduleOut, ModerateReviewRequest, ModerateReviewResponse, UpdateBookingStatusRequest,
+    UpdateBookingStatusResponse, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
+    UpsertScheduleRequest,
 };
 use crate::entity::{audit_log, booking, brand, pickup_point, review, route, schedule};
 use crate::error::{AppError, AppResult};
@@ -45,10 +46,7 @@ pub struct AdminService {
 }
 
 impl AdminService {
-    pub fn new(
-        store: Arc<CompositeStore>,
-        rbac: Arc<RbacChecker>,
-    ) -> Self {
+    pub fn new(store: Arc<CompositeStore>, rbac: Arc<RbacChecker>) -> Self {
         Self { store, rbac }
     }
 
@@ -68,18 +66,24 @@ impl AdminService {
 
     /// List all brands with route/layout counts.
     pub async fn list_brands(&self) -> AppResult<AdminBrandListResponse> {
-        let brands = self.store.brand_store()
+        let brands = self
+            .store
+            .brand_store()
             .list_all(1000, 0)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut items = Vec::with_capacity(brands.len());
         for b in &brands {
-            let route_count = self.store.route_store()
+            let route_count = self
+                .store
+                .route_store()
                 .count_routes_by_brand(&b.id.to_string())
                 .await
                 .unwrap_or(0);
-            let layout_count = self.store.schedule_store()
+            let layout_count = self
+                .store
+                .schedule_store()
                 .count_bus_layouts_by_brand(&b.id.to_string())
                 .await
                 .unwrap_or(0);
@@ -105,7 +109,10 @@ impl AdminService {
     }
 
     /// Create a new brand.
-    pub async fn create_brand(&self, body: &UpsertBrandRequest) -> AppResult<AdminMutationResponse> {
+    pub async fn create_brand(
+        &self,
+        body: &UpsertBrandRequest,
+    ) -> AppResult<AdminMutationResponse> {
         let name = body
             .name
             .as_deref()
@@ -153,7 +160,8 @@ impl AdminService {
             updated_at: Set(now),
         };
 
-        self.store.brand_store()
+        self.store
+            .brand_store()
             .insert_brand(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -167,7 +175,9 @@ impl AdminService {
         id: Uuid,
         body: &UpsertBrandRequest,
     ) -> AppResult<AdminMutationResponse> {
-        let existing = self.store.brand_store()
+        let existing = self
+            .store
+            .brand_store()
             .get_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -198,7 +208,9 @@ impl AdminService {
         }
         if let Some(ref v) = body.accent_color {
             if !valid_hex_color(v) {
-                return Err(AppError::Validation("accentColor must be #RRGGBB hex".into()));
+                return Err(AppError::Validation(
+                    "accentColor must be #RRGGBB hex".into(),
+                ));
             }
             active.accent_color = Set(Some(v.clone()));
         }
@@ -211,7 +223,8 @@ impl AdminService {
 
         active.updated_at = Set(now_iso());
 
-        self.store.brand_store()
+        self.store
+            .brand_store()
             .update_brand_full(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -221,7 +234,8 @@ impl AdminService {
 
     /// Delete a brand by id.
     pub async fn delete_brand(&self, id: Uuid) -> AppResult<AdminMutationResponse> {
-        self.store.brand_store()
+        self.store
+            .brand_store()
             .delete(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -232,26 +246,33 @@ impl AdminService {
 
     /// List all routes with start/end place names and schedule/pickup counts.
     pub async fn list_routes(&self) -> AppResult<AdminRouteListResponse> {
-        let routes = self.store.route_store()
+        let routes = self
+            .store
+            .route_store()
             .list_all_routes()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
-            let schedule_count = self.store.schedule_store()
+            let schedule_count = self
+                .store
+                .schedule_store()
                 .list_schedules_by_route(&r.id.to_string())
                 .await
                 .map(|v| v.len())
                 .unwrap_or(0);
-            let pickup_count = self.store.route_store()
+            let pickup_count = self
+                .store
+                .route_store()
                 .count_pickup_points_by_route(&r.id.to_string())
                 .await
                 .unwrap_or(0);
 
             let start_place = if let Some(id) = r.start_location_id.as_deref() {
                 if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store.place_store()
+                    self.store
+                        .place_store()
                         .find_place_by_id(uid)
                         .await
                         .ok()
@@ -264,7 +285,8 @@ impl AdminService {
             };
             let end_place = if let Some(id) = r.end_location_id.as_deref() {
                 if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store.place_store()
+                    self.store
+                        .place_store()
                         .find_place_by_id(uid)
                         .await
                         .ok()
@@ -305,7 +327,10 @@ impl AdminService {
     }
 
     /// Create a new route.
-    pub async fn create_route(&self, body: &UpsertRouteRequest) -> AppResult<AdminMutationResponse> {
+    pub async fn create_route(
+        &self,
+        body: &UpsertRouteRequest,
+    ) -> AppResult<AdminMutationResponse> {
         let name = body
             .name
             .as_deref()
@@ -332,7 +357,8 @@ impl AdminService {
             updated_at: Set(now),
         };
 
-        self.store.route_store()
+        self.store
+            .route_store()
             .insert_route(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -346,7 +372,9 @@ impl AdminService {
         id: Uuid,
         body: &UpsertRouteRequest,
     ) -> AppResult<AdminMutationResponse> {
-        let existing = self.store.route_store()
+        let existing = self
+            .store
+            .route_store()
             .find_route_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -378,7 +406,8 @@ impl AdminService {
 
         active.updated_at = Set(now_iso());
 
-        self.store.route_store()
+        self.store
+            .route_store()
             .update_route(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -388,7 +417,8 @@ impl AdminService {
 
     /// Delete a route by id.
     pub async fn delete_route(&self, id: Uuid) -> AppResult<AdminMutationResponse> {
-        self.store.route_store()
+        self.store
+            .route_store()
             .delete_route(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -399,7 +429,9 @@ impl AdminService {
 
     /// List schedules for a route.
     pub async fn list_schedules(&self, route_id: &str) -> AppResult<AdminScheduleListResponse> {
-        let schedules = self.store.schedule_store()
+        let schedules = self
+            .store
+            .schedule_store()
             .list_schedules_by_route(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -474,7 +506,8 @@ impl AdminService {
             created_at: Set(now),
         };
 
-        self.store.schedule_store()
+        self.store
+            .schedule_store()
             .insert_schedule(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -488,7 +521,9 @@ impl AdminService {
         id: Uuid,
         body: &UpsertScheduleRequest,
     ) -> AppResult<AdminMutationResponse> {
-        let existing = self.store.schedule_store()
+        let existing = self
+            .store
+            .schedule_store()
             .find_schedule_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -527,7 +562,8 @@ impl AdminService {
             active.amenities = Set(Some(v.clone()));
         }
 
-        self.store.schedule_store()
+        self.store
+            .schedule_store()
             .update_schedule(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -537,7 +573,8 @@ impl AdminService {
 
     /// Delete a schedule by id.
     pub async fn delete_schedule(&self, id: Uuid) -> AppResult<()> {
-        self.store.schedule_store()
+        self.store
+            .schedule_store()
             .delete_schedule(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -551,7 +588,9 @@ impl AdminService {
         &self,
         route_id: &str,
     ) -> AppResult<AdminPickupPointListResponse> {
-        let points = self.store.route_store()
+        let points = self
+            .store
+            .route_store()
             .list_pickup_points_by_route(route_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -600,7 +639,8 @@ impl AdminService {
             created_at: Set(now),
         };
 
-        self.store.route_store()
+        self.store
+            .route_store()
             .insert_pickup_point(model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -614,7 +654,9 @@ impl AdminService {
         id: Uuid,
         body: &UpsertPickupPointRequest,
     ) -> AppResult<AdminMutationResponse> {
-        let existing = self.store.route_store()
+        let existing = self
+            .store
+            .route_store()
             .find_pickup_point_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -641,7 +683,8 @@ impl AdminService {
             active.kind = Set(Some(v.clone()));
         }
 
-        self.store.route_store()
+        self.store
+            .route_store()
             .update_pickup_point(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -651,7 +694,8 @@ impl AdminService {
 
     /// Delete a pickup point by id.
     pub async fn delete_pickup_point(&self, id: Uuid) -> AppResult<()> {
-        self.store.route_store()
+        self.store
+            .route_store()
             .delete_pickup_point(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -670,20 +714,17 @@ impl AdminService {
         offset: u64,
     ) -> AppResult<AdminReviewListResponse> {
         let limit = limit.min(200);
-        let reviews = self.store.review_store()
-            .list_reviews(
-                brand_id,
-                route_id,
-                None,
-                status,
-                limit,
-                offset,
-            )
+        let reviews = self
+            .store
+            .review_store()
+            .list_reviews(brand_id, route_id, None, status, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<crate::dto::review::ReviewOut> =
-            reviews.iter().map(crate::service::review_service::review_to_dto).collect();
+        let items: Vec<crate::dto::review::ReviewOut> = reviews
+            .iter()
+            .map(crate::service::review_service::review_to_dto)
+            .collect();
         Ok(AdminReviewListResponse { items })
     }
 
@@ -705,7 +746,9 @@ impl AdminService {
             }
         }
 
-        let existing = self.store.review_store()
+        let existing = self
+            .store
+            .review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -733,7 +776,9 @@ impl AdminService {
         }
         active.updated_at = Set(now_iso());
 
-        let updated = self.store.review_store()
+        let updated = self
+            .store
+            .review_store()
             .update_review(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -748,7 +793,9 @@ impl AdminService {
 
     /// List all bus layouts.
     pub async fn list_bus_layouts(&self) -> AppResult<AdminBusLayoutListResponse> {
-        let layouts = self.store.schedule_store()
+        let layouts = self
+            .store
+            .schedule_store()
             .list_bus_layouts()
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -786,7 +833,9 @@ impl AdminService {
         // Note: brand_id, route_id, date_from, date_to, search filters are
         // not supported by the current BookingStore trait; only status is.
         // For full admin filtering, the store trait would need extension.
-        let bookings = self.store.booking_store()
+        let bookings = self
+            .store
+            .booking_store()
             .list_bookings_by_status(status, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -822,14 +871,18 @@ impl AdminService {
 
     /// Get a single booking by id (admin view with full detail).
     pub async fn get_booking(&self, id: Uuid) -> AppResult<AdminBookingDetailResponse> {
-        let b = self.store.booking_store()
+        let b = self
+            .store
+            .booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
         // Fetch booking seats
-        let seats = self.store.booking_store()
+        let seats = self
+            .store
+            .booking_store()
             .list_booking_seats(&b.id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -897,7 +950,9 @@ impl AdminService {
             new_status.to_string()
         };
 
-        let existing = self.store.booking_store()
+        let existing = self
+            .store
+            .booking_store()
             .find_booking_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
@@ -936,7 +991,8 @@ impl AdminService {
         let mut active: booking::ActiveModel = existing.into();
         active.status = Set(canonical.clone());
         active.updated_at = Set(now.clone());
-        self.store.booking_store()
+        self.store
+            .booking_store()
             .update_booking(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -951,9 +1007,7 @@ impl AdminService {
             metadata: Set(body.reason.clone()),
             ..Default::default()
         };
-        let _ = self.store.audit_store()
-            .insert_audit_log(audit_model)
-            .await;
+        let _ = self.store.audit_store().insert_audit_log(audit_model).await;
 
         Ok(UpdateBookingStatusResponse {
             item: AdminBookingStatusUpdate {
@@ -973,7 +1027,9 @@ impl AdminService {
         _date_from: Option<&str>,
         _date_to: Option<&str>,
     ) -> AppResult<AdminBookingStatsResponse> {
-        let bookings = self.store.booking_store()
+        let bookings = self
+            .store
+            .booking_store()
             .list_all_bookings_by_status(status)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -1052,7 +1108,9 @@ impl AdminService {
         _date_to: Option<&str>,
         columns: Option<&str>,
     ) -> AppResult<AdminBookingExportResponse> {
-        let bookings = self.store.booking_store()
+        let bookings = self
+            .store
+            .booking_store()
             .list_all_bookings_by_status(status)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -1066,8 +1124,13 @@ impl AdminService {
             })
             .unwrap_or_else(|| {
                 [
-                    "code", "status", "contactName", "contactPhone", "total",
-                    "paymentMethod", "createdAt",
+                    "code",
+                    "status",
+                    "contactName",
+                    "contactPhone",
+                    "total",
+                    "paymentMethod",
+                    "createdAt",
                 ]
                 .iter()
                 .map(|s| s.to_string())
@@ -1164,7 +1227,8 @@ pub fn valid_hex_color(s: &str) -> bool {
 /// Validate a slug (lowercase alphanumeric + dashes).
 pub fn valid_slug(s: &str) -> bool {
     !s.is_empty()
-        && s.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
         && !s.starts_with('-')
         && !s.ends_with('-')
 }

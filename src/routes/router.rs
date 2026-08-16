@@ -117,10 +117,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         )
         // ── Chat (REST fallback for WS) ────────────────────────────────
         .route("/chat/channels", get(crate::routes::chat::list_channels))
-        .route(
-            "/chat/channels",
-            post(crate::routes::chat::create_channel),
-        )
+        .route("/chat/channels", post(crate::routes::chat::create_channel))
         .route(
             "/chat/channels/{id}/messages",
             get(crate::routes::chat::list_messages),
@@ -142,10 +139,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         // ── Wishlist ───────────────────────────────────────────────────
         .route("/wishlist", get(crate::routes::wishlist::list))
         .route("/wishlist", post(crate::routes::wishlist::toggle))
-        .route(
-            "/wishlist/{id}",
-            delete(crate::routes::wishlist::remove),
-        )
+        .route("/wishlist/{id}", delete(crate::routes::wishlist::remove))
         // ── Admin namespace (requires AdminUser extractor) ──────────────
         // ── Admin — Brands ───────────────────────────────────────────────
         .route(
@@ -194,20 +188,14 @@ pub fn build_router(state: AppState) -> Router<()> {
             get(crate::routes::admin::list_bus_layouts),
         )
         // ── Admin — Reviews moderation ───────────────────────────────────
-        .route(
-            "/admin/reviews",
-            get(crate::routes::admin::list_reviews),
-        )
+        .route("/admin/reviews", get(crate::routes::admin::list_reviews))
         .route(
             "/admin/reviews/{id}",
             axum::routing::patch(crate::routes::admin::moderate_review)
                 .delete(crate::routes::admin::delete_review),
         )
         // ── Admin — Bookings ─────────────────────────────────────────────
-        .route(
-            "/admin/bookings",
-            get(crate::routes::admin::list_bookings),
-        )
+        .route("/admin/bookings", get(crate::routes::admin::list_bookings))
         .route(
             "/admin/bookings/{id}",
             get(crate::routes::admin::get_booking)

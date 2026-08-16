@@ -124,10 +124,7 @@ impl WishlistStore for DbWishlistStore {
     }
 
     #[store_macros::no_retry]
-    async fn insert(
-        &self,
-        model: wishlist_item::ActiveModel,
-    ) -> StoreResult<wishlist_item::Model> {
+    async fn insert(&self, model: wishlist_item::ActiveModel) -> StoreResult<wishlist_item::Model> {
         Ok(model.insert(self.db.as_ref()).await?)
     }
 

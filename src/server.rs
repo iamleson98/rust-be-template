@@ -20,12 +20,12 @@ use crate::service::{
 };
 use crate::state::AppState;
 use crate::store::{
-    CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore, CacheRefreshTokenStore,
-    CacheUserStore, CompositeStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
-    DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
-    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbNotificationStore,
-    DbWishlistStore, PostStore, RbacStore,
-    RefreshTokenStore, UserStore, BrandStore, ChatStore,
+    BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
+    CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAuditStore,
+    DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPlaceStore, DbPostStore,
+    DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore,
+    DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore, PostStore, RbacStore,
+    RefreshTokenStore, UserStore,
 };
 use crate::ws;
 

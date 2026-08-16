@@ -84,10 +84,7 @@ impl NotificationService {
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
         };
-        Ok(MarkNotificationsReadResponse {
-            ok: true,
-            updated,
-        })
+        Ok(MarkNotificationsReadResponse { ok: true, updated })
     }
 
     /// Insert a new notification (used by internal callers — booking

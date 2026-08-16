@@ -106,8 +106,7 @@ where
             .await
             .expect("cookie jar extractor never fails");
         let (access, _refresh) = extract_tokens(&jar);
-        let token = access
-            .ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
+        let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
         let session = auth
             .verify_access_token_session(&token)
             .await
