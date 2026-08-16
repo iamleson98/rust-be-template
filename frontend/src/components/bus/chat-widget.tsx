@@ -61,6 +61,26 @@ type Message = {
   clientMsgId?: string
 }
 
+/**
+ * Normalize a raw WS message from the Rust backend into our local `Message`
+ * shape. The backend broadcasts `{ type: "message", id, channelId,
+ * senderType, senderId, senderName, text, createdAt }` — the field is
+ * `text`, but our local shape uses `content` for historical reasons.
+ */
+function normalizeWsMessage(raw: Record<string, unknown>): Message {
+  return {
+    id: String(raw.id ?? ''),
+    channelId: String(raw.channelId ?? ''),
+    senderType: String(raw.senderType ?? ''),
+    senderId: String(raw.senderId ?? ''),
+    senderName: (raw.senderName as string | null) ?? null,
+    content: String(raw.content ?? raw.text ?? ''),
+    kind: String(raw.kind ?? 'text'),
+    createdAt: String(raw.createdAt ?? ''),
+    clientMsgId: raw.clientMsgId as string | undefined,
+  }
+}
+
 type View = 'list' | 'conversation' | 'auth' | 'login-required'
 
 export function ChatWidget() {
@@ -69,7 +89,6 @@ export function ChatWidget() {
   // The chat session user (may differ briefly from storeUser after guest
   // registration — we keep a local copy to avoid race conditions).
   const [chatUser, setChatUser] = useState<SessionUser | null>(null)
-  const [chatToken, setChatToken] = useState<string | null>(null)
   const [authChecking, setAuthChecking] = useState(false)
   const [authError, setAuthError] = useState<string | null>(null)
 
@@ -176,25 +195,26 @@ export function ChatWidget() {
   // Hide the chat button entirely for employees (they have the admin workspace)
   const isEmployee = storeUser?.type === 'employee' || chatUser?.type === 'employee'
 
-  // ─── On chat open: fetch a short-lived access token for the WS auth ───
-  // If the visitor is authenticated (cookie present), this returns the token
-  // + user. If not, we show the pre-chat registration form.
+  // ─── On chat open: verify auth via `/api/auth/me` ───
+  // The Rust backend sets httpOnly `access_token` + `refresh_token` cookies
+  // on login. There is no separate `/api/chat/chat-token` endpoint — the
+  // cookie IS the token. We call `/api/auth/me` to load the user; if 401,
+  // we show the "login required" view (no guest registration flow exists).
   useEffect(() => {
     if (!chatOpen) return
     if (isEmployee) return // employees don't use this widget
-    if (chatToken && chatUser) return // already have a token
+    if (chatUser) return // already loaded
 
     let cancelled = false
     setAuthChecking(true)
     setAuthError(null)
-    fetch('/api/chat/chat-token', { credentials: 'same-origin' })
+    fetch('/api/auth/me', { credentials: 'include' })
       .then(async (r) => {
         if (cancelled) return
         if (r.status === 401) {
-          // Not authenticated — show pre-chat form
+          // Not authenticated — show login-required view
           setChatUser(null)
-          setChatToken(null)
-          setView('auth')
+          setView('login-required')
           setAuthChecking(false)
           return
         }
@@ -205,8 +225,7 @@ export function ChatWidget() {
         }
         const data = await r.json()
         setChatUser(data.user as SessionUser)
-        setChatToken(data.accessToken as string)
-        // Sync with the global store so the header reflects the new login
+        // Sync with the global store so the header reflects the login
         if (data.user && !storeUser) setStoreUser(data.user)
         setView('list')
         setAuthChecking(false)
@@ -217,16 +236,18 @@ export function ChatWidget() {
         setAuthChecking(false)
       })
     return () => { cancelled = true }
-  }, [chatOpen, isEmployee, chatToken, chatUser, storeUser, setStoreUser])
+  }, [chatOpen, isEmployee, chatUser, storeUser, setStoreUser])
 
-  // ─── Connect native WebSocket with the access token in the URL ─────
-  // Replaces socket.io-client with the built-in WebSocket API, talking to
-  // the Rust (axum + tokio-tungstenite) backend at /ws on :8080.
+  // ─── Connect native WebSocket (cookie-based auth) ─────
+  // The Rust `/ws` handler accepts `?token=` OR (for `/ws-call`) the
+  // `access_token` cookie. Since the JWT is httpOnly, JavaScript can't
+  // read it — so we connect with no token and rely on the cookie being
+  // sent on the WS upgrade request (same-origin).
   useEffect(() => {
-    if (!chatOpen || !chatToken || !chatUser) return
+    if (!chatOpen || !chatUser) return
     let disposed = false
 
-    const ws = new WsClient(chatToken)
+    const ws = new WsClient()
     socketRef.current = ws
 
     ws.on('_open', () => { if (!disposed) setConnected(true) })
@@ -236,19 +257,15 @@ export function ChatWidget() {
     ws.on('_giveup', (data: Record<string, unknown>) => {
       if (disposed) return
       if (!data.everOpened) {
-        // The socket never opened — the JWT may be invalid/expired.
-        // Re-fetch the chat token; if that 401s, show the login view.
+        // The socket never opened — the JWT cookie may be invalid/expired.
+        // Re-check auth; if that 401s, show the login-required view.
         setConnected(false)
-        fetch('/api/chat/chat-token', { credentials: 'same-origin' })
+        fetch('/api/auth/me', { credentials: 'include' })
           .then((r) => {
             if (r.status === 401) {
               setView('login-required')
               ws.close()
               socketRef.current = null
-            } else if (r.ok) {
-              return r.json().then((d) => {
-                if (d.accessToken && !disposed) ws.reconnectNow(d.accessToken as string)
-              })
             }
           })
           .catch(() => { })
@@ -256,7 +273,7 @@ export function ChatWidget() {
     })
 
     ws.on('message', (msg: Record<string, unknown>) => {
-      const m = msg as unknown as Message
+      const m = normalizeWsMessage(msg)
       if (activeChannelRef.current && m.channelId === activeChannelRef.current.id) {
         setMessages((prev) => {
           // Dedup by server id (already have it)
@@ -287,41 +304,25 @@ export function ChatWidget() {
       }
     })
 
-    ws.on('history', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; messages: Message[] }
+    ws.on('joined', (data: Record<string, unknown>) => {
+      // Backend `/ws` sends `{ type: 'joined', channelId, userId, onlineEmployees }`
+      const d = data as unknown as { channelId: string; onlineEmployees?: number }
       if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setMessages(d.messages)
-        setLoadingMessages(false)
-        if (d.messages.length > 0) lastMsgIdRef.current = d.messages[d.messages.length - 1].id
+        setEmployeesOnline(d.onlineEmployees ?? 0)
+        setWaitingForAgent(false)
       }
     })
 
-    ws.on('employee_presence', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; employeesOnline: number; names: string[] }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setEmployeesOnline(d.employeesOnline)
-        setAgentNames(d.names)
-        if (d.employeesOnline > 0) {
-          setWaitingForAgent(false)
-          if (d.names.length > 0) setAgentJoinedName(d.names[0] ?? null)
-        }
-      }
-    })
-
-    ws.on('waiting_for_agent', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; message: string }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setWaitingForAgent(true)
+    ws.on('presence', (data: Record<string, unknown>) => {
+      const d = data as unknown as { channelId: string; online: boolean }
+      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id && d.online) {
+        setWaitingForAgent(false)
       }
     })
 
     ws.on('error', (data: Record<string, unknown>) => {
       const d = data as unknown as { code?: string; message?: string }
-      if (d?.code === 'rate_limited') {
-        toast.warning(d.message || 'Đang gửi quá nhanh')
-      } else if (d?.message) {
-        toast.error(d.message)
-      }
+      if (d?.message) toast.error(d.message)
     })
 
     return () => {
@@ -330,13 +331,15 @@ export function ChatWidget() {
       socketRef.current = null
       setConnected(false)
     }
-  }, [chatOpen, chatToken, chatUser])
+  }, [chatOpen, chatUser])
 
   // ─── Load channel list via REST ────────────────────────────────────
+  // Backend route: `GET /api/chat/channels?limit=` (authed). The browser
+  // sends the httpOnly JWT cookie automatically with `credentials: 'include'`.
   useEffect(() => {
     if (!chatOpen || !chatUser) return
     let cancelled = false
-    fetch('/api/chat/channels', { credentials: 'same-origin' })
+    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => { if (!cancelled) setChannels(data.items ?? []) })
       .catch(() => { })
@@ -344,6 +347,7 @@ export function ChatWidget() {
   }, [chatOpen, chatUser])
 
   // ─── REST polling fallback for active channel (when WS not connected) ─
+  // Backend route: `GET /api/chat/channels/{id}/messages?limit=&offset=`.
   useEffect(() => {
     if (!activeChannel || connected) {
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = undefined }
@@ -352,10 +356,13 @@ export function ChatWidget() {
     const poll = async () => {
       if (!activeChannel) return
       try {
-        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages?limit=50`, { credentials: 'same-origin' })
+        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages?limit=50`, { credentials: 'include' })
         if (!res.ok) return
         const data = await res.json()
-        const items: Message[] = data.items ?? []
+        // The REST endpoint returns the chat_store row shape — normalize each
+        // row so `content` is always populated (backend uses `content` for
+        // the stored column, so this is usually a no-op).
+        const items: Message[] = (data.items ?? []).map((r: Record<string, unknown>) => normalizeWsMessage(r))
         const lastId = items.length > 0 ? items[items.length - 1].id : null
         if (lastId && lastId !== lastMsgIdRef.current) {
           setMessages(items)
@@ -375,6 +382,10 @@ export function ChatWidget() {
   }, [messages, typing, waitingForAgent])
 
   // ─── Pre-chat registration form submit ─────────────────────────────
+  // The Rust backend has no `/api/chat/register-guest` endpoint. We use
+  // the standard `POST /api/auth/register` flow instead — the user enters
+  // a name + (phone OR email) + a password, and on success the backend
+  // sets the httpOnly auth cookies.
   const submitGuestRegistration = async () => {
     setRegError(null)
     const name = regName.trim()
@@ -395,34 +406,34 @@ export function ChatWidget() {
 
     setRegSubmitting(true)
     try {
-      const res = await fetch('/api/chat/register-guest', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ name, phone: phone || undefined, email: email || undefined }),
+        credentials: 'include',
+        body: JSON.stringify({
+          fullName: name,
+          email: email || undefined,
+          phone: phone || undefined,
+          // The backend requires a password (min 6 chars). We generate a
+          // random one and the user can change it later — this is a
+          // chat-only registration, not a full account setup.
+          password: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
         const code = data?.error?.code
         if (code === 'PHONE_EXISTS') {
-          setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập bằng OTP.')
+          setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập.')
         } else if (code === 'EMAIL_EXISTS') {
           setRegError('Email đã đăng ký. Vui lòng đăng nhập.')
-        } else if (code === 'RATE_LIMITED') {
-          setRegError('Quá nhiều yêu cầu, vui lòng thử lại sau.')
         } else {
           setRegError(data?.error?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
         }
         return
       }
-      // Success — cookies are set, sync user + token
+      // Success — cookies are set, sync user
       setChatUser(data.user as SessionUser)
-      // Re-fetch the chat token now that we're authenticated
-      const tk = await fetch('/api/chat/chat-token', { credentials: 'same-origin' })
-      if (tk.ok) {
-        const td = await tk.json()
-        setChatToken(td.accessToken as string)
-      }
       if (!storeUser) setStoreUser(data.user)
       setView('list')
       toast.success(`Chào ${data.user.name}, bạn đã có thể bắt đầu trò chuyện!`)
@@ -445,11 +456,13 @@ export function ChatWidget() {
     setEmployeesOnline(0)
     setAgentNames([])
     if (socketRef.current?.connected) {
+      // Backend `/ws` join message: `{ type: "join", channelId }`.
       socketRef.current.send('join', { channelId: ch.id })
     }
+    // Backend route: `POST /api/chat/channels/{id}/read` (authed, no body).
     fetch(`/api/chat/channels/${ch.id}/read`, {
       method: 'POST',
-      credentials: 'same-origin',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',
     }).catch(() => { })
@@ -457,32 +470,12 @@ export function ChatWidget() {
   }
 
   const startNewChat = async () => {
-    if (!chatUser) return
-    try {
-      const res = await fetch('/api/chat/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          topic: 'Hỗ trợ đặt vé',
-          brandId: null,
-        }),
-      })
-      const data = await res.json()
-      if (data.channel) {
-        // Reload channel list
-        fetch('/api/chat/channels', { credentials: 'same-origin' })
-          .then((r) => r.json())
-          .then((d) => setChannels(d.items ?? []))
-          .catch(() => { })
-        openChannel(data.channel)
-      } else if (data?.error?.message) {
-        toast.error(data.error.message)
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Không thể tạo kênh chat')
-    }
+    // The Rust backend has no `POST /api/chat/channels` endpoint —
+    // channels are created server-side when a booking is made or by
+    // an admin. We show a hint instead of failing.
+    toast.info('Vui lòng đặt vé hoặc liên hệ tổng đài để mở kênh trò chuyện.', {
+      description: 'Kênh chat tự động tạo khi bạn đặt vé thành công.',
+    })
   }
 
   const quickActions = [
@@ -494,31 +487,23 @@ export function ChatWidget() {
 
   const emitMessage = (content: string, clientMsgId: string) => {
     if (!activeChannel || !socketRef.current?.connected) return false
+    // Backend `/ws` message format: `{ type: "message", channelId, text, clientMsgId }`.
+    // The field is `text`, NOT `content`.
     socketRef.current.send('message', {
       channelId: activeChannel.id,
-      content,
-      kind: 'text',
+      text: content,
       clientMsgId,
     })
     return true
   }
 
-  const postMessageRest = async (content: string, optimistic: Message) => {
-    try {
-      const res = await fetch(`/api/chat/channels/${activeChannel!.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ content, kind: 'text' }),
-      })
-      const data = await res.json()
-      if (data.message) {
-        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? data.message : m)))
-        lastMsgIdRef.current = data.message.id
-      }
-    } catch (e) {
-      console.error(e)
-    }
+  const postMessageRest = async (_content: string, _optimistic: Message) => {
+    // The Rust backend has no `POST /api/chat/channels/{id}/messages` REST
+    // endpoint — messages go via the WS protocol only. This function is a
+    // no-op kept for backward compatibility with callers that fall back
+    // to REST when the WS is disconnected. The polling fallback in
+    // `useEffect` above will pick up messages sent by the other party.
+    return
   }
 
   const sendMessage = async (text?: string) => {

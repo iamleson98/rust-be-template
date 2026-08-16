@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -8,7 +8,6 @@ import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import {
   Form,
   FormField,
@@ -18,20 +17,15 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import {
-  phoneSchema,
   emailSchema,
   fullNameSchema,
-  otpSchema,
 } from '@/lib/forms'
 import { toast } from 'sonner'
 import {
-  Phone,
   ShieldCheck,
   Loader2,
   ChevronRight,
   Check,
-  RefreshCw,
-  KeyRound,
   Mail,
   Lock,
   Bus,
@@ -43,11 +37,16 @@ import {
   UserPlus,
   Eye,
   EyeOff,
+  Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Tab = 'customer' | 'register' | 'employee'
-type CustomerStep = 'phone' | 'otp' | 'success'
+// The customer login flow used to be OTP-based (`POST /api/auth/send-otp` +
+// `/api/auth/verify-otp`), but the Rust backend has no OTP endpoints — it
+// exposes `POST /api/auth/login` with `{ email, password }`. We use the
+// same form + flow shape but submit to the real endpoint.
+type CustomerStep = 'credentials' | 'success'
 
 export function LoginPage() {
   const { user } = useApp()
@@ -163,98 +162,58 @@ function TabButton({ active, onClick, icon, label }: { active: boolean; onClick:
   )
 }
 
-// ── Customer login (phone + OTP) ─────────────────────────
+// ── Customer login (email + password) ────────────────────
+// Backend route: `POST /api/auth/login` with body `{ email, password }`
+// (camelCase — matches `LoginRequest` in `src/routes/auth.rs`).
+// Response: `{ user: SessionUser, expiresAt }` + sets `access_token` /
+// `refresh_token` httpOnly cookies. We send `credentials: 'include'` so the
+// browser keeps the cookies for subsequent authenticated requests.
 const customerSchema = z.object({
-  phone: phoneSchema,
-  code: otpSchema,
+  email: emailSchema,
+  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
 })
 type CustomerFormValues = z.infer<typeof customerSchema>
 
 function CustomerLogin() {
   const { setUser, setGuestPhone } = useApp()
   const navigate = useNavigate()
-  const [step, setStep] = useState<CustomerStep>('phone')
-  const [sending, setSending] = useState(false)
-  const [verifying, setVerifying] = useState(false)
-  const [resendIn, setResendIn] = useState(0)
-  const [devHint, setDevHint] = useState('')
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [step, setStep] = useState<CustomerStep>('credentials')
+  const [loading, setLoading] = useState(false)
+  const [showPwd, setShowPwd] = useState(false)
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
-    defaultValues: { phone: '', code: '' },
+    defaultValues: { email: '', password: '' },
   })
-  const { control, trigger, watch, getValues } = form
-  const phone = watch('phone')
+  const { control, handleSubmit } = form
 
-  useEffect(() => {
-    if (resendIn <= 0) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-      return
-    }
-    timerRef.current = setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000)
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
-  }, [resendIn])
-
-  const sendOtp = async () => {
-    const ok = await trigger('phone')
-    if (!ok) return
-    setSending(true)
+  const onSubmit = async (values: CustomerFormValues) => {
+    setLoading(true)
     try {
-      const res = await fetch('/api/auth/send-otp', {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+        credentials: 'include',
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Không thể gửi mã OTP')
-        return
-      }
-      setStep('otp')
-      setResendIn(60)
-      if (data.devCode) {
-        setDevHint(data.devCode)
-        toast.info(`Mã demo: ${data.devCode}`, { description: 'Dùng mã này để xác thực thử (chỉ ở môi trường dev)' })
-      }
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const verifyOtp = async () => {
-    const ok = await trigger('code')
-    if (!ok) return
-    const codeValue = getValues('code')
-    setVerifying(true)
-    try {
-      const res = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: getValues('phone'), code: codeValue }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Xác thực thất bại')
+        toast.error(data.error?.message ?? data.error ?? 'Đăng nhập thất bại')
         return
       }
       setUser(data.user)
-      if (data.user.phone) setGuestPhone(data.user.phone)
+      if (data.user?.phone) setGuestPhone(data.user.phone)
       setStep('success')
-      toast.success('Đăng nhập thành công!')
+      toast.success(`Chào ${data.user?.name ?? 'bạn'}, đăng nhập thành công!`)
     } catch {
       toast.error('Lỗi mạng, vui lòng thử lại')
     } finally {
-      setVerifying(false)
+      setLoading(false)
     }
   }
 
@@ -279,125 +238,71 @@ function CustomerLogin() {
     )
   }
 
-  if (step === 'otp') {
-    return (
-      <Form {...form}>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Nhập mã OTP
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Mã đã gửi tới <span className="font-semibold text-foreground">{phone}</span>
-            </p>
-          </div>
-          <FormField
-            control={control}
-            name="code"
-            render={({ field }) => (
-              <FormItem className="space-y-1.5">
-                <div className="flex justify-center">
-                  <FormControl>
-                    <InputOTP
-                      value={field.value}
-                      onChange={field.onChange}
-                      maxLength={6}
-                      autoFocus
-                      onComplete={verifyOtp}
-                    >
-                      <InputOTPGroup>
-                        <InputOTPSlot index={0} className="h-12 w-12 first:rounded-l-lg last:rounded-r-md" />
-                        <InputOTPSlot index={1} className="h-12 w-12" />
-                        <InputOTPSlot index={2} className="h-12 w-12" />
-                        <InputOTPSlot index={3} className="h-12 w-12" />
-                        <InputOTPSlot index={4} className="h-12 w-12" />
-                        <InputOTPSlot index={5} className="h-12 w-12 last:rounded-r-lg" />
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </FormControl>
-                </div>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {devHint && (
-            <div className="rounded-lg bg-amber-50 ring-1 ring-amber-200 px-3 py-2 text-center">
-              <span className="text-xs text-amber-700">
-                Mã demo (dev): <span className="font-bold tracking-widest">{devHint}</span>
-              </span>
-            </div>
-          )}
-          <div className="flex items-center justify-between text-xs">
-            <button
-              type="button"
-              onClick={() => setStep('phone')}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              ← Đổi số
-            </button>
-            <button
-              type="button"
-              onClick={sendOtp}
-              disabled={resendIn > 0 || sending}
-              className="inline-flex items-center gap-1 text-blue-700 font-medium hover:text-blue-800 disabled:text-muted-foreground disabled:cursor-not-allowed"
-            >
-              <RefreshCw className={cn('h-3 w-3', sending && 'animate-spin')} />
-              {resendIn > 0 ? `Gửi lại sau ${resendIn}s` : 'Gửi lại mã'}
-            </button>
-          </div>
-          <Button
-            onClick={verifyOtp}
-            disabled={verifying}
-            className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-          >
-            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-            Xác thực
-          </Button>
-        </div>
-      </Form>
-    )
-  }
-
   return (
     <Form {...form}>
-      <div className="space-y-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <FormField
           control={control}
-          name="phone"
+          name="email"
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Số điện thoại <span className="text-destructive">*</span>
+                Email <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="VD: 0912345678"
-                    inputMode="tel"
+                    placeholder="email@example.com"
+                    type="email"
                     autoFocus
                     className="pl-10 h-11"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') sendOtp()
-                    }}
                   />
                 </FormControl>
               </div>
-              <p className="text-[11px] text-muted-foreground">
-                Chúng tôi sẽ gửi mã OTP 6 chữ số tới số này.
-              </p>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={control}
+          name="password"
+          render={({ field }) => (
+            <FormItem className="space-y-1.5">
+              <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Mật khẩu <span className="text-destructive">*</span>
+              </FormLabel>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="••••••••"
+                    type={showPwd ? 'text' : 'password'}
+                    className="pl-10 pr-10 h-11"
+                  />
+                </FormControl>
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((s) => !s)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <FormMessage />
             </FormItem>
           )}
         />
         <Button
-          onClick={sendOtp}
-          disabled={sending}
+          type="submit"
+          disabled={loading}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-          Gửi mã OTP
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          Đăng nhập
           <ChevronRight className="h-4 w-4" />
         </Button>
 
@@ -420,7 +325,7 @@ function CustomerLogin() {
             </div>
           </div>
         </div>
-      </div>
+      </form>
     </Form>
   )
 }
@@ -483,6 +388,7 @@ function RegisterForm() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           fullName: values.fullName,
           email: values.email || undefined,
@@ -717,6 +623,7 @@ function EmployeeLogin() {
       const res = await fetch('/api/auth/employee-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: values.email, password: values.password }),
       })
       const data = await res.json()

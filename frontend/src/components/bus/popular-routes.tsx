@@ -55,7 +55,16 @@ export const PopularRoutes = memo(function PopularRoutes() {
       queryClient.prefetchQuery({
         queryKey: queryKeys.trips.search(params),
         queryFn: async () => {
-          const sp = new URLSearchParams({ ...params, adults: '1', children: '0', sort: 'departure' })
+          // Backend `GET /api/search` accepts (snake_case): from, to, date,
+          // limit, vehicle_types, sort, min_seats. `apiJson` already sends
+          // `credentials: 'include'`.
+          const sp = new URLSearchParams({
+            from,
+            to,
+            date,
+            sort: 'departure',
+            min_seats: '1',
+          })
           return apiJson(`/api/search?${sp}`)
         },
         staleTime: 30 * 1000,

@@ -78,12 +78,13 @@ export function MapView() {
   // flyTo trigger — `key` forces re-fly even if coords are the same
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number; key: number } | null>(null)
 
-  // ── Fetch places + routes ────────────────────────────────
+  // ── Fetch places + routes ────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     Promise.all([
-      fetch('/api/places?limit=50').then((r) => r.json()),
-      fetch('/api/routes').then((r) => r.json()),
+      // Backend routes: `GET /api/places?limit=` + `GET /api/routes`.
+      fetch('/api/places?limit=50', { credentials: 'include' }).then((r) => r.json()),
+      fetch('/api/routes', { credentials: 'include' }).then((r) => r.json()),
     ])
       .then(([p, r]) => {
         if (cancelled) return

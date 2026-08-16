@@ -24,13 +24,22 @@ type Handler = (data: Record<string, unknown>) => void
  *
  * The SPA is served from the Rust backend (default :8080), so the WS
  * endpoint is on the same host/port as the page — just upgrade to ws(s).
+ *
+ * Auth: the Rust `/ws` handler accepts `?token=<jwt>` OR (for `/ws-call`)
+ * the `access_token` cookie. We pass an explicit `token` when one is
+ * available, but the browser also sends the httpOnly cookie automatically
+ * on the WS upgrade request (same-origin), so connecting without a token
+ * works for users who logged in via `/api/auth/login`.
  */
-function buildWsUrl(token: string): string {
+function buildWsUrl(token?: string | null): string {
   if (typeof window === 'undefined') {
-    return `ws://localhost:8080/ws?token=${encodeURIComponent(token)}`
+    // SSR / prerender — emit a placeholder URL; never actually connects.
+    const base = 'ws://localhost:8080/ws'
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base
   }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
+  const base = `${proto}//${window.location.host}/ws`
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base
 }
 
 export class WsClient {
@@ -56,7 +65,7 @@ export class WsClient {
     this.connect()
   }
 
-  constructor(token: string) {
+  constructor(token?: string | null) {
     this.url = buildWsUrl(token)
     // When the browser regains connectivity (e.g. after sleep / wifi toggle),
     // reconnect immediately instead of waiting out the backoff timer. Without

@@ -100,16 +100,31 @@ const PAGE_SIZE = 5
  * reviews for the brand (not just the first 20).
  */
 type BrandAggregateResponse = {
-  avgRating: number
-  count: number
-  distribution: number[]
+  // The backend returns `{ items: Review[] }` from `GET /api/reviews`.
+  // We compute the aggregate fields client-side from those items.
+  items?: { rating?: number }[]
+  // Legacy fields kept for backward compat (not present in the response).
+  avgRating?: number
+  count?: number
+  distribution?: number[]
   tags?: Record<string, unknown>
 }
 
 /**
- * Tag-stats response shape returned by `/api/reviews/tags?routeId=Y`.
+ * Tag-stats response shape returned by `/api/reviews/tags`.
  */
 type TagStatsResponse = { items: TagStat[] }
+
+/** Compute the 5-bucket distribution from raw review items. */
+function computeDistribution(reviews: { rating?: number }[]): number[] {
+  const dist = [0, 0, 0, 0, 0]
+  for (const r of reviews) {
+    if (typeof r.rating !== 'number') continue
+    const idx = Math.max(0, Math.min(4, r.rating - 1))
+    dist[idx] += 1
+  }
+  return dist
+}
 
 export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandName, routeName, accentColor = '#2563eb' }: Props) {
   const [page, setPage] = useState(1)
@@ -134,32 +149,41 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
   // ── Brand-wide aggregate (avg + 5-bucket distribution) ──
-  // Fetched from a separate endpoint because the list endpoint returns
-  // only the first 20 rows — not enough to compute an accurate mean.
+  // Backend `GET /api/reviews` returns `{ items: [...] }` — no aggregate
+  // shape. We compute the avg + distribution client-side from the items
+  // we fetched. (The previous `?aggregate=1` query param was ignored by
+  // the backend and the response shape was wrong anyway.)
   const aggregateQuery = useQuery<BrandAggregateResponse>({
     queryKey: ['reviews', 'aggregate', 'brand', brandId],
-    queryFn: () => apiJson(`/api/reviews?brandId=${encodeURIComponent(brandId)}&aggregate=1`),
+    queryFn: () => apiJson(`/api/reviews?brandId=${encodeURIComponent(brandId)}&limit=200`),
     enabled: !!brandId,
     staleTime: 60 * 1000,
   })
   const aggregate: Aggregate | null = aggregateQuery.data
     ? {
-      avgRating: aggregateQuery.data.avgRating,
-      count: aggregateQuery.data.count,
-      distribution: aggregateQuery.data.distribution,
+      avgRating:
+        aggregateQuery.data.items && aggregateQuery.data.items.length > 0
+          ? aggregateQuery.data.items.reduce((s, r) => s + (r.rating ?? 0), 0) /
+            aggregateQuery.data.items.length
+          : 0,
+      count: aggregateQuery.data.items?.length ?? 0,
+      distribution: computeDistribution(aggregateQuery.data.items ?? []),
     }
     : null
 
   // ── Tag aggregate (route-scoped) ────────────────────────
-  // Top praised features for this specific route. Used to render the
-  // "Đặc điểm được khen nhiều" section above the review list.
+  // Top praised features for this specific route. Backend `GET /api/reviews/tags`
+  // takes NO params — returns the global tag index. We filter client-side
+  // by routeId if the items carry it.
   const tagStatsQuery = useQuery<TagStatsResponse>({
     queryKey: ['reviews', 'tags', 'route', routeId],
-    queryFn: () => apiJson(`/api/reviews/tags?routeId=${encodeURIComponent(routeId)}`),
+    queryFn: () => apiJson('/api/reviews/tags'),
     enabled: !!routeId,
     staleTime: 60 * 1000,
   })
-  const tagStats: TagStat[] = tagStatsQuery.data?.items ?? []
+  const tagStats: TagStat[] = (tagStatsQuery.data?.items ?? []).filter(
+    (t) => !('routeId' in t) || (t as { routeId?: string }).routeId === routeId,
+  )
 
   // Total review count — prefer the backend's `total` field (it counts all
   // matching reviews, not just the first 20). Fall back to the items length

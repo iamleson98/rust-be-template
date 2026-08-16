@@ -60,7 +60,9 @@ export function Hero() {
   }, [computeCountdown])
 
   useEffect(() => {
-    fetch('/api/stats')
+    // Backend route: `GET /api/stats` (no params). Send `credentials:
+    // 'include'` so the httpOnly JWT cookie is attached.
+    fetch('/api/stats', { credentials: 'include' })
       .then((r) => r.json())
       .then(setStats)
       .catch(() => {})

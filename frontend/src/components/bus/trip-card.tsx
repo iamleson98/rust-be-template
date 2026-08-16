@@ -98,7 +98,10 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
     queryClient.prefetchQuery({
       queryKey: queryKeys.trips.detail(trip.tripId),
       queryFn: async () => {
-        const res = await fetch(`/api/trips/${trip.tripId}`)
+        // Backend route: `GET /api/trips/{id}`. Send credentials so the
+        // httpOnly JWT cookie is attached (although the endpoint is public,
+        // authed users may get richer data).
+        const res = await fetch(`/api/trips/${trip.tripId}`, { credentials: 'include' })
         if (!res.ok) throw new Error('Failed to prefetch trip')
         return res.json()
       },

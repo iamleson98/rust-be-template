@@ -154,11 +154,13 @@ export function MyBookings() {
   const bookingsLoaded = !!bookingsData
 
   // Reviews: lazy-loaded only when the user opens the "Đánh giá" tab.
+  // The backend `GET /api/reviews` filters by `userId=` — pass the current
+  // user's id so we only get this user's reviews.
   const {
     data: reviewsData,
     isLoading: reviewsLoading,
     refetch: refetchReviews,
-  } = useMyReviews({ enabled: isUserLoggedIn && userTab === 'reviews' })
+  } = useMyReviews({ enabled: isUserLoggedIn && userTab === 'reviews', userId: user?.id })
   const userReviews: ReviewItem[] = (reviewsData?.items ?? []) as unknown as ReviewItem[]
 
   // Guest lookup: TanStack Query driven by `submittedLookup`.

@@ -370,13 +370,14 @@ export function BookingDialog() {
     setCheckingCampaign(true)
     setCampaignResult(null)
     try {
+      // Backend route: `GET /api/campaigns/validate?code=&subtotal=` (i64).
+      // The backend `CampaignValidateQuery` only accepts `code` + `subtotal`;
+      // `brandId` and `childCount` are ignored, so we don't send them.
       const params = new URLSearchParams({
         code: campaignCode.trim(),
         subtotal: String(subtotal),
-        brandId: trip.brand.id,
-        childCount: String(searchParams.children),
       })
-      const res = await fetch(`/api/campaigns/validate?${params}`)
+      const res = await fetch(`/api/campaigns/validate?${params}`, { credentials: 'include' })
       const data = await res.json()
       setCampaignResult(data)
       if (data.valid) {
@@ -410,41 +411,48 @@ export function BookingDialog() {
     }
     setSubmitting(true)
     try {
+      // Backend route: `POST /api/bookings/hold` (alias of `POST /api/bookings`).
+      // Body is `HoldReq` — snake_case. `passengers[].type` matches
+      // `#[serde(rename = "type")]`; extra fields like `gender`/`seatId`
+      // are ignored by serde. Send `credentials: 'include'` so the booking
+      // is attached to the logged-in user (or treated as guest).
       const res = await fetch('/api/bookings/hold', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          tripId: bookingContext.tripId,
-          seatIds: bookingContext.seatIds,
+          trip_id: bookingContext.tripId,
+          seat_ids: bookingContext.seatIds,
           passengers: values.passengers.map((p) => ({
             name: p.name,
             type: getPassengerType(p.age),
             age: p.age,
-            gender: p.gender,
-            seatId: p.seatId,
           })),
-          boardingPointId: bookingContext.boardingPointId,
-          droppingPointId: bookingContext.droppingPointId,
-          contactName: values.contactName,
-          contactPhone: normalizePhone(values.contactPhone),
-          contactEmail: values.contactEmail || undefined,
-          campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+          boarding_point_id: bookingContext.boardingPointId,
+          dropping_point_id: bookingContext.droppingPointId,
+          contact_name: values.contactName,
+          contact_phone: normalizePhone(values.contactPhone),
+          contact_email: values.contactEmail || undefined,
+          campaign_code: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
         }),
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Không thể đặt chỗ')
+        setError(data.error?.message ?? data.error ?? 'Không thể đặt chỗ')
         return
       }
-      // Simulate payment success by confirming
+      // Backend returns `{ bookingId, code, total, ... }` (camelCase) from `hold()`.
+      // Confirm the booking via `POST /api/bookings/{id}/confirm` with
+      // body `{ payment_method }` (snake_case — matches `ConfirmReq`).
       const confirmRes = await fetch(`/api/bookings/${data.bookingId}/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMethod }),
+        credentials: 'include',
+        body: JSON.stringify({ payment_method: paymentMethod }),
       })
       const confirmData = await confirmRes.json()
       if (!confirmRes.ok) {
-        setError(confirmData.error || 'Thanh toán thất bại')
+        setError(confirmData.error?.message ?? confirmData.error ?? 'Thanh toán thất bại')
         return
       }
       setLastBooking({ id: data.bookingId, code: data.code, total: data.total })

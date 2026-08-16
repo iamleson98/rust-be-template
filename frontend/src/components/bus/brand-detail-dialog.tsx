@@ -155,15 +155,17 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
   // ── Tag aggregate (brand-wide) ───────────────────────────
-  // Top praised features for this brand. Fetched separately because the
-  // reviews-list endpoint returns raw review rows, not aggregates.
+  // Backend `GET /api/reviews/tags` takes NO params — returns the global
+  // tag index. We filter client-side by brandId if the items carry it.
   const tagStatsQuery = useQuery<TagStatsResponse>({
     queryKey: ['reviews', 'tags', 'brand', brand?.id ?? ''],
-    queryFn: () => apiJson(`/api/reviews/tags?brandId=${encodeURIComponent(brand!.id)}`),
+    queryFn: () => apiJson('/api/reviews/tags'),
     enabled: !!brand?.id,
     staleTime: 60 * 1000,
   })
-  const tagStats: TagStat[] = tagStatsQuery.data?.items ?? []
+  const tagStats: TagStat[] = (tagStatsQuery.data?.items ?? []).filter(
+    (t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id,
+  )
 
   // ── Brand routes (filtered client-side from the popular routes cache) ──
   // The `/api/routes` endpoint doesn't support brand filtering, but each

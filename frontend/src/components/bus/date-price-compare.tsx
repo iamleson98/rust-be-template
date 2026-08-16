@@ -113,15 +113,20 @@ export function DatePriceCompare() {
     const fetchOne = async (d: DatePrice): Promise<{ date: string; price: number | null }> => {
       if (d.isPast) return { date: d.date, price: null }
       try {
+        // Backend `GET /api/search` accepts (snake_case): from, to, date,
+        // limit, vehicle_types, sort, min_seats. Send `credentials:
+        // 'include'` so the httpOnly JWT cookie is attached.
         const params = new URLSearchParams({
           from,
           to,
           date: d.date,
-          adults: String(adults || 1),
-          children: String(children || 0),
           sort: 'price',
+          min_seats: String((adults || 1) + (children || 0)),
         })
-        const res = await fetch(`/api/search?${params}`, { signal: controller.signal })
+        const res = await fetch(`/api/search?${params}`, {
+          signal: controller.signal,
+          credentials: 'include',
+        })
         if (!res.ok) throw new Error('API error')
         const data = await res.json()
         const items: { minPrice: number }[] = data.items ?? []

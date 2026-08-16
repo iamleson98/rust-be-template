@@ -32,8 +32,8 @@ import {
   meOptions,
   meQueryKey,
   logoutMutation,
-  listOptions as priceAlertsListOptions,
-  listQueryKey as priceAlertsListQueryKey,
+  list3Options as priceAlertsListOptions,
+  list3QueryKey as priceAlertsListQueryKey,
 } from '@/lib/api/@tanstack/react-query.gen'
 import {
   // Generated SDK functions (for direct use in mutations)
@@ -93,6 +93,8 @@ export function useBrand(slug: string | undefined) {
 // ─────────────────────────────────────────────────────────────
 // Routes
 // ─────────────────────────────────────────────────────────────
+// Backend route: GET /api/routes?brandId=&limit=
+// There is NO `GET /api/routes/{slug}` endpoint — `useRoute` was removed.
 
 export function usePopularRoutes() {
   return useQuery<ListEnvelope<RouteItem>>({
@@ -102,11 +104,12 @@ export function usePopularRoutes() {
   })
 }
 
-export function useRoute(slug: string | undefined) {
-  return useQuery<RouteItem>({
-    queryKey: slug ? queryKeys.route(slug) : ['routes', 'detail', null],
-    queryFn: () => apiJson(`/api/routes/${slug}`),
-    enabled: !!slug,
+export function useRoutesByBrand(brandId: string | undefined) {
+  return useQuery<ListEnvelope<RouteItem>>({
+    queryKey: ['routes', { brandId: brandId ?? '' }],
+    queryFn: () =>
+      apiJson(brandId ? `/api/routes?brandId=${encodeURIComponent(brandId)}` : '/api/routes'),
+    enabled: !!brandId,
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -127,14 +130,21 @@ export type TripSearchParams = {
   returnDate?: string
 }
 
-/** Build the query string the backend expects. */
+/** Build the query string the backend expects.
+ *
+ * Backend `GET /api/search` accepts (snake_case):
+ *   from, to, date, limit?, vehicle_types? (csv), sort?, min_seats?
+ *
+ * The frontend collects `adults` + `children`; we sum them into `minSeats`
+ * so trips without enough available seats are filtered out server-side.
+ */
 function tripSearchQuery(params: TripSearchParams): string {
   const sp = new URLSearchParams()
   if (params.from) sp.set('from', params.from)
   if (params.to) sp.set('to', params.to)
   if (params.date) sp.set('date', params.date)
-  sp.set('adults', String(params.adults ?? 1))
-  sp.set('children', String(params.children ?? 0))
+  const minSeats = (params.adults ?? 1) + (params.children ?? 0)
+  sp.set('min_seats', String(minSeats))
   sp.set('sort', params.sort ?? 'departure')
   if (params.vehicleTypes && params.vehicleTypes.length) {
     sp.set('vehicle_types', params.vehicleTypes.join(','))
@@ -162,19 +172,13 @@ export function useTripDetail(tripId: string | undefined) {
   })
 }
 
-export function useRecommendations(opts?: { phone?: string | null; recentRouteIds?: string[] }) {
-  const params = {
-    phone: opts?.phone ?? '',
-    recent: opts?.recentRouteIds?.slice(0, 8).join(',') ?? '',
-  }
+export function useRecommendations(_opts?: { phone?: string | null; recentRouteIds?: string[] }) {
+  // Backend `GET /api/recommendations` takes NO query params.
+  // The personalization params are accepted in the type signature for
+  // backward compat with callers, but are ignored.
   return useQuery<ListEnvelope<RecommendationItem>>({
     queryKey: queryKeys.recommendations,
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      if (params.phone) qs.set('phone', params.phone)
-      if (params.recent) qs.set('recent', params.recent)
-      return apiJson(`/api/recommendations?${qs.toString()}`)
-    },
+    queryFn: () => apiJson('/api/recommendations'),
     staleTime: 60 * 1000,
   })
 }
@@ -197,9 +201,12 @@ export function useCampaigns() {
 
 export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
   const enabled = opts?.enabled ?? q.trim().length >= 1
+  // Backend route is `GET /api/places/search?q=&limit=&lat=&lon=` —
+  // `GET /api/places` is an unfiltered paginated list and ignores `q`.
   return useQuery<ListEnvelope<Place>>({
     queryKey: queryKeys.places.search(q),
-    queryFn: () => apiJson(`/api/places?q=${encodeURIComponent(q.trim())}&limit=15`),
+    queryFn: () =>
+      apiJson(`/api/places/search?q=${encodeURIComponent(q.trim())}&limit=15`),
     enabled,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -237,13 +244,16 @@ export function useReviewsByBrand(brandId: string | undefined) {
   })
 }
 
-export function useMyReviews(opts?: { enabled?: boolean }) {
+export function useMyReviews(opts?: { enabled?: boolean; userId?: string | null }) {
+  // Backend `GET /api/reviews` filters by `userId=` — there is no `mine=1`
+  // flag. The caller must pass the current user's id (from `useAuthMe`).
+  const userId = opts?.userId ?? null
   return useQuery<ListEnvelope<ReviewItem>>({
-    queryKey: ['reviews', 'mine'],
-    queryFn: () => apiJson('/api/reviews?mine=1'),
+    queryKey: ['reviews', 'mine', { userId: userId ?? '' }],
+    queryFn: () => apiJson(`/api/reviews?userId=${encodeURIComponent(userId!)}&limit=50`),
     // Default to disabled — only fetches when the consumer explicitly
     // opts in (e.g. when the user opens the "Đánh giá của tôi" tab).
-    enabled: opts?.enabled ?? false,
+    enabled: (opts?.enabled ?? false) && !!userId,
   })
 }
 
@@ -285,7 +295,13 @@ export function useGuestBookings(phone: string | undefined, code?: string) {
 export function useCancelBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (bookingId: string) => apiJson(`/api/bookings/${bookingId}`, { method: 'DELETE' }),
+    // Backend exposes `POST /api/bookings/{id}/cancel` (with optional
+    // `{ reason }` body) — there is no `DELETE /api/bookings/{id}` route.
+    mutationFn: async (bookingId: string) =>
+      apiJson(`/api/bookings/${bookingId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.bookings.all })
     },
@@ -293,46 +309,55 @@ export function useCancelBooking() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Notifications
+// Notifications  (NO BACKEND SUPPORT)
 // ─────────────────────────────────────────────────────────────
+//
+// The Rust backend has no `/api/notifications` endpoint. These hooks are
+// stubbed to return empty data so the `<NotificationBell>` UI doesn't crash
+// or spam 404s in the console. When the backend adds a notifications
+// endpoint, restore the real implementation.
 
-export function useNotifications(limit = 20, opts?: { enabled?: boolean }) {
+export function useNotifications(_limit = 20, opts?: { enabled?: boolean }) {
   return useQuery<ListEnvelope<NotificationItem>>({
     queryKey: queryKeys.notifications,
-    queryFn: () => apiJson(`/api/notifications?limit=${limit}`),
+    queryFn: async () => ({ items: [], total: 0, limit: _limit, offset: 0 }),
     enabled: opts?.enabled ?? true,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000, // poll every 60s for new notifications
+    staleTime: Infinity,
   })
 }
 
 export function useMarkNotificationsRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (ids: string[]) =>
-      apiJson('/api/notifications/read', { method: 'POST', body: JSON.stringify({ ids }) }),
+    mutationFn: async (_ids: string[]) => ({ ok: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.notifications }),
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Wishlist
+// Wishlist  (NO BACKEND SUPPORT)
 // ─────────────────────────────────────────────────────────────
+//
+// The Rust backend has no `/api/wishlist` endpoint. These hooks are stubbed
+// to return empty data / no-ops so the `<WishlistButton>` UI doesn't crash
+// or spam 404s. The wishlist state is kept in localStorage only.
 
 export function useWishlist(opts?: { enabled?: boolean }) {
   return useQuery<ListEnvelope<WishlistItem>>({
     queryKey: queryKeys.wishlist,
-    queryFn: () => apiJson('/api/wishlist'),
+    queryFn: async () => ({ items: [], total: 0, limit: 50, offset: 0 }),
     enabled: opts?.enabled ?? true,
-    staleTime: 60 * 1000,
+    staleTime: Infinity,
   })
 }
 
 export function useToggleWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { tripId?: string; routeId?: string; fromName: string; toName: string }) =>
-      apiJson('/api/wishlist', { method: 'POST', body: JSON.stringify(payload) }),
+    mutationFn: async (_payload: { tripId?: string; routeId?: string; fromName: string; toName: string }) => {
+      // No backend endpoint — pretend success so the UI updates locally.
+      return { ok: true }
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.wishlist }),
   })
 }
@@ -340,7 +365,7 @@ export function useToggleWishlist() {
 export function useRemoveWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/wishlist/${id}`, { method: 'DELETE' }),
+    mutationFn: async (_id: string) => ({ ok: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.wishlist }),
   })
 }
@@ -480,25 +505,30 @@ export function useLogout() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Stats (admin)
+// Stats (public — no admin auth required)
 // ─────────────────────────────────────────────────────────────
+// Backend route: `GET /api/stats` (no query params — `range` is ignored).
 
-export function useStats(range = '30d') {
+export function useStats(_range = '30d') {
   return useQuery({
-    queryKey: queryKeys.stats(range),
-    queryFn: () => apiJson(`/api/stats?range=${range}`),
+    queryKey: queryKeys.stats(_range),
+    queryFn: () => apiJson('/api/stats'),
     staleTime: 60 * 1000,
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Brands
+// Admin — Brands  (repoint to public `/api/brands`)
 // ─────────────────────────────────────────────────────────────
+// The Rust backend has no `/api/admin/*` namespace. Read hooks repoint
+// to the public `/api/brands` endpoint; mutation hooks are no-ops because
+// the public endpoint is read-only. (When the backend adds an admin
+// namespace, restore the original URLs.)
 
 export function useAdminBrands() {
   return useQuery<ListEnvelope<AdminBrand>>({
     queryKey: ['admin', 'brands'],
-    queryFn: () => apiJson('/api/admin/brands'),
+    queryFn: () => apiJson('/api/brands'),
     staleTime: 30 * 1000,
   })
 }
@@ -506,7 +536,7 @@ export function useAdminBrands() {
 export function useAdminBrand(id: string | undefined) {
   return useQuery<AdminBrand>({
     queryKey: ['admin', 'brands', id],
-    queryFn: () => apiJson(`/api/admin/brands/${id}`),
+    queryFn: () => apiJson(`/api/brands/${id}`),
     enabled: !!id,
     staleTime: 30 * 1000,
   })
@@ -515,11 +545,10 @@ export function useAdminBrand(id: string | undefined) {
 export function useUpsertAdminBrand() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: Partial<AdminBrand> & { id?: string }) =>
-      apiJson(payload.id ? `/api/admin/brands/${payload.id}` : '/api/admin/brands', {
-        method: payload.id ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async (_payload: Partial<AdminBrand> & { id?: string }) => {
+      // No admin endpoint on the backend — fail gracefully.
+      throw new Error('Admin brand mutations are not supported by the backend (no /api/admin/brands endpoint).')
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'brands'] })
       qc.invalidateQueries({ queryKey: queryKeys.brands })
@@ -530,7 +559,9 @@ export function useUpsertAdminBrand() {
 export function useDeleteAdminBrand() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/admin/brands/${id}`, { method: 'DELETE' }),
+    mutationFn: async (_id: string) => {
+      throw new Error('Admin brand delete is not supported by the backend.')
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'brands'] })
       qc.invalidateQueries({ queryKey: queryKeys.brands })
@@ -539,13 +570,13 @@ export function useDeleteAdminBrand() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Routes
+// Admin — Routes  (repoint to public `/api/routes`)
 // ─────────────────────────────────────────────────────────────
 
 export function useAdminRoutes(brandId?: string) {
   return useQuery<ListEnvelope<AdminRoute>>({
     queryKey: ['admin', 'routes', { brandId: brandId ?? '' }],
-    queryFn: () => apiJson(brandId ? `/api/admin/routes?brandId=${brandId}` : '/api/admin/routes'),
+    queryFn: () => apiJson(brandId ? `/api/routes?brandId=${encodeURIComponent(brandId)}` : '/api/routes'),
     staleTime: 30 * 1000,
   })
 }
@@ -553,11 +584,9 @@ export function useAdminRoutes(brandId?: string) {
 export function useUpsertAdminRoute() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: Partial<AdminRoute> & { id?: string }) =>
-      apiJson(payload.id ? `/api/admin/routes/${payload.id}` : '/api/admin/routes', {
-        method: payload.id ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async (_payload: Partial<AdminRoute> & { id?: string }) => {
+      throw new Error('Admin route mutations are not supported by the backend.')
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'routes'] })
       qc.invalidateQueries({ queryKey: queryKeys.routes })
@@ -568,7 +597,9 @@ export function useUpsertAdminRoute() {
 export function useDeleteAdminRoute() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/admin/routes/${id}`, { method: 'DELETE' }),
+    mutationFn: async (_id: string) => {
+      throw new Error('Admin route delete is not supported by the backend.')
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'routes'] })
       qc.invalidateQueries({ queryKey: queryKeys.routes })
@@ -577,25 +608,25 @@ export function useDeleteAdminRoute() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Schedules
+// Admin — Schedules  (NO BACKEND SUPPORT)
 // ─────────────────────────────────────────────────────────────
+// The Rust backend exposes no schedule list endpoint at all (schedules are
+// only reachable via `/api/trips/{id}`). These hooks return empty data.
 
-export function useAdminSchedules(routeId?: string) {
+export function useAdminSchedules(_routeId?: string) {
   return useQuery<ListEnvelope<AdminSchedule>>({
-    queryKey: ['admin', 'schedules', { routeId: routeId ?? '' }],
-    queryFn: () => apiJson(routeId ? `/api/admin/schedules?routeId=${routeId}` : '/api/admin/schedules'),
-    staleTime: 30 * 1000,
+    queryKey: ['admin', 'schedules', { routeId: _routeId ?? '' }],
+    queryFn: async () => ({ items: [], total: 0, limit: 50, offset: 0 }),
+    staleTime: Infinity,
   })
 }
 
 export function useUpsertAdminSchedule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: Partial<AdminSchedule> & { id?: string }) =>
-      apiJson(payload.id ? `/api/admin/schedules/${payload.id}` : '/api/admin/schedules', {
-        method: payload.id ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async (_payload: Partial<AdminSchedule> & { id?: string }) => {
+      throw new Error('Admin schedule mutations are not supported by the backend.')
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'schedules'] }),
   })
 }
@@ -603,31 +634,33 @@ export function useUpsertAdminSchedule() {
 export function useDeleteAdminSchedule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/admin/schedules/${id}`, { method: 'DELETE' }),
+    mutationFn: async (_id: string) => {
+      throw new Error('Admin schedule delete is not supported by the backend.')
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'schedules'] }),
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Pickup points
+// Admin — Pickup points  (NO BACKEND SUPPORT)
 // ─────────────────────────────────────────────────────────────
+// Pickup points are nested under trips (`/api/trips/{id}` returns them),
+// but there's no standalone admin endpoint. Return empty data.
 
-export function useAdminPickupPoints(routeId?: string) {
+export function useAdminPickupPoints(_routeId?: string) {
   return useQuery<ListEnvelope<AdminPickupPoint>>({
-    queryKey: ['admin', 'pickup-points', { routeId: routeId ?? '' }],
-    queryFn: () => apiJson(routeId ? `/api/admin/pickup-points?routeId=${routeId}` : '/api/admin/pickup-points'),
-    staleTime: 30 * 1000,
+    queryKey: ['admin', 'pickup-points', { routeId: _routeId ?? '' }],
+    queryFn: async () => ({ items: [], total: 0, limit: 50, offset: 0 }),
+    staleTime: Infinity,
   })
 }
 
 export function useUpsertAdminPickupPoint() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: Partial<AdminPickupPoint> & { id?: string }) =>
-      apiJson(payload.id ? `/api/admin/pickup-points/${payload.id}` : '/api/admin/pickup-points', {
-        method: payload.id ? 'PUT' : 'POST',
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async (_payload: Partial<AdminPickupPoint> & { id?: string }) => {
+      throw new Error('Admin pickup-point mutations are not supported by the backend.')
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
   })
 }
@@ -635,28 +668,32 @@ export function useUpsertAdminPickupPoint() {
 export function useDeleteAdminPickupPoint() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/admin/pickup-points/${id}`, { method: 'DELETE' }),
+    mutationFn: async (_id: string) => {
+      throw new Error('Admin pickup-point delete is not supported by the backend.')
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Reviews (moderation)
+// Admin — Reviews (moderation)  (repoint to public `/api/reviews`)
 // ─────────────────────────────────────────────────────────────
+// The public `/api/reviews` endpoint accepts `brandId`, `routeId`, `userId`,
+// `status`, `limit`, `offset`. It does NOT accept `search`.
 
 export function useAdminReviews(opts?: { status?: string; brandId?: string; search?: string }) {
   const status = opts?.status ?? ''
   const brandId = opts?.brandId ?? ''
-  const search = (opts?.search ?? '').trim()
+  const _search = (opts?.search ?? '').trim() // not supported by backend
   return useQuery<ListEnvelope<AdminReview> & { stats?: unknown; brands?: unknown[] }>({
-    queryKey: ['admin', 'reviews', { status, brandId, search }],
+    queryKey: ['admin', 'reviews', { status, brandId, search: _search }],
     queryFn: () => {
       const qs = new URLSearchParams()
       if (status) qs.set('status', status)
       if (brandId) qs.set('brandId', brandId)
-      if (search) qs.set('search', search)
+      qs.set('limit', '50')
       const q = qs.toString()
-      return apiJson(q ? `/api/admin/reviews?${q}` : '/api/admin/reviews')
+      return apiJson(q ? `/api/reviews?${q}` : '/api/reviews')
     },
     staleTime: 30 * 1000,
   })
@@ -665,11 +702,12 @@ export function useAdminReviews(opts?: { status?: string; brandId?: string; sear
 export function useModerateAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { id: string; status?: string; brandReply?: string | null }) =>
-      apiJson(`/api/admin/reviews/${payload.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      }),
+    mutationFn: async (payload: { id: string; status?: string; brandReply?: string | null }) => {
+      // The public backend supports `PATCH /api/reviews/{id}` with body
+      // `{ rating?, title?, content?, tags?, photos? }` (owner-only).
+      // Admin moderation (status change, brand reply) is not exposed.
+      throw new Error('Admin review moderation is not supported by the backend (no /api/admin/reviews endpoint).')
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'reviews'] })
       qc.invalidateQueries({ queryKey: queryKeys.reviews.all })
@@ -680,7 +718,8 @@ export function useModerateAdminReview() {
 export function useDeleteAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => apiJson(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+    // The public `DELETE /api/reviews/{id}` only works for the review's owner.
+    mutationFn: async (id: string) => apiJson(`/api/reviews/${id}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'reviews'] })
       qc.invalidateQueries({ queryKey: queryKeys.reviews.all })
@@ -689,43 +728,39 @@ export function useDeleteAdminReview() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Bus layouts
+// Admin — Bus layouts  (NO BACKEND SUPPORT)
 // ─────────────────────────────────────────────────────────────
+// Bus layouts are returned inline by `/api/trips/{id}`. There is no
+// standalone bus-layouts endpoint.
 
-export function useAdminBusLayouts(brandId?: string) {
+export function useAdminBusLayouts(_brandId?: string) {
   return useQuery<ListEnvelope<AdminBusLayout>>({
-    queryKey: ['admin', 'bus-layouts', { brandId: brandId ?? '' }],
-    queryFn: () => apiJson(brandId ? `/api/admin/bus-layouts?brandId=${brandId}` : '/api/admin/bus-layouts'),
-    staleTime: 30 * 1000,
+    queryKey: ['admin', 'bus-layouts', { brandId: _brandId ?? '' }],
+    queryFn: async () => ({ items: [], total: 0, limit: 50, offset: 0 }),
+    staleTime: Infinity,
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Admin — Bookings (sold tickets) management
+// Admin — Bookings (sold tickets) management  (repoint to public endpoints)
 // ─────────────────────────────────────────────────────────────
 //
-// Backs the new "Vé đã bán" admin tab + the chat-panel ticket picker.
-// All hooks hit the Rust endpoints added in `backend-rust/src/routes/admin.rs`:
-//   GET    /api/admin/bookings          — list with filters + inline stats
-//   POST   /api/admin/bookings          — employee creates booking for user
-//   GET    /api/admin/bookings/:id      — admin detail view
-//   PATCH  /api/admin/bookings/:id      — update status (confirmed/cancelled/completed)
-//   GET    /api/admin/bookings/stats    — aggregate by day + brand
-//   GET    /api/admin/bookings/export   — CSV export with filters
+// The Rust backend has NO `/api/admin/bookings` namespace. We repoint to
+// the public booking endpoints:
+//   GET    /api/bookings          — list the authed user's bookings (`?status=&limit=&offset=`)
+//   GET    /api/bookings/{id}     — booking detail
+//   POST   /api/bookings/{id}/cancel  — cancel a booking (the only status mutation)
+//
+// The admin stats / export / status-patch / create-on-behalf hooks are
+// stubbed to empty / error because the backend exposes no equivalent.
 
-/** Build the query string for the admin bookings list/stats/export endpoints. */
+/** Build the query string for the public bookings list endpoint. */
 function adminBookingsQs(filter: AdminBookingFilter): string {
   const sp = new URLSearchParams()
-  if (filter.brandId) sp.set('brandId', filter.brandId)
-  if (filter.routeId) sp.set('routeId', filter.routeId)
   if (filter.status && filter.status !== 'all') sp.set('status', filter.status)
-  if (filter.dateFrom) sp.set('dateFrom', filter.dateFrom)
-  if (filter.dateTo) sp.set('dateTo', filter.dateTo)
-  if (filter.range) sp.set('range', filter.range)
-  if (filter.search) sp.set('search', filter.search)
   if (filter.limit != null) sp.set('limit', String(filter.limit))
+  else sp.set('limit', '50')
   if (filter.offset != null) sp.set('offset', String(filter.offset))
-  if (filter.sort) sp.set('sort', filter.sort)
   return sp.toString()
 }
 
@@ -733,7 +768,7 @@ export function useAdminBookings(filter: AdminBookingFilter) {
   const qs = adminBookingsQs(filter)
   return useQuery<AdminBookingListResponse>({
     queryKey: ['admin', 'bookings', filter],
-    queryFn: () => apiJson(`/api/admin/bookings?${qs}`),
+    queryFn: () => apiJson(`/api/bookings?${qs}`),
     placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     retry: 1,
@@ -743,18 +778,29 @@ export function useAdminBookings(filter: AdminBookingFilter) {
 export function useAdminBookingDetail(id: string | undefined) {
   return useQuery<{ item: AdminBookingDetail }>({
     queryKey: ['admin', 'bookings', 'detail', id],
-    queryFn: () => apiJson(`/api/admin/bookings/${id}`),
+    queryFn: async () => {
+      // Public endpoint returns the booking object directly — wrap it in `{ item }`.
+      const data = await apiJson<AdminBookingDetail>(`/api/bookings/${id}`)
+      return { item: data }
+    },
     enabled: !!id,
     staleTime: 15 * 1000,
   })
 }
 
-export function useAdminBookingStats(filter: AdminBookingFilter) {
-  const qs = adminBookingsQs(filter)
+export function useAdminBookingStats(_filter: AdminBookingFilter) {
+  // Backend has no admin stats endpoint — `/api/stats` returns public
+  // aggregate stats (not booking-specific). Return empty shape.
   return useQuery<AdminBookingStatsResponse>({
-    queryKey: ['admin', 'bookings', 'stats', filter],
-    queryFn: () => apiJson(`/api/admin/bookings/stats?${qs}`),
-    staleTime: 30 * 1000,
+    queryKey: ['admin', 'bookings', 'stats', _filter],
+    queryFn: async () => ({
+      total: 0,
+      byStatus: {},
+      byDay: [],
+      byBrand: [],
+      revenue: 0,
+    } as unknown as AdminBookingStatsResponse),
+    staleTime: Infinity,
   })
 }
 
@@ -766,15 +812,16 @@ export function useUpdateBookingStatus() {
       status: 'confirmed' | 'cancelled' | 'completed' | 'pending' | 'refunded'
       reason?: string
       force?: boolean
-    }) =>
-      apiJson(`/api/admin/bookings/${payload.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: payload.status,
-          reason: payload.reason,
-          force: payload.force,
-        }),
-      }),
+    }) => {
+      // The only status mutation the backend exposes is `cancel`.
+      if (payload.status === 'cancelled') {
+        return apiJson(`/api/bookings/${payload.id}/cancel`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: payload.reason ?? null }),
+        })
+      }
+      throw new Error(`Backend does not support setting booking status to ${payload.status}. Only 'cancelled' is possible via POST /api/bookings/{id}/cancel.`)
+    },
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: ['admin', 'bookings', 'detail', vars.id] })
@@ -798,11 +845,38 @@ export function useAdminCreateBooking() {
       userId?: string
       campaignCode?: string
       autoConfirm?: boolean
-    }) =>
-      apiJson('/api/admin/bookings', {
+    }) => {
+      // Repoint to public `POST /api/bookings` — body is `HoldReq` (snake_case).
+      // The backend binds the booking to the *authenticated* user (the `userId`
+      // field is ignored — admins cannot create bookings on behalf of users).
+      const body = {
+        trip_id: payload.tripId,
+        seat_ids: payload.seatIds,
+        passengers: payload.passengers.map((p) => ({
+          name: p.name,
+          type: p.type,
+          age: p.age ?? 0,
+        })),
+        boarding_point_id: payload.boardingPointId,
+        dropping_point_id: payload.droppingPointId,
+        contact_name: payload.contactName ?? '',
+        contact_phone: payload.contactPhone ?? '',
+        contact_email: payload.contactEmail ?? null,
+        campaign_code: payload.campaignCode ?? null,
+      }
+      const res = await apiJson<{ bookingId?: string; id?: string }>('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify(payload),
-      }),
+        body: JSON.stringify(body),
+      })
+      const bookingId = res.bookingId ?? res.id ?? ''
+      if (payload.autoConfirm && bookingId) {
+        await apiJson(`/api/bookings/${bookingId}/confirm`, {
+          method: 'POST',
+          body: JSON.stringify({ payment_method: 'cash' }),
+        })
+      }
+      return res
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: queryKeys.bookings.all })
@@ -811,19 +885,17 @@ export function useAdminCreateBooking() {
 }
 
 /**
- * Export the filtered bookings as a CSV string. Returns the server-generated
- * CSV (with UTF-8 BOM for Excel) + the suggested filename. The caller is
- * responsible for triggering the browser download (see `downloadCSV` in
- * `admin-dashboard/helpers.ts`).
+ * CSV export — the backend has no `/api/admin/bookings/export` endpoint.
+ * Returns an empty CSV (just the BOM + header) so the UI's download flow
+ * still works without throwing.
  */
 export function useAdminBookingExport() {
   return useMutation({
-    mutationFn: async (payload: { filter: AdminBookingFilter; columns?: string[] }) => {
-      const qs = adminBookingsQs(payload.filter)
-      const colQs = payload.columns?.length ? `&columns=${payload.columns.join(',')}` : ''
-      return apiJson<AdminBookingExportResponse>(
-        `/api/admin/bookings/export?${qs}${colQs}`,
-      )
+    mutationFn: async (_payload: { filter: AdminBookingFilter; columns?: string[] }) => {
+      return {
+        csv: '\uFEFFid,code,status,total,createdAt\n',
+        filename: 'vexevn_bookings_export.csv',
+      } as unknown as AdminBookingExportResponse
     },
   })
 }

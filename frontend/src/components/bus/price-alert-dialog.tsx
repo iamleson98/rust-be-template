@@ -101,8 +101,6 @@ export function PriceAlertDialog() {
   // Create-alert mutation — wraps POST /api/price-alerts and invalidates
   // the price-alerts cache on success so the existing-alerts list refreshes.
   const createAlertMut = useCreatePriceAlert()
-  // Guest lookup of existing alerts by phone (public endpoint).
-  const phoneQuery = usePriceAlerts(phone)
   // Cancel (soft-delete) an existing alert.
   const removeAlertMut = useRemovePriceAlert()
 
@@ -126,6 +124,11 @@ export function PriceAlertDialog() {
   const phone = watch('phone')
   const targetPrice = watch('targetPrice')
   const frequency = watch('frequency')
+
+  // Guest lookup of existing alerts by phone (public endpoint).
+  // Declared after `phone` is available — `usePriceAlerts` passes it as a
+  // query param to `GET /api/price-alerts?phone=`.
+  const phoneQuery = usePriceAlerts(phone)
 
   // Pre-fill phone from guest profile when it becomes available
   useEffect(() => {

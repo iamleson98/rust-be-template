@@ -62,9 +62,12 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const [sending, setSending] = useState(false)
 
   useEffect(() => {
-    // Chat channels endpoint has no TanStack Query hook (admin-only,
-    // rarely used) — keep the original manual fetch.
-    fetch('/api/chat/channels?role=employee&employeeId=any')
+    // Backend route: `GET /api/chat/channels?limit=` (authed). The backend
+    // returns the authed user's channels — there's no `role`/`employeeId`
+    // filter (those query params are ignored by axum). An admin sees their
+    // own channels; to see all customer chats, the backend would need an
+    // admin-scoped endpoint (not currently implemented).
+    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => setChannels(d.items ?? []))
       .catch(() => {})
@@ -82,7 +85,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const openChatWorkspace = useCallback(async (channel: Channel) => {
     setActiveChannel(channel)
     try {
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`)
+      // Backend route: `GET /api/chat/channels/{id}/messages?limit=`.
+      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`, { credentials: 'include' })
       const data = await res.json()
       setChatMessages((data.items ?? []) as ChatMessage[])
     } catch {
@@ -94,23 +98,14 @@ export const AdminDashboard = memo(function AdminDashboard() {
     if (!replyText.trim() || !activeChannel) return
     setSending(true)
     try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          senderType: 'employee',
-          senderId: 'emp-1',
-          senderName: 'CSKH VeXeVN',
-          content: replyText.trim(),
-          kind: 'text',
-        }),
+      // The Rust backend has NO `POST /api/chat/channels/{id}/messages`
+      // REST endpoint — messages must go via the WS protocol. The admin
+      // dashboard doesn't currently maintain a WS connection in this file,
+      // so we surface a clear error. To restore REST message posting, the
+      // backend would need to expose the endpoint (currently WS-only).
+      toast.error('Gửi tin nhắn không khả dụng — backend chỉ hỗ trợ WebSocket.', {
+        description: 'Vui lòng kết nối qua kênh WS /ws để trả lời khách.',
       })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message])
-        setReplyText('')
-        toast.success('Đã gửi phản hồi')
-      }
     } catch {
       toast.error('Không thể gửi tin nhắn')
     } finally {
@@ -131,30 +126,11 @@ export const AdminDashboard = memo(function AdminDashboard() {
    * immediately as a beautiful ticket card in the conversation.
    */
   const sendTicketCard = useCallback(
-    async (payload: import('./chat-ticket-picker').CreatedTicketPayload) => {
+    async (_payload: import('./chat-ticket-picker').CreatedTicketPayload) => {
+      // The Rust backend has no `POST /api/chat/channels/{id}/messages` REST
+      // endpoint — see `sendReply` above. Ticket cards must be sent via WS.
       if (!activeChannel) return
-      const attachments = JSON.stringify(payload)
-      try {
-        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            senderType: 'employee',
-            senderId: 'emp-1',
-            senderName: 'CSKH VeXeVN',
-            content: `Đã đặt vé ${payload.bookingCode} cho bạn`,
-            kind: 'ticket',
-            attachments,
-          }),
-        })
-        const data = await res.json()
-        if (data.message) {
-          setChatMessages((prev) => [...prev, data.message as ChatMessage])
-        }
-      } catch {
-        // Silently fail — the booking was already created; the chat message
-        // is just a notification. The employee can manually paste the code.
-      }
+      toast.error('Gửi thẻ vé không khả dụng — backend chỉ hỗ trợ WebSocket.')
     },
     [activeChannel],
   )
