@@ -7,11 +7,12 @@
 //! - Owns: Valhalla URL resolution, request-body construction, HTTP forwarding,
 //!   response parsing. No DB access (pure proxy to Valhalla).
 //! - Uses a shared `reqwest::Client` for connection pooling.
-//! - Returns `serde_json::Value` DTOs (no HTTP types).
+//! - Returns typed DTOs from [`crate::dto::routing`] (no `serde_json::Value`).
 
 use serde_json::{json, Value};
 
 use crate::config::Config;
+use crate::dto::routing::{DirectionsResponse, IsochroneResponse, MatrixResponse};
 use crate::error::{AppError, AppResult};
 
 pub struct RoutingService {
@@ -77,7 +78,7 @@ impl RoutingService {
         costing: &str,
         language: &str,
         locations: &[(f64, f64)],
-    ) -> AppResult<Value> {
+    ) -> AppResult<DirectionsResponse> {
         if locations.len() < 2 {
             return Err(AppError::BadRequest(
                 "at least 2 locations required".into(),
@@ -109,12 +110,12 @@ impl RoutingService {
             .get("shape")
             .and_then(|s| s.as_str())
             .map(|s| s.to_string());
-        Ok(json!({
-            "valhalla": trip,
-            "shape": shape,
-            "distanceKm": distance_km,
-            "timeMin": time_min,
-        }))
+        Ok(DirectionsResponse {
+            valhalla: trip,
+            shape,
+            distance_km,
+            time_min,
+        })
     }
 
     /// Many-to-many travel time / distance matrix.
@@ -123,7 +124,7 @@ impl RoutingService {
         costing: &str,
         sources: &[(f64, f64)],
         targets: &[(f64, f64)],
-    ) -> AppResult<Value> {
+    ) -> AppResult<MatrixResponse> {
         if sources.is_empty() || targets.is_empty() {
             return Err(AppError::BadRequest(
                 "at least 1 source and 1 target required".into(),
@@ -169,10 +170,10 @@ impl RoutingService {
                 distances_km.push(d_row);
             }
         }
-        Ok(json!({
-            "timesMin": times_min,
-            "distancesKm": distances_km,
-        }))
+        Ok(MatrixResponse {
+            times_min,
+            distances_km,
+        })
     }
 
     /// Reachability polygons (isochrones).
@@ -181,7 +182,7 @@ impl RoutingService {
         costing: &str,
         center: (f64, f64),
         contours_min: &[u32],
-    ) -> AppResult<Value> {
+    ) -> AppResult<IsochroneResponse> {
         if contours_min.is_empty() {
             return Err(AppError::BadRequest(
                 "at least 1 contour time required".into(),
@@ -198,6 +199,6 @@ impl RoutingService {
             "polygons": true,
         });
         let v = self.call_valhalla("/isochrone", body).await?;
-        Ok(json!({ "geojson": v }))
+        Ok(IsochroneResponse { geojson: v })
     }
 }

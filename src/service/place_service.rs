@@ -9,12 +9,13 @@
 //!   is available (built via `import-osm`), fulltext search + reverse
 //!   geocoding use it for Vietnamese-aware, diacritic-insensitive matching.
 //! - Falls back to store `LIKE` queries when no index is configured.
-//! - Returns `serde_json::Value` DTOs (no HTTP types).
+//! - Returns typed DTOs from [`crate::dto::place`] (no `serde_json::Value`).
 
 use std::sync::Arc;
 
-use serde_json::{json, Value};
-
+use crate::dto::place::{
+    PlaceListResponse, PlaceOut, PlaceReverseResponse, PlaceSearchHit, PlaceSearchResponse,
+};
 use crate::error::{AppError, AppResult};
 use crate::osm::searcher::PlaceSearcher;
 use crate::store::CompositeStore;
@@ -51,7 +52,7 @@ impl PlaceService {
     // ── List ────────────────────────────────────────────────────
 
     /// List the most popular places (for the map view).
-    pub async fn list(&self, limit: u64, offset: u64) -> AppResult<Value> {
+    pub async fn list(&self, limit: u64, offset: u64) -> AppResult<PlaceListResponse> {
         let limit = limit.clamp(1, 200);
         let offset = offset.max(0);
         let places = self.store.place_store()
@@ -59,21 +60,19 @@ impl PlaceService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = places
+        let items = places
             .iter()
-            .map(|p| {
-                json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "type": p.r#type,
-                    "province": p.province,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                    "population": p.population,
-                })
+            .map(|p| PlaceOut {
+                id: p.id,
+                name: p.name.clone(),
+                kind: p.r#type.clone(),
+                province: p.province.clone(),
+                lat: p.lat,
+                lon: p.lon,
+                population: p.population,
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(PlaceListResponse { items })
     }
 
     // ── Search (basic LIKE-based autocomplete) ──────────────────
@@ -89,10 +88,10 @@ impl PlaceService {
         limit: u64,
         lat: Option<f64>,
         lon: Option<f64>,
-    ) -> AppResult<Value> {
+    ) -> AppResult<PlaceSearchResponse> {
         let q_trim = query.trim();
         if q_trim.is_empty() {
-            return Ok(json!({ "items": [] }));
+            return Ok(PlaceSearchResponse { items: Vec::new(), engine: None });
         }
         let limit = limit.clamp(1, 50);
 
@@ -101,26 +100,29 @@ impl PlaceService {
             let results = searcher
                 .search(q_trim, limit as usize)
                 .map_err(|e| AppError::Internal(format!("place search: {e}")))?;
-            let items: Vec<Value> = results
+            let items = results
                 .into_iter()
-                .map(|r| {
-                    json!({
-                        "osmId": r.id,
-                        "name": r.name,
-                        "placeKind": r.place_kind,
-                        "houseNumber": r.house_number,
-                        "ward": r.ward,
-                        "district": r.district,
-                        "city": r.city,
-                        "province": r.province,
-                        "lat": r.lat,
-                        "lon": r.lon,
-                        "score": r.score,
-                        "distanceKm": r.distance_km,
-                    })
+                .map(|r| PlaceSearchHit {
+                    id: None,
+                    osm_id: Some(r.id),
+                    name: r.name,
+                    place_kind: Some(r.place_kind),
+                    kind: None,
+                    house_number: r.house_number,
+                    ward: r.ward,
+                    district: r.district,
+                    city: r.city,
+                    province: r.province,
+                    lat: r.lat,
+                    lon: r.lon,
+                    score: Some(r.score),
+                    distance_km: r.distance_km,
                 })
                 .collect();
-            return Ok(json!({ "items": items, "engine": "tantivy" }));
+            return Ok(PlaceSearchResponse {
+                items,
+                engine: Some("tantivy".to_string()),
+            });
         }
 
         // ── SQL LIKE fallback ─────────────────────────────────────────────
@@ -154,24 +156,27 @@ impl PlaceService {
             });
         }
 
-        let items: Vec<Value> = places
+        let items = places
             .into_iter()
             .take(limit as usize)
-            .map(|p| {
-                json!({
-                    "id": p.id,
-                    "osmId": p.osm_id,
-                    "name": p.name,
-                    "type": p.r#type,
-                    "province": p.province,
-                    "district": p.district,
-                    "ward": p.ward,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                })
+            .map(|p| PlaceSearchHit {
+                id: Some(p.id),
+                osm_id: p.osm_id.into(),
+                name: p.name,
+                place_kind: None,
+                kind: Some(p.r#type),
+                house_number: None,
+                ward: p.ward,
+                district: p.district,
+                city: None,
+                province: p.province,
+                lat: Some(p.lat),
+                lon: Some(p.lon),
+                score: None,
+                distance_km: None,
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(PlaceSearchResponse { items, engine: None })
     }
 
     // ── Reverse geocode ─────────────────────────────────────────
@@ -185,7 +190,7 @@ impl PlaceService {
         lat: f64,
         lon: f64,
         limit: u64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<PlaceReverseResponse> {
         let limit = limit.clamp(1, 50);
 
         // ── Tantivy reverse-geocode path (preferred) ──────────────────────
@@ -193,24 +198,26 @@ impl PlaceService {
             let results = searcher
                 .reverse_geocode(lat, lon, limit as usize)
                 .map_err(|e| AppError::Internal(format!("reverse geocode: {e}")))?;
-            let items: Vec<Value> = results
+            let items = results
                 .into_iter()
-                .map(|r| {
-                    json!({
-                        "osmId": r.id,
-                        "name": r.name,
-                        "placeKind": r.place_kind,
-                        "ward": r.ward,
-                        "district": r.district,
-                        "city": r.city,
-                        "province": r.province,
-                        "lat": r.lat,
-                        "lon": r.lon,
-                        "distanceKm": r.distance_km,
-                    })
+                .map(|r| PlaceSearchHit {
+                    id: None,
+                    osm_id: Some(r.id),
+                    name: r.name,
+                    place_kind: Some(r.place_kind),
+                    kind: None,
+                    house_number: None,
+                    ward: r.ward,
+                    district: r.district,
+                    city: r.city,
+                    province: r.province,
+                    lat: r.lat,
+                    lon: r.lon,
+                    score: None,
+                    distance_km: r.distance_km,
                 })
                 .collect();
-            return Ok(Value::Array(items));
+            return Ok(items);
         }
 
         // ── SQL bounding-box fallback ─────────────────────────────────────
@@ -219,7 +226,7 @@ impl PlaceService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let mut with_dist: Vec<(_,_)> = places
+        let mut with_dist: Vec<(_, _)> = places
             .into_iter()
             .map(|p| {
                 let d = haversine_km(lat, lon, p.lat, p.lon);
@@ -228,24 +235,27 @@ impl PlaceService {
             .collect();
         with_dist.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        let items: Vec<Value> = with_dist
+        let items = with_dist
             .into_iter()
             .take(limit as usize)
-            .map(|(p, dist)| {
-                json!({
-                    "osmId": p.osm_id,
-                    "name": p.name,
-                    "placeType": p.r#type,
-                    "province": p.province,
-                    "district": p.district,
-                    "ward": p.ward,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                    "distanceKm": (dist * 10.0).round() / 10.0, // 1 decimal
-                })
+            .map(|(p, dist)| PlaceSearchHit {
+                id: Some(p.id),
+                osm_id: p.osm_id.into(),
+                name: p.name,
+                place_kind: None,
+                kind: Some(p.r#type),
+                house_number: None,
+                ward: p.ward,
+                district: p.district,
+                city: None,
+                province: p.province,
+                lat: Some(p.lat),
+                lon: Some(p.lon),
+                score: None,
+                distance_km: Some((dist * 10.0).round() / 10.0), // 1 decimal
             })
             .collect();
-        Ok(Value::Array(items))
+        Ok(items)
     }
 }
 
