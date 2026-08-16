@@ -77,7 +77,11 @@ impl MigrationTrait for Migration {
         for (pid, _) in &perm_ids {
             let stmt = sea_orm::sea_query::Query::insert()
                 .into_table(RolePermissions::Table)
-                .columns([RolePermissions::RoleId, RolePermissions::PermissionId, RolePermissions::AssignedAt])
+                .columns([
+                    RolePermissions::RoleId,
+                    RolePermissions::PermissionId,
+                    RolePermissions::AssignedAt,
+                ])
                 .values_panic([
                     admin_id.into(),
                     (*pid).into(),
@@ -93,7 +97,11 @@ impl MigrationTrait for Migration {
             if allowed {
                 let stmt = sea_orm::sea_query::Query::insert()
                     .into_table(RolePermissions::Table)
-                    .columns([RolePermissions::RoleId, RolePermissions::PermissionId, RolePermissions::AssignedAt])
+                    .columns([
+                        RolePermissions::RoleId,
+                        RolePermissions::PermissionId,
+                        RolePermissions::AssignedAt,
+                    ])
                     .values_panic([
                         user_id.into(),
                         (*pid).into(),

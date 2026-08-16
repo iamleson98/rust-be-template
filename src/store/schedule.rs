@@ -25,7 +25,10 @@ pub trait ScheduleStore: Send + Sync {
 
     async fn find_schedule_by_id(&self, id: Uuid) -> StoreResult<Option<schedule::Model>>;
     async fn list_schedules_by_route(&self, route_id: &str) -> StoreResult<Vec<schedule::Model>>;
-    async fn list_schedules_by_routes(&self, route_ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>>;
+    async fn list_schedules_by_routes(
+        &self,
+        route_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<schedule::Model>>;
     async fn insert_schedule(&self, model: schedule::ActiveModel) -> StoreResult<()>;
     async fn update_schedule(&self, model: schedule::ActiveModel) -> StoreResult<schedule::Model>;
     async fn delete_schedule(&self, id: Uuid) -> StoreResult<()>;
@@ -73,7 +76,10 @@ impl ScheduleStore for DbScheduleStore {
             .await?)
     }
 
-    async fn list_schedules_by_routes(&self, route_ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>> {
+    async fn list_schedules_by_routes(
+        &self,
+        route_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<schedule::Model>> {
         Ok(schedule::Entity::find()
             .filter(schedule::Column::RouteId.is_in(route_ids))
             .all(self.db.as_ref())
@@ -110,9 +116,7 @@ impl ScheduleStore for DbScheduleStore {
     }
 
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>> {
-        Ok(bus_layout::Entity::find()
-            .all(self.db.as_ref())
-            .await?)
+        Ok(bus_layout::Entity::find().all(self.db.as_ref()).await?)
     }
 
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize> {

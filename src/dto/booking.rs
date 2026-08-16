@@ -113,7 +113,11 @@ pub struct BookingTripPreview {
     #[serde(rename = "busLayout", skip_serializing_if = "Option::is_none")]
     pub bus_layout: Option<BookingBusLayoutPreview>,
     /// Present on the detail payload (not the list payload).
-    #[serde(rename = "pickupPoints", skip_serializing_if = "Vec::is_empty", default)]
+    #[serde(
+        rename = "pickupPoints",
+        skip_serializing_if = "Vec::is_empty",
+        default
+    )]
     pub pickup_points: Vec<PickupPointOut>,
 }
 

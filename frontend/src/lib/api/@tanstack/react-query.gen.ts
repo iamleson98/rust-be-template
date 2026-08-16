@@ -4,7 +4,7 @@ import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOption
 
 import { client } from '../client.gen';
 import { brandDetail, brands, campaigns, cancel, confirm, create, create2, createPost, deletePost, deleteUser, detail, directions, employeeLogin, get, getPost, getUser, health, hold, isochrone, list, list2, list3, list4, listChannels, listExchanges, listMessages, listPosts, listUsers, login, logout, lookup, markRead, matrix, me, type Options, ready, recommendations, refresh, register, remove, remove2, reverse, routes, search, searchTrips, stats, status, tags, tripDetail, update, updatePost, validateCampaign } from '../sdk.gen';
-import type { BrandDetailData, BrandsData, CampaignsData, CancelData, ConfirmData, Create2Data, CreateData, CreatePostData, CreatePostResponse, CreateResponse, DeletePostData, DeletePostResponse, DeleteUserData, DeleteUserResponse, DetailData, DirectionsData, EmployeeLoginData, EmployeeLoginResponse, GetData, GetPostData, GetPostResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, IsochroneData, List2Data, List3Data, List3Response, List4Data, ListChannelsData, ListData, ListExchangesData, ListMessagesData, ListPostsData, ListPostsResponse2, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, MarkReadData, MatrixData, MeData, MeResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, RemoveData, RemoveResponse, ReverseData, RoutesData, SearchData, SearchTripsData, StatsData, StatusData, TagsData, TripDetailData, UpdateData, UpdatePostData, UpdatePostResponse, ValidateCampaignData } from '../types.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, CreateData, CreatePostData, CreatePostResponse, CreateResponse, DeletePostData, DeletePostResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, GetData, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, ListChannelsData, ListData, ListExchangesData, ListMessagesData, ListPostsData, ListPostsResponse2, ListResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkReadData, MatrixData, MatrixResponse2, MeData, MeResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, RemoveData, RemoveResponse, ReverseData, ReverseResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, StatsData, StatsResponse2, StatusData, TagsData, TagsResponse, TripDetailData, TripDetailResponse, UpdateData, UpdatePostData, UpdatePostResponse, UpdateResponse, ValidateCampaignData, ValidateCampaignResponse } from '../types.gen';
 
 /**
  * `POST /api/auth/employee-login` — employee-only login (rejects regular users).
@@ -147,7 +147,7 @@ export const listQueryKey = (options?: Options<ListData>) => createQueryKey('lis
 /**
  * `GET /api/bookings` — list the authenticated user's bookings.
  */
-export const listOptions = (options?: Options<ListData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof listQueryKey>>({
+export const listOptions = (options?: Options<ListData>) => queryOptions<ListResponse, DefaultError, ListResponse, ReturnType<typeof listQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await list({
             ...options,
@@ -195,7 +195,7 @@ export const listInfiniteQueryKey = (options?: Options<ListData>): QueryKey<Opti
  * `GET /api/bookings` — list the authenticated user's bookings.
  */
 export const listInfiniteOptions = (options?: Options<ListData>) => {
-    const opts = infiniteQueryOptions<unknown, DefaultError, InfiniteData<unknown>, QueryKey<Options<ListData>>, number | null | Pick<QueryKey<Options<ListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<ListResponse, DefaultError, InfiniteData<ListResponse>, QueryKey<Options<ListData>>, number | null | Pick<QueryKey<Options<ListData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -222,8 +222,8 @@ export const listInfiniteOptions = (options?: Options<ListData>) => {
 /**
  * `POST /api/bookings` and `POST /api/bookings/hold` — hold seats for a booking.
  */
-export const holdMutation = (options?: Partial<Options<HoldData>>): UseMutationOptions<unknown, DefaultError, Options<HoldData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<HoldData>> = {
+export const holdMutation = (options?: Partial<Options<HoldData>>): UseMutationOptions<HoldResponse, DefaultError, Options<HoldData>> => {
+    const mutationOptions: UseMutationOptions<HoldResponse, DefaultError, Options<HoldData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await hold({
                 ...options,
@@ -241,7 +241,7 @@ export const lookupQueryKey = (options?: Options<LookupData>) => createQueryKey(
 /**
  * `GET /api/bookings/lookup` — lookup a booking by phone or code.
  */
-export const lookupOptions = (options?: Options<LookupData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof lookupQueryKey>>({
+export const lookupOptions = (options?: Options<LookupData>) => queryOptions<LookupResponse, DefaultError, LookupResponse, ReturnType<typeof lookupQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await lookup({
             ...options,
@@ -259,7 +259,7 @@ export const detailQueryKey = (options: Options<DetailData>) => createQueryKey('
 /**
  * `GET /api/bookings/{id}` — get booking detail.
  */
-export const detailOptions = (options: Options<DetailData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof detailQueryKey>>({
+export const detailOptions = (options: Options<DetailData>) => queryOptions<DetailResponse, DefaultError, DetailResponse, ReturnType<typeof detailQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await detail({
             ...options,
@@ -275,8 +275,8 @@ export const detailOptions = (options: Options<DetailData>) => queryOptions<unkn
 /**
  * `POST /api/bookings/{id}/cancel` — cancel a booking.
  */
-export const cancelMutation = (options?: Partial<Options<CancelData>>): UseMutationOptions<unknown, DefaultError, Options<CancelData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<CancelData>> = {
+export const cancelMutation = (options?: Partial<Options<CancelData>>): UseMutationOptions<CancelResponse, DefaultError, Options<CancelData>> => {
+    const mutationOptions: UseMutationOptions<CancelResponse, DefaultError, Options<CancelData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await cancel({
                 ...options,
@@ -292,8 +292,8 @@ export const cancelMutation = (options?: Partial<Options<CancelData>>): UseMutat
 /**
  * `POST /api/bookings/{id}/confirm` — confirm a booking with payment.
  */
-export const confirmMutation = (options?: Partial<Options<ConfirmData>>): UseMutationOptions<unknown, DefaultError, Options<ConfirmData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<ConfirmData>> = {
+export const confirmMutation = (options?: Partial<Options<ConfirmData>>): UseMutationOptions<ConfirmResponse, DefaultError, Options<ConfirmData>> => {
+    const mutationOptions: UseMutationOptions<ConfirmResponse, DefaultError, Options<ConfirmData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await confirm({
                 ...options,
@@ -311,7 +311,7 @@ export const brandsQueryKey = (options?: Options<BrandsData>) => createQueryKey(
 /**
  * `GET /api/brands` — list brands.
  */
-export const brandsOptions = (options?: Options<BrandsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof brandsQueryKey>>({
+export const brandsOptions = (options?: Options<BrandsData>) => queryOptions<BrandsResponse, DefaultError, BrandsResponse, ReturnType<typeof brandsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await brands({
             ...options,
@@ -329,7 +329,7 @@ export const brandDetailQueryKey = (options: Options<BrandDetailData>) => create
 /**
  * `GET /api/brands/{slug}` — get brand detail.
  */
-export const brandDetailOptions = (options: Options<BrandDetailData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof brandDetailQueryKey>>({
+export const brandDetailOptions = (options: Options<BrandDetailData>) => queryOptions<BrandDetailResponse, DefaultError, BrandDetailResponse, ReturnType<typeof brandDetailQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await brandDetail({
             ...options,
@@ -347,7 +347,7 @@ export const campaignsQueryKey = (options?: Options<CampaignsData>) => createQue
 /**
  * `GET /api/campaigns` — list campaigns.
  */
-export const campaignsOptions = (options?: Options<CampaignsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof campaignsQueryKey>>({
+export const campaignsOptions = (options?: Options<CampaignsData>) => queryOptions<CampaignsResponse, DefaultError, CampaignsResponse, ReturnType<typeof campaignsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await campaigns({
             ...options,
@@ -365,7 +365,7 @@ export const validateCampaignQueryKey = (options: Options<ValidateCampaignData>)
 /**
  * `GET /api/campaigns/validate` — validate a campaign code.
  */
-export const validateCampaignOptions = (options: Options<ValidateCampaignData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof validateCampaignQueryKey>>({
+export const validateCampaignOptions = (options: Options<ValidateCampaignData>) => queryOptions<ValidateCampaignResponse, DefaultError, ValidateCampaignResponse, ReturnType<typeof validateCampaignQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await validateCampaign({
             ...options,
@@ -466,7 +466,7 @@ export const list2QueryKey = (options?: Options<List2Data>) => createQueryKey('l
 /**
  * `GET /api/places` — list places.
  */
-export const list2Options = (options?: Options<List2Data>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof list2QueryKey>>({
+export const list2Options = (options?: Options<List2Data>) => queryOptions<List2Response, DefaultError, List2Response, ReturnType<typeof list2QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await list2({
             ...options,
@@ -485,7 +485,7 @@ export const list2InfiniteQueryKey = (options?: Options<List2Data>): QueryKey<Op
  * `GET /api/places` — list places.
  */
 export const list2InfiniteOptions = (options?: Options<List2Data>) => {
-    const opts = infiniteQueryOptions<unknown, DefaultError, InfiniteData<unknown>, QueryKey<Options<List2Data>>, number | null | Pick<QueryKey<Options<List2Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<List2Response, DefaultError, InfiniteData<List2Response>, QueryKey<Options<List2Data>>, number | null | Pick<QueryKey<Options<List2Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -514,7 +514,7 @@ export const reverseQueryKey = (options: Options<ReverseData>) => createQueryKey
 /**
  * `GET /api/places/reverse` — reverse geocode coordinates.
  */
-export const reverseOptions = (options: Options<ReverseData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof reverseQueryKey>>({
+export const reverseOptions = (options: Options<ReverseData>) => queryOptions<ReverseResponse, DefaultError, ReverseResponse, ReturnType<typeof reverseQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await reverse({
             ...options,
@@ -532,7 +532,7 @@ export const searchQueryKey = (options: Options<SearchData>) => createQueryKey('
 /**
  * `GET /api/places/search` — search places by query.
  */
-export const searchOptions = (options: Options<SearchData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof searchQueryKey>>({
+export const searchOptions = (options: Options<SearchData>) => queryOptions<SearchResponse, DefaultError, SearchResponse, ReturnType<typeof searchQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await search({
             ...options,
@@ -761,7 +761,7 @@ export const recommendationsQueryKey = (options?: Options<RecommendationsData>) 
 /**
  * `GET /api/recommendations` — get trip recommendations.
  */
-export const recommendationsOptions = (options?: Options<RecommendationsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof recommendationsQueryKey>>({
+export const recommendationsOptions = (options?: Options<RecommendationsData>) => queryOptions<RecommendationsResponse, DefaultError, RecommendationsResponse, ReturnType<typeof recommendationsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await recommendations({
             ...options,
@@ -779,7 +779,7 @@ export const list4QueryKey = (options?: Options<List4Data>) => createQueryKey('l
 /**
  * `GET /api/reviews` — list reviews with optional filters.
  */
-export const list4Options = (options?: Options<List4Data>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof list4QueryKey>>({
+export const list4Options = (options?: Options<List4Data>) => queryOptions<List4Response, DefaultError, List4Response, ReturnType<typeof list4QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await list4({
             ...options,
@@ -798,7 +798,7 @@ export const list4InfiniteQueryKey = (options?: Options<List4Data>): QueryKey<Op
  * `GET /api/reviews` — list reviews with optional filters.
  */
 export const list4InfiniteOptions = (options?: Options<List4Data>) => {
-    const opts = infiniteQueryOptions<unknown, DefaultError, InfiniteData<unknown>, QueryKey<Options<List4Data>>, number | null | Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<List4Response, DefaultError, InfiniteData<List4Response>, QueryKey<Options<List4Data>>, number | null | Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -825,8 +825,8 @@ export const list4InfiniteOptions = (options?: Options<List4Data>) => {
 /**
  * `POST /api/reviews` — create a review. Requires authentication.
  */
-export const create2Mutation = (options?: Partial<Options<Create2Data>>): UseMutationOptions<unknown, DefaultError, Options<Create2Data>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<Create2Data>> = {
+export const create2Mutation = (options?: Partial<Options<Create2Data>>): UseMutationOptions<Create2Response, DefaultError, Options<Create2Data>> => {
+    const mutationOptions: UseMutationOptions<Create2Response, DefaultError, Options<Create2Data>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await create2({
                 ...options,
@@ -844,7 +844,7 @@ export const tagsQueryKey = (options?: Options<TagsData>) => createQueryKey('tag
 /**
  * `GET /api/reviews/tags` — get the review tags index.
  */
-export const tagsOptions = (options?: Options<TagsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof tagsQueryKey>>({
+export const tagsOptions = (options?: Options<TagsData>) => queryOptions<TagsResponse, DefaultError, TagsResponse, ReturnType<typeof tagsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await tags({
             ...options,
@@ -860,8 +860,8 @@ export const tagsOptions = (options?: Options<TagsData>) => queryOptions<unknown
 /**
  * `DELETE /api/reviews/{id}` — delete a review. Requires authentication.
  */
-export const remove2Mutation = (options?: Partial<Options<Remove2Data>>): UseMutationOptions<unknown, DefaultError, Options<Remove2Data>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<Remove2Data>> = {
+export const remove2Mutation = (options?: Partial<Options<Remove2Data>>): UseMutationOptions<Remove2Response, DefaultError, Options<Remove2Data>> => {
+    const mutationOptions: UseMutationOptions<Remove2Response, DefaultError, Options<Remove2Data>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await remove2({
                 ...options,
@@ -879,7 +879,7 @@ export const getQueryKey = (options: Options<GetData>) => createQueryKey('get', 
 /**
  * `GET /api/reviews/{id}` — get a review by ID.
  */
-export const getOptions = (options: Options<GetData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof getQueryKey>>({
+export const getOptions = (options: Options<GetData>) => queryOptions<GetResponse, DefaultError, GetResponse, ReturnType<typeof getQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await get({
             ...options,
@@ -895,8 +895,8 @@ export const getOptions = (options: Options<GetData>) => queryOptions<unknown, D
 /**
  * `PATCH /api/reviews/{id}` — update a review. Requires authentication.
  */
-export const updateMutation = (options?: Partial<Options<UpdateData>>): UseMutationOptions<unknown, DefaultError, Options<UpdateData>> => {
-    const mutationOptions: UseMutationOptions<unknown, DefaultError, Options<UpdateData>> = {
+export const updateMutation = (options?: Partial<Options<UpdateData>>): UseMutationOptions<UpdateResponse, DefaultError, Options<UpdateData>> => {
+    const mutationOptions: UseMutationOptions<UpdateResponse, DefaultError, Options<UpdateData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await update({
                 ...options,
@@ -914,7 +914,7 @@ export const routesQueryKey = (options?: Options<RoutesData>) => createQueryKey(
 /**
  * `GET /api/routes` — list routes.
  */
-export const routesOptions = (options?: Options<RoutesData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof routesQueryKey>>({
+export const routesOptions = (options?: Options<RoutesData>) => queryOptions<RoutesResponse, DefaultError, RoutesResponse, ReturnType<typeof routesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await routes({
             ...options,
@@ -932,7 +932,7 @@ export const directionsQueryKey = (options: Options<DirectionsData>) => createQu
 /**
  * `GET /api/routing/directions` — get directions between locations.
  */
-export const directionsOptions = (options: Options<DirectionsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof directionsQueryKey>>({
+export const directionsOptions = (options: Options<DirectionsData>) => queryOptions<DirectionsResponse2, DefaultError, DirectionsResponse2, ReturnType<typeof directionsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await directions({
             ...options,
@@ -950,7 +950,7 @@ export const isochroneQueryKey = (options: Options<IsochroneData>) => createQuer
 /**
  * `GET /api/routing/isochrone` — compute isochrone contours.
  */
-export const isochroneOptions = (options: Options<IsochroneData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof isochroneQueryKey>>({
+export const isochroneOptions = (options: Options<IsochroneData>) => queryOptions<IsochroneResponse2, DefaultError, IsochroneResponse2, ReturnType<typeof isochroneQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await isochrone({
             ...options,
@@ -968,7 +968,7 @@ export const matrixQueryKey = (options: Options<MatrixData>) => createQueryKey('
 /**
  * `GET /api/routing/matrix` — compute distance/time matrix.
  */
-export const matrixOptions = (options: Options<MatrixData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof matrixQueryKey>>({
+export const matrixOptions = (options: Options<MatrixData>) => queryOptions<MatrixResponse2, DefaultError, MatrixResponse2, ReturnType<typeof matrixQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await matrix({
             ...options,
@@ -986,7 +986,7 @@ export const searchTripsQueryKey = (options: Options<SearchTripsData>) => create
 /**
  * `GET /api/search` — search trips.
  */
-export const searchTripsOptions = (options: Options<SearchTripsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof searchTripsQueryKey>>({
+export const searchTripsOptions = (options: Options<SearchTripsData>) => queryOptions<SearchTripsResponse, DefaultError, SearchTripsResponse, ReturnType<typeof searchTripsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await searchTrips({
             ...options,
@@ -1004,7 +1004,7 @@ export const statsQueryKey = (options?: Options<StatsData>) => createQueryKey('s
 /**
  * `GET /api/stats` — get public stats.
  */
-export const statsOptions = (options?: Options<StatsData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof statsQueryKey>>({
+export const statsOptions = (options?: Options<StatsData>) => queryOptions<StatsResponse2, DefaultError, StatsResponse2, ReturnType<typeof statsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await stats({
             ...options,
@@ -1022,7 +1022,7 @@ export const tripDetailQueryKey = (options: Options<TripDetailData>) => createQu
 /**
  * `GET /api/trips/{id}` — get trip detail.
  */
-export const tripDetailOptions = (options: Options<TripDetailData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof tripDetailQueryKey>>({
+export const tripDetailOptions = (options: Options<TripDetailData>) => queryOptions<TripDetailResponse, DefaultError, TripDetailResponse, ReturnType<typeof tripDetailQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await tripDetail({
             ...options,

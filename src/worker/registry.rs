@@ -5,7 +5,9 @@ use parking_lot::RwLock;
 
 use super::backend::JobEnvelope;
 
-pub type JobHandler = Arc<dyn Fn(JobEnvelope) -> futures::future::BoxFuture<'static, anyhow::Result<()>> + Send + Sync>;
+pub type JobHandler = Arc<
+    dyn Fn(JobEnvelope) -> futures::future::BoxFuture<'static, anyhow::Result<()>> + Send + Sync,
+>;
 
 #[derive(Default)]
 pub struct JobRegistry {

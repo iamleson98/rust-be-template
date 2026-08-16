@@ -20,11 +20,11 @@ use crate::service::{
 };
 use crate::state::AppState;
 use crate::store::{
-    CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore, CacheRefreshTokenStore,
-    CacheUserStore, CompositeStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
-    DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
-    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, PostStore, RbacStore,
-    RefreshTokenStore, UserStore, BrandStore, ChatStore,
+    BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
+    CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAuditStore,
+    DbBookingStore, DbBrandStore, DbChatStore, DbPlaceStore, DbPostStore, DbPriceAlertStore,
+    DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore,
+    DbUserStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
 };
 use crate::ws;
 
@@ -154,18 +154,16 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // Opened only when `search.index_dir` points at a built index. When
     // absent, PlaceService falls back to SQL LIKE queries.
     let place_searcher = match &config.search.index_dir {
-        Some(dir) if dir.exists() => {
-            match crate::osm::searcher::PlaceSearcher::open(dir) {
-                Ok(s) => {
-                    tracing::info!(index_dir = %dir.display(), "place search index opened");
-                    Some(Arc::new(s))
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, index_dir = %dir.display(), "failed to open place search index; search will use SQL fallback");
-                    None
-                }
+        Some(dir) if dir.exists() => match crate::osm::searcher::PlaceSearcher::open(dir) {
+            Ok(s) => {
+                tracing::info!(index_dir = %dir.display(), "place search index opened");
+                Some(Arc::new(s))
             }
-        }
+            Err(e) => {
+                tracing::warn!(error = %e, index_dir = %dir.display(), "failed to open place search index; search will use SQL fallback");
+                None
+            }
+        },
         _ => {
             tracing::info!("no place search index configured; run `backend import-osm` to enable");
             None
@@ -173,18 +171,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     };
 
     // ---- New domain services (booking logic) -------------------------
-    let admin_service = Arc::new(AdminService::new(
-        store.clone(),
-        rbac.clone(),
-    ));
+    let admin_service = Arc::new(AdminService::new(store.clone(), rbac.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
     let booking_service = Arc::new(BookingService::new(store.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
     let routing_service = Arc::new(RoutingService::new(&config));
-    let place_service = Arc::new(PlaceService::with_searcher(
-        store.clone(),
-        place_searcher,
-    ));
+    let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
 
     let state = AppState {

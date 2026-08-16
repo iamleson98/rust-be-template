@@ -20,8 +20,7 @@ pub async fn run(
     heap_bytes: u64,
     threads: Option<usize>,
 ) -> anyhow::Result<()> {
-    let index_dir = index_dir
-        .unwrap_or_else(|| PathBuf::from("./osm-index"));
+    let index_dir = index_dir.unwrap_or_else(|| PathBuf::from("./osm-index"));
 
     if !pbf_path.exists() {
         anyhow::bail!("OSM PBF file not found: {}", pbf_path.display());
@@ -55,7 +54,10 @@ pub async fn run(
         stats.admins
     );
     println!("Index written to: {}", index_dir.display());
-    println!("Set SEARCH__INDEX_DIR={} and restart the server to enable place search.", index_dir.display());
+    println!(
+        "Set SEARCH__INDEX_DIR={} and restart the server to enable place search.",
+        index_dir.display()
+    );
 
     Ok(())
 }

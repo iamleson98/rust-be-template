@@ -4,8 +4,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::dto::review::{
-    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse,
-    ReviewOut, ReviewTagsResponse, UpdateReviewInput,
+    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
+    ReviewTagsResponse, UpdateReviewInput,
 };
 use crate::error::AppError;
 use crate::middleware::AuthUser;
@@ -14,9 +14,12 @@ use crate::state::AppState;
 
 #[derive(Deserialize, utoipa::IntoParams)]
 pub struct ListQuery {
-    pub brand_id: Option<String>, pub route_id: Option<String>,
-    pub user_id: Option<String>, pub status: Option<String>,
-    pub limit: Option<u64>, pub offset: Option<u64>,
+    pub brand_id: Option<String>,
+    pub route_id: Option<String>,
+    pub user_id: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<u64>,
+    pub offset: Option<u64>,
 }
 
 /// `GET /api/reviews` — list reviews with optional filters.
@@ -29,8 +32,18 @@ pub struct ListQuery {
         (status = 200, description = "Review list", body = ReviewListResponse),
     )
 )]
-pub async fn list(State(st): State<AppState>, Query(q): Query<ListQuery>) -> Result<Json<ReviewListResponse>, AppError> {
-    let filter = ReviewListFilter { brand_id: q.brand_id, route_id: q.route_id, user_id: q.user_id, status: q.status, limit: q.limit.unwrap_or(20), offset: q.offset.unwrap_or(0) };
+pub async fn list(
+    State(st): State<AppState>,
+    Query(q): Query<ListQuery>,
+) -> Result<Json<ReviewListResponse>, AppError> {
+    let filter = ReviewListFilter {
+        brand_id: q.brand_id,
+        route_id: q.route_id,
+        user_id: q.user_id,
+        status: q.status,
+        limit: q.limit.unwrap_or(20),
+        offset: q.offset.unwrap_or(0),
+    };
     Ok(Json(st.reviews.list(&filter).await?))
 }
 
@@ -45,7 +58,10 @@ pub async fn list(State(st): State<AppState>, Query(q): Query<ListQuery>) -> Res
         (status = 404, description = "Not found"),
     )
 )]
-pub async fn get(State(st): State<AppState>, Path(id): Path<Uuid>) -> Result<Json<ReviewOut>, AppError> {
+pub async fn get(
+    State(st): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ReviewOut>, AppError> {
     Ok(Json(st.reviews.get(id).await?))
 }
 
@@ -60,7 +76,11 @@ pub async fn get(State(st): State<AppState>, Path(id): Path<Uuid>) -> Result<Jso
         (status = 401, description = "Unauthorized"),
     )
 )]
-pub async fn create(State(st): State<AppState>, AuthUser(uid): AuthUser, Json(body): Json<CreateReviewInput>) -> Result<Json<ReviewMutationResponse>, AppError> {
+pub async fn create(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Json(body): Json<CreateReviewInput>,
+) -> Result<Json<ReviewMutationResponse>, AppError> {
     let mut input = body;
     input.user_id = Some(uid.to_string());
     Ok(Json(st.reviews.create(&input).await?))
@@ -79,8 +99,15 @@ pub async fn create(State(st): State<AppState>, AuthUser(uid): AuthUser, Json(bo
         (status = 403, description = "Forbidden"),
     )
 )]
-pub async fn update(State(st): State<AppState>, AuthUser(uid): AuthUser, Path(id): Path<Uuid>, Json(body): Json<UpdateReviewInput>) -> Result<Json<ReviewMutationResponse>, AppError> {
-    Ok(Json(st.reviews.update(id, Some(&uid.to_string()), &body).await?))
+pub async fn update(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateReviewInput>,
+) -> Result<Json<ReviewMutationResponse>, AppError> {
+    Ok(Json(
+        st.reviews.update(id, Some(&uid.to_string()), &body).await?,
+    ))
 }
 
 /// `DELETE /api/reviews/{id}` — delete a review. Requires authentication.
@@ -95,7 +122,11 @@ pub async fn update(State(st): State<AppState>, AuthUser(uid): AuthUser, Path(id
         (status = 403, description = "Forbidden"),
     )
 )]
-pub async fn remove(State(st): State<AppState>, AuthUser(uid): AuthUser, Path(id): Path<Uuid>) -> Result<Json<ReviewDeleteResponse>, AppError> {
+pub async fn remove(
+    State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<Json<ReviewDeleteResponse>, AppError> {
     st.reviews.remove(id, Some(&uid.to_string())).await?;
     Ok(Json(ReviewDeleteResponse { ok: true }))
 }

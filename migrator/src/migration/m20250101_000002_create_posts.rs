@@ -1,6 +1,5 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -22,7 +21,10 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .name("fk_posts_author")
                             .from(Posts::Table, Posts::AuthorId)
-                            .to(sea_orm::sea_query::Alias::new("user"), sea_orm::sea_query::Alias::new("id"))
+                            .to(
+                                sea_orm::sea_query::Alias::new("user"),
+                                sea_orm::sea_query::Alias::new("id"),
+                            )
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),

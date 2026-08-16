@@ -19,9 +19,7 @@ pub async fn run(no_migrate: bool, bind: Option<String>) -> anyhow::Result<()> {
         // Override the bind address at runtime. We have to rebuild state
         // because config is loaded once at bootstrap; for now, just print
         // a warning if the override differs from the configured one.
-        tracing::warn!(
-            "ignoring --bind {addr} — restart with BIND_ADDR env var or update .env"
-        );
+        tracing::warn!("ignoring --bind {addr} — restart with BIND_ADDR env var or update .env");
     }
 
     server::run(state).await

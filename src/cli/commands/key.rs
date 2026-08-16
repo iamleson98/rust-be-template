@@ -16,7 +16,11 @@ pub fn run(action: KeyAction) -> anyhow::Result<()> {
             let hex = hex::encode(&buf);
             println!("{}", hex);
             println!();
-            eprintln!("→ {bytes}-byte secret (hex, {hex_len} chars)", bytes = bytes, hex_len = hex.len());
+            eprintln!(
+                "→ {bytes}-byte secret (hex, {hex_len} chars)",
+                bytes = bytes,
+                hex_len = hex.len()
+            );
             eprintln!("→ add to .env as:  JWT_SECRET={hex}");
         }
         KeyAction::Hash { password } => {

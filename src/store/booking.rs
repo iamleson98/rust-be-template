@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -46,10 +46,7 @@ pub trait BookingStore: Send + Sync {
 
     /// Count bookings matching an optional status filter. Uses `COUNT(*)`
     /// — does NOT load rows into memory.
-    async fn count_bookings_by_status(
-        &self,
-        status: Option<&str>,
-    ) -> StoreResult<u64>;
+    async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64>;
 
     /// List bookings matching an optional status filter, with pagination.
     /// Ordered by `created_at DESC`.
@@ -78,7 +75,10 @@ pub trait BookingStore: Send + Sync {
         seat_id: &str,
         status: &str,
     ) -> StoreResult<()>;
-    async fn list_booking_seats_by_booking_ids(&self, booking_ids: Vec<String>) -> StoreResult<Vec<booking_seat::Model>>;
+    async fn list_booking_seats_by_booking_ids(
+        &self,
+        booking_ids: Vec<String>,
+    ) -> StoreResult<Vec<booking_seat::Model>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -115,22 +115,20 @@ impl BookingStore for DbBookingStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>> {
-        let mut query = booking::Entity::find()
-            .filter(booking::Column::UserId.eq(user_id.to_string()));
+        let mut query =
+            booking::Entity::find().filter(booking::Column::UserId.eq(user_id.to_string()));
 
         match status {
             "confirmed" | "upcoming" => {
                 query = query.filter(booking::Column::Status.eq("confirmed"));
                 if !trip_session_ids.is_empty() {
-                    query =
-                        query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                    query = query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
                 }
             }
             "completed" | "past" => {
                 query = query.filter(booking::Column::Status.eq("completed"));
                 if !trip_session_ids.is_empty() {
-                    query =
-                        query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                    query = query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
                 }
             }
             "cancelled" => {
@@ -182,10 +180,7 @@ impl BookingStore for DbBookingStore {
             .await?)
     }
 
-    async fn count_bookings_by_status(
-        &self,
-        status: Option<&str>,
-    ) -> StoreResult<u64> {
+    async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64> {
         let mut query = booking::Entity::find();
         if let Some(s) = status {
             query = query.filter(booking::Column::Status.eq(s.to_string()));
@@ -246,8 +241,8 @@ impl BookingStore for DbBookingStore {
         // Atomic conditional UPDATE — only updates the seat if it exists.
         // This avoids the read-then-write TOCTOU race of the previous
         // implementation (which loaded the row, then wrote it back).
-        use sea_orm::sea_query::Expr;
         use crate::entity::seat_inventory;
+        use sea_orm::sea_query::Expr;
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value(status))
             .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
@@ -260,7 +255,10 @@ impl BookingStore for DbBookingStore {
         Ok(())
     }
 
-    async fn list_booking_seats_by_booking_ids(&self, booking_ids: Vec<String>) -> StoreResult<Vec<booking_seat::Model>> {
+    async fn list_booking_seats_by_booking_ids(
+        &self,
+        booking_ids: Vec<String>,
+    ) -> StoreResult<Vec<booking_seat::Model>> {
         Ok(booking_seat::Entity::find()
             .filter(booking_seat::Column::BookingId.is_in(booking_ids))
             .all(self.db.as_ref())

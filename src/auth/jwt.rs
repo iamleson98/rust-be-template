@@ -7,7 +7,7 @@ use crate::config::JwtConfig;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessTokenClaims {
-    pub sub: Uuid,        // user id
+    pub sub: Uuid, // user id
     pub iss: String,
     pub iat: i64,
     pub exp: i64,

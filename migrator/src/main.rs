@@ -202,8 +202,7 @@ async fn run_fresh(yes: bool) -> anyhow::Result<()> {
             .trim_start_matches("./");
 
         if !path.is_empty() && std::path::Path::new(path).exists() {
-            std::fs::remove_file(path)
-                .context(format!("deleting database file {path}"))?;
+            std::fs::remove_file(path).context(format!("deleting database file {path}"))?;
             println!("removed {path}");
         }
     } else {
@@ -255,8 +254,7 @@ enum {pascal_name} {{
 "#
     );
 
-    std::fs::write(&file_path, content)
-        .context(format!("writing {file_path}"))?;
+    std::fs::write(&file_path, content).context(format!("writing {file_path}"))?;
     println!("created {file_path}");
 
     // Remind the user to register the migration.
@@ -296,10 +294,10 @@ async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> 
         .arg(&db_url)
         .arg("--with-serde")
         .arg("both");
-        // .arg("--model-extra-derives")
-        // .arg("utoipa::ToSchema")
-        // .arg("--column-extra-derives")
-        // .arg("utoipa::ToSchema");
+    // .arg("--model-extra-derives")
+    // .arg("utoipa::ToSchema")
+    // .arg("--column-extra-derives")
+    // .arg("utoipa::ToSchema");
 
     if !with_relations {
         println!(
@@ -349,8 +347,7 @@ async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
             .trim_start_matches("./");
 
         if !path.is_empty() && std::path::Path::new(path).exists() {
-            std::fs::remove_file(path)
-                .context(format!("deleting database file {path}"))?;
+            std::fs::remove_file(path).context(format!("deleting database file {path}"))?;
             println!("removed {path}");
         }
     } else {
@@ -466,7 +463,10 @@ fn to_pascal(input: &str) -> String {
         .map(|s| {
             let mut chars = s.chars();
             match chars.next() {
-                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str().to_lowercase().as_str(),
+                Some(first) => {
+                    first.to_uppercase().collect::<String>()
+                        + chars.as_str().to_lowercase().as_str()
+                }
                 None => String::new(),
             }
         })
@@ -482,7 +482,5 @@ fn init_tracing(verbose: u8) {
     };
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(default_directive));
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .try_init();
+    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
 }

@@ -1,6 +1,5 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -44,12 +43,19 @@ impl MigrationTrait for Migration {
                     .col(uuid(UserRoles::UserId))
                     .col(uuid(UserRoles::RoleId))
                     .col(timestamp(UserRoles::AssignedAt).default(Expr::current_timestamp()))
-                    .primary_key(Index::create().col(UserRoles::UserId).col(UserRoles::RoleId))
+                    .primary_key(
+                        Index::create()
+                            .col(UserRoles::UserId)
+                            .col(UserRoles::RoleId),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_user_roles_user")
                             .from(UserRoles::Table, UserRoles::UserId)
-                            .to(sea_orm::sea_query::Alias::new("user"), sea_orm::sea_query::Alias::new("id"))
+                            .to(
+                                sea_orm::sea_query::Alias::new("user"),
+                                sea_orm::sea_query::Alias::new("id"),
+                            )
                             .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
@@ -72,7 +78,11 @@ impl MigrationTrait for Migration {
                     .col(uuid(RolePermissions::RoleId))
                     .col(uuid(RolePermissions::PermissionId))
                     .col(timestamp(RolePermissions::AssignedAt).default(Expr::current_timestamp()))
-                    .primary_key(Index::create().col(RolePermissions::RoleId).col(RolePermissions::PermissionId))
+                    .primary_key(
+                        Index::create()
+                            .col(RolePermissions::RoleId)
+                            .col(RolePermissions::PermissionId),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_role_permissions_role")

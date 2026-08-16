@@ -1,7 +1,7 @@
 //! HTTP routes — axum handlers + utoipa OpenAPI annotations.
 
-pub use self::router::build_router;
 pub use self::openapi::ApiDoc;
+pub use self::router::build_router;
 
 mod auth;
 mod bookings;

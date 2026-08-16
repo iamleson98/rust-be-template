@@ -16,7 +16,15 @@ use crate::state::AppState;
 pub fn require_permission(
     state: AppState,
     permission: &'static str,
-) -> impl Fn(Request, Next) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response, StatusCode>> + Send>> + Clone + Send + Sync + 'static {
+) -> impl Fn(
+    Request,
+    Next,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Response, StatusCode>> + Send>,
+> + Clone
+       + Send
+       + Sync
+       + 'static {
     let checker = Arc::new(RbacChecker::new(state.store.clone()));
     let permission = permission.to_string();
     move |req: Request, next: Next| {

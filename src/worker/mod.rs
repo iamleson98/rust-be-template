@@ -10,8 +10,8 @@ pub use self::backend::{JobEnvelope, WorkerBroker};
 pub use self::db::DbBroker;
 pub use self::kafka::KafkaBroker;
 pub use self::redis::RedisBroker;
-pub use self::runner::WorkerRunner;
 pub use self::registry::{JobHandler, JobRegistry, JobType};
+pub use self::runner::WorkerRunner;
 
 mod backend;
 mod db;
