@@ -24,10 +24,13 @@
 //! endpoint shares.
 
 pub mod booking;
+pub mod chat;
+pub mod notification;
 pub mod place;
 pub mod public;
 pub mod review;
 pub mod routing;
+pub mod wishlist;
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};

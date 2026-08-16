@@ -35,6 +35,7 @@
 pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
+pub mod notification_service;
 pub mod place_service;
 pub mod posts_service;
 pub mod price_alert_service;
@@ -42,10 +43,12 @@ pub mod public_service;
 pub mod review_service;
 pub mod routing_service;
 pub mod users_service;
+pub mod wishlist_service;
 
 pub use admin_service::AdminService;
 pub use auth_service::AuthService;
 pub use booking_service::BookingService;
+pub use notification_service::NotificationService;
 pub use place_service::PlaceService;
 pub use posts_service::PostService;
 pub use price_alert_service::PriceAlertService;
@@ -53,3 +56,4 @@ pub use public_service::PublicService;
 pub use review_service::ReviewService;
 pub use routing_service::RoutingService;
 pub use users_service::UserService;
+pub use wishlist_service::WishlistService;

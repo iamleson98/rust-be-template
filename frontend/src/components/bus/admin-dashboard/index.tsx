@@ -98,14 +98,27 @@ export const AdminDashboard = memo(function AdminDashboard() {
     if (!replyText.trim() || !activeChannel) return
     setSending(true)
     try {
-      // The Rust backend has NO `POST /api/chat/channels/{id}/messages`
-      // REST endpoint — messages must go via the WS protocol. The admin
-      // dashboard doesn't currently maintain a WS connection in this file,
-      // so we surface a clear error. To restore REST message posting, the
-      // backend would need to expose the endpoint (currently WS-only).
-      toast.error('Gửi tin nhắn không khả dụng — backend chỉ hỗ trợ WebSocket.', {
-        description: 'Vui lòng kết nối qua kênh WS /ws để trả lời khách.',
+      // Backend route: `POST /api/chat/channels/{id}/messages` (authed).
+      // Body is `{ content?, kind, attachments?, clientMsgId? }` (camelCase —
+      // matches `CreateMessageRequest`). The server auto-fills the
+      // `senderType` based on the authenticated user's role.
+      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: replyText.trim(),
+          kind: 'text',
+        }),
       })
+      const data = await res.json()
+      if (data.message) {
+        setChatMessages((prev) => [...prev, data.message as ChatMessage])
+        setReplyText('')
+        toast.success('Đã gửi phản hồi')
+      } else if (data?.error?.message) {
+        toast.error(data.error.message)
+      }
     } catch {
       toast.error('Không thể gửi tin nhắn')
     } finally {
@@ -126,11 +139,31 @@ export const AdminDashboard = memo(function AdminDashboard() {
    * immediately as a beautiful ticket card in the conversation.
    */
   const sendTicketCard = useCallback(
-    async (_payload: import('./chat-ticket-picker').CreatedTicketPayload) => {
-      // The Rust backend has no `POST /api/chat/channels/{id}/messages` REST
-      // endpoint — see `sendReply` above. Ticket cards must be sent via WS.
+    async (payload: import('./chat-ticket-picker').CreatedTicketPayload) => {
       if (!activeChannel) return
-      toast.error('Gửi thẻ vé không khả dụng — backend chỉ hỗ trợ WebSocket.')
+      // Backend route: `POST /api/chat/channels/{id}/messages` with
+      // `kind: 'ticket'` + the booking-card payload as `attachments`
+      // (JSON-encoded string — matches `CreateMessageRequest`).
+      const attachments = JSON.stringify(payload)
+      try {
+        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            content: `Đã đặt vé ${payload.bookingCode} cho bạn`,
+            kind: 'ticket',
+            attachments,
+          }),
+        })
+        const data = await res.json()
+        if (data.message) {
+          setChatMessages((prev) => [...prev, data.message as ChatMessage])
+        }
+      } catch {
+        // Silently fail — the booking was already created; the chat message
+        // is just a notification. The employee can manually paste the code.
+      }
     },
     [activeChannel],
   )

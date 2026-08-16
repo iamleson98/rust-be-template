@@ -1,10 +1,9 @@
 //! DTOs for the place service (`/api/places`, `/api/places/search`,
 //! `/api/places/reverse`).
 //!
-//! The place service has two output shapes:
-//! 1. The "DB place" — a row from the `place` table, used by `list`.
-//! 2. The "search hit" — a Tantivy / SQL LIKE match, used by `search`
-//!    and `reverse`. Carries optional geo-context (distance, score).
+//! All DTOs use `#[serde(rename_all = "camelCase")]` so Rust field names
+//! stay snake_case (Rust convention) while the JSON wire shape is
+//! camelCase (JSON/TypeScript convention).
 
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -12,6 +11,7 @@ use uuid::Uuid;
 
 /// A place row from the database, as returned by `GET /api/places`.
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaceOut {
     pub id: Uuid,
     pub name: String,
@@ -25,15 +25,13 @@ pub struct PlaceOut {
     pub population: i64,
 }
 
-/// Optional fields populated by the Tantivy fulltext index. Present on
-/// `PlaceSearchHit` but NOT on `PlaceOut` (which comes from the DB).
-
 /// A search hit returned by `GET /api/places/search?q=`.
 ///
 /// When the Tantivy index is configured, fields like `osmId`, `ward`,
 /// `district`, `city`, `score`, `distanceKm` are populated. When the
 /// SQL LIKE fallback is used, only the DB-backed fields are set.
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaceSearchHit {
     /// DB row id (only set when the hit comes from the `place` table).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,10 +41,10 @@ pub struct PlaceSearchHit {
     pub osm_id: Option<i64>,
     pub name: String,
     /// OSM place kind (Tantivy hits only).
-    #[serde(skip_serializing_if = "Option::is_none", rename = "placeKind")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub place_kind: Option<String>,
     /// `place.type` (DB hits only — present on SQL LIKE fallback).
-    #[serde(skip_serializing_if = "Option::is_none", rename = "type")]
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub house_number: Option<String>,
@@ -66,18 +64,20 @@ pub struct PlaceSearchHit {
     pub score: Option<f32>,
     /// Distance from the `lat` / `lon` query param, in km. Set when
     /// the caller passes `lat` + `lon` (geo-bias).
-    #[serde(skip_serializing_if = "Option::is_none", rename = "distanceKm")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_km: Option<f64>,
 }
 
 /// Response of `GET /api/places`.
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaceListResponse {
     pub items: Vec<PlaceOut>,
 }
 
 /// Response of `GET /api/places/search?q=`.
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PlaceSearchResponse {
     pub items: Vec<PlaceSearchHit>,
     /// Which engine produced the results: `tantivy` (fulltext index) or
