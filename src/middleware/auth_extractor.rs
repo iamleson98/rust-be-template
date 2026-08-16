@@ -17,7 +17,7 @@ use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
 use uuid::Uuid;
 
-use crate::auth::csrf::extract_tokens;
+use crate::auth::cookies::extract_tokens;
 use crate::error::AppError;
 use crate::service::AuthService;
 

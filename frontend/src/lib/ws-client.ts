@@ -70,22 +70,20 @@ export class WsClient {
 
   private connect(): void {
     if (this.disposed) return
-    let ws: WebSocket
     try {
-      ws = new WebSocket(this.url)
+      this.ws = new WebSocket(this.url)
     } catch {
       this.scheduleReconnect()
       return
     }
-    this.ws = ws
-    ws.onopen = () => {
+    this.ws.onopen = () => {
       this.connected = true
       this.everOpened = true
       this.reconnectAttempts = 0
       this.dispatch('_open', {})
     }
 
-    ws.onmessage = (ev: MessageEvent) => {
+    this.ws.onmessage = (ev: MessageEvent) => {
       // Only text frames are used by the chat protocol.
       if (typeof ev.data !== 'string') return
       let msg: Record<string, unknown>
@@ -100,7 +98,7 @@ export class WsClient {
       this.dispatch('_message', msg)
     }
 
-    ws.onclose = (ev: CloseEvent) => {
+    this.ws.onclose = (ev: CloseEvent) => {
       this.connected = false
       this.dispatch('_close', {
         code: ev.code,
@@ -113,7 +111,7 @@ export class WsClient {
       if (!this.disposed) this.scheduleReconnect(ev)
     }
 
-    ws.onerror = () => {
+    this.ws.onerror = () => {
       this.dispatch('_error', {})
     }
   }

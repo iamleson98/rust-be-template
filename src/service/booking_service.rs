@@ -28,7 +28,7 @@ use crate::store::CompositeStore;
 // ────────────────────────────────────────────────────────────────
 
 /// One passenger on a booking.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
 pub struct PassengerReq {
     pub name: String,
     #[serde(rename = "type")]
@@ -38,7 +38,7 @@ pub struct PassengerReq {
 }
 
 /// Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
 pub struct HoldReq {
     pub trip_id: String,
     pub seat_ids: Vec<String>,
@@ -54,7 +54,7 @@ pub struct HoldReq {
 }
 
 /// Request body for `POST /api/bookings/:id/confirm`.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
 pub struct ConfirmReq {
     #[serde(default = "default_payment")]
     pub payment_method: String,
@@ -65,7 +65,7 @@ fn default_payment() -> String {
 }
 
 /// Request body for `POST /api/bookings/:id/cancel`.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
 pub struct CancelReq {
     #[serde(default)]
     pub reason: Option<String>,

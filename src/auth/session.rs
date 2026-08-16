@@ -41,7 +41,6 @@ impl SessionUser {
     /// `brand_name` is left `None` here — the caller (typically the auth
     /// service) fills it in via a brand lookup when the user has a brand.
     pub fn from_model(m: &user::Model) -> Self {
-        // let actor_type = if m.role == "user" { "user" } else { "employee" };
         let employee_role = if m.role == "admin" {
             Some(m.role.clone())
         } else {

@@ -117,27 +117,27 @@ export function noTones(s: string): string {
 }
 
 // Haversine distance in km
-export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371
-  const toRad = (x: number) => (x * Math.PI) / 180
-  const dLat = toRad(lat2 - lat1)
-  const dLon = toRad(lon2 - lon1)
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
-  return 2 * R * Math.asin(Math.sqrt(a))
-}
+// export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+//   const R = 6371
+//   const toRad = (x: number) => (x * Math.PI) / 180
+//   const dLat = toRad(lat2 - lat1)
+//   const dLon = toRad(lon2 - lon1)
+//   const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2
+//   return 2 * R * Math.asin(Math.sqrt(a))
+// }
 
 // Generate human-readable booking code
-export function genBookingCode(prefix = 'BK'): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  let code = prefix + '-'
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
-  return code
-}
+// export function genBookingCode(prefix = 'BK'): string {
+//   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+//   let code = prefix + '-'
+//   for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)]
+//   return code
+// }
 
 // Validate Vietnamese phone
-export function isValidVnPhone(phone: string): boolean {
-  return /^(\+84|84|0)(3[2-9]|5[6|8|9]|7[0|6-9]|8[1-5]|8[8|9]|9[0-9])[0-9]{7}$/.test(phone.replace(/\s/g, ''))
-}
+// export function isValidVnPhone(phone: string): boolean {
+//   return /^(\+84|84|0)(3[2-9]|5[6|8|9]|7[0|6-9]|8[1-5]|8[8|9]|9[0-9])[0-9]{7}$/.test(phone.replace(/\s/g, ''))
+// }
 
 export function normalizePhone(phone: string): string {
   const p = phone.replace(/\s/g, '')

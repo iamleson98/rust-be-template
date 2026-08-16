@@ -27,6 +27,20 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import { apiJson, type ApiError } from '@/lib/api-client'
 import { queryKeys } from '@/lib/query-client'
+import {
+  // Generated TanStack Query options & keys (from @hey-api/openapi-ts)
+  meOptions,
+  meQueryKey,
+  logoutMutation,
+  listOptions as priceAlertsListOptions,
+  listQueryKey as priceAlertsListQueryKey,
+} from '@/lib/api/@tanstack/react-query.gen'
+import {
+  // Generated SDK functions (for direct use in mutations)
+  create as sdkCreatePriceAlert,
+  remove as sdkRemovePriceAlert,
+} from '@/lib/api/sdk.gen'
+import type { CreatePriceAlertRequest, SessionUser } from '@/lib/api/types.gen'
 import type {
   Brand,
   RouteItem,
@@ -41,7 +55,6 @@ import type {
   RecommendationItem,
   WishlistItem,
   PriceAlert,
-  SessionUser,
   AdminBrand,
   AdminRoute,
   AdminSchedule,
@@ -186,7 +199,7 @@ export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
   const enabled = opts?.enabled ?? q.trim().length >= 1
   return useQuery<ListEnvelope<Place>>({
     queryKey: queryKeys.places.search(q),
-    queryFn: () => apiJson(`/api/places?q=${encodeURIComponent(q.trim())}&limit=8`),
+    queryFn: () => apiJson(`/api/places?q=${encodeURIComponent(q.trim())}&limit=15`),
     enabled,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -333,24 +346,35 @@ export function useRemoveWishlist() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Price alerts
+// Price alerts  (generated TanStack client — @hey-api/openapi-ts)
 // ─────────────────────────────────────────────────────────────
 
 /**
  * Fetch the authenticated user's price alerts, or — when `phone` is
- * provided — a guest lookup (no auth required). The backend returns
- * `{ items, total?, limit, offset }`.
+ * provided — a guest lookup (no auth required).
+ *
+ * Uses the generated `listOptions` from `@tanstack/react-query.gen.ts`
+ * which wraps `GET /api/price-alerts` with full type safety.
+ * The response is mapped to `ListEnvelope<PriceAlert>` for backward compat.
  */
 export function usePriceAlerts(phone?: string | null) {
+  const opts = priceAlertsListOptions({ query: { phone: phone ?? undefined } })
   return useQuery<ListEnvelope<PriceAlert>>({
-    queryKey: phone ? ['price-alerts', 'phone', phone] : queryKeys.priceAlerts,
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      if (phone) qs.set('phone', phone)
-      const suffix = qs.toString() ? `?${qs.toString()}` : ''
-      return apiJson(`/api/price-alerts${suffix}`)
-    },
+    queryKey: opts.queryKey,
+    queryFn: opts.queryFn as any,
     staleTime: 60 * 1000,
+    // Map generated PriceAlertOut → local PriceAlert for backward compat
+    select: (data: any) => ({
+      items: (data?.items ?? []).map((a: any) => ({
+        ...a,
+        targetPrice: a.targetPrice ?? 0,
+        maxPrice: a.targetPrice ?? 0,
+        status: a.status ?? 'active',
+      })),
+      total: data?.total ?? null,
+      limit: data?.limit ?? 200,
+      offset: data?.offset ?? 0,
+    }),
   })
 }
 
@@ -359,73 +383,97 @@ export function usePriceAlerts(phone?: string | null) {
  * the alert to the logged-in user). Sends `targetPrice` as the
  * canonical field; `maxPrice` is forwarded as a legacy alias so older
  * backend versions still accept it.
+ *
+ * Uses the generated `sdkCreatePriceAlert` from `sdk.gen.ts`.
+ * Accepts a flat payload (matching the old API) and wraps it into the
+ * generated `{ body }` shape that the SDK expects.
  */
 export function useCreatePriceAlert() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (payload: {
-      fromName: string
-      toName: string
-      maxPrice: number
-      phone?: string
-      email?: string | null
-      targetPrice?: number
-      frequency?: 'immediate' | 'daily' | 'weekly'
-    }) =>
-      apiJson<PriceAlert & { duplicate?: boolean }>('/api/price-alerts', {
-        method: 'POST',
-        body: JSON.stringify({
-          phone: payload.phone,
-          email: payload.email ?? null,
-          fromName: payload.fromName,
-          toName: payload.toName,
-          // Send both field names so the backend picks whichever it expects.
-          maxPrice: payload.maxPrice,
-          targetPrice: payload.targetPrice ?? payload.maxPrice,
-          frequency: payload.frequency ?? 'immediate',
-        }),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['price-alerts'] }),
+  return useMutation<PriceAlert & { duplicate?: boolean }, Error, {
+    fromName: string
+    toName: string
+    maxPrice: number
+    phone?: string
+    email?: string | null
+    targetPrice?: number
+    frequency?: 'immediate' | 'daily' | 'weekly'
+  }>({
+    mutationFn: async (payload) => {
+      const body: CreatePriceAlertRequest = {
+        phone: payload.phone ?? '',
+        email: payload.email ?? null,
+        fromName: payload.fromName,
+        toName: payload.toName,
+        targetPrice: payload.targetPrice ?? payload.maxPrice,
+        frequency: payload.frequency ?? 'immediate',
+      }
+      const { data } = await sdkCreatePriceAlert({ body, throwOnError: true })
+      return data as PriceAlert & { duplicate?: boolean }
+    },
+    onSuccess: () => {
+      // Invalidate all price-alert queries (both auth and guest lookups)
+      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['price-alerts'] })
+    },
   })
 }
 
 /**
  * Cancel (soft-delete) a price alert by id. Requires authentication;
  * the backend checks ownership.
+ *
+ * Uses the generated `sdkRemovePriceAlert` from `sdk.gen.ts`.
+ * Accepts a plain `id` string (matching the old API).
  */
 export function useRemovePriceAlert() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) =>
-      apiJson(`/api/price-alerts/${id}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['price-alerts'] }),
+    mutationFn: async (id: string) => {
+      const { data } = await sdkRemovePriceAlert({ path: { id }, throwOnError: true })
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['price-alerts'] })
+    },
   })
 }
 
 // ─────────────────────────────────────────────────────────────
-// Auth
+// Auth  (generated TanStack client — @hey-api/openapi-ts)
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Return the current authenticated user's info via `GET /api/auth/me`.
+ *
+ * Uses the generated `meOptions` from `@tanstack/react-query.gen.ts`.
+ * The generated response is `AuthResponse` (`{ user, expires_at }`);
+ * we `select` just `{ user }` to keep backward compat with consumers
+ * that do `data.user`.
+ */
 export function useAuthMe() {
-  return useQuery<{ user: SessionUser } | null>({
-    queryKey: queryKeys.user.me,
-    queryFn: async () => {
-      const res = await apiJson<{ user: SessionUser } | null>('/api/auth/me', { method: 'GET' })
-      return res
-    },
+  return useQuery({
+    ...meOptions(),
     retry: false,
     staleTime: 5 * 60 * 1000,
-    // Don't refetch on focus — auth state is stable; refetching causes flicker.
-    refetchOnWindowFocus: false,
+    select: (data) => (data ? { user: data.user as unknown as SessionUser } : null),
   })
 }
 
+/**
+ * Log out the current user via `POST /api/auth/logout`.
+ *
+ * Uses the generated `logoutMutation` from `@tanstack/react-query.gen.ts`.
+ * Clears the entire query cache on success so stale auth data doesn't linger.
+ */
 export function useLogout() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async () => apiJson('/api/auth/logout', { method: 'POST' }),
+    ...logoutMutation(),
     onSuccess: () => {
       qc.clear()
+      qc.removeQueries({ queryKey: meQueryKey() })
       qc.removeQueries({ queryKey: queryKeys.user.me })
     },
   })

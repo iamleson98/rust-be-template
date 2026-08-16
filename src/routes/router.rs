@@ -39,12 +39,9 @@ pub fn build_router(state: AppState) -> Router<()> {
         config: governor_conf,
     };
 
-    // ---- /api sub-router (rate-limited + CSRF-checked) ----------------
+    // ---- /api sub-router (rate-limited) ----------------
     // Build as Router<AppState>, then convert to Router<()> by
     // capturing state. This is the standard axum 0.8 pattern.
-    let csrf_manager = std::sync::Arc::new(crate::auth::csrf::CsrfManager::new(
-        &state.config.jwt.secret,
-    ));
     let api_routes: Router<AppState> = Router::new()
         .route("/auth/register", post(crate::routes::auth::register))
         .route("/auth/login", post(crate::routes::auth::login))
@@ -134,12 +131,6 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/zeroclaw/exchanges",
             get(crate::routes::zeroclaw::list_exchanges),
         )
-        // CSRF check — runs on every mutating request. Safe methods + the
-        // auth endpoints that establish the session are exempt (see impl).
-        .layer(axum::middleware::from_fn_with_state(
-            csrf_manager,
-            crate::middleware::csrf::csrf_check,
-        ))
         .layer(governor_layer);
 
     // ---- Static files (NO rate limit, browser-cache headers) -----------
@@ -229,7 +220,6 @@ pub fn build_router(state: AppState) -> Router<()> {
                 .allow_headers([
                     axum::http::header::AUTHORIZATION,
                     axum::http::header::CONTENT_TYPE,
-                    axum::http::HeaderName::from_static("x-csrf-token"),
                     axum::http::HeaderName::from_static("x-request-id"),
                 ]),
         )

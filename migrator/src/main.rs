@@ -296,6 +296,10 @@ async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> 
         .arg(&db_url)
         .arg("--with-serde")
         .arg("both");
+        // .arg("--model-extra-derives")
+        // .arg("utoipa::ToSchema")
+        // .arg("--column-extra-derives")
+        // .arg("utoipa::ToSchema");
 
     if !with_relations {
         println!(

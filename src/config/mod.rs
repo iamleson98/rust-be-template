@@ -18,7 +18,6 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub jwt: JwtConfig,
     pub cookie: CookieConfig,
-    pub csrf: CsrfConfig,
     pub cache: CacheConfig,
     pub storage: StorageConfig,
     pub worker: WorkerConfig,
@@ -38,7 +37,6 @@ impl Default for Config {
             database: DatabaseConfig::default(),
             jwt: JwtConfig::default(),
             cookie: CookieConfig::default(),
-            csrf: CsrfConfig::default(),
             cache: CacheConfig::default(),
             storage: StorageConfig::default(),
             worker: WorkerConfig::default(),
@@ -208,26 +206,6 @@ impl SameSite {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-pub struct CsrfConfig {
-    pub token_ttl_secs: u64,
-}
-
-impl Default for CsrfConfig {
-    fn default() -> Self {
-        Self {
-            token_ttl_secs: 3600,
-        }
-    }
-}
-
-impl CsrfConfig {
-    pub fn ttl(&self) -> Duration {
-        Duration::from_secs(self.token_ttl_secs)
-    }
-}
-
-#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum CacheBackend {
     Moka,
@@ -597,9 +575,6 @@ impl Config {
         tracing::info!("    secure:             {}", self.cookie.secure);
         tracing::info!("    samesite:           {:?}", self.cookie.samesite);
 
-        tracing::info!("  csrf:");
-        tracing::info!("    token_ttl:          {}s", self.csrf.token_ttl_secs);
-
         tracing::info!("  cache:");
         tracing::info!("    backend:            {:?}", self.cache.backend);
         tracing::info!("    ttl:                {}s", self.cache.ttl_secs);
@@ -617,9 +592,6 @@ impl Config {
         tracing::info!("    s3_force_path_style:{}", self.storage.s3_force_path_style);
 
         tracing::info!("  worker:");
-        tracing::info!("    backend:            {:?}", self.worker.backend);
-        tracing::info!("    concurrency:        {}", self.worker.concurrency);
-        tracing::info!("    poll_interval:      {}ms", self.worker.poll_interval_ms);
         tracing::info!("    kafka_brokers:      {}", self.worker.kafka_brokers);
         tracing::info!("    kafka_group_id:     {}", self.worker.kafka_group_id);
         tracing::info!("    kafka_topic:        {}", self.worker.kafka_topic);

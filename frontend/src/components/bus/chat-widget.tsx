@@ -35,19 +35,7 @@ import {
   ShieldCheck,
   Users,
 } from 'lucide-react'
-
-type SessionUser = {
-  id: string
-  type: 'user' | 'employee'
-  role: string
-  name: string
-  email?: string | null
-  phone?: string | null
-  avatarUrl?: string | null
-  brandId?: string | null
-  brandName?: string | null
-  employeeRole?: string | null
-}
+import type { SessionUser } from '@/lib/api/types.gen'
 
 type Channel = {
   id: string

@@ -17,6 +17,8 @@ import {
   DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
+import { useMutation } from '@tanstack/react-query'
+import { logoutMutation } from '@/lib/api/@tanstack/react-query.gen'
 
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
@@ -44,22 +46,17 @@ export const Header = memo(function Header() {
     toast.success(newLang === 'vi' ? 'Đã chuyển sang Tiếng Việt' : 'Switched to English')
   }, [setLang])
 
-  const handleLogout = useCallback(async () => {
-    // The /api/auth/logout endpoint reads the refresh cookie (httpOnly) and
-    // revokes it server-side. No body needed.
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-      })
-    } catch {
-      // non-fatal — we'll still clear the client state
+  const LogoutMut = useMutation({
+    ...logoutMutation(),
+    onSuccess: () => {
+      setUser(null);
+      toast.success("Đã đăng xuất");
+      navigate({ to: '/' })
+    },
+    onError: () => {
+      toast.error("Failed to logout")
     }
-    setUser(null)
-    toast.success('Đã đăng xuất')
-    navigate({ to: '/' })
-  }, [setUser, navigate])
+  })
 
   const initials = (user?.name ?? '?')
     .trim()
@@ -147,7 +144,7 @@ export const Header = memo(function Header() {
           </button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="text-blue-100 hover:bg-white/10 hidden sm:flex gap-2 transition-colors" />}>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="text-blue-100 hover:bg-white/10 hover:text-white sm:flex gap-2 transition-colors" />}>
               <Globe className="h-4 w-4" /> {lang === 'vi' ? 'VI' : 'EN'}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -168,7 +165,7 @@ export const Header = memo(function Header() {
               className="gap-1.5 bg-white text-blue-800 hover:bg-blue-50 transition-colors"
             >
               <LogIn className="h-4 w-4" />
-              <span className="hidden sm:inline">Đăng nhập</span>
+              <span className="sm:inline">Đăng nhập</span>
             </Button>
           ) : (
             <DropdownMenu>
@@ -184,7 +181,7 @@ export const Header = memo(function Header() {
                     {initials || 'U'}
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden sm:inline text-xs font-semibold max-w-30 truncate">
+                <span className="sm:inline text-xs font-semibold max-w-30 truncate">
                   {user.name}
                 </span>
               </DropdownMenuTrigger>
@@ -236,7 +233,7 @@ export const Header = memo(function Header() {
                   <UserCircle className="h-4 w-4" /> Trang cá nhân
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
+                <DropdownMenuItem onClick={() => LogoutMut.mutate({})} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
                   <LogOut className="h-4 w-4" /> Đăng xuất
                 </DropdownMenuItem>
               </DropdownMenuContent>

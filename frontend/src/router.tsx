@@ -169,7 +169,7 @@ function AuthBootstrap() {
       if (user) setUser(null)
       return
     }
-    setUser(data.user)
+    setUser(data.user as Parameters<typeof setUser>[0])
     try {
       localStorage.setItem('bus_user', JSON.stringify(data.user))
     } catch {}

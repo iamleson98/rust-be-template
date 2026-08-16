@@ -1,47 +1,3 @@
-//! System-wide DTOs (Data Transfer Objects).
-//!
-//! This module centralizes the request/response shapes that cross the
-//! HTTP boundary so they are consistent across every route handler:
-//!
-//! - [`ListQuery`] — standard `limit` / `offset` / `sort` / `order`
-//!   pagination + sorting parameters, parsed from the query string.
-//! - [`ListEnvelope`] — the canonical `{ items, total, limit, offset }`
-//!   response envelope every list endpoint returns. The frontend's
-//!   `ListEnvelope<T>` type mirrors this exactly.
-//! - [`SortOrder`] — `asc` / `desc` enum, case-insensitive on input.
-//!
-//! ## Why centralize?
-//!
-//! Before this module, each route defined its own `ListQuery` struct
-//! with ad-hoc `limit` / `offset` fields and no sorting. That meant:
-//!   - Inconsistent pagination defaults (some used 20, some 50).
-//!   - No sorting support anywhere.
-//!   - The frontend had to know each endpoint's quirks.
-//!
-//! Now every list endpoint accepts the same query shape and returns the
-//! same envelope. Domain-specific filters are layered on top by
-//! composing `ListQuery` into a domain filter struct (see
-//! `PriceAlertListFilter` in `service/price_alert_service.rs`).
-//!
-//! ## Usage
-//!
-//! ```ignore
-//! use axum::extract::Query;
-//! use backend::dto::{ListQuery, ListEnvelope};
-//!
-//! #[derive(Deserialize)]
-//! struct MyFilter {
-//!     #[serde(flatten)]
-//!     base: ListQuery,
-//!     status: Option<String>,
-//! }
-//!
-//! async fn list(Query(q): Query<MyFilter>) -> Json<ListEnvelope<MyOut>> {
-//!     // q.base.limit, q.base.offset, q.base.sort, q.base.order
-//!     // ...
-//! }
-//! ```
-
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
@@ -142,4 +98,12 @@ impl<T: ToSchema> ListEnvelope<T> {
         self.total = Some(total);
         self
     }
+}
+
+#[derive(Serialize, Deserialize, ToSchema)]
+pub struct BrandInfo {
+    // #[serde(flatten)]
+    // pub base: crate::entity::brand::Model,
+    pub route_count: usize,
+    pub layout_count: usize,
 }

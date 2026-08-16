@@ -3,7 +3,6 @@ use std::sync::Arc;
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::auth::csrf::CsrfManager;
 use crate::auth::jwt::JwtManager;
 use crate::auth::jwt_validator::JwtValidator;
 use crate::auth::password::PasswordHasher;
@@ -20,11 +19,10 @@ pub struct AuthSession {
     pub user: user::Model,
     pub access_token: String,
     pub refresh_token: String,
-    pub csrf_token: String,
 }
 
 impl AuthSession {
-    /// Set the auth + CSRF cookies on a `CookieJar` and return the updated jar.
+    /// Set the auth cookies on a `CookieJar` and return the updated jar.
     pub fn set_cookies(
         &self,
         jar: axum_extra::extract::CookieJar,
@@ -35,7 +33,6 @@ impl AuthSession {
             cfg,
             &self.access_token,
             &self.refresh_token,
-            &self.csrf_token,
         )
     }
 }
@@ -48,7 +45,6 @@ pub struct AuthService {
     jwt_validator: Arc<JwtValidator>,
     refresh: Arc<RefreshTokenManager>,
     password: Arc<PasswordHasher>,
-    csrf: Arc<CsrfManager>,
     config: Arc<Config>,
 }
 
@@ -61,7 +57,6 @@ impl AuthService {
         jwt_validator: Arc<JwtValidator>,
         refresh: Arc<RefreshTokenManager>,
         password: Arc<PasswordHasher>,
-        csrf: Arc<CsrfManager>,
         config: Arc<Config>,
     ) -> Self {
         Self {
@@ -70,7 +65,6 @@ impl AuthService {
             jwt_validator,
             refresh,
             password,
-            csrf,
             config,
         }
     }
@@ -113,7 +107,7 @@ impl AuthService {
         Ok(model)
     }
 
-    /// Exchange credentials for an auth session (access + refresh + csrf).
+    /// Exchange credentials for an auth session (access + refresh).
     pub async fn login(&self, email: String, password: String) -> AppResult<AuthSession> {
         let user = self
             .store
@@ -219,7 +213,7 @@ impl AuthService {
     }
 
     /// Issue a fresh auth session: new access JWT + new refresh token
-    /// (persisted) + new CSRF token.
+    /// (persisted).
     async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
         let id = user.id;
         let access = self
@@ -234,15 +228,10 @@ impl AuthService {
             .save_refresh_token(refresh_model)
             .await?;
 
-        let csrf = self.csrf.issue(chrono::Duration::seconds(
-            self.config.csrf.token_ttl_secs as i64,
-        ));
-
         Ok(AuthSession {
             user,
             access_token: access,
             refresh_token: refresh_value.to_cookie_value(),
-            csrf_token: csrf,
         })
     }
 

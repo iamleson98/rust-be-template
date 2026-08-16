@@ -5,7 +5,13 @@ use crate::config::CookieConfig;
 
 pub const ACCESS_COOKIE: &str = "access_token";
 pub const REFRESH_COOKIE: &str = "refresh_token";
-pub const CSRF_COOKIE: &str = "csrf_token";
+
+/// Helper: extract access + refresh tokens from cookies.
+pub fn extract_tokens(jar: &CookieJar) -> (Option<String>, Option<String>) {
+    let access = jar.get(ACCESS_COOKIE).map(|c| c.value().to_string());
+    let refresh = jar.get(REFRESH_COOKIE).map(|c| c.value().to_string());
+    (access, refresh)
+}
 
 /// Set the access + refresh HttpOnly cookies on the response. Caller
 /// passes the actual token values; this function packages them. Returns
@@ -15,21 +21,19 @@ pub fn set_auth_cookies(
     cfg: &CookieConfig,
     access: &str,
     refresh: &str,
-    csrf: &str,
 ) -> CookieJar {
     let access_ttl = Duration::minutes(15);
     let refresh_ttl = Duration::days(7);
 
     let access_cookie = build_cookie(ACCESS_COOKIE, access, cfg, access_ttl);
     let refresh_cookie = build_cookie(REFRESH_COOKIE, refresh, cfg, refresh_ttl);
-    let csrf_cookie = build_cookie(CSRF_COOKIE, csrf, cfg, refresh_ttl);
 
-    jar.add(access_cookie).add(refresh_cookie).add(csrf_cookie)
+    jar.add(access_cookie).add(refresh_cookie)
 }
 
 pub fn clear_auth_cookies(jar: CookieJar, cfg: &CookieConfig) -> CookieJar {
     let mut jar = jar;
-    for name in [ACCESS_COOKIE, REFRESH_COOKIE, CSRF_COOKIE] {
+    for name in [ACCESS_COOKIE, REFRESH_COOKIE] {
         let c = Cookie::build(name)
             .path("/")
             .max_age(time::Duration::seconds(0));

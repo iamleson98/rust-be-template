@@ -7,7 +7,6 @@ use anyhow::Context;
 use sea_orm::{ConnectOptions, Database};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-use crate::auth::csrf::CsrfManager;
 use crate::auth::jwt::JwtManager;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::RefreshTokenManager;
@@ -122,7 +121,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let jwt = Arc::new(JwtManager::new(config.jwt.clone()));
     let refresh = Arc::new(RefreshTokenManager::new(config.jwt.clone()));
     let password = Arc::new(PasswordHasher::new());
-    let csrf = Arc::new(CsrfManager::new(&config.jwt.secret));
     // JWT validator with revocation cache (per-token + per-user).
     // Needed for logout to immediately invalidate access tokens.
     let jwt_validator = Arc::new(crate::auth::JwtValidator::new(jwt.clone(), &config.jwt));
@@ -147,7 +145,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         jwt_validator.clone(),
         refresh.clone(),
         password.clone(),
-        csrf.clone(),
         config_arc.clone(),
     ));
     let user_service = Arc::new(UserService::new(store.clone(), rbac.clone()));

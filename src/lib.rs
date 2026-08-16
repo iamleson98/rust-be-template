@@ -14,7 +14,7 @@
 //! - `osm`: Tantivy place-search index (Vietnamese-aware, OSM PBF ingestion)
 //! - `zeroclaw`: pluggable AI customer-support assistant
 //! - `rbac`: cached role + permission checker
-//! - `auth`: password, JWT, refresh, cookies, CSRF, SessionUser
+//! - `auth`: password, JWT, refresh, cookies, SessionUser
 //! - `middleware`: rate limit, auth extractors, request id
 //! - `routes`: axum handlers + utoipa OpenAPI
 //! - `state`: AppState
@@ -25,10 +25,10 @@ pub mod audio_call;
 pub mod cache;
 pub mod cli;
 pub mod config;
-pub mod dto;
 pub mod entity;
 pub mod error;
 pub mod middleware;
+pub mod dto;
 pub mod osm;
 pub mod rbac;
 pub mod routes;
@@ -40,6 +40,8 @@ pub mod store;
 pub mod worker;
 pub mod ws;
 pub mod zeroclaw;
+// pub mod entities;
+// pub mod query_root;
 
 // Re-export the Migrator from the standalone migrator crate.
 pub use migrator::Migrator;

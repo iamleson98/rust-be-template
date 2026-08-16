@@ -286,19 +286,6 @@ export type PriceAlert = {
   duplicate?: boolean
 }
 
-export type SessionUser = {
-  id: string
-  type: 'user' | 'employee'
-  role: 'user' | 'admin' | 'support_agent' | 'support_lead' | 'ops'
-  name: string
-  phone?: string | null
-  email?: string | null
-  avatarUrl?: string | null
-  brandId?: string | null
-  brandName?: string | null
-  employeeRole?: string | null
-}
-
 // ── Admin-domain types ──────────────────────────────────────────
 export type AdminBrand = Brand & {
   status: string

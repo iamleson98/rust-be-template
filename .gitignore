@@ -78,4 +78,5 @@ server.log
 
 /data
 /osm-index
-
+/hello
+app.db

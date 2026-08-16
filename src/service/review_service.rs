@@ -25,7 +25,7 @@ use crate::store::CompositeStore;
 // ────────────────────────────────────────────────────────────────
 
 /// Input for creating a review.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
 pub struct CreateReviewInput {
     pub booking_id: Option<String>,
     pub trip_session_id: Option<String>,
@@ -42,7 +42,7 @@ pub struct CreateReviewInput {
 }
 
 /// Input for updating a review.
-#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[derive(Debug, Clone, Default, serde::Deserialize, utoipa::ToSchema)]
 pub struct UpdateReviewInput {
     pub rating: Option<i32>,
     pub title: Option<String>,

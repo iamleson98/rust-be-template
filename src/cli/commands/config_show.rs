@@ -39,9 +39,6 @@ pub fn run() -> anyhow::Result<()> {
     println!("  secure:             {}", cfg.cookie.secure);
     println!("  samesite:           {:?}", cfg.cookie.samesite);
     println!();
-    println!("CSRF:");
-    println!("  token_ttl:          {}s", cfg.csrf.token_ttl_secs);
-    println!();
     println!("Cache:");
     println!("  backend:            {:?}", cfg.cache.backend);
     println!("  ttl_secs:           {}", cfg.cache.ttl_secs);
