@@ -146,6 +146,81 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/wishlist/{id}",
             delete(crate::routes::wishlist::remove),
         )
+        // ── Admin namespace (requires AdminUser extractor) ──────────────
+        // ── Admin — Brands ───────────────────────────────────────────────
+        .route(
+            "/admin/brands",
+            get(crate::routes::admin::list_brands).post(crate::routes::admin::create_brand),
+        )
+        .route(
+            "/admin/brands/{id}",
+            axum::routing::put(crate::routes::admin::update_brand)
+                .delete(crate::routes::admin::delete_brand),
+        )
+        // ── Admin — Routes ───────────────────────────────────────────────
+        .route(
+            "/admin/routes",
+            get(crate::routes::admin::list_routes).post(crate::routes::admin::create_route),
+        )
+        .route(
+            "/admin/routes/{id}",
+            axum::routing::put(crate::routes::admin::update_route)
+                .delete(crate::routes::admin::delete_route),
+        )
+        // ── Admin — Schedules ───────────────────────────────────────────
+        .route(
+            "/admin/schedules",
+            get(crate::routes::admin::list_schedules).post(crate::routes::admin::create_schedule),
+        )
+        .route(
+            "/admin/schedules/{id}",
+            axum::routing::put(crate::routes::admin::update_schedule)
+                .delete(crate::routes::admin::delete_schedule),
+        )
+        // ── Admin — Pickup points ────────────────────────────────────────
+        .route(
+            "/admin/pickup-points",
+            get(crate::routes::admin::list_pickup_points)
+                .post(crate::routes::admin::create_pickup_point),
+        )
+        .route(
+            "/admin/pickup-points/{id}",
+            axum::routing::put(crate::routes::admin::update_pickup_point)
+                .delete(crate::routes::admin::delete_pickup_point),
+        )
+        // ── Admin — Bus layouts ──────────────────────────────────────────
+        .route(
+            "/admin/bus-layouts",
+            get(crate::routes::admin::list_bus_layouts),
+        )
+        // ── Admin — Reviews moderation ───────────────────────────────────
+        .route(
+            "/admin/reviews",
+            get(crate::routes::admin::list_reviews),
+        )
+        .route(
+            "/admin/reviews/{id}",
+            axum::routing::patch(crate::routes::admin::moderate_review)
+                .delete(crate::routes::admin::delete_review),
+        )
+        // ── Admin — Bookings ─────────────────────────────────────────────
+        .route(
+            "/admin/bookings",
+            get(crate::routes::admin::list_bookings),
+        )
+        .route(
+            "/admin/bookings/{id}",
+            get(crate::routes::admin::get_booking)
+                .patch(crate::routes::admin::update_booking_status),
+        )
+        .route(
+            "/admin/bookings/stats",
+            get(crate::routes::admin::booking_stats),
+        )
+        .route(
+            "/admin/bookings/export",
+            get(crate::routes::admin::booking_export),
+        )
         // ── ZeroClaw ───────────────────────────────────────────────────
         .route("/zeroclaw/status", get(crate::routes::zeroclaw::status))
         .route(

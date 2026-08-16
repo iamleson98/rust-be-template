@@ -36,6 +36,7 @@ pub trait RouteStore: Send + Sync {
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>>;
     async fn insert_route(&self, model: route::ActiveModel) -> StoreResult<()>;
     async fn update_route(&self, model: route::ActiveModel) -> StoreResult<route::Model>;
+    async fn delete_route(&self, id: Uuid) -> StoreResult<()>;
     async fn count_routes_by_brand(&self, brand_id: &str) -> StoreResult<usize>;
 
     // ── PickupPoint ─────────────────────────────────────────────
@@ -114,6 +115,14 @@ impl RouteStore for DbRouteStore {
 
     async fn update_route(&self, model: route::ActiveModel) -> StoreResult<route::Model> {
         Ok(route::Entity::update(model).exec(self.db.as_ref()).await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn delete_route(&self, id: Uuid) -> StoreResult<()> {
+        route::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
     }
 
     async fn count_routes_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
