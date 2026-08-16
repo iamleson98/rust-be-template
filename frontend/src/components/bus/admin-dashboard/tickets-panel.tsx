@@ -86,7 +86,8 @@ import type {
   AdminBookingFilter,
   AdminBookingItem,
   AdminBookingStats,
-} from '@/lib/queries/types'
+} from '@/lib/queries'
+
 import { BookingStatusBadge, KpiCard } from './badges'
 import { downloadCSV } from './helpers'
 
@@ -278,7 +279,9 @@ export function TicketsPanel() {
     }
   }, [exportMutation, filter])
 
-  const stats: AdminBookingStats | undefined = bookingsQuery.data?.stats
+  // KPI totals — come from the dedicated /stats endpoint
+  // (`AdminBookingStatsResponse.totals`), not from the list response.
+  const totals = statsQuery.data?.totals
   const total = bookingsQuery.data?.total ?? 0
   const offset = filter.offset ?? 0
   const page = Math.floor(offset / PAGE_SIZE) + 1
@@ -301,7 +304,7 @@ export function TicketsPanel() {
         <KpiCard
           icon={<TicketIcon className="h-5 w-5" />}
           label="Tổng vé"
-          value={stats ? String(stats.total) : '—'}
+          value={totals ? String(totals.total) : '—'}
           change=""
           up
           color="#2563eb"
@@ -311,7 +314,7 @@ export function TicketsPanel() {
         <KpiCard
           icon={<DollarSign className="h-5 w-5" />}
           label="Doanh thu"
-          value={stats ? formatVND(stats.revenue) : '—'}
+          value={totals ? formatVND(totals.revenue) : '—'}
           change=""
           up
           color="#16a34a"
@@ -321,7 +324,7 @@ export function TicketsPanel() {
         <KpiCard
           icon={<CheckCircle2 className="h-5 w-5" />}
           label="Đã xác nhận"
-          value={stats ? String(stats.confirmed) : '—'}
+          value={totals ? String(totals.confirmed) : '—'}
           change=""
           up
           color="#0ea5e9"
@@ -331,7 +334,7 @@ export function TicketsPanel() {
         <KpiCard
           icon={<TrendingUp className="h-5 w-5" />}
           label="Hoàn thành"
-          value={stats ? String(stats.completed) : '—'}
+          value={totals ? String(totals.completed) : '—'}
           change=""
           up
           color="#10b981"
@@ -341,7 +344,7 @@ export function TicketsPanel() {
         <KpiCard
           icon={<Ban className="h-5 w-5" />}
           label="Đã huỷ"
-          value={stats ? String(stats.cancelled + stats.refunded) : '—'}
+          value={totals ? String(totals.cancelled) : '—'}
           change=""
           color="#f43f5e"
           gradient="from-rose-500/10 to-rose-600/5"
@@ -435,7 +438,7 @@ export function TicketsPanel() {
                       <span className="flex items-center gap-2">
                         <span
                           className="inline-block h-2 w-2 rounded-full"
-                          style={{ background: b.accentColor }}
+                          style={{ background: b.accentColor ?? '#64748b' }}
                         />
                         {b.name}
                       </span>
@@ -524,48 +527,26 @@ export function TicketsPanel() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
-              Phân tích theo ngày & hãng xe
+              Phân tích theo ngày
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Per-day mini chart */}
-              <div>
-                <div className="text-xs text-muted-foreground mb-2">Số vé theo ngày</div>
-                <div className="h-32 flex items-end gap-0.5">
-                  {statsQuery.data.byDay.slice(-30).map((d) => {
-                    const max = Math.max(...statsQuery.data!.byDay.map((x) => x.count), 1)
-                    const h = (d.count / max) * 100
-                    return (
-                      <div
-                        key={d.date}
-                        title={`${d.date}: ${d.count} vé, ${formatVND(d.revenue)}`}
-                        className="flex-1 min-w-1.5 rounded-t bg-blue-400 hover:bg-blue-600 transition-colors"
-                        style={{ height: `${Math.max(2, h)}%` }}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-              {/* Per-brand list */}
-              <div>
-                <div className="text-xs text-muted-foreground mb-2">Top hãng xe theo doanh thu</div>
-                <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                  {statsQuery.data.byBrand.map((b) => {
-                    const maxRev = Math.max(...statsQuery.data!.byBrand.map((x) => x.revenue), 1)
-                    return (
-                      <div key={b.brandId} className="flex items-center gap-2 text-xs">
-                        <span
-                          className="inline-block h-2 w-2 rounded-full shrink-0"
-                          style={{ background: b.brandAccent ?? '#64748b' }}
-                        />
-                        <span className="truncate flex-1">{b.brandName}</span>
-                        <span className="font-semibold text-blue-700">{formatVND(b.revenue)}</span>
-                        <span className="text-muted-foreground w-12 text-right">{b.count} vé</span>
-                      </div>
-                    )
-                  })}
-                </div>
+            {/* Per-day mini chart */}
+            <div>
+              <div className="text-xs text-muted-foreground mb-2">Số vé theo ngày</div>
+              <div className="h-32 flex items-end gap-0.5">
+                {statsQuery.data.byDay.slice(-30).map((d) => {
+                  const max = Math.max(...statsQuery.data!.byDay.map((x) => x.count), 1)
+                  const h = (d.count / max) * 100
+                  return (
+                    <div
+                      key={d.date}
+                      title={`${d.date}: ${d.count} vé, ${formatVND(d.revenue)}`}
+                      className="flex-1 min-w-1.5 rounded-t bg-blue-400 hover:bg-blue-600 transition-colors"
+                      style={{ height: `${Math.max(2, h)}%` }}
+                    />
+                  )
+                })}
               </div>
             </div>
           </CardContent>
@@ -647,15 +628,6 @@ export function TicketsPanel() {
                       >
                         <td className="py-2.5 px-3">
                           <div className="font-mono text-xs font-bold text-blue-700">{b.code}</div>
-                          {b.trip?.brandName && (
-                            <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <span
-                                className="inline-block h-1.5 w-1.5 rounded-full"
-                                style={{ background: b.trip.brandAccent ?? '#64748b' }}
-                              />
-                              {b.trip.brandName}
-                            </div>
-                          )}
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="font-medium text-xs">{b.contactName ?? '—'}</div>
@@ -663,27 +635,19 @@ export function TicketsPanel() {
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="text-xs">
-                            {b.trip?.fromName ?? '—'} → {b.trip?.toName ?? '—'}
+                            {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
                           </div>
-                          {b.trip?.routeName && (
-                            <div className="text-[10px] text-muted-foreground">{b.trip.routeName}</div>
-                          )}
                         </td>
                         <td className="py-2.5 px-3 text-xs">
-                          {formatDepartureDate(b.trip?.departureDate)}
+                          {timeAgo(b.createdAt)}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <Badge variant="outline" className="text-[10px]">
-                            {b.seatsCount} ghế
+                            {b.code}
                           </Badge>
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="font-semibold text-xs">{formatVND(b.total)}</div>
-                          {b.discount ? (
-                            <div className="text-[10px] text-emerald-600">
-                              -{formatVND(b.discount)}
-                            </div>
-                          ) : null}
                         </td>
                         <td className="py-2.5 px-3">
                           <BookingStatusBadge status={b.status} />
@@ -715,13 +679,11 @@ export function TicketsPanel() {
                           {b.contactName ?? '—'} · {b.contactPhone ?? ''}
                         </div>
                         <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {b.trip?.fromName ?? '—'} → {b.trip?.toName ?? '—'}
-                          {b.trip?.departureDate ? ` · ${formatDepartureDate(b.trip.departureDate)}` : ''}
+                          {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="font-semibold text-xs">{formatVND(b.total)}</div>
-                        <div className="text-[10px] text-muted-foreground">{b.seatsCount} ghế</div>
                       </div>
                     </div>
                   </button>
@@ -996,46 +958,41 @@ function BookingDetailDialog({
                     value={booking.paymentMethod ?? '—'}
                   />
                 </div>
-                {booking.owner && (
+                {booking.contactName && (
                   <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground bg-blue-50/50 rounded-md px-2 py-1.5">
                     <Avatar className="h-5 w-5">
                       <AvatarFallback className="text-[9px] bg-blue-100 text-blue-700">
-                        {booking.owner.name?.[0] ?? 'U'}
+                        {booking.contactName?.[0] ?? 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    Tài khoản: <span className="font-medium text-blue-700">{booking.owner.name}</span>
-                    {booking.owner.phone && <span>· {booking.owner.phone}</span>}
+                    Tài khoản: <span className="font-medium text-blue-700">{booking.contactName}</span>
+                    {booking.contactPhone && <span>· {booking.contactPhone}</span>}
                   </div>
                 )}
               </Section>
 
-              {/* Trip info */}
-              {booking.trip && (
-                <Section title="Thông tin chuyến đi" icon={<Bus className="h-4 w-4" />}>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <InfoField
-                      label="Tuyến"
-                      value={
-                        booking.trip.route
-                          ? `${booking.trip.route.from} → ${booking.trip.route.to}`
-                          : '—'
-                      }
-                    />
-                    <InfoField
-                      label="Hãng xe"
-                      value={booking.trip.route?.brand?.name}
-                    />
-                    <InfoField
-                      label="Ngày đi"
-                      value={formatDepartureDate(booking.trip.departureDate)}
-                    />
-                    <InfoField
-                      label="Loại xe"
-                      value={booking.trip.busLayout?.name}
-                    />
-                  </div>
-                </Section>
-              )}
+              {/* Trip info — the AdminBookingDetail response doesn't include
+                  a nested trip preview, so we surface pickup/dropoff names. */}
+              <Section title="Thông tin chuyến đi" icon={<Bus className="h-4 w-4" />}>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <InfoField
+                    label="Tuyến"
+                    value={`${booking.pickupName ?? '—'} → ${booking.dropoffName ?? '—'}`}
+                  />
+                  <InfoField
+                    label="Hãng xe"
+                    value={booking.contactName ?? '—'}
+                  />
+                  <InfoField
+                    label="Ngày đi"
+                    value={formatDepartureDate(booking.createdAt)}
+                  />
+                  <InfoField
+                    label="Loại xe"
+                    value={booking.paymentMethod ?? '—'}
+                  />
+                </div>
+              </Section>
 
               {/* Seats + passengers */}
               <Section title="Ghế & hành khách" icon={<TicketIcon className="h-4 w-4" />}>
@@ -1047,7 +1004,7 @@ function BookingDetailDialog({
                     >
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className="font-mono text-[10px]">
-                          {s.seatCode || '—'}
+                          {s.seatId ?? '—'}
                         </Badge>
                         <span className="font-medium">{s.passengerName ?? '—'}</span>
                         {s.passengerType && (
@@ -1067,8 +1024,6 @@ function BookingDetailDialog({
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField label="Điểm đón" value={booking.pickupName} />
                   <InfoField label="Điểm trả" value={booking.dropoffName} />
-                  <InfoField label="Địa chỉ đón" value={booking.pickupAddress} />
-                  <InfoField label="Địa chỉ trả" value={booking.dropoffAddress} />
                 </div>
                 <div className="mt-2 flex items-center justify-between rounded-md bg-linear-to-r from-blue-50 to-emerald-50 px-3 py-2 text-sm">
                   <span className="font-medium">Tổng tiền</span>

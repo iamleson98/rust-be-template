@@ -14,7 +14,7 @@
  *   - Loading + error states rendered inline (Vietnamese strings + retry button).
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -42,7 +42,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { relativeTime } from '@/lib/types'
-import { useAdminReviews, useModerateAdminReview } from '@/lib/queries'
+import { useAdminReviews, useModerateAdminReview, useAdminBrands } from '@/lib/queries'
 import {
   Form,
   FormField,
@@ -93,9 +93,36 @@ export function ReviewsModerationPanel() {
     search: search.trim() || undefined,
   })
 
+  // Brand list — fetched separately so the brand filter dropdown has options.
+  // The reviews list response only carries `items` (no `brands` payload).
+  const brandsQuery = useAdminBrands()
+
   const items: AdminReview[] = (data?.items ?? []) as unknown as AdminReview[]
-  const stats: AdminReviewStats = (data?.stats as AdminReviewStats | undefined) ?? EMPTY_STATS
-  const brands: { id: string; name: string }[] = (data?.brands as { id: string; name: string }[] | undefined) ?? []
+  // `AdminReviewListResponse` only exposes `items` (no `stats` payload), so
+  // we derive the KPI stats client-side from the current page of reviews.
+  const stats: AdminReviewStats = useMemo(() => {
+    const pending = items.filter((r) => r.status === 'pending').length
+    const published = items.filter((r) => r.status === 'approved' || r.status === 'published').length
+    const hidden = items.filter((r) => r.status === 'hidden' || r.status === 'rejected').length
+    const total = items.length
+    const avgRating = total > 0
+      ? items.reduce((s, r) => s + r.rating, 0) / total
+      : 0
+    const replied = items.filter((r) => !!r.reply).length
+    return {
+      total,
+      pending,
+      published,
+      hidden,
+      flagged: 0,
+      avgRating,
+      responseRate: total > 0 ? Math.round((replied / total) * 100) : 0,
+    }
+  }, [items])
+  const brands: { id: string; name: string }[] = (brandsQuery.data?.items ?? []).map((b) => ({
+    id: b.id,
+    name: b.name,
+  }))
 
   const moderateMutation = useModerateAdminReview()
 

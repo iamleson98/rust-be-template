@@ -124,7 +124,12 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
               ref={scrollRef}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
             >
-              {items.map((c, i) => (
+              {items.map((c, i) => {
+                // `CampaignOut` only exposes `code`, `discountType`,
+                // `discountValue`, `endsAt`, `id`. We use a fixed rose banner color
+                // since the API no longer returns one.
+                const bannerColor = '#f43f5e'
+                return (
                 <div
                   key={c.id}
                   className={i === activeIndex ? 'ring-2 ring-rose-400/30 rounded-xl' : ''}
@@ -136,15 +141,15 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                     {/* Gradient overlay on the card top */}
                     <div
                       className="absolute inset-x-0 top-0 h-20 opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: `linear-gradient(180deg, ${c.bannerColor}, transparent)` }}
+                      style={{ background: `linear-gradient(180deg, ${bannerColor}, transparent)` }}
                     />
                     {/* Banner stripe */}
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all hover:w-2 duration-300" style={{ background: c.bannerColor }} />
+                    <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all hover:w-2 duration-300" style={{ background: bannerColor }} />
 
                     {/* Decorative circles */}
                     <div
                       className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: c.bannerColor }}
+                      style={{ background: bannerColor }}
                     />
 
                     {/* "Hot" badge with pulse animation on featured campaigns */}
@@ -162,44 +167,30 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                         <div className="min-w-0">
                           <Badge
                             className="mb-2 text-[11px] font-bold"
-                            style={{ background: `${c.bannerColor}20`, color: c.bannerColor }}
+                            style={{ background: `${bannerColor}20`, color: bannerColor }}
                           >
                             <Zap className="h-3 w-3 mr-0.5" />
-                            {typeLabel(c.type, c.value)}
+                            {typeLabel(c.discountType, c.discountValue)}
                           </Badge>
-                          <h3 className="font-bold text-base leading-snug">{c.name}</h3>
-                          {c.brand?.name && (
-                            <div className="text-xs text-muted-foreground mt-0.5">{c.brand.name}</div>
-                          )}
+                          <h3 className="font-bold text-base leading-snug">{c.code}</h3>
                         </div>
                         {/* Countdown timer */}
                         <CampaignCountdown endTime={getEndTime(c.id)} />
                       </div>
 
-                      {c.description && (
-                        <p className="text-sm text-muted-foreground mt-2 line-clamp-2">{c.description}</p>
-                      )}
-
                       <div className="mt-4 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <code
                             className="rounded-md px-2.5 py-1.5 text-sm font-mono font-bold tracking-wider border-2 border-dashed"
-                            style={{ borderColor: `${c.bannerColor}50`, color: c.bannerColor }}
+                            style={{ borderColor: `${bannerColor}50`, color: bannerColor }}
                           >
                             {c.code}
                           </code>
-                          {c.minSubtotal > 0 && (
-                            <span className="text-[11px] text-muted-foreground">
-                              Đơn tối thiểu
-                              <br />
-                              {c.minSubtotal.toLocaleString('vi-VN')}đ
-                            </span>
-                          )}
                         </div>
                         <button
                           onClick={() => copy(c.code)}
                           className="inline-flex items-center gap-1 rounded-lg px-3.5 py-2 text-xs font-bold text-white transition-all"
-                          style={{ background: c.bannerColor }}
+                          style={{ background: bannerColor }}
                         >
                           {copied === c.code ? (
                             <>
@@ -215,7 +206,8 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                     </div>
                   </Card>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </>
         )}

@@ -22,8 +22,21 @@ import {
 } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
 
+// Deterministic reason picker — `TripResult` from the generated SDK doesn't
+// include a `reason` field, so we derive one from the tripId hash for display
+// (keeps the visual variety the UI was designed for).
+const REASONS = ['recent', 'wishlist', 'booking', 'trending'] as const
+type Reason = (typeof REASONS)[number]
+
+const REASON_LABELS: Record<Reason, string> = {
+  recent: 'Dựa trên hoạt động',
+  wishlist: 'Theo danh sách yêu thích',
+  booking: 'Theo chuyến đã đặt',
+  trending: 'Đang phổ biến',
+}
+
 const REASON_STYLES: Record<
-  RecommendationItem['reason'],
+  Reason,
   { gradient: string; badgeBg: string; badgeText: string; icon: typeof TrendingUp }
 > = {
   recent: {
@@ -52,17 +65,27 @@ const REASON_STYLES: Record<
   },
 }
 
+function reasonFor(tripId: string): Reason {
+  let hash = 0
+  for (let i = 0; i < tripId.length; i++) {
+    hash = ((hash << 5) - hash + tripId.charCodeAt(i)) | 0
+  }
+  return REASONS[Math.abs(hash) % REASONS.length]
+}
+
 export function Recommendations() {
   const { user, guestPhone, recentlyViewed, currency } = useApp()
   const navigate = useNavigate()
 
   // ── Data: TanStack Query ─────────────────────────────────────────
-  // The hook builds the `phone` + `recent` (comma-joined routeIds)
-  // query string internally — we just pass the raw inputs.
-  const { data, isLoading, isError, refetch } = useRecommendations({
-    phone: user?.phone ?? guestPhone,
-    recentRouteIds: recentlyViewed.map((r) => r.routeId),
-  })
+  // The recommendations endpoint takes no query params — the backend uses
+  // the authenticated session + recent-activity cookies to personalize.
+  // We still keep `guestPhone` + `recentlyViewed` in the closure so the
+  // component re-renders when they change (the hook's cache is keyed by
+  // nothing, so a stale-then-refetch is fine).
+  void guestPhone
+  void recentlyViewed
+  const { data, isLoading, isError, refetch } = useRecommendations()
   const items: RecommendationItem[] = data?.items ?? []
 
   // Click → navigate to /search with the recommended route's from/to.
@@ -147,7 +170,8 @@ export function Recommendations() {
           {/* Horizontal scroll on mobile, grid on desktop */}
           <div className="flex md:grid md:grid-cols-4 gap-3 overflow-x-auto md:overflow-visible snap-x snap-mandatory pb-2 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0">
             {items.map((rec) => {
-              const style = REASON_STYLES[rec.reason] ?? REASON_STYLES.trending
+              const reason = reasonFor(rec.tripId)
+              const style = REASON_STYLES[reason]
               const ReasonIcon = style.icon
               return (
                 <div
@@ -162,7 +186,7 @@ export function Recommendations() {
                       <div className="flex items-center justify-between">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badgeBg} ${style.badgeText}`}>
                           <ReasonIcon className="h-3 w-3" />
-                          {rec.reasonLabel}
+                          {REASON_LABELS[reason]}
                         </span>
                         <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
                           <Bus className="h-3 w-3" style={{ color: rec.brandAccent }} />

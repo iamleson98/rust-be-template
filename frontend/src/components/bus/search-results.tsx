@@ -100,7 +100,7 @@ function getHourOfDeparture(t: TripResult): number {
     const h = d.getHours()
     if (!Number.isNaN(h)) return h
   }
-  const m = /(\d{1,2}):(\d{2})/.exec(t.departureTime)
+  const m = /(\d{1,2}):(\d{2})/.exec(t.departureTime ?? '')
   return m ? parseInt(m[1], 10) : 12
 }
 

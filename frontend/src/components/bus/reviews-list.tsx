@@ -3,7 +3,6 @@
 import { memo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useReviewsByRoute } from '@/lib/queries'
-import { apiJson } from '@/lib/api-client'
 import {
   Star,
   ThumbsUp,
@@ -155,7 +154,10 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // the backend and the response shape was wrong anyway.)
   const aggregateQuery = useQuery<BrandAggregateResponse>({
     queryKey: ['reviews', 'aggregate', 'brand', brandId],
-    queryFn: () => apiJson(`/api/reviews?brandId=${encodeURIComponent(brandId)}&limit=200`),
+    queryFn: () =>
+      fetch(`/api/reviews?brandId=${encodeURIComponent(brandId)}&limit=200`, {
+        credentials: 'include',
+      }).then((r) => r.json() as Promise<BrandAggregateResponse>),
     enabled: !!brandId,
     staleTime: 60 * 1000,
   })
@@ -177,7 +179,10 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // by routeId if the items carry it.
   const tagStatsQuery = useQuery<TagStatsResponse>({
     queryKey: ['reviews', 'tags', 'route', routeId],
-    queryFn: () => apiJson('/api/reviews/tags'),
+    queryFn: () =>
+      fetch('/api/reviews/tags', { credentials: 'include' }).then(
+        (r) => r.json() as Promise<TagStatsResponse>,
+      ),
     enabled: !!routeId,
     staleTime: 60 * 1000,
   })

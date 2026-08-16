@@ -35,18 +35,18 @@ const COMPARE_ROWS: CompareRow[] = [
         icon: <Clock className="h-3.5 w-3.5" />,
         render: (t) => (
             <div className="text-center">
-                <div className="font-mono text-base font-bold">{formatTimeVN(t.departureAt)}</div>
+                <div className="font-mono text-base font-bold">{formatTimeVN(t.departureAt ?? '')}</div>
                 <div className="text-[10px] text-muted-foreground">{t.fromName}</div>
             </div>
         ),
-        sortValue: (t) => new Date(t.departureAt).getTime(),
+        sortValue: (t) => new Date(t.departureAt ?? '').getTime(),
     },
     {
         label: 'Giờ đến',
         icon: <Bus className="h-3.5 w-3.5" />,
         render: (t) => (
             <div className="text-center">
-                <div className="font-mono text-base font-bold">{formatTimeVN(t.arrivalAt)}</div>
+                <div className="font-mono text-base font-bold">{formatTimeVN(t.arrivalAt ?? '')}</div>
                 <div className="text-[10px] text-muted-foreground">{t.toName}</div>
             </div>
         ),

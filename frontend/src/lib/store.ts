@@ -54,7 +54,7 @@ export type SearchParams = {
 
 // Re-export TripResult for backward compat with components that still
 // import it from the store. New code should import from '@/lib/queries'.
-export type { TripResult } from '@/lib/queries/types'
+export type { TripResult } from '@/lib/api/types.gen'
 
 export type Campaign = {
   id: string

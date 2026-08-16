@@ -69,7 +69,7 @@ import {
   useTripDetail,
   useAdminCreateBooking,
 } from '@/lib/queries'
-import type { TripResult, TripDetail } from '@/lib/queries/types'
+import type { TripResult, TripDetail } from '@/lib/api/types.gen'
 import type { Channel } from './types'
 
 // ── Types ───────────────────────────────────────────────────
@@ -292,10 +292,10 @@ export function ChatTicketPicker({
           fromName: selectedTrip.fromName,
           toName: selectedTrip.toName,
           departureDate: trip.trip.departureDate,
-          departureAt: trip.trip.departureAt,
+          departureAt: trip.trip.departureAt ?? null,
           brandName: selectedTrip.brandName,
           brandAccent: selectedTrip.brandAccent,
-          brandLogo: selectedTrip.brandLogo,
+          brandLogo: selectedTrip.brandLogo ?? null,
         },
         seats: selectedSeats.map((s, i) => ({
           code: s.code,
@@ -593,9 +593,9 @@ function SearchStep({
             <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
               {fromSearch.data.items.slice(0, 6).map((p) => (
                 <button
-                  key={p.id}
+                  key={p.id ?? p.name}
                   onClick={() => {
-                    setFromPlace({ id: p.id, name: p.name })
+                    setFromPlace({ id: p.id ?? p.name, name: p.name })
                     setFromQuery('')
                   }}
                   className="block w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50"
@@ -625,9 +625,9 @@ function SearchStep({
             <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
               {toSearch.data.items.slice(0, 6).map((p) => (
                 <button
-                  key={p.id}
+                  key={p.id ?? p.name}
                   onClick={() => {
-                    setToPlace({ id: p.id, name: p.name })
+                    setToPlace({ id: p.id ?? p.name, name: p.name })
                     setToQuery('')
                   }}
                   className="block w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50"
@@ -798,8 +798,8 @@ function SeatsStep({
                               row: seat.row,
                               col: seat.col,
                               deck: seat.deck,
-                              seatClass: seat.seatClass,
-                              priceMultiplier: seat.priceMultiplier,
+                              seatClass: seat.seatClass ?? '',
+                              priceMultiplier: 1,
                               status: seat.status,
                               finalPrice: seat.finalPrice,
                             })
@@ -855,8 +855,7 @@ function SeatsStep({
             <SelectContent>
               {boardingPoints.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                  {p.time && <span className="text-muted-foreground ml-1">· {p.time}</span>}
+                  {p.name ?? '—'}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -873,8 +872,7 @@ function SeatsStep({
             <SelectContent>
               {droppingPoints.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
-                  {p.name}
-                  {p.time && <span className="text-muted-foreground ml-1">· {p.time}</span>}
+                  {p.name ?? '—'}
                 </SelectItem>
               ))}
             </SelectContent>

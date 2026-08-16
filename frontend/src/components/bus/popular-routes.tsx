@@ -6,7 +6,6 @@ import { useNavigate } from '@/router'
 import { usePopularRoutes, type RouteItem } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client'
-import { apiJson } from '@/lib/api-client'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from './empty-states'
@@ -56,8 +55,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
         queryKey: queryKeys.trips.search(params),
         queryFn: async () => {
           // Backend `GET /api/search` accepts (snake_case): from, to, date,
-          // limit, vehicle_types, sort, min_seats. `apiJson` already sends
-          // `credentials: 'include'`.
+          // limit, vehicle_types, sort, min_seats. The `fetch` call below
+          // sends `credentials: 'include'` so the httpOnly JWT cookie is
+          // attached (authed users may get richer data).
           const sp = new URLSearchParams({
             from,
             to,
@@ -65,7 +65,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
             sort: 'departure',
             min_seats: '1',
           })
-          return apiJson(`/api/search?${sp}`)
+          const res = await fetch(`/api/search?${sp}`, { credentials: 'include' })
+          if (!res.ok) throw new Error('Failed to prefetch search results')
+          return res.json()
         },
         staleTime: 30 * 1000,
       })
@@ -128,20 +130,20 @@ export const PopularRoutes = memo(function PopularRoutes() {
                   <Card className="group overflow-hidden border-border/60 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 h-full">
                     <div
                       className="h-1.5"
-                      style={{ background: `linear-gradient(90deg, ${r.brand.accentColor}, transparent)` }}
+                      style={{ background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)` }}
                     />
                     <div className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span
                           className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{ background: `${r.brand.accentColor}15`, color: r.brand.accentColor }}
+                          style={{ background: `${r.brand.accentColor ?? '#64748b'}15`, color: r.brand.accentColor ?? '#64748b' }}
                         >
                           <Bus className="h-3 w-3" />
-                          {r.brand.name}
+                          {r.brand.name ?? '—'}
                         </span>
                         <div className="flex items-center gap-1 text-xs text-amber-500">
                           <Star className="h-3 w-3 fill-current" />
-                          {r.brand.rating.toFixed(1)}
+                          {(r.brand.rating ?? 0).toFixed(1)}
                         </div>
                       </div>
 
@@ -162,11 +164,11 @@ export const PopularRoutes = memo(function PopularRoutes() {
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatDuration(r.durationMin)}
+                          {formatDuration(r.durationMin ?? 0)}
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
-                          {Math.round(r.distanceKm)} km
+                          {Math.round(r.distanceKm ?? 0)} km
                         </span>
                         <span className="font-medium text-blue-600">{r.scheduleCount} chuyến/ngày</span>
                       </div>

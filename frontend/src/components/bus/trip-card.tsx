@@ -5,7 +5,7 @@ import type { TripResult } from '@/lib/store'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { formatDuration, AMENITY_LABELS, VEHICLE_TYPE_ICONS } from '@/lib/types'
+import { formatDuration, formatTimeVN, AMENITY_LABELS, VEHICLE_TYPE_ICONS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import { Clock, MapPin, Users, Star, Wifi, Snowflake, Droplet, Zap, ChevronRight, TrendingUp, TrendingDown, Minus, GitCompare, Sparkles, Bell, Share2 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -110,11 +110,11 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
   }, [queryClient, trip.tripId])
 
   // Overnight trip detection
-  const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
+  const overnight = isOvernight(trip.departureAt ?? '', trip.arrivalAt ?? '')
   // Date differs from search date?
   const searchDateShort = searchParams.date ? formatShortDate(searchParams.date + 'T00:00:00+07:00') : null
-  const departureDateShort = formatShortDate(trip.departureAt)
-  const arrivalDateShort = formatShortDate(trip.arrivalAt)
+  const departureDateShort = formatShortDate(trip.departureAt ?? '')
+  const arrivalDateShort = formatShortDate(trip.arrivalAt ?? '')
   const showDepartureDate = searchDateShort && departureDateShort !== searchDateShort
   const showArrivalDate = departureDateShort !== arrivalDateShort
 
@@ -188,8 +188,8 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
       tripId: trip.tripId,
       fromName: trip.fromName,
       toName: trip.toName,
-      departureAt: trip.departureAt,
-      departureTime: trip.departureTime,
+      departureAt: trip.departureAt ?? undefined,
+      departureTime: trip.departureTime ?? undefined,
       brandName: trip.brandName,
       brandAccent: trip.brandAccent,
       brandRating: trip.brandRating,
@@ -237,7 +237,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
             variant="icon"
             presetLabel={`${trip.fromName} → ${trip.toName}`}
             presetRouteId={trip.routeId}
-            presetBrandId={trip.brandId}
+            presetBrandId={trip.brandId ?? undefined}
           />
         </div>
 
@@ -295,7 +295,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
                 </div>
 
                 <div className="text-center shrink-0 min-w-15">
-                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{trip.arrivalTime}</div>
+                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{trip.arrivalAt ? formatTimeVN(trip.arrivalAt) : '—'}</div>
                   {showArrivalDate && (
                     <div className="text-[10px] text-blue-600 font-medium">{arrivalDateShort}</div>
                   )}
