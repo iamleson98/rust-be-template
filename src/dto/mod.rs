@@ -1,3 +1,34 @@
+//! Data Transfer Objects (DTOs) — the canonical wire shapes that the
+//! service layer returns and the API layer marshals into HTTP responses.
+//!
+//! ## Why dedicated DTOs (not `serde_json::Value`)
+//!
+//! Previously services returned `serde_json::Value`, which forced route
+//! handlers to declare their OpenAPI response bodies as `body = Value`
+//! — an opaque JSON blob with no schema. The generated OpenAPI client
+//! on the frontend then had no idea what fields the response carried.
+//!
+//! With typed DTOs:
+//! - The service signature is self-documenting — the return type tells
+//!   you the exact shape of the data.
+//! - The route layer just wraps the DTO in `Json<T>` and utoipa emits
+//!   a real schema in the OpenAPI spec.
+//! - The frontend's generated client (`openapi-ts`) gets strong types
+//!   instead of `unknown`.
+//!
+//! ## Layout
+//!
+//! Each domain has its own submodule (`place`, `routing`, `review`,
+//! `booking`, `public`). The root `mod.rs` keeps the cross-cutting
+//! helpers (`SortOrder`, `ListQuery`, `ListEnvelope`) that every list
+//! endpoint shares.
+
+pub mod booking;
+pub mod place;
+pub mod public;
+pub mod review;
+pub mod routing;
+
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 

@@ -6,50 +6,26 @@
 //! ## Design
 //! - Validates inputs (rating range, content length, ownership).
 //! - Uses `CompositeStore` (ReviewStore + BrandStore) for all DB access.
-//! - Maps domain rows to JSON DTOs.
+//! - Maps domain rows to typed DTOs from [`crate::dto::review`].
 //! - Recomputes brand rating after create/update/delete.
 
 use std::sync::Arc;
 
 use chrono::Utc;
 use sea_orm::Set;
-use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::dto::review::{
+    CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse,
+    ReviewOut, ReviewTagsResponse, UpdateReviewInput,
+};
 use crate::entity::review;
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
 // ────────────────────────────────────────────────────────────────
-//  Input DTOs
+//  Filter
 // ────────────────────────────────────────────────────────────────
-
-/// Input for creating a review.
-#[derive(Debug, Clone, serde::Deserialize, utoipa::ToSchema)]
-pub struct CreateReviewInput {
-    pub booking_id: Option<String>,
-    pub trip_session_id: Option<String>,
-    pub route_id: Option<String>,
-    pub brand_id: Option<String>,
-    pub rating: i32,
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub photos: Option<Vec<String>>,
-    pub author_name: Option<String>,
-    pub author_phone: Option<String>,
-    pub user_id: Option<String>,
-}
-
-/// Input for updating a review.
-#[derive(Debug, Clone, Default, serde::Deserialize, utoipa::ToSchema)]
-pub struct UpdateReviewInput {
-    pub rating: Option<i32>,
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub photos: Option<Vec<String>>,
-}
 
 /// Filter for listing reviews.
 #[derive(Debug, Clone, Default)]
@@ -76,7 +52,7 @@ impl ReviewService {
     }
 
     /// List reviews with optional filters.
-    pub async fn list(&self, filter: &ReviewListFilter) -> AppResult<Value> {
+    pub async fn list(&self, filter: &ReviewListFilter) -> AppResult<ReviewListResponse> {
         let limit = filter.limit.min(200);
         let reviews = self.store.review_store()
             .list_reviews(
@@ -90,24 +66,24 @@ impl ReviewService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = reviews.iter().map(review_to_json).collect();
-        Ok(json!({ "items": items }))
+        let items: Vec<ReviewOut> = reviews.iter().map(review_to_dto).collect();
+        Ok(ReviewListResponse { items })
     }
 
     /// Get a single review by id.
-    pub async fn get(&self, id: Uuid) -> AppResult<Value> {
+    pub async fn get(&self, id: Uuid) -> AppResult<ReviewOut> {
         let r = self.store.review_store()
             .find_review_by_id(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("review not found".into()))?;
 
-        Ok(review_to_json(&r))
+        Ok(review_to_dto(&r))
     }
 
     /// Create a new review. Validates rating range and content length.
     /// After creation, recomputes the brand's average rating.
-    pub async fn create(&self, input: &CreateReviewInput) -> AppResult<Value> {
+    pub async fn create(&self, input: &CreateReviewInput) -> AppResult<ReviewMutationResponse> {
         // Validate rating
         if input.rating < 1 || input.rating > 5 {
             return Err(AppError::Validation("rating must be 1-5".into()));
@@ -175,7 +151,7 @@ impl ReviewService {
             let _ = self.recompute_brand_rating(bid).await;
         }
 
-        Ok(json!({ "id": id }))
+        Ok(ReviewMutationResponse { id })
     }
 
     /// Update a review. Only the author can update their own review.
@@ -185,7 +161,7 @@ impl ReviewService {
         id: Uuid,
         caller_user_id: Option<&str>,
         input: &UpdateReviewInput,
-    ) -> AppResult<Value> {
+    ) -> AppResult<ReviewMutationResponse> {
         let existing = self.store.review_store()
             .find_review_by_id(id)
             .await
@@ -243,11 +219,11 @@ impl ReviewService {
             let _ = self.recompute_brand_rating(bid).await;
         }
 
-        Ok(json!({ "id": id }))
+        Ok(ReviewMutationResponse { id })
     }
 
     /// Delete a review. Only the author or an admin can delete.
-    pub async fn remove(&self, id: Uuid, caller_user_id: Option<&str>) -> AppResult<()> {
+    pub async fn remove(&self, id: Uuid, caller_user_id: Option<&str>) -> AppResult<ReviewDeleteResponse> {
         let existing = self.store.review_store()
             .find_review_by_id(id)
             .await
@@ -275,11 +251,11 @@ impl ReviewService {
             let _ = self.recompute_brand_rating(&bid).await;
         }
 
-        Ok(())
+        Ok(ReviewDeleteResponse { ok: true })
     }
 
     /// List available review tags (distinct tags from all reviews).
-    pub async fn tags_index(&self) -> AppResult<Value> {
+    pub async fn tags_index(&self) -> AppResult<ReviewTagsResponse> {
         // Get all reviews and extract unique tags
         let reviews = self.store.review_store()
             .list_all_reviews()
@@ -301,7 +277,7 @@ impl ReviewService {
         let mut tag_list: Vec<String> = tags.into_iter().collect();
         tag_list.sort();
 
-        Ok(json!({ "items": tag_list }))
+        Ok(ReviewTagsResponse { items: tag_list })
     }
 
     // ── Private helpers ─────────────────────────────────────────
@@ -335,13 +311,15 @@ impl ReviewService {
 //  Serialization helpers
 // ────────────────────────────────────────────────────────────────
 
-fn review_to_json(r: &review::Model) -> Value {
-    let tags: Vec<&str> = r
+/// Map a `review::Model` row to the `ReviewOut` DTO.
+pub fn review_to_dto(r: &review::Model) -> ReviewOut {
+    let tags: Vec<String> = r
         .tags
         .as_deref()
         .unwrap_or("")
         .split(',')
         .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
         .collect();
 
     let photos: Vec<String> = r
@@ -350,27 +328,27 @@ fn review_to_json(r: &review::Model) -> Value {
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
 
-    json!({
-        "id": r.id,
-        "bookingId": r.booking_id,
-        "tripSessionId": r.trip_session_id,
-        "routeId": r.route_id,
-        "brandId": r.brand_id,
-        "authorName": r.author_name,
-        "authorPhone": r.author_phone,
-        "rating": r.rating,
-        "title": r.title,
-        "content": r.content,
-        "tags": tags,
-        "photos": photos,
-        "status": r.status,
-        "helpfulCount": r.helpful_count,
-        "reply": r.reply,
-        "repliedAt": r.replied_at,
-        "createdAt": r.created_at,
-        "updatedAt": r.updated_at,
-        "userId": r.user_id,
-    })
+    ReviewOut {
+        id: r.id,
+        booking_id: r.booking_id.clone(),
+        trip_session_id: r.trip_session_id.clone(),
+        route_id: r.route_id.clone(),
+        brand_id: r.brand_id.clone(),
+        author_name: r.author_name.clone(),
+        author_phone: r.author_phone.clone(),
+        rating: r.rating,
+        title: r.title.clone(),
+        content: r.content.clone(),
+        tags,
+        photos,
+        status: r.status.clone(),
+        helpful_count: r.helpful_count,
+        reply: r.reply.clone(),
+        replied_at: r.replied_at.clone(),
+        created_at: r.created_at.clone(),
+        updated_at: r.updated_at.clone(),
+        user_id: r.user_id.clone(),
+    }
 }
 
 /// Current UTC time as ISO 8601 string.

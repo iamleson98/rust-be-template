@@ -6,18 +6,22 @@
 //! ## Design
 //! - Uses `CompositeStore` for all DB access (BrandStore, RouteStore,
 //!   ScheduleStore, TripStore, PlaceStore).
-//! - Returns `serde_json::Value` DTOs (no HTTP types).
+//! - Returns typed DTOs from [`crate::dto::public`] (no `serde_json::Value`).
 //! - Pure helpers (vehicle_type_label, parse_amenities, etc.) are ported as-is.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::entity::{
-    brand, bus_layout, place, route, schedule, seat_inventory,
+use crate::dto::public::{
+    BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
+    CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
+    StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore, TripDetail,
+    TripEndpoint, TripPricing, TripPickupPoint, TripResult, TripRouteDetail, TripSearchResponse,
+    TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
+use crate::entity::{brand, bus_layout, place, route, schedule, seat_inventory};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
@@ -59,27 +63,27 @@ fn compute_iso_timestamps(
     departure_date: &Option<String>,
     departure_time: &Option<String>,
     duration_min: &Option<i64>,
-) -> (String, String) {
+) -> (Option<String>, Option<String>) {
     let date = match departure_date {
         Some(d) if !d.is_empty() => d.clone(),
-        _ => return (String::new(), String::new()),
+        _ => return (None, None),
     };
     let (date_only, time_part) = if let Some(idx) = date.find('T') {
-        (&date[..idx], &date[idx + 1..])
+        (date[..idx].to_string(), &date[idx + 1..])
     } else {
-        (date.as_str(), "")
+        (date.clone(), "")
     };
     let dep_time = departure_time
         .as_deref()
         .filter(|t| !t.is_empty())
         .unwrap_or(time_part);
     if dep_time.is_empty() {
-        return (String::new(), String::new());
+        return (None, None);
     }
     let dep_iso = format!("{}T{}:00", date_only, dep_time);
     let dep_min = match parse_hhmm_to_minutes(dep_time) {
         Some(m) => m,
-        None => return (dep_iso, String::new()),
+        None => return (Some(dep_iso), None),
     };
     let dur = duration_min.unwrap_or(0).max(0);
     let mut total = dep_min + dur;
@@ -88,14 +92,14 @@ fn compute_iso_timestamps(
     let hh = total / 60;
     let mm = total % 60;
     let arr_iso = if extra_days > 0 {
-        match add_days_to_ymd(date_only, extra_days) {
+        match add_days_to_ymd(&date_only, extra_days) {
             Some(new_date) => format!("{}T{:02}:{:02}:00", new_date, hh, mm),
             None => dep_iso.clone(),
         }
     } else {
         format!("{}T{:02}:{:02}:00", date_only, hh, mm)
     };
-    (dep_iso, arr_iso)
+    (Some(dep_iso), Some(arr_iso))
 }
 
 /// Parse "HH:MM" or "HH:MM:SS" into total minutes since midnight.
@@ -158,14 +162,14 @@ fn julian_to_ymd(jd: i64) -> Option<(i64, i64, i64)> {
 }
 
 /// Amenity key → Vietnamese label.
-fn amenity_label(key: &str) -> &str {
+fn amenity_label(key: &str) -> &'static str {
     match key {
         "wifi" => "WiFi",
         "ac" => "Điều hòa",
         "water" => "Nước uống",
         "charging" => "Cắm sạc",
         "blanket" => "Chăn mền",
-        _ => key,
+        _ => "",
     }
 }
 
@@ -185,32 +189,30 @@ impl PublicService {
     // ── Brands ──────────────────────────────────────────────────
 
     /// List active brands (slim DTO for the homepage grid).
-    pub async fn list_brands(&self, limit: u64) -> AppResult<Value> {
+    pub async fn list_brands(&self, limit: u64) -> AppResult<BrandListResponse> {
         let limit = limit.clamp(1, 500);
         let brands = self.store.brand_store()
             .list_active(limit)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = brands
+        let items: Vec<BrandOut> = brands
             .iter()
-            .map(|b| {
-                json!({
-                    "id": b.id,
-                    "slug": b.slug,
-                    "name": b.name,
-                    "logoUrl": b.logo_url,
-                    "accentColor": b.accent_color,
-                    "rating": b.rating,
-                    "totalTrips": b.total_trips,
-                })
+            .map(|b| BrandOut {
+                id: b.id,
+                slug: b.slug.clone(),
+                name: b.name.clone(),
+                logo_url: b.logo_url.clone(),
+                accent_color: b.accent_color.clone(),
+                rating: b.rating,
+                total_trips: b.total_trips,
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(BrandListResponse { items })
     }
 
     /// Brand detail by slug.
-    pub async fn brand_detail(&self, slug: &str) -> AppResult<Value> {
+    pub async fn brand_detail(&self, slug: &str) -> AppResult<BrandDetailOut> {
         let b = self.store.brand_store()
             .get_by_slug(slug)
             .await
@@ -218,18 +220,18 @@ impl PublicService {
             .filter(|b| b.status == "active")
             .ok_or_else(|| AppError::NotFound("brand not found".into()))?;
 
-        Ok(json!({
-            "id": b.id,
-            "slug": b.slug,
-            "name": b.name,
-            "logoUrl": b.logo_url,
-            "description": b.description,
-            "contactPhone": b.contact_phone,
-            "contactEmail": b.contact_email,
-            "accentColor": b.accent_color,
-            "rating": b.rating,
-            "totalTrips": b.total_trips,
-        }))
+        Ok(BrandDetailOut {
+            id: b.id,
+            slug: b.slug,
+            name: b.name,
+            logo_url: b.logo_url,
+            description: b.description,
+            contact_phone: b.contact_phone,
+            contact_email: b.contact_email,
+            accent_color: b.accent_color,
+            rating: b.rating,
+            total_trips: b.total_trips,
+        })
     }
 
     // ── Routes ──────────────────────────────────────────────────
@@ -239,7 +241,7 @@ impl PublicService {
         &self,
         brand_id: Option<&str>,
         limit: u64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<RouteListResponse> {
         let limit = limit.clamp(1, 500);
         // Note: BrandStore.list_routes_by_status doesn't support brand_id filter.
         // If brand_id is provided, use list_routes_by_brand; otherwise list_routes_by_status.
@@ -290,7 +292,7 @@ impl PublicService {
             *schedule_count.entry(s.route_id.clone()).or_insert(0) += 1;
         }
 
-        let items: Vec<Value> = routes
+        let items: Vec<RouteOut> = routes
             .iter()
             .map(|r| {
                 let brand = r
@@ -303,26 +305,26 @@ impl PublicService {
                     .map(|(f, t)| (f.to_string(), t.to_string()))
                     .unwrap_or_else(|| (r.name.clone(), String::new()));
 
-                json!({
-                    "id": r.id,
-                    "brandId": r.brand_id,
-                    "name": r.name,
-                    "distanceKm": r.distance_km,
-                    "durationMin": r.duration_min,
-                    "brand": {
-                        "name": brand.map(|b| b.name.clone()),
-                        "slug": brand.map(|b| b.slug.clone()),
-                        "accentColor": brand.and_then(|b| b.accent_color.clone()),
-                        "logoUrl": brand.and_then(|b| b.logo_url.clone()),
-                        "rating": brand.and_then(|b| b.rating),
+                RouteOut {
+                    id: r.id,
+                    brand_id: r.brand_id.clone(),
+                    name: r.name.clone(),
+                    distance_km: r.distance_km,
+                    duration_min: r.duration_min,
+                    brand: RouteBrandPreview {
+                        name: brand.map(|b| b.name.clone()),
+                        slug: brand.map(|b| b.slug.clone()),
+                        accent_color: brand.and_then(|b| b.accent_color.clone()),
+                        logo_url: brand.and_then(|b| b.logo_url.clone()),
+                        rating: brand.and_then(|b| b.rating),
                     },
-                    "from": { "name": from_name, "lat": 0, "lon": 0 },
-                    "to": { "name": to_name, "lat": 0, "lon": 0 },
-                    "scheduleCount": schedule_count.get(&r.id.to_string()).copied().unwrap_or(0),
-                })
+                    from: RouteEndpoint { name: from_name, lat: 0.0, lon: 0.0 },
+                    to: RouteEndpoint { name: to_name, lat: 0.0, lon: 0.0 },
+                    schedule_count: schedule_count.get(&r.id.to_string()).copied().unwrap_or(0),
+                }
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(RouteListResponse { items })
     }
 
     // ── Trips ───────────────────────────────────────────────────
@@ -340,7 +342,7 @@ impl PublicService {
         vehicle_types: Vec<String>,
         sort: &str,
         min_seats: i64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<TripSearchResponse> {
         let from = from.trim();
         let to = to.trim();
         let date = date.trim();
@@ -375,7 +377,7 @@ impl PublicService {
             .collect();
 
         if matching_routes.is_empty() {
-            return Ok(json!({ "items": [] }));
+            return Ok(TripSearchResponse { items: Vec::new() });
         }
 
         let route_ids: Vec<String> = matching_routes.iter().map(|r| r.id.to_string()).collect();
@@ -484,7 +486,7 @@ impl PublicService {
             .collect();
 
         // Build trip results
-        let items: Vec<Value> = trips
+        let items: Vec<TripResult> = trips
             .iter()
             .filter_map(|t| {
                 let sched = sched_map.get(&t.schedule_id)?;
@@ -525,50 +527,52 @@ impl PublicService {
                 );
                 let vt_label = vehicle_type_label(&vehicle_type);
 
-                Some(json!({
-                    "tripId": t.id,
-                    "scheduleId": sched.id,
-                    "departureDate": t.departure_date,
-                    "status": t.status,
-                    "availableSeats": t.available_seats,
-                    "totalSeats": t.total_seats,
-                    "routeId": route.id,
-                    "routeName": route.name,
-                    "distanceKm": route.distance_km.unwrap_or(0.0),
-                    "durationMin": route.duration_min.unwrap_or(0),
-                    "brandId": route.brand_id,
-                    "brandName": brand.map(|b| b.name.clone()).unwrap_or_default(),
-                    "brandSlug": brand.map(|b| b.slug.clone()).unwrap_or_default(),
-                    "brandLogo": brand.and_then(|b| b.logo_url.clone()),
-                    "brandRating": brand.and_then(|b| b.rating).unwrap_or(0.0),
-                    "brandAccent": brand.and_then(|b| b.accent_color.clone()).unwrap_or_else(|| "#0d9488".into()),
-                    "fromName": from_place.map(|p| p.name.clone()).unwrap_or_default(),
-                    "fromLat": from_place.map(|p| p.lat).unwrap_or(0.0),
-                    "fromLon": from_place.map(|p| p.lon).unwrap_or(0.0),
-                    "toName": to_place.map(|p| p.name.clone()).unwrap_or_default(),
-                    "toLat": to_place.map(|p| p.lat).unwrap_or(0.0),
-                    "toLon": to_place.map(|p| p.lon).unwrap_or(0.0),
-                    "departureTime": sched.departure_time,
-                    "departureAt": dep_iso,
-                    "arrivalAt": arr_iso,
-                    "busLayoutId": sched.bus_layout_id,
-                    "minPrice": sched.base_price_adult,
-                    "maxPrice": sched.base_price_adult,
-                    "priceAdult": sched.base_price_adult,
-                    "priceChild": sched.base_price_child.unwrap_or(0),
-                    "vehicleType": vehicle_type,
-                    "vehicleTypeLabel": vt_label,
-                    "capacity": layout.and_then(|l| l.total_seats).unwrap_or(0),
-                    "amenities": amenities,
-                }))
+                Some(TripResult {
+                    trip_id: t.id,
+                    schedule_id: sched.id,
+                    departure_date: t.departure_date.clone(),
+                    status: t.status.clone(),
+                    available_seats: t.available_seats,
+                    total_seats: t.total_seats,
+                    route_id: route.id,
+                    route_name: route.name.clone(),
+                    distance_km: route.distance_km.unwrap_or(0.0),
+                    duration_min: route.duration_min.unwrap_or(0),
+                    brand_id: route.brand_id.clone(),
+                    brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
+                    brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
+                    brand_logo: brand.and_then(|b| b.logo_url.clone()),
+                    brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                    brand_accent: brand
+                        .and_then(|b| b.accent_color.clone())
+                        .unwrap_or_else(|| "#0d9488".into()),
+                    from_name: from_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    from_lat: from_place.map(|p| p.lat).unwrap_or(0.0),
+                    from_lon: from_place.map(|p| p.lon).unwrap_or(0.0),
+                    to_name: to_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    to_lat: to_place.map(|p| p.lat).unwrap_or(0.0),
+                    to_lon: to_place.map(|p| p.lon).unwrap_or(0.0),
+                    departure_time: Some(sched.departure_time.clone()),
+                    departure_at: dep_iso,
+                    arrival_at: arr_iso,
+                    bus_layout_id: sched.bus_layout_id.clone(),
+                    min_price: sched.base_price_adult,
+                    max_price: sched.base_price_adult,
+                    price_adult: sched.base_price_adult,
+                    price_child: sched.base_price_child.unwrap_or(0),
+                    vehicle_type,
+                    vehicle_type_label: vt_label.to_string(),
+                    capacity: layout.and_then(|l| l.total_seats),
+                    amenities,
+                })
             })
             .collect();
 
-        Ok(json!({ "items": items }))
+        Ok(TripSearchResponse { items })
     }
 
     /// Trip detail by id — full enriched TripDetail shape.
-    pub async fn trip_detail(&self, id: Uuid) -> AppResult<Value> {
+    pub async fn trip_detail(&self, id: Uuid) -> AppResult<TripDetail> {
         let trip = self.store.trip_store()
             .find_trip_by_id(id)
             .await
@@ -653,18 +657,16 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let pickup_json: Vec<Value> = pickup_points
+        let pickup_items: Vec<TripPickupPoint> = pickup_points
             .iter()
-            .map(|p| {
-                json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "stopOrder": p.stop_order,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                    "pickupType": p.kind,
-                    "address": p.address,
-                })
+            .map(|p| TripPickupPoint {
+                id: p.id,
+                name: p.name.clone(),
+                stop_order: Some(p.stop_order),
+                lat: p.lat,
+                lon: p.lon,
+                kind: p.kind.clone(),
+                address: p.address.clone(),
             })
             .collect();
 
@@ -694,38 +696,38 @@ impl PublicService {
             .collect();
 
         // Group seats by deck → row
-        let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<Value>>> = BTreeMap::new();
+        let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
         for s in &seat_rows {
             let deck = s.floor;
             let row_num = s.row_num.unwrap_or(0);
             let inv = inv_map.get(&s.id.to_string());
-            let seat_json = json!({
-                "id": s.id,
-                "code": s.seat_label,
-                "seatLabel": s.seat_label,
-                "row": row_num,
-                "col": s.col_num.unwrap_or(0),
-                "deck": deck,
-                "seatClass": s.seat_class,
-                "status": inv.map(|i| i.status.clone()).unwrap_or_else(|| "available".into()),
-                "finalPrice": inv.map(|i| i.final_price).unwrap_or(0),
-            });
+            let seat = TripSeat {
+                id: s.id,
+                code: s.seat_label.clone(),
+                seat_label: s.seat_label.clone(),
+                row: row_num,
+                col: s.col_num.unwrap_or(0),
+                deck,
+                seat_class: s.seat_class.clone(),
+                status: inv.map(|i| i.status.clone()).unwrap_or_else(|| "available".into()),
+                final_price: inv.map(|i| i.final_price).unwrap_or(0),
+            };
             decks_map
                 .entry(deck)
                 .or_default()
                 .entry(row_num)
                 .or_default()
-                .push(seat_json);
+                .push(seat);
         }
 
-        let decks_json: Vec<Value> = decks_map
+        let decks: Vec<TripSeatDeck> = decks_map
             .into_iter()
             .map(|(deck, rows_map)| {
-                let rows_json: Vec<Value> = rows_map
+                let rows: Vec<TripSeatRow> = rows_map
                     .into_iter()
-                    .map(|(row_num, seats)| json!({ "row": row_num, "seats": seats }))
+                    .map(|(row_num, seats)| TripSeatRow { row: row_num, seats })
                     .collect();
-                json!({ "deck": deck, "rows": rows_json })
+                TripSeatDeck { deck, rows }
             })
             .collect();
 
@@ -735,28 +737,29 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let campaigns_json: Vec<Value> = campaigns
+        let campaigns_vec: Vec<TripCampaign> = campaigns
             .iter()
-            .map(|c| {
-                json!({
-                    "id": c.id,
-                    "code": c.code,
-                    "discountType": c.discount_type,
-                    "discountValue": c.discount_value,
-                    "maxUses": c.max_uses,
-                    "usedCount": c.used_count,
-                    "startsAt": c.starts_at,
-                    "endsAt": c.ends_at,
-                    "status": c.status,
-                })
+            .map(|c| TripCampaign {
+                id: c.id,
+                code: c.code.clone(),
+                discount_type: c.discount_type.clone(),
+                discount_value: c.discount_value,
+                max_uses: c.max_uses,
+                used_count: c.used_count,
+                starts_at: c.starts_at.clone(),
+                ends_at: c.ends_at.clone(),
+                status: c.status.clone(),
             })
             .collect();
 
         // Assemble
         let amenities = parse_amenities(&schedule.amenities);
-        let amenities_json: Vec<Value> = amenities
+        let amenities_vec: Vec<TripAmenity> = amenities
             .iter()
-            .map(|a| json!({ "key": a, "label": amenity_label(a) }))
+            .map(|a| TripAmenity {
+                key: a.clone(),
+                label: amenity_label(a).to_string(),
+            })
             .collect();
 
         let (dep_iso, arr_iso) = compute_iso_timestamps(
@@ -770,62 +773,62 @@ impl PublicService {
             .unwrap_or_else(|| "standard".into());
         let vt_label = vehicle_type_label(&vehicle_type);
 
-        Ok(json!({
-            "trip": {
-                "id": trip.id,
-                "departureDate": trip.departure_date,
-                "departureAt": dep_iso,
-                "departureTime": schedule.departure_time,
-                "arrivalAt": arr_iso,
-                "status": trip.status,
-                "driverName": trip.driver_name,
-                "totalSeats": trip.total_seats,
-                "availableSeats": trip.available_seats,
+        Ok(TripDetail {
+            trip: TripCore {
+                id: trip.id,
+                departure_date: trip.departure_date,
+                departure_at: dep_iso,
+                departure_time: Some(schedule.departure_time),
+                arrival_at: arr_iso,
+                status: trip.status,
+                driver_name: trip.driver_name,
+                total_seats: trip.total_seats,
+                available_seats: trip.available_seats,
             },
-            "route": {
-                "id": route.id,
-                "name": route.name,
-                "distanceKm": route.distance_km.unwrap_or(0.0),
-                "durationMin": route.duration_min.unwrap_or(0),
+            route: TripRouteDetail {
+                id: route.id,
+                name: route.name,
+                distance_km: route.distance_km.unwrap_or(0.0),
+                duration_min: route.duration_min,
             },
-            "brand": {
-                "id": route.brand_id,
-                "name": brand.as_ref().map(|b| b.name.clone()),
-                "slug": brand.as_ref().map(|b| b.slug.clone()),
-                "logoUrl": brand.as_ref().and_then(|b| b.logo_url.clone()),
-                "rating": brand.as_ref().and_then(|b| b.rating).unwrap_or(0.0),
-                "accentColor": brand.as_ref().and_then(|b| b.accent_color.clone()),
+            brand: TripBrandDetail {
+                id: route.brand_id,
+                name: brand.as_ref().map(|b| b.name.clone()),
+                slug: brand.as_ref().map(|b| b.slug.clone()),
+                logo_url: brand.as_ref().and_then(|b| b.logo_url.clone()),
+                rating: brand.as_ref().and_then(|b| b.rating).unwrap_or(0.0),
+                accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
-            "from": {
-                "name": start_place.as_ref().map(|p| p.name.clone()),
-                "lat": start_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                "lon": start_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+            from: TripEndpoint {
+                name: start_place.as_ref().map(|p| p.name.clone()),
+                lat: start_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
+                lon: start_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
             },
-            "to": {
-                "name": end_place.as_ref().map(|p| p.name.clone()),
-                "lat": end_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                "lon": end_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+            to: TripEndpoint {
+                name: end_place.as_ref().map(|p| p.name.clone()),
+                lat: end_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
+                lon: end_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
             },
-            "busLayout": {
-                "id": schedule.bus_layout_id,
-                "name": bus_layout.as_ref().and_then(|l| l.name.clone()),
-                "capacity": bus_layout.as_ref().and_then(|l| l.total_seats).unwrap_or(0),
-                "vehicleType": vehicle_type,
-                "vehicleTypeLabel": vt_label,
+            bus_layout: TripBusLayout {
+                id: schedule.bus_layout_id,
+                name: bus_layout.as_ref().and_then(|l| l.name.clone()),
+                capacity: bus_layout.as_ref().and_then(|l| l.total_seats),
+                vehicle_type,
+                vehicle_type_label: vt_label.to_string(),
             },
-            "pricing": {
-                "basePriceAdult": schedule.base_price_adult,
-                "basePriceChild": schedule.base_price_child.unwrap_or(0),
+            pricing: TripPricing {
+                base_price_adult: schedule.base_price_adult,
+                base_price_child: schedule.base_price_child.unwrap_or(0),
             },
-            "amenities": amenities_json,
-            "pickupPoints": pickup_json,
-            "seatMap": { "decks": decks_json },
-            "campaigns": campaigns_json,
-        }))
+            amenities: amenities_vec,
+            pickup_points: pickup_items,
+            seat_map: TripSeatMap { decks },
+            campaigns: campaigns_vec,
+        })
     }
 
     /// Recommended trips (up to 4) — upcoming trips with available seats.
-    pub async fn recommendations(&self) -> AppResult<Value> {
+    pub async fn recommendations(&self) -> AppResult<TripSearchResponse> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         let trips = self.store.trip_store()
             .list_upcoming_trips(&today, 4)
@@ -833,7 +836,7 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Reuse search_trips serialization logic
-        let items: Vec<Value> = {
+        let items: Vec<TripResult> = {
             let trip_schedule_ids: Vec<String> =
                 trips.iter().map(|t| t.schedule_id.clone()).collect();
             let trip_sched_uuids: Vec<Uuid> = trip_schedule_ids
@@ -897,61 +900,71 @@ impl PublicService {
                     let vehicle_type = "standard".to_string();
                     let vt_label = vehicle_type_label(&vehicle_type);
 
-                    Some(json!({
-                        "tripId": t.id,
-                        "scheduleId": sched.id,
-                        "departureDate": t.departure_date,
-                        "status": t.status,
-                        "availableSeats": t.available_seats,
-                        "totalSeats": t.total_seats,
-                        "routeId": route.id,
-                        "routeName": route.name,
-                        "distanceKm": route.distance_km.unwrap_or(0.0),
-                        "durationMin": route.duration_min.unwrap_or(0),
-                        "brandId": route.brand_id,
-                        "brandName": brand.map(|b| b.name.clone()).unwrap_or_default(),
-                        "brandSlug": brand.map(|b| b.slug.clone()).unwrap_or_default(),
-                        "brandLogo": brand.and_then(|b| b.logo_url.clone()),
-                        "brandRating": brand.and_then(|b| b.rating).unwrap_or(0.0),
-                        "brandAccent": brand.and_then(|b| b.accent_color.clone()).unwrap_or_else(|| "#0d9488".into()),
-                        "departureTime": sched.departure_time,
-                        "departureAt": dep_iso,
-                        "arrivalAt": arr_iso,
-                        "priceAdult": sched.base_price_adult,
-                        "priceChild": sched.base_price_child.unwrap_or(0),
-                        "vehicleType": vehicle_type,
-                        "vehicleTypeLabel": vt_label,
-                        "amenities": amenities,
-                    }))
+                    Some(TripResult {
+                        trip_id: t.id,
+                        schedule_id: sched.id,
+                        departure_date: t.departure_date.clone(),
+                        status: t.status.clone(),
+                        available_seats: t.available_seats,
+                        total_seats: t.total_seats,
+                        route_id: route.id,
+                        route_name: route.name.clone(),
+                        distance_km: route.distance_km.unwrap_or(0.0),
+                        duration_min: route.duration_min.unwrap_or(0),
+                        brand_id: route.brand_id.clone(),
+                        brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
+                        brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
+                        brand_logo: brand.and_then(|b| b.logo_url.clone()),
+                        brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                        brand_accent: brand
+                            .and_then(|b| b.accent_color.clone())
+                            .unwrap_or_else(|| "#0d9488".into()),
+                        from_name: String::new(),
+                        from_lat: 0.0,
+                        from_lon: 0.0,
+                        to_name: String::new(),
+                        to_lat: 0.0,
+                        to_lon: 0.0,
+                        departure_time: Some(sched.departure_time.clone()),
+                        departure_at: dep_iso,
+                        arrival_at: arr_iso,
+                        bus_layout_id: sched.bus_layout_id.clone(),
+                        min_price: sched.base_price_adult,
+                        max_price: sched.base_price_adult,
+                        price_adult: sched.base_price_adult,
+                        price_child: sched.base_price_child.unwrap_or(0),
+                        vehicle_type,
+                        vehicle_type_label: vt_label.to_string(),
+                        capacity: None,
+                        amenities,
+                    })
                 })
                 .collect()
         };
 
-        Ok(json!({ "items": items }))
+        Ok(TripSearchResponse { items })
     }
 
     // ── Campaigns ───────────────────────────────────────────────
 
     /// List active campaigns.
-    pub async fn list_campaigns(&self) -> AppResult<Value> {
+    pub async fn list_campaigns(&self) -> AppResult<CampaignListResponse> {
         let campaigns = self.store.trip_store()
             .list_active_campaigns(100)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let items: Vec<Value> = campaigns
+        let items: Vec<CampaignOut> = campaigns
             .iter()
-            .map(|c| {
-                json!({
-                    "id": c.id,
-                    "code": c.code,
-                    "discountType": c.discount_type,
-                    "discountValue": c.discount_value,
-                    "endsAt": c.ends_at,
-                })
+            .map(|c| CampaignOut {
+                id: c.id,
+                code: c.code.clone(),
+                discount_type: c.discount_type.clone(),
+                discount_value: c.discount_value,
+                ends_at: c.ends_at.clone(),
             })
             .collect();
-        Ok(json!({ "items": items }))
+        Ok(CampaignListResponse { items })
     }
 
     /// Validate a campaign code against a subtotal.
@@ -959,7 +972,7 @@ impl PublicService {
         &self,
         code: &str,
         subtotal: i64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<CampaignValidateResponse> {
         let code = code.trim();
         if code.is_empty() {
             return Err(AppError::BadRequest("missing campaign code".into()));
@@ -978,16 +991,16 @@ impl PublicService {
                     "fixed_amount" => c.discount_value,
                     _ => 0,
                 };
-                Ok(json!({ "valid": true, "discount": discount }))
+                Ok(CampaignValidateResponse { valid: true, discount })
             }
-            None => Ok(json!({ "valid": false, "discount": 0 })),
+            None => Ok(CampaignValidateResponse { valid: false, discount: 0 }),
         }
     }
 
     // ── Stats ───────────────────────────────────────────────────
 
     /// Public stats for the homepage.
-    pub async fn stats(&self) -> AppResult<Value> {
+    pub async fn stats(&self) -> AppResult<StatsResponse> {
         let brand_count = self.store.brand_store()
             .count_active_brands()
             .await
@@ -1001,11 +1014,11 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({
-            "brands": brand_count,
-            "routes": route_count,
-            "trips": trip_count,
-        }))
+        Ok(StatsResponse {
+            brands: brand_count,
+            routes: route_count,
+            trips: trip_count,
+        })
     }
 }
 
@@ -1060,8 +1073,8 @@ mod tests {
             &Some("08:30".into()),
             &Some(180),
         );
-        assert_eq!(dep, "2026-08-05T08:30:00");
-        assert_eq!(arr, "2026-08-05T11:30:00");
+        assert_eq!(dep.as_deref(), Some("2026-08-05T08:30:00"));
+        assert_eq!(arr.as_deref(), Some("2026-08-05T11:30:00"));
     }
 
     #[test]
@@ -1071,8 +1084,8 @@ mod tests {
             &Some("23:00".into()),
             &Some(180),
         );
-        assert_eq!(dep, "2026-08-05T23:00:00");
-        assert_eq!(arr, "2026-08-06T02:00:00");
+        assert_eq!(dep.as_deref(), Some("2026-08-05T23:00:00"));
+        assert_eq!(arr.as_deref(), Some("2026-08-06T02:00:00"));
     }
 
     #[test]

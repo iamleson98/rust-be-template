@@ -6,7 +6,7 @@
 //! ## Design
 //! - Uses `CompositeStore` for all DB access (BookingStore, TripStore,
 //!   ScheduleStore, RouteStore, BrandStore, PlaceStore).
-//! - Returns `serde_json::Value` DTOs (no HTTP types).
+//! - Returns typed DTOs from [`crate::dto::booking`] (no `serde_json::Value`).
 //! - Pure helpers (normalize_phone, gen_booking_code, etc.) are ported as-is.
 
 use std::collections::HashMap;
@@ -15,61 +15,20 @@ use std::sync::Arc;
 use chrono::Utc;
 use rand::Rng;
 use sea_orm::Set;
-use serde::Deserialize;
-use serde_json::{json, Value};
 use uuid::Uuid;
 
+use crate::dto::booking::{
+    BookingBrandPreview, BookingBusLayoutPreview, BookingCancelResponse, BookingConfirmResponse,
+    BookingHoldResponse, BookingListItem, BookingListResponse, BookingLookupResponse,
+    BookingRoutePreview, BookingSeatOut, BookingTripPreview, HoldReq, PickupPointOut,
+};
 use crate::entity::{booking, booking_seat, campaign, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
-// ────────────────────────────────────────────────────────────────
-//  Request DTOs
-// ────────────────────────────────────────────────────────────────
-
-/// One passenger on a booking.
-#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
-pub struct PassengerReq {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub passenger_type: String,
-    #[serde(default)]
-    pub age: i64,
-}
-
-/// Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
-#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
-pub struct HoldReq {
-    pub trip_id: String,
-    pub seat_ids: Vec<String>,
-    pub passengers: Vec<PassengerReq>,
-    pub boarding_point_id: String,
-    pub dropping_point_id: String,
-    pub contact_name: String,
-    pub contact_phone: String,
-    #[serde(default)]
-    pub contact_email: Option<String>,
-    #[serde(default)]
-    pub campaign_code: Option<String>,
-}
-
-/// Request body for `POST /api/bookings/:id/confirm`.
-#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
-pub struct ConfirmReq {
-    #[serde(default = "default_payment")]
-    pub payment_method: String,
-}
-
-fn default_payment() -> String {
-    "momo".into()
-}
-
-/// Request body for `POST /api/bookings/:id/cancel`.
-#[derive(Debug, Deserialize, Clone, utoipa::ToSchema)]
-pub struct CancelReq {
-    #[serde(default)]
-    pub reason: Option<String>,
-}
+// Re-export the request DTOs at the service-module root so existing
+// `use crate::service::booking_service::HoldReq` references still resolve.
+pub use crate::dto::booking::{CancelReq as CancelReqDto, ConfirmReq as ConfirmReqDto, HoldReq as HoldReqDto, PassengerReq as PassengerReqDto};
 
 // ────────────────────────────────────────────────────────────────
 //  Service
@@ -93,7 +52,7 @@ impl BookingService {
         status: &str,
         limit: u64,
         offset: u64,
-    ) -> AppResult<Value> {
+    ) -> AppResult<BookingListResponse> {
         let limit = limit.min(200);
         let status_param = status.trim().to_lowercase();
         let valid = [
@@ -173,16 +132,17 @@ impl BookingService {
         // Batch serialize
         let items = self.serialize_bookings_batched(&bookings, true).await?;
 
-        Ok(json!({ "items": items, "total": items.len() }))
+        let total = items.len();
+        Ok(BookingListResponse { items, total })
     }
 
     /// Guest lookup by booking code and/or phone.
-    pub async fn lookup(&self, phone: Option<&str>, code: Option<&str>) -> AppResult<Value> {
+    pub async fn lookup(&self, phone: Option<&str>, code: Option<&str>) -> AppResult<BookingLookupResponse> {
         let code = code.map(|s| s.trim()).filter(|s| !s.is_empty());
         let phone = phone.map(|s| s.trim()).filter(|s| !s.is_empty());
 
         if code.is_none() && phone.is_none() {
-            return Ok(json!({ "items": [] }));
+            return Ok(BookingLookupResponse { items: Vec::new() });
         }
 
         let bookings = self
@@ -194,7 +154,7 @@ impl BookingService {
 
         let items = self.serialize_bookings_batched(&bookings, false).await?;
 
-        Ok(json!({ "items": items }))
+        Ok(BookingLookupResponse { items })
     }
 
     /// Full booking detail with seats, pickup points, trip + brand info.
@@ -207,7 +167,7 @@ impl BookingService {
     /// start/end places, bus layout, and pickup points are all
     /// independent — we fetch them concurrently with `tokio::try_join!`
     /// to cut latency from ~7 sequential round-trips to ~4.
-    pub async fn detail(&self, user_id: Option<&str>, id: Uuid) -> AppResult<Value> {
+    pub async fn detail(&self, user_id: Option<&str>, id: Uuid) -> AppResult<BookingListItem> {
         let b = self
             .store
             .booking_store()
@@ -349,88 +309,97 @@ impl BookingService {
         )?;
 
         // Build response
-        let seats_json: Vec<Value> = seats
+        let seats_json: Vec<BookingSeatOut> = seats
             .iter()
             .map(|bs| {
                 let seat = seat_defs.get(&bs.seat_id);
-                json!({
-                    "seatCode": seat.map(|s| s.seat_label.clone()).unwrap_or_default(),
-                    "seatClass": seat.and_then(|s| s.seat_class.clone()).unwrap_or_default(),
-                    "passengerName": bs.passenger_name,
-                    "passengerType": bs.passenger_type,
-                    "passengerAge": bs.passenger_age,
-                    "price": bs.price,
-                })
+                BookingSeatOut {
+                    seat_id: None,
+                    seat_code: seat.map(|s| s.seat_label.clone()),
+                    seat_class: seat.and_then(|s| s.seat_class.clone()),
+                    passenger_name: bs.passenger_name.clone(),
+                    passenger_type: bs.passenger_type.clone(),
+                    passenger_age: bs.passenger_age.map(|n| n as i64),
+                    price: Some(bs.price),
+                }
             })
             .collect();
 
-        let pickup_items: Vec<Value> = pickup_points
+        let pickup_items: Vec<PickupPointOut> = pickup_points
             .iter()
-            .map(|p| {
-                json!({
-                    "id": p.id,
-                    "name": p.name,
-                    "stopOrder": p.stop_order,
-                    "lat": p.lat,
-                    "lon": p.lon,
-                    "pickupType": p.kind,
-                    "address": p.address,
-                })
+            .map(|p| PickupPointOut {
+                id: p.id,
+                name: p.name.clone(),
+                stop_order: Some(p.stop_order),
+                lat: p.lat,
+                lon: p.lon,
+                kind: p.kind.clone(),
+                address: p.address.clone(),
             })
             .collect();
 
-        Ok(json!({
-            "id": b.id,
-            "code": b.code,
-            "status": b.status,
-            "adultCount": b.adult_count,
-            "childCount": b.child_count,
-            "subtotal": b.subtotal,
-            "discount": b.discount,
-            "fees": b.fees,
-            "total": b.total,
-            "currency": b.currency,
-            "expiresAt": b.expires_at,
-            "createdAt": b.created_at,
-            "contactName": b.contact_name,
-            "contactPhone": b.contact_phone,
-            "contactEmail": b.contact_email,
-            "seats": seats_json,
-            "trip": {
-                "id": trip.id,
-                "departureAt": trip.actual_departure_at,
-                "departureDate": trip.departure_date,
-                "status": trip.status,
-                "route": {
-                    "name": route_model.name,
-                    "from": start_place.map(|p| p.name.clone()),
-                    "to": end_place.map(|p| p.name.clone()),
-                    "distanceKm": route_model.distance_km,
-                    "durationMin": route_model.duration_min,
-                    "brand": {
-                        "name": brand_model.as_ref().map(|b| b.name.clone()),
-                        "accentColor": brand_model.as_ref().and_then(|b| b.accent_color.clone()),
-                        "logoUrl": brand_model.as_ref().and_then(|b| b.logo_url.clone()),
+        Ok(BookingListItem {
+            id: b.id,
+            code: b.code,
+            status: b.status,
+            adult_count: Some(b.adult_count),
+            child_count: Some(b.child_count),
+            subtotal: b.subtotal,
+            discount: b.discount,
+            fees: b.fees,
+            total: b.total,
+            currency: b.currency,
+            expires_at: b.expires_at,
+            created_at: b.created_at,
+            updated_at: Some(b.updated_at),
+            contact_name: b.contact_name,
+            contact_phone: b.contact_phone,
+            contact_email: b.contact_email,
+            boarding_point_id: b.boarding_point_id,
+            dropping_point_id: b.dropping_point_id,
+            payment_method: None,
+            paid_at: None,
+            seats: seats_json,
+            trip: Some(BookingTripPreview {
+                id: trip.id,
+                departure_at: trip.actual_departure_at,
+                departure_date: Some(trip.departure_date),
+                status: Some(trip.status),
+                route_name: None,
+                brand_name: None,
+                brand_accent: None,
+                brand_logo: None,
+                vehicle_type: None,
+                route: Some(BookingRoutePreview {
+                    name: route_model.name,
+                    from: start_place.map(|p| p.name.clone()),
+                    to: end_place.map(|p| p.name.clone()),
+                    distance_km: route_model.distance_km,
+                    duration_min: route_model.duration_min,
+                    brand: BookingBrandPreview {
+                        name: brand_model.as_ref().map(|b| b.name.clone()),
+                        accent_color: brand_model.as_ref().and_then(|b| b.accent_color.clone()),
+                        logo_url: brand_model.as_ref().and_then(|b| b.logo_url.clone()),
                     },
-                },
-                "busLayout": {
-                    "name": bus_layout.as_ref().map(|l| l.name.clone()),
-                    "vehicleType": bus_layout.as_ref().map(|l| l.vehicle_type.clone()),
-                },
-                "pickupPoints": pickup_items,
-            },
-        }))
+                }),
+                bus_layout: Some(BookingBusLayoutPreview {
+                    name: bus_layout.as_ref().and_then(|l| l.name.clone()),
+                    vehicle_type: bus_layout.as_ref().and_then(|l| l.vehicle_type.clone()),
+                }),
+                pickup_points: pickup_items,
+            }),
+        })
     }
 
     // ── Writes ───────────────────────────────────────────────────
 
     /// Create a booking (alias of hold).
-    pub async fn create(&self, req: &HoldReq) -> AppResult<Value> {
+    pub async fn create(&self, req: &HoldReq) -> AppResult<BookingHoldResponse> {
         self.hold(req).await
     }
 
     /// Lock seats + create a pending booking (10-minute hold).
-    pub async fn hold(&self, req: &HoldReq) -> AppResult<Value> {
+    pub async fn hold(&self, req: &HoldReq) -> AppResult<BookingHoldResponse> {
         // Validate inputs
         if req.trip_id.is_empty()
             || req.seat_ids.is_empty()
@@ -715,32 +684,35 @@ impl BookingService {
         }
 
         // Build response
-        let seats_json: Vec<Value> = seat_invs
+        let seats_json: Vec<BookingSeatOut> = seat_invs
             .iter()
             .enumerate()
             .map(|(i, inv)| {
                 let passenger = &req.passengers[i];
-                json!({
-                    "seatId": inv.seat_id,
-                    "passengerName": passenger.name,
-                    "passengerType": passenger.passenger_type,
-                    "price": inv.final_price,
-                })
+                BookingSeatOut {
+                    seat_id: Some(inv.seat_id.clone()),
+                    seat_code: None,
+                    seat_class: None,
+                    passenger_name: Some(passenger.name.clone()),
+                    passenger_type: Some(passenger.passenger_type.clone()),
+                    passenger_age: Some(passenger.age),
+                    price: Some(inv.final_price),
+                }
             })
             .collect();
 
-        Ok(json!({
-            "bookingId": booking_id,
-            "code": code,
-            "status": "pending",
-            "subtotal": subtotal,
-            "discount": discount,
-            "fees": fees,
-            "total": total,
-            "expiresAt": expires_at,
-            "seats": seats_json,
-            "campaignId": applied_campaign_id,
-        }))
+        Ok(BookingHoldResponse {
+            booking_id,
+            code,
+            status: "pending".to_string(),
+            subtotal,
+            discount,
+            fees,
+            total,
+            expires_at,
+            seats: seats_json,
+            campaign_id: applied_campaign_id,
+        })
     }
 
     /// Cancel a booking (with refund calculation).
@@ -749,7 +721,7 @@ impl BookingService {
     ///   - > 24h before departure → 90% refund
     ///   - > 4h before departure → 50% refund
     ///   - ≤ 4h before departure → 0% refund
-    pub async fn cancel(&self, id: Uuid, reason: Option<&str>) -> AppResult<Value> {
+    pub async fn cancel(&self, id: Uuid, reason: Option<&str>) -> AppResult<BookingCancelResponse> {
         let b = self
             .store
             .booking_store()
@@ -842,18 +814,18 @@ impl BookingService {
             ts_b36.to_uppercase()
         );
 
-        Ok(json!({
-            "success": true,
-            "refundPercent": refund_percent,
-            "refundAmount": refund_amount,
-            "cancelledAt": now_iso(),
-            "refCode": ref_code,
-            "reason": reason,
-        }))
+        Ok(BookingCancelResponse {
+            success: true,
+            refund_percent,
+            refund_amount,
+            cancelled_at: now_iso(),
+            ref_code,
+            reason: reason.map(|s| s.to_string()),
+        })
     }
 
     /// Confirm a booking (mark paid — locked → booked).
-    pub async fn confirm(&self, id: Uuid, payment_method: &str) -> AppResult<Value> {
+    pub async fn confirm(&self, id: Uuid, payment_method: &str) -> AppResult<BookingConfirmResponse> {
         let b = self
             .store
             .booking_store()
@@ -930,11 +902,11 @@ impl BookingService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        Ok(json!({
-            "bookingId": id,
-            "status": "confirmed",
-            "paymentMethod": payment_method,
-        }))
+        Ok(BookingConfirmResponse {
+            booking_id: id,
+            status: "confirmed".to_string(),
+            payment_method: payment_method.to_string(),
+        })
     }
 
     // ── Batched serializer ───────────────────────────────────────
@@ -944,7 +916,7 @@ impl BookingService {
         &self,
         bookings: &[booking::Model],
         include_boarding_dropping_ids: bool,
-    ) -> AppResult<Vec<Value>> {
+    ) -> AppResult<Vec<BookingListItem>> {
         if bookings.is_empty() {
             return Ok(Vec::new());
         }
@@ -1033,8 +1005,8 @@ impl BookingService {
                 .push(bs);
         }
 
-        // Build per-booking JSON
-        let mut items: Vec<Value> = Vec::with_capacity(bookings.len());
+        // Build per-booking DTO
+        let mut items: Vec<BookingListItem> = Vec::with_capacity(bookings.len());
         for b in bookings {
             let trip = trips.get(&b.trip_session_id);
             let schedule = trip.and_then(|t| schedules.get(&t.schedule_id));
@@ -1043,18 +1015,23 @@ impl BookingService {
                 .and_then(|r| r.brand_id.as_deref())
                 .and_then(|bid| brands.get(bid));
 
-            let trip_json = if let (Some(t), Some(s), Some(r)) = (trip, schedule, route) {
-                Some(json!({
-                    "id": t.id,
-                    "departureAt": t.actual_departure_at,
-                    "departureDate": t.departure_date,
-                    "status": t.status,
-                    "routeName": r.name,
-                    "brandName": brand.map(|b| b.name.clone()).unwrap_or_default(),
-                    "brandAccent": brand.and_then(|b| b.accent_color.clone()).unwrap_or_else(|| "#0d9488".into()),
-                    "brandLogo": brand.and_then(|b| b.logo_url.clone()),
-                    "vehicleType": s.bus_layout_id.as_deref().unwrap_or(""),
-                }))
+            let trip_preview = if let (Some(t), Some(s), Some(r)) = (trip, schedule, route) {
+                Some(BookingTripPreview {
+                    id: t.id,
+                    departure_at: t.actual_departure_at.clone(),
+                    departure_date: Some(t.departure_date.clone()),
+                    status: Some(t.status.clone()),
+                    route_name: Some(r.name.clone()),
+                    brand_name: brand.map(|b| b.name.clone()),
+                    brand_accent: brand
+                        .and_then(|b| b.accent_color.clone())
+                        .or_else(|| Some("#0d9488".into())),
+                    brand_logo: brand.and_then(|b| b.logo_url.clone()),
+                    vehicle_type: s.bus_layout_id.clone(),
+                    route: None,
+                    bus_layout: None,
+                    pickup_points: Vec::new(),
+                })
             } else {
                 None
             };
@@ -1064,15 +1041,16 @@ impl BookingService {
                 .map(|v| v.as_slice())
                 .unwrap_or(&[]);
 
-            let seats_json: Vec<Value> = booking_seats
+            let seats_json: Vec<BookingSeatOut> = booking_seats
                 .iter()
-                .map(|bs| {
-                    json!({
-                        "seatId": bs.seat_id,
-                        "passengerName": bs.passenger_name,
-                        "passengerType": bs.passenger_type,
-                        "price": bs.price,
-                    })
+                .map(|bs| BookingSeatOut {
+                    seat_id: Some(bs.seat_id.clone()),
+                    seat_code: None,
+                    seat_class: None,
+                    passenger_name: bs.passenger_name.clone(),
+                    passenger_type: bs.passenger_type.clone(),
+                    passenger_age: bs.passenger_age.map(|n| n as i64),
+                    price: Some(bs.price),
                 })
                 .collect();
 
@@ -1082,52 +1060,39 @@ impl BookingService {
                 None
             };
 
-            let item = if include_boarding_dropping_ids {
-                json!({
-                    "id": b.id,
-                    "code": b.code,
-                    "status": b.status,
-                    "subtotal": b.subtotal,
-                    "discount": b.discount,
-                    "fees": b.fees,
-                    "total": b.total,
-                    "currency": b.currency,
-                    "contactName": b.contact_name,
-                    "contactPhone": b.contact_phone,
-                    "contactEmail": b.contact_email,
-                    "boardingPointId": b.boarding_point_id,
-                    "droppingPointId": b.dropping_point_id,
-                    "paymentMethod": b.payment_method,
-                    "createdAt": b.created_at,
-                    "updatedAt": b.updated_at,
-                    "paidAt": paid_at,
-                    "expiresAt": b.expires_at,
-                    "seats": seats_json,
-                    "trip": trip_json,
-                })
+            // When `include_boarding_dropping_ids=false` (lookup path),
+            // we omit the boarding/dropping point ids + payment method from
+            // the response — they're considered sensitive/internal.
+            let (boarding_point_id, dropping_point_id, payment_method) = if include_boarding_dropping_ids {
+                (b.boarding_point_id.clone(), b.dropping_point_id.clone(), b.payment_method.clone())
             } else {
-                json!({
-                    "id": b.id,
-                    "code": b.code,
-                    "status": b.status,
-                    "subtotal": b.subtotal,
-                    "discount": b.discount,
-                    "fees": b.fees,
-                    "total": b.total,
-                    "currency": b.currency,
-                    "contactName": b.contact_name,
-                    "contactPhone": b.contact_phone,
-                    "contactEmail": b.contact_email,
-                    "paymentMethod": b.payment_method,
-                    "createdAt": b.created_at,
-                    "updatedAt": b.updated_at,
-                    "paidAt": paid_at,
-                    "expiresAt": b.expires_at,
-                    "seats": seats_json,
-                    "trip": trip_json,
-                })
+                (None, None, None)
             };
-            items.push(item);
+
+            items.push(BookingListItem {
+                id: b.id,
+                code: b.code.clone(),
+                status: b.status.clone(),
+                adult_count: None,
+                child_count: None,
+                subtotal: b.subtotal,
+                discount: b.discount,
+                fees: b.fees,
+                total: b.total,
+                currency: b.currency.clone(),
+                expires_at: b.expires_at.clone(),
+                created_at: b.created_at.clone(),
+                updated_at: Some(b.updated_at.clone()),
+                contact_name: b.contact_name.clone(),
+                contact_phone: b.contact_phone.clone(),
+                contact_email: b.contact_email.clone(),
+                boarding_point_id,
+                dropping_point_id,
+                payment_method,
+                paid_at,
+                seats: seats_json,
+                trip: trip_preview,
+            });
         }
 
         Ok(items)
