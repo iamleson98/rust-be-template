@@ -72,65 +72,29 @@ impl BookingService {
 
         let today_prefix = Utc::now().format("%Y-%m-%d").to_string();
 
-        // Resolve trip session IDs by departure-date bucket
-        let trip_ids_gte: Vec<String> = if status_param == "confirmed" || status_param == "upcoming"
-        {
-            self.store
-                .trip_store()
-                .list_trips_departing_after(&today_prefix)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .iter()
-                .map(|t| t.id.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        let trip_ids_lt: Vec<String> = if status_param == "completed" || status_param == "past" {
-            self.store
-                .trip_store()
-                .list_trips_departing_before(&today_prefix)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .iter()
-                .map(|t| t.id.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        // Build the trip-session-id filter for the booking store
-        let trip_filter: Option<Vec<String>> = match status_param.as_str() {
-            "confirmed" | "upcoming" => {
-                if trip_ids_gte.is_empty() {
-                    Some(vec!["__none__".to_string()])
-                } else {
-                    Some(trip_ids_gte)
-                }
-            }
-            "completed" | "past" => {
-                if trip_ids_lt.is_empty() {
-                    Some(vec!["__none__".to_string()])
-                } else {
-                    Some(trip_ids_lt)
-                }
-            }
-            _ => None,
+        // Build the departure-date filter for the status bucket. Single SQL
+        // JOIN replaces the previous "load all trips departing today →
+        // filter bookings by trip_session_id IN (...)" pattern that
+        // materialised ~18k trip rows on every authenticated /bookings
+        // request after a year of operation.
+        let (date_gte, date_lt): (Option<&str>, Option<&str>) = match status_param.as_str() {
+            "confirmed" | "upcoming" => (Some(&today_prefix), None),
+            "completed" | "past" => (None, Some(&today_prefix)),
+            _ => (None, None),
         };
 
         let bookings = self
             .store
             .booking_store()
-            .list_bookings_by_user(
+            .list_bookings_by_user_with_date_filter(
                 user_id,
                 &status_param,
-                trip_filter.unwrap_or_default(),
+                date_gte,
+                date_lt,
                 limit,
                 offset,
             )
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .await?;
 
         // Batch serialize
         let items = self.serialize_bookings_batched(&bookings, true).await?;

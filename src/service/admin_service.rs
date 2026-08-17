@@ -73,16 +73,24 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        // Batched counts — replaces the previous N+1 pattern of
+        // per-brand count_routes_by_brand + count_bus_layouts_by_brand.
+        // For 100 brands: 200 round-trips → 2.
+        let brand_id_strings: Vec<String> = brands.iter().map(|b| b.id.to_string()).collect();
+        let route_count_map = self.store.route_store()
+            .count_routes_by_brand_map(brand_id_strings.clone())
+            .await
+            .unwrap_or_default();
+        let layout_count_map = self.store.schedule_store()
+            .count_bus_layouts_by_brand_map(brand_id_strings.clone())
+            .await
+            .unwrap_or_default();
+
         let mut items = Vec::with_capacity(brands.len());
         for b in &brands {
-            let route_count = self.store.route_store()
-                .count_routes_by_brand(&b.id.to_string())
-                .await
-                .unwrap_or(0);
-            let layout_count = self.store.schedule_store()
-                .count_bus_layouts_by_brand(&b.id.to_string())
-                .await
-                .unwrap_or(0);
+            let brand_id_str = b.id.to_string();
+            let route_count = *route_count_map.get(&brand_id_str).unwrap_or(&0);
+            let layout_count = *layout_count_map.get(&brand_id_str).unwrap_or(&0);
             items.push(AdminBrandOut {
                 id: b.id,
                 slug: b.slug.clone(),
@@ -234,46 +242,65 @@ impl AdminService {
     pub async fn list_routes(&self) -> AppResult<AdminRouteListResponse> {
         let routes = self.store.route_store()
             .list_all_routes()
+            .await?;
+
+        // Batched counts — replaces the previous N+1 pattern of
+        // per-route count_schedules_by_route + count_pickup_points_by_route.
+        let route_id_strings: Vec<String> = routes.iter().map(|r| r.id.to_string()).collect();
+        let schedule_count_map = self.store.schedule_store()
+            .count_schedules_by_route_map(route_id_strings.clone())
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .unwrap_or_default();
+        let pickup_count_map = self.store.route_store()
+            .count_pickup_points_by_route_map(route_id_strings.clone())
+            .await
+            .unwrap_or_default();
+
+        // Batched place lookups — replaces the N+1 of per-route
+        // find_place_by_id(start) + find_place_by_id(end).
+        let mut place_ids: Vec<Uuid> = Vec::new();
+        for r in &routes {
+            if let Some(id) = r.start_location_id.as_deref() {
+                if let Ok(uid) = Uuid::parse_str(id) {
+                    place_ids.push(uid);
+                }
+            }
+            if let Some(id) = r.end_location_id.as_deref() {
+                if let Ok(uid) = Uuid::parse_str(id) {
+                    place_ids.push(uid);
+                }
+            }
+        }
+        place_ids.dedup();
+        let places = self.store.place_store()
+            .find_places_by_ids(place_ids)
+            .await
+            .unwrap_or_default();
+        let place_map: std::collections::HashMap<Uuid, _> =
+            places.into_iter().map(|p| (p.id, p)).collect();
 
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
-            let schedule_count = self.store.schedule_store()
-                .count_schedules_by_route(&r.id.to_string())
-                .await
-                .unwrap_or(0);
-            let pickup_count = self.store.route_store()
-                .count_pickup_points_by_route(&r.id.to_string())
-                .await
-                .unwrap_or(0);
+            let route_id_str = r.id.to_string();
+            let schedule_count = *schedule_count_map.get(&route_id_str).unwrap_or(&0);
+            let pickup_count = *pickup_count_map.get(&route_id_str).unwrap_or(&0);
 
-            let start_place = if let Some(id) = r.start_location_id.as_deref() {
-                if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store.place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .ok()
-                        .flatten()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let end_place = if let Some(id) = r.end_location_id.as_deref() {
-                if let Ok(uid) = Uuid::parse_str(id) {
-                    self.store.place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .ok()
-                        .flatten()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+            let start_place = r.start_location_id.as_deref()
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .and_then(|uid| place_map.get(&uid))
+                .map(|p| AdminPlacePreview {
+                    id: p.id,
+                    name: p.name.clone(),
+                    province: p.province.clone(),
+                });
+            let end_place = r.end_location_id.as_deref()
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .and_then(|uid| place_map.get(&uid))
+                .map(|p| AdminPlacePreview {
+                    id: p.id,
+                    name: p.name.clone(),
+                    province: p.province.clone(),
+                });
 
             items.push(AdminRouteOut {
                 id: r.id,
@@ -286,16 +313,8 @@ impl AdminService {
                 status: r.status.clone(),
                 created_at: r.created_at.clone(),
                 updated_at: r.updated_at.clone(),
-                start_location: start_place.map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name,
-                    province: p.province,
-                }),
-                end_location: end_place.map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name,
-                    province: p.province,
-                }),
+                start_location: start_place,
+                end_location: end_place,
                 schedule_count,
                 pickup_point_count: pickup_count as i64,
             });

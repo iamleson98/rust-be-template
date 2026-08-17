@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, JoinType, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, RelationTrait,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -32,6 +32,24 @@ pub trait BookingStore: Send + Sync {
         user_id: &str,
         status: &str,
         trip_session_ids: Vec<String>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>>;
+
+    /// List bookings for a user, filtered by status + an optional
+    /// trip-departure-date range (gte / lt). Replaces the previous
+    /// "load all trips departing today → filter bookings by trip_session_id IN(...)"
+    /// pattern that materialised ~18k trip rows on every authenticated
+    /// /bookings request after a year of operation.
+    ///
+    /// `date_gte` and `date_lt` are `YYYY-MM-DD` strings; either can be
+    /// `None` to skip that bound.
+    async fn list_bookings_by_user_with_date_filter(
+        &self,
+        user_id: &str,
+        status: &str,
+        date_gte: Option<&str>,
+        date_lt: Option<&str>,
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>>;
@@ -136,6 +154,53 @@ impl BookingStore for DbBookingStore {
             }
             "all" => {}
             _ => {}
+        }
+
+        Ok(query
+            .order_by_desc(booking::Column::CreatedAt)
+            .limit(limit)
+            .offset(offset)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_bookings_by_user_with_date_filter(
+        &self,
+        user_id: &str,
+        status: &str,
+        date_gte: Option<&str>,
+        date_lt: Option<&str>,
+        limit: u64,
+        offset: u64,
+    ) -> StoreResult<Vec<booking::Model>> {
+        // JOIN on trip_session to filter by departure_date in a single SQL
+        // query — eliminates the previous "load all trips departing
+        // today → filter bookings by trip_session_id IN (...)" pattern.
+        use crate::entity::trip_session;
+        let mut query = booking::Entity::find()
+            .filter(booking::Column::UserId.eq(user_id.to_string()))
+            .join(JoinType::InnerJoin, trip_session::Relation::Booking.def().rev());
+
+        // Status filter
+        match status {
+            "confirmed" | "upcoming" => {
+                query = query.filter(booking::Column::Status.eq("confirmed"));
+            }
+            "completed" | "past" => {
+                query = query.filter(booking::Column::Status.eq("completed"));
+            }
+            "cancelled" => {
+                query = query.filter(booking::Column::Status.eq("cancelled"));
+            }
+            _ => {}
+        }
+
+        // Departure-date bucket filter (None = no filter)
+        if let Some(gte) = date_gte {
+            query = query.filter(trip_session::Column::DepartureDate.gte(gte.to_string()));
+        }
+        if let Some(lt) = date_lt {
+            query = query.filter(trip_session::Column::DepartureDate.lt(lt.to_string()));
         }
 
         Ok(query

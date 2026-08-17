@@ -39,6 +39,14 @@ pub trait RouteStore: Send + Sync {
     async fn delete_route(&self, id: Uuid) -> StoreResult<()>;
     async fn count_routes_by_brand(&self, brand_id: &str) -> StoreResult<usize>;
 
+    /// Batched version of `count_routes_by_brand` — single SQL
+    /// `SELECT brand_id, COUNT(*) GROUP BY brand_id WHERE brand_id IN (...)`
+    /// instead of N round-trips. Returns a map keyed by brand_id string.
+    async fn count_routes_by_brand_map(
+        &self,
+        brand_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>>;
+
     // ── PickupPoint ─────────────────────────────────────────────
 
     async fn list_pickup_points_by_route(
@@ -46,6 +54,14 @@ pub trait RouteStore: Send + Sync {
         route_id: &str,
     ) -> StoreResult<Vec<pickup_point::Model>>;
     async fn count_pickup_points_by_route(&self, route_id: &str) -> StoreResult<usize>;
+
+    /// Batched version — `SELECT route_id, COUNT(*) FROM pickup_point
+    /// WHERE route_id IN (?) GROUP BY route_id`. Replaces N per-route
+    /// round-trips in admin_service::list_routes.
+    async fn count_pickup_points_by_route_map(
+        &self,
+        route_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>>;
     async fn insert_pickup_point(&self, model: pickup_point::ActiveModel) -> StoreResult<()>;
     async fn find_pickup_point_by_id(&self, id: Uuid) -> StoreResult<Option<pickup_point::Model>>;
     async fn update_pickup_point(
@@ -135,6 +151,35 @@ impl RouteStore for DbRouteStore {
             .await? as usize)
     }
 
+    async fn count_routes_by_brand_map(
+        &self,
+        brand_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>> {
+        if brand_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        // `SELECT brand_id, COUNT(*) FROM route WHERE brand_id IN (?) GROUP BY brand_id`
+        use sea_orm::sea_query::Expr;
+        let rows: Vec<(String, i64)> = route::Entity::find()
+            .filter(route::Column::BrandId.is_in(brand_ids.clone()))
+            .select_only()
+            .column(route::Column::BrandId)
+            .column_as(Expr::col(route::Column::Id).count(), "count")
+            .group_by(route::Column::BrandId)
+            .into_tuple::<(String, i64)>()
+            .all(self.db.as_ref())
+            .await?;
+        let mut map: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::with_capacity(brand_ids.len());
+        for id in brand_ids {
+            map.insert(id, 0);
+        }
+        for (id, count) in rows {
+            map.insert(id, count as usize);
+        }
+        Ok(map)
+    }
+
     // ── PickupPoint ─────────────────────────────────────────────
 
     async fn list_pickup_points_by_route(
@@ -153,6 +198,34 @@ impl RouteStore for DbRouteStore {
             .filter(pickup_point::Column::RouteId.eq(route_id.to_string()))
             .count(self.db.as_ref())
             .await? as usize)
+    }
+
+    async fn count_pickup_points_by_route_map(
+        &self,
+        route_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>> {
+        if route_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        use sea_orm::sea_query::Expr;
+        let rows: Vec<(String, i64)> = pickup_point::Entity::find()
+            .filter(pickup_point::Column::RouteId.is_in(route_ids.clone()))
+            .select_only()
+            .column(pickup_point::Column::RouteId)
+            .column_as(Expr::col(pickup_point::Column::Id).count(), "count")
+            .group_by(pickup_point::Column::RouteId)
+            .into_tuple::<(String, i64)>()
+            .all(self.db.as_ref())
+            .await?;
+        let mut map: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::with_capacity(route_ids.len());
+        for id in route_ids {
+            map.insert(id, 0);
+        }
+        for (id, count) in rows {
+            map.insert(id, count as usize);
+        }
+        Ok(map)
     }
 
     #[store_macros::no_retry]
