@@ -96,7 +96,7 @@ export function StatsOverview({
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   // Public stats (brands, routes, trips)
-  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useStats(dateRange)
+  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useStats()
 
   // Admin booking stats — drives revenue + booking-volume charts + donut
   const filter: AdminBookingFilter = useMemo(

@@ -224,7 +224,7 @@ export function MyBookings() {
   const cancelBooking = async (bookingId: string) => {
     setCancelling(bookingId)
     try {
-      await cancelBookingMut(bookingId)
+      await cancelBookingMut({ path: { id: bookingId }, body: {} })
       // The mutation invalidates the bookings query on success, so the
       // list refreshes automatically — no manual state patching needed.
     } catch {

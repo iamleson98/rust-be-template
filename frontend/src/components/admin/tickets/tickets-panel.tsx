@@ -9,7 +9,7 @@
  *
  *   - `useAdminBookings(filter)`     — paginated list + inline stats
  *   - `useAdminBookingStats(filter)` — per-day + per-brand aggregates
- *   - `useAdminBookingExport()`      — CSV export mutation
+ *   - `useAdminBookingExport({})`      — CSV export mutation
  *   - `useUpdateBookingStatus()`     — confirm / cancel / complete
  *   - `useAdminBookingDetail(id)`    — full detail (seats, trip, owner)
  *
@@ -200,7 +200,7 @@ export function TicketsPanel() {
   const bookingsQuery = useAdminBookings(filter)
   const statsQuery = useAdminBookingStats(filter)
   const brandsQuery = useAdminBrands()
-  const exportMutation = useAdminBookingExport()
+  const exportMutation = useAdminBookingExport({})
 
   // Debounce search: commit to filter 400ms after the last keystroke.
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -267,10 +267,12 @@ export function TicketsPanel() {
 
   const handleExport = useCallback(async () => {
     try {
-      const result = await exportMutation.mutateAsync({ filter })
-      downloadCSV(result.filename, result.csv)
+      const result = await exportMutation.refetch()
+      const data = result.data
+      if (!data) throw new Error('Export failed')
+      downloadCSV(data.filename, data.csv)
       toast.success('Xuất CSV thành công', {
-        description: `Đã xuất ${result.count} vé ra file ${result.filename}`,
+        description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
     } catch (e: any) {
       toast.error('Xuất CSV thất bại', {
@@ -826,10 +828,12 @@ function BookingDetailDialog({
       if (!booking) return
       try {
         await updateStatus.mutateAsync({
-          id: booking.id,
-          status,
-          reason: reason.trim() || undefined,
-          force,
+          path: { id: booking.id },
+          body: {
+            status,
+            reason: reason.trim() || undefined,
+            force,
+          },
         })
         toast.success('Đã cập nhật trạng thái', {
           description: `Vé ${booking.code}: ${statusLabel(status)}`,

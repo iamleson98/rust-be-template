@@ -60,7 +60,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
   // cache (same queryKey `['stats', dateRange]`) — we only consume
   // `isLoading` here for the full-dashboard skeleton gate.
   const [dateRange, setDateRange] = useState<DateRange>('7d')
-  const statsQuery = useStats(dateRange)
+  const statsQuery = useStats()
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [replyText, setReplyText] = useState('')
@@ -80,7 +80,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
       .catch(() => {})
   }, [])
 
-  const exportMutation = useAdminBookingExport()
+  const exportMutation = useAdminBookingExport({})
 
   const handleExportCSV = useCallback(async () => {
     // Export REAL bookings via `GET /api/admin/bookings/export` — the
@@ -94,10 +94,12 @@ export const AdminDashboard = memo(function AdminDashboard() {
         limit: 200,
         offset: 0,
       }
-      const result = await exportMutation.mutateAsync({ filter })
-      downloadCSV(result.filename, result.csv)
+      const result = await exportMutation.refetch()
+      const data = result.data
+      if (!data) throw new Error('Export failed')
+      downloadCSV(data.filename, data.csv)
       toast.success('Xuất CSV thành công', {
-        description: `Đã xuất ${result.count} vé ra file ${result.filename}`,
+        description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
     } catch (e: any) {
       toast.error('Xuất CSV thất bại', {

@@ -16,33 +16,8 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 
-// Generated SDK functions — only used in component-level calls that
-// can't be wrapped in a TanStack hook (e.g. inside useEffect for
-// chat-widget's WebSocket lifecycle). All query/mutation hooks
-// below use the generated Options/Mutation helpers instead.
-import {
-  // auth — used by chat-widget useEffect (not in a hook)
-  me as sdkMe,
-  register as sdkRegister,
-  // chat — used by chat-widget + admin-dashboard useEffect/callbacks
-  listChannels as sdkListChannels,
-  listMessages as sdkListMessages,
-  createChannel as sdkCreateChannel,
-  postMessage as sdkPostMessage,
-  markRead as sdkMarkRead,
-  // booking — used by booking-dialog onSubmit (sequential hold+confirm)
-  hold as sdkHold,
-  confirm as sdkConfirm,
-  validateCampaign as sdkValidateCampaign,
-  // reviews — used by review-dialog onSubmit
-  create2 as sdkCreateReview,
-  // reviews list — used by reviews-list useQuery (needs custom queryKey)
-  list5 as sdkListReviews,
-  // places — used by admin brands useQuery
-  list3 as sdkListPlaces,
-  // booking export — used by admin export useMutation
-  bookingExport as sdkBookingExport,
-} from '@/lib/api/sdk.gen'
+// NOTE: No bare SDK imports — all hooks use generated TanStack
+// Options/Mutation helpers from @tanstack/react-query.gen.
 
 // Generated TanStack Query options + keys + mutations
 import {
@@ -659,8 +634,10 @@ export function useChatChannels(limit = 50) {
 }
 
 export function useChatMessages(channelId: string | undefined, limit = 50) {
-  return useQuery({
-    ...chatMessagesListOptions({ path: { id: channelId! }, query: { limit } }),
+  const opts = channelId ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } }) : null
+  return useQuery<any>({
+    queryKey: opts?.queryKey ?? ['chat', 'messages', 'disabled'],
+    queryFn: opts?.queryFn as any ?? (() => Promise.resolve(null)),
     enabled: !!channelId,
     staleTime: 10 * 1000,
   })
@@ -678,7 +655,7 @@ export function usePostChatMessage() {
   const qc = useQueryClient()
   return useMutation({
     ...chatPostMessageMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatMessagesListQueryKey() }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['listMessages'] }),
   })
 }
 
@@ -695,12 +672,12 @@ export function useMarkChannelRead() {
 // ─────────────────────────────────────────────────────────────
 
 export function useValidateCampaign() {
-  const qc = useQueryClient()
   return useMutation({
     mutationFn: async (params: { code: string; subtotal: number }) => {
-      const { data, error } = await sdkValidateCampaign({ query: params })
-      if (error) throw error
-      return data
+      const opts = validateCampaignOptions({ query: params })
+      const queryFn = opts.queryFn
+      if (!queryFn) throw new Error('queryFn missing')
+      return queryFn({ queryKey: opts.queryKey as any, signal: new AbortController().signal } as any)
     },
   })
 }
@@ -753,10 +730,7 @@ export function useUpdateAdminBrand() {
 export function useDeleteAdminBrand() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteBrand({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteBrandMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['brands'] })
@@ -800,10 +774,7 @@ export function useUpdateAdminRoute() {
 export function useDeleteAdminRoute() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteRoute({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteRouteMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
       qc.invalidateQueries({ queryKey: ['routes'] })
@@ -842,10 +813,7 @@ export function useUpdateAdminSchedule() {
 export function useDeleteAdminSchedule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteSchedule({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteScheduleMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'schedules'] }),
   })
 }
@@ -881,10 +849,7 @@ export function useUpdateAdminPickupPoint() {
 export function useDeleteAdminPickupPoint() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeletePickupPoint({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deletePickupPointMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
   })
 }
@@ -913,18 +878,7 @@ export function useAdminReviews(opts?: { status?: string; brandId?: string; sear
 export function useModerateAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: {
-      id: string
-      status?: string | null
-      brandReply?: string | null
-    }) => {
-      const { data } = await sdkModerateReview({
-        path: { id: vars.id },
-        body: { status: vars.status, brandReply: vars.brandReply },
-        throwOnError: true,
-      })
-      return data
-    },
+    ...moderateReviewMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['reviews'] })
@@ -935,10 +889,7 @@ export function useModerateAdminReview() {
 export function useDeleteAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteAdminReview({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...adminDeleteReviewMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['reviews'] })
@@ -1028,23 +979,7 @@ export function useAdminBookingStats(filter: AdminBookingFilter) {
 export function useUpdateBookingStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: {
-      id: string
-      status: string
-      reason?: string | null
-      force?: boolean
-    }) => {
-      const { data } = await sdkUpdateBookingStatus({
-        path: { id: vars.id },
-        body: {
-          status: vars.status,
-          reason: vars.reason ?? null,
-          force: vars.force ?? false,
-        },
-        throwOnError: true,
-      })
-      return data
-    },
+    ...updateBookingStatusMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: ['bookings'] })
@@ -1064,9 +999,19 @@ export function useAdminCreateBooking() {
 }
 
 export function useAdminBookingExport(filter: AdminBookingFilter) {
-  const sp = adminBookingsQs(filter)
-  const query: Record<string, string> = {}
-  sp.forEach((v: string, k: string) => { query[k] = v })
+  const query: Record<string, string | number | undefined> = {
+    brandId: filter.brandId,
+    routeId: filter.routeId,
+    status: filter.status && filter.status !== 'all' ? filter.status : undefined,
+    dateFrom: filter.dateFrom,
+    dateTo: filter.dateTo,
+    search: filter.search,
+    limit: filter.limit ?? 50,
+    offset: filter.offset ?? 0,
+    sort: filter.sort,
+  }
+  // Remove undefined values
+  Object.keys(query).forEach((k) => query[k] === undefined && delete query[k])
   return useQuery({
     ...adminBookingExportOptions({ query } as any),
     enabled: false, // only fetch on demand via refetch

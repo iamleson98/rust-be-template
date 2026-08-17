@@ -161,7 +161,7 @@ export function PriceAlertDialog() {
 
   const handleDeleteAlert = async (id: string) => {
     try {
-      await removeAlertMut.mutateAsync(id)
+      await removeAlertMut.mutateAsync({ path: { id } })
       toast.success('Đã huỷ theo dõi giá')
     } catch {
       toast.error('Không thể xoá cảnh báo')
@@ -180,15 +180,14 @@ export function PriceAlertDialog() {
       // Use the centralized mutation — it invalidates the price-alerts
       // cache on success and (via the extended payload type) forwards
       // all the dialog's fields to the backend.
-      const data: any = await createAlertMut.mutateAsync({
+      const data: any = await createAlertMut.mutateAsync({ body: {
         phone: cleanPhone,
         email: values.email || null,
         fromName,
         toName,
-        maxPrice: values.targetPrice,
         targetPrice: values.targetPrice,
         frequency: values.frequency,
-      })
+      } })
 
       // Persist phone for future use
       setGuestPhone(cleanPhone)

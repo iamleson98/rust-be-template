@@ -94,12 +94,12 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId, p
     // separate legs the API expects.
     const [fromName, toName] = presetLabel.split(' → ').map((s) => s.trim())
     try {
-      await toggleMutation.mutateAsync({
+      await toggleMutation.mutateAsync({ body: {
         routeId: presetRouteId,
         tripId: undefined,
         fromName: fromName ?? presetLabel,
         toName: toName ?? '',
-      })
+      } })
       toast.success('Đã lưu vào yêu thích')
     } catch {
       // The mutation hook already invalidates the wishlist query on
@@ -111,7 +111,7 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId, p
 
   const removeItem = async (id: string) => {
     try {
-      await removeMutation.mutateAsync(id)
+      await removeMutation.mutateAsync({ path: { id } })
       toast.success('Đã xoá khỏi yêu thích')
       // Refresh the local label cache so the bell badge count stays in sync.
       // `WishlistItemOut` only exposes `routeId` (no from/to names), so we use

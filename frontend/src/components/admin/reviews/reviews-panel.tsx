@@ -140,12 +140,9 @@ export function ReviewsModerationPanel() {
     setUpdatingId(id)
     try {
       await moderateMutation.mutateAsync({
-        id,
-        status: body.status,
-        brandReply: body.brandReply,
+        path: { id },
+        body: { status: body.status, brandReply: body.brandReply },
       })
-      // Mutation invalidates ['admin', 'reviews'] → list + stats refetch
-      // automatically; no need to manually patch local state or re-fetch stats.
       toast.success(successMsg)
     } catch (e: any) {
       toast.error(e?.message ?? 'Cập nhật thất bại')

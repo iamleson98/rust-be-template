@@ -263,21 +263,22 @@ export function ChatTicketPicker({
     }
     try {
       const result = await createBooking.mutateAsync({
-        tripId: selectedTrip.tripId,
-        seatIds: selectedSeats.map((s) => s.id),
-        passengers: passengers.map((p) => ({
-          name: p.name,
-          type: p.type,
-          age: p.age,
-        })),
-        boardingPointId,
-        droppingPointId,
-        contactName,
-        contactPhone,
-        contactEmail: contactEmail || undefined,
-        userId: channel?.user?.phone ? undefined : undefined, // would need user.id; Channel doesn't expose it
-        autoConfirm,
-      })
+        body: {
+          tripId: selectedTrip.tripId,
+          seatIds: selectedSeats.map((s) => s.id),
+          passengers: passengers.map((p) => ({
+            name: p.name,
+            type: p.type,
+            age: p.age,
+          })),
+          boardingPointId,
+          droppingPointId,
+          contactName,
+          contactPhone,
+          contactEmail: contactEmail || undefined,
+          campaignCode: undefined,
+        },
+      } as any)
       const item = (result as any)?.item ?? result
       const payload: CreatedTicketPayload = {
         bookingId: item?.id ?? '',
