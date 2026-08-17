@@ -1,6 +1,6 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
 
@@ -10,8 +10,13 @@ use crate::middleware::AuthUser;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct UserOut {
     pub id: Uuid,
+    /// User's email. The underlying column is non-null but may be empty —
+    /// we normalise to `None` for the wire so the frontend's optional type
+    /// is honest.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     pub full_name: String,
     pub created_at: String,
@@ -21,11 +26,21 @@ impl From<user::Model> for UserOut {
     fn from(m: user::Model) -> Self {
         Self {
             id: m.id,
-            email: Some(m.email),
+            email: if m.email.is_empty() { None } else { Some(m.email) },
             full_name: m.full_name,
             created_at: m.created_at.to_rfc3339(),
         }
     }
+}
+
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct ListUsersQuery {
+    #[serde(default)]
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub offset: Option<u64>,
 }
 
 /// `GET /api/users` — list users. Requires `users:read`.
@@ -33,6 +48,7 @@ impl From<user::Model> for UserOut {
     get,
     path = "/api/users",
     tag = "users",
+    params(ListUsersQuery),
     responses(
         (status = 200, description = "User list", body = Vec<UserOut>),
         (status = 401, description = "Unauthorized"),
@@ -42,8 +58,11 @@ impl From<user::Model> for UserOut {
 pub async fn list_users(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
+    Query(q): Query<ListUsersQuery>,
 ) -> AppResult<Json<Vec<UserOut>>> {
-    let users = state.users.list(user_id).await?;
+    let limit = q.limit.unwrap_or(50).min(200);
+    let offset = q.offset.unwrap_or(0);
+    let users = state.users.list(user_id, limit, offset).await?;
     Ok(Json(users.into_iter().map(UserOut::from).collect()))
 }
 

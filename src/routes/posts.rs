@@ -12,6 +12,7 @@ use crate::middleware::AuthUser;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct PostOut {
     pub id: Uuid,
     pub author_id: Uuid,
@@ -35,16 +36,23 @@ impl From<posts::Model> for PostOut {
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
 pub struct ListPostsQuery {
     pub limit: Option<u64>,
     pub offset: Option<u64>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ListPostsResponse {
     pub items: Vec<PostOut>,
     pub limit: u64,
     pub offset: u64,
+    /// Total post count (independent of pagination). Omitted when not
+    /// computed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
 }
 
 /// `GET /api/posts` — list posts (public read).
@@ -66,6 +74,9 @@ pub async fn list_posts(
         items: posts.into_iter().map(PostOut::from).collect(),
         limit,
         offset,
+        // Total count not yet wired in (PostStore would need a `count_posts` method).
+        // Omitted from JSON via `skip_serializing_if`.
+        total: None,
     }))
 }
 

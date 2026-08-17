@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use chrono::Utc;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -26,6 +26,8 @@ pub trait UserStore: Send + Sync {
     ) -> StoreResult<user::Model>;
     async fn delete_user(&self, id: Uuid) -> StoreResult<()>;
     async fn count_users(&self) -> StoreResult<u64>;
+    /// Paginated list of users, newest first. Used by `UserService::list`.
+    async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>>;
 }
 
 #[derive(Clone)]
@@ -140,6 +142,15 @@ impl UserStore for DbUserStore {
     async fn count_users(&self) -> StoreResult<u64> {
         Ok(user::Entity::find().count(self.db.as_ref()).await?)
     }
+
+    async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>> {
+        Ok(user::Entity::find()
+            .order_by_desc(user::Column::CreatedAt)
+            .limit(limit)
+            .offset(offset)
+            .all(self.db.as_ref())
+            .await?)
+    }
 }
 
 pub struct CacheUserStore<S: UserStore> {
@@ -222,5 +233,10 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
 
     async fn count_users(&self) -> StoreResult<u64> {
         self.inner.count_users().await
+    }
+
+    async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>> {
+        // List queries aren't cached — they need fresh results every call.
+        self.inner.list_users(limit, offset).await
     }
 }
