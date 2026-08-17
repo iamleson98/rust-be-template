@@ -378,24 +378,17 @@ impl PublicService {
         let _sort = if sort.is_empty() { "departure" } else { sort };
         let min_seats = min_seats.max(1);
 
-        // Find routes matching from/to names
-        let all_routes = self
+        // SQL-side route search — replaces the previous "load 1000 routes
+        // and filter with to_lowercase().contains() in Rust" pattern.
+        // The SQL LOWER(name) LIKE '%from%' AND LOWER(name) LIKE '%to%'
+        // does the filtering server-side, returning only matching routes.
+        let from_lower = from.to_lowercase();
+        let to_lower = to.to_lowercase();
+        let matching_routes = self
             .store
             .route_store()
-            .list_routes_by_status("active", 1000)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Filter routes by name containing from → to
-        let matching_routes: Vec<&route::Model> = all_routes
-            .iter()
-            .filter(|r| {
-                let name_lower = r.name.to_lowercase();
-                let from_lower = from.to_lowercase();
-                let to_lower = to.to_lowercase();
-                name_lower.contains(&from_lower) && name_lower.contains(&to_lower)
-            })
-            .collect();
+            .search_active_routes_by_name(&from_lower, &to_lower, 1000)
+            .await?;
 
         if matching_routes.is_empty() {
             return Ok(TripSearchResponse { items: Vec::new() });

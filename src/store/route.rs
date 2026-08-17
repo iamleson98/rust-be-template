@@ -34,6 +34,17 @@ pub trait RouteStore: Send + Sync {
     ) -> StoreResult<Vec<route::Model>>;
     async fn list_routes_by_brand(&self, brand_id: &str) -> StoreResult<Vec<route::Model>>;
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>>;
+
+    /// Search active routes where the name contains both `from` and `to`
+    /// substrings (case-insensitive). Replaces the previous "load 1000
+    /// active routes and filter in Rust" pattern that allocated
+    /// `to_lowercase()` strings on every iteration.
+    async fn search_active_routes_by_name(
+        &self,
+        from_lower: &str,
+        to_lower: &str,
+        limit: u64,
+    ) -> StoreResult<Vec<route::Model>>;
     async fn insert_route(&self, model: route::ActiveModel) -> StoreResult<()>;
     async fn update_route(&self, model: route::ActiveModel) -> StoreResult<route::Model>;
     async fn delete_route(&self, id: Uuid) -> StoreResult<()>;
@@ -121,6 +132,40 @@ impl RouteStore for DbRouteStore {
 
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>> {
         Ok(route::Entity::find().all(self.db.as_ref()).await?)
+    }
+
+    async fn search_active_routes_by_name(
+        &self,
+        from_lower: &str,
+        to_lower: &str,
+        limit: u64,
+    ) -> StoreResult<Vec<route::Model>> {
+        // SQL-side ILIKE filter — both from and to must appear in the
+        // route name (case-insensitive). Replaces the previous
+        // "load 1000 routes + to_lowercase().contains() in Rust" pattern.
+        // On SQLite, LIKE is case-insensitive for ASCII by default; on
+        // Postgres, ILIKE is the case-insensitive variant.
+        // We use LIKE (portable across both backends) with already-lowercased
+        // inputs — the route names are stored in their original case, so we
+        // also lowercase the column via `LOWER(name) LIKE '%from%'`.
+        use sea_orm::sea_query::Expr;
+        Ok(route::Entity::find()
+            .filter(route::Column::Status.eq("active"))
+            .filter(
+                Expr::cust_with_values(
+                    "LOWER(name) LIKE '%' || ? || '%'",
+                    [from_lower.to_string()],
+                ),
+            )
+            .filter(
+                Expr::cust_with_values(
+                    "LOWER(name) LIKE '%' || ? || '%'",
+                    [to_lower.to_string()],
+                ),
+            )
+            .limit(limit)
+            .all(self.db.as_ref())
+            .await?)
     }
 
     #[store_macros::no_retry]
