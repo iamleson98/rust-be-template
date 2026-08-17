@@ -20,7 +20,7 @@ import {
 } from '@/lib/types'
 import { formatCurrency, type Currency } from '@/lib/currency'
 import type { SeatInv } from '@/components/trips/seat-map'
-import type { TripDetail } from './types'
+import type { TripDetailDialogData as TripDetail } from './types'
 
 export function BoardingPoints({
   detail,

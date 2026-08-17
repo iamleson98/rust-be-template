@@ -37,7 +37,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import type { Brand, RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
+import type { AdminBrandRow as Brand, AdminRouteRow as RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
 import { formatDurationShort, daysLabel } from './helpers'
 

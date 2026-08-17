@@ -35,7 +35,7 @@ import {
   markRead as sdkMarkRead,
 } from '@/lib/api/sdk.gen'
 import {
-  type Channel,
+  type CustomerChannel as Channel,
   type Message,
   type View,
   normalizeWsMessage,

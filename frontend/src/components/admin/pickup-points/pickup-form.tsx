@@ -42,7 +42,7 @@ import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useUpsertAdminPickupPoint } from '@/lib/queries'
-import type { PickupPoint, Place, RouteItem } from '@/components/admin/types'
+import type { PickupPoint, AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
 
 const pickupPointSchema = z.object({
   placeId: requiredText('Địa điểm'),

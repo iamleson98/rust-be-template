@@ -1,13 +1,18 @@
 /**
  * Shared types for the TripDetailDialog module.
  *
- * Extracted verbatim from the original `trip-detail-dialog.tsx`
- * (lines 88-166). Pure refactor — same shape.
+ * `TripDetailDialogData` is the aggregated payload the dialog renders:
+ *   { trip, route, brand, from, to, busLayout, pricing, amenities,
+ *     pickupPoints, seatMap, campaigns, discountPrograms }
+ *
+ * Renamed from `TripDetail` to avoid collision with the generated SDK
+ * `TripDetail` type (re-exported from @/lib/queries), which is the
+ * flat shape returned by `GET /api/trips/{id}`.
  */
 
 import type { SeatInv } from '@/components/trips/seat-map'
 
-export type TripDetail = {
+export type TripDetailDialogData = {
   trip: {
     id: string
     departureDate: string

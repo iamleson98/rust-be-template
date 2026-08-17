@@ -3,10 +3,15 @@
  *
  * Extracted from the original `chat-widget.tsx` so the header, list,
  * conversation, input and auth sub-components can share the same
- * `Channel`, `Message` and `View` types without re-declaring them.
+ * `CustomerChannel`, `Message` and `View` types without re-declaring them.
+ *
+ * `CustomerChannel` is the customer-facing shape (with `unreadUser`).
+ * The admin view has a different shape (`AdminChannel` in
+ * `@/components/admin/dashboard/types` — with `unreadEmployee`, `priority`,
+ * `user`, etc.).
  */
 
-export type Channel = {
+export type CustomerChannel = {
   id: string
   topic: string
   status: string

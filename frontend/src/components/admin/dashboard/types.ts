@@ -8,7 +8,6 @@
  */
 
 import type {
-  AdminBookingOut,
   AdminBookingStatsResponse,
   StatsResponse,
 } from '@/lib/api/types.gen'
@@ -19,7 +18,7 @@ import type {
 // payload (totals/byDay) reachable through a single import.
 export type { StatsResponse as Stats, AdminBookingStatsResponse as AdminBookingStats }
 
-export type Channel = {
+export type AdminChannel = {
   id: string
   topic: string
   status: string
@@ -32,7 +31,7 @@ export type Channel = {
   assignments?: { employee: { id: string; name: string } }[]
 }
 
-export type Campaign = {
+export type AdminCampaignRow = {
   id: string
   code: string
   name: string
@@ -44,7 +43,7 @@ export type Campaign = {
   brand?: { name: string | null } | null
 }
 
-export type ChatMessage = {
+export type AdminChatMessage = {
   id: string
   content: string
   senderType: string

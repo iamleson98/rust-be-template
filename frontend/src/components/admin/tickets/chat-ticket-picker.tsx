@@ -70,7 +70,7 @@ import {
   useAdminCreateBooking,
 } from '@/lib/queries'
 import type { TripResult, TripDetail } from '@/lib/api/types.gen'
-import type { Channel } from '@/components/admin/dashboard/types'
+import type { AdminChannel as Channel } from '@/components/admin/dashboard/types'
 
 // ── Types ───────────────────────────────────────────────────
 

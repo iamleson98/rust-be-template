@@ -7,7 +7,21 @@
 
 import { Wifi, Snowflake, Droplet, Plug, type LucideIcon } from 'lucide-react'
 
-export type Brand = {
+/**
+ * Admin-shape row types — these are LOCAL UI shapes for the
+ * AdminBrandManagement module, NOT the generated SDK shapes
+ * (BrandOut/RouteOut/PlaceOut are re-exported as Brand/RouteItem/Place
+ * from @/lib/queries).
+ *
+ * The two sets differ because the admin list views flatten relations
+ * into counts (totalTrips, routeCount, scheduleCount, pickupPointCount)
+ * while the SDK returns them as separate responses.
+ *
+ * Renamed with `Row` suffix to avoid name collisions when a file
+ * imports from both sources.
+ */
+
+export type AdminBrandRow = {
   id: string
   slug: string
   name: string
@@ -23,7 +37,7 @@ export type Brand = {
   layoutCount: number
 }
 
-export type Place = {
+export type AdminPlaceRow = {
   id: string
   name: string
   type: string
@@ -33,7 +47,7 @@ export type Place = {
   population?: number
 }
 
-export type RouteItem = {
+export type AdminRouteRow = {
   id: string
   brandId: string
   code: string

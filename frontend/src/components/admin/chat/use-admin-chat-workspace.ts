@@ -28,16 +28,16 @@ import {
   useChatMessages,
   usePostChatMessage,
 } from '@/lib/queries'
-import type { Channel, ChatMessage } from '@/components/admin/dashboard/types'
+import type { AdminChannel, AdminChatMessage } from '@/components/admin/dashboard/types'
 
 export function useAdminChatWorkspace() {
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
+  const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null)
   const [replyText, setReplyText] = useState('')
 
   const channelsQuery = useChatChannels(50)
-  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
+  const channels: AdminChannel[] = (channelsQuery.data?.items ?? []) as unknown as AdminChannel[]
   const messagesQuery = useChatMessages(activeChannel?.id, 50)
-  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
+  const chatMessages: AdminChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as AdminChatMessage[]
 
   // Reply mutation — clears the input + toasts the result.
   const postReplyMut = usePostChatMessage({
