@@ -32,6 +32,7 @@ pub mod public;
 pub mod review;
 pub mod routing;
 pub mod wishlist;
+pub mod zeroclaw;
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
