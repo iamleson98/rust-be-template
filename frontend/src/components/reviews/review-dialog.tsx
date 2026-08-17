@@ -160,7 +160,19 @@ export function ReviewDialog({
     )
   }
 
-  const createReviewMut = useCreateReview()
+  const createReviewMut = useCreateReview({
+    onSuccess: () => {
+      setSubmitted(true)
+      onSubmitSuccess?.()
+      toast.success('Cảm ơn đánh giá của bạn!')
+    },
+    onError: () => {
+      toast.error('Không thể gửi đánh giá')
+    },
+    onSettled: () => {
+      setSubmitting(false)
+    },
+  })
 
   const onSubmit = (values: ReviewValues) => {
     if (!routeId || !brandId) {
@@ -168,36 +180,21 @@ export function ReviewDialog({
       return
     }
     setSubmitting(true)
-    createReviewMut.mutate(
-      {
-        body: {
-          tripSessionId,
-          bookingId,
-          routeId,
-          brandId,
-          rating: values.rating,
-          title: values.title.trim(),
-          content: values.content.trim(),
-          tags: values.tags,
-          photos: values.photos,
-          authorName: values.author.trim() || 'Hành khách',
-          authorPhone: authorPhone,
-        },
-      } as any,
-      {
-        onSuccess: () => {
-          setSubmitted(true)
-          onSubmitSuccess?.()
-          toast.success('Cảm ơn đánh giá của bạn!')
-        },
-        onError: () => {
-          toast.error('Không thể gửi đánh giá')
-        },
-        onSettled: () => {
-          setSubmitting(false)
-        },
+    createReviewMut.mutate({
+      body: {
+        tripSessionId,
+        bookingId,
+        routeId,
+        brandId,
+        rating: values.rating,
+        title: values.title.trim(),
+        content: values.content.trim(),
+        tags: values.tags,
+        photos: values.photos,
+        authorName: values.author.trim() || 'Hành khách',
+        authorPhone: authorPhone,
       },
-    )
+    } as any)
   }
 
   const reset = () => {

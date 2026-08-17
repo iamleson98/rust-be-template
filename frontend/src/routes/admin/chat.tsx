@@ -17,23 +17,33 @@ export function AdminChatPage() {
   const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
   const messagesQuery = useChatMessages(activeChannel?.id, 50)
   const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
-  const postMessageMut = usePostChatMessage()
+
+  // Two distinct mutation instances, each with its own callbacks (defined at
+  // HOOK CREATION). mutate() is then called with only the variables.
+  // - postReplyMut: clears the input + toasts success/error
+  // - postTicketCardMut: silently swallows errors (booking already succeeded)
+  const postReplyMut = usePostChatMessage({
+    onSuccess: () => {
+      setReplyText('')
+      toast.success('Đã gửi phản hồi')
+    },
+    onError: () => {
+      toast.error('Không thể gửi tin nhắn')
+    },
+  })
+  const postTicketCardMut = usePostChatMessage({
+    onError: () => {
+      // Silently fail — the booking was already created
+    },
+  })
 
   const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
-    postMessageMut.mutate(
-      { path: { id: activeChannel.id }, body: { content: replyText.trim(), kind: 'text' } } as any,
-      {
-        onSuccess: () => {
-          setReplyText('')
-          toast.success('Đã gửi phản hồi')
-        },
-        onError: () => {
-          toast.error('Không thể gửi tin nhắn')
-        },
-      },
-    )
-  }, [replyText, activeChannel, postMessageMut])
+    postReplyMut.mutate({
+      path: { id: activeChannel.id },
+      body: { content: replyText.trim(), kind: 'text' },
+    } as any)
+  }, [replyText, activeChannel, postReplyMut])
 
   const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện')
@@ -44,14 +54,16 @@ export function AdminChatPage() {
     (payload: { bookingCode: string }) => {
       if (!activeChannel) return
       const attachments = JSON.stringify(payload)
-      postMessageMut.mutate(
-        { path: { id: activeChannel.id }, body: { content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments } } as any,
-        {
-          onError: () => {},
+      postTicketCardMut.mutate({
+        path: { id: activeChannel.id },
+        body: {
+          content: `Đã đặt vé ${payload.bookingCode}`,
+          kind: 'ticket',
+          attachments,
         },
-      )
+      } as any)
     },
-    [activeChannel, postMessageMut],
+    [activeChannel, postTicketCardMut],
   )
 
   return (
@@ -63,7 +75,7 @@ export function AdminChatPage() {
           activeChannel={activeChannel}
           chatMessages={chatMessages}
           replyText={replyText}
-          sending={postMessageMut.isPending}
+          sending={postReplyMut.isPending}
           onOpenChannel={setActiveChannel}
           onSendReply={sendReply}
           onBlockChannel={blockChannel}

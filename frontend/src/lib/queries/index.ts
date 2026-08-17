@@ -442,27 +442,62 @@ export function useGuestBookings(phone: string | undefined, code?: string) {
   })
 }
 
-export function useCancelBooking() {
+/**
+ * Generic callback overrides for a mutation hook.
+ *
+ * Callbacks defined here are MERGED with the built-in cache invalidation
+ * behaviour: the hook runs its own `onSuccess` (cache invalidation) first,
+ * then the caller-supplied callback.
+ *
+ * Components should pass these at HOOK CREATION time, never at `mutate()`
+ * call time — `mutate()` only receives the variables.
+ */
+type MutationCallbacks<TData, TVars> = {
+  onSuccess?: (data: TData, vars: TVars) => void
+  onError?: (err: unknown, vars: TVars) => void
+  onSettled?: (data: TData | undefined, err: unknown | null, vars: TVars) => void
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bookings — hold / confirm / cancel
+// ─────────────────────────────────────────────────────────────
+
+export function useCancelBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...cancelMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(cancelMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useHoldBooking() {
+export function useHoldBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...holdMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(holdMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useConfirmBooking() {
+export function useConfirmBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...confirmMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(confirmMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
@@ -651,11 +686,17 @@ export function useCreateChatChannel() {
   })
 }
 
-export function usePostChatMessage() {
+export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...chatPostMessageMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['listMessages'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(chatPostMessageMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['listMessages'] })
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
@@ -671,14 +712,17 @@ export function useMarkChannelRead() {
 // Campaign validation (for booking dialog)
 // ─────────────────────────────────────────────────────────────
 
-export function useValidateCampaign() {
-  return useMutation({
+export function useValidateCampaign<TData = unknown>(opts?: MutationCallbacks<TData, { code: string; subtotal: number }>) {
+  return useMutation<TData, unknown, { code: string; subtotal: number }>({
     mutationFn: async (params: { code: string; subtotal: number }) => {
-      const opts = validateCampaignOptions({ query: params })
-      const queryFn = opts.queryFn
+      const o = validateCampaignOptions({ query: params })
+      const queryFn = o.queryFn
       if (!queryFn) throw new Error('queryFn missing')
-      return queryFn({ queryKey: opts.queryKey as any, signal: new AbortController().signal } as any)
+      return queryFn({ queryKey: o.queryKey as any, signal: new AbortController().signal } as any) as Promise<TData>
     },
+    onSuccess: (data, vars) => opts?.onSuccess?.(data, vars),
+    onError: (err, vars) => opts?.onError?.(err, vars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data, err, vars),
   })
 }
 
@@ -686,11 +730,16 @@ export function useValidateCampaign() {
 // Review creation (for review dialog)
 // ─────────────────────────────────────────────────────────────
 
-export function useCreateReview() {
+export function useCreateReview<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...reviewCreateMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: reviewsListQueryKey() }),
+  return useMutation<TData, unknown, TVars>({
+    ...(reviewCreateMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
