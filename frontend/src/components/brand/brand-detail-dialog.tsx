@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { useBrand, useReviewsByBrand, usePopularRoutes } from '@/lib/queries'
+import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/lib/queries'
 import { useNavigate } from '@/router'
 import { useApp } from '@/lib/store'
 import {
@@ -154,16 +153,10 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
   // ── Tag aggregate (brand-wide) ───────────────────────────
-  // Backend `GET /api/reviews/tags` takes NO params — returns the global
-  // tag index. We filter client-side by brandId if the items carry it.
-  const tagStatsQuery = useQuery<TagStatsResponse>({
-    queryKey: ['reviews', 'tags', 'brand', brand?.id ?? ''],
-    queryFn: () =>
-      fetch('/api/reviews/tags', { credentials: 'include' }).then((r) => r.json() as Promise<TagStatsResponse>),
-    enabled: !!brand?.id,
-    staleTime: 60 * 1000,
-  })
-  const tagStats: TagStat[] = (tagStatsQuery.data?.items ?? []).filter(
+  // Backend `GET /api/reviews/tags` returns the global tag index.
+  // We filter client-side by brandId if the items carry it.
+  const tagStatsQuery = useReviewTags()
+  const tagStats: TagStat[] = ((tagStatsQuery.data as unknown as TagStatsResponse | undefined)?.items ?? []).filter(
     (t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id,
   )
 

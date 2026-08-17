@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Sparkles, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
 import { formatNum } from '@/lib/types'
 import { useCampaigns } from '@/lib/queries'
-import type { Campaign } from './types'
+import type { AdminCampaignRow as Campaign } from './types'
 
 export function CampaignsPanel() {
   const { data, isLoading, isError, error, refetch } = useCampaigns()

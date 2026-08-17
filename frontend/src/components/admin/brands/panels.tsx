@@ -37,9 +37,9 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import type { Brand, RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
+import type { AdminBrandRow as Brand, AdminRouteRow as RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
-import { formatDuration, daysLabel } from './helpers'
+import { formatDurationShort, daysLabel } from './helpers'
 
 /* ─── Brands list (left panel) ─── */
 
@@ -330,7 +330,7 @@ export function RouteListPanel({
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
                     <span>{r.distanceKm} km</span>
                     <span className="flex items-center gap-0.5">
-                      <Clock className="h-3 w-3" /> {formatDuration(r.durationMin)}
+                      <Clock className="h-3 w-3" /> {formatDurationShort(r.durationMin)}
                     </span>
                     <span className="flex items-center gap-0.5">
                       <MapPin className="h-3 w-3" /> {r.pickupPointCount}

@@ -26,9 +26,9 @@ import {
   usePlacesList,
 } from '@/lib/queries'
 import type {
-  Brand,
-  Place,
-  RouteItem,
+  AdminBrandRow as Brand,
+  AdminPlaceRow as Place,
+  AdminRouteRow as RouteItem,
   BusLayout,
   Schedule,
   PickupPoint,

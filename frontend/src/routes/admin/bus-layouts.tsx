@@ -29,7 +29,7 @@ export function AdminBusLayoutsPage() {
                   <TableRow key={layout.id}>
                     <TableCell>{layout.name ?? '—'}</TableCell>
                     <TableCell>{layout.vehicleType ?? '—'}</TableCell>
-                    <TableCell>{layout.totalSeats ?? '—'}</TableCell>
+                    <TableCell>{layout.seatCount ?? '—'}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

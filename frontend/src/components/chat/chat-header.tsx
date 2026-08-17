@@ -18,7 +18,7 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
-import type { Channel, View } from './_shared'
+import type { CustomerChannel as Channel, View } from './_shared'
 
 export function ChatHeader({
   view,

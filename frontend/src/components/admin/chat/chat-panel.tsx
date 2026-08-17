@@ -23,7 +23,7 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
-import type { Channel, ChatMessage } from '@/components/admin/dashboard/types'
+import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/components/admin/dashboard/types'
 import { PriorityBadge, StatusBadge, BookingStatusBadge } from '@/components/admin/dashboard/badges'
 import {
   ChatTicketPicker,

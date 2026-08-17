@@ -42,7 +42,7 @@ import {
   MessageSquareQuote,
   Users,
 } from 'lucide-react'
-import type { TripDetail } from './types'
+import type { TripDetailDialogData as TripDetail } from './types'
 import { TripInfo } from './trip-info'
 import { BoardingPoints } from './boarding-points'
 import { PriceSummary } from './price-summary'

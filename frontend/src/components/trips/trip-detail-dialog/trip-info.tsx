@@ -30,7 +30,7 @@ import {
   formatTimeVN,
   formatDateVN,
 } from '@/lib/types'
-import type { TripDetail } from './types'
+import type { TripDetailDialogData as TripDetail } from './types'
 import { amenityIcon } from './amenity-icons'
 
 export function TripInfo({

@@ -41,8 +41,9 @@ import { Clock, Bus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText } from '@/lib/forms'
 import { useUpsertAdminSchedule } from '@/lib/queries'
-import type { BusLayout, RouteItem, Schedule } from '@/components/admin/types'
-import { DAY_FULL, AMENITY_OPTIONS, VEHICLE_LABELS } from '@/components/admin/types'
+import type { BusLayout, AdminRouteRow as RouteItem, Schedule } from '@/components/admin/types'
+import { DAY_FULL, AMENITY_OPTIONS } from '@/components/admin/types'
+import { VEHICLE_TYPE_LABELS as VEHICLE_LABELS } from '@/lib/types'
 
 const scheduleSchema = z
   .object({

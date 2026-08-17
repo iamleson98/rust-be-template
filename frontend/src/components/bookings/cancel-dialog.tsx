@@ -4,10 +4,9 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useApp } from '@/lib/store'
-import { queryKeys } from '@/lib/query-client'
 import { useT } from '@/lib/i18n'
+import { useCancelBooking } from '@/lib/queries'
 import {
   Dialog,
   DialogContent,
@@ -66,18 +65,9 @@ const cancelSchema = z.object({
 
 type CancelValues = z.infer<typeof cancelSchema>
 
-type CancelResponse = {
-  success: boolean
-  refundPercent?: number
-  refundAmount?: number
-  refCode?: string
-  error?: string
-}
-
 export function CancelDialog() {
   const { cancelDialogOpen, setCancelDialogOpen, cancelBookingId, setCancelBookingId } = useApp()
   const t = useT()
-  const qc = useQueryClient()
 
   const [step, setStep] = useState<Step>(1)
   const [refundPercent, setRefundPercent] = useState(0)
@@ -98,29 +88,26 @@ export function CancelDialog() {
   const selectedReason = form.watch('selectedReason')
   const agreed = form.watch('agreed')
 
-  // Cancel booking mutation — wraps the POST /api/bookings/:id/cancel
-  // endpoint. We use a local mutation (not the centralized
-  // `useCancelBooking`) because the dialog needs the refund info
-  // (refundPercent, refundAmount, refCode) returned by the /cancel
-  // endpoint to populate the success step. The centralized hook uses
-  // DELETE which doesn't return refund data.
-  const cancelMutation = useMutation({
-    mutationFn: async (payload: { bookingId: string; reason: string; otherReason?: string }) => {
-      const res = await fetch(`/api/bookings/${payload.bookingId}/cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          reason: payload.reason,
-          otherReason: payload.otherReason,
-        }),
-      })
-      return (await res.json()) as CancelResponse
+  // Cancel booking mutation — uses the centralized useCancelBooking hook
+  // (POST /api/bookings/:id/cancel). The hook auto-invalidates the
+  // bookings query on success. The refund info (refundPercent,
+  // refundAmount, refCode) returned by the endpoint is captured in
+  // onSuccess to populate the success step.
+  const cancelMutation = useCancelBooking({
+    onSuccess: (data: any) => {
+      const d = data?.data ?? data
+      if (d?.success) {
+        setRefundPercent(d.refundPercent ?? 0)
+        setRefundAmount(d.refundAmount ?? 0)
+        setRefCode(d.refCode || `HX-${Date.now().toString(36).toUpperCase()}`)
+        setStep(3)
+        toast.success(t('cancel.successTitle'))
+      } else {
+        toast.error(d?.error || t('common.error'))
+      }
     },
-    onSuccess: () => {
-      // Invalidate the bookings query so the list refreshes with the
-      // cancelled status (used by my-bookings.tsx + booking-detail.tsx).
-      qc.invalidateQueries({ queryKey: queryKeys.bookings.all })
+    onError: () => {
+      toast.error(t('common.error'))
     },
   })
   const loading = cancelMutation.isPending
@@ -171,25 +158,14 @@ export function CancelDialog() {
       // Submit cancellation via mutation. The mutation auto-invalidates
       // the bookings query on success (see `onSuccess` above).
       const values = form.getValues()
-      try {
-        const data = await cancelMutation.mutateAsync({
-          bookingId: cancelBookingId,
+      cancelMutation.mutate({
+        path: { id: cancelBookingId },
+        body: {
           reason: values.selectedReason,
           otherReason:
             values.selectedReason === 'other' ? values.otherReason : undefined,
-        })
-        if (data.success) {
-          setRefundPercent(data.refundPercent ?? 0)
-          setRefundAmount(data.refundAmount ?? 0)
-          setRefCode(data.refCode || `HX-${Date.now().toString(36).toUpperCase()}`)
-          setStep(3)
-          toast.success(t('cancel.successTitle'))
-        } else {
-          toast.error(data.error || t('common.error'))
-        }
-      } catch {
-        toast.error(t('common.error'))
-      }
+        },
+      } as any)
     }
   }
 

@@ -76,9 +76,9 @@ export const Slot = forwardRef<HTMLElement, SlotProps>(
     const childRef: Ref<HTMLElement> = child.props.ref
     const composedRef: Ref<HTMLElement> = (node) => {
       if (typeof ref === 'function') ref(node)
-      else if (ref) (ref as RefObject<HTMLElement>).current = node
+      else if (ref) (ref as RefObject<HTMLElement | null>).current = node
       if (typeof childRef === 'function') childRef(node)
-      else if (childRef) (childRef as RefObject<HTMLElement>).current = node
+      else if (childRef) (childRef as RefObject<HTMLElement | null>).current = node
     }
 
     return cloneElement(child, { ...mergedProps, ref: composedRef })

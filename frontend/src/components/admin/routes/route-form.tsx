@@ -41,7 +41,7 @@ import { Route as RouteIcon, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
-import type { Brand, Place, RouteItem } from '@/components/admin/types'
+import type { AdminBrandRow as Brand, AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
 
 const routeSchema = z
   .object({

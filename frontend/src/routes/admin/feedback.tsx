@@ -1,8 +1,6 @@
 /** Admin route — `/admin/feedback` — feedback management page. */
-import { useQuery } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { MessageSquare, Star } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
+import { MessageSquare } from 'lucide-react'
 
 export function AdminFeedbackPage() {
   // TODO: When a dedicated /api/admin/feedback endpoint exists,

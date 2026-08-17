@@ -47,6 +47,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { useApp, hydrateFromStorage } from '@/lib/store'
 import { useAuthMe } from '@/lib/queries'
 import { Header } from '@/components/layout/header'
+import { IslandFallback } from '@/routes/_fallback'
 
 // ── Lazy route components (code-split per route) ────────────────
 const HomePage = lazy(() => import('./routes/home').then((m) => ({ default: m.HomePage })))
@@ -82,10 +83,6 @@ const CancelDialog = lazy(() => import('@/components/bookings/cancel-dialog').th
 const PriceAlertDialog = lazy(() => import('@/components/price-alert/price-alert-dialog').then((m) => ({ default: m.PriceAlertDialog })))
 const ShareDialog = lazy(() => import('@/components/trips/share-dialog').then((m) => ({ default: m.ShareDialog })))
 const SupportFab = lazy(() => import('@/components/layout/support-fab').then((m) => ({ default: m.SupportFab })))
-
-function IslandFallback({ minHeight = 200 }: { minHeight?: number }) {
-  return <div style={{ minHeight }} aria-busy="true" />
-}
 
 // ── Document head management (SEO) ─────────────────────────────
 // Updates <title> + <meta name="description"> per route. For the

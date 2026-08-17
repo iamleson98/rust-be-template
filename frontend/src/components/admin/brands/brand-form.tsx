@@ -43,7 +43,7 @@ import { Building2, Phone, Mail, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, optionalText } from '@/lib/forms'
 import { useUpsertAdminBrand } from '@/lib/queries'
-import type { Brand } from '@/components/admin/types'
+import type { AdminBrandRow as Brand } from '@/components/admin/types'
 import { slugify } from './helpers'
 
 const brandSchema = z.object({

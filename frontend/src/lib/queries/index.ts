@@ -43,7 +43,6 @@ import {
   validateCampaignQueryKey,
   // places
   searchOptions as placeSearchOptions,
-  reverseOptions,
   list3Options as placeListOptions,
   list3QueryKey as placeListQueryKey,
   // reviews
@@ -81,23 +80,19 @@ import {
   listBrandsOptions as adminBrandsListOptions,
   listBrandsQueryKey as adminBrandsListQueryKey,
   createBrandMutation,
-  updateBrandMutation,
   deleteBrandMutation,
   // admin — routes
   listRoutesOptions as adminRoutesListOptions,
   listRoutesQueryKey as adminRoutesListQueryKey,
   createRouteMutation,
-  updateRouteMutation,
   deleteRouteMutation,
   // admin — schedules
   listSchedulesOptions as adminSchedulesListOptions,
   createScheduleMutation,
-  updateScheduleMutation,
   deleteScheduleMutation,
   // admin — pickup points
   listPickupPointsOptions as adminPickupPointsListOptions,
   createPickupPointMutation,
-  updatePickupPointMutation,
   deletePickupPointMutation,
   // admin — bus layouts
   listBusLayoutsOptions as adminBusLayoutsListOptions,
@@ -105,7 +100,6 @@ import {
   listReviewsOptions as adminReviewsListOptions,
   listReviewsQueryKey as adminReviewsListQueryKey,
   moderateReviewMutation,
-  deleteReviewMutation as adminDeleteReviewMutation,
   // admin — bookings
   listBookingsOptions as adminBookingsListOptions,
   getBookingOptions as adminGetBookingOptions,
@@ -118,9 +112,7 @@ import {
   listChannelsQueryKey as chatChannelsListQueryKey,
   listMessagesOptions as chatMessagesListOptions,
   listMessagesQueryKey as chatMessagesListQueryKey,
-  createChannelMutation as chatCreateChannelMutation,
   postMessageMutation as chatPostMessageMutation,
-  markReadMutation as chatMarkReadMutation,
 } from '@/lib/api/@tanstack/react-query.gen'
 
 // Generated types — re-exported so components can import from here
@@ -199,7 +191,6 @@ export type {
   PlaceOut,
   PlaceSearchHit,
   ReviewOut as ReviewItem,
-  BookingListItem as BookingItem,
   NotificationOut as NotificationItem,
   WishlistItemOut as WishlistItem,
   PriceAlertOut as PriceAlert,
@@ -208,16 +199,12 @@ export type {
   AdminScheduleOut as AdminSchedule,
   AdminPickupPointOut as AdminPickupPoint,
   AdminReviewListResponse,
-  AdminBusLayoutOut as AdminBusLayout,
   AdminBookingOut,
   AdminBookingOut as AdminBookingItem,
-  AdminBookingDetailResponse,
-  AdminBookingDetailResponse as AdminBookingDetail,
   AdminBookingListResponse,
   AdminBookingStatsResponse,
   AdminBookingStatsResponse as AdminBookingStats,
   AdminBookingExportResponse,
-  AdminBookingSeatOut as AdminBookingSeat,
   AdminMutationResponse,
 }
 
@@ -279,14 +266,6 @@ export function usePopularRoutes() {
   return useQuery({
     ...routesOptions(),
     staleTime: 10 * 60 * 1000,
-  })
-}
-
-export function useRoutesByBrand(brandId: string | undefined) {
-  return useQuery({
-    ...routesOptions({ query: { brand_id: brandId } }),
-    enabled: !!brandId,
-    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -362,14 +341,6 @@ export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
     enabled,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
-  })
-}
-
-export function useReverseGeocode(lat: number | null, lon: number | null) {
-  return useQuery({
-    ...reverseOptions({ query: { lat: lat!, lon: lon!, limit: 10 } }),
-    enabled: lat != null && lon != null,
-    staleTime: Infinity,
   })
 }
 
@@ -611,38 +582,56 @@ export function useAuthMe() {
   })
 }
 
-export function useLogout() {
+export function useLogout<TData = unknown>(opts?: MutationCallbacks<TData, void>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...logoutMutation(),
-    onSuccess: () => {
+  return useMutation<TData, unknown, void>({
+    ...(logoutMutation() as any),
+    onSuccess: (data, vars) => {
       qc.clear()
       qc.removeQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars)
     },
+    onError: (err, vars) => opts?.onError?.(err, vars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars),
   })
 }
 
-export function useLogin() {
+export function useLogin<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...loginMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
+  return useMutation<TData, unknown, TVars>({
+    ...(loginMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useRegister() {
+export function useRegister<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...registerMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
+  return useMutation<TData, unknown, TVars>({
+    ...(registerMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useEmployeeLogin() {
+export function useEmployeeLogin<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    ...employeeLoginMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
+  return useMutation<TData, unknown, TVars>({
+    ...(employeeLoginMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
@@ -678,14 +667,6 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
   })
 }
 
-export function useCreateChatChannel() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...chatCreateChannelMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() }),
-  })
-}
-
 export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
@@ -697,14 +678,6 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: Muta
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  })
-}
-
-export function useMarkChannelRead() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...chatMarkReadMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() }),
   })
 }
 
@@ -743,6 +716,19 @@ export function useCreateReview<TData = unknown, TVars = unknown>(opts?: Mutatio
   })
 }
 
+export function useUpdateReview<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(reviewUpdateMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
 // ─────────────────────────────────────────────────────────────
 // Admin — Brands
 // ─────────────────────────────────────────────────────────────
@@ -758,17 +744,6 @@ export function useUpsertAdminBrand() {
   const qc = useQueryClient()
   return useMutation({
     ...createBrandMutation(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['brands'] })
-    },
-  })
-}
-
-export function useUpdateAdminBrand() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...updateBrandMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['brands'] })
@@ -809,17 +784,6 @@ export function useUpsertAdminRoute() {
   })
 }
 
-export function useUpdateAdminRoute() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...updateRouteMutation(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['routes'] })
-    },
-  })
-}
-
 export function useDeleteAdminRoute() {
   const qc = useQueryClient()
   return useMutation({
@@ -851,14 +815,6 @@ export function useUpsertAdminSchedule() {
   })
 }
 
-export function useUpdateAdminSchedule() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...updateScheduleMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'schedules'] }),
-  })
-}
-
 export function useDeleteAdminSchedule() {
   const qc = useQueryClient()
   return useMutation({
@@ -883,14 +839,6 @@ export function useUpsertAdminPickupPoint() {
   const qc = useQueryClient()
   return useMutation({
     ...createPickupPointMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
-  })
-}
-
-export function useUpdateAdminPickupPoint() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...updatePickupPointMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
   })
 }
@@ -935,17 +883,6 @@ export function useModerateAdminReview() {
   })
 }
 
-export function useDeleteAdminReview() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...adminDeleteReviewMutation(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['reviews'] })
-    },
-  })
-}
-
 // ─────────────────────────────────────────────────────────────
 // Admin — Bus layouts
 // ─────────────────────────────────────────────────────────────
@@ -960,22 +897,6 @@ export function useAdminBusLayouts(brandId?: string) {
 // ─────────────────────────────────────────────────────────────
 // Admin — Bookings
 // ─────────────────────────────────────────────────────────────
-
-function adminBookingsQs(filter: AdminBookingFilter) {
-  const sp = new URLSearchParams()
-  if (filter.brandId) sp.set('brandId', filter.brandId)
-  if (filter.routeId) sp.set('routeId', filter.routeId)
-  if (filter.status && filter.status !== 'all') sp.set('status', filter.status)
-  if (filter.dateFrom) sp.set('dateFrom', filter.dateFrom)
-  if (filter.dateTo) sp.set('dateTo', filter.dateTo)
-  if (filter.range) sp.set('range', filter.range)
-  if (filter.search) sp.set('search', filter.search)
-  if (filter.limit != null) sp.set('limit', String(filter.limit))
-  else sp.set('limit', '50')
-  if (filter.offset != null) sp.set('offset', String(filter.offset))
-  if (filter.sort) sp.set('sort', filter.sort)
-  return sp
-}
 
 export function useAdminBookings(filter: AdminBookingFilter) {
   return useQuery({

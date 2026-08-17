@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageCircle, Phone, Mail, Circle } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
-import type { Channel } from './_shared'
+import type { CustomerChannel as Channel } from './_shared'
 
 export function ChatList({
   channels,

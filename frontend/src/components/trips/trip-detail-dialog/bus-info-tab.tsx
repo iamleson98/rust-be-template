@@ -28,7 +28,7 @@ import {
   Armchair,
   PhoneCall,
 } from 'lucide-react'
-import type { TripDetail } from './types'
+import type { TripDetailDialogData as TripDetail } from './types'
 import { amenityIcon } from './amenity-icons'
 
 /* ─── Seat shape for the diagram (helper) ─── */
