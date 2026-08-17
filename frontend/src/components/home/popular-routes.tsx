@@ -6,7 +6,7 @@ import { useNavigate } from '@/router'
 import { usePopularRoutes, type RouteItem } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client'
-import { searchTrips as sdkSearchTrips } from '@/lib/api/sdk.gen'
+import { searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/empty-states'
@@ -55,11 +55,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
       queryClient.prefetchQuery({
         queryKey: queryKeys.trips.search(params),
         queryFn: async () => {
-          const { data } = await sdkSearchTrips({
-            query: { from, to, date, sort: 'departure', minSeats: 1 },
-            throwOnError: true,
-          })
-          return data
+          const opts = searchTripsOptions({ query: { from, to, date, sort: 'departure', minSeats: 1 } })
+          if (!opts.queryFn) throw new Error('queryFn missing')
+          return opts.queryFn({ queryKey: opts.queryKey, signal: new AbortController().signal } as any)
         },
         staleTime: 30 * 1000,
       })

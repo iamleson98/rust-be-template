@@ -1,78 +1,58 @@
 /** Admin route — `/admin/chat` — chat support management page. */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import type { Channel, ChatMessage } from '@/components/admin/dashboard/types'
 import {
-  listChannels as sdkListChannels,
-  listMessages as sdkListMessages,
-  postMessage as sdkPostMessage,
-} from '@/lib/api/sdk.gen'
+  useChatChannels,
+  useChatMessages,
+  usePostChatMessage,
+} from '@/lib/queries'
 import { toast } from 'sonner'
 
 export function AdminChatPage() {
-  const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [replyText, setReplyText] = useState('')
-  const [sending, setSending] = useState(false)
 
-  useEffect(() => {
-    sdkListChannels({ query: { limit: 50 } })
-      .then(({ data }) => setChannels((data?.items ?? []) as unknown as Channel[]))
-      .catch(() => {})
-  }, [])
+  const channelsQuery = useChatChannels(50)
+  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
+  const messagesQuery = useChatMessages(activeChannel?.id, 50)
+  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
+  const postMessageMut = usePostChatMessage()
 
-  const openChatWorkspace = useCallback(async (channel: Channel) => {
-    setActiveChannel(channel)
-    try {
-      const { data } = await sdkListMessages({ path: { id: channel.id }, query: { limit: 50 } })
-      setChatMessages((data?.items ?? []) as unknown as ChatMessage[])
-    } catch {
-      setChatMessages([])
-    }
-  }, [])
-
-  const sendReply = useCallback(async () => {
+  const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
-    setSending(true)
-    try {
-      const { data } = await sdkPostMessage({
-        path: { id: activeChannel.id },
-        body: { content: replyText.trim(), kind: 'text' },
-      })
-      if (data?.message) {
-        setChatMessages((prev) => [...prev, data.message as unknown as ChatMessage])
-        setReplyText('')
-        toast.success('Đã gửi phản hồi')
-      }
-    } catch {
-      toast.error('Không thể gửi tin nhắn')
-    } finally {
-      setSending(false)
-    }
-  }, [replyText, activeChannel])
+    postMessageMut.mutate(
+      { path: { id: activeChannel.id }, body: { content: replyText.trim(), kind: 'text' } } as any,
+      {
+        onSuccess: () => {
+          setReplyText('')
+          toast.success('Đã gửi phản hồi')
+        },
+        onError: () => {
+          toast.error('Không thể gửi tin nhắn')
+        },
+      },
+    )
+  }, [replyText, activeChannel, postMessageMut])
 
   const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện')
-    setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, status: 'blocked' } : c)))
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
 
-  const sendTicketCard = useCallback(async (payload: { bookingCode: string }) => {
-    if (!activeChannel) return
-    const attachments = JSON.stringify(payload)
-    try {
-      const { data } = await sdkPostMessage({
-        path: { id: activeChannel.id },
-        body: { content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments },
-      })
-      if (data?.message) {
-        setChatMessages((prev) => [...prev, data.message as unknown as ChatMessage])
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [activeChannel])
+  const sendTicketCard = useCallback(
+    (payload: { bookingCode: string }) => {
+      if (!activeChannel) return
+      const attachments = JSON.stringify(payload)
+      postMessageMut.mutate(
+        { path: { id: activeChannel.id }, body: { content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments } } as any,
+        {
+          onError: () => {},
+        },
+      )
+    },
+    [activeChannel, postMessageMut],
+  )
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
@@ -83,8 +63,8 @@ export function AdminChatPage() {
           activeChannel={activeChannel}
           chatMessages={chatMessages}
           replyText={replyText}
-          sending={sending}
-          onOpenChannel={openChatWorkspace}
+          sending={postMessageMut.isPending}
+          onOpenChannel={setActiveChannel}
           onSendReply={sendReply}
           onBlockChannel={blockChannel}
           onSetReplyText={setReplyText}

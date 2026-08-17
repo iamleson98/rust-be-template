@@ -2,8 +2,7 @@
 
 import { memo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useReviewsByRoute, useReviewTags } from '@/lib/queries'
-import { list5 as sdkListReviews } from '@/lib/api/sdk.gen'
+import { useReviewsByRoute, useReviewsByBrand, useReviewTags } from '@/lib/queries'
 import {
   Star,
   ThumbsUp,
@@ -153,15 +152,7 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // shape. We compute the avg + distribution client-side from the items
   // we fetched. (The previous `?aggregate=1` query param was ignored by
   // the backend and the response shape was wrong anyway.)
-  const aggregateQuery = useQuery<BrandAggregateResponse>({
-    queryKey: ['reviews', 'aggregate', 'brand', brandId],
-    queryFn: async () => {
-      const { data } = await sdkListReviews({ query: { brand_id: brandId, limit: 200 }, throwOnError: true })
-      return data as unknown as BrandAggregateResponse
-    },
-    enabled: !!brandId,
-    staleTime: 60 * 1000,
-  })
+  const aggregateQuery = useReviewsByBrand(brandId)
   const aggregate: Aggregate | null = aggregateQuery.data
     ? {
       avgRating:

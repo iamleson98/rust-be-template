@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { create2 as sdkCreateReview } from '@/lib/api/sdk.gen'
+import { useCreateReview } from '@/lib/queries'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -160,14 +160,16 @@ export function ReviewDialog({
     )
   }
 
-  const onSubmit = async (values: ReviewValues) => {
+  const createReviewMut = useCreateReview()
+
+  const onSubmit = (values: ReviewValues) => {
     if (!routeId || !brandId) {
       toast.error('Thiếu thông tin tuyến/hãng để gửi đánh giá')
       return
     }
     setSubmitting(true)
-    try {
-      const { data, error } = await sdkCreateReview({
+    createReviewMut.mutate(
+      {
         body: {
           tripSessionId,
           bookingId,
@@ -181,19 +183,21 @@ export function ReviewDialog({
           authorName: values.author.trim() || 'Hành khách',
           authorPhone: authorPhone,
         },
-      })
-      if (error) {
-        toast.error((error as any)?.message ?? 'Không thể gửi đánh giá')
-        return
-      }
-      setSubmitted(true)
-      onSubmitSuccess?.()
-      toast.success('Cảm ơn đánh giá của bạn!')
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setSubmitting(false)
-    }
+      } as any,
+      {
+        onSuccess: () => {
+          setSubmitted(true)
+          onSubmitSuccess?.()
+          toast.success('Cảm ơn đánh giá của bạn!')
+        },
+        onError: () => {
+          toast.error('Không thể gửi đánh giá')
+        },
+        onSettled: () => {
+          setSubmitting(false)
+        },
+      },
+    )
   }
 
   const reset = () => {

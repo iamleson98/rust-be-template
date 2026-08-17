@@ -16,14 +16,16 @@
  * verbatim from the original implementation.
  */
 
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useNavigate } from '@/router'
-import { useStats } from '@/lib/queries'
 import {
-  listChannels as sdkListChannels,
-  listMessages as sdkListMessages,
-  postMessage as sdkPostMessage,
-} from '@/lib/api/sdk.gen'
+  useStats,
+  useChatChannels,
+  useChatMessages,
+  usePostChatMessage,
+  useAdminBookingExport,
+  type AdminBookingFilter,
+} from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -51,50 +53,25 @@ import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import { CampaignsPanel } from './campaigns-panel'
 import { ReviewsModerationPanel } from '@/components/admin/reviews/reviews-panel'
 import { TicketsPanel } from '@/components/admin/tickets/tickets-panel'
-import { useAdminBookingExport, type AdminBookingFilter } from '@/lib/queries'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
-  const [channels, setChannels] = useState<Channel[]>([])
-  // `statsQuery` is shared with `<StatsOverview />` via TanStack Query's
-  // cache (same queryKey `['stats', dateRange]`) — we only consume
-  // `isLoading` here for the full-dashboard skeleton gate.
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const statsQuery = useStats()
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [replyText, setReplyText] = useState('')
-  const [sending, setSending] = useState(false)
 
-  useEffect(() => {
-    // Backend route: `GET /api/chat/channels?limit=` (authed). The backend
-    // returns the authed user's channels — there's no `role`/`employeeId`
-    // filter (those query params are ignored by axum). An admin sees their
-    // own channels; to see all customer chats, the backend would need an
-    // admin-scoped endpoint (not currently implemented).
-    sdkListChannels({ query: { limit: 50 }, throwOnError: true })
-      .then(({ data }) => {
-        const d = data as any
-        setChannels(d?.items ?? [])
-      })
-      .catch(() => {})
-  }, [])
-
-  const exportMutation = useAdminBookingExport({})
+  // Chat data via TanStack Query hooks
+  const channelsQuery = useChatChannels(50)
+  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
+  const messagesQuery = useChatMessages(activeChannel?.id, 50)
+  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
+  const postMessageMut = usePostChatMessage()
+  const exportQuery = useAdminBookingExport({})
 
   const handleExportCSV = useCallback(async () => {
-    // Export REAL bookings via `GET /api/admin/bookings/export` — the
-    // backend returns a UTF-8 BOM-prefixed CSV string. We download it
-    // directly; no client-side CSV construction needed.
     try {
-      const filter: AdminBookingFilter = {
-        range: dateRange,
-        status: 'all',
-        sort: 'created_desc',
-        limit: 200,
-        offset: 0,
-      }
-      const result = await exportMutation.refetch()
+      const result = await exportQuery.refetch()
       const data = result.data
       if (!data) throw new Error('Export failed')
       downloadCSV(data.filename, data.csv)
@@ -102,82 +79,45 @@ export const AdminDashboard = memo(function AdminDashboard() {
         description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
     } catch (e: any) {
-      toast.error('Xuất CSV thất bại', {
-        description: e?.message ?? 'Vui lòng thử lại',
-      })
+      toast.error('Xuất CSV thất bại', { description: e?.message ?? 'Vui lòng thử lại' })
     }
-  }, [exportMutation, dateRange])
+  }, [exportQuery])
 
-  const openChatWorkspace = useCallback(async (channel: Channel) => {
-    setActiveChannel(channel)
-    try {
-      const { data: resData } = await sdkListMessages({ path: { id: channel.id }, query: { limit: 50 }, throwOnError: true })
-      const d = resData as any
-      setChatMessages((d?.items ?? []) as ChatMessage[])
-    } catch {
-      setChatMessages([])
-    }
-  }, [])
-
-  const sendReply = useCallback(async () => {
+  const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
-    setSending(true)
-    try {
-      const { data: resData } = await sdkPostMessage({
-        path: { id: activeChannel.id },
-        body: { content: replyText.trim(), kind: 'text' },
-      })
-      const d = resData as any
-      if (d?.message) {
-        setChatMessages((prev) => [...prev, d.message as ChatMessage])
-        setReplyText('')
-        toast.success('Đã gửi phản hồi')
-      }
-    } catch {
-      toast.error('Không thể gửi tin nhắn')
-    } finally {
-      setSending(false)
-    }
-  }, [replyText, activeChannel])
+    postMessageMut.mutate(
+      { path: { id: activeChannel.id }, body: { content: replyText.trim(), kind: 'text' } } as any,
+      {
+        onSuccess: () => {
+          setReplyText('')
+          toast.success('Đã gửi phản hồi')
+        },
+        onError: () => {
+          toast.error('Không thể gửi tin nhắn')
+        },
+      },
+    )
+  }, [replyText, activeChannel, postMessageMut])
 
-  const blockChannel = useCallback(async (channelId: string) => {
+  const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện', { description: 'Khách sẽ không thể gửi tin nhắn mới' })
-    setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, status: 'blocked' } : c)))
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
 
-  /**
-   * After the employee creates a ticket via the chat picker, POST a chat
-   * message with `kind: 'ticket'` + the booking-card payload as
-   * `attachments`, then append it to the local message list so it shows up
-   * immediately as a beautiful ticket card in the conversation.
-   */
   const sendTicketCard = useCallback(
-    async (payload: import('@/components/admin/tickets/chat-ticket-picker').CreatedTicketPayload) => {
+    (payload: { bookingCode: string }) => {
       if (!activeChannel) return
-      // Backend route: `POST /api/chat/channels/{id}/messages` with
-      // `kind: 'ticket'` + the booking-card payload as `attachments`
-      // (JSON-encoded string — matches `CreateMessageRequest`).
       const attachments = JSON.stringify(payload)
-      try {
-        const { data: resData } = await sdkPostMessage({
-          path: { id: activeChannel.id },
-          body: {
-            content: `Đã đặt vé ${payload.bookingCode} cho bạn`,
-            kind: 'ticket',
-            attachments,
+      postMessageMut.mutate(
+        { path: { id: activeChannel.id }, body: { content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments } } as any,
+        {
+          onError: () => {
+            // Silently fail — the booking was already created
           },
-        })
-        const d = resData as any
-        if (d?.message) {
-          setChatMessages((prev) => [...prev, d.message as ChatMessage])
-        }
-      } catch {
-        // Silently fail — the booking was already created; the chat message
-        // is just a notification. The employee can manually paste the code.
-      }
+        },
+      )
     },
-    [activeChannel],
+    [activeChannel, postMessageMut],
   )
 
   if (statsQuery.isLoading) {
@@ -255,8 +195,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 activeChannel={activeChannel}
                 chatMessages={chatMessages}
                 replyText={replyText}
-                sending={sending}
-                onOpenChannel={openChatWorkspace}
+                sending={postMessageMut.isPending}
+                onOpenChannel={setActiveChannel}
                 onSendReply={sendReply}
                 onBlockChannel={blockChannel}
                 onSetReplyText={setReplyText}

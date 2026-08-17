@@ -4,8 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
-import { useTripDetail, useHoldBooking, useConfirmBooking } from '@/lib/queries'
-import { validateCampaign as sdkValidateCampaign, hold as sdkHold, confirm as sdkConfirm } from '@/lib/api/sdk.gen'
+import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
 import { useNavigate } from '@/router'
 import {
   Dialog,
@@ -301,102 +300,111 @@ export function BookingDialog() {
   const fees = 0
   const total = Math.max(0, subtotal - discount + fees + insuranceCost)
 
-  const checkCampaign = async () => {
+  const validateCampaignMut = useValidateCampaign()
+
+  const checkCampaign = () => {
     if (!campaignCode.trim() || !trip) return
     setCheckingCampaign(true)
     setCampaignResult(null)
-    try {
-      const { data, error } = await sdkValidateCampaign({
-        query: { code: campaignCode.trim(), subtotal },
-      })
-      if (error || !data) {
-        setCampaignResult({ valid: false, error: 'Không thể kiểm tra mã' })
-        return
-      }
-      setCampaignResult(data as any)
-      if ((data as any).valid) {
-        toast.success('Mã khuyến mãi hợp lệ!', {
-          description: `Giảm ${formatCurrency((data as any).discount ?? 0, currency)}`,
-          duration: 3000,
-        })
-      } else {
-        toast.error('Mã không hợp lệ', {
-          description: 'Kiểm tra lại mã khuyến mãi',
-          duration: 3000,
-        })
-      }
-    } catch {
-      setCampaignResult({ valid: false, error: 'Không thể kiểm tra mã' })
-    } finally {
-      setCheckingCampaign(false)
-    }
+    validateCampaignMut.mutate(
+      { code: campaignCode.trim(), subtotal },
+      {
+        onSuccess: (data: any) => {
+          setCampaignResult(data)
+          if (data?.valid) {
+            toast.success('Mã khuyến mãi hợp lệ!', {
+              description: `Giảm ${formatCurrency(data.discount ?? 0, currency)}`,
+              duration: 3000,
+            })
+          } else {
+            toast.error('Mã không hợp lệ', {
+              description: 'Kiểm tra lại mã khuyến mãi',
+              duration: 3000,
+            })
+          }
+        },
+        onError: () => {
+          setCampaignResult({ valid: false, error: 'Không thể kiểm tra mã' })
+        },
+        onSettled: () => {
+          setCheckingCampaign(false)
+        },
+      },
+    )
   }
 
   // Final submit — called by `form.handleSubmit(onSubmit)` after the
   // entire schema (passengers + contact) has validated.
-  const onSubmit = async (values: BookingValues) => {
+  const holdMut = useHoldBooking()
+  const confirmMut = useConfirmBooking()
+
+  const onSubmit = (values: BookingValues) => {
     setError('')
     if (!bookingContext || !trip) return
-    // Duplicate-seat check is a cross-field business rule that can't
-    // be expressed per-field in zod, so we enforce it here.
     if (hasDuplicateSeats) {
       setError('Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau')
       return
     }
     setSubmitting(true)
-    try {
-      const { data, error } = await sdkHold({
-        body: {
-          tripId: bookingContext.tripId,
-          seatIds: bookingContext.seatIds,
-          passengers: values.passengers.map((p) => ({
-            name: p.name,
-            type: getPassengerType(p.age),
-            age: p.age,
-          })),
-          boardingPointId: bookingContext.boardingPointId,
-          droppingPointId: bookingContext.droppingPointId,
-          contactName: values.contactName,
-          contactPhone: normalizePhone(values.contactPhone),
-          contactEmail: values.contactEmail || undefined,
-          campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+    holdMut.mutate(
+      {
+        tripId: bookingContext.tripId,
+        seatIds: bookingContext.seatIds,
+        passengers: values.passengers.map((p) => ({
+          name: p.name,
+          type: getPassengerType(p.age),
+          age: p.age,
+        })),
+        boardingPointId: bookingContext.boardingPointId,
+        droppingPointId: bookingContext.droppingPointId,
+        contactName: values.contactName,
+        contactPhone: normalizePhone(values.contactPhone),
+        contactEmail: values.contactEmail || undefined,
+        campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+      } as any,
+      {
+        onSuccess: (holdResult: any) => {
+          const holdData = holdResult?.data ?? holdResult
+          if (!holdData?.bookingId) {
+            setError('Không thể đặt chỗ')
+            return
+          }
+          confirmMut.mutate(
+            { path: { id: holdData.bookingId }, body: { paymentMethod } } as any,
+            {
+              onSuccess: () => {
+                setLastBooking({ id: holdData.bookingId, code: holdData.code, total: holdData.total })
+                setGuestPhone(normalizePhone(values.contactPhone))
+                if (values.contactName) setGuestName(values.contactName)
+                setBookingStep('success')
+                toast.success('Đặt vé thành công!', {
+                  description: `Mã vé: ${holdData.code} — ${formatCurrency(holdData.total, currency)}`,
+                  duration: 5000,
+                })
+                const earnedPoints = Math.max(10, Math.floor(holdData.total / 1000))
+                setLoyaltyPoints((prev) => prev + earnedPoints)
+                toast.success(`Bạn nhận được +${earnedPoints} điểm thưởng!`, {
+                  description: 'Xem chi tiết tại mục Điểm thưởng',
+                  duration: 4000,
+                })
+              },
+              onError: () => {
+                setError('Thanh toán thất bại')
+              },
+              onSettled: () => {
+                setSubmitting(false)
+              },
+            },
+          )
         },
-      })
-      const holdData = data as any
-      if (error || !holdData) {
-        setError((error as any)?.message ?? 'Không thể đặt chỗ')
-        return
-      }
-
-      const confirmResult = await sdkConfirm({
-        path: { id: holdData.bookingId },
-        body: { paymentMethod },
-      })
-      if (confirmResult.error) {
-        setError((confirmResult.error as any)?.message ?? 'Thanh toán thất bại')
-        return
-      }
-
-      setLastBooking({ id: holdData.bookingId, code: holdData.code, total: holdData.total })
-      setGuestPhone(normalizePhone(values.contactPhone))
-      if (values.contactName) setGuestName(values.contactName)
-      setBookingStep('success')
-      toast.success('Đặt vé thành công!', {
-        description: `Mã vé: ${holdData.code} — ${formatCurrency(holdData.total, currency)}`,
-        duration: 5000,
-      })
-      // Award loyalty points
-      const earnedPoints = Math.max(10, Math.floor(holdData.total / 1000))
-      setLoyaltyPoints((prev) => prev + earnedPoints)
-      toast.success(`Bạn nhận được +${earnedPoints} điểm thưởng!`, {
-        description: 'Xem chi tiết tại mục Điểm thưởng',
-        duration: 4000,
-      })
-    } catch (e: any) {
-      setError(e.message || 'Lỗi hệ thống')
-    } finally {
-      setSubmitting(false)
-    }
+        onError: () => {
+          setError('Không thể đặt chỗ')
+        },
+        onSettled: () => {
+          // holdMut settled — but don't reset submitting yet if confirm is in flight
+        },
+      },
+    )
   }
 
   const close = () => {
