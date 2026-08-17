@@ -14,7 +14,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::cache::{get_serializable, set_serializable, CacheBackend};
+use crate::cache::{set_serializable, CacheBackend};
 use crate::entity::brand;
 
 use super::error::{StoreError, StoreResult};
@@ -234,44 +234,47 @@ fn key_list_active(limit: u64) -> String {
 impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
     async fn get_by_id(&self, id: Uuid) -> StoreResult<Option<brand::Model>> {
         let key = key_by_id(id);
-        match get_serializable::<Option<brand::Model>>(self.cache.as_ref(), &key).await {
-            Ok(Some(v)) => return Ok(v),
-            Ok(None) => {}
-            Err(e) => {
-                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
-            }
-        }
-        let model = self.inner.get_by_id(id).await?;
-        let _ = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await;
-        Ok(model)
+        let inner = self.inner.clone();
+        // Use stampede-protected get_or_fetch: concurrent requests for the
+        // same brand_id will all share the same DB fetch result.
+        let result: Option<brand::Model> = crate::cache::get_or_fetch(
+            self.cache.as_ref(),
+            &key,
+            self.ttl,
+            || async move { inner.get_by_id(id).await.map_err(anyhow::Error::from) },
+        )
+        .await
+        .map_err(StoreError::from)?;
+        Ok(result)
     }
 
     async fn get_by_slug(&self, slug: &str) -> StoreResult<Option<brand::Model>> {
         let key = key_by_slug(slug);
-        match get_serializable::<Option<brand::Model>>(self.cache.as_ref(), &key).await {
-            Ok(Some(v)) => return Ok(v),
-            Ok(None) => {}
-            Err(e) => {
-                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
-            }
-        }
-        let model = self.inner.get_by_slug(slug).await?;
-        let _ = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await;
-        Ok(model)
+        let inner = self.inner.clone();
+        let slug_owned = slug.to_string();
+        let result: Option<brand::Model> = crate::cache::get_or_fetch(
+            self.cache.as_ref(),
+            &key,
+            self.ttl,
+            || async move { inner.get_by_slug(&slug_owned).await.map_err(anyhow::Error::from) },
+        )
+        .await
+        .map_err(StoreError::from)?;
+        Ok(result)
     }
 
     async fn list_active(&self, limit: u64) -> StoreResult<Vec<brand::Model>> {
         let key = key_list_active(limit);
-        match get_serializable::<Vec<brand::Model>>(self.cache.as_ref(), &key).await {
-            Ok(Some(v)) => return Ok(v),
-            Ok(None) => {}
-            Err(e) => {
-                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
-            }
-        }
-        let rows = self.inner.list_active(limit).await?;
-        let _ = set_serializable(self.cache.as_ref(), &key, &rows, Some(self.ttl)).await;
-        Ok(rows)
+        let inner = self.inner.clone();
+        let result: Vec<brand::Model> = crate::cache::get_or_fetch(
+            self.cache.as_ref(),
+            &key,
+            self.ttl,
+            || async move { inner.list_active(limit).await.map_err(anyhow::Error::from) },
+        )
+        .await
+        .map_err(StoreError::from)?;
+        Ok(result)
     }
 
     async fn list_all(&self, limit: u64, offset: u64) -> StoreResult<Vec<brand::Model>> {

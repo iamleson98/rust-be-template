@@ -82,9 +82,11 @@ pub async fn ws_upgrade(
 
     // STUN/TURN servers pushed to the peer in the `registered` message.
     let ice_servers = st.config.audio_call.ice_servers_json();
+    // Channel capacity from config — was previously hardcoded to 64.
+    let channel_capacity = st.config.ws.channel_capacity.max(1);
 
     Ok(ws.on_upgrade(move |socket| {
-        handle_socket(socket, user, heartbeat_sec, idle_timeout_sec, ice_servers)
+        handle_socket(socket, user, heartbeat_sec, idle_timeout_sec, ice_servers, channel_capacity)
     }))
 }
 
@@ -95,12 +97,13 @@ pub async fn handle_socket(
     heartbeat_sec: u64,
     idle_timeout_sec: u64,
     ice_servers: Value,
+    channel_capacity: usize,
 ) {
     use futures::StreamExt as _;
 
     let sid = call_hub().next_socket_id();
     let (sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<String>(64);
+    let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(channel_capacity);
     let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
     tracing::debug!(
@@ -121,7 +124,9 @@ pub async fn handle_socket(
                 maybe_msg = rx.recv() => {
                     match maybe_msg {
                         Some(msg) => {
-                            if sink.send(Message::Text(msg.into())).await.is_err() {
+                            let text = std::str::from_utf8(&msg)
+                                .unwrap_or("");
+                            if sink.send(Message::Text(text.into())).await.is_err() {
                                 break;
                             }
                         }
@@ -159,16 +164,16 @@ pub async fn handle_socket(
                                 let ty = v.get("type").and_then(|x| x.as_str()).unwrap_or("");
 
                                 if ty == "heartbeat" {
-                                    let _ = tx.try_send(json!({ "type": "pong" }).to_string());
+                                    let _ = tx.try_send(bytes::Bytes::from(json!({ "type": "pong" }).to_string()));
                                     continue;
                                 }
 
                                 if ty == "register" {
                                     if registered_role.is_some() {
                                         let _ = tx.try_send(
-                                            json!({ "type": "error", "code": "already-registered",
+                                            bytes::Bytes::from(json!({ "type": "error", "code": "already-registered",
                                                     "message": "Already registered" })
-                                            .to_string(),
+                                            .to_string()),
                                         );
                                         continue;
                                     }
@@ -177,20 +182,20 @@ pub async fn handle_socket(
                                             registered_role = Some(role);
                                             let n = call_hub().online_agent_count();
                                             let _ = tx.try_send(
-                                                json!({
+                                                bytes::Bytes::from(json!({
                                                     "type": "registered",
                                                     "role": role.as_str(),
                                                     "userId": user_r.id,
                                                     "onlineAgents": n,
                                                     "iceServers": &ice_servers,
                                                 })
-                                                .to_string(),
+                                                .to_string()),
                                             );
                                             call_hub().broadcast_presence();
                                         }
                                         Err(msg) => {
                                             let _ = tx.try_send(
-                                                json!({ "type": "error", "code": "bad-register", "message": msg }).to_string(),
+                                                bytes::Bytes::from(json!({ "type": "error", "code": "bad-register", "message": msg }).to_string()),
                                             );
                                         }
                                     }
@@ -199,9 +204,9 @@ pub async fn handle_socket(
 
                                 if registered_role.is_none() {
                                     let _ = tx.try_send(
-                                        json!({ "type": "error", "code": "not-registered",
+                                        bytes::Bytes::from(json!({ "type": "error", "code": "not-registered",
                                                 "message": "Send a register message first" })
-                                        .to_string(),
+                                        .to_string()),
                                     );
                                     continue;
                                 }
@@ -212,24 +217,24 @@ pub async fn handle_socket(
                                     &v,
                                 ) {
                                     let _ = tx.try_send(
-                                        json!({ "type": "error", "message": e }).to_string(),
+                                        bytes::Bytes::from(json!({ "type": "error", "message": e }).to_string()),
                                     );
                                 }
                             }
                             Err(e) => {
                                 let _ = tx.try_send(
-                                    json!({ "type": "error", "code": "bad-json",
+                                    bytes::Bytes::from(json!({ "type": "error", "code": "bad-json",
                                             "message": format!("invalid JSON: {e}") })
-                                    .to_string(),
+                                    .to_string()),
                                 );
                             }
                         }
                     }
                     Message::Binary(_) => {
                         let _ = tx.try_send(
-                            json!({ "type": "error", "code": "binary-unsupported",
+                            bytes::Bytes::from(json!({ "type": "error", "code": "binary-unsupported",
                                     "message": "Binary frames are not supported" })
-                            .to_string(),
+                            .to_string()),
                         );
                     }
                     Message::Ping(_) | Message::Pong(_) => {}
@@ -280,7 +285,7 @@ pub async fn handle_socket(
 fn do_register(
     user: &SessionUser,
     msg: &Value,
-    tx: mpsc::Sender<String>,
+    tx: mpsc::Sender<bytes::Bytes>,
     sid: u64,
 ) -> Result<CallRole, String> {
     let role_str = msg

@@ -7,7 +7,7 @@
 //!
 //! Both implement [`CacheBackend`]; the rest of the app talks to the trait.
 
-pub use self::backend::{get_serializable, set_serializable, CacheBackend, CacheValue};
+pub use self::backend::{get_or_fetch, get_serializable, set_serializable, CacheBackend, CacheValue};
 pub use self::moka::MokaBackend;
 pub use self::redis::RedisBackend;
 

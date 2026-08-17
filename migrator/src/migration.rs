@@ -20,6 +20,7 @@ mod m20260809_021431_notifications_wishlist_alerts;
 mod m20260809_021550_discounts;
 mod m20260809_021759_zeroclaw;
 mod m20260809_030000_price_alert_owner;
+mod m20260817_000001_add_missing_indexes;
 
 pub struct Migrator;
 
@@ -43,6 +44,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_021550_discounts::Migration),
             Box::new(m20260809_021759_zeroclaw::Migration),
             Box::new(m20260809_030000_price_alert_owner::Migration),
+            Box::new(m20260817_000001_add_missing_indexes::Migration),
         ]
     }
 }
