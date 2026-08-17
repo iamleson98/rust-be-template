@@ -45,6 +45,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::mpsc;
+use tracing::Instrument;
 
 use crate::auth::SessionUser;
 use crate::error::AppError;
@@ -427,44 +428,52 @@ async fn handle_message(
             let user2 = user.clone();
             let user_msg_id = id.clone();
             let text2 = text.clone();
-            tokio::spawn(async move {
-                match provider
-                    .maybe_reply(
-                        chat_store.as_ref(),
-                        &channel_id2,
-                        brand_id2.as_deref(),
-                        &user2,
-                        &user_msg_id,
-                        &text2,
-                        online,
-                        fallback_threshold,
-                    )
-                    .await
-                {
-                    Ok(Some(outcome)) => {
-                        let assistant_broadcast = json!({
-                            "type": "message",
-                            "id": outcome.assistant_message_id,
-                            "channelId": channel_id2,
-                            "senderType": "assistant",
-                            "senderId": format!("zeroclaw:{}", outcome.reply.model),
-                            "senderName": "ZeroClaw AI",
-                            "text": outcome.reply.reply,
-                            "createdAt": outcome.created_at,
-                            "meta": {
-                                "confidence": outcome.reply.confidence,
-                                "model": outcome.reply.model,
-                                "handoffToHuman": outcome.reply.handoff_to_human,
-                            }
-                        });
-                        hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
+            // Capture the current tracing span so logs inside the spawned
+            // task (an LLM HTTP call that can take 5-15s) stay correlated
+            // to the WS handler that triggered them. Without `.instrument`
+            // the span context is dropped at the `tokio::spawn` boundary.
+            let span = tracing::Span::current();
+            tokio::spawn(
+                async move {
+                    match provider
+                        .maybe_reply(
+                            chat_store.as_ref(),
+                            &channel_id2,
+                            brand_id2.as_deref(),
+                            &user2,
+                            &user_msg_id,
+                            &text2,
+                            online,
+                            fallback_threshold,
+                        )
+                        .await
+                    {
+                        Ok(Some(outcome)) => {
+                            let assistant_broadcast = json!({
+                                "type": "message",
+                                "id": outcome.assistant_message_id,
+                                "channelId": channel_id2,
+                                "senderType": "assistant",
+                                "senderId": format!("zeroclaw:{}", outcome.reply.model),
+                                "senderName": "ZeroClaw AI",
+                                "text": outcome.reply.reply,
+                                "createdAt": outcome.created_at,
+                                "meta": {
+                                    "confidence": outcome.reply.confidence,
+                                    "model": outcome.reply.model,
+                                    "handoffToHuman": outcome.reply.handoff_to_human,
+                                }
+                            });
+                            hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
+                        }
                     }
                 }
-            });
+                .instrument(span),
+            );
         }
     }
 

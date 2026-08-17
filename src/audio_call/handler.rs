@@ -82,9 +82,11 @@ pub async fn ws_upgrade(
 
     // STUN/TURN servers pushed to the peer in the `registered` message.
     let ice_servers = st.config.audio_call.ice_servers_json();
+    // Channel capacity from config — was previously hardcoded to 64.
+    let channel_capacity = st.config.ws.channel_capacity.max(1);
 
     Ok(ws.on_upgrade(move |socket| {
-        handle_socket(socket, user, heartbeat_sec, idle_timeout_sec, ice_servers)
+        handle_socket(socket, user, heartbeat_sec, idle_timeout_sec, ice_servers, channel_capacity)
     }))
 }
 
@@ -95,12 +97,13 @@ pub async fn handle_socket(
     heartbeat_sec: u64,
     idle_timeout_sec: u64,
     ice_servers: Value,
+    channel_capacity: usize,
 ) {
     use futures::StreamExt as _;
 
     let sid = call_hub().next_socket_id();
     let (sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<String>(64);
+    let (tx, mut rx) = mpsc::channel::<String>(channel_capacity);
     let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
     tracing::debug!(

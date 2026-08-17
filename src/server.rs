@@ -136,6 +136,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // singletons — no per-instance state on AppState.
     crate::zeroclaw::init(&config.zeroclaw);
 
+    // Wire WsConfig.max_connections into the hub BEFORE the first WS
+    // upgrade arrives. Previously the hub was hardcoded to 50_000 and an
+    // operator setting WS__MAX_CONNECTIONS=10000 had no effect.
+    ws::init_with_config(config.ws.max_connections, 60);
+
     // Spawn WS background maintenance tasks (idempotency GC + metrics).
     ws::spawn_idem_gc();
     ws::spawn_metrics_logger();

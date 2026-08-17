@@ -63,17 +63,36 @@ pub struct ChatHub {
 }
 
 static HUB: OnceLock<ChatHub> = OnceLock::new();
+static HUB_CFG: OnceLock<(usize, u64)> = OnceLock::new();
 
 /// Process-global hub accessor (lazily initialised on first call).
+///
+/// If `init_with_config` was called BEFORE the first `hub()` call (the
+/// normal boot order in `server.rs::bootstrap`), the configured
+/// `WsConfig.max_connections` is used. Otherwise the hardcoded fallback
+/// (50_000 connections, 60s channel-cache TTL) applies — useful for tests
+/// that don't go through the full bootstrap.
 pub fn hub() -> &'static ChatHub {
-    HUB.get_or_init(ChatHub::new)
+    HUB.get_or_init(|| {
+        let (max, ttl) = *HUB_CFG.get().unwrap_or(&(50_000, 60));
+        ChatHub::with_limits(max, ttl)
+    })
+}
+
+/// Initialise the hub with config-derived limits. MUST be called before
+/// the first `hub()` call (which happens on the first WS upgrade). Safe
+/// to call multiple times — second call is a no-op (the config is locked
+/// in `OnceLock`).
+///
+/// Wires `WsConfig.max_connections` (env-driven) into the hub — previously
+/// the hub was hardcoded to 50_000 and an operator setting
+/// `WS__MAX_CONNECTIONS=10000` to match a memory-constrained deploy had no
+/// effect on the actual cap.
+pub fn init_with_config(max_global: usize, channel_cache_ttl_sec: u64) {
+    let _ = HUB_CFG.set((max_global, channel_cache_ttl_sec));
 }
 
 impl ChatHub {
-    fn new() -> Self {
-        Self::with_limits(50_000, 60)
-    }
-
     /// Construct with explicit global-connection cap and channel-cache TTL.
     /// Called from `hub()` (defaults) and from tests that want isolated limits.
     pub fn with_limits(max_global: usize, channel_cache_ttl_sec: u64) -> Self {
@@ -89,20 +108,6 @@ impl ChatHub {
             channel_exists_cache: DashMap::new(),
             channel_cache_ttl: Duration::from_secs(channel_cache_ttl_sec.max(1)),
         }
-    }
-
-    /// Reconfigure the global cap + channel-cache TTL at boot (after config
-    /// is loaded). Idempotent; only effective before the first connection.
-    pub fn configure(&self, max_global: usize, channel_cache_ttl_sec: u64) {
-        // SAFETY: this is only called once at boot from main.rs before any
-        // WS upgrade. We rebuild the cache with the configured TTL.
-        // `max_global_conns` is a plain usize (no atomicity needed — single
-        // writer at boot, then read-only).
-        // We can't mutate `&self`'s `max_global_conns` (it's not interior-
-        // mutable), so we rely on `with_limits` being called at init time
-        // via `hub()` instead. This method is a no-op placeholder kept for
-        // API symmetry; real config is applied via `init_with_config()`.
-        let _ = (max_global, channel_cache_ttl_sec);
     }
 
     // ── global connection admission ───────────────────────────

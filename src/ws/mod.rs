@@ -27,4 +27,4 @@ pub mod handler;
 pub mod hub;
 
 pub use handler::{drain_all_connections, router, spawn_idem_gc, spawn_metrics_logger};
-pub use hub::{hub, ChatHub, ClientTx, HubStats, Session};
+pub use hub::{hub, init_with_config, ChatHub, ClientTx, HubStats, Session};
