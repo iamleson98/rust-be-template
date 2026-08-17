@@ -48,6 +48,7 @@ pub enum BusLayout {
 }
 
 #[derive(DeriveIden)]
+#[allow(clippy::enum_variant_names)]
 pub enum Seat {
     Table,
     Id,

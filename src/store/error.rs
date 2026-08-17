@@ -2,7 +2,7 @@ use thiserror::Error;
 
 pub type StoreResult<T> = Result<T, StoreError>;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum StoreError {
     #[error("entity not found: {0}")]
     NotFound(String),
@@ -49,5 +49,16 @@ impl From<sea_orm::DbErr> for StoreError {
         } else {
             StoreError::Database(e.to_string())
         }
+    }
+}
+
+impl From<anyhow::Error> for StoreError {
+    fn from(e: anyhow::Error) -> Self {
+        // Try to downcast to a StoreError first (preserves structured variants).
+        if let Some(store_err) = e.downcast_ref::<StoreError>() {
+            return store_err.clone();
+        }
+        // Otherwise, treat as a generic database error.
+        StoreError::Database(e.to_string())
     }
 }

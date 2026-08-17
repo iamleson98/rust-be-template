@@ -5,7 +5,7 @@
  * BrandDetailDialog pattern.
  */
 import { useParams, useNavigate } from '@tanstack/react-router'
-import { BrandDetailDialog } from '@/components/bus/brand-detail-dialog'
+import { BrandDetailDialog } from '@/components/brand/brand-detail-dialog'
 
 export function BrandDetailPage() {
   const { slug } = useParams({ from: '/brands/$slug' })

@@ -368,7 +368,10 @@ pub struct AdminBookingOut {
 #[serde(rename_all = "camelCase")]
 pub struct AdminBookingListResponse {
     pub items: Vec<AdminBookingOut>,
-    pub total: usize,
+    /// Total matching-row count (independent of pagination). Omitted when
+    /// the server didn't compute it (older callers may rely on this).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
     pub limit: u64,
     pub offset: u64,
 }

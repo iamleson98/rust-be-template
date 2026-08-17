@@ -68,6 +68,7 @@ pub fn open_or_create_index(index_dir: &Path) -> Result<Index> {
 }
 
 /// Build a Tantivy document from a generic place record.
+#[allow(clippy::too_many_arguments)]
 fn build_doc(
     id: i64,
     osm_type: &str,
@@ -91,7 +92,7 @@ fn build_doc(
     let name_ascii = vn_text::normalize(name);
     d.add_text(SCHEMA.name_ascii, &name_ascii);
     d.add_text(SCHEMA.name_ascii_ngram, &name_ascii);
-    d.add_text(SCHEMA.name_compact, &vn_text::compact(name));
+    d.add_text(SCHEMA.name_compact, vn_text::compact(name));
 
     if let Some(hn) = house_number {
         d.add_text(SCHEMA.house_number, vn_text::normalize(hn));
@@ -216,10 +217,7 @@ fn index_way(
     let house_number = rec.tags.get("addr:housenumber").map(|s| s.as_str());
 
     // Compute centroid from all cached node coords.
-    let (lat, lon) = match compute_way_centroid(&rec.node_refs, node_coords) {
-        Some(c) => c,
-        None => (0.0, 0.0),
-    };
+    let (lat, lon) = compute_way_centroid(&rec.node_refs, node_coords).unwrap_or((0.0, 0.0));
     let has_coords = lat != 0.0 || lon != 0.0;
     let hierarchy = if has_coords {
         spatial.lookup(lat, lon)

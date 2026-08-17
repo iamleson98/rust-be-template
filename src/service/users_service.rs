@@ -23,15 +23,21 @@ impl UserService {
         Self { store, rbac }
     }
 
-    /// List all user. Caller must have `user:read`.
-    pub async fn list(&self, caller_id: Uuid) -> AppResult<Vec<user::Model>> {
+    /// List users with pagination. Caller must have `user:read`.
+    ///
+    /// Previously returned an empty `Vec` with a TODO comment — silently
+    /// broken. Now actually fetches users from the store, paginated.
+    pub async fn list(
+        &self,
+        caller_id: Uuid,
+        limit: u64,
+        offset: u64,
+    ) -> AppResult<Vec<user::Model>> {
         self.rbac
             .require(caller_id, rbac::USERS_READ)
             .await
             .map_err(AppError::from)?;
-        // Note: the store doesn't have a `list_users` method yet — we'd
-        // add one. For now, return an empty vec.
-        Ok(Vec::new())
+        Ok(self.store.user_store().list_users(limit, offset).await?)
     }
 
     /// Get a single user by ID. Caller must have `user:read`.

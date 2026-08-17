@@ -32,6 +32,7 @@ pub mod public;
 pub mod review;
 pub mod routing;
 pub mod wishlist;
+pub mod zeroclaw;
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
@@ -133,12 +134,4 @@ impl<T: ToSchema> ListEnvelope<T> {
         self.total = Some(total);
         self
     }
-}
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct BrandInfo {
-    // #[serde(flatten)]
-    // pub base: crate::entity::brand::Model,
-    pub route_count: usize,
-    pub layout_count: usize,
 }

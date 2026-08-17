@@ -13,26 +13,39 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct ReviewOut {
     pub id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub booking_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub trip_session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub route_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub author_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub author_phone: Option<String>,
     /// 1..=5
     pub rating: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub photos: Vec<String>,
     /// `pending` | `approved` | `rejected`
     pub status: String,
     pub helpful_count: i64,
     /// Brand's reply (admin-written).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reply: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub replied_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
 }
 

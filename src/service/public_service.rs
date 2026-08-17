@@ -349,6 +349,7 @@ impl PublicService {
     ///
     /// This is a simplified version that uses SeaORM queries instead of
     /// the raw SQL JOIN in booking-rs. It searches by place names and date.
+    #[allow(clippy::too_many_arguments)]
     pub async fn search_trips(
         &self,
         from: &str,
@@ -377,24 +378,17 @@ impl PublicService {
         let _sort = if sort.is_empty() { "departure" } else { sort };
         let min_seats = min_seats.max(1);
 
-        // Find routes matching from/to names
-        let all_routes = self
+        // SQL-side route search — replaces the previous "load 1000 routes
+        // and filter with to_lowercase().contains() in Rust" pattern.
+        // The SQL LOWER(name) LIKE '%from%' AND LOWER(name) LIKE '%to%'
+        // does the filtering server-side, returning only matching routes.
+        let from_lower = from.to_lowercase();
+        let to_lower = to.to_lowercase();
+        let matching_routes = self
             .store
             .route_store()
-            .list_routes_by_status("active", 1000)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Filter routes by name containing from → to
-        let matching_routes: Vec<&route::Model> = all_routes
-            .iter()
-            .filter(|r| {
-                let name_lower = r.name.to_lowercase();
-                let from_lower = from.to_lowercase();
-                let to_lower = to.to_lowercase();
-                name_lower.contains(&from_lower) && name_lower.contains(&to_lower)
-            })
-            .collect();
+            .search_active_routes_by_name(&from_lower, &to_lower, 1000)
+            .await?;
 
         if matching_routes.is_empty() {
             return Ok(TripSearchResponse { items: Vec::new() });
@@ -628,69 +622,58 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
 
-        let brand = if let Some(ref bid) = route.brand_id {
-            match Uuid::parse_str(bid) {
-                Ok(uid) => self
-                    .store
-                    .brand_store()
-                    .get_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
+        // The five lookups below depend only on `route` + `schedule`
+        // (already loaded above) — they're independent of each other.
+        // Running them concurrently with `tokio::try_join!` cuts 5
+        // sequential DB round-trips down to 1 (the slowest one).
+        let brand_id_uid = route.brand_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let start_location_uid = route.start_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let end_location_uid = route.end_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let bus_layout_uid = schedule.bus_layout_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
 
-        let start_place = if let Some(ref id) = route.start_location_id {
-            match Uuid::parse_str(id) {
-                Ok(uid) => self
-                    .store
-                    .place_store()
-                    .find_place_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let brand_fut = async {
+            if let Some(uid) = brand_id_uid {
+                self.store.brand_store().get_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
-
-        let end_place = if let Some(ref id) = route.end_location_id {
-            match Uuid::parse_str(id) {
-                Ok(uid) => self
-                    .store
-                    .place_store()
-                    .find_place_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let start_place_fut = async {
+            if let Some(uid) = start_location_uid {
+                self.store.place_store().find_place_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
-
-        let bus_layout = if let Some(ref blid) = schedule.bus_layout_id {
-            match Uuid::parse_str(blid) {
-                Ok(uid) => self
-                    .store
-                    .schedule_store()
-                    .find_bus_layout_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let end_place_fut = async {
+            if let Some(uid) = end_location_uid {
+                self.store.place_store().find_place_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
+        let bus_layout_fut = async {
+            if let Some(uid) = bus_layout_uid {
+                self.store.schedule_store().find_bus_layout_by_id(uid).await
+            } else {
+                Ok(None)
+            }
+        };
+        // Need let bindings so the temporary String + the temporary
+        // `&RouteStore` borrow live long enough for the future (which
+        // borrows them) to be polled.
+        let route_id_str = route.id.to_string();
+        let route_store = self.store.route_store();
+        let pickup_points_fut = route_store
+            .list_pickup_points_by_route(&route_id_str);
 
-        // Pickup points
-        let pickup_points = self
-            .store
-            .route_store()
-            .list_pickup_points_by_route(&route.id.to_string())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
+            brand_fut,
+            start_place_fut,
+            end_place_fut,
+            bus_layout_fut,
+            pickup_points_fut,
+        )?;
 
         let pickup_items: Vec<TripPickupPoint> = pickup_points
             .iter()

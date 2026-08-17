@@ -56,6 +56,15 @@ export function BookingDetailPage() {
     }
   })()
 
+  // Extract trip info from the nested trip preview (if present)
+  const trip = booking.trip
+  const brandName = trip?.brandName ?? trip?.route?.brand?.name ?? '—'
+  const routeName = trip?.routeName ?? trip?.route?.name ?? '—'
+  const departureAt = trip?.departureAt ?? null
+  const passengerName = booking.seats?.[0]?.passengerName ?? booking.contactName ?? '—'
+  const seatCodes = booking.seats?.map((s: any) => s.seatCode ?? s.seatId).filter(Boolean) ?? []
+  const totalAmount = booking.total ?? 0
+
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <Button asChild variant="ghost" size="sm" className="mb-4">
@@ -71,9 +80,9 @@ export function BookingDetailPage() {
         <CardContent className="p-6 space-y-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Bus className="h-4 w-4" />
-            <span className="font-medium text-foreground">{booking.brandName ?? '—'}</span>
+            <span className="font-medium text-foreground">{brandName}</span>
             <span>·</span>
-            <span>{booking.routeName ?? '—'}</span>
+            <span>{routeName}</span>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -81,53 +90,48 @@ export function BookingDetailPage() {
               <MapPin className="h-4 w-4 text-blue-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">Điểm đi</div>
-                <div className="font-medium">{booking.fromName ?? '—'}</div>
+                <div className="font-medium">{trip?.route?.from ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <MapPin className="h-4 w-4 text-rose-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">Điểm đến</div>
-                <div className="font-medium">{booking.toName ?? '—'}</div>
+                <div className="font-medium">{trip?.route?.to ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Calendar className="h-4 w-4 text-violet-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">Khởi hành</div>
-                <div className="font-medium">{booking.departureAt ?? booking.departureTime ?? '—'}</div>
+                <div className="font-medium">{departureAt ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Users className="h-4 w-4 text-amber-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">Hành khách</div>
-                <div className="font-medium">{booking.passengerName ?? '—'}</div>
+                <div className="font-medium">{passengerName}</div>
               </div>
             </div>
           </div>
 
-          {booking.seatCodes && booking.seatCodes.length > 0 && (
+          {seatCodes.length > 0 && (
             <div className="flex items-start gap-2 text-sm pt-3 border-t">
               <Ticket className="h-4 w-4 text-blue-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">Ghế</div>
-                <div className="font-medium">{booking.seatCodes.join(', ')}</div>
+                <div className="font-medium">{seatCodes.join(', ')}</div>
               </div>
             </div>
           )}
 
           <div className="flex items-center justify-between pt-3 border-t">
             <span className="text-sm text-muted-foreground">Tổng tiền</span>
-            <span className="text-xl font-bold text-blue-700">{formatCurrency(booking.totalAmount, currency)}</span>
+            <span className="text-xl font-bold text-blue-700">{formatCurrency(totalAmount, currency)}</span>
           </div>
         </CardContent>
       </Card>
-
-      <p className="text-xs text-muted-foreground text-center">
-        Mã vé: <code className="font-mono font-semibold">{booking.code}</code> · Đặt lúc{' '}
-        {new Date(booking.createdAt).toLocaleString('vi-VN')}
-      </p>
     </div>
   )
 }

@@ -46,7 +46,8 @@ import {
 import { lazy, Suspense, useEffect } from 'react'
 import { useApp, hydrateFromStorage } from '@/lib/store'
 import { useAuthMe } from '@/lib/queries'
-import { Header } from '@/components/bus/header'
+import { Header } from '@/components/layout/header'
+import { IslandFallback } from '@/routes/_fallback'
 
 // ── Lazy route components (code-split per route) ────────────────
 const HomePage = lazy(() => import('./routes/home').then((m) => ({ default: m.HomePage })))
@@ -58,26 +59,30 @@ const BookingDetailPage = lazy(() => import('./routes/booking-detail').then((m) 
 const ComparePage = lazy(() => import('./routes/compare').then((m) => ({ default: m.ComparePage })))
 const MapPage = lazy(() => import('./routes/map').then((m) => ({ default: m.MapPage })))
 const AdminPage = lazy(() => import('./routes/admin').then((m) => ({ default: m.AdminPage })))
+const AdminBrandsPage = lazy(() => import('./routes/admin/brands').then((m) => ({ default: m.AdminBrandsPage })))
+const AdminRoutesPage = lazy(() => import('./routes/admin/routes').then((m) => ({ default: m.AdminRoutesPage })))
+const AdminSchedulesPage = lazy(() => import('./routes/admin/schedules').then((m) => ({ default: m.AdminSchedulesPage })))
+const AdminTicketsPage = lazy(() => import('./routes/admin/tickets').then((m) => ({ default: m.AdminTicketsPage })))
+const AdminChatPage = lazy(() => import('./routes/admin/chat').then((m) => ({ default: m.AdminChatPage })))
+const AdminReviewsPage = lazy(() => import('./routes/admin/reviews').then((m) => ({ default: m.AdminReviewsPage })))
+const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) => ({ default: m.AdminFeedbackPage })))
+const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
 // Lazy persistent overlays (kept mounted once loaded for instant re-open)
-const Footer = lazy(() => import('@/components/bus/footer').then((m) => ({ default: m.Footer })))
-const MobileNav = lazy(() => import('@/components/bus/mobile-nav').then((m) => ({ default: m.MobileNav })))
-const ChatWidget = lazy(() => import('@/components/bus/chat-widget').then((m) => ({ default: m.ChatWidget })))
-const AudioCallWidget = lazy(() => import('@/components/bus/audio-call-widget').then((m) => ({ default: m.AudioCallWidget })))
-const BookingDialog = lazy(() => import('@/components/bus/booking-dialog').then((m) => ({ default: m.BookingDialog })))
-const AuthDialog = lazy(() => import('@/components/bus/auth-dialog').then((m) => ({ default: m.AuthDialog })))
-const TripCompare = lazy(() => import('@/components/bus/trip-compare').then((m) => ({ default: m.TripCompare })))
-const LoyaltyWidget = lazy(() => import('@/components/bus/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
-const CancelDialog = lazy(() => import('@/components/bus/cancel-dialog').then((m) => ({ default: m.CancelDialog })))
-const PriceAlertDialog = lazy(() => import('@/components/bus/price-alert-dialog').then((m) => ({ default: m.PriceAlertDialog })))
-const ShareDialog = lazy(() => import('@/components/bus/share-dialog').then((m) => ({ default: m.ShareDialog })))
-const SupportFab = lazy(() => import('@/components/bus/support-fab').then((m) => ({ default: m.SupportFab })))
-
-function IslandFallback({ minHeight = 200 }: { minHeight?: number }) {
-  return <div style={{ minHeight }} aria-busy="true" />
-}
+const Footer = lazy(() => import('@/components/layout/footer').then((m) => ({ default: m.Footer })))
+const MobileNav = lazy(() => import('@/components/layout/mobile-nav').then((m) => ({ default: m.MobileNav })))
+const ChatWidget = lazy(() => import('@/components/chat/chat-widget').then((m) => ({ default: m.ChatWidget })))
+const AudioCallWidget = lazy(() => import('@/components/layout/audio-call-widget').then((m) => ({ default: m.AudioCallWidget })))
+const BookingDialog = lazy(() => import('@/components/booking/booking-dialog').then((m) => ({ default: m.BookingDialog })))
+const AuthDialog = lazy(() => import('@/components/auth/auth-dialog').then((m) => ({ default: m.AuthDialog })))
+const TripCompare = lazy(() => import('@/components/search/trip-compare').then((m) => ({ default: m.TripCompare })))
+const LoyaltyWidget = lazy(() => import('@/components/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
+const CancelDialog = lazy(() => import('@/components/bookings/cancel-dialog').then((m) => ({ default: m.CancelDialog })))
+const PriceAlertDialog = lazy(() => import('@/components/price-alert/price-alert-dialog').then((m) => ({ default: m.PriceAlertDialog })))
+const ShareDialog = lazy(() => import('@/components/trips/share-dialog').then((m) => ({ default: m.ShareDialog })))
+const SupportFab = lazy(() => import('@/components/layout/support-fab').then((m) => ({ default: m.SupportFab })))
 
 // ── Document head management (SEO) ─────────────────────────────
 // Updates <title> + <meta name="description"> per route. For the
@@ -100,6 +105,14 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
     title: 'Quản trị — VeXeVN',
     description: 'Bảng điều khiển quản trị hệ thống VeXeVN.',
   },
+  '/admin/brands': { title: 'Hãng xe — Quản trị VeXeVN', description: 'Quản lý hãng xe, tuyến đường, lịch trình.' },
+  '/admin/routes': { title: 'Tuyến đường — Quản trị VeXeVN', description: 'Quản lý tuyến đường.' },
+  '/admin/schedules': { title: 'Lịch trình — Quản trị VeXeVN', description: 'Quản lý lịch trình.' },
+  '/admin/tickets': { title: 'Vé đã bán — Quản trị VeXeVN', description: 'Quản lý vé đã bán.' },
+  '/admin/chat': { title: 'Chat hỗ trợ — Quản trị VeXeVN', description: 'Hỗ trợ khách hàng qua chat.' },
+  '/admin/reviews': { title: 'Đánh giá — Quản trị VeXeVN', description: 'Kiểm duyệt đánh giá.' },
+  '/admin/feedback': { title: 'Phản hồi — Quản trị VeXeVN', description: 'Quản lý phản hồi khách hàng.' },
+  '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
   '/map': {
     title: 'Bản đồ tuyến đường — VeXeVN',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
@@ -437,6 +450,135 @@ const adminRoute = createRoute({
   ),
 })
 
+// Admin sub-routes (all share the same employee guard)
+const adminBrandsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/brands',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminBrandsPage />
+    </Suspense>
+  ),
+})
+
+const adminRoutesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/routes',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminRoutesPage />
+    </Suspense>
+  ),
+})
+
+const adminSchedulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/schedules',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminSchedulesPage />
+    </Suspense>
+  ),
+})
+
+const adminTicketsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/tickets',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminTicketsPage />
+    </Suspense>
+  ),
+})
+
+const adminChatRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/chat',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminChatPage />
+    </Suspense>
+  ),
+})
+
+const adminReviewsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/reviews',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminReviewsPage />
+    </Suspense>
+  ),
+})
+
+const adminFeedbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/feedback',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminFeedbackPage />
+    </Suspense>
+  ),
+})
+
+const adminBusLayoutsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/bus-layouts',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminBusLayoutsPage />
+    </Suspense>
+  ),
+})
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -457,6 +599,14 @@ const routeTree = rootRoute.addChildren([
   compareRoute,
   mapRoute,
   adminRoute,
+  adminBrandsRoute,
+  adminRoutesRoute,
+  adminSchedulesRoute,
+  adminTicketsRoute,
+  adminChatRoute,
+  adminReviewsRoute,
+  adminFeedbackRoute,
+  adminBusLayoutsRoute,
   loginRoute,
 ])
 

@@ -7,7 +7,7 @@
 //!
 //! ## Concurrency
 //!
-//! * Each peer holds a **bounded** `mpsc::Sender<String>` (capacity 64) —
+//! * Each peer holds a **bounded** `mpsc::Sender<bytes::Bytes>` (capacity 64) —
 //!   a slow consumer fills its queue, then `try_send` drops further
 //!   messages; the heartbeat sweep eventually reaps the socket. No
 //!   unbounded memory growth per client.
@@ -35,7 +35,7 @@ use crate::auth::SessionUser;
 
 /// Pre-serialised JSON outbound channel — same model as the chat hub.
 /// We serialise once on produce and clone the `String` to the recipient.
-pub type PeerTx = mpsc::Sender<String>;
+pub type PeerTx = mpsc::Sender<bytes::Bytes>;
 
 /// Role a peer registered as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,7 +73,7 @@ impl Peer {
     /// the peer's outbound queue is full or the socket has been dropped —
     /// caller should treat that as "peer gone" and clean up.
     pub fn send_raw(&self, payload: &str) -> bool {
-        self.tx.try_send(payload.to_string()).is_ok()
+        self.tx.try_send(bytes::Bytes::copy_from_slice(payload.as_bytes())).is_ok()
     }
 
     /// Convenience: serialise a `serde_json::Value` and send it.
@@ -319,7 +319,7 @@ mod tests {
     async fn register_and_unregister() {
         let _guard = TEST_LOCK.lock().unwrap();
         let id = format!("test-reg-{}", uuid::Uuid::new_v4());
-        let (tx, _rx) = mpsc::channel::<String>(8);
+        let (tx, _rx) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
         let sid = h.next_socket_id();
         // Registering a CUSTOMER must not change the global agent count
@@ -328,7 +328,7 @@ mod tests {
         let agents_before = h.online_agent_count();
         let booted = h.register(fake_user(&id, "user"), CallRole::Customer, None, tx, sid);
         assert!(booted.is_empty());
-        assert_eq!(h.peer_count() >= 1, true);
+        assert!(h.peer_count() >= 1);
         assert_eq!(h.online_agent_count(), agents_before);
 
         let role = h.unregister(&id, sid);
@@ -341,8 +341,8 @@ mod tests {
         let _guard = TEST_LOCK.lock().unwrap();
         let id1 = format!("test-agent1-{}", uuid::Uuid::new_v4());
         let id2 = format!("test-agent2-{}", uuid::Uuid::new_v4());
-        let (tx1, _rx1) = mpsc::channel::<String>(8);
-        let (tx2, _rx2) = mpsc::channel::<String>(8);
+        let (tx1, _rx1) = mpsc::channel::<bytes::Bytes>(8);
+        let (tx2, _rx2) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
 
         // Baseline so we don't depend on the global singleton being empty.
@@ -383,7 +383,7 @@ mod tests {
         let h = hub();
 
         // Old socket registers.
-        let (tx_old, _rx_old) = mpsc::channel::<String>(8);
+        let (tx_old, _rx_old) = mpsc::channel::<bytes::Bytes>(8);
         let sid_old = h.next_socket_id();
         h.register(
             fake_user(&id, "user"),
@@ -394,7 +394,7 @@ mod tests {
         );
 
         // Same user reconnects with a NEW socket (boots the old entry).
-        let (tx_new, _rx_new) = mpsc::channel::<String>(8);
+        let (tx_new, _rx_new) = mpsc::channel::<bytes::Bytes>(8);
         let sid_new = h.next_socket_id();
         h.register(
             fake_user(&id, "user"),

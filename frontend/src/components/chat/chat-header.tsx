@@ -1,0 +1,83 @@
+'use client'
+
+/**
+ * ChatHeader — the gradient header bar of the customer-facing chat panel.
+ *
+ * Extracted from the original `chat-widget.tsx`. Shows the current view
+ * title, the live WebSocket connection status, the number of online
+ * employees (when relevant) and the minimize/close buttons. Also owns
+ * the "back to list" affordance when the conversation view is active.
+ */
+
+import type React from 'react'
+import {
+  Headset,
+  X,
+  Minus,
+  ArrowLeft,
+  Wifi,
+  WifiOff,
+} from 'lucide-react'
+import type { CustomerChannel as Channel, View } from './_shared'
+
+export function ChatHeader({
+  view,
+  activeChannel,
+  connected,
+  employeesOnline,
+  onMinimize,
+  onClose,
+  onBackToList,
+}: {
+  view: View
+  activeChannel: Channel | null
+  connected: boolean
+  employeesOnline: number
+  onMinimize: () => void
+  onClose: () => void
+  onBackToList: () => void
+}) {
+  const title = view === 'conversation' && activeChannel ? activeChannel.topic : 'Hỗ trợ VeXeVN'
+
+  return (
+    <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">
+      <div className="flex items-center gap-2.5 min-w-0">
+        {view === 'conversation' && (
+          <button
+            onClick={onBackToList}
+            className="hover:bg-white/10 rounded p-1 -ml-1"
+            aria-label="Quay lại"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
+        <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+          <Headset className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="font-bold text-sm truncate">{title}</div>
+          <div className="text-[11px] text-rose-100 flex items-center gap-1">
+            {connected ? (
+              <>
+                <Wifi className="h-3 w-3" /> Đang trực tuyến
+                {employeesOnline > 0 && <span className="ml-1">• {employeesOnline} NV sẵn sàng</span>}
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3 w-3" /> Đang kết nối...
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1">
+        <button onClick={onMinimize} className="hover:bg-white/10 rounded p-1.5" aria-label="Thu nhỏ">
+          <Minus className="h-4 w-4" />
+        </button>
+        <button onClick={onClose} className="hover:bg-white/10 rounded p-1.5" aria-label="Đóng">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  )
+}

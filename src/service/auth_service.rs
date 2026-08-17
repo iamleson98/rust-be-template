@@ -8,7 +8,7 @@ use crate::auth::jwt_validator::JwtValidator;
 use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::{RefreshTokenManager, RefreshTokenValue};
 use crate::auth::SessionUser;
-use crate::config::{Config, CookieConfig};
+use crate::config::{Config, CookieConfig, JwtConfig};
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
@@ -26,9 +26,16 @@ impl AuthSession {
     pub fn set_cookies(
         &self,
         jar: axum_extra::extract::CookieJar,
-        cfg: &CookieConfig,
+        cookie_cfg: &CookieConfig,
+        jwt_cfg: &JwtConfig,
     ) -> axum_extra::extract::CookieJar {
-        crate::auth::cookies::set_auth_cookies(jar, cfg, &self.access_token, &self.refresh_token)
+        crate::auth::cookies::set_auth_cookies(
+            jar,
+            cookie_cfg,
+            jwt_cfg,
+            &self.access_token,
+            &self.refresh_token,
+        )
     }
 }
 
@@ -80,9 +87,14 @@ impl AuthService {
         let user_count = self.store.user_store().count_users().await?;
         let is_first_user = user_count == 0;
 
-        let hash = self
-            .password
-            .hash(&password)
+        // Argon2 hash is CPU-heavy (~50ms with default params). Run on a
+        // blocking-pool thread so we don't stall the tokio worker. Also
+        // propagate the assign_role error (previously swallowed via `let _ =`).
+        let password_arc = self.password.clone();
+        let pwd_for_hash = password.clone();
+        let hash = tokio::task::spawn_blocking(move || password_arc.hash(&pwd_for_hash))
+            .await
+            .map_err(|e| AppError::Internal(format!("hash join: {e}")))?
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let role_name = if is_first_user { "employee" } else { "user" };
@@ -93,10 +105,14 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // Assign role: first user gets "admin", others get "user"
+        // Assign role: first user gets "employee", others get "user".
+        // Errors here used to be swallowed via `let _ =` — if the role
+        // table was empty or the DB failed, the user ended up with no role
+        // and couldn't log in via employee-login even when they should be
+        // admin (first-user case). Propagate now.
         let roles = self.store.rbac_store().list_roles().await?;
         if let Some(role) = roles.iter().find(|r| r.name == role_name) {
-            let _ = self.store.rbac_store().assign_role(model.id, role.id).await;
+            self.store.rbac_store().assign_role(model.id, role.id).await?;
         }
 
         Ok(model)
@@ -116,7 +132,18 @@ impl AuthService {
             .as_deref()
             .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
 
-        if !self.password.verify(&password, hash) {
+        // Argon2 verify is CPU-heavy (50-150ms with default params). Run it
+        // on a blocking-pool thread so we don't stall the tokio worker.
+        let password_arc = self.password.clone();
+        let pwd_string = password.to_string();
+        let hash_string = hash.to_string();
+        let password_ok = tokio::task::spawn_blocking(move || {
+            password_arc.verify(&pwd_string, &hash_string)
+        })
+        .await
+        .map_err(|e| AppError::Internal(format!("verify join: {e}")))?;
+
+        if !password_ok {
             return Err(AppError::Unauthorized("invalid credentials".into()));
         }
 
@@ -124,6 +151,12 @@ impl AuthService {
     }
 
     /// Rotate a refresh token: revoke the old, issue a new one + new access.
+    ///
+    /// Uses `try_revoke_refresh_token` (atomic conditional UPDATE) so two
+    /// concurrent refresh requests with the same token can't both succeed
+    /// — the second `rows_affected == 0` and returns `None`, which we
+    /// surface as a 401. This closes the replay-attack window that the
+    /// previous `get_refresh_token` + `revoke_refresh_token` pair had.
     pub async fn refresh(&self, refresh_token: String) -> AppResult<AuthSession> {
         let value = RefreshTokenValue::parse(&refresh_token)
             .ok_or_else(|| AppError::BadRequest("malformed refresh token".into()))?;
@@ -141,17 +174,21 @@ impl AuthService {
 
         if !constant_time_eq::constant_time_eq(
             model.token_hash.as_bytes(),
-            value.secret_hash().as_bytes(),
+            self.refresh.secret_hash(&value.secret).as_bytes(),
         ) {
             return Err(AppError::Unauthorized("refresh token mismatch".into()));
         }
 
-        // Rotate: revoke the old token, issue a new one for the same user.
-        let user_id = model.user_id;
-        self.store
+        // Atomically claim the token: only the first concurrent caller wins.
+        // Without this guard, two concurrent refresh requests both pass the
+        // checks above and both issue fresh sessions — an infinite replay
+        // window if the token is ever stolen.
+        let user_id = self
+            .store
             .refresh_token_store()
-            .revoke_refresh_token(value.id)
-            .await?;
+            .try_revoke_refresh_token(value.id)
+            .await?
+            .ok_or_else(|| AppError::Unauthorized("refresh token already used".into()))?;
 
         let user = self.store.user_store().get_user(user_id).await?;
         self.issue_session(user).await
@@ -241,6 +278,11 @@ impl AuthService {
     /// Expose the cookie config (route handlers need it).
     pub fn cookie_config(&self) -> &CookieConfig {
         &self.config.cookie
+    }
+
+    /// Expose the JWT config (route handlers need it for cookie TTLs).
+    pub fn jwt_config(&self) -> &JwtConfig {
+        &self.config.jwt
     }
 
     /// Expose the JWT access TTL (route handlers use it for response shaping).

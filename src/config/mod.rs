@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
@@ -30,26 +31,6 @@ pub struct Config {
     pub ws: WsConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            database: DatabaseConfig::default(),
-            jwt: JwtConfig::default(),
-            cookie: CookieConfig::default(),
-            cache: CacheConfig::default(),
-            storage: StorageConfig::default(),
-            worker: WorkerConfig::default(),
-            rate_limit: RateLimitConfig::default(),
-            static_files: StaticFilesConfig::default(),
-            cors: CorsConfig::default(),
-            zeroclaw: ZeroClawConfig::default(),
-            audio_call: AudioCallConfig::default(),
-            search: SearchConfig::default(),
-            ws: WsConfig::default(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -450,6 +431,7 @@ impl AudioCallConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct SearchConfig {
     /// Directory containing the Tantivy place index. If the directory does
     /// not exist or is empty, place search/reverse-geocode return 503.
@@ -458,14 +440,6 @@ pub struct SearchConfig {
     pub osm_pbf_path: Option<PathBuf>,
 }
 
-impl Default for SearchConfig {
-    fn default() -> Self {
-        Self {
-            index_dir: None,
-            osm_pbf_path: None,
-        }
-    }
-}
 
 // ────────────────────────────────────────────────────────────────
 //  WebSocket chat hub
@@ -529,6 +503,13 @@ impl Config {
     fn validate(&self) -> anyhow::Result<()> {
         if self.jwt.secret.len() < 32 {
             anyhow::bail!("JWT_SECRET must be at least 32 bytes for HS256");
+        }
+        if self.jwt.secret == "change-me-in-production-please-use-32-bytes-or-more" {
+            anyhow::bail!(
+                "JWT_SECRET is the default placeholder shipped in source. \
+                 Set a real 32+ byte secret via the JWT_SECRET env var \
+                 (e.g. `openssl rand -hex 32`)."
+            );
         }
         if self.worker.concurrency == 0 {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
@@ -621,9 +602,52 @@ impl Config {
         );
 
         tracing::info!("  worker:");
+        tracing::info!("    backend:            {:?}", self.worker.backend);
+        tracing::info!("    concurrency:        {}", self.worker.concurrency);
+        tracing::info!("    poll_interval:      {}ms", self.worker.poll_interval_ms);
         tracing::info!("    kafka_brokers:      {}", self.worker.kafka_brokers);
         tracing::info!("    kafka_group_id:     {}", self.worker.kafka_group_id);
         tracing::info!("    kafka_topic:        {}", self.worker.kafka_topic);
+
+        tracing::info!("  ws:");
+        tracing::info!("    max_connections:    {}", self.ws.max_connections);
+        tracing::info!("    max_per_ip:         {}", self.ws.max_per_ip);
+        tracing::info!("    channel_capacity:   {}", self.ws.channel_capacity);
+        tracing::info!("    heartbeat:          {}s", self.ws.heartbeat_sec);
+        tracing::info!("    idle_timeout:       {}s", self.ws.idle_timeout_sec);
+        tracing::info!("    max_message_bytes:  {}", self.ws.max_message_bytes);
+        tracing::info!("    max_frame_bytes:    {}", self.ws.max_frame_bytes);
+
+        tracing::info!("  audio_call:");
+        tracing::info!("    enabled:            {}", self.audio_call.enabled);
+        tracing::info!(
+            "    ice_servers:        {}",
+            if self.audio_call.ice_servers.is_empty() {
+                "(none)".to_string()
+            } else {
+                // Mask TURN credentials — log only the count + URL prefixes.
+                let v = self.audio_call.ice_servers_json();
+                let count = v.as_array().map(|a| a.len()).unwrap_or(0);
+                format!("({count} server(s))")
+            }
+        );
+
+        tracing::info!("  zeroclaw:");
+        tracing::info!("    enabled:            {}", self.zeroclaw.enabled);
+        tracing::info!("    is_active:          {}", self.zeroclaw.is_active());
+        tracing::info!("    api_url:             {}", self.zeroclaw.api_url);
+        tracing::info!("    api_key:            {}", mask_secret(&self.zeroclaw.api_key));
+        tracing::info!("    model:              {}", self.zeroclaw.model);
+        tracing::info!("    timeout:            {}ms", self.zeroclaw.timeout_ms);
+        tracing::info!("    max_history:        {}", self.zeroclaw.max_history);
+        tracing::info!(
+            "    fallback_online_employees: {}",
+            self.zeroclaw.fallback_online_employees
+        );
+
+        tracing::info!("  search:");
+        tracing::info!("    index_dir:          {:?}", self.search.index_dir);
+        tracing::info!("    osm_pbf_path:       {:?}", self.search.osm_pbf_path);
 
         tracing::info!("  rate_limit:");
         tracing::info!("    rpm:                {}", self.rate_limit.rpm);

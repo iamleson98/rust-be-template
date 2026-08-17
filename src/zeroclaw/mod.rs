@@ -115,6 +115,7 @@ pub trait ZeroClawProvider: Send + Sync {
     ///   * `Err(_)` — store error. Caller logs and does nothing (the
     ///     customer's original message is still delivered; we never fail
     ///     the chat because ZeroClaw errored).
+    #[allow(clippy::too_many_arguments)]
     async fn maybe_reply(
         &self,
         chat_store: &dyn ChatStore,

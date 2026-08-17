@@ -45,6 +45,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::mpsc;
+use tracing::Instrument;
 
 use crate::auth::SessionUser;
 use crate::error::AppError;
@@ -115,14 +116,14 @@ pub async fn ws_upgrade(
             max = hub().max_connections(),
             "WS upgrade rejected: global connection cap reached"
         );
-        return Err(AppError::Internal("ws connection cap reached".into()));
+        return Err(AppError::ServiceUnavailable("ws connection cap reached".into()));
     }
 
     // ── Per-IP connection cap ───────────────────────────────────────────
     if !hub().try_acquire_ip(&ip, limits.max_per_ip) {
         hub().release_global();
         tracing::warn!(ip = %ip, max_per_ip = limits.max_per_ip, "WS upgrade rejected: per-IP cap reached");
-        return Err(AppError::Internal("ws per-ip cap reached".into()));
+        return Err(AppError::TooManyRequests("ws per-ip cap reached".into()));
     }
 
     let ws = ws
@@ -146,7 +147,7 @@ pub async fn handle_socket(
     use futures::StreamExt as _;
 
     let (sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<String>(limits.channel_cap.max(1));
+    let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(limits.channel_cap.max(1));
 
     let sid = hub().register(user.clone(), ip.clone(), tx);
 
@@ -174,7 +175,16 @@ pub async fn handle_socket(
             loop {
                 tokio::select! {
                     Some(msg) = rx.recv() => {
-                        if sink.send(Message::Text(msg.into())).await.is_err() {
+                        // Empty Bytes = close sentinel from close_all().
+                        // Non-empty = a pre-serialised JSON text frame.
+                        if msg.is_empty() {
+                            break;
+                        }
+                        // Convert Bytes → &str → Utf8Bytes (axum's ws Text
+                        // type). This is a zero-copy deref, no allocation.
+                        let text = std::str::from_utf8(&msg)
+                            .unwrap_or("");
+                        if sink.send(Message::Text(text.into())).await.is_err() {
                             break;
                         }
                     }
@@ -427,44 +437,52 @@ async fn handle_message(
             let user2 = user.clone();
             let user_msg_id = id.clone();
             let text2 = text.clone();
-            tokio::spawn(async move {
-                match provider
-                    .maybe_reply(
-                        chat_store.as_ref(),
-                        &channel_id2,
-                        brand_id2.as_deref(),
-                        &user2,
-                        &user_msg_id,
-                        &text2,
-                        online,
-                        fallback_threshold,
-                    )
-                    .await
-                {
-                    Ok(Some(outcome)) => {
-                        let assistant_broadcast = json!({
-                            "type": "message",
-                            "id": outcome.assistant_message_id,
-                            "channelId": channel_id2,
-                            "senderType": "assistant",
-                            "senderId": format!("zeroclaw:{}", outcome.reply.model),
-                            "senderName": "ZeroClaw AI",
-                            "text": outcome.reply.reply,
-                            "createdAt": outcome.created_at,
-                            "meta": {
-                                "confidence": outcome.reply.confidence,
-                                "model": outcome.reply.model,
-                                "handoffToHuman": outcome.reply.handoff_to_human,
-                            }
-                        });
-                        hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
+            // Capture the current tracing span so logs inside the spawned
+            // task (an LLM HTTP call that can take 5-15s) stay correlated
+            // to the WS handler that triggered them. Without `.instrument`
+            // the span context is dropped at the `tokio::spawn` boundary.
+            let span = tracing::Span::current();
+            tokio::spawn(
+                async move {
+                    match provider
+                        .maybe_reply(
+                            chat_store.as_ref(),
+                            &channel_id2,
+                            brand_id2.as_deref(),
+                            &user2,
+                            &user_msg_id,
+                            &text2,
+                            online,
+                            fallback_threshold,
+                        )
+                        .await
+                    {
+                        Ok(Some(outcome)) => {
+                            let assistant_broadcast = json!({
+                                "type": "message",
+                                "id": outcome.assistant_message_id,
+                                "channelId": channel_id2,
+                                "senderType": "assistant",
+                                "senderId": format!("zeroclaw:{}", outcome.reply.model),
+                                "senderName": "ZeroClaw AI",
+                                "text": outcome.reply.reply,
+                                "createdAt": outcome.created_at,
+                                "meta": {
+                                    "confidence": outcome.reply.confidence,
+                                    "model": outcome.reply.model,
+                                    "handoffToHuman": outcome.reply.handoff_to_human,
+                                }
+                            });
+                            hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
+                        }
                     }
                 }
-            });
+                .instrument(span),
+            );
         }
     }
 

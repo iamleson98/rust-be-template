@@ -16,8 +16,9 @@ members = ["store_macros", "migrator"]
 store_macros = { path = "store_macros" }
 migrator = { path = "migrator" }
 
-# Async runtime
-tokio = { version = "1", features = ["full"] }
+# Async runtime — explicit features instead of "full" to keep compile + binary lean.
+# Add "process" only if you need to spawn child processes (currently not used).
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "time", "signal", "sync", "fs"] }
 futures = "0.3"
 async-trait = "0.1"
 

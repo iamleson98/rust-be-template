@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use sea_orm::DatabaseConnection;
+
 use super::{
     AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PlaceStore, PostStore,
     PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore, ScheduleStore,
@@ -8,6 +10,7 @@ use super::{
 
 #[derive(Clone)]
 pub struct CompositeStore {
+    db: Arc<DatabaseConnection>,
     users: Arc<dyn UserStore>,
     posts: Arc<dyn PostStore>,
     rbac: Arc<dyn RbacStore>,
@@ -29,6 +32,7 @@ pub struct CompositeStore {
 impl CompositeStore {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
+        db: Arc<DatabaseConnection>,
         users: Arc<dyn UserStore>,
         posts: Arc<dyn PostStore>,
         rbac: Arc<dyn RbacStore>,
@@ -47,6 +51,7 @@ impl CompositeStore {
         wishlist: Arc<dyn WishlistStore>,
     ) -> Self {
         Self {
+            db,
             users,
             posts,
             rbac,
@@ -64,6 +69,16 @@ impl CompositeStore {
             notifications,
             wishlist,
         }
+    }
+
+    /// Expose the underlying `DatabaseConnection` so services can run
+    /// SeaORM transactions (`db.transaction(|txn| ...)`) for multi-table
+    /// writes. The store traits don't accept a `&DatabaseTransaction`
+    /// parameter (that would explode the trait surface), so transactional
+    /// writes bypass the store layer and issue raw SeaORM queries on the
+    /// transaction handle.
+    pub fn db(&self) -> &DatabaseConnection {
+        self.db.as_ref()
     }
 
     pub fn user_store(&self) -> Arc<dyn UserStore> {

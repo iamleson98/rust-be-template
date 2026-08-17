@@ -50,6 +50,12 @@ pub enum AppError {
     #[error("resource gone: {0}")]
     Gone(String),
 
+    #[error("service unavailable: {0}")]
+    ServiceUnavailable(String),
+
+    #[error("too many requests: {0}")]
+    TooManyRequests(String),
+
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -78,6 +84,8 @@ impl AppError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             AppError::Gone(_) => StatusCode::GONE,
+            AppError::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -95,6 +103,8 @@ impl AppError {
             AppError::Storage(_) => "storage_error",
             AppError::Worker(_) => "worker_error",
             AppError::Gone(_) => "gone",
+            AppError::ServiceUnavailable(_) => "service_unavailable",
+            AppError::TooManyRequests(_) => "too_many_requests",
             AppError::Internal(_) => "internal_error",
         }
     }
@@ -107,7 +117,33 @@ impl IntoResponse for AppError {
             error: self.kind(),
             message: self.to_string(),
         };
-        tracing::warn!(target: "app_error", kind = body.error, status = status.as_u16(), "{}", body.message);
+        // Differentiate log level by status family:
+        // - 5xx (server errors) excluding 503: error — real signal for ops
+        // - 429/503 (overload): warn — temporary, often recoverable
+        // - 4xx (client errors): debug — these are expected and noisy at warn
+        match status.as_u16() {
+            429 | 503 => tracing::warn!(
+                target: "app_error",
+                kind = body.error,
+                status = status.as_u16(),
+                "{}",
+                body.message
+            ),
+            500..=599 => tracing::error!(
+                target: "app_error",
+                kind = body.error,
+                status = status.as_u16(),
+                "{}",
+                body.message
+            ),
+            _ => tracing::debug!(
+                target: "app_error",
+                kind = body.error,
+                status = status.as_u16(),
+                "{}",
+                body.message
+            ),
+        }
         (status, Json(body)).into_response()
     }
 }

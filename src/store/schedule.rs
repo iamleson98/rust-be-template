@@ -6,7 +6,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -25,6 +27,15 @@ pub trait ScheduleStore: Send + Sync {
 
     async fn find_schedule_by_id(&self, id: Uuid) -> StoreResult<Option<schedule::Model>>;
     async fn list_schedules_by_route(&self, route_id: &str) -> StoreResult<Vec<schedule::Model>>;
+    async fn count_schedules_by_route(&self, route_id: &str) -> StoreResult<usize>;
+
+    /// Batched version of `count_schedules_by_route` — single SQL
+    /// `SELECT route_id, COUNT(*) GROUP BY route_id WHERE route_id IN (...)`
+    /// instead of N round-trips.
+    async fn count_schedules_by_route_map(
+        &self,
+        route_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>>;
     async fn list_schedules_by_routes(
         &self,
         route_ids: Vec<Uuid>,
@@ -38,6 +49,14 @@ pub trait ScheduleStore: Send + Sync {
     async fn find_bus_layout_by_id(&self, id: Uuid) -> StoreResult<Option<bus_layout::Model>>;
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>>;
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize>;
+
+    /// Batched version — `SELECT brand_id, COUNT(*) FROM bus_layout
+    /// WHERE brand_id IN (?) GROUP BY brand_id`. Replaces N per-brand
+    /// round-trips in admin_service::list_brands.
+    async fn count_bus_layouts_by_brand_map(
+        &self,
+        brand_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>>;
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>>;
 }
 
@@ -74,6 +93,45 @@ impl ScheduleStore for DbScheduleStore {
             .filter(schedule::Column::RouteId.eq(route_id.to_string()))
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn count_schedules_by_route(&self, route_id: &str) -> StoreResult<usize> {
+        // SELECT COUNT(*) WHERE route_id = ? — single round trip, no row
+        // materialisation. Used by admin_service::list_routes which previously
+        // called list_schedules_by_route(...).len() and loaded every schedule
+        // row just to count them (N routes × M schedules = N*M row fetches).
+        Ok(schedule::Entity::find()
+            .filter(schedule::Column::RouteId.eq(route_id.to_string()))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
+    async fn count_schedules_by_route_map(
+        &self,
+        route_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>> {
+        if route_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        use sea_orm::sea_query::Expr;
+        let rows: Vec<(String, i64)> = schedule::Entity::find()
+            .filter(schedule::Column::RouteId.is_in(route_ids.clone()))
+            .select_only()
+            .column(schedule::Column::RouteId)
+            .column_as(Expr::col(schedule::Column::Id).count(), "count")
+            .group_by(schedule::Column::RouteId)
+            .into_tuple::<(String, i64)>()
+            .all(self.db.as_ref())
+            .await?;
+        let mut map: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::with_capacity(route_ids.len());
+        for id in route_ids {
+            map.insert(id, 0);
+        }
+        for (id, count) in rows {
+            map.insert(id, count as usize);
+        }
+        Ok(map)
     }
 
     async fn list_schedules_by_routes(
@@ -120,11 +178,39 @@ impl ScheduleStore for DbScheduleStore {
     }
 
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
+        // Use `count()` instead of the previous `.all().len()` pattern.
         Ok(bus_layout::Entity::find()
             .filter(bus_layout::Column::BrandId.eq(brand_id.to_string()))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
+    async fn count_bus_layouts_by_brand_map(
+        &self,
+        brand_ids: Vec<String>,
+    ) -> StoreResult<std::collections::HashMap<String, usize>> {
+        if brand_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        use sea_orm::sea_query::Expr;
+        let rows: Vec<(String, i64)> = bus_layout::Entity::find()
+            .filter(bus_layout::Column::BrandId.is_in(brand_ids.clone()))
+            .select_only()
+            .column(bus_layout::Column::BrandId)
+            .column_as(Expr::col(bus_layout::Column::Id).count(), "count")
+            .group_by(bus_layout::Column::BrandId)
+            .into_tuple::<(String, i64)>()
             .all(self.db.as_ref())
-            .await?
-            .len())
+            .await?;
+        let mut map: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::with_capacity(brand_ids.len());
+        for id in brand_ids {
+            map.insert(id, 0);
+        }
+        for (id, count) in rows {
+            map.insert(id, count as usize);
+        }
+        Ok(map)
     }
 
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>> {

@@ -111,6 +111,26 @@ pub trait TripStore: Send + Sync {
         seat_id: &str,
         held_by_booking_id: &str,
     ) -> StoreResult<()>;
+
+    /// Bulk version of `release_held_seat` — releases ALL seats held by
+    /// the given booking in a single SQL UPDATE. Used by `booking_service::cancel`
+    /// + `::confirm` (expiry-cleanup path) which previously issued N UPDATEs
+    /// (one per seat) with `let _ =` swallowing any errors. Returns the
+    /// number of seats released. Idempotent — safe to call even if no
+    /// seats are currently held.
+    async fn release_held_seats_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64>;
+
+    /// Bulk mark held seats as 'booked' for a given booking (the
+    /// confirmation step). Single SQL UPDATE replaces the per-seat
+    /// loop in `booking_service::confirm`. Returns the number of seats
+    /// flipped. Idempotent — safe to call on already-booked seats.
+    async fn mark_seats_booked_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64>;
     async fn list_trips_by_schedule_ids(
         &self,
         schedule_ids: Vec<Uuid>,
@@ -339,6 +359,56 @@ impl TripStore for DbTripStore {
             .exec(self.db.as_ref())
             .await?;
         Ok(())
+    }
+
+    #[store_macros::no_retry]
+    async fn release_held_seats_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64> {
+        // Single bulk UPDATE — replaces the N-row load + N sequential
+        // UPDATE pattern that previously dominated cancel/confirm latency
+        // for multi-seat bookings. Conditional on `held_by_booking_id`
+        // so it never releases a different booking's holds.
+        use sea_orm::sea_query::Expr;
+        let res = seat_inventory::Entity::update_many()
+            .col_expr(seat_inventory::Column::Status, Expr::value("available"))
+            .col_expr(
+                seat_inventory::Column::HeldUntil,
+                Expr::value(None::<String>),
+            )
+            .col_expr(
+                seat_inventory::Column::HeldByBookingId,
+                Expr::value(None::<String>),
+            )
+            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
+    }
+
+    #[store_macros::no_retry]
+    async fn mark_seats_booked_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64> {
+        // Single bulk UPDATE — flips all seats held by this booking from
+        // 'held' → 'booked'. Used by booking_service::confirm. Idempotent:
+        // already-booked seats are not affected (filter is on status='held').
+        use sea_orm::sea_query::Expr;
+        let res = seat_inventory::Entity::update_many()
+            .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
+            .col_expr(
+                seat_inventory::Column::HeldUntil,
+                Expr::value(None::<String>),
+            )
+            // Keep held_by_booking_id set so we can still find the seats later
+            // (e.g. for the booking detail view); just clear the held_until timestamp.
+            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .filter(seat_inventory::Column::Status.eq("held"))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
     }
 
     async fn list_trips_by_schedule_ids(

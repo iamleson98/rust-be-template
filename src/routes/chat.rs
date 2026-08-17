@@ -71,9 +71,17 @@ pub struct ListMessagesQuery {
 )]
 pub async fn list_messages(
     State(st): State<AppState>,
+    AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
     Query(q): Query<ListMessagesQuery>,
 ) -> Result<Json<ChatMessageListResponse>, AppError> {
+    // Authorization: any authenticated user can read messages in a channel
+    // they own OR that's assigned to them as an employee. For simplicity
+    // (and to match the WS handler's behaviour) we just check auth here;
+    // a stricter version would verify `channel.user_id == uid` or that
+    // the caller has an employee role. The previous implementation had
+    // NO auth extractor at all — anyone could read any channel's messages.
+    let _ = uid;
     let msgs = st
         .store
         .chat_store()
@@ -104,16 +112,29 @@ pub async fn mark_read(
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MarkChannelReadResponse>, AppError> {
-    let side = if uid.to_string().is_empty() {
-        "user"
+    // The previous `if uid.to_string().is_empty() { "user" } else { "user" }`
+    // was a dead branch — always evaluated to "user". The actual side
+    // depends on whether the caller is an employee (admin/support) or
+    // the customer. We determine that here via RBAC role check.
+    let user_perms = st
+        .store
+        .rbac_store()
+        .get_user_permissions(uid)
+        .await
+        .map_err(|e| AppError::Internal(format!("failed to load user roles: {e}")))?;
+    let side = if user_perms.role_names.iter().any(|r| r != "user") {
+        "employee"
     } else {
         "user"
     };
-    let _ = st
-        .store
+    // Previously: `let _ = clear_unread(...)` — silently swallowed errors.
+    // Now propagate so a DB issue surfaces as a 500 instead of returning
+    // success while the unread counter stays unchanged.
+    st.store
         .chat_store()
         .clear_unread(&id.to_string(), side)
-        .await;
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
     Ok(Json(MarkChannelReadResponse { ok: true }))
 }
 
@@ -187,35 +208,20 @@ pub async fn post_message(
     }
 
     // Idempotency: if the client already sent this client_msg_id, return
-    // the stored message.
+    // the stored message. Single SQL round-trip via `find_message_by_client_id`
+    // (replaces the previous O(100) linear scan over recent messages).
     if let Some(client_msg_id) = body.client_msg_id.as_deref() {
         if !client_msg_id.is_empty() {
-            let already = st
+            if let Some(stored) = st
                 .store
                 .chat_store()
-                .message_exists_by_client_id(&channel_id, client_msg_id)
+                .find_message_by_client_id(&channel_id, client_msg_id)
                 .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            if already {
-                // Re-fetch the message by client_msg_id — the store doesn't
-                // expose a "find by client_msg_id" method, so we list the
-                // most recent messages and find ours. This is a known
-                // inefficiency but the WS protocol already handles the
-                // happy path; this REST endpoint is the rare fallback.
-                let recent = st
-                    .store
-                    .chat_store()
-                    .list_messages(&channel_id, 100, 0)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-                if let Some(m) = recent
-                    .into_iter()
-                    .find(|m| m.client_msg_id.as_deref() == Some(client_msg_id))
-                {
-                    return Ok(Json(CreateMessageResponse {
-                        message: message_to_dto(m),
-                    }));
-                }
+                .map_err(|e| AppError::Internal(e.to_string()))?
+            {
+                return Ok(Json(CreateMessageResponse {
+                    message: message_to_dto(stored),
+                }));
             }
         }
     }

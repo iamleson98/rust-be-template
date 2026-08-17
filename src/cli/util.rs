@@ -36,32 +36,21 @@ pub fn db_backend_name() -> &'static str {
     }
 }
 
-/// Format a `Duration` as `1.234s` / `56ms` / `789µs` for human-friendly
-/// timing output.
-// pub fn fmt_duration(d: Duration) -> String {
-//     let nanos = d.as_nanos();
-//     if nanos >= 1_000_000_000 {
-//         format!("{:.3}s", d.as_secs_f64())
-//     } else if nanos >= 1_000_000 {
-//         format!("{:.3}ms", nanos as f64 / 1_000_000.0)
-//     } else if nanos >= 1_000 {
-//         format!("{:.3}µs", nanos as f64 / 1_000.0)
-//     } else {
-//         format!("{}ns", nanos)
-//     }
-// }
-
 /// Mask a secret string, showing only the first 4 and last 4 characters
 /// (or full string if shorter than 12 chars).
+///
+/// Uses `chars()` for boundary-safe slicing — handles multi-byte UTF-8
+/// secrets (e.g. user-supplied S3 keys with emoji) without panicking.
 pub fn mask_secret(s: &str) -> String {
     if s.is_empty() {
         return String::new();
     }
-    if s.len() < 12 {
-        return "*".repeat(s.len());
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() < 12 {
+        return "*".repeat(chars.len());
     }
-    let head = &s[..4];
-    let tail = &s[s.len() - 4..];
+    let head: String = chars.iter().take(4).collect();
+    let tail: String = chars.iter().rev().take(4).collect::<String>().chars().rev().collect();
     format!("{head}…{tail}")
 }
 

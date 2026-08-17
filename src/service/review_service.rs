@@ -182,7 +182,7 @@ impl ReviewService {
 
         // Validate rating
         if let Some(rating) = input.rating {
-            if rating < 1 || rating > 5 {
+            if !(1..=5).contains(&rating) {
                 return Err(AppError::Validation("rating must be 1-5".into()));
             }
         }
@@ -268,30 +268,11 @@ impl ReviewService {
 
     /// List available review tags (distinct tags from all reviews).
     pub async fn tags_index(&self) -> AppResult<ReviewTagsResponse> {
-        // Get all reviews and extract unique tags
-        let reviews = self
-            .store
-            .review_store()
-            .list_all_reviews()
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut tags: std::collections::HashSet<String> = std::collections::HashSet::new();
-        for r in &reviews {
-            if let Some(t) = &r.tags {
-                for tag in t.split(',') {
-                    let trimmed = tag.trim();
-                    if !trimmed.is_empty() {
-                        tags.insert(trimmed.to_string());
-                    }
-                }
-            }
-        }
-
-        let mut tag_list: Vec<String> = tags.into_iter().collect();
-        tag_list.sort();
-
-        Ok(ReviewTagsResponse { items: tag_list })
+        // Single SQL projection (only the `tags` column) instead of loading
+        // every review row in full. At 10k reviews this saves several MB
+        // of allocation per call.
+        let tags = self.store.review_store().list_distinct_tags(None).await?;
+        Ok(ReviewTagsResponse { items: tags })
     }
 
     // ── Private helpers ─────────────────────────────────────────
