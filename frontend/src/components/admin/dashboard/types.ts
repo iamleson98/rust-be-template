@@ -85,7 +85,3 @@ export type AdminReviewStats = {
 }
 
 export type DateRange = '7d' | '30d' | '90d'
-
-// Re-export `AdminBookingOut` so the dashboard's recent-bookings row type
-// stays in sync with the generated SDK shape (no hand-rolled duplicate).
-export type { AdminBookingOut as RecentBooking }

@@ -17,6 +17,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
+import { useRegister } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -51,7 +52,6 @@ export function RegisterForm() {
   const { setUser } = useApp()
   const navigate = useNavigate()
   const [showPwd, setShowPwd] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
   const form = useForm<RegisterFormValues>({
@@ -74,33 +74,28 @@ export function RegisterForm() {
   // Live password strength meter
   const pwdStrength = scorePassword(password)
 
-  const onSubmit = async (values: RegisterFormValues) => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          fullName: values.fullName,
-          email: values.email || undefined,
-          phone: values.phone || undefined,
-          password: values.password,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Đăng ký thất bại')
-        return
-      }
-      setUser(data.user)
+  const registerMut = useRegister({
+    onSuccess: (data: any) => {
+      const user = data?.user ?? data?.data?.user
+      if (!user) return
+      setUser(user)
       setSuccess(true)
       toast.success('Tài khoản đã được tạo!')
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setLoading(false)
-    }
+    },
+    onError: () => {
+      toast.error('Đăng ký thất bại. Email có thể đã được sử dụng.')
+    },
+  })
+
+  const onSubmit = (values: RegisterFormValues) => {
+    registerMut.mutate({
+      body: {
+        fullName: values.fullName,
+        email: values.email || undefined,
+        phone: values.phone || undefined,
+        password: values.password,
+      },
+    } as any)
   }
 
   if (success) {
@@ -272,10 +267,10 @@ export function RegisterForm() {
 
         <Button
           type="submit"
-          disabled={loading}
+          disabled={registerMut.isPending}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+          {registerMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
           Tạo tài khoản
           <ChevronRight className="h-4 w-4" />
         </Button>

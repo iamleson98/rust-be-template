@@ -25,18 +25,6 @@
 
 import { create } from 'zustand'
 
-/** User role. 'guest' = not logged in, 'user' = regular customer, 'employee' = staff with dashboard access. */
-export type UserRole = 'guest' | 'user' | 'employee'
-
-export type Place = {
-  id: string
-  name: string
-  type: string
-  province: string | null
-  lat: number
-  lon: number
-}
-
 // ── Search params are now owned by the /search route's validateSearch.
 // We keep the type here for components that need to read/write the
 // search form state before navigation. ──
@@ -55,20 +43,6 @@ export type SearchParams = {
 // Re-export TripResult for backward compat with components that still
 // import it from the store. New code should import from '@/lib/queries'.
 export type { TripResult } from '@/lib/api/types.gen'
-
-export type Campaign = {
-  id: string
-  code: string
-  name: string
-  type: string
-  value: number
-  scope: string
-  minSubtotal: number
-  maxDiscount: number
-  description: string | null
-  bannerColor: string
-  brandId: string | null
-}
 
 type AppState = {
   // ── Search form state (drives the SearchWidget; the URL is the source

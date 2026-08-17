@@ -105,14 +105,6 @@ export const PICKUP_TYPE_LABELS: Record<string, string> = {
   on_request: 'Theo yêu cầu',
 }
 
-export const VEHICLE_LABELS: Record<string, string> = {
-  limousine: 'Limousine',
-  sleeper: 'Giường nằm',
-  semi_sleeper: 'Giường nằm nửa',
-  standard: 'Ghế ngồi',
-  minivan: 'Minivan',
-}
-
 /** Discriminated union used by the delete-confirmation AlertDialog. */
 export type DeleteTarget =
   | { kind: 'brand'; id: string; name: string }

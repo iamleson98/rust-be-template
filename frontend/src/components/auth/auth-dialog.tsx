@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
+import { useLogin } from '@/lib/queries'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,6 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { emailSchema } from '@/lib/forms'
 import { toast } from 'sonner'
 import {
   Mail,
@@ -30,31 +29,18 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-
-// The Rust backend has no OTP endpoints. This dialog now submits to
-// `POST /api/auth/login` with `{ email, password }` (camelCase — matches
-// `LoginRequest` in `src/routes/auth.rs`). On success the backend sets
-// `access_token` + `refresh_token` httpOnly cookies; we send
-// `credentials: 'include'` so the browser keeps them for later requests.
-type Step = 'credentials' | 'success'
-
-const authSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
-})
-type AuthFormValues = z.infer<typeof authSchema>
+import { customerZodSchema, type CustomerFormValues, type CustomerStep } from './_shared'
 
 export function AuthDialog() {
   const { authOpen, setAuthOpen, user, setUser, setGuestPhone, guestPhone } = useApp()
   const navigate = useNavigate()
 
-  const [step, setStep] = useState<Step>('credentials')
-  const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<CustomerStep>('credentials')
   const [resolvedName, setResolvedName] = useState<string>('')
   const [showPwd, setShowPwd] = useState(false)
 
-  const form = useForm<AuthFormValues>({
-    resolver: zodResolver(authSchema),
+  const form = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerZodSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: { email: '', password: '' },
@@ -76,40 +62,29 @@ export function AuthDialog() {
       const t = setTimeout(() => {
         setStep('credentials')
         setResolvedName('')
-        setLoading(false)
         reset({ email: '', password: '' })
       }, 250)
       return () => clearTimeout(t)
     }
   }, [authOpen, reset])
 
-  const onSubmit = async (values: AuthFormValues) => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Đăng nhập thất bại')
-        return
-      }
-      setUser(data.user)
-      if (data.user?.phone) setGuestPhone(data.user.phone)
-      setResolvedName(data.user?.name ?? '')
+  const loginMut = useLogin({
+    onSuccess: (data: any) => {
+      const user = data?.user ?? data?.data?.user
+      if (!user) return
+      setUser(user)
+      if (user.phone) setGuestPhone(user.phone)
+      setResolvedName(user.name ?? '')
       setStep('success')
       toast.success('Đăng nhập thành công!')
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setLoading(false)
-    }
+    },
+    onError: () => {
+      toast.error('Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu.')
+    },
+  })
+
+  const onSubmit = (values: CustomerFormValues) => {
+    loginMut.mutate({ body: { email: values.email, password: values.password } } as any)
   }
 
   const close = () => {
@@ -122,6 +97,7 @@ export function AuthDialog() {
   }
 
   const displayName = resolvedName || user?.name || 'Hành khách'
+  const loading = loginMut.isPending
 
   return (
     <Dialog
@@ -152,7 +128,7 @@ export function AuthDialog() {
           </div>
           {/* Step indicator */}
           <div className="relative mt-5 flex items-center gap-1.5 text-[10px]">
-            {(['credentials', 'success'] as Step[]).map((s, i) => {
+            {(['credentials', 'success'] as CustomerStep[]).map((s, i) => {
               const active = step === s
               const done = stepIndex(step) > i
               return (
@@ -271,6 +247,6 @@ export function AuthDialog() {
   )
 }
 
-function stepIndex(s: Step): number {
+function stepIndex(s: CustomerStep): number {
   return s === 'credentials' ? 0 : 1
 }

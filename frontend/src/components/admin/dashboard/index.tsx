@@ -20,12 +20,9 @@ import { memo, useCallback, useState } from 'react'
 import { useNavigate } from '@/router'
 import {
   useStats,
-  useChatChannels,
-  useChatMessages,
-  usePostChatMessage,
   useAdminBookingExport,
-  type AdminBookingFilter,
 } from '@/lib/queries'
+import { useAdminChatWorkspace } from '@/components/admin/chat/use-admin-chat-workspace'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -42,11 +39,7 @@ import {
 import { toast } from 'sonner'
 import { AdminDashboardSkeleton } from '@/components/layout/skeletons'
 import { AdminBrandManagement } from '@/components/admin/brands'
-import type {
-  Channel,
-  ChatMessage,
-  DateRange,
-} from './types'
+import type { DateRange } from './types'
 import { downloadCSV } from './helpers'
 import { StatsOverview } from './stats-overview'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
@@ -58,34 +51,11 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const statsQuery = useStats()
-  const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [replyText, setReplyText] = useState('')
-
-  // Chat data via TanStack Query hooks
-  const channelsQuery = useChatChannels(50)
-  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
-  const messagesQuery = useChatMessages(activeChannel?.id, 50)
-  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
-
-  // Two distinct mutation instances, each with its own callbacks (defined at
-  // HOOK CREATION). mutate() is then called with only the variables.
-  // - postReplyMut: clears the input + toasts success/error
-  // - postTicketCardMut: silently swallows errors (booking already succeeded)
-  const postReplyMut = usePostChatMessage({
-    onSuccess: () => {
-      setReplyText('')
-      toast.success('Đã gửi phản hồi')
-    },
-    onError: () => {
-      toast.error('Không thể gửi tin nhắn')
-    },
-  })
-  const postTicketCardMut = usePostChatMessage({
-    onError: () => {
-      // Silently fail — the booking was already created
-    },
-  })
   const exportQuery = useAdminBookingExport({})
+
+  // Shared chat workspace (channels + messages + post-reply/ticket-card
+  // mutations + handlers). Identical to the standalone /admin/chat page.
+  const chat = useAdminChatWorkspace()
 
   const handleExportCSV = useCallback(async () => {
     try {
@@ -100,35 +70,6 @@ export const AdminDashboard = memo(function AdminDashboard() {
       toast.error('Xuất CSV thất bại', { description: e?.message ?? 'Vui lòng thử lại' })
     }
   }, [exportQuery])
-
-  const sendReply = useCallback(() => {
-    if (!replyText.trim() || !activeChannel) return
-    postReplyMut.mutate({
-      path: { id: activeChannel.id },
-      body: { content: replyText.trim(), kind: 'text' },
-    } as any)
-  }, [replyText, activeChannel, postReplyMut])
-
-  const blockChannel = useCallback((channelId: string) => {
-    toast.success('Đã chặn cuộc trò chuyện', { description: 'Khách sẽ không thể gửi tin nhắn mới' })
-    if (activeChannel?.id === channelId) setActiveChannel(null)
-  }, [activeChannel])
-
-  const sendTicketCard = useCallback(
-    (payload: { bookingCode: string }) => {
-      if (!activeChannel) return
-      const attachments = JSON.stringify(payload)
-      postTicketCardMut.mutate({
-        path: { id: activeChannel.id },
-        body: {
-          content: `Đã đặt vé ${payload.bookingCode}`,
-          kind: 'ticket',
-          attachments,
-        },
-      } as any)
-    },
-    [activeChannel, postTicketCardMut],
-  )
 
   if (statsQuery.isLoading) {
     return <AdminDashboardSkeleton />
@@ -201,16 +142,16 @@ export const AdminDashboard = memo(function AdminDashboard() {
             {/* Chat queue + workspace */}
             <TabsContent value="chat" className="space-y-4">
               <ChatPanel
-                channels={channels}
-                activeChannel={activeChannel}
-                chatMessages={chatMessages}
-                replyText={replyText}
-                sending={postReplyMut.isPending}
-                onOpenChannel={setActiveChannel}
-                onSendReply={sendReply}
-                onBlockChannel={blockChannel}
-                onSetReplyText={setReplyText}
-                onSendTicketCard={sendTicketCard}
+                channels={chat.channels}
+                activeChannel={chat.activeChannel}
+                chatMessages={chat.chatMessages}
+                replyText={chat.replyText}
+                sending={chat.sending}
+                onOpenChannel={chat.setActiveChannel}
+                onSendReply={chat.sendReply}
+                onBlockChannel={chat.blockChannel}
+                onSetReplyText={chat.setReplyText}
+                onSendTicketCard={chat.sendTicketCard}
                 onViewTicket={(code) => {
                   // Switch to the Tickets tab + open the detail dialog.
                   // We do this via a custom event so the TicketsPanel can

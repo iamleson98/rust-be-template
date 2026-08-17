@@ -22,8 +22,10 @@ export function slugify(input: string): string {
     .replace(/^-|-$/g, '')
 }
 
-/** Formats a duration in minutes as `HhMM` (e.g. `2h15`, `1h00`, `0h45`). */
-export function formatDuration(min: number): string {
+/** Formats a duration in minutes as `HhMM` (e.g. `2h15`, `1h00`, `0h45`).
+ *  Distinct from the customer-facing `formatDuration` in `@/lib/types`,
+ *  which produces verbose Vietnamese text like "2 giờ 15 phút". */
+export function formatDurationShort(min: number): string {
   if (!min) return '—'
   const h = Math.floor(min / 60)
   const m = min % 60

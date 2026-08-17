@@ -16,6 +16,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
+import { useEmployeeLogin } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -45,7 +46,6 @@ export function EmployeeLogin() {
   const { setUser } = useApp()
   const navigate = useNavigate()
   const [showPwd, setShowPwd] = useState(false)
-  const [loading, setLoading] = useState(false)
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeZodSchema),
@@ -55,28 +55,21 @@ export function EmployeeLogin() {
   })
   const { control, handleSubmit } = form
 
-  const onSubmit = async (values: EmployeeFormValues) => {
-    setLoading(true)
-    try {
-      const res = await fetch('/api/auth/employee-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email: values.email, password: values.password }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Đăng nhập thất bại')
-        return
-      }
-      setUser(data.user)
-      toast.success(`Chào mừng ${data.user.name}!`)
+  const loginMut = useEmployeeLogin({
+    onSuccess: (data: any) => {
+      const user = data?.user ?? data?.data?.user
+      if (!user) return
+      setUser(user)
+      toast.success(`Chào mừng ${user.name}!`)
       navigate({ to: '/admin' })
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setLoading(false)
-    }
+    },
+    onError: () => {
+      toast.error('Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu.')
+    },
+  })
+
+  const onSubmit = (values: EmployeeFormValues) => {
+    loginMut.mutate({ body: { email: values.email, password: values.password } } as any)
   }
 
   return (
@@ -139,10 +132,10 @@ export function EmployeeLogin() {
         />
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loginMut.isPending}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />}
+          {loginMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />}
           Đăng nhập nhân viên
           <ChevronRight className="h-4 w-4" />
         </Button>

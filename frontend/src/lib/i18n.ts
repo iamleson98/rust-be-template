@@ -145,22 +145,9 @@ const en: TranslationMap = {
 const dictionaries: Record<'vi' | 'en', TranslationMap> = { vi, en }
 
 /**
- * Translate a key using the current language from store.
- * Non-reactive — use `useT()` in components for language-change reactivity.
- * Reads from store state (defaults to 'vi' on both server and first client render,
- * ensuring no hydration mismatch).
- */
-export function t(key: string): string {
-  const lang = useApp.getState().lang
-  return dictionaries[lang]?.[key] ?? key
-}
-
-/**
  * Hook-based translation — use this in React components for reactivity.
  */
 export function useT() {
   const { lang } = useApp()
   return (key: string): string => dictionaries[lang]?.[key] ?? key
 }
-
-export { vi, en, dictionaries }

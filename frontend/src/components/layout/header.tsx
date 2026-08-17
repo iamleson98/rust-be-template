@@ -4,6 +4,7 @@ import { memo, lazy, Suspense, useCallback } from 'react'
 import { useApp } from '@/lib/store'
 import { useNavigate, useRouterState } from '@/router'
 import { useT } from '@/lib/i18n'
+import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, MapPinned, Briefcase } from 'lucide-react'
@@ -17,8 +18,6 @@ import {
   DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
-import { useMutation } from '@tanstack/react-query'
-import { logoutMutation } from '@/lib/api/@tanstack/react-query.gen'
 
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
@@ -46,16 +45,15 @@ export const Header = memo(function Header() {
     toast.success(newLang === 'vi' ? 'Đã chuyển sang Tiếng Việt' : 'Switched to English')
   }, [setLang])
 
-  const LogoutMut = useMutation({
-    ...logoutMutation(),
+  const logoutMut = useLogout({
     onSuccess: () => {
-      setUser(null);
-      toast.success("Đã đăng xuất");
+      setUser(null)
+      toast.success('Đã đăng xuất')
       navigate({ to: '/' })
     },
     onError: () => {
-      toast.error("Failed to logout")
-    }
+      toast.error('Failed to logout')
+    },
   })
 
   const initials = (user?.name ?? '?')
@@ -233,7 +231,7 @@ export const Header = memo(function Header() {
                   <UserCircle className="h-4 w-4" /> Trang cá nhân
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => LogoutMut.mutate({})} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
+                <DropdownMenuItem onClick={() => logoutMut.mutate()} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
                   <LogOut className="h-4 w-4" /> Đăng xuất
                 </DropdownMenuItem>
               </DropdownMenuContent>
