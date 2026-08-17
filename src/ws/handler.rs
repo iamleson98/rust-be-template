@@ -147,7 +147,7 @@ pub async fn handle_socket(
     use futures::StreamExt as _;
 
     let (sink, mut stream) = socket.split();
-    let (tx, mut rx) = mpsc::channel::<String>(limits.channel_cap.max(1));
+    let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(limits.channel_cap.max(1));
 
     let sid = hub().register(user.clone(), ip.clone(), tx);
 
@@ -175,7 +175,16 @@ pub async fn handle_socket(
             loop {
                 tokio::select! {
                     Some(msg) = rx.recv() => {
-                        if sink.send(Message::Text(msg.into())).await.is_err() {
+                        // Empty Bytes = close sentinel from close_all().
+                        // Non-empty = a pre-serialised JSON text frame.
+                        if msg.is_empty() {
+                            break;
+                        }
+                        // Convert Bytes → &str → Utf8Bytes (axum's ws Text
+                        // type). This is a zero-copy deref, no allocation.
+                        let text = std::str::from_utf8(&msg)
+                            .unwrap_or("");
+                        if sink.send(Message::Text(text.into())).await.is_err() {
                             break;
                         }
                     }

@@ -18,15 +18,16 @@ use tokio::sync::mpsc;
 use crate::auth::SessionUser;
 
 /// A connected client's outbound channel. We send **pre-serialised JSON
-/// strings** so a broadcast serialises once and clones the `String` to each
-/// recipient — zero per-recipient re-encoding cost.
+/// as `bytes::Bytes`** so a broadcast serialises once and shares the
+/// underlying buffer via refcount (`Bytes::clone` is a single atomic
+/// increment — zero per-recipient heap allocation or memcpy).
 ///
 /// **Bounded** (capacity `ws_channel_capacity`, default 256) so a slow
 /// consumer cannot grow the queue without bound. When the channel is full,
 /// `try_send` fails and we drop the message; if the queue stays saturated
 /// past `ws_slow_consumer_threshold`, the heartbeat sweep force-closes the
 /// socket — protecting server memory under broadcast storms.
-pub type ClientTx = mpsc::Sender<String>;
+pub type ClientTx = mpsc::Sender<bytes::Bytes>;
 
 /// Everything we need to know about a live socket.
 pub struct Session {
@@ -264,13 +265,16 @@ impl ChatHub {
     ///
     /// Returns the number of recipients the message was delivered to.
     pub fn broadcast_to_room_raw(&self, channel_id: &str, payload: &str) -> usize {
+        // Pre-serialise once; `Bytes::clone()` per recipient is just an
+        // atomic refcount bump — no heap allocation, no memcpy.
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
         let mut delivered = 0;
         if let Some(set) = self.rooms.get(channel_id) {
             for sid in set.iter() {
                 if let Some(sess) = self.sessions.get(&sid) {
                     // try_send: non-blocking. On Full, drop the message (slow
                     // consumer). On Closed, the read loop will reap it.
-                    if sess.tx.try_send(payload.to_string()).is_ok() {
+                    if sess.tx.try_send(bytes.clone()).is_ok() {
                         delivered += 1;
                     }
                 }
@@ -294,13 +298,14 @@ impl ChatHub {
         except_id: u64,
     ) {
         let payload = serde_json::to_string(msg).unwrap_or_default();
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
         if let Some(set) = self.rooms.get(channel_id) {
             for sid in set.iter() {
                 if *sid == except_id {
                     continue;
                 }
                 if let Some(sess) = self.sessions.get(&sid) {
-                    let _ = sess.tx.try_send(payload.clone());
+                    let _ = sess.tx.try_send(bytes.clone());
                 }
             }
         }
@@ -311,7 +316,7 @@ impl ChatHub {
     pub fn send_to(&self, id: u64, msg: &serde_json::Value) {
         if let Some(sess) = self.sessions.get(&id) {
             if let Ok(s) = serde_json::to_string(msg) {
-                let _ = sess.tx.try_send(s);
+                let _ = sess.tx.try_send(bytes::Bytes::from(s));
             }
         }
     }
@@ -319,8 +324,9 @@ impl ChatHub {
     /// Broadcast a raw pre-serialised payload to EVERY live socket. Used by
     /// the graceful-shutdown path to deliver a `system:shutdown` notice.
     pub fn broadcast_all(&self, payload: &str) {
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
         for entry in self.sessions.iter() {
-            let _ = entry.tx.try_send(payload.to_string());
+            let _ = entry.tx.try_send(bytes.clone());
         }
     }
 
@@ -329,8 +335,8 @@ impl ChatHub {
     pub fn close_all(&self) {
         for entry in self.sessions.iter() {
             // A close sentinel is sent by pushing an empty payload; the
-            // write pump treats an empty string as a close trigger.
-            let _ = entry.tx.try_send(String::new());
+            // write pump treats an empty Bytes as a close trigger.
+            let _ = entry.tx.try_send(bytes::Bytes::new());
         }
     }
 
@@ -576,7 +582,7 @@ impl ChatHub {
     /// Used by the drain path to push a `system: shutting down` notice.
     pub fn send_raw_to(&self, id: u64, payload: &str) {
         if let Some(sess) = self.sessions.get(&id) {
-            let _ = sess.tx.try_send(payload.to_string());
+            let _ = sess.tx.try_send(bytes::Bytes::copy_from_slice(payload.as_bytes()));
         }
     }
 }
@@ -621,7 +627,7 @@ mod tests {
         }
     }
 
-    fn make_tx() -> (ClientTx, tokio::sync::mpsc::Receiver<String>) {
+    fn make_tx() -> (ClientTx, tokio::sync::mpsc::Receiver<bytes::Bytes>) {
         // Bounded channel (matches production `ClientTx`). Capacity 64 is
         // ample for tests — the broadcast tests only send a handful of msgs.
         mpsc::channel(64)
@@ -801,8 +807,8 @@ mod tests {
 
         let m1 = rx1.try_recv().expect("u1 must receive");
         let m2 = rx2.try_recv().expect("u2 must receive");
-        assert!(m1.contains("ping"));
-        assert!(m2.contains("ping"));
+        assert!(std::str::from_utf8(&m1).unwrap_or("").contains("ping"));
+        assert!(std::str::from_utf8(&m2).unwrap_or("").contains("ping"));
     }
 
     #[test]
@@ -827,7 +833,7 @@ mod tests {
         // id1 must NOT receive; id2 must receive.
         assert!(rx1.try_recv().is_err(), "excluded socket must not receive");
         let m2 = rx2.try_recv().expect("u2 must receive");
-        assert!(m2.contains("ping"));
+        assert!(std::str::from_utf8(&m2).unwrap_or("").contains("ping"));
     }
 
     #[test]
@@ -837,7 +843,7 @@ mod tests {
         let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
         h.send_to(id, &serde_json::json!({ "type": "hello" }));
         let m = rx.try_recv().expect("must receive");
-        assert!(m.contains("hello"));
+        assert!(std::str::from_utf8(&m).unwrap_or("").contains("hello"));
     }
 
     // ── user_still_in_room ──────────────────────────────────────
@@ -1144,6 +1150,6 @@ mod tests {
         assert_eq!(n, 2, "both members must receive");
         // And the message actually arrived.
         let m = rx2.try_recv().expect("u2 must receive");
-        assert!(m.contains("ping"));
+        assert!(std::str::from_utf8(&m).unwrap_or("").contains("ping"));
     }
 }
