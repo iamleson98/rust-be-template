@@ -47,7 +47,7 @@ pub struct ChatHub {
     rooms: DashMap<String, DashSet<u64>>,
     online_employees: OnlineEmployees,
     ip_conns: DashMap<String, std::sync::atomic::AtomicUsize>,
-    idempotency: DashMap<String, (Instant, Option<String>)>,
+    idempotency: DashMap<String, (Instant, Option<String>)>,  // (stored_at, value)
     next_id: std::sync::atomic::AtomicU64,
     /// Total live sessions across all IPs (atomic for O(1) admission checks).
     global_conns: AtomicUsize,
@@ -458,7 +458,7 @@ impl ChatHub {
         match self.idempotency.entry(client_msg_id.to_string()) {
             Entry::Occupied(e) => {
                 // Already claimed/stored — check TTL.
-                let (_, stored_at, val) = e.get();
+                let (stored_at, val) = e.get();
                 if stored_at.elapsed() > Self::IDEM_TTL {
                     // Stale — overwrite with a fresh claim.
                     drop(e);
@@ -490,12 +490,11 @@ impl ChatHub {
         let now = Instant::now();
         let mut removed = 0usize;
         for entry in self.idempotency.iter() {
-            let (_, stored_at, _) = entry.value();
-            if now.duration_since(*stored_at) > Self::IDEM_TTL {
-                if self.idempotency.remove(entry.key()).is_some() {
+            let (stored_at, _) = entry.value();
+            if now.duration_since(*stored_at) > Self::IDEM_TTL
+                && self.idempotency.remove(entry.key()).is_some() {
                     removed += 1;
                 }
-            }
         }
         if removed > 0 {
             tracing::debug!(removed, remaining = self.idempotency.len(), "idem_gc swept expired entries");
@@ -532,11 +531,10 @@ impl ChatHub {
         let ttl = self.channel_cache_ttl;
         let mut purged = 0;
         for entry in self.channel_exists_cache.iter() {
-            if now.duration_since(*entry.value()) >= ttl {
-                if self.channel_exists_cache.remove(entry.key()).is_some() {
+            if now.duration_since(*entry.value()) >= ttl
+                && self.channel_exists_cache.remove(entry.key()).is_some() {
                     purged += 1;
                 }
-            }
         }
         if purged > 0 {
             tracing::debug!(

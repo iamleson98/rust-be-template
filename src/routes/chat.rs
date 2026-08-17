@@ -218,7 +218,6 @@ pub async fn post_message(
                 return Ok(Json(CreateMessageResponse {
                     message: message_to_dto(stored),
                 }));
-                }
             }
         }
     }

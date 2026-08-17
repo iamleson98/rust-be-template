@@ -54,7 +54,6 @@ impl PlaceService {
     /// List the most popular places (for the map view).
     pub async fn list(&self, limit: u64, offset: u64) -> AppResult<PlaceListResponse> {
         let limit = limit.clamp(1, 200);
-        let offset = offset.max(0);
         let places = self
             .store
             .place_store()

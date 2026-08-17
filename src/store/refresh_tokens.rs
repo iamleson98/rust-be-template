@@ -92,8 +92,6 @@ impl RefreshTokenStore for DbRefreshTokenStore {
         // Atomic conditional UPDATE — only matches if the token is still
         // unrevoked + unexpired. Returns the user_id of the matched row
         // (single round trip; no TOCTOU window between check + revoke).
-        use sea_orm::sea_query::Alias;
-        let _ = Alias::new(()); // ensure Alias is in scope even if unused
         let now_iso = chrono::Utc::now();
         let res = refresh_tokens::Entity::update_many()
             .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))

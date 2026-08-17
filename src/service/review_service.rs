@@ -182,7 +182,7 @@ impl ReviewService {
 
         // Validate rating
         if let Some(rating) = input.rating {
-            if rating < 1 || rating > 5 {
+            if !(1..=5).contains(&rating) {
                 return Err(AppError::Validation("rating must be 1-5".into()));
             }
         }

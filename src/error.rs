@@ -118,18 +118,18 @@ impl IntoResponse for AppError {
             message: self.to_string(),
         };
         // Differentiate log level by status family:
-        // - 4xx (client errors): debug — these are expected and noisy at warn
-        // - 5xx (server errors): error — real signal for ops
+        // - 5xx (server errors) excluding 503: error — real signal for ops
         // - 429/503 (overload): warn — temporary, often recoverable
+        // - 4xx (client errors): debug — these are expected and noisy at warn
         match status.as_u16() {
-            500..=599 => tracing::error!(
+            429 | 503 => tracing::warn!(
                 target: "app_error",
                 kind = body.error,
                 status = status.as_u16(),
                 "{}",
                 body.message
             ),
-            429 | 503 => tracing::warn!(
+            500..=599 => tracing::error!(
                 target: "app_error",
                 kind = body.error,
                 status = status.as_u16(),

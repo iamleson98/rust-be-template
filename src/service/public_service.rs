@@ -349,6 +349,7 @@ impl PublicService {
     ///
     /// This is a simplified version that uses SeaORM queries instead of
     /// the raw SQL JOIN in booking-rs. It searches by place names and date.
+    #[allow(clippy::too_many_arguments)]
     pub async fn search_trips(
         &self,
         from: &str,
@@ -665,10 +666,13 @@ impl PublicService {
                 Ok(None)
             }
         };
-        let pickup_points_fut = self
-            .store
-            .route_store()
-            .list_pickup_points_by_route(&route.id.to_string());
+        // Need let bindings so the temporary String + the temporary
+        // `&RouteStore` borrow live long enough for the future (which
+        // borrows them) to be polled.
+        let route_id_str = route.id.to_string();
+        let route_store = self.store.route_store();
+        let pickup_points_fut = route_store
+            .list_pickup_points_by_route(&route_id_str);
 
         let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
             brand_fut,

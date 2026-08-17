@@ -770,6 +770,7 @@ impl AdminService {
     // ── Booking management ──────────────────────────────────────
 
     /// List bookings with admin filters.
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_bookings(
         &self,
         status: Option<&str>,
@@ -920,13 +921,16 @@ impl AdminService {
 
         // Validate the transition
         if !body.force {
-            let allowed = match (existing.status.as_str(), canonical.as_str()) {
-                ("pending", "confirmed") | ("pending", "cancelled") => true,
-                ("confirmed", "completed") | ("confirmed", "cancelled") => true,
-                ("completed", "cancelled") | ("refunded", "cancelled") => true,
-                ("cancelled", "refunded") => true,
-                _ => false,
-            };
+            let allowed = matches!(
+                (existing.status.as_str(), canonical.as_str()),
+                ("pending", "confirmed")
+                    | ("pending", "cancelled")
+                    | ("confirmed", "completed")
+                    | ("confirmed", "cancelled")
+                    | ("completed", "cancelled")
+                    | ("refunded", "cancelled")
+                    | ("cancelled", "refunded")
+            );
             if !allowed {
                 return Err(AppError::BadRequest(format!(
                     "cannot transition from '{}' to '{}'. Use force=true for admin override.",

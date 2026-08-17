@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
@@ -30,26 +31,6 @@ pub struct Config {
     pub ws: WsConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            database: DatabaseConfig::default(),
-            jwt: JwtConfig::default(),
-            cookie: CookieConfig::default(),
-            cache: CacheConfig::default(),
-            storage: StorageConfig::default(),
-            worker: WorkerConfig::default(),
-            rate_limit: RateLimitConfig::default(),
-            static_files: StaticFilesConfig::default(),
-            cors: CorsConfig::default(),
-            zeroclaw: ZeroClawConfig::default(),
-            audio_call: AudioCallConfig::default(),
-            search: SearchConfig::default(),
-            ws: WsConfig::default(),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
@@ -450,6 +431,7 @@ impl AudioCallConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct SearchConfig {
     /// Directory containing the Tantivy place index. If the directory does
     /// not exist or is empty, place search/reverse-geocode return 503.
@@ -458,14 +440,6 @@ pub struct SearchConfig {
     pub osm_pbf_path: Option<PathBuf>,
 }
 
-impl Default for SearchConfig {
-    fn default() -> Self {
-        Self {
-            index_dir: None,
-            osm_pbf_path: None,
-        }
-    }
-}
 
 // ────────────────────────────────────────────────────────────────
 //  WebSocket chat hub

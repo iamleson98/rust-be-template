@@ -276,8 +276,8 @@ impl PriceAlertService {
 /// Must be 10 digits after normalization (starting with 0).
 fn is_valid_vn_phone(phone: &str) -> bool {
     let digits: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
-    let normalized = if digits.starts_with("84") {
-        format!("0{}", &digits[2..])
+    let normalized = if let Some(rest) = digits.strip_prefix("84") {
+        format!("0{rest}")
     } else {
         digits
     };

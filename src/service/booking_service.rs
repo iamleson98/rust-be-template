@@ -517,7 +517,7 @@ impl BookingService {
             .iter()
             .filter(|p| p.passenger_type == "child")
             .count() as i64;
-        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price as i64).collect();
+        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price).collect();
         let subtotal: i64 = seat_prices.iter().sum();
 
         // Campaign discount
@@ -1142,10 +1142,10 @@ impl BookingService {
 /// Vietnamese phone normalization.
 pub fn normalize_phone(phone: &str) -> String {
     let p: String = phone.chars().filter(|c| !c.is_whitespace()).collect();
-    if p.starts_with('0') {
-        format!("+84{}", &p[1..])
-    } else if p.starts_with("84") {
-        format!("+{}", p)
+    if let Some(rest) = p.strip_prefix('0') {
+        format!("+84{rest}")
+    } else if let Some(rest) = p.strip_prefix("84") {
+        format!("+84{rest}")
     } else {
         p
     }
@@ -1184,7 +1184,7 @@ pub fn fmt_vnd(n: i64) -> String {
     let len = bytes.len();
     let mut out = String::with_capacity(s.len() + s.len() / 3);
     for (i, b) in bytes.iter().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
+        if i > 0 && (len - i).is_multiple_of(3) {
             out.push('.');
         }
         out.push(*b as char);
