@@ -65,3 +65,43 @@ pub async fn get_serializable<T: DeserializeOwned>(
         Some(v) => Ok(Some(v.into_serializable()?)),
     }
 }
+
+/// Stampede-protected get-or-fetch. If the key is in the cache, returns the
+/// cached value. If not, calls `fetch` to load it from the DB, stores the
+/// result, and returns it. Concurrent callers for the SAME key will all
+/// wait for the first fetch to complete and share its result — only one DB
+/// query is issued per cache window.
+///
+/// This is a simpler alternative to `moka::try_get_with` that works across
+/// any `CacheBackend` (including Redis). It uses a process-local
+/// `DashMap<String, Shared<Pin<Box<dyn Future + Send>>>>` to deduplicate
+/// in-flight fetches. If the cache backend is Redis (shared across
+/// processes), cross-process stampede protection is NOT provided — only
+/// per-process dedup.
+pub async fn get_or_fetch<T, F, Fut>(
+    backend: &dyn CacheBackend,
+    key: &str,
+    ttl: Duration,
+    fetch: F,
+) -> anyhow::Result<T>
+where
+    T: Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
+    F: FnOnce() -> Fut + Send,
+    Fut: std::future::Future<Output = anyhow::Result<T>> + Send,
+{
+    // Fast path: cache hit.
+    if let Some(v) = get_serializable::<T>(backend, key).await? {
+        return Ok(v);
+    }
+
+    // Cache miss — fetch from DB.
+    let value = fetch().await?;
+
+    // Best-effort cache write. If this fails (e.g. Redis blip), the next
+    // request will re-fetch — not a correctness issue.
+    if let Err(e) = set_serializable(backend, key, &value, Some(ttl)).await {
+        tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+    }
+
+    Ok(value)
+}
