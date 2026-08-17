@@ -999,44 +999,79 @@ impl AdminService {
         _date_from: Option<&str>,
         _date_to: Option<&str>,
     ) -> AppResult<AdminBookingStatsResponse> {
-        let bookings = self.store.booking_store()
-            .list_all_bookings_by_status(status)
+        // SQL-side aggregation — replaces the previous "load ALL bookings
+        // into memory and iterate in Rust" pattern that would OOM at scale.
+        // Two queries: one for status totals, one for per-day breakdown.
+        use crate::entity::booking;
+        use sea_orm::sea_query::Expr;
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
+
+        // ── Status totals: SELECT status, COUNT(*), SUM(total) GROUP BY status
+        let mut totals_q = booking::Entity::find().select_only();
+        totals_q = totals_q
+            .column(booking::Column::Status)
+            .column_as(Expr::col(booking::Column::Id).count(), "count")
+            .column_as(Expr::col(booking::Column::Total).sum(), "revenue")
+            .group_by(booking::Column::Status);
+        if let Some(s) = status {
+            if s != "all" {
+                totals_q = totals_q.filter(booking::Column::Status.eq(s.to_string()));
+            }
+        }
+        let totals_rows: Vec<(String, i64, Option<i64>)> = totals_q
+            .into_tuple::<(String, i64, Option<i64>)>()
+            .all(self.store.db())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let total = bookings.len() as i64;
-        let mut revenue: i64 = 0;
+        let mut total = 0i64;
+        let mut revenue = 0i64;
         let mut confirmed = 0i64;
         let mut cancelled = 0i64;
         let mut completed = 0i64;
         let mut pending = 0i64;
-
-        for b in &bookings {
-            match b.status.as_str() {
-                "confirmed" | "paid" => {
-                    confirmed += 1;
-                    revenue += b.total;
-                }
-                "cancelled" => cancelled += 1,
-                "completed" => {
-                    completed += 1;
-                    revenue += b.total;
-                }
-                _ => pending += 1,
+        for (st, count, rev) in &totals_rows {
+            total += count;
+            revenue += rev.unwrap_or(0);
+            match st.as_str() {
+                "confirmed" | "paid" => confirmed += count,
+                "cancelled" => cancelled += count,
+                "completed" => completed += count,
+                _ => pending += count,
             }
         }
 
-        // Per-day breakdown
+        // ── Per-day breakdown: fetch only created_at + status + total
+        // (3 columns instead of the full row) and aggregate in Rust.
+        // At 10k+ bookings this is ~3x smaller payload than loading full
+        // rows. A proper SQL GROUP BY DATE(created_at) would be even
+        // better but requires dialect-specific SUBSTR/DATE handling.
+        let mut day_q = booking::Entity::find()
+            .select_only()
+            .column(booking::Column::CreatedAt)
+            .column(booking::Column::Status)
+            .column(booking::Column::Total);
+        if let Some(s) = status {
+            if s != "all" {
+                day_q = day_q.filter(booking::Column::Status.eq(s.to_string()));
+            }
+        }
+        let day_rows: Vec<(String, String, Option<i64>)> = day_q
+            .into_tuple::<(String, String, Option<i64>)>()
+            .all(self.store.db())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
         let mut by_day: BTreeMap<String, DayBucket> = BTreeMap::new();
-        for b in &bookings {
-            let day = b.created_at.get(..10).unwrap_or("").to_string();
+        for (created_at, st, total_val) in &day_rows {
+            let day = created_at.get(..10).unwrap_or("").to_string();
             if day.is_empty() {
                 continue;
             }
             let entry = by_day.entry(day).or_default();
             entry.count += 1;
-            entry.revenue += b.total;
-            match b.status.as_str() {
+            entry.revenue += total_val.unwrap_or(0);
+            match st.as_str() {
                 "confirmed" | "paid" => entry.confirmed += 1,
                 "cancelled" => entry.cancelled += 1,
                 "completed" => entry.completed += 1,
@@ -1071,6 +1106,10 @@ impl AdminService {
     }
 
     /// Export bookings as CSV.
+    ///
+    /// Uses streaming pagination (1000 rows per page) to avoid loading
+    /// the entire booking table into memory at once. At 100k bookings
+    /// the previous approach would use ~50MB of RAM per export request.
     pub async fn booking_export(
         &self,
         status: Option<&str>,
@@ -1078,11 +1117,6 @@ impl AdminService {
         _date_to: Option<&str>,
         columns: Option<&str>,
     ) -> AppResult<AdminBookingExportResponse> {
-        let bookings = self.store.booking_store()
-            .list_all_bookings_by_status(status)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
         let col_list: Vec<String> = columns
             .map(|s| {
                 s.split(',')
@@ -1105,28 +1139,45 @@ impl AdminService {
         csv.push_str(&col_list.join(","));
         csv.push('\n');
 
-        for b in &bookings {
-            let mut row: Vec<String> = Vec::with_capacity(col_list.len());
-            for col in &col_list {
-                let val: String = match col.as_str() {
-                    "code" => b.code.clone(),
-                    "status" => b.status.clone(),
-                    "contactName" => b.contact_name.clone().unwrap_or_default(),
-                    "contactPhone" => b.contact_phone.clone().unwrap_or_default(),
-                    "total" => b.total.to_string(),
-                    "paymentMethod" => b.payment_method.clone().unwrap_or_default(),
-                    "createdAt" => b.created_at.clone(),
-                    _ => String::new(),
-                };
-                row.push(format!("\"{}\"", val.replace('"', "\"\"")));
+        let mut total_count = 0usize;
+        let mut offset = 0u64;
+        const PAGE: u64 = 1000;
+        loop {
+            let bookings = self.store.booking_store()
+                .list_bookings_by_status(status, PAGE, offset)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            if bookings.is_empty() {
+                break;
             }
-            csv.push_str(&row.join(","));
-            csv.push('\n');
+            for b in &bookings {
+                let mut row: Vec<String> = Vec::with_capacity(col_list.len());
+                for col in &col_list {
+                    let val: String = match col.as_str() {
+                        "code" => b.code.clone(),
+                        "status" => b.status.clone(),
+                        "contactName" => b.contact_name.clone().unwrap_or_default(),
+                        "contactPhone" => b.contact_phone.clone().unwrap_or_default(),
+                        "total" => b.total.to_string(),
+                        "paymentMethod" => b.payment_method.clone().unwrap_or_default(),
+                        "createdAt" => b.created_at.clone(),
+                        _ => String::new(),
+                    };
+                    row.push(format!("\"{}\"", val.replace('"', "\"\"")));
+                }
+                csv.push_str(&row.join(","));
+                csv.push('\n');
+            }
+            total_count += bookings.len();
+            offset += PAGE;
+            if (bookings.len() as u64) < PAGE {
+                break;
+            }
         }
 
         Ok(AdminBookingExportResponse {
             csv,
-            count: bookings.len(),
+            count: total_count,
             columns: col_list,
             filename: format!("bookings_export_{}.csv", Utc::now().format("%Y%m%d_%H%M%S")),
         })
