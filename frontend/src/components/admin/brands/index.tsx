@@ -1,5 +1,4 @@
 'use client'
-
 /**
  * AdminBrandManagement — master-detail orchestrator for the
  * Hãng xe / Tuyến / Lịch / Điểm đóntrả CRUD UI.
@@ -21,9 +20,7 @@
  * are sent via the matching `useDeleteAdmin*` mutations, which invalidate
  * the corresponding list query (no manual refetch needed).
  */
-
 import { useCallback, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,8 +43,8 @@ import {
   useDeleteAdminRoute,
   useDeleteAdminSchedule,
   useDeleteAdminPickupPoint,
+  usePlacesList,
 } from '@/lib/queries'
-import { queryKeys } from '@/lib/query-client'
 import type {
   Brand,
   Place,
@@ -67,41 +64,27 @@ import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
 import { PickupPointFormDialog } from '@/components/admin/pickup-points/pickup-form'
-
 export function AdminBrandManagement() {
   const [brandSearch, setBrandSearch] = useState('')
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
-
   const [routeSearch, setRouteSearch] = useState('')
   const [selectedRoute, setSelectedRoute] = useState<RouteItem | null>(null)
-
   const [mobileView, setMobileView] = useState<'brands' | 'routes' | 'details'>('brands')
-
   /* --- queries: brands, places (parallel, on mount) --- */
   const brandsQuery = useAdminBrands()
   const brands: Brand[] = (brandsQuery.data?.items ?? []) as Brand[]
-
-  const placesQuery = useQuery({
-    queryKey: queryKeys.places.all,
-    queryFn: () => fetch('/api/places?limit=200', { credentials: 'include' }).then(r => r.json()),
-    staleTime: 10 * 60 * 1000,
-  })
-  const places: Place[] = placesQuery.data?.items ?? []
-
+  const placesQuery = usePlacesList(200)
+  const places: Place[] = (placesQuery.data as any)?.items ?? []
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
   const routesQuery = useAdminRoutes(selectedBrand?.id)
   const routes: RouteItem[] = (routesQuery.data?.items ?? []) as unknown as RouteItem[]
-
   const busLayoutsQuery = useAdminBusLayouts(selectedBrand?.id)
   const busLayouts: BusLayout[] = (busLayoutsQuery.data?.items ?? []) as unknown as BusLayout[]
-
   /* --- queries: schedules + pickup points (when a route is selected) --- */
   const schedulesQuery = useAdminSchedules(selectedRoute?.id)
   const schedules: Schedule[] = (schedulesQuery.data?.items ?? []) as unknown as Schedule[]
-
   const pickupPointsQuery = useAdminPickupPoints(selectedRoute?.id)
   const pickupPoints: PickupPoint[] = (pickupPointsQuery.data?.items ?? []) as unknown as PickupPoint[]
-
   /* --- selection handlers --- */
   const selectBrand = useCallback((brand: Brand | null) => {
     setSelectedBrand(brand)
@@ -110,14 +93,12 @@ export function AdminBrandManagement() {
       setMobileView('routes')
     }
   }, [])
-
   const selectRoute = useCallback((route: RouteItem | null) => {
     setSelectedRoute(route)
     if (route) {
       setMobileView('details')
     }
   }, [])
-
   /* --- derived: filtered lists (search box) --- */
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
@@ -129,7 +110,6 @@ export function AdminBrandManagement() {
         (b.contactPhone ?? '').includes(q),
     )
   }, [brands, brandSearch])
-
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.trim().toLowerCase()
     if (!q) return routes
@@ -141,13 +121,11 @@ export function AdminBrandManagement() {
         (r.endLocation?.name ?? '').toLowerCase().includes(q),
     )
   }, [routes, routeSearch])
-
   /* --- mutations: delete (one per resource kind, auto-invalidates) --- */
   const deleteBrandMutation = useDeleteAdminBrand()
   const deleteRouteMutation = useDeleteAdminRoute()
   const deleteScheduleMutation = useDeleteAdminSchedule()
   const deletePickupMutation = useDeleteAdminPickupPoint()
-
   /* --- Dialog state --- */
   const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: Brand | null }>({
     open: false,
@@ -165,26 +143,24 @@ export function AdminBrandManagement() {
     open: false,
     pickup: null,
   })
-
   /* --- Delete confirmation --- */
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
   const [deleting, setDeleting] = useState(false)
-
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
     try {
       if (deleteTarget.kind === 'brand') {
-        await deleteBrandMutation.mutateAsync(deleteTarget.id)
+        await deleteBrandMutation.mutateAsync({ path: { id: deleteTarget.id } })
         setSelectedBrand(null)
         setSelectedRoute(null)
       } else if (deleteTarget.kind === 'route') {
-        await deleteRouteMutation.mutateAsync(deleteTarget.id)
+        await deleteRouteMutation.mutateAsync({ path: { id: deleteTarget.id } })
         setSelectedRoute(null)
       } else if (deleteTarget.kind === 'schedule') {
-        await deleteScheduleMutation.mutateAsync(deleteTarget.id)
+        await deleteScheduleMutation.mutateAsync({ path: { id: deleteTarget.id } })
       } else if (deleteTarget.kind === 'pickup') {
-        await deletePickupMutation.mutateAsync(deleteTarget.id)
+        await deletePickupMutation.mutateAsync({ path: { id: deleteTarget.id } })
       }
       toast.success('Đã xoá thành công')
       setDeleteTarget(null)
@@ -194,9 +170,7 @@ export function AdminBrandManagement() {
       setDeleting(false)
     }
   }
-
   /* ─── Render ─── */
-
   return (
     <div className="space-y-4">
       <BrandManagementBreadcrumb
@@ -212,7 +186,6 @@ export function AdminBrandManagement() {
           setSelectedRoute(null)
         }}
       />
-
       {/* 3-panel layout: stacks on mobile (only the active level is shown) */}
       <div className="grid grid-cols-1 lg:grid-cols-[280px_320px_1fr] gap-4">
         <BrandListPanel
@@ -227,7 +200,6 @@ export function AdminBrandManagement() {
           onDelete={(b) => setDeleteTarget({ kind: 'brand', id: b.id, name: b.name })}
           mobileView={mobileView}
         />
-
         <RouteListPanel
           routesLoading={routesQuery.isLoading}
           filteredRoutes={filteredRoutes}
@@ -242,7 +214,6 @@ export function AdminBrandManagement() {
           onBack={() => setMobileView('brands')}
           mobileView={mobileView}
         />
-
         <ScheduleAndPickupPanel
           selectedRoute={selectedRoute}
           schedulesLoading={schedulesQuery.isLoading}
@@ -265,7 +236,6 @@ export function AdminBrandManagement() {
           mobileView={mobileView}
         />
       </div>
-
       {/* ─── Dialogs ─── */}
       <BrandFormDialog
         open={brandDialog.open}
@@ -276,7 +246,6 @@ export function AdminBrandManagement() {
           // useUpsertAdminBrand invalidates ['admin', 'brands'] → brandsQuery refetches.
         }}
       />
-
       <RouteFormDialog
         open={routeDialog.open}
         route={routeDialog.route}
@@ -288,7 +257,6 @@ export function AdminBrandManagement() {
           // useUpsertAdminRoute invalidates ['admin', 'routes'] → routesQuery refetches.
         }}
       />
-
       <ScheduleFormDialog
         open={scheduleDialog.open}
         schedule={scheduleDialog.schedule}
@@ -302,7 +270,6 @@ export function AdminBrandManagement() {
           // useUpsertAdminSchedule invalidates ['admin', 'schedules'] → schedulesQuery refetches.
         }}
       />
-
       <PickupPointFormDialog
         open={pickupDialog.open}
         pickup={pickupDialog.pickup}
@@ -315,7 +282,6 @@ export function AdminBrandManagement() {
           // useUpsertAdminPickupPoint invalidates ['admin', 'pickup-points'] → pickupPointsQuery refetches.
         }}
       />
-
       {/* Delete confirmation */}
       <AlertDialog
         open={!!deleteTarget}

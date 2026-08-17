@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
-import { useTripDetail } from '@/lib/queries'
+import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
 import { useNavigate } from '@/router'
 import {
   Dialog,
@@ -300,118 +300,127 @@ export function BookingDialog() {
   const fees = 0
   const total = Math.max(0, subtotal - discount + fees + insuranceCost)
 
-  const checkCampaign = async () => {
-    if (!campaignCode.trim() || !trip) return
-    setCheckingCampaign(true)
-    setCampaignResult(null)
-    try {
-      // Backend route: `GET /api/campaigns/validate?code=&subtotal=` (i64).
-      // The backend `CampaignValidateQuery` only accepts `code` + `subtotal`;
-      // `brandId` and `childCount` are ignored, so we don't send them.
-      const params = new URLSearchParams({
-        code: campaignCode.trim(),
-        subtotal: String(subtotal),
-      })
-      const res = await fetch(`/api/campaigns/validate?${params}`, { credentials: 'include' })
-      const data = await res.json()
+  const validateCampaignMut = useValidateCampaign({
+    onSuccess: (data: any) => {
       setCampaignResult(data)
-      if (data.valid) {
+      if (data?.valid) {
         toast.success('Mã khuyến mãi hợp lệ!', {
-          description: data.campaign?.name ?? `Giảm ${formatCurrency(data.discount ?? 0, currency)}`,
+          description: `Giảm ${formatCurrency(data.discount ?? 0, currency)}`,
           duration: 3000,
         })
       } else {
         toast.error('Mã không hợp lệ', {
-          description: data.error ?? 'Kiểm tra lại mã khuyến mãi',
+          description: 'Kiểm tra lại mã khuyến mãi',
           duration: 3000,
         })
       }
-    } catch {
+    },
+    onError: () => {
       setCampaignResult({ valid: false, error: 'Không thể kiểm tra mã' })
-    } finally {
+    },
+    onSettled: () => {
       setCheckingCampaign(false)
-    }
+    },
+  })
+
+  const checkCampaign = () => {
+    if (!campaignCode.trim() || !trip) return
+    setCheckingCampaign(true)
+    setCampaignResult(null)
+    validateCampaignMut.mutate({ code: campaignCode.trim(), subtotal })
   }
 
   // Final submit — called by `form.handleSubmit(onSubmit)` after the
   // entire schema (passengers + contact) has validated.
-  const onSubmit = async (values: BookingValues) => {
-    setError('')
-    if (!bookingContext || !trip) return
-    // Duplicate-seat check is a cross-field business rule that can't
-    // be expressed per-field in zod, so we enforce it here.
-    if (hasDuplicateSeats) {
-      setError('Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau')
-      return
-    }
-    setSubmitting(true)
-    try {
-      // Backend route: `POST /api/bookings/hold` (alias of `POST /api/bookings`).
-      // Body is `HoldReq` — camelCase on the wire (Rust struct has
-      // `#[serde(rename_all = "camelCase")]`). The `passengers[].type`
-      // field uses `#[serde(rename = "type")]` (legacy single-field
-      // rename). Send `credentials: 'include'` so the booking is
-      // attached to the logged-in user (or treated as guest).
-      const res = await fetch('/api/bookings/hold', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          tripId: bookingContext.tripId,
-          seatIds: bookingContext.seatIds,
-          passengers: values.passengers.map((p) => ({
-            name: p.name,
-            type: getPassengerType(p.age),
-            age: p.age,
-          })),
-          boardingPointId: bookingContext.boardingPointId,
-          droppingPointId: bookingContext.droppingPointId,
-          contactName: values.contactName,
-          contactPhone: normalizePhone(values.contactPhone),
-          contactEmail: values.contactEmail || undefined,
-          campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error?.message ?? data.error ?? 'Không thể đặt chỗ')
-        return
-      }
-      // Backend returns `{ bookingId, code, total, ... }` (camelCase) from `hold()`.
-      // Confirm the booking via `POST /api/bookings/{id}/confirm` with
-      // body `{ paymentMethod }` (camelCase — matches `ConfirmReq`).
-      const confirmRes = await fetch(`/api/bookings/${data.bookingId}/confirm`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ paymentMethod }),
-      })
-      const confirmData = await confirmRes.json()
-      if (!confirmRes.ok) {
-        setError(confirmData.error?.message ?? confirmData.error ?? 'Thanh toán thất bại')
-        return
-      }
-      setLastBooking({ id: data.bookingId, code: data.code, total: data.total })
-      // Persist guest phone/name so notifications & wishlist work afterwards
-      setGuestPhone(normalizePhone(values.contactPhone))
-      if (values.contactName) setGuestName(values.contactName)
+  //
+  // Two-step mutation chain: hold → confirm. Each mutation defines its
+  // own onSuccess/onError/onSettled at HOOK CREATION time. The hold's
+  // onSuccess kicks off the confirm mutation by calling mutate() with
+  // only the variables.
+  const confirmMut = useConfirmBooking({
+    onSuccess: (_data, vars: any) => {
+      const holdData = (holdResultRef.current ?? {}) as any
+      const holdBookingId = vars?.path?.id ?? holdData.bookingId
+      setLastBooking({ id: holdBookingId, code: holdData.code, total: holdData.total })
+      setGuestPhone(normalizePhone(contactPhoneRef.current))
+      if (contactNameRef.current) setGuestName(contactNameRef.current)
       setBookingStep('success')
       toast.success('Đặt vé thành công!', {
-        description: `Mã vé: ${data.code} — ${formatCurrency(data.total, currency)}`,
+        description: `Mã vé: ${holdData.code} — ${formatCurrency(holdData.total, currency)}`,
         duration: 5000,
       })
-      // Award loyalty points
-      const earnedPoints = Math.max(10, Math.floor(data.total / 1000))
+      const earnedPoints = Math.max(10, Math.floor(holdData.total / 1000))
       setLoyaltyPoints((prev) => prev + earnedPoints)
       toast.success(`Bạn nhận được +${earnedPoints} điểm thưởng!`, {
         description: 'Xem chi tiết tại mục Điểm thưởng',
         duration: 4000,
       })
-    } catch (e: any) {
-      setError(e.message || 'Lỗi hệ thống')
-    } finally {
+    },
+    onError: () => {
+      setError('Thanh toán thất bại')
+    },
+    onSettled: () => {
       setSubmitting(false)
+    },
+  })
+
+  // Refs to share hold-time data + form values with confirm's onSuccess
+  // without re-creating the mutation hooks each render.
+  const holdResultRef = useRef<any>(null)
+  const contactPhoneRef = useRef('')
+  const contactNameRef = useRef('')
+  const paymentMethodRef = useRef<string>('cod')
+
+  const holdMut = useHoldBooking({
+    onSuccess: (holdResult: any) => {
+      const holdData = holdResult?.data ?? holdResult
+      if (!holdData?.bookingId) {
+        setError('Không thể đặt chỗ')
+        setSubmitting(false)
+        return
+      }
+      holdResultRef.current = holdData
+      confirmMut.mutate({
+        path: { id: holdData.bookingId },
+        body: { paymentMethod: paymentMethodRef.current },
+      } as any)
+    },
+    onError: () => {
+      setError('Không thể đặt chỗ')
+      setSubmitting(false)
+    },
+  })
+
+  // Keep paymentMethodRef in sync with state
+  useEffect(() => {
+    paymentMethodRef.current = paymentMethod
+  }, [paymentMethod])
+
+  const onSubmit = (values: BookingValues) => {
+    setError('')
+    if (!bookingContext || !trip) return
+    if (hasDuplicateSeats) {
+      setError('Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau')
+      return
     }
+    contactPhoneRef.current = normalizePhone(values.contactPhone)
+    contactNameRef.current = values.contactName
+    setSubmitting(true)
+    holdMut.mutate({
+      tripId: bookingContext.tripId,
+      seatIds: bookingContext.seatIds,
+      passengers: values.passengers.map((p) => ({
+        name: p.name,
+        type: getPassengerType(p.age),
+        age: p.age,
+      })),
+      boardingPointId: bookingContext.boardingPointId,
+      droppingPointId: bookingContext.droppingPointId,
+      contactName: values.contactName,
+      contactPhone: normalizePhone(values.contactPhone),
+      contactEmail: values.contactEmail || undefined,
+      campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+    } as any)
   }
 
   const close = () => {

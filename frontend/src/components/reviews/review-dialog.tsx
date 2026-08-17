@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useCreateReview } from '@/lib/queries'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -159,49 +160,41 @@ export function ReviewDialog({
     )
   }
 
-  const onSubmit = async (values: ReviewValues) => {
+  const createReviewMut = useCreateReview({
+    onSuccess: () => {
+      setSubmitted(true)
+      onSubmitSuccess?.()
+      toast.success('Cảm ơn đánh giá của bạn!')
+    },
+    onError: () => {
+      toast.error('Không thể gửi đánh giá')
+    },
+    onSettled: () => {
+      setSubmitting(false)
+    },
+  })
+
+  const onSubmit = (values: ReviewValues) => {
     if (!routeId || !brandId) {
       toast.error('Thiếu thông tin tuyến/hãng để gửi đánh giá')
       return
     }
     setSubmitting(true)
-    try {
-      // Backend route: `POST /api/reviews` with body `CreateReviewInput` —
-      // camelCase on the wire (Rust struct has `#[serde(rename_all =
-      // "camelCase")]`). The `userId` field is overwritten by the server
-      // from the authenticated user, so we don't send it. Send
-      // `credentials: 'include'` so the httpOnly JWT cookie is attached.
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          tripSessionId,
-          bookingId,
-          routeId,
-          brandId,
-          rating: values.rating,
-          title: values.title.trim(),
-          content: values.content.trim(),
-          tags: values.tags,
-          photos: values.photos,
-          authorName: values.author.trim() || 'Hành khách',
-          authorPhone: authorPhone,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Không thể gửi đánh giá')
-        return
-      }
-      setSubmitted(true)
-      onSubmitSuccess?.()
-      toast.success('Cảm ơn đánh giá của bạn!')
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setSubmitting(false)
-    }
+    createReviewMut.mutate({
+      body: {
+        tripSessionId,
+        bookingId,
+        routeId,
+        brandId,
+        rating: values.rating,
+        title: values.title.trim(),
+        content: values.content.trim(),
+        tags: values.tags,
+        photos: values.photos,
+        authorName: values.author.trim() || 'Hành khách',
+        authorPhone: authorPhone,
+      },
+    } as any)
   }
 
   const reset = () => {

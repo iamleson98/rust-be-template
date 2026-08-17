@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { SearchWidget } from '@/components/home/search-widget'
 import { useT } from '@/lib/i18n'
+import { useStats } from '@/lib/queries'
 import { formatNum } from '@/lib/types'
 import { ShieldCheck, Wallet, Headset, Star, Zap, ChevronDown, Bus, MapPin, Navigation, Route } from 'lucide-react'
 
@@ -59,14 +60,21 @@ export function Hero() {
     return () => clearInterval(interval)
   }, [computeCountdown])
 
+  const { data: statsData } = useStats()
   useEffect(() => {
-    // Backend route: `GET /api/stats` (no params). Send `credentials:
-    // 'include'` so the httpOnly JWT cookie is attached.
-    fetch('/api/stats', { credentials: 'include' })
-      .then((r) => r.json())
-      .then(setStats)
-      .catch(() => {})
-  }, [])
+    if (statsData) {
+      setStats({
+        brands: Number(statsData.brands) || 0,
+        routes: Number(statsData.routes) || 0,
+        trips: Number(statsData.trips) || 0,
+        places: 0,
+        campaigns: 0,
+        bookings: 0,
+        revenue: 0,
+        happyCustomers: 0,
+      })
+    }
+  }, [statsData])
 
   return (
     <section className="relative overflow-hidden isolate">

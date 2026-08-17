@@ -16,9 +16,16 @@
  * verbatim from the original implementation.
  */
 
-import { memo, useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useNavigate } from '@/router'
-import { useStats } from '@/lib/queries'
+import {
+  useStats,
+  useChatChannels,
+  useChatMessages,
+  usePostChatMessage,
+  useAdminBookingExport,
+  type AdminBookingFilter,
+} from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -46,143 +53,81 @@ import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import { CampaignsPanel } from './campaigns-panel'
 import { ReviewsModerationPanel } from '@/components/admin/reviews/reviews-panel'
 import { TicketsPanel } from '@/components/admin/tickets/tickets-panel'
-import { useAdminBookingExport, type AdminBookingFilter } from '@/lib/queries'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
-  const [channels, setChannels] = useState<Channel[]>([])
-  // `statsQuery` is shared with `<StatsOverview />` via TanStack Query's
-  // cache (same queryKey `['stats', dateRange]`) — we only consume
-  // `isLoading` here for the full-dashboard skeleton gate.
   const [dateRange, setDateRange] = useState<DateRange>('7d')
-  const statsQuery = useStats(dateRange)
+  const statsQuery = useStats()
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [replyText, setReplyText] = useState('')
-  const [sending, setSending] = useState(false)
 
-  useEffect(() => {
-    // Backend route: `GET /api/chat/channels?limit=` (authed). The backend
-    // returns the authed user's channels — there's no `role`/`employeeId`
-    // filter (those query params are ignored by axum). An admin sees their
-    // own channels; to see all customer chats, the backend would need an
-    // admin-scoped endpoint (not currently implemented).
-    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => setChannels(d.items ?? []))
-      .catch(() => {})
-  }, [])
+  // Chat data via TanStack Query hooks
+  const channelsQuery = useChatChannels(50)
+  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
+  const messagesQuery = useChatMessages(activeChannel?.id, 50)
+  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
 
-  const exportMutation = useAdminBookingExport()
+  // Two distinct mutation instances, each with its own callbacks (defined at
+  // HOOK CREATION). mutate() is then called with only the variables.
+  // - postReplyMut: clears the input + toasts success/error
+  // - postTicketCardMut: silently swallows errors (booking already succeeded)
+  const postReplyMut = usePostChatMessage({
+    onSuccess: () => {
+      setReplyText('')
+      toast.success('Đã gửi phản hồi')
+    },
+    onError: () => {
+      toast.error('Không thể gửi tin nhắn')
+    },
+  })
+  const postTicketCardMut = usePostChatMessage({
+    onError: () => {
+      // Silently fail — the booking was already created
+    },
+  })
+  const exportQuery = useAdminBookingExport({})
 
   const handleExportCSV = useCallback(async () => {
-    // Export REAL bookings via `GET /api/admin/bookings/export` — the
-    // backend returns a UTF-8 BOM-prefixed CSV string. We download it
-    // directly; no client-side CSV construction needed.
     try {
-      const filter: AdminBookingFilter = {
-        range: dateRange,
-        status: 'all',
-        sort: 'created_desc',
-        limit: 200,
-        offset: 0,
-      }
-      const result = await exportMutation.mutateAsync({ filter })
-      downloadCSV(result.filename, result.csv)
+      const result = await exportQuery.refetch()
+      const data = result.data
+      if (!data) throw new Error('Export failed')
+      downloadCSV(data.filename, data.csv)
       toast.success('Xuất CSV thành công', {
-        description: `Đã xuất ${result.count} vé ra file ${result.filename}`,
+        description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
     } catch (e: any) {
-      toast.error('Xuất CSV thất bại', {
-        description: e?.message ?? 'Vui lòng thử lại',
-      })
+      toast.error('Xuất CSV thất bại', { description: e?.message ?? 'Vui lòng thử lại' })
     }
-  }, [exportMutation, dateRange])
+  }, [exportQuery])
 
-  const openChatWorkspace = useCallback(async (channel: Channel) => {
-    setActiveChannel(channel)
-    try {
-      // Backend route: `GET /api/chat/channels/{id}/messages?limit=`.
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`, { credentials: 'include' })
-      const data = await res.json()
-      setChatMessages((data.items ?? []) as ChatMessage[])
-    } catch {
-      setChatMessages([])
-    }
-  }, [])
-
-  const sendReply = useCallback(async () => {
+  const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
-    setSending(true)
-    try {
-      // Backend route: `POST /api/chat/channels/{id}/messages` (authed).
-      // Body is `{ content?, kind, attachments?, clientMsgId? }` (camelCase —
-      // matches `CreateMessageRequest`). The server auto-fills the
-      // `senderType` based on the authenticated user's role.
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          content: replyText.trim(),
-          kind: 'text',
-        }),
-      })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
-        setReplyText('')
-        toast.success('Đã gửi phản hồi')
-      } else if (data?.error?.message) {
-        toast.error(data.error.message)
-      }
-    } catch {
-      toast.error('Không thể gửi tin nhắn')
-    } finally {
-      setSending(false)
-    }
-  }, [replyText, activeChannel])
+    postReplyMut.mutate({
+      path: { id: activeChannel.id },
+      body: { content: replyText.trim(), kind: 'text' },
+    } as any)
+  }, [replyText, activeChannel, postReplyMut])
 
-  const blockChannel = useCallback(async (channelId: string) => {
+  const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện', { description: 'Khách sẽ không thể gửi tin nhắn mới' })
-    setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, status: 'blocked' } : c)))
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
 
-  /**
-   * After the employee creates a ticket via the chat picker, POST a chat
-   * message with `kind: 'ticket'` + the booking-card payload as
-   * `attachments`, then append it to the local message list so it shows up
-   * immediately as a beautiful ticket card in the conversation.
-   */
   const sendTicketCard = useCallback(
-    async (payload: import('@/components/admin/tickets/chat-ticket-picker').CreatedTicketPayload) => {
+    (payload: { bookingCode: string }) => {
       if (!activeChannel) return
-      // Backend route: `POST /api/chat/channels/{id}/messages` with
-      // `kind: 'ticket'` + the booking-card payload as `attachments`
-      // (JSON-encoded string — matches `CreateMessageRequest`).
       const attachments = JSON.stringify(payload)
-      try {
-        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            content: `Đã đặt vé ${payload.bookingCode} cho bạn`,
-            kind: 'ticket',
-            attachments,
-          }),
-        })
-        const data = await res.json()
-        if (data.message) {
-          setChatMessages((prev) => [...prev, data.message as ChatMessage])
-        }
-      } catch {
-        // Silently fail — the booking was already created; the chat message
-        // is just a notification. The employee can manually paste the code.
-      }
+      postTicketCardMut.mutate({
+        path: { id: activeChannel.id },
+        body: {
+          content: `Đã đặt vé ${payload.bookingCode}`,
+          kind: 'ticket',
+          attachments,
+        },
+      } as any)
     },
-    [activeChannel],
+    [activeChannel, postTicketCardMut],
   )
 
   if (statsQuery.isLoading) {
@@ -260,8 +205,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 activeChannel={activeChannel}
                 chatMessages={chatMessages}
                 replyText={replyText}
-                sending={sending}
-                onOpenChannel={openChatWorkspace}
+                sending={postReplyMut.isPending}
+                onOpenChannel={setActiveChannel}
                 onSendReply={sendReply}
                 onBlockChannel={blockChannel}
                 onSetReplyText={setReplyText}

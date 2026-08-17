@@ -74,7 +74,7 @@ export function NotificationBell() {
       return next
     })
     try {
-      await markRead(unreadIds)
+      await markRead({ body: { ids: unreadIds } })
       toast.success('Đã đánh dấu tất cả là đã đọc')
     } catch {
       // Roll back optimistic state on failure — the next poll will re-sync.
@@ -92,7 +92,7 @@ export function NotificationBell() {
     const nowIso = new Date().toISOString()
     setOptimisticReads((m) => ({ ...m, [id]: nowIso }))
     try {
-      await markRead([id])
+      await markRead({ body: { ids: [id] } })
     } catch {
       // Roll back on failure; next poll re-syncs.
       setOptimisticReads((m) => {

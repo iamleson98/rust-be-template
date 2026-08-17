@@ -16,39 +16,18 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 
-// Generated SDK functions (for direct use in mutations)
-import {
-  // auth
-  login as sdkLogin,
-  register as sdkRegister,
-  employeeLogin as sdkEmployeeLogin,
-  // bookings
-  hold as sdkHold,
-  confirm as sdkConfirm,
-  cancel as sdkCancel,
-  // reviews
-  create2 as sdkCreateReview,
-  // chat
-  createChannel as sdkCreateChannel,
-  postMessage as sdkPostMessage,
-  // wishlist
-  toggle as sdkToggleWishlist,
-  // admin mutations — delete / moderate / status
-  deleteBrand as sdkDeleteBrand,
-  deleteRoute as sdkDeleteRoute,
-  deleteSchedule as sdkDeleteSchedule,
-  deletePickupPoint as sdkDeletePickupPoint,
-  deleteReview as sdkDeleteAdminReview,
-  moderateReview as sdkModerateReview,
-  updateBookingStatus as sdkUpdateBookingStatus,
-} from '@/lib/api/sdk.gen'
+// NOTE: No bare SDK imports — all hooks use generated TanStack
+// Options/Mutation helpers from @tanstack/react-query.gen.
 
-// Generated TanStack Query options + keys
+// Generated TanStack Query options + keys + mutations
 import {
   // auth
   meOptions,
   meQueryKey,
   logoutMutation,
+  loginMutation,
+  registerMutation,
+  employeeLoginMutation,
   // brands
   brandsOptions,
   brandDetailOptions,
@@ -61,20 +40,27 @@ import {
   // campaigns
   campaignsOptions,
   validateCampaignOptions,
+  validateCampaignQueryKey,
   // places
   searchOptions as placeSearchOptions,
   reverseOptions,
   list3Options as placeListOptions,
+  list3QueryKey as placeListQueryKey,
   // reviews
   list5Options as reviewsListOptions,
+  list5QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
   getOptions as reviewGetOptions,
   updateMutation as reviewUpdateMutation,
   remove2Mutation as reviewDeleteMutation,
+  create2Mutation as reviewCreateMutation,
   // bookings
   listOptions as bookingsListOptions,
   detailOptions as bookingDetailOptions,
   lookupOptions as bookingLookupOptions,
+  holdMutation,
+  confirmMutation,
+  cancelMutation,
   // price alerts (list4 = /api/price-alerts)
   list4Options as priceAlertsListOptions,
   list4QueryKey as priceAlertsListQueryKey,
@@ -87,6 +73,7 @@ import {
   // wishlist
   list6Options as wishlistListOptions,
   list6QueryKey as wishlistListQueryKey,
+  toggleMutation as wishlistToggleMutation,
   remove3Mutation as wishlistRemoveMutation,
   // stats
   statsOptions,
@@ -124,7 +111,16 @@ import {
   getBookingOptions as adminGetBookingOptions,
   bookingStatsOptions as adminBookingStatsOptions,
   bookingExportOptions as adminBookingExportOptions,
+  bookingExportQueryKey as adminBookingExportQueryKey,
   updateBookingStatusMutation,
+  // chat
+  listChannelsOptions as chatChannelsListOptions,
+  listChannelsQueryKey as chatChannelsListQueryKey,
+  listMessagesOptions as chatMessagesListOptions,
+  listMessagesQueryKey as chatMessagesListQueryKey,
+  createChannelMutation as chatCreateChannelMutation,
+  postMessageMutation as chatPostMessageMutation,
+  markReadMutation as chatMarkReadMutation,
 } from '@/lib/api/@tanstack/react-query.gen'
 
 // Generated types — re-exported so components can import from here
@@ -390,11 +386,7 @@ export function usePlacesList(limit = 50) {
 
 export function useReviewsByRoute(routeId: string | undefined) {
   return useQuery({
-    queryKey: routeId ? ['reviews', 'route', routeId] : ['reviews', 'route', null],
-    queryFn: () =>
-      fetch(`/api/reviews?routeId=${encodeURIComponent(routeId!)}&limit=20`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    ...reviewsListOptions({ query: { route_id: routeId, limit: 20 } }),
     enabled: !!routeId,
     staleTime: 60 * 1000,
   })
@@ -402,11 +394,7 @@ export function useReviewsByRoute(routeId: string | undefined) {
 
 export function useReviewsByBrand(brandId: string | undefined) {
   return useQuery({
-    queryKey: brandId ? ['reviews', 'brand', brandId] : ['reviews', 'brand', null],
-    queryFn: () =>
-      fetch(`/api/reviews?brandId=${encodeURIComponent(brandId!)}&limit=20`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    ...reviewsListOptions({ query: { brand_id: brandId, limit: 20 } }),
     enabled: !!brandId,
     staleTime: 60 * 1000,
   })
@@ -415,11 +403,7 @@ export function useReviewsByBrand(brandId: string | undefined) {
 export function useMyReviews(opts?: { enabled?: boolean; userId?: string | null }) {
   const userId = opts?.userId ?? null
   return useQuery({
-    queryKey: ['reviews', 'mine', { userId: userId ?? '' }],
-    queryFn: () =>
-      fetch(`/api/reviews?userId=${encodeURIComponent(userId!)}&limit=50`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    ...reviewsListOptions({ query: { user_id: userId ?? undefined, limit: 50 } }),
     enabled: (opts?.enabled ?? false) && !!userId,
   })
 }
@@ -452,48 +436,68 @@ export function useBooking(code: string | undefined) {
 
 export function useGuestBookings(phone: string | undefined, code?: string) {
   return useQuery({
-    queryKey: ['bookings', 'lookup', { phone: phone ?? '', code: code ?? '' }],
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      if (phone) qs.set('phone', phone)
-      if (code) qs.set('code', code)
-      return fetch(`/api/bookings/lookup?${qs.toString()}`, {
-        credentials: 'include',
-      }).then((r) => r.json())
-    },
+    ...bookingLookupOptions({ query: { phone: phone ?? undefined, code: code ?? undefined } }),
     enabled: !!phone || !!code,
     staleTime: 30 * 1000,
   })
 }
 
-export function useCancelBooking() {
+/**
+ * Generic callback overrides for a mutation hook.
+ *
+ * Callbacks defined here are MERGED with the built-in cache invalidation
+ * behaviour: the hook runs its own `onSuccess` (cache invalidation) first,
+ * then the caller-supplied callback.
+ *
+ * Components should pass these at HOOK CREATION time, never at `mutate()`
+ * call time — `mutate()` only receives the variables.
+ */
+type MutationCallbacks<TData, TVars> = {
+  onSuccess?: (data: TData, vars: TVars) => void
+  onError?: (err: unknown, vars: TVars) => void
+  onSettled?: (data: TData | undefined, err: unknown | null, vars: TVars) => void
+}
+
+// ─────────────────────────────────────────────────────────────
+// Bookings — hold / confirm / cancel
+// ─────────────────────────────────────────────────────────────
+
+export function useCancelBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (bookingId: string) =>
-      sdkCancel({ path: { id: bookingId }, body: {}, throwOnError: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(cancelMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useHoldBooking() {
+export function useHoldBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (body: HoldReq) =>
-      sdkHold({ body, throwOnError: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(holdMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
-export function useConfirmBooking() {
+export function useConfirmBooking<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (params: { bookingId: string; paymentMethod: string }) =>
-      sdkConfirm({
-        path: { id: params.bookingId },
-        body: { paymentMethod: params.paymentMethod },
-        throwOnError: true,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['bookings'] }),
+  return useMutation<TData, unknown, TVars>({
+    ...(confirmMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
@@ -514,13 +518,7 @@ export function useNotifications(limit = 20, opts?: { enabled?: boolean }) {
 export function useMarkNotificationsRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (ids: string[]) =>
-      fetch('/api/notifications/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ids }),
-      }).then((r) => r.json()),
+    ...notificationsMarkReadMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsListQueryKey() }),
   })
 }
@@ -541,12 +539,7 @@ export function useWishlist(opts?: { enabled?: boolean }) {
 export function useToggleWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: {
-      tripId?: string
-      routeId?: string
-      fromName: string
-      toName: string
-    }) => sdkToggleWishlist({ body: payload, throwOnError: true }),
+    ...wishlistToggleMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: wishlistListQueryKey() }),
   })
 }
@@ -554,10 +547,7 @@ export function useToggleWishlist() {
 export function useRemoveWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) =>
-      fetch(`/api/wishlist/${id}`, { method: 'DELETE', credentials: 'include' }).then((r) =>
-        r.json(),
-      ),
+    ...wishlistRemoveMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: wishlistListQueryKey() }),
   })
 }
@@ -588,29 +578,8 @@ export function usePriceAlerts(phone?: string | null) {
 
 export function useCreatePriceAlert() {
   const qc = useQueryClient()
-  return useMutation<PriceAlertOut & { duplicate?: boolean }, Error, {
-    fromName: string
-    toName: string
-    maxPrice: number
-    phone?: string
-    email?: string | null
-    targetPrice?: number
-    frequency?: 'immediate' | 'daily' | 'weekly'
-  }>({
-    mutationFn: async (payload) => {
-      const body = {
-        phone: payload.phone ?? '',
-        email: payload.email ?? null,
-        fromName: payload.fromName,
-        toName: payload.toName,
-        targetPrice: payload.targetPrice ?? payload.maxPrice,
-        frequency: payload.frequency ?? 'immediate',
-      }
-      const { data } = await import('@//lib/api/sdk.gen').then((m) =>
-        m.create({ body, throwOnError: true }),
-      )
-      return data as PriceAlertOut & { duplicate?: boolean }
-    },
+  return useMutation({
+    ...priceAlertCreateMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['price-alerts'] })
@@ -621,12 +590,7 @@ export function useCreatePriceAlert() {
 export function useRemovePriceAlert() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await import('@//lib/api/sdk.gen').then((m) =>
-        m.remove({ path: { id }, throwOnError: true }),
-      )
-      return data
-    },
+    ...priceAlertRemoveMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['price-alerts'] })
@@ -661,8 +625,7 @@ export function useLogout() {
 export function useLogin() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params: { email: string; password: string }) =>
-      sdkLogin({ body: params, throwOnError: true }),
+    ...loginMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
   })
 }
@@ -670,12 +633,7 @@ export function useLogin() {
 export function useRegister() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params: {
-      fullName: string
-      email?: string
-      phone?: string
-      password: string
-    }) => sdkRegister({ body: params, throwOnError: true }),
+    ...registerMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
   })
 }
@@ -683,8 +641,7 @@ export function useRegister() {
 export function useEmployeeLogin() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (params: { email: string; password: string }) =>
-      sdkEmployeeLogin({ body: params, throwOnError: true }),
+    ...employeeLoginMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: meQueryKey() }),
   })
 }
@@ -693,10 +650,96 @@ export function useEmployeeLogin() {
 // Stats
 // ─────────────────────────────────────────────────────────────
 
-export function useStats(_range = '30d') {
+export function useStats() {
   return useQuery({
     ...statsOptions(),
     staleTime: 60 * 1000,
+  })
+}
+
+// ─────────────────────────────────────────────────────────────
+// Chat (TanStack hooks for REST endpoints)
+// ─────────────────────────────────────────────────────────────
+
+export function useChatChannels(limit = 50) {
+  return useQuery({
+    ...chatChannelsListOptions({ query: { limit } }),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useChatMessages(channelId: string | undefined, limit = 50) {
+  const opts = channelId ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } }) : null
+  return useQuery<any>({
+    queryKey: opts?.queryKey ?? ['chat', 'messages', 'disabled'],
+    queryFn: opts?.queryFn as any ?? (() => Promise.resolve(null)),
+    enabled: !!channelId,
+    staleTime: 10 * 1000,
+  })
+}
+
+export function useCreateChatChannel() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...chatCreateChannelMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() }),
+  })
+}
+
+export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(chatPostMessageMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: ['listMessages'] })
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
+export function useMarkChannelRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...chatMarkReadMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() }),
+  })
+}
+
+// ─────────────────────────────────────────────────────────────
+// Campaign validation (for booking dialog)
+// ─────────────────────────────────────────────────────────────
+
+export function useValidateCampaign<TData = unknown>(opts?: MutationCallbacks<TData, { code: string; subtotal: number }>) {
+  return useMutation<TData, unknown, { code: string; subtotal: number }>({
+    mutationFn: async (params: { code: string; subtotal: number }) => {
+      const o = validateCampaignOptions({ query: params })
+      const queryFn = o.queryFn
+      if (!queryFn) throw new Error('queryFn missing')
+      return queryFn({ queryKey: o.queryKey as any, signal: new AbortController().signal } as any) as Promise<TData>
+    },
+    onSuccess: (data, vars) => opts?.onSuccess?.(data, vars),
+    onError: (err, vars) => opts?.onError?.(err, vars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data, err, vars),
+  })
+}
+
+// ─────────────────────────────────────────────────────────────
+// Review creation (for review dialog)
+// ─────────────────────────────────────────────────────────────
+
+export function useCreateReview<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(reviewCreateMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
   })
 }
 
@@ -736,10 +779,7 @@ export function useUpdateAdminBrand() {
 export function useDeleteAdminBrand() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteBrand({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteBrandMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['brands'] })
@@ -783,10 +823,7 @@ export function useUpdateAdminRoute() {
 export function useDeleteAdminRoute() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteRoute({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteRouteMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
       qc.invalidateQueries({ queryKey: ['routes'] })
@@ -825,10 +862,7 @@ export function useUpdateAdminSchedule() {
 export function useDeleteAdminSchedule() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteSchedule({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deleteScheduleMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'schedules'] }),
   })
 }
@@ -864,10 +898,7 @@ export function useUpdateAdminPickupPoint() {
 export function useDeleteAdminPickupPoint() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeletePickupPoint({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...deletePickupPointMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'pickup-points'] }),
   })
 }
@@ -896,18 +927,7 @@ export function useAdminReviews(opts?: { status?: string; brandId?: string; sear
 export function useModerateAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: {
-      id: string
-      status?: string | null
-      brandReply?: string | null
-    }) => {
-      const { data } = await sdkModerateReview({
-        path: { id: vars.id },
-        body: { status: vars.status, brandReply: vars.brandReply },
-        throwOnError: true,
-      })
-      return data
-    },
+    ...moderateReviewMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['reviews'] })
@@ -918,10 +938,7 @@ export function useModerateAdminReview() {
 export function useDeleteAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { data } = await sdkDeleteAdminReview({ path: { id }, throwOnError: true })
-      return data
-    },
+    ...adminDeleteReviewMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['reviews'] })
@@ -1011,23 +1028,7 @@ export function useAdminBookingStats(filter: AdminBookingFilter) {
 export function useUpdateBookingStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (vars: {
-      id: string
-      status: string
-      reason?: string | null
-      force?: boolean
-    }) => {
-      const { data } = await sdkUpdateBookingStatus({
-        path: { id: vars.id },
-        body: {
-          status: vars.status,
-          reason: vars.reason ?? null,
-          force: vars.force ?? false,
-        },
-        throwOnError: true,
-      })
-      return data
-    },
+    ...updateBookingStatusMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: ['bookings'] })
@@ -1038,45 +1039,7 @@ export function useUpdateBookingStatus() {
 export function useAdminCreateBooking() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: {
-      tripId: string
-      seatIds: string[]
-      passengers: { name: string; type: string; age?: number }[]
-      boardingPointId: string
-      droppingPointId: string
-      contactName?: string
-      contactPhone?: string
-      contactEmail?: string
-      userId?: string
-      campaignCode?: string
-      autoConfirm?: boolean
-    }) => {
-      const body: HoldReq = {
-        tripId: payload.tripId,
-        seatIds: payload.seatIds,
-        passengers: payload.passengers.map((p) => ({
-          name: p.name,
-          type: p.type,
-          age: p.age ?? 0,
-        })),
-        boardingPointId: payload.boardingPointId,
-        droppingPointId: payload.droppingPointId,
-        contactName: payload.contactName ?? '',
-        contactPhone: payload.contactPhone ?? '',
-        contactEmail: payload.contactEmail ?? null,
-        campaignCode: payload.campaignCode ?? null,
-      }
-      const res = await sdkHold({ body, throwOnError: true })
-      const bookingId = (res.data as any)?.bookingId ?? (res.data as any)?.id ?? ''
-      if (payload.autoConfirm && bookingId) {
-        await sdkConfirm({
-          path: { id: bookingId },
-          body: { paymentMethod: 'cash' },
-          throwOnError: true,
-        })
-      }
-      return res.data
-    },
+    ...holdMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: ['bookings'] })
@@ -1084,14 +1047,22 @@ export function useAdminCreateBooking() {
   })
 }
 
-export function useAdminBookingExport() {
-  return useMutation({
-    mutationFn: async (payload: { filter: AdminBookingFilter; columns?: string[] }) => {
-      const qs = adminBookingsQs(payload.filter)
-      const colQs = payload.columns?.length ? `&columns=${payload.columns.join(',')}` : ''
-      return fetch(`/api/admin/bookings/export?${qs}${colQs}`, {
-        credentials: 'include',
-      }).then((r) => r.json() as Promise<AdminBookingExportResponse>)
-    },
+export function useAdminBookingExport(filter: AdminBookingFilter) {
+  const query: Record<string, string | number | undefined> = {
+    brandId: filter.brandId,
+    routeId: filter.routeId,
+    status: filter.status && filter.status !== 'all' ? filter.status : undefined,
+    dateFrom: filter.dateFrom,
+    dateTo: filter.dateTo,
+    search: filter.search,
+    limit: filter.limit ?? 50,
+    offset: filter.offset ?? 0,
+    sort: filter.sort,
+  }
+  // Remove undefined values
+  Object.keys(query).forEach((k) => query[k] === undefined && delete query[k])
+  return useQuery({
+    ...adminBookingExportOptions({ query } as any),
+    enabled: false, // only fetch on demand via refetch
   })
 }

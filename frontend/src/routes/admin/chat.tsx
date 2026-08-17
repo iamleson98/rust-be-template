@@ -1,81 +1,70 @@
 /** Admin route — `/admin/chat` — chat support management page. */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import type { Channel, ChatMessage } from '@/components/admin/dashboard/types'
+import {
+  useChatChannels,
+  useChatMessages,
+  usePostChatMessage,
+} from '@/lib/queries'
 import { toast } from 'sonner'
 
 export function AdminChatPage() {
-  const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [replyText, setReplyText] = useState('')
-  const [sending, setSending] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => setChannels(d.items ?? []))
-      .catch(() => {})
-  }, [])
+  const channelsQuery = useChatChannels(50)
+  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
+  const messagesQuery = useChatMessages(activeChannel?.id, 50)
+  const chatMessages: ChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as ChatMessage[]
 
-  const openChatWorkspace = useCallback(async (channel: Channel) => {
-    setActiveChannel(channel)
-    try {
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`, { credentials: 'include' })
-      const data = await res.json()
-      setChatMessages((data.items ?? []) as ChatMessage[])
-    } catch {
-      setChatMessages([])
-    }
-  }, [])
-
-  const sendReply = useCallback(async () => {
-    if (!replyText.trim() || !activeChannel) return
-    setSending(true)
-    try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ content: replyText.trim(), kind: 'text' }),
-      })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
-        setReplyText('')
-        toast.success('Đã gửi phản hồi')
-      }
-    } catch {
+  // Two distinct mutation instances, each with its own callbacks (defined at
+  // HOOK CREATION). mutate() is then called with only the variables.
+  // - postReplyMut: clears the input + toasts success/error
+  // - postTicketCardMut: silently swallows errors (booking already succeeded)
+  const postReplyMut = usePostChatMessage({
+    onSuccess: () => {
+      setReplyText('')
+      toast.success('Đã gửi phản hồi')
+    },
+    onError: () => {
       toast.error('Không thể gửi tin nhắn')
-    } finally {
-      setSending(false)
-    }
-  }, [replyText, activeChannel])
+    },
+  })
+  const postTicketCardMut = usePostChatMessage({
+    onError: () => {
+      // Silently fail — the booking was already created
+    },
+  })
+
+  const sendReply = useCallback(() => {
+    if (!replyText.trim() || !activeChannel) return
+    postReplyMut.mutate({
+      path: { id: activeChannel.id },
+      body: { content: replyText.trim(), kind: 'text' },
+    } as any)
+  }, [replyText, activeChannel, postReplyMut])
 
   const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện')
-    setChannels((prev) => prev.map((c) => (c.id === channelId ? { ...c, status: 'blocked' } : c)))
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
 
-  const sendTicketCard = useCallback(async (payload: { bookingCode: string }) => {
-    if (!activeChannel) return
-    const attachments = JSON.stringify(payload)
-    try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments }),
-      })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
-      }
-    } catch {
-      // Silently fail
-    }
-  }, [activeChannel])
+  const sendTicketCard = useCallback(
+    (payload: { bookingCode: string }) => {
+      if (!activeChannel) return
+      const attachments = JSON.stringify(payload)
+      postTicketCardMut.mutate({
+        path: { id: activeChannel.id },
+        body: {
+          content: `Đã đặt vé ${payload.bookingCode}`,
+          kind: 'ticket',
+          attachments,
+        },
+      } as any)
+    },
+    [activeChannel, postTicketCardMut],
+  )
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
@@ -86,8 +75,8 @@ export function AdminChatPage() {
           activeChannel={activeChannel}
           chatMessages={chatMessages}
           replyText={replyText}
-          sending={sending}
-          onOpenChannel={openChatWorkspace}
+          sending={postReplyMut.isPending}
+          onOpenChannel={setActiveChannel}
           onSendReply={sendReply}
           onBlockChannel={blockChannel}
           onSetReplyText={setReplyText}

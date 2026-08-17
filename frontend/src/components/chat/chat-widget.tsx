@@ -26,6 +26,15 @@ import { toast } from 'sonner'
 import { Headset } from 'lucide-react'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
+  me as sdkMe,
+  register as sdkRegister,
+  listChannels as sdkListChannels,
+  listMessages as sdkListMessages,
+  createChannel as sdkCreateChannel,
+  postMessage as sdkPostMessage,
+  markRead as sdkMarkRead,
+} from '@/lib/api/sdk.gen'
+import {
   type Channel,
   type Message,
   type View,
@@ -149,21 +158,21 @@ export function ChatWidget() {
     let cancelled = false
     setAuthChecking(true)
     setRegError(null)
-    fetch('/api/auth/me', { credentials: 'include' })
-      .then(async (r) => {
+    sdkMe()
+      .then((result) => {
         if (cancelled) return
-        if (r.status === 401) {
+        if (result.error) {
           setChatUser(null)
           setView('login-required')
           setAuthChecking(false)
           return
         }
-        if (!r.ok) {
+        const data = result.data as any
+        if (!data) {
           setRegError('Không thể kết nối đến dịch vụ chat. Vui lòng thử lại.')
           setAuthChecking(false)
           return
         }
-        const data = await r.json()
         setChatUser(data.user as SessionUser)
         if (data.user && !storeUser) setStoreUser(data.user)
         setView('list')
@@ -198,9 +207,9 @@ export function ChatWidget() {
       if (disposed) return
       if (!data.everOpened) {
         setConnected(false)
-        fetch('/api/auth/me', { credentials: 'include' })
-          .then((r) => {
-            if (r.status === 401) {
+        sdkMe()
+          .then((result) => {
+            if (result.error) {
               setView('login-required')
               ws.close()
               socketRef.current = null
@@ -273,8 +282,11 @@ export function ChatWidget() {
   useEffect(() => {
     if (!chatOpen || !chatUser) return
     let cancelled = false
-    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
+    sdkListChannels({ query: { limit: 50 } })
+      .then(({ data }) => {
+        const d = data as any
+        return d
+      })
       .then((data) => {
         if (!cancelled) setChannels(data.items ?? [])
       })
@@ -296,12 +308,12 @@ export function ChatWidget() {
     const poll = async () => {
       if (!activeChannel) return
       try {
-        const res = await fetch(
-          `/api/chat/channels/${activeChannel.id}/messages?limit=50`,
-          { credentials: 'include' },
-        )
-        if (!res.ok) return
-        const data = await res.json()
+        const { data: resData } = await sdkListMessages({
+          path: { id: activeChannel.id },
+          query: { limit: 50 },
+        })
+        const data = resData as any
+        if (!data) return
         const items: Message[] = (data.items ?? []).map((r: Record<string, unknown>) =>
           normalizeWsMessage(r),
         )
@@ -348,29 +360,24 @@ export function ChatWidget() {
 
     setRegSubmitting(true)
     try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      const { data: resData, error } = await sdkRegister({
+        body: {
           fullName: name,
           email: email || undefined,
           phone: phone || undefined,
-          // The backend requires a password (min 6 chars). We generate a
-          // random one and the user can change it later — this is a
-          // chat-only registration, not a full account setup.
           password: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
-        }),
+        },
       })
-      const data = await res.json()
-      if (!res.ok) {
-        const code = data?.error?.code
+      const data = resData as any
+      if (error || !data) {
+        const errData = error as any
+        const code = errData?.code
         if (code === 'PHONE_EXISTS') {
           setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập.')
         } else if (code === 'EMAIL_EXISTS') {
           setRegError('Email đã đăng ký. Vui lòng đăng nhập.')
         } else {
-          setRegError(data?.error?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
+          setRegError(errData?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
         }
         return
       }
@@ -398,36 +405,29 @@ export function ChatWidget() {
     if (socketRef.current?.connected) {
       socketRef.current.send('join', { channelId: ch.id })
     }
-    fetch(`/api/chat/channels/${ch.id}/read`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    }).catch(() => {})
+    sdkMarkRead({ path: { id: ch.id } }).catch(() => {})
     setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, unreadUser: 0 } : c)))
   }
 
   const startNewChat = async () => {
     if (!chatUser) return
     try {
-      const res = await fetch('/api/chat/channels', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          topic: 'Hỗ trợ đặt vé',
-          brandId: null,
-        }),
+      const { data: resData, error } = await sdkCreateChannel({
+        body: { topic: 'Hỗ trợ đặt vé', brandId: null },
       })
-      const data = await res.json()
+      const data = resData as any
+      if (error || !data) {
+        toast.error((error as any)?.message ?? 'Không thể tạo kênh chat')
+        return
+      }
       if (data.channel) {
-        fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-          .then((r) => r.json())
-          .then((d) => setChannels(d.items ?? []))
+        sdkListChannels({ query: { limit: 50 } })
+          .then(({ data }) => {
+            const d = data as any
+            setChannels(d?.items ?? [])
+          })
           .catch(() => {})
         openChannel(data.channel)
-      } else if (data?.error?.message) {
-        toast.error(data.error.message)
       }
     } catch (e) {
       console.error(e)
@@ -448,18 +448,16 @@ export function ChatWidget() {
   const postMessageRest = async (content: string, optimistic: Message) => {
     if (!activeChannel) return
     try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      const { data: resData } = await sdkPostMessage({
+        path: { id: activeChannel.id },
+        body: {
           content,
           kind: 'text',
           clientMsgId: optimistic.clientMsgId,
-        }),
+        },
       })
-      const data = await res.json()
-      if (data.message) {
+      const data = resData as any
+      if (data?.message) {
         setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? data.message : m)))
         lastMsgIdRef.current = data.message.id
       }
