@@ -101,6 +101,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
 
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
+        db.clone(),
         user_store,
         post_store,
         rbac_store,

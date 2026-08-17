@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use rand::Rng;
-use sea_orm::Set;
+use sea_orm::{Set, TransactionTrait};
 use uuid::Uuid;
 
 use crate::dto::booking::{
@@ -736,66 +736,83 @@ impl BookingService {
         };
         let refund_amount = b.total as i64 * refund_percent / 100;
 
-        // Release held seats
-        let seat_invs = self
-            .store
-            .trip_store()
-            .list_seat_inventories_by_held_booking(&b.id.to_string())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let seat_count = seat_invs.len() as i64;
-        for inv in &seat_invs {
-            let mut active: seat_inventory::ActiveModel = inv.clone().into();
-            active.status = Set("available".to_string());
-            active.held_until = Set(None);
-            active.held_by_booking_id = Set(None);
-            self.store
-                .trip_store()
-                .update_seat_inventory(active)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-        }
-
-        // Re-add available seats to trip session
-        if let Some(t) = trip {
-            let current_available = t.available_seats;
-            let mut trip_active: trip_session::ActiveModel = t.into();
-            trip_active.available_seats = Set(current_available + seat_count);
-            self.store
-                .trip_store()
-                .update_trip_session(trip_active)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-        }
-
-        // Mark booking cancelled
+        // Release held seats — single bulk UPDATE (replaces the previous
+        // N-row load + N sequential UPDATE loop) + update trip + mark
+        // booking cancelled, all in a single DB transaction. If any step
+        // fails, the entire operation rolls back — no orphaned seats,
+        // no half-cancelled bookings.
+        let booking_id_str = b.id.to_string();
         let booking_code = b.code.clone();
-        let mut booking_active: booking::ActiveModel = b.into();
-        booking_active.status = Set("cancelled".to_string());
-        booking_active.updated_at = Set(now_iso());
-        self.store
-            .booking_store()
-            .update_booking(booking_active)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let reason_owned = reason.map(|s| s.to_string());
 
-        // Generate cancellation reference code
-        let ts_b36 = to_base36(Utc::now().timestamp_millis());
-        let ref_code = format!(
-            "HX-{}-{}",
-            booking_code.to_uppercase(),
-            ts_b36.to_uppercase()
-        );
+        let db = self.store.db();
+        let txn_result = db.transaction::<_, BookingCancelResponse, AppError>(|txn| {
+            Box::pin(async move {
+                // 1. Bulk-release held seats (single UPDATE)
+                use crate::entity::{booking as booking_entity, seat_inventory, trip_session as trip_entity};
+                use sea_orm::sea_query::Expr;
+                use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-        Ok(BookingCancelResponse {
-            success: true,
-            refund_percent,
-            refund_amount,
-            cancelled_at: now_iso(),
-            ref_code,
-            reason: reason.map(|s| s.to_string()),
+                let released = seat_inventory::Entity::update_many()
+                    .col_expr(seat_inventory::Column::Status, Expr::value("available"))
+                    .col_expr(seat_inventory::Column::HeldUntil, Expr::value(None::<String>))
+                    .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(None::<String>))
+                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
+                    .exec(txn)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                let seat_count = released.rows_affected as i64;
+
+                // 2. Re-add available seats to trip session
+                if let Some(t) = &trip {
+                    let current_available = t.available_seats;
+                    trip_entity::Entity::update_many()
+                        .col_expr(
+                            trip_entity::Column::AvailableSeats,
+                            Expr::value(current_available + seat_count),
+                        )
+                        .filter(trip_entity::Column::Id.eq(t.id))
+                        .exec(txn)
+                        .await
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
+                }
+
+                // 3. Mark booking cancelled
+                booking_entity::Entity::update_many()
+                    .col_expr(booking_entity::Column::Status, Expr::value("cancelled"))
+                    .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
+                    .filter(booking_entity::Column::Id.eq(booking_id_str.clone()))
+                    .exec(txn)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+
+                // 4. Generate cancellation reference code
+                let ts_b36 = to_base36(Utc::now().timestamp_millis());
+                let ref_code = format!(
+                    "HX-{}-{}",
+                    booking_code.to_uppercase(),
+                    ts_b36.to_uppercase()
+                );
+
+                Ok(BookingCancelResponse {
+                    success: true,
+                    refund_percent,
+                    refund_amount,
+                    cancelled_at: now_iso(),
+                    ref_code,
+                    reason: reason_owned,
+                })
+            })
         })
+        .await
+        .map_err(|e| match e {
+            sea_orm::TransactionError::Connection(e) => {
+                AppError::Internal(format!("transaction start failed: {e}"))
+            }
+            sea_orm::TransactionError::Transaction(app_err) => app_err,
+        })?;
+
+        Ok(txn_result)
     }
 
     /// Confirm a booking (mark paid — locked → booked).
