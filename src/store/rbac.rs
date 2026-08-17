@@ -161,13 +161,13 @@ impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB");
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB");
             }
         }
 
         let perms = self.inner.get_user_permissions(user_id).await?;
         if let Err(e) = set_serializable(self.cache.as_ref(), &key, &perms, Some(self.ttl)).await {
-            tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+            tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(perms)
     }

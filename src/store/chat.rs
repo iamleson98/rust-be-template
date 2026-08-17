@@ -393,7 +393,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let exists = self.inner.channel_exists(channel_id).await?;
@@ -407,7 +407,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let model = self.inner.get_channel(channel_id).await?;

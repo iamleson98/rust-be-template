@@ -195,13 +195,13 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB");
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB");
             }
         }
 
         let model = self.inner.get_user(id).await?;
         if let Err(e) = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await {
-            tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+            tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(model)
     }

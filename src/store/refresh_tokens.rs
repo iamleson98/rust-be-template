@@ -156,7 +156,7 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
 
         let key = refresh_token_key(token_id);
         if let Err(e) = set_serializable(self.cache.as_ref(), &key, &token, Some(self.ttl)).await {
-            tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+            tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
 
         Ok(())
@@ -168,7 +168,7 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
             Ok(Some(v)) => return Ok(Some(v)),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB");
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB");
             }
         }
 
@@ -176,7 +176,7 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
         if let Some(ref token) = model {
             if let Err(e) = set_serializable(self.cache.as_ref(), &key, token, Some(self.ttl)).await
             {
-                tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+                tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
             }
         }
         Ok(model)
