@@ -19,6 +19,11 @@
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from '@/router'
 import { useStats } from '@/lib/queries'
+import {
+  listChannels as sdkListChannels,
+  listMessages as sdkListMessages,
+  postMessage as sdkPostMessage,
+} from '@/lib/api/sdk.gen'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -67,9 +72,11 @@ export const AdminDashboard = memo(function AdminDashboard() {
     // filter (those query params are ignored by axum). An admin sees their
     // own channels; to see all customer chats, the backend would need an
     // admin-scoped endpoint (not currently implemented).
-    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => setChannels(d.items ?? []))
+    sdkListChannels({ query: { limit: 50 }, throwOnError: true })
+      .then(({ data }) => {
+        const d = data as any
+        setChannels(d?.items ?? [])
+      })
       .catch(() => {})
   }, [])
 
@@ -102,10 +109,9 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const openChatWorkspace = useCallback(async (channel: Channel) => {
     setActiveChannel(channel)
     try {
-      // Backend route: `GET /api/chat/channels/{id}/messages?limit=`.
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`, { credentials: 'include' })
-      const data = await res.json()
-      setChatMessages((data.items ?? []) as ChatMessage[])
+      const { data: resData } = await sdkListMessages({ path: { id: channel.id }, query: { limit: 50 }, throwOnError: true })
+      const d = resData as any
+      setChatMessages((d?.items ?? []) as ChatMessage[])
     } catch {
       setChatMessages([])
     }
@@ -115,26 +121,15 @@ export const AdminDashboard = memo(function AdminDashboard() {
     if (!replyText.trim() || !activeChannel) return
     setSending(true)
     try {
-      // Backend route: `POST /api/chat/channels/{id}/messages` (authed).
-      // Body is `{ content?, kind, attachments?, clientMsgId? }` (camelCase —
-      // matches `CreateMessageRequest`). The server auto-fills the
-      // `senderType` based on the authenticated user's role.
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          content: replyText.trim(),
-          kind: 'text',
-        }),
+      const { data: resData } = await sdkPostMessage({
+        path: { id: activeChannel.id },
+        body: { content: replyText.trim(), kind: 'text' },
       })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
+      const d = resData as any
+      if (d?.message) {
+        setChatMessages((prev) => [...prev, d.message as ChatMessage])
         setReplyText('')
         toast.success('Đã gửi phản hồi')
-      } else if (data?.error?.message) {
-        toast.error(data.error.message)
       }
     } catch {
       toast.error('Không thể gửi tin nhắn')
@@ -163,19 +158,17 @@ export const AdminDashboard = memo(function AdminDashboard() {
       // (JSON-encoded string — matches `CreateMessageRequest`).
       const attachments = JSON.stringify(payload)
       try {
-        const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
+        const { data: resData } = await sdkPostMessage({
+          path: { id: activeChannel.id },
+          body: {
             content: `Đã đặt vé ${payload.bookingCode} cho bạn`,
             kind: 'ticket',
             attachments,
-          }),
+          },
         })
-        const data = await res.json()
-        if (data.message) {
-          setChatMessages((prev) => [...prev, data.message as ChatMessage])
+        const d = resData as any
+        if (d?.message) {
+          setChatMessages((prev) => [...prev, d.message as ChatMessage])
         }
       } catch {
         // Silently fail — the booking was already created; the chat message

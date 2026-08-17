@@ -16,24 +16,38 @@
 
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 
-// Generated SDK functions (for direct use in mutations)
+// Generated SDK functions (for direct use in mutations + reads)
 import {
   // auth
   login as sdkLogin,
   register as sdkRegister,
   employeeLogin as sdkEmployeeLogin,
+  me as sdkMe,
   // bookings
   hold as sdkHold,
   confirm as sdkConfirm,
   cancel as sdkCancel,
+  lookup as sdkLookup,
   // reviews
   create2 as sdkCreateReview,
+  list5 as sdkListReviews,
+  tags as sdkReviewTags,
   // chat
   createChannel as sdkCreateChannel,
   postMessage as sdkPostMessage,
+  listChannels as sdkListChannels,
+  listMessages as sdkListMessages,
+  markRead as sdkMarkChannelRead,
   // wishlist
   toggle as sdkToggleWishlist,
-  // admin mutations — delete / moderate / status
+  remove3 as sdkRemoveWishlist,
+  // notifications
+  markRead2 as sdkMarkNotificationsRead,
+  // places
+  list3 as sdkListPlaces,
+  // stats
+  stats as sdkStats,
+  // admin
   deleteBrand as sdkDeleteBrand,
   deleteRoute as sdkDeleteRoute,
   deleteSchedule as sdkDeleteSchedule,
@@ -41,6 +55,12 @@ import {
   deleteReview as sdkDeleteAdminReview,
   moderateReview as sdkModerateReview,
   updateBookingStatus as sdkUpdateBookingStatus,
+  bookingExport as sdkBookingExport,
+  // campaigns
+  validateCampaign as sdkValidateCampaign,
+  // trips
+  searchTrips as sdkSearchTrips,
+  tripDetail as sdkTripDetail,
 } from '@/lib/api/sdk.gen'
 
 // Generated TanStack Query options + keys
@@ -391,10 +411,10 @@ export function usePlacesList(limit = 50) {
 export function useReviewsByRoute(routeId: string | undefined) {
   return useQuery({
     queryKey: routeId ? ['reviews', 'route', routeId] : ['reviews', 'route', null],
-    queryFn: () =>
-      fetch(`/api/reviews?routeId=${encodeURIComponent(routeId!)}&limit=20`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    queryFn: async () => {
+      const { data } = await sdkListReviews({ query: { route_id: routeId, limit: 20 }, throwOnError: true })
+      return data
+    },
     enabled: !!routeId,
     staleTime: 60 * 1000,
   })
@@ -403,10 +423,10 @@ export function useReviewsByRoute(routeId: string | undefined) {
 export function useReviewsByBrand(brandId: string | undefined) {
   return useQuery({
     queryKey: brandId ? ['reviews', 'brand', brandId] : ['reviews', 'brand', null],
-    queryFn: () =>
-      fetch(`/api/reviews?brandId=${encodeURIComponent(brandId!)}&limit=20`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    queryFn: async () => {
+      const { data } = await sdkListReviews({ query: { brand_id: brandId, limit: 20 }, throwOnError: true })
+      return data
+    },
     enabled: !!brandId,
     staleTime: 60 * 1000,
   })
@@ -415,11 +435,11 @@ export function useReviewsByBrand(brandId: string | undefined) {
 export function useMyReviews(opts?: { enabled?: boolean; userId?: string | null }) {
   const userId = opts?.userId ?? null
   return useQuery({
-    queryKey: ['reviews', 'mine', { userId: userId ?? '' }],
-    queryFn: () =>
-      fetch(`/api/reviews?userId=${encodeURIComponent(userId!)}&limit=50`, {
-        credentials: 'include',
-      }).then((r) => r.json()),
+    queryKey: ['reviews', 'mine', { user_id: userId ?? '' }],
+    queryFn: async () => {
+      const { data } = await sdkListReviews({ query: { user_id: userId ?? undefined, limit: 50 }, throwOnError: true })
+      return data
+    },
     enabled: (opts?.enabled ?? false) && !!userId,
   })
 }
@@ -453,13 +473,12 @@ export function useBooking(code: string | undefined) {
 export function useGuestBookings(phone: string | undefined, code?: string) {
   return useQuery({
     queryKey: ['bookings', 'lookup', { phone: phone ?? '', code: code ?? '' }],
-    queryFn: () => {
-      const qs = new URLSearchParams()
-      if (phone) qs.set('phone', phone)
-      if (code) qs.set('code', code)
-      return fetch(`/api/bookings/lookup?${qs.toString()}`, {
-        credentials: 'include',
-      }).then((r) => r.json())
+    queryFn: async () => {
+      const { data } = await sdkLookup({
+        query: { phone: phone ?? undefined, code: code ?? undefined },
+        throwOnError: true,
+      })
+      return data
     },
     enabled: !!phone || !!code,
     staleTime: 30 * 1000,
@@ -514,13 +533,10 @@ export function useNotifications(limit = 20, opts?: { enabled?: boolean }) {
 export function useMarkNotificationsRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (ids: string[]) =>
-      fetch('/api/notifications/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ ids }),
-      }).then((r) => r.json()),
+    mutationFn: async (ids: string[]) => {
+      const { data } = await sdkMarkNotificationsRead({ body: { ids }, throwOnError: true })
+      return data
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: notificationsListQueryKey() }),
   })
 }
@@ -554,10 +570,10 @@ export function useToggleWishlist() {
 export function useRemoveWishlist() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) =>
-      fetch(`/api/wishlist/${id}`, { method: 'DELETE', credentials: 'include' }).then((r) =>
-        r.json(),
-      ),
+    mutationFn: async (id: string) => {
+      const { data } = await sdkRemoveWishlist({ path: { id }, throwOnError: true })
+      return data
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: wishlistListQueryKey() }),
   })
 }
@@ -1087,11 +1103,12 @@ export function useAdminCreateBooking() {
 export function useAdminBookingExport() {
   return useMutation({
     mutationFn: async (payload: { filter: AdminBookingFilter; columns?: string[] }) => {
-      const qs = adminBookingsQs(payload.filter)
-      const colQs = payload.columns?.length ? `&columns=${payload.columns.join(',')}` : ''
-      return fetch(`/api/admin/bookings/export?${qs}${colQs}`, {
-        credentials: 'include',
-      }).then((r) => r.json() as Promise<AdminBookingExportResponse>)
+      const sp = adminBookingsQs(payload.filter)
+      const query: Record<string, string> = {}
+      sp.forEach((v: string, k: string) => { query[k] = v })
+      if (payload.columns?.length) query.columns = payload.columns.join(',')
+      const { data } = await sdkBookingExport({ query, throwOnError: true })
+      return data as AdminBookingExportResponse
     },
   })
 }

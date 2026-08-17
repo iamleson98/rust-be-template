@@ -83,10 +83,13 @@ export function AdminBrandManagement() {
 
   const placesQuery = useQuery({
     queryKey: queryKeys.places.all,
-    queryFn: () => fetch('/api/places?limit=200', { credentials: 'include' }).then(r => r.json()),
+    queryFn: async () => {
+      const { data } = await import('@/lib/api/sdk.gen').then((m) => m.list3({ query: { limit: 200 }, throwOnError: true }))
+      return data
+    },
     staleTime: 10 * 60 * 1000,
   })
-  const places: Place[] = placesQuery.data?.items ?? []
+  const places: Place[] = (placesQuery.data as any)?.items ?? []
 
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
   const routesQuery = useAdminRoutes(selectedBrand?.id)

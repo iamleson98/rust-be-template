@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { create2 as sdkCreateReview } from '@/lib/api/sdk.gen'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -166,16 +167,8 @@ export function ReviewDialog({
     }
     setSubmitting(true)
     try {
-      // Backend route: `POST /api/reviews` with body `CreateReviewInput` —
-      // camelCase on the wire (Rust struct has `#[serde(rename_all =
-      // "camelCase")]`). The `userId` field is overwritten by the server
-      // from the authenticated user, so we don't send it. Send
-      // `credentials: 'include'` so the httpOnly JWT cookie is attached.
-      const res = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
+      const { data, error } = await sdkCreateReview({
+        body: {
           tripSessionId,
           bookingId,
           routeId,
@@ -187,11 +180,10 @@ export function ReviewDialog({
           photos: values.photos,
           authorName: values.author.trim() || 'Hành khách',
           authorPhone: authorPhone,
-        }),
+        },
       })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error?.message ?? data.error ?? 'Không thể gửi đánh giá')
+      if (error) {
+        toast.error((error as any)?.message ?? 'Không thể gửi đánh giá')
         return
       }
       setSubmitted(true)

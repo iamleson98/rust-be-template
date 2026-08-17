@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from 'react'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
+import { usePlacesList, usePopularRoutes } from '@/lib/queries'
 import {
   MapPin,
   Navigation,
@@ -78,30 +79,26 @@ export function MapView() {
   // flyTo trigger — `key` forces re-fly even if coords are the same
   const [flyTo, setFlyTo] = useState<{ lat: number; lon: number; zoom?: number; key: number } | null>(null)
 
-  // ── Fetch places + routes ────────────────────────────────────
+  // ── Fetch places + routes via TanStack Query ────────────────
+  const placesQuery = usePlacesList(50)
+  const routesQuery = usePopularRoutes()
+
   useEffect(() => {
-    let cancelled = false
-    Promise.all([
-      // Backend routes: `GET /api/places?limit=` + `GET /api/routes`.
-      fetch('/api/places?limit=50', { credentials: 'include' }).then((r) => r.json()),
-      fetch('/api/routes', { credentials: 'include' }).then((r) => r.json()),
-    ])
-      .then(([p, r]) => {
-        if (cancelled) return
-        setPlaces(p.items ?? [])
-        const rs: RouteItem[] = r.items ?? []
-        setRoutes(rs)
-        const slugs = new Set<string>()
-        rs.forEach((route) => slugs.add(route.brand.slug))
-        setActiveBrandSlugs(slugs)
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    if (placesQuery.data) {
+      setPlaces((placesQuery.data.items ?? []) as any)
     }
-  }, [])
+  }, [placesQuery.data])
+
+  useEffect(() => {
+    if (routesQuery.data) {
+      const rs: any[] = routesQuery.data.items ?? []
+      setRoutes(rs)
+      const slugs = new Set<string>()
+      rs.forEach((route: any) => slugs.add(route.brand?.slug ?? ''))
+      setActiveBrandSlugs(slugs)
+      setLoading(false)
+    }
+  }, [routesQuery.data])
 
   // ── Derived: route counts per city, popular destinations ──
   const cityStats = useMemo(() => {

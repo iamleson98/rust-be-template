@@ -6,6 +6,7 @@ import { useNavigate } from '@/router'
 import { usePopularRoutes, type RouteItem } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client'
+import { searchTrips as sdkSearchTrips } from '@/lib/api/sdk.gen'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/empty-states'
@@ -54,20 +55,11 @@ export const PopularRoutes = memo(function PopularRoutes() {
       queryClient.prefetchQuery({
         queryKey: queryKeys.trips.search(params),
         queryFn: async () => {
-          // Backend `GET /api/search` accepts (snake_case): from, to, date,
-          // limit, vehicle_types, sort, min_seats. The `fetch` call below
-          // sends `credentials: 'include'` so the httpOnly JWT cookie is
-          // attached (authed users may get richer data).
-          const sp = new URLSearchParams({
-            from,
-            to,
-            date,
-            sort: 'departure',
-            min_seats: '1',
+          const { data } = await sdkSearchTrips({
+            query: { from, to, date, sort: 'departure', minSeats: 1 },
+            throwOnError: true,
           })
-          const res = await fetch(`/api/search?${sp}`, { credentials: 'include' })
-          if (!res.ok) throw new Error('Failed to prefetch search results')
-          return res.json()
+          return data
         },
         staleTime: 30 * 1000,
       })

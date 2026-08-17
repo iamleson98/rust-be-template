@@ -2,7 +2,8 @@
 
 import { memo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useReviewsByRoute } from '@/lib/queries'
+import { useReviewsByRoute, useReviewTags } from '@/lib/queries'
+import { list5 as sdkListReviews } from '@/lib/api/sdk.gen'
 import {
   Star,
   ThumbsUp,
@@ -154,10 +155,10 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // the backend and the response shape was wrong anyway.)
   const aggregateQuery = useQuery<BrandAggregateResponse>({
     queryKey: ['reviews', 'aggregate', 'brand', brandId],
-    queryFn: () =>
-      fetch(`/api/reviews?brandId=${encodeURIComponent(brandId)}&limit=200`, {
-        credentials: 'include',
-      }).then((r) => r.json() as Promise<BrandAggregateResponse>),
+    queryFn: async () => {
+      const { data } = await sdkListReviews({ query: { brand_id: brandId, limit: 200 }, throwOnError: true })
+      return data as unknown as BrandAggregateResponse
+    },
     enabled: !!brandId,
     staleTime: 60 * 1000,
   })
@@ -177,23 +178,14 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // Top praised features for this specific route. Backend `GET /api/reviews/tags`
   // takes NO params — returns the global tag index. We filter client-side
   // by routeId if the items carry it.
-  const tagStatsQuery = useQuery<TagStatsResponse>({
-    queryKey: ['reviews', 'tags', 'route', routeId],
-    queryFn: () =>
-      fetch('/api/reviews/tags', { credentials: 'include' }).then(
-        (r) => r.json() as Promise<TagStatsResponse>,
-      ),
-    enabled: !!routeId,
-    staleTime: 60 * 1000,
-  })
-  const tagStats: TagStat[] = (tagStatsQuery.data?.items ?? []).filter(
-    (t) => !('routeId' in t) || (t as { routeId?: string }).routeId === routeId,
+  const tagStatsQuery = useReviewTags()
+  const tagStats: TagStat[] = ((tagStatsQuery.data as any)?.items ?? []).filter(
+    (t: any) => !('routeId' in t) || t.routeId === routeId,
   )
 
-  // Total review count — prefer the backend's `total` field (it counts all
-  // matching reviews, not just the first 20). Fall back to the items length
-  // if the field is missing.
-  const total = reviewsQuery.data?.total ?? reviews.length
+  // Total review count — the backend's ReviewListResponse only has `items`
+  // (no `total` field). Fall back to the items length.
+  const total = reviews.length
 
   const loading = reviewsQuery.isLoading || aggregateQuery.isLoading
   const isError = reviewsQuery.isError

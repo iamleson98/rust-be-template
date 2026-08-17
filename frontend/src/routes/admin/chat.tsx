@@ -2,6 +2,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import type { Channel, ChatMessage } from '@/components/admin/dashboard/types'
+import {
+  listChannels as sdkListChannels,
+  listMessages as sdkListMessages,
+  postMessage as sdkPostMessage,
+} from '@/lib/api/sdk.gen'
 import { toast } from 'sonner'
 
 export function AdminChatPage() {
@@ -12,18 +17,16 @@ export function AdminChatPage() {
   const [sending, setSending] = useState(false)
 
   useEffect(() => {
-    fetch('/api/chat/channels?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((d) => setChannels(d.items ?? []))
+    sdkListChannels({ query: { limit: 50 } })
+      .then(({ data }) => setChannels((data?.items ?? []) as unknown as Channel[]))
       .catch(() => {})
   }, [])
 
   const openChatWorkspace = useCallback(async (channel: Channel) => {
     setActiveChannel(channel)
     try {
-      const res = await fetch(`/api/chat/channels/${channel.id}/messages?limit=50`, { credentials: 'include' })
-      const data = await res.json()
-      setChatMessages((data.items ?? []) as ChatMessage[])
+      const { data } = await sdkListMessages({ path: { id: channel.id }, query: { limit: 50 } })
+      setChatMessages((data?.items ?? []) as unknown as ChatMessage[])
     } catch {
       setChatMessages([])
     }
@@ -33,15 +36,12 @@ export function AdminChatPage() {
     if (!replyText.trim() || !activeChannel) return
     setSending(true)
     try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ content: replyText.trim(), kind: 'text' }),
+      const { data } = await sdkPostMessage({
+        path: { id: activeChannel.id },
+        body: { content: replyText.trim(), kind: 'text' },
       })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
+      if (data?.message) {
+        setChatMessages((prev) => [...prev, data.message as unknown as ChatMessage])
         setReplyText('')
         toast.success('Đã gửi phản hồi')
       }
@@ -62,15 +62,12 @@ export function AdminChatPage() {
     if (!activeChannel) return
     const attachments = JSON.stringify(payload)
     try {
-      const res = await fetch(`/api/chat/channels/${activeChannel.id}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments }),
+      const { data } = await sdkPostMessage({
+        path: { id: activeChannel.id },
+        body: { content: `Đã đặt vé ${payload.bookingCode}`, kind: 'ticket', attachments },
       })
-      const data = await res.json()
-      if (data.message) {
-        setChatMessages((prev) => [...prev, data.message as ChatMessage])
+      if (data?.message) {
+        setChatMessages((prev) => [...prev, data.message as unknown as ChatMessage])
       }
     } catch {
       // Silently fail
