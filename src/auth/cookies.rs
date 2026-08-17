@@ -1,7 +1,7 @@
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 use chrono::Duration;
 
-use crate::config::CookieConfig;
+use crate::config::{CookieConfig, JwtConfig};
 
 pub const ACCESS_COOKIE: &str = "access_token";
 pub const REFRESH_COOKIE: &str = "refresh_token";
@@ -16,17 +16,24 @@ pub fn extract_tokens(jar: &CookieJar) -> (Option<String>, Option<String>) {
 /// Set the access + refresh HttpOnly cookies on the response. Caller
 /// passes the actual token values; this function packages them. Returns
 /// the new jar (jars in axum-extra are immutable, replaced on each op).
+///
+/// TTLs are read from `JwtConfig` (env-driven) so cookie lifetime and
+/// JWT lifetime stay in sync — previously the cookies were always 15 min
+/// and 7 days regardless of the configured JWT TTLs, which meant an
+/// operator lowering `JWT_ACCESS_TTL_SECS=300` for testing would see the
+/// browser keep sending a cookie that the server immediately rejected.
 pub fn set_auth_cookies(
     jar: CookieJar,
-    cfg: &CookieConfig,
+    cookie_cfg: &CookieConfig,
+    jwt_cfg: &JwtConfig,
     access: &str,
     refresh: &str,
 ) -> CookieJar {
-    let access_ttl = Duration::minutes(15);
-    let refresh_ttl = Duration::days(7);
+    let access_ttl = Duration::seconds(jwt_cfg.access_ttl_secs as i64);
+    let refresh_ttl = Duration::seconds(jwt_cfg.refresh_ttl_secs as i64);
 
-    let access_cookie = build_cookie(ACCESS_COOKIE, access, cfg, access_ttl);
-    let refresh_cookie = build_cookie(REFRESH_COOKIE, refresh, cfg, refresh_ttl);
+    let access_cookie = build_cookie(ACCESS_COOKIE, access, cookie_cfg, access_ttl);
+    let refresh_cookie = build_cookie(REFRESH_COOKIE, refresh, cookie_cfg, refresh_ttl);
 
     jar.add(access_cookie).add(refresh_cookie)
 }

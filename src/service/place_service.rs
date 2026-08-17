@@ -102,9 +102,17 @@ impl PlaceService {
 
         // ── Tantivy fulltext path (preferred when an index is configured) ──
         if let Some(searcher) = &self.searcher {
-            let results = searcher
-                .search(q_trim, limit as usize)
-                .map_err(|e| AppError::Internal(format!("place search: {e}")))?;
+            // Tantivy search is CPU-bound (10-200ms on a 1M+ doc index).
+            // Run on the blocking-pool thread so we don't stall the tokio
+            // worker. Cloning `Arc<PlaceSearcher>` is a refcount bump.
+            let searcher = searcher.clone();
+            let q = q_trim.to_string();
+            let results = tokio::task::spawn_blocking(move || {
+                searcher.search(&q, limit as usize)
+            })
+            .await
+            .map_err(|e| AppError::Internal(format!("search join: {e}")))?
+            .map_err(|e| AppError::Internal(format!("place search: {e}")))?;
             let items = results
                 .into_iter()
                 .map(|r| PlaceSearchHit {
@@ -202,9 +210,13 @@ impl PlaceService {
 
         // ── Tantivy reverse-geocode path (preferred) ──────────────────────
         if let Some(searcher) = &self.searcher {
-            let results = searcher
-                .reverse_geocode(lat, lon, limit as usize)
-                .map_err(|e| AppError::Internal(format!("reverse geocode: {e}")))?;
+            let searcher = searcher.clone();
+            let results = tokio::task::spawn_blocking(move || {
+                searcher.reverse_geocode(lat, lon, limit as usize)
+            })
+            .await
+            .map_err(|e| AppError::Internal(format!("reverse join: {e}")))?
+            .map_err(|e| AppError::Internal(format!("reverse geocode: {e}")))?;
             let items = results
                 .into_iter()
                 .map(|r| PlaceSearchHit {

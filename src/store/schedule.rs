@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -25,6 +25,7 @@ pub trait ScheduleStore: Send + Sync {
 
     async fn find_schedule_by_id(&self, id: Uuid) -> StoreResult<Option<schedule::Model>>;
     async fn list_schedules_by_route(&self, route_id: &str) -> StoreResult<Vec<schedule::Model>>;
+    async fn count_schedules_by_route(&self, route_id: &str) -> StoreResult<usize>;
     async fn list_schedules_by_routes(
         &self,
         route_ids: Vec<Uuid>,
@@ -76,6 +77,17 @@ impl ScheduleStore for DbScheduleStore {
             .await?)
     }
 
+    async fn count_schedules_by_route(&self, route_id: &str) -> StoreResult<usize> {
+        // SELECT COUNT(*) WHERE route_id = ? — single round trip, no row
+        // materialisation. Used by admin_service::list_routes which previously
+        // called list_schedules_by_route(...).len() and loaded every schedule
+        // row just to count them (N routes × M schedules = N*M row fetches).
+        Ok(schedule::Entity::find()
+            .filter(schedule::Column::RouteId.eq(route_id.to_string()))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
     async fn list_schedules_by_routes(
         &self,
         route_ids: Vec<Uuid>,
@@ -120,11 +132,11 @@ impl ScheduleStore for DbScheduleStore {
     }
 
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
+        // Use `count()` instead of the previous `.all().len()` pattern.
         Ok(bus_layout::Entity::find()
             .filter(bus_layout::Column::BrandId.eq(brand_id.to_string()))
-            .all(self.db.as_ref())
-            .await?
-            .len())
+            .count(self.db.as_ref())
+            .await? as usize)
     }
 
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>> {

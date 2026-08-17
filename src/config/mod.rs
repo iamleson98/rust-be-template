@@ -530,6 +530,13 @@ impl Config {
         if self.jwt.secret.len() < 32 {
             anyhow::bail!("JWT_SECRET must be at least 32 bytes for HS256");
         }
+        if self.jwt.secret == "change-me-in-production-please-use-32-bytes-or-more" {
+            anyhow::bail!(
+                "JWT_SECRET is the default placeholder shipped in source. \
+                 Set a real 32+ byte secret via the JWT_SECRET env var \
+                 (e.g. `openssl rand -hex 32`)."
+            );
+        }
         if self.worker.concurrency == 0 {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
         }

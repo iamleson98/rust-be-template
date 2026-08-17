@@ -628,69 +628,55 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
 
-        let brand = if let Some(ref bid) = route.brand_id {
-            match Uuid::parse_str(bid) {
-                Ok(uid) => self
-                    .store
-                    .brand_store()
-                    .get_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
+        // The five lookups below depend only on `route` + `schedule`
+        // (already loaded above) — they're independent of each other.
+        // Running them concurrently with `tokio::try_join!` cuts 5
+        // sequential DB round-trips down to 1 (the slowest one).
+        let brand_id_uid = route.brand_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let start_location_uid = route.start_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let end_location_uid = route.end_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let bus_layout_uid = schedule.bus_layout_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
 
-        let start_place = if let Some(ref id) = route.start_location_id {
-            match Uuid::parse_str(id) {
-                Ok(uid) => self
-                    .store
-                    .place_store()
-                    .find_place_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let brand_fut = async {
+            if let Some(uid) = brand_id_uid {
+                self.store.brand_store().get_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
-
-        let end_place = if let Some(ref id) = route.end_location_id {
-            match Uuid::parse_str(id) {
-                Ok(uid) => self
-                    .store
-                    .place_store()
-                    .find_place_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let start_place_fut = async {
+            if let Some(uid) = start_location_uid {
+                self.store.place_store().find_place_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
-
-        let bus_layout = if let Some(ref blid) = schedule.bus_layout_id {
-            match Uuid::parse_str(blid) {
-                Ok(uid) => self
-                    .store
-                    .schedule_store()
-                    .find_bus_layout_by_id(uid)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?,
-                Err(_) => None,
+        let end_place_fut = async {
+            if let Some(uid) = end_location_uid {
+                self.store.place_store().find_place_by_id(uid).await
+            } else {
+                Ok(None)
             }
-        } else {
-            None
         };
-
-        // Pickup points
-        let pickup_points = self
+        let bus_layout_fut = async {
+            if let Some(uid) = bus_layout_uid {
+                self.store.schedule_store().find_bus_layout_by_id(uid).await
+            } else {
+                Ok(None)
+            }
+        };
+        let pickup_points_fut = self
             .store
             .route_store()
-            .list_pickup_points_by_route(&route.id.to_string())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+            .list_pickup_points_by_route(&route.id.to_string());
+
+        let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
+            brand_fut,
+            start_place_fut,
+            end_place_fut,
+            bus_layout_fut,
+            pickup_points_fut,
+        )?;
 
         let pickup_items: Vec<TripPickupPoint> = pickup_points
             .iter()

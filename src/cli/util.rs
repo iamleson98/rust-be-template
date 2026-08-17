@@ -53,15 +53,19 @@ pub fn db_backend_name() -> &'static str {
 
 /// Mask a secret string, showing only the first 4 and last 4 characters
 /// (or full string if shorter than 12 chars).
+///
+/// Uses `chars()` for boundary-safe slicing — handles multi-byte UTF-8
+/// secrets (e.g. user-supplied S3 keys with emoji) without panicking.
 pub fn mask_secret(s: &str) -> String {
     if s.is_empty() {
         return String::new();
     }
-    if s.len() < 12 {
-        return "*".repeat(s.len());
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() < 12 {
+        return "*".repeat(chars.len());
     }
-    let head = &s[..4];
-    let tail = &s[s.len() - 4..];
+    let head: String = chars.iter().take(4).collect();
+    let tail: String = chars.iter().rev().take(4).collect::<String>().chars().rev().collect();
     format!("{head}…{tail}")
 }
 

@@ -134,11 +134,3 @@ impl<T: ToSchema> ListEnvelope<T> {
         self
     }
 }
-
-#[derive(Serialize, Deserialize, ToSchema)]
-pub struct BrandInfo {
-    // #[serde(flatten)]
-    // pub base: crate::entity::brand::Model,
-    pub route_count: usize,
-    pub layout_count: usize,
-}

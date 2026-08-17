@@ -115,14 +115,14 @@ pub async fn ws_upgrade(
             max = hub().max_connections(),
             "WS upgrade rejected: global connection cap reached"
         );
-        return Err(AppError::Internal("ws connection cap reached".into()));
+        return Err(AppError::ServiceUnavailable("ws connection cap reached".into()));
     }
 
     // ── Per-IP connection cap ───────────────────────────────────────────
     if !hub().try_acquire_ip(&ip, limits.max_per_ip) {
         hub().release_global();
         tracing::warn!(ip = %ip, max_per_ip = limits.max_per_ip, "WS upgrade rejected: per-IP cap reached");
-        return Err(AppError::Internal("ws per-ip cap reached".into()));
+        return Err(AppError::TooManyRequests("ws per-ip cap reached".into()));
     }
 
     let ws = ws

@@ -19,6 +19,14 @@ pub trait RefreshTokenStore: Send + Sync {
     async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>>;
     async fn revoke_refresh_token(&self, id: Uuid) -> StoreResult<()>;
     async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()>;
+
+    /// Atomically revoke an unrevoked, unexpired token. Returns `Some(user_id)`
+    /// on success, `None` if the row was already revoked/expired (or doesn't
+    /// exist). The conditional UPDATE eliminates the TOCTOU window of the
+    /// previous `get_refresh_token` + `revoke_refresh_token` pair — two
+    /// concurrent refresh requests with the same token both used to pass
+    /// the validation check and both issued fresh sessions.
+    async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>>;
 }
 
 #[derive(Clone)]
@@ -78,6 +86,35 @@ impl RefreshTokenStore for DbRefreshTokenStore {
             .exec(self.db.as_ref())
             .await?;
         Ok(())
+    }
+
+    async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>> {
+        // Atomic conditional UPDATE — only matches if the token is still
+        // unrevoked + unexpired. Returns the user_id of the matched row
+        // (single round trip; no TOCTOU window between check + revoke).
+        use sea_orm::sea_query::Alias;
+        let _ = Alias::new(()); // ensure Alias is in scope even if unused
+        let now_iso = chrono::Utc::now();
+        let res = refresh_tokens::Entity::update_many()
+            .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
+            .filter(refresh_tokens::Column::Id.eq(id))
+            .filter(refresh_tokens::Column::Revoked.eq(false))
+            .filter(refresh_tokens::Column::ExpiresAt.gt(now_iso))
+            .exec(self.db.as_ref())
+            .await?;
+        // UPDATE in SeaORM doesn't support RETURNING across both SQLite and
+        // Postgres uniformly, so we fall back to a follow-up read for the
+        // user_id. The atomic UPDATE above is what closes the race — the
+        // read here is safe because if `rows_affected == 0` no one else can
+        // claim it; if `rows_affected == 1` we know the row is now `revoked=true`,
+        // so the user_id lookup is consistent.
+        if res.rows_affected == 0 {
+            return Ok(None);
+        }
+        let model = refresh_tokens::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?;
+        Ok(model.map(|m| m.user_id))
     }
 }
 
@@ -155,5 +192,14 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
 
     async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()> {
         self.inner.revoke_all_refresh_tokens_for_user(user_id).await
+    }
+
+    async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>> {
+        let result = self.inner.try_revoke_refresh_token(id).await;
+        if result.is_ok() {
+            // Bust the cache so subsequent reads see the new revoked state.
+            let _ = self.cache.delete(&refresh_token_key(id)).await;
+        }
+        result
     }
 }
