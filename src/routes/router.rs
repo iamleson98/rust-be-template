@@ -17,21 +17,29 @@ use crate::state::AppState;
 /// served directly via `axum::serve`.
 pub fn build_router(state: AppState) -> Router<()> {
     // ---- Rate-limit only API routes ------------------------------------
-    // Use `GovernorConfigBuilder::secure()` is not needed here; default
-    // extracts PeerIp which works once we add `x-forwarded-for` support.
-    // For dev (localhost without trusted proxy), we use the default
-    // PeerIpKeyExtractor. If you run behind a reverse proxy, switch to
-    // `PeerIpKeyExtractor::new().with_trusted_proxy(...)` or use the
-    // `GlobalKeyExtractor` for per-route limits.
     //
-    // `per_second(n)` means "1 request every n seconds", so to convert
-    // from requests-per-minute we compute: interval = 60 / rpm.
+    // tower_governor uses a token-bucket: `burst_size` tokens are available
+    // immediately, and `per_second(n)` means 1 token is refilled every n
+    // seconds (i.e. a refill rate of 1/n tokens per second).
+    //
+    // To allow `rpm` requests per minute, we need a refill rate of
+    // `rpm / 60` tokens per second, i.e. one token every
+    // `60 / rpm` seconds. When rpm >= 60, the interval is < 1 second.
+    //
+    // tower_governor's `per_second` takes a u64 (whole seconds), so for
+    // sub-second refill rates we use `per_millisecond` instead:
+    //   interval_ms = (60 * 1000) / rpm = 60000 / rpm
+    //
+    // Examples:
+    //   rpm=600 → interval_ms=100ms → 10 tokens/sec → burst=100
+    //   rpm=1200 → interval_ms=50ms → 20 tokens/sec → burst=200
+    //   rpm=60 → interval_ms=1000ms → 1 token/sec → burst=100
     let rpm = state.config.rate_limit.rpm.max(1) as u64;
-    let interval_secs = 60 / rpm; // e.g. 60 rpm → 1 req/s, 120 rpm → 0 (clamped to 1)
+    let interval_ms = (60_000 / rpm).max(1); // clamp to ≥1ms
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
-            .per_second(interval_secs.max(1))
-            .burst_size(state.config.rate_limit.burst)
+            .per_millisecond(interval_ms)
+            .burst_size(state.config.rate_limit.burst.max(1))
             .finish()
             .unwrap_or_else(|| GovernorConfigBuilder::default().finish().unwrap()),
     );

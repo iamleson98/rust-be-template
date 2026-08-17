@@ -296,13 +296,20 @@ impl WorkerConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RateLimitConfig {
+    /// Requests per minute allowed per client IP. Default: 600 (10/sec).
+    /// The previous default of 60 RPM (1 req/sec) was too aggressive for
+    /// a SPA that makes 5-10 concurrent API calls on page load — users
+    /// would see 429 Too Many Requests constantly.
     pub rpm: u32,
+    /// Burst size — max number of requests allowed in a short window before
+    /// the per-second refill rate kicks in. Default: 100. The previous
+    /// default of 10 was easily exhausted by a single page load.
     pub burst: u32,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        Self { rpm: 60, burst: 10 }
+        Self { rpm: 600, burst: 100 }
     }
 }
 
