@@ -1,25 +1,5 @@
 'use client'
-/**
- * AdminBrandManagement — master-detail orchestrator for the
- * Hãng xe / Tuyến / Lịch / Điểm đóntrả CRUD UI.
- *
- * This is the main exported component (named export `AdminBrandManagement`).
- * It owns the cross-panel state (selected brand/route, dialog open flags,
- * delete-target state) and delegates:
- *   - List rendering          → `./panels.tsx`
- *   - Create/edit forms      → `./brand-form.tsx`, `./route-form.tsx`,
- *                               `./schedule-form.tsx`, `./pickup-form.tsx`
- *   - Pure helpers           → `./helpers.ts`
- *   - Shared types/constants → `./types.ts`
- *
- * Migrated from manual `useEffect + fetch + useState` to TanStack Query.
- * Each list is backed by a query hook (`useAdminBrands`, `useAdminRoutes`,
- * `useAdminSchedules`, `useAdminPickupPoints`, `useAdminBusLayouts`).
- * Selection state (selectedBrand / selectedRoute) drives the query keys —
- * changing selection triggers a refetch automatically. Delete operations
- * are sent via the matching `useDeleteAdmin*` mutations, which invalidate
- * the corresponding list query (no manual refetch needed).
- */
+
 import { useCallback, useMemo, useState } from 'react'
 import {
   AlertDialog,
@@ -64,6 +44,7 @@ import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
 import { PickupPointFormDialog } from '@/components/admin/pickup-points/pickup-form'
+
 export function AdminBrandManagement() {
   const [brandSearch, setBrandSearch] = useState('')
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
@@ -93,12 +74,14 @@ export function AdminBrandManagement() {
       setMobileView('routes')
     }
   }, [])
+
   const selectRoute = useCallback((route: RouteItem | null) => {
     setSelectedRoute(route)
     if (route) {
       setMobileView('details')
     }
   }, [])
+
   /* --- derived: filtered lists (search box) --- */
   const filteredBrands = useMemo(() => {
     const q = brandSearch.trim().toLowerCase()
@@ -110,6 +93,7 @@ export function AdminBrandManagement() {
         (b.contactPhone ?? '').includes(q),
     )
   }, [brands, brandSearch])
+
   const filteredRoutes = useMemo(() => {
     const q = routeSearch.trim().toLowerCase()
     if (!q) return routes
@@ -121,6 +105,7 @@ export function AdminBrandManagement() {
         (r.endLocation?.name ?? '').toLowerCase().includes(q),
     )
   }, [routes, routeSearch])
+
   /* --- mutations: delete (one per resource kind, auto-invalidates) --- */
   const deleteBrandMutation = useDeleteAdminBrand()
   const deleteRouteMutation = useDeleteAdminRoute()
@@ -143,9 +128,11 @@ export function AdminBrandManagement() {
     open: false,
     pickup: null,
   })
+
   /* --- Delete confirmation --- */
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
   const [deleting, setDeleting] = useState(false)
+
   const confirmDelete = async () => {
     if (!deleteTarget) return
     setDeleting(true)
@@ -170,7 +157,7 @@ export function AdminBrandManagement() {
       setDeleting(false)
     }
   }
-  /* ─── Render ─── */
+
   return (
     <div className="space-y-4">
       <BrandManagementBreadcrumb

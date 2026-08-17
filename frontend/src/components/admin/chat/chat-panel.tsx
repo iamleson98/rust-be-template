@@ -1,25 +1,5 @@
 'use client'
 
-/**
- * ChatPanel — admin "Hỗ trợ trực tuyến" tab content.
- *
- * Extracted verbatim from the original `admin-dashboard.tsx`
- * (lines 1003-1189). Receives all data + handlers as props because
- * the parent owns the chat state and shares it with no other tab.
- *
- * Phase 9 additions:
- *   - "Đặt vé cho khách" button in the chat workspace header → opens the
- *     `ChatTicketPicker` dialog. After successful booking creation, the
- *     panel calls `onSendTicketCard(payload)` so the parent can POST a
- *     `kind: 'ticket'` chat message with the booking-card payload.
- *   - Inline ticket-card rendering inside the message list: messages with
- *     `kind: 'ticket'` (or whose `attachments` field contains a JSON
- *     ticket payload) render as a beautiful booking card instead of plain
- *     text. The card shows booking code, route, seats, total, status —
- *     and a "Xem chi tiết" button that opens the TicketsPanel detail
- *     dialog (parent wires this via `onViewTicket(code)`).
- */
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

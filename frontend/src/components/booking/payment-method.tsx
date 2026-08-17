@@ -12,7 +12,7 @@
  */
 
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight, Loader2, Lock, ShieldCheck } from 'lucide-react'
+import { ChevronLeft, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { PriceSummary, type InsuranceLevel } from './price-summary'

@@ -57,15 +57,15 @@ import {
   StarsRow,
 } from '@/components/admin/dashboard/badges'
 
-const EMPTY_STATS: AdminReviewStats = {
-  total: 0,
-  pending: 0,
-  published: 0,
-  hidden: 0,
-  flagged: 0,
-  avgRating: 0,
-  responseRate: 0,
-}
+// const EMPTY_STATS: AdminReviewStats = {
+//   total: 0,
+//   pending: 0,
+//   published: 0,
+//   hidden: 0,
+//   flagged: 0,
+//   avgRating: 0,
+//   responseRate: 0,
+// }
 
 export function ReviewsModerationPanel() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'published' | 'hidden' | 'flagged'>('all')

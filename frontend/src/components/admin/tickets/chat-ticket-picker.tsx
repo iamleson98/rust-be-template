@@ -664,7 +664,7 @@ function SearchStep({
           ))}
         </div>
       ) : tripSearch.data?.items && tripSearch.data.items.length > 0 ? (
-        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+        <div className="space-y-2 max-h-75 overflow-y-auto">
           {tripSearch.data.items.map((t) => (
             <button
               key={t.tripId}

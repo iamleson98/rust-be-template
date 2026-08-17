@@ -88,7 +88,6 @@ export function BrandFormDialog({
   const isEdit = !!brand
   const [slugTouched, setSlugTouched] = useState(false)
   const upsertMutation = useUpsertAdminBrand()
-  const saving = upsertMutation.isPending
 
   const form = useForm<BrandFormValues>({
     resolver: zodResolver(brandSchema),
@@ -153,7 +152,7 @@ export function BrandFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !upsertMutation.isPending && onOpenChange(o)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -319,11 +318,11 @@ export function BrandFormDialog({
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsertMutation.isPending}>
                 Huỷ
               </Button>
-              <Button type="submit" disabled={saving} className="bg-rose-600 hover:bg-rose-700">
-                {saving ? (
+              <Button type="submit" disabled={upsertMutation.isPending} className="bg-rose-600 hover:bg-rose-700">
+                {upsertMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
                   </>

@@ -187,7 +187,7 @@ export function PickupPointFormDialog({
                         <SelectValue placeholder="Chọn địa điểm..." />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent className="max-h-[280px]">
+                    <SelectContent className="max-h-70">
                       {sortedPlaces.map((p) => (
                         <SelectItem key={p.id} value={p.id}>
                           <span className="flex items-center gap-1.5">

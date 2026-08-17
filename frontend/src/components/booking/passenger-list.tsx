@@ -19,7 +19,6 @@
  * form state to a context provider, which is a larger refactor.
  */
 
-import type React from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
