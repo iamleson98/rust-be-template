@@ -135,8 +135,11 @@ impl BookingService {
         // Batch serialize
         let items = self.serialize_bookings_batched(&bookings, true).await?;
 
-        let total = items.len();
-        Ok(BookingListResponse { items, total })
+        // Use `with_total` so the field is omitted from JSON when the count
+        // wasn't computed (matches the OpenAPI schema where `total` is
+        // optional). Previously `total = items.len()` was misleadingly
+        // reporting the page size as the total matching-row count.
+        Ok(BookingListResponse::new(items))
     }
 
     /// Guest lookup by booking code and/or phone.
@@ -514,7 +517,7 @@ impl BookingService {
             .iter()
             .filter(|p| p.passenger_type == "child")
             .count() as i64;
-        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price as i64).collect();
+        let seat_prices: Vec<i64> = seat_invs.iter().map(|s| s.final_price).collect();
         let subtotal: i64 = seat_prices.iter().sum();
 
         // Campaign discount
@@ -855,28 +858,26 @@ impl BookingService {
         if let Some(ref exp) = b.expires_at {
             if let Ok(t) = chrono::DateTime::parse_from_rfc3339(exp) {
                 if t.with_timezone(&Utc) < Utc::now() {
-                    // Expired — release seats, mark cancelled
-                    let seat_invs = self
+                    // Expired — release seats, mark cancelled.
+                    //
+                    // Previously: per-seat loop with `let _ =` swallowing
+                    // errors → seats stayed "held" forever on partial
+                    // failure. Now: single bulk UPDATE that propagates
+                    // errors. If the release fails, the caller gets a 500
+                    // (correct — manual intervention needed) rather than
+                    // a misleading 410.
+                    let _released = self
                         .store
                         .trip_store()
-                        .list_seat_inventories_by_held_booking(&b.id.to_string())
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string()))?;
-                    for inv in &seat_invs {
-                        let mut active: seat_inventory::ActiveModel = inv.clone().into();
-                        active.status = Set("available".to_string());
-                        active.held_until = Set(None);
-                        active.held_by_booking_id = Set(None);
-                        let _ = self.store.trip_store().update_seat_inventory(active).await;
-                    }
+                        .release_held_seats_for_booking(&b.id.to_string())
+                        .await?;
                     let mut booking_active: booking::ActiveModel = b.into();
                     booking_active.status = Set("cancelled".to_string());
                     booking_active.updated_at = Set(now_iso());
-                    let _ = self
-                        .store
+                    self.store
                         .booking_store()
                         .update_booking(booking_active)
-                        .await;
+                        .await?;
 
                     return Err(AppError::Gone("booking hold has expired".into()));
                 }
@@ -1141,10 +1142,10 @@ impl BookingService {
 /// Vietnamese phone normalization.
 pub fn normalize_phone(phone: &str) -> String {
     let p: String = phone.chars().filter(|c| !c.is_whitespace()).collect();
-    if p.starts_with('0') {
-        format!("+84{}", &p[1..])
-    } else if p.starts_with("84") {
-        format!("+{}", p)
+    if let Some(rest) = p.strip_prefix('0') {
+        format!("+84{rest}")
+    } else if let Some(rest) = p.strip_prefix("84") {
+        format!("+84{rest}")
     } else {
         p
     }
@@ -1183,7 +1184,7 @@ pub fn fmt_vnd(n: i64) -> String {
     let len = bytes.len();
     let mut out = String::with_capacity(s.len() + s.len() / 3);
     for (i, b) in bytes.iter().enumerate() {
-        if i > 0 && (len - i) % 3 == 0 {
+        if i > 0 && (len - i).is_multiple_of(3) {
             out.push('.');
         }
         out.push(*b as char);

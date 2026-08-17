@@ -40,8 +40,6 @@ pub mod store;
 pub mod worker;
 pub mod ws;
 pub mod zeroclaw;
-// pub mod entities;
-// pub mod query_root;
 
 // Re-export the Migrator from the standalone migrator crate.
 pub use migrator::Migrator;

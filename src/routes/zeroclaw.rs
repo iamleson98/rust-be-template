@@ -1,9 +1,11 @@
 use axum::extract::{Query, State};
 use axum::Json;
 use serde::Deserialize;
-use serde_json::Value;
 use utoipa::IntoParams;
 
+use crate::dto::zeroclaw::{
+    ZeroclawExchangeListResponse, ZeroclawExchangeOut, ZeroclawStatusResponse,
+};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::zeroclaw;
@@ -14,18 +16,20 @@ use crate::zeroclaw;
     path = "/api/zeroclaw/status",
     tag = "zeroclaw",
     responses(
-        (status = 200, description = "ZeroClaw status", body = Value),
+        (status = 200, description = "ZeroClaw status", body = ZeroclawStatusResponse),
     )
 )]
-pub async fn status() -> Result<Json<Value>, AppError> {
+pub async fn status() -> Result<Json<ZeroclawStatusResponse>, AppError> {
     let p = zeroclaw::provider();
-    Ok(Json(serde_json::json!({
-        "enabled": p.is_enabled(),
-        "provider": p.name(),
-    })))
+    Ok(Json(ZeroclawStatusResponse {
+        enabled: p.is_enabled(),
+        provider: p.name(),
+    }))
 }
 
 #[derive(Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
 pub struct ListExchangesQuery {
     pub limit: Option<u64>,
     pub offset: Option<u64>,
@@ -38,18 +42,19 @@ pub struct ListExchangesQuery {
     tag = "zeroclaw",
     params(ListExchangesQuery),
     responses(
-        (status = 200, description = "Exchange list", body = Value),
+        (status = 200, description = "Exchange list", body = ZeroclawExchangeListResponse),
     )
 )]
 pub async fn list_exchanges(
     State(st): State<AppState>,
     Query(q): Query<ListExchangesQuery>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Json<ZeroclawExchangeListResponse>, AppError> {
     let rows = st
         .store
         .chat_store()
         .list_zeroclaw_exchanges(q.limit.unwrap_or(50), q.offset.unwrap_or(0))
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
-    Ok(Json(serde_json::to_value(&rows).unwrap_or_default()))
+    let items: Vec<ZeroclawExchangeOut> = rows.into_iter().map(ZeroclawExchangeOut::from).collect();
+    Ok(Json(ZeroclawExchangeListResponse { items }))
 }

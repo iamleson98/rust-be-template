@@ -19,5 +19,4 @@ mod router;
 mod routing;
 mod users;
 mod wishlist;
-mod ws;
 mod zeroclaw;

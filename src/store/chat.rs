@@ -86,6 +86,15 @@ pub trait ChatStore: Send + Sync {
         channel_id: &str,
         client_msg_id: &str,
     ) -> StoreResult<bool>;
+    /// Fetch the stored message for a given `client_msg_id` — replaces the
+    /// previous pattern of `message_exists_by_client_id(...)` →
+    /// `list_messages(100).find(client_msg_id)` (O(100) linear scan on every
+    /// duplicate POST). Single SQL round-trip.
+    async fn find_message_by_client_id(
+        &self,
+        channel_id: &str,
+        client_msg_id: &str,
+    ) -> StoreResult<Option<chat_message::Model>>;
     async fn insert_zeroclaw_exchange(&self, ex: NewZeroClawExchange) -> StoreResult<()>;
     async fn list_zeroclaw_exchanges(
         &self,
@@ -265,12 +274,22 @@ impl ChatStore for DbChatStore {
         channel_id: &str,
         client_msg_id: &str,
     ) -> StoreResult<bool> {
-        Ok(chat_message::Entity::find()
-            .filter(chat_message::Column::ChannelId.eq(channel_id))
-            .filter(chat_message::Column::ClientMsgId.eq(client_msg_id))
-            .one(self.db.as_ref())
+        Ok(self
+            .find_message_by_client_id(channel_id, client_msg_id)
             .await?
             .is_some())
+    }
+
+    async fn find_message_by_client_id(
+        &self,
+        channel_id: &str,
+        client_msg_id: &str,
+    ) -> StoreResult<Option<chat_message::Model>> {
+        Ok(chat_message::Entity::find()
+            .filter(chat_message::Column::ChannelId.eq(channel_id.to_string()))
+            .filter(chat_message::Column::ClientMsgId.eq(client_msg_id.to_string()))
+            .one(self.db.as_ref())
+            .await?)
     }
 
     #[store_macros::no_retry]
@@ -374,7 +393,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let exists = self.inner.channel_exists(channel_id).await?;
@@ -388,7 +407,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let model = self.inner.get_channel(channel_id).await?;
@@ -450,6 +469,16 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
     ) -> StoreResult<bool> {
         self.inner
             .message_exists_by_client_id(channel_id, client_msg_id)
+            .await
+    }
+
+    async fn find_message_by_client_id(
+        &self,
+        channel_id: &str,
+        client_msg_id: &str,
+    ) -> StoreResult<Option<chat_message::Model>> {
+        self.inner
+            .find_message_by_client_id(channel_id, client_msg_id)
             .await
     }
 

@@ -31,7 +31,7 @@ pub fn build_router(state: AppState) -> Router<()> {
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
             .per_second(interval_secs.max(1))
-            .burst_size(state.config.rate_limit.burst as u32)
+            .burst_size(state.config.rate_limit.burst)
             .finish()
             .unwrap_or_else(|| GovernorConfigBuilder::default().finish().unwrap()),
     );

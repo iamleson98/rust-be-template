@@ -166,13 +166,13 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB");
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB");
             }
         }
 
         let model = self.inner.get_post(id).await?;
         if let Err(e) = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await {
-            tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+            tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(model)
     }
@@ -199,7 +199,7 @@ impl<S: PostStore> PostStore for CachePostStore<S> {
         let model = self.inner.update_post(id, title, body).await?;
         let key = post_key(id);
         if let Err(e) = set_serializable(self.cache.as_ref(), &key, &model, Some(self.ttl)).await {
-            tracing::warn!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
+            tracing::debug!(key = %key, error = %e, "cache write failed; will re-fetch on next miss");
         }
         Ok(model)
     }

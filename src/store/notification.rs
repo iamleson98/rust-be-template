@@ -6,6 +6,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,
@@ -130,39 +131,33 @@ impl NotificationStore for DbNotificationStore {
     }
 
     async fn mark_all_read(&self, user_id: &str) -> StoreResult<u64> {
-        // SeaORM doesn't have a direct UPDATE...WHERE API without raw
-        // SQL; the simplest portable approach is to load unread rows
-        // and update each one. For a typical user this is <100 rows.
-        let unread = notification::Entity::find()
+        // Single bulk UPDATE — replaces the previous load-all-then-loop
+        // pattern that issued N UPDATEs (one per unread notification) and
+        // silently swallowed errors via `let _ =`. The previous version
+        // could leave some notifications unread but report success.
+        let res = notification::Entity::update_many()
+            .col_expr(notification::Column::Read, Expr::value(true))
             .filter(notification::Column::UserId.eq(user_id.to_string()))
             .filter(notification::Column::Read.eq(false))
-            .all(self.db.as_ref())
+            .exec(self.db.as_ref())
             .await?;
-        let n = unread.len() as u64;
-        for m in unread {
-            let mut active: notification::ActiveModel = m.into();
-            active.read = Set(true);
-            let _ = active.update(self.db.as_ref()).await;
-        }
-        Ok(n)
+        Ok(res.rows_affected)
     }
 
     async fn mark_many_read(&self, user_id: &str, ids: &[Uuid]) -> StoreResult<u64> {
         if ids.is_empty() {
             return Ok(0);
         }
-        let rows = notification::Entity::find()
+        // Single bulk UPDATE constrained by both user_id (defence-in-depth
+        // against IDOR — caller can't mark other users' notifications) and
+        // the requested id set. Replaces the previous load-then-loop.
+        let res = notification::Entity::update_many()
+            .col_expr(notification::Column::Read, Expr::value(true))
             .filter(notification::Column::UserId.eq(user_id.to_string()))
             .filter(notification::Column::Id.is_in(ids.to_vec()))
             .filter(notification::Column::Read.eq(false))
-            .all(self.db.as_ref())
+            .exec(self.db.as_ref())
             .await?;
-        let n = rows.len() as u64;
-        for m in rows {
-            let mut active: notification::ActiveModel = m.into();
-            active.read = Set(true);
-            let _ = active.update(self.db.as_ref()).await;
-        }
-        Ok(n)
+        Ok(res.rows_affected)
     }
 }

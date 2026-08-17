@@ -228,7 +228,22 @@ pub struct BookingListItem {
 #[serde(rename_all = "camelCase")]
 pub struct BookingListResponse {
     pub items: Vec<BookingListItem>,
-    pub total: usize,
+    /// Total matching-row count (independent of pagination). Omitted from
+    /// the JSON when the server didn't compute it (e.g. for the lookup
+    /// endpoint). Use `with_total(...)` to set it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+}
+
+impl BookingListResponse {
+    pub fn new(items: Vec<BookingListItem>) -> Self {
+        Self { items, total: None }
+    }
+
+    pub fn with_total(mut self, total: u64) -> Self {
+        self.total = Some(total);
+        self
+    }
 }
 
 /// Response of `GET /api/bookings/lookup`. Same shape as the list, but

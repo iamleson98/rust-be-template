@@ -328,7 +328,7 @@ mod tests {
         let agents_before = h.online_agent_count();
         let booted = h.register(fake_user(&id, "user"), CallRole::Customer, None, tx, sid);
         assert!(booted.is_empty());
-        assert_eq!(h.peer_count() >= 1, true);
+        assert!(h.peer_count() >= 1);
         assert_eq!(h.online_agent_count(), agents_before);
 
         let role = h.unregister(&id, sid);

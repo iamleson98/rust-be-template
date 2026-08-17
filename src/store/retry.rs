@@ -10,6 +10,11 @@ use super::error::StoreError;
 /// methods on `self` to decide when and how long to wait between attempts.
 ///
 /// Override any method on your struct to customize the policy.
+//
+// Note: the compiler emits a false-positive `dead_code` warning for this
+// trait — the methods are called by the `#[retry]` proc macro's generated
+// code, which the compiler doesn't see in this crate.
+#[allow(dead_code)]
 pub trait RetryPolicy: Send + Sync {
     /// Max retry attempts (excluding the initial attempt). Default: 3.
     fn max_retries(&self) -> usize {
@@ -42,6 +47,10 @@ pub trait RetryPolicy: Send + Sync {
 
 /// Tiny thread-local xorshift PRNG — no external deps, no global state.
 /// Adequate for jitter; not for crypto.
+//
+// False-positive `dead_code` warning: called by `RetryPolicy::delay_for`
+// at runtime via the macro-generated retry loop.
+#[allow(dead_code)]
 fn thread_local_rng() -> u64 {
     use std::cell::Cell;
     thread_local! {

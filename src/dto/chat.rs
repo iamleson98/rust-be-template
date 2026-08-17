@@ -35,10 +35,14 @@ pub struct CreateChannelResponse {
 pub struct ChatChannelOut {
     pub id: Uuid,
     pub user_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message_preview: Option<String>,
     pub unread_user: i64,
     pub unread_employee: i64,
@@ -85,9 +89,12 @@ pub struct ChatMessageOut {
     pub id: Uuid,
     pub channel_id: String,
     pub sender_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub sender_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
     pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub attachments: Option<String>,
     pub created_at: String,
 }

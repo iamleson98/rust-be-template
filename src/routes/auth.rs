@@ -109,7 +109,7 @@ pub async fn login(
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let session = state.auth.login(body.email, body.password).await?;
-    let jar = session.set_cookies(jar, state.auth.cookie_config());
+    let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
         Json(AuthResponse::from_user(
@@ -157,7 +157,7 @@ pub async fn employee_login(
         ));
     }
 
-    let jar = session.set_cookies(jar, state.auth.cookie_config());
+    let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
         Json(AuthResponse::from_user(
@@ -186,7 +186,7 @@ pub async fn refresh(
     Json(body): Json<RefreshRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     let session = state.auth.refresh(body.refresh_token).await?;
-    let jar = session.set_cookies(jar, state.auth.cookie_config());
+    let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
         Json(AuthResponse::from_user(

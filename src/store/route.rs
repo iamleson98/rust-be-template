@@ -126,11 +126,13 @@ impl RouteStore for DbRouteStore {
     }
 
     async fn count_routes_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
+        // Use `count()` (SELECT COUNT(*)) instead of the previous
+        // `.all().len()` pattern that materialised every matching row
+        // in memory just to count them.
         Ok(route::Entity::find()
             .filter(route::Column::BrandId.eq(brand_id.to_string()))
-            .all(self.db.as_ref())
-            .await?
-            .len())
+            .count(self.db.as_ref())
+            .await? as usize)
     }
 
     // ── PickupPoint ─────────────────────────────────────────────
@@ -146,11 +148,11 @@ impl RouteStore for DbRouteStore {
     }
 
     async fn count_pickup_points_by_route(&self, route_id: &str) -> StoreResult<usize> {
+        // Same fix as count_routes_by_brand — `count()` instead of `all().len()`.
         Ok(pickup_point::Entity::find()
             .filter(pickup_point::Column::RouteId.eq(route_id.to_string()))
-            .all(self.db.as_ref())
-            .await?
-            .len())
+            .count(self.db.as_ref())
+            .await? as usize)
     }
 
     #[store_macros::no_retry]

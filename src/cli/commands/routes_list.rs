@@ -8,7 +8,7 @@ use axum::routing::Route;
 pub fn run() -> anyhow::Result<()> {
     println!("Registered HTTP routes:");
     println!();
-    println!("{:<30} {}", "Path", "Methods");
+    println!("{:<30} Methods", "Path");
     println!("{}", "-".repeat(60));
 
     for (path, method) in ROUTES {
@@ -17,8 +17,8 @@ pub fn run() -> anyhow::Result<()> {
 
     println!();
     println!("Static routes:");
-    println!("{:<30} {}", "/", "GET (ServeDir)");
-    println!("{:<30} {}", "/*path", "GET (ServeDir)");
+    println!("{:<30} GET (ServeDir)", "/");
+    println!("{:<30} GET (ServeDir)", "/*path");
 
     println!();
     println!("Swagger UI: http://localhost:8080/swagger-ui");

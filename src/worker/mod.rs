@@ -25,8 +25,8 @@ use crate::config::{WorkerBackend as WorkerBackendCfg, WorkerConfig};
 /// Construct the configured broker.
 pub async fn build(cfg: &WorkerConfig) -> anyhow::Result<Box<dyn WorkerBroker>> {
     match cfg.backend {
-        WorkerBackendCfg::Redis => Ok(Box::new(RedisBroker::connect(&cfg).await?)),
+        WorkerBackendCfg::Redis => Ok(Box::new(RedisBroker::connect(cfg).await?)),
         WorkerBackendCfg::Db => Ok(Box::new(DbBroker::new().await?)),
-        WorkerBackendCfg::Kafka => Ok(Box::new(KafkaBroker::new(&cfg).await?)),
+        WorkerBackendCfg::Kafka => Ok(Box::new(KafkaBroker::new(cfg).await?)),
     }
 }

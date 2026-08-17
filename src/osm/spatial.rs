@@ -220,6 +220,9 @@ pub fn stitch_rings(ways: &[Vec<i64>]) -> Vec<Vec<i64>> {
     let mut pool: Vec<Option<Vec<i64>>> = ways.iter().map(|w| Some(w.clone())).collect();
     let mut rings: Vec<Vec<i64>> = Vec::new();
 
+    // The loop body has multiple `continue` paths that re-seed from the
+    // pool — a `while let` form would obscure the seed-finding logic.
+    #[allow(clippy::while_let_loop)]
     loop {
         // Find the first unused way to seed a new ring.
         let start_idx = match pool.iter().position(|w| w.is_some()) {

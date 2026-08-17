@@ -238,7 +238,7 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let model = self.inner.get_by_id(id).await?;
@@ -252,7 +252,7 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let model = self.inner.get_by_slug(slug).await?;
@@ -266,7 +266,7 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
             Ok(Some(v)) => return Ok(v),
             Ok(None) => {}
             Err(e) => {
-                tracing::warn!(key = %key, error = %e, "cache read failed; falling through to DB")
+                tracing::debug!(key = %key, error = %e, "cache read failed; falling through to DB")
             }
         }
         let rows = self.inner.list_active(limit).await?;

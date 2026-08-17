@@ -240,9 +240,8 @@ impl AdminService {
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
             let schedule_count = self.store.schedule_store()
-                .list_schedules_by_route(&r.id.to_string())
+                .count_schedules_by_route(&r.id.to_string())
                 .await
-                .map(|v| v.len())
                 .unwrap_or(0);
             let pickup_count = self.store.route_store()
                 .count_pickup_points_by_route(&r.id.to_string())
@@ -771,6 +770,7 @@ impl AdminService {
     // ── Booking management ──────────────────────────────────────
 
     /// List bookings with admin filters.
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_bookings(
         &self,
         status: Option<&str>,
@@ -791,7 +791,11 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let total = bookings.len();
+        // Previously: `let total = bookings.len();` — that's the page size
+        // (capped by `limit`), NOT the matching-row count, so pagination
+        // showed "Showing 1-50 of 50" on every page. Now omit `total` from
+        // the response until the store gets a proper count_bookings_by_filter
+        // method (tracked separately).
         let items: Vec<AdminBookingOut> = bookings
             .iter()
             .map(|b| AdminBookingOut {
@@ -814,7 +818,7 @@ impl AdminService {
 
         Ok(AdminBookingListResponse {
             items,
-            total,
+            total: None,
             limit,
             offset,
         })
@@ -917,13 +921,16 @@ impl AdminService {
 
         // Validate the transition
         if !body.force {
-            let allowed = match (existing.status.as_str(), canonical.as_str()) {
-                ("pending", "confirmed") | ("pending", "cancelled") => true,
-                ("confirmed", "completed") | ("confirmed", "cancelled") => true,
-                ("completed", "cancelled") | ("refunded", "cancelled") => true,
-                ("cancelled", "refunded") => true,
-                _ => false,
-            };
+            let allowed = matches!(
+                (existing.status.as_str(), canonical.as_str()),
+                ("pending", "confirmed")
+                    | ("pending", "cancelled")
+                    | ("confirmed", "completed")
+                    | ("confirmed", "cancelled")
+                    | ("completed", "cancelled")
+                    | ("refunded", "cancelled")
+                    | ("cancelled", "refunded")
+            );
             if !allowed {
                 return Err(AppError::BadRequest(format!(
                     "cannot transition from '{}' to '{}'. Use force=true for admin override.",
