@@ -13,6 +13,7 @@ import {
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
+import { search as sdkPlaceSearch, reverse as sdkReverseGeocode } from '@/lib/api/sdk.gen'
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
@@ -194,10 +195,8 @@ function MapSearchBox({
     }
     setLoading(true)
     try {
-      const url = `/api/places/search?limit=6&q=${encodeURIComponent(query)}`
-      const res = await fetch(url)
-      const data = await res.json()
-      setHits(data?.items ?? [])
+      const { data } = await sdkPlaceSearch({ query: { q: query, limit: 6 } })
+      setHits((data as any)?.items ?? [])
     } catch {
       setHits([])
     } finally {
@@ -280,9 +279,8 @@ function MapSearchBox({
 // ── Reverse geocode helper (Tantivy) ────────────────────────
 async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
   try {
-    const url = `/api/places/reverse?lat=${lat}&lon=${lon}&limit=1`
-    const res = await fetch(url)
-    const hits: PlaceHit[] = await res.json()
+    const { data } = await sdkReverseGeocode({ query: { lat, lon, limit: 1 } })
+    const hits: PlaceHit[] = (data as any) ?? []
     const h = hits[0]
     if (!h) return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
     return {

@@ -8,6 +8,7 @@ import { formatCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingDown, Sparkles } from 'lucide-react'
+import { searchTrips as sdkSearchTrips } from '@/lib/api/sdk.gen'
 
 // Vietnamese day-of-week short names (Mon=0 … Sun=6)
 const DOW_VN = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
@@ -113,23 +114,19 @@ export function DatePriceCompare() {
     const fetchOne = async (d: DatePrice): Promise<{ date: string; price: number | null }> => {
       if (d.isPast) return { date: d.date, price: null }
       try {
-        // Backend `GET /api/search` accepts (snake_case): from, to, date,
-        // limit, vehicle_types, sort, min_seats. Send `credentials:
-        // 'include'` so the httpOnly JWT cookie is attached.
-        const params = new URLSearchParams({
-          from,
-          to,
-          date: d.date,
-          sort: 'price',
-          min_seats: String((adults || 1) + (children || 0)),
-        })
-        const res = await fetch(`/api/search?${params}`, {
+        const { data } = await sdkSearchTrips({
+          query: {
+            from,
+            to,
+            date: d.date,
+            sort: 'price',
+            minSeats: (adults || 1) + (children || 0),
+          },
           signal: controller.signal,
-          credentials: 'include',
-        })
-        if (!res.ok) throw new Error('API error')
-        const data = await res.json()
-        const items: { minPrice: number }[] = data.items ?? []
+          // Send credentials so the httpOnly JWT cookie is attached.
+          // (handled by the SDK's default client config)
+        } as any)
+        const items: { minPrice: number }[] = (data as any)?.items ?? []
         const minPrice = items.length > 0 ? items.reduce((min, t) => Math.min(min, t.minPrice), Infinity) : null
         return { date: d.date, price: minPrice }
       } catch {

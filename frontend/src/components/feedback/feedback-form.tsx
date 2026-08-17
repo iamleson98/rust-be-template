@@ -33,6 +33,7 @@ import {
   Quote,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useCreateReview, useUpdateReview } from '@/lib/queries'
 import { BookingItem, ReviewSummary, REVIEW_TAG_LABELS } from '@/components/bookings/booking-types'
 
 type Props = {
@@ -95,9 +96,36 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   const isEditingExisting = !!existingReview
   const [editMode, setEditMode] = useState(!isEditingExisting)
   const [hoverRating, setHoverRating] = useState(0)
-  const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Two mutations defined at HOOK CREATION — each carries its own
+  // onSuccess/onError. mutate() takes only the params.
+  const createMut = useCreateReview({
+    onSuccess: (data: any) => {
+      const review: ReviewSummary = data?.review ?? data?.data?.review
+      if (review) onSubmitted?.(review)
+      setSubmitted(true)
+      toast.success('Cảm ơn đánh giá của bạn!')
+    },
+    onError: () => {
+      toast.error('Không thể gửi đánh giá')
+    },
+  })
+
+  const updateMut = useUpdateReview({
+    onSuccess: (data: any) => {
+      const review: ReviewSummary = data?.review ?? data?.data?.review
+      if (review) onSubmitted?.(review)
+      setSubmitted(true)
+      toast.success('Đã cập nhật đánh giá!')
+    },
+    onError: () => {
+      toast.error('Không thể cập nhật đánh giá')
+    },
+  })
+
+  const submitting = createMut.isPending || updateMut.isPending
 
   const form = useForm<FeedbackValues>({
     resolver: zodResolver(feedbackSchema),
@@ -161,41 +189,25 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
     )
   }
 
-  const onSubmit = async (values: FeedbackValues) => {
+  const onSubmit = (values: FeedbackValues) => {
     if (!booking.trip?.routeId || !booking.trip?.brandId) {
       toast.error('Thiếu thông tin tuyến/hãng để gửi đánh giá')
       return
     }
-    setSubmitting(true)
-    try {
-      const payload = {
+    const payload = {
+      body: {
         bookingId: booking.id,
         rating: values.rating,
         title: values.title.trim(),
         content: values.content.trim(),
         tags: values.tags,
         photos: values.photos,
-      }
-      const url = existingReview ? `/api/reviews/${existingReview.id}` : '/api/reviews'
-      const method = existingReview ? 'PATCH' : 'POST'
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast.error(data?.error?.message ?? data?.error ?? 'Không thể gửi đánh giá')
-        return
-      }
-      const review: ReviewSummary = data.review
-      setSubmitted(true)
-      onSubmitted?.(review)
-      toast.success(existingReview ? 'Đã cập nhật đánh giá!' : 'Cảm ơn đánh giá của bạn!')
-    } catch {
-      toast.error('Lỗi mạng, vui lòng thử lại')
-    } finally {
-      setSubmitting(false)
+      },
+    } as any
+    if (existingReview) {
+      updateMut.mutate({ path: { id: existingReview.id }, ...payload })
+    } else {
+      createMut.mutate(payload)
     }
   }
 

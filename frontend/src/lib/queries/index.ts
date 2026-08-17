@@ -716,6 +716,19 @@ export function useCreateReview<TData = unknown, TVars = unknown>(opts?: Mutatio
   })
 }
 
+export function useUpdateReview<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(reviewUpdateMutation() as any),
+    onSuccess: (data, vars) => {
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
 // ─────────────────────────────────────────────────────────────
 // Admin — Brands
 // ─────────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { useApp } from '@/lib/store'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query-client'
+import { tripDetailOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { useNavigate } from '@/router'
 import { WishlistButton } from '@/components/wishlist/wishlist-button'
 import { toast } from 'sonner'
@@ -95,16 +95,10 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
   // already there. We use prefetchQuery (no throw on failure) with a long
   // staleTime so the prefetched entry isn't immediately re-fetched.
   const handleHoverPrefetch = useCallback(() => {
+    const opts = tripDetailOptions({ path: { id: trip.tripId } })
     queryClient.prefetchQuery({
-      queryKey: queryKeys.trips.detail(trip.tripId),
-      queryFn: async () => {
-        // Backend route: `GET /api/trips/{id}`. Send credentials so the
-        // httpOnly JWT cookie is attached (although the endpoint is public,
-        // authed users may get richer data).
-        const res = await fetch(`/api/trips/${trip.tripId}`, { credentials: 'include' })
-        if (!res.ok) throw new Error('Failed to prefetch trip')
-        return res.json()
-      },
+      queryKey: opts.queryKey,
+      queryFn: opts.queryFn as any,
       staleTime: 60 * 1000,
     })
   }, [queryClient, trip.tripId])
