@@ -122,6 +122,15 @@ pub trait TripStore: Send + Sync {
         &self,
         held_by_booking_id: &str,
     ) -> StoreResult<u64>;
+
+    /// Bulk mark held seats as 'booked' for a given booking (the
+    /// confirmation step). Single SQL UPDATE replaces the per-seat
+    /// loop in `booking_service::confirm`. Returns the number of seats
+    /// flipped. Idempotent — safe to call on already-booked seats.
+    async fn mark_seats_booked_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64>;
     async fn list_trips_by_schedule_ids(
         &self,
         schedule_ids: Vec<Uuid>,
@@ -373,6 +382,30 @@ impl TripStore for DbTripStore {
                 Expr::value(None::<String>),
             )
             .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
+    }
+
+    #[store_macros::no_retry]
+    async fn mark_seats_booked_for_booking(
+        &self,
+        held_by_booking_id: &str,
+    ) -> StoreResult<u64> {
+        // Single bulk UPDATE — flips all seats held by this booking from
+        // 'held' → 'booked'. Used by booking_service::confirm. Idempotent:
+        // already-booked seats are not affected (filter is on status='held').
+        use sea_orm::sea_query::Expr;
+        let res = seat_inventory::Entity::update_many()
+            .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
+            .col_expr(
+                seat_inventory::Column::HeldUntil,
+                Expr::value(None::<String>),
+            )
+            // Keep held_by_booking_id set so we can still find the seats later
+            // (e.g. for the booking detail view); just clear the held_until timestamp.
+            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .filter(seat_inventory::Column::Status.eq("held"))
             .exec(self.db.as_ref())
             .await?;
         Ok(res.rows_affected)

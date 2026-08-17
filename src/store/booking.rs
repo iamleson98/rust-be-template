@@ -87,6 +87,13 @@ pub trait BookingStore: Send + Sync {
 
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>>;
     async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()>;
+
+    /// Batch-insert N booking_seat rows in a single INSERT statement.
+    /// Replaces the N-round-trip loop pattern in booking_service::hold.
+    async fn insert_booking_seats_batch(
+        &self,
+        models: Vec<booking_seat::ActiveModel>,
+    ) -> StoreResult<()>;
     async fn update_seat_inventory_status(
         &self,
         trip_session_id: &str,
@@ -292,6 +299,20 @@ impl BookingStore for DbBookingStore {
     #[store_macros::no_retry]
     async fn insert_booking_seat(&self, model: booking_seat::ActiveModel) -> StoreResult<()> {
         booking_seat::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    #[store_macros::no_retry]
+    async fn insert_booking_seats_batch(
+        &self,
+        models: Vec<booking_seat::ActiveModel>,
+    ) -> StoreResult<()> {
+        if models.is_empty() {
+            return Ok(());
+        }
+        booking_seat::Entity::insert_many(models)
             .exec(self.db.as_ref())
             .await?;
         Ok(())
