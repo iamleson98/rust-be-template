@@ -13,6 +13,7 @@ pub mod chat_channel;
 pub mod chat_message;
 pub mod discount_program;
 pub mod notification;
+pub mod payment;
 pub mod permissions;
 pub mod pickup_point;
 pub mod place;

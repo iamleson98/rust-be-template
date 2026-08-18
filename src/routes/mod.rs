@@ -10,6 +10,7 @@ mod chat;
 mod health;
 mod notifications;
 mod openapi;
+mod payments;
 mod places;
 mod posts;
 mod price_alerts;

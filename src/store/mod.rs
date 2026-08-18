@@ -19,6 +19,7 @@ pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, New
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
 pub use self::notification::{DbNotificationStore, NotificationStore};
+pub use self::payment::{DbPaymentStore, PaymentStore};
 pub use self::place::{DbPlaceStore, PlaceStore};
 pub use self::posts::{CachePostStore, DbPostStore, PostStore};
 pub use self::price_alert::{DbPriceAlertStore, PriceAlertStore};
@@ -41,6 +42,7 @@ pub mod chat;
 mod composite;
 mod error;
 mod notification;
+mod payment;
 mod place;
 mod posts;
 mod price_alert;

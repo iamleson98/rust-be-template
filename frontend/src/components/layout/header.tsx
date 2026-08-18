@@ -7,7 +7,7 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, MapPinned, Briefcase } from 'lucide-react'
+import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, MapPinned, Briefcase, CreditCard } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -225,6 +225,11 @@ export const Header = memo(function Header() {
                 {user.type === 'employee' && (
                   <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
                     <LayoutDashboard className="h-4 w-4" /> Quản trị
+                  </DropdownMenuItem>
+                )}
+                {user.type === 'employee' && (
+                  <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
+                    <CreditCard className="h-4 w-4" /> Thanh toán
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => navigate({ to: '/' })} className="gap-2">

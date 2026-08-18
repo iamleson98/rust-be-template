@@ -82,6 +82,18 @@ num_cpus = "1"
 # High-concurrency maps for WS hubs
 dashmap = "6"
 
+# Payment provider integration
+# - `qrcode` generates PNG bytes for VietQR / provider-QR rendering
+#   (used in-memory, no file system access).
+# - `image` provides the `Luma<u8>` pixel type used by `qrcode::render`.
+#   Only the `png` encoder is enabled — keeps the dependency surface
+#   minimal.
+# - `crc` computes the CRC-16/CCITT required at the end of every EMV
+#   QR payload (VietQR / NAPAS MPC QR Code standard).
+qrcode = { version = "0.14", default-features = false, features = ["image"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+crc = "3"
+
 # Vietnamese text helpers
 unidecode = "0.3"
 

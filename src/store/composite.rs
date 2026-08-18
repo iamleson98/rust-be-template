@@ -3,9 +3,9 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
 use super::{
-    AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PlaceStore, PostStore,
-    PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore, ScheduleStore,
-    TripStore, UserStore, WishlistStore,
+    AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore, PlaceStore,
+    PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
+    ScheduleStore, TripStore, UserStore, WishlistStore,
 };
 
 #[derive(Clone)]
@@ -27,6 +27,7 @@ pub struct CompositeStore {
     audit: Arc<dyn AuditStore>,
     notifications: Arc<dyn NotificationStore>,
     wishlist: Arc<dyn WishlistStore>,
+    payments: Arc<dyn PaymentStore>,
 }
 
 impl CompositeStore {
@@ -49,6 +50,7 @@ impl CompositeStore {
         audit: Arc<dyn AuditStore>,
         notifications: Arc<dyn NotificationStore>,
         wishlist: Arc<dyn WishlistStore>,
+        payments: Arc<dyn PaymentStore>,
     ) -> Self {
         Self {
             db,
@@ -68,6 +70,7 @@ impl CompositeStore {
             audit,
             notifications,
             wishlist,
+            payments,
         }
     }
 
@@ -143,5 +146,9 @@ impl CompositeStore {
 
     pub fn wishlist_store(&self) -> Arc<dyn WishlistStore> {
         self.wishlist.clone()
+    }
+
+    pub fn payment_store(&self) -> Arc<dyn PaymentStore> {
+        self.payments.clone()
     }
 }
