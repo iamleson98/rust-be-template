@@ -1,0 +1,47 @@
+# ─── Caddyfile for HTTPS reverse proxy ──────────────────────────────
+#
+# Caddy automatically provisions Let's Encrypt TLS certificates.
+# Place this at /etc/caddy/Caddyfile on the Kamatera VM.
+#
+# Replace `yourdomain.com` with your actual domain.
+# Make sure DNS A record points to the VM's public IP.
+
+yourdomain.com {
+    # Proxy all traffic to the backend container
+    reverse_proxy localhost:8080
+
+    # Security headers
+    header {
+        # HSTS — force HTTPS for 1 year
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # XSS protection
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Remove Caddy version header
+        -Server
+    }
+
+    # Compression
+    encode zstd gzip
+
+    # Access logs
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 100mb
+            roll_keep 7
+        }
+        format json
+    }
+
+    # Rate limiting (Caddy enterprise feature — for community edition,
+    # the backend's tower_governor handles rate limiting)
+    # rate_limit {
+    #     zone static 100r/m
+    # }
+}
+
+# Optional: www → apex redirect
+www.yourdomain.com {
+    redir https://yourdomain.com{uri} permanent
+}

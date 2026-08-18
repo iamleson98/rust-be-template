@@ -47,9 +47,21 @@ pub struct IndexOptions {
 impl Default for IndexOptions {
     fn default() -> Self {
         Self {
-            heap_bytes: 1024 * 1024 * 1024, // 1 GB
-            max_threads: num_cpus::get(),
-            centroid_mode: CentroidMode::Full,
+            // 256 MB heap — significantly less RAM than the previous 1 GB
+            // default. Tantivy's indexer is a merge-sort; smaller heap =
+            // more disk spills = slightly slower, but on a 2 GB VM this
+            // is the difference between OOM and success.
+            heap_bytes: 256 * 1024 * 1024,
+            // Single-threaded by default — limits CPU usage during
+            // indexing. Override via CLI `--threads N` for faster builds.
+            max_threads: 1,
+            // FirstNode mode — caches only the first node of each way
+            // (~10-30 MB for Vietnam vs ~160 MB for Full mode).
+            // Tradeoff: long streets crossing district boundaries may
+            // be assigned to the wrong district. Acceptable for a bus
+            // ticketing app — the hierarchy is display metadata, not
+            // routing data.
+            centroid_mode: CentroidMode::FirstNode,
         }
     }
 }
@@ -349,6 +361,8 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
         spatial_index.ward_count()
     );
 
+    // Release pass 2 admin_ways — no longer needed after spatial index
+    // is built. Frees ~50 MB. node_coords is still needed for way indexing.
     drop(pass2.admin_ways);
 
     let mut total: u64 = 0;

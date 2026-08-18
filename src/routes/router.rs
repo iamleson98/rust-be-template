@@ -217,6 +217,8 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/admin/bookings/export",
             get(crate::routes::admin::booking_export),
         )
+        // ── System monitoring ────────────────────────────────────────
+        .route("/admin/system", get(crate::routes::system::system_status))
         // ── ZeroClaw ───────────────────────────────────────────────────
         .route("/zeroclaw/status", get(crate::routes::zeroclaw::status))
         .route(
