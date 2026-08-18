@@ -37,10 +37,9 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import type { AdminRouteRow as RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
+import type { AdminRouteOut, AdminScheduleOut, AdminPickupPointOut, AdminBrandOut } from '@/lib/api/types.gen'
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
 import { formatDurationShort, daysLabel } from './helpers'
-import { AdminBrandOut } from '@/lib/api/types.gen'
 
 /* ─── Brands list (left panel) ─── */
 
@@ -199,15 +198,15 @@ export function RouteListPanel({
   mobileView,
 }: {
   routesLoading: boolean
-  filteredRoutes: RouteItem[]
+  filteredRoutes: AdminRouteOut[]
   routeSearch: string
   setRouteSearch: (v: string) => void
   selectedBrand: AdminBrandOut | null
-  selectedRoute: RouteItem | null
-  onSelectRoute: (r: RouteItem) => void
+  selectedRoute: AdminRouteOut | null
+  onSelectRoute: (r: AdminRouteOut) => void
   onAdd: () => void
-  onEdit: (r: RouteItem) => void
-  onDelete: (r: RouteItem) => void
+  onEdit: (r: AdminRouteOut) => void
+  onDelete: (r: AdminRouteOut) => void
   onBack: () => void
   mobileView: 'brands' | 'routes' | 'details'
 }) {
@@ -291,7 +290,7 @@ export function RouteListPanel({
                     }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <code className="text-[11px] font-mono font-bold text-blue-700">{r.code}</code>
+                    <code className="text-[11px] font-mono font-bold text-blue-700">{r.id.slice(0, 8)}</code>
                     <div className="flex items-center gap-1 shrink-0">
                       <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5">
                         {r.scheduleCount} lịch
@@ -329,7 +328,7 @@ export function RouteListPanel({
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
                     <span>{r.distanceKm} km</span>
                     <span className="flex items-center gap-0.5">
-                      <Clock className="h-3 w-3" /> {formatDurationShort(r.durationMin)}
+                      <Clock className="h-3 w-3" /> {formatDurationShort(r.durationMin ?? 0)}
                     </span>
                     <span className="flex items-center gap-0.5">
                       <MapPin className="h-3 w-3" /> {r.pickupPointCount}
@@ -362,18 +361,18 @@ export function ScheduleAndPickupPanel({
   onDeletePickup,
   mobileView,
 }: {
-  selectedRoute: RouteItem | null
+  selectedRoute: AdminRouteOut | null
   schedulesLoading: boolean
-  schedules: Schedule[]
+  schedules: AdminScheduleOut[]
   pickupLoading: boolean
-  pickupPoints: PickupPoint[]
+  pickupPoints: AdminPickupPointOut[]
   onBack: () => void
   onAddSchedule: () => void
-  onEditSchedule: (s: Schedule) => void
-  onDeleteSchedule: (s: Schedule) => void
+  onEditSchedule: (s: AdminScheduleOut) => void
+  onDeleteSchedule: (s: AdminScheduleOut) => void
   onAddPickup: () => void
-  onEditPickup: (p: PickupPoint) => void
-  onDeletePickup: (p: PickupPoint) => void
+  onEditPickup: (p: AdminPickupPointOut) => void
+  onDeletePickup: (p: AdminPickupPointOut) => void
   mobileView: 'brands' | 'routes' | 'details'
 }) {
   return (
@@ -397,7 +396,7 @@ export function ScheduleAndPickupPanel({
         {selectedRoute ? (
           <div className="text-[11px] text-muted-foreground truncate">
             {selectedRoute.startLocation?.name} → {selectedRoute.endLocation?.name} ·{' '}
-            <code className="font-mono">{selectedRoute.code}</code>
+            <code className="font-mono">{selectedRoute.id.slice(0, 8)}</code>
           </div>
         ) : null}
       </CardHeader>
@@ -451,17 +450,17 @@ export function ScheduleAndPickupPanel({
                                 <span className="font-mono font-bold text-sm text-blue-700">
                                   {s.departureTime}
                                 </span>
-                                {s.busLayout && (
+                                {s.busLayoutId && (
                                   <Badge variant="secondary" className="text-[10px] h-4 px-1">
                                     <Bus className="h-2.5 w-2.5 mr-0.5" />
-                                    {s.busLayout.name} ({s.busLayout.capacity})
+                                    {s.busLayoutId.slice(0, 8)}
                                   </Badge>
                                 )}
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1">
                                 <span className="flex items-center gap-0.5">
                                   <CalendarDays className="h-3 w-3" />
-                                  {daysLabel(s.daysOfWeek)}
+                                  {daysLabel(s.daysOfWeek ?? '')}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
@@ -474,7 +473,7 @@ export function ScheduleAndPickupPanel({
                                   NL: {formatVND(s.basePriceAdult)}
                                 </span>
                                 <span className="text-muted-foreground">
-                                  TE: {formatVND(s.basePriceChild)}
+                                  TE: {formatVND(s.basePriceChild ?? 0)}
                                 </span>
                               </div>
                               {amenityList.length > 0 && (
@@ -558,36 +557,25 @@ export function ScheduleAndPickupPanel({
                           <div className="h-6 w-6 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-bold">
                             {p.stopOrder}
                           </div>
-                          {p.etaOffsetMin > 0 && (
-                            <div className="text-[9px] text-muted-foreground mt-0.5 whitespace-nowrap">
-                              +{p.etaOffsetMin}p
-                            </div>
-                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-medium text-sm truncate">{p.name}</span>
                             <Badge
                               variant="outline"
-                              className={`text-[9px] h-4 px-1 ${p.pickupType === 'station'
+                              className={`text-[9px] h-4 px-1 ${p.kind === 'station'
                                 ? 'bg-blue-50 text-blue-700'
-                                : p.pickupType === 'curb'
+                                : p.kind === 'curb'
                                   ? 'bg-amber-50 text-amber-700'
                                   : 'bg-slate-100 text-slate-700'
                                 }`}
                             >
-                              {PICKUP_TYPE_LABELS[p.pickupType] ?? p.pickupType}
+                              {PICKUP_TYPE_LABELS[p.kind ?? ''] ?? p.kind}
                             </Badge>
                           </div>
                           {p.address && (
                             <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
                               {p.address}
-                            </div>
-                          )}
-                          {p.place && (
-                            <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                              📍 {p.place.name}
-                              {p.place.province ? ` · ${p.place.province}` : ''}
                             </div>
                           )}
                         </div>
@@ -633,7 +621,7 @@ export function BrandManagementBreadcrumb({
   onRoutesClick,
 }: {
   selectedBrand: AdminBrandOut | null
-  selectedRoute: RouteItem | null
+  selectedRoute: AdminRouteOut | null
   onBrandsClick: () => void
   onRoutesClick: () => void
 }) {

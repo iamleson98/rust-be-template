@@ -25,14 +25,15 @@ import {
   useDeleteAdminPickupPoint,
   usePlacesList,
 } from '@/lib/queries'
+import type { DeleteTarget } from '@/components/admin/types'
 import type {
-  AdminPlaceRow as Place,
-  AdminRouteRow as RouteItem,
-  BusLayout,
-  Schedule,
-  PickupPoint,
-  DeleteTarget,
-} from '@/components/admin/types'
+  AdminBrandOut,
+  AdminBusLayoutOut,
+  AdminPickupPointOut,
+  AdminRouteOut,
+  AdminScheduleOut,
+  PlaceOut,
+} from '@/lib/api/types.gen'
 import {
   BrandListPanel,
   RouteListPanel,
@@ -43,29 +44,28 @@ import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
 import { PickupPointFormDialog } from '@/components/admin/pickup-points/pickup-form'
-import { AdminBrandOut } from '@/lib/api/types.gen'
 
 export function AdminBrandManagement() {
   const [brandSearch, setBrandSearch] = useState('')
   const [selectedBrand, setSelectedBrand] = useState<AdminBrandOut | null>(null)
   const [routeSearch, setRouteSearch] = useState('')
-  const [selectedRoute, setSelectedRoute] = useState<RouteItem | null>(null)
+  const [selectedRoute, setSelectedRoute] = useState<AdminRouteOut | null>(null)
   const [mobileView, setMobileView] = useState<'brands' | 'routes' | 'details'>('brands')
   /* --- queries: brands, places (parallel, on mount) --- */
   const brandsQuery = useAdminBrands()
   const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as AdminBrandOut[]
   const placesQuery = usePlacesList(200)
-  const places: Place[] = (placesQuery.data as any)?.items ?? []
+  const places: PlaceOut[] = (placesQuery.data as any)?.items ?? []
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
   const routesQuery = useAdminRoutes(selectedBrand?.id)
-  const routes: RouteItem[] = (routesQuery.data?.items ?? []) as unknown as RouteItem[]
+  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
   const busLayoutsQuery = useAdminBusLayouts(selectedBrand?.id)
-  const busLayouts: BusLayout[] = (busLayoutsQuery.data?.items ?? []) as unknown as BusLayout[]
+  const busLayouts: AdminBusLayoutOut[] = (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
   /* --- queries: schedules + pickup points (when a route is selected) --- */
   const schedulesQuery = useAdminSchedules(selectedRoute?.id)
-  const schedules: Schedule[] = (schedulesQuery.data?.items ?? []) as unknown as Schedule[]
+  const schedules: AdminScheduleOut[] = (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
   const pickupPointsQuery = useAdminPickupPoints(selectedRoute?.id)
-  const pickupPoints: PickupPoint[] = (pickupPointsQuery.data?.items ?? []) as unknown as PickupPoint[]
+  const pickupPoints: AdminPickupPointOut[] = (pickupPointsQuery.data?.items ?? []) as unknown as AdminPickupPointOut[]
   /* --- selection handlers --- */
   const selectBrand = useCallback((brand: AdminBrandOut | null) => {
     setSelectedBrand(brand)
@@ -75,7 +75,7 @@ export function AdminBrandManagement() {
     }
   }, [])
 
-  const selectRoute = useCallback((route: RouteItem | null) => {
+  const selectRoute = useCallback((route: AdminRouteOut | null) => {
     setSelectedRoute(route)
     if (route) {
       setMobileView('details')
@@ -99,8 +99,8 @@ export function AdminBrandManagement() {
     if (!q) return routes
     return routes.filter(
       (r) =>
-        r.code.toLowerCase().includes(q) ||
         r.name.toLowerCase().includes(q) ||
+        r.id.toLowerCase().includes(q) ||
         (r.startLocation?.name ?? '').toLowerCase().includes(q) ||
         (r.endLocation?.name ?? '').toLowerCase().includes(q),
     )
@@ -116,15 +116,15 @@ export function AdminBrandManagement() {
     open: false,
     brand: null,
   })
-  const [routeDialog, setRouteDialog] = useState<{ open: boolean; route: RouteItem | null }>({
+  const [routeDialog, setRouteDialog] = useState<{ open: boolean; route: AdminRouteOut | null }>({
     open: false,
     route: null,
   })
-  const [scheduleDialog, setScheduleDialog] = useState<{ open: boolean; schedule: Schedule | null }>({
+  const [scheduleDialog, setScheduleDialog] = useState<{ open: boolean; schedule: AdminScheduleOut | null }>({
     open: false,
     schedule: null,
   })
-  const [pickupDialog, setPickupDialog] = useState<{ open: boolean; pickup: PickupPoint | null }>({
+  const [pickupDialog, setPickupDialog] = useState<{ open: boolean; pickup: AdminPickupPointOut | null }>({
     open: false,
     pickup: null,
   })
@@ -214,12 +214,12 @@ export function AdminBrandManagement() {
             setDeleteTarget({
               kind: 'schedule',
               id: s.id,
-              name: `${s.departureTime} (${s.busLayout?.name ?? '—'})`,
+              name: `${s.departureTime} (${s.busLayoutId ?? '—'})`,
             })
           }
           onAddPickup={() => setPickupDialog({ open: true, pickup: null })}
           onEditPickup={(p) => setPickupDialog({ open: true, pickup: p })}
-          onDeletePickup={(p) => setDeleteTarget({ kind: 'pickup', id: p.id, name: p.name })}
+          onDeletePickup={(p) => setDeleteTarget({ kind: 'pickup', id: p.id, name: p.name ?? '—' })}
           mobileView={mobileView}
         />
       </div>
