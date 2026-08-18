@@ -1,0 +1,65 @@
+# Docker Compose for production deployment.
+#
+# Builds the multi-stage Dockerfile (frontend + backend in one image)
+# and runs the backend serving both API and static files on port 8080.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# The backend uses SQLite by default (no external DB container needed).
+# For Postgres, uncomment the `db` service and set DATABASE__URL.
+
+services:
+  # ---- Backend (serves API + frontend static files) ----
+  backend:
+    build:
+      context: .
+      args:
+        BACKEND_FEATURES: sqlite
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - app-data:/app/data
+      - app-storage:/app/storage
+      - app-db:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ---- Cache (Redis — optional, backend falls back to Moka) ----
+  # Uncomment if you want shared caching across instances.
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis-data:/data
+
+  # ---- Database (Postgres — optional, default is SQLite) ----
+  # Uncomment for Postgres. Build with: docker compose build --build-arg BACKEND_FEATURES=postgres
+  # db:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: app
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+  #     POSTGRES_DB: app
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U app"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 5
+
+volumes:
+  app-data:
+  app-storage:
+  app-db:
+  # redis-data:
+  # pg-data:
