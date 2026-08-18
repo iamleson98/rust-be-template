@@ -82,6 +82,37 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/bookings/{id}/confirm",
             post(crate::routes::bookings::confirm),
         )
+        // ── Payments ────────────────────────────────────────────────────
+        .route("/payments", post(crate::routes::payments::create_payment))
+        .route(
+            "/payments/{id}",
+            get(crate::routes::payments::get_payment),
+        )
+        .route(
+            "/payments/{id}/cancel",
+            post(crate::routes::payments::cancel_payment),
+        )
+        .route(
+            "/payments/{id}/mark-cod-collected",
+            post(crate::routes::payments::mark_cod_collected),
+        )
+        .route(
+            "/payments/booking/{bookingId}",
+            get(crate::routes::payments::list_booking_payments),
+        )
+        // ── Payment IPN webhooks (no auth — verified via HMAC signature) ──
+        .route(
+            "/payments/ipn/vnpay",
+            get(crate::routes::payments::vnpay_ipn),
+        )
+        .route(
+            "/payments/ipn/momo",
+            post(crate::routes::payments::momo_ipn),
+        )
+        .route(
+            "/payments/ipn/zalopay",
+            post(crate::routes::payments::zalopay_callback),
+        )
         // ── Public catalog ─────────────────────────────────────────────
         .route("/brands", get(crate::routes::public::brands))
         .route("/brands/{slug}", get(crate::routes::public::brand_detail))
@@ -216,6 +247,15 @@ pub fn build_router(state: AppState) -> Router<()> {
         .route(
             "/admin/bookings/export",
             get(crate::routes::admin::booking_export),
+        )
+        // ── Admin — Payments ──────────────────────────────────────────
+        .route(
+            "/admin/payments",
+            get(crate::routes::payments::list_admin_payments),
+        )
+        .route(
+            "/admin/payments/{id}",
+            axum::routing::patch(crate::routes::payments::update_payment_status),
         )
         // ── System monitoring ────────────────────────────────────────
         .route("/admin/system", get(crate::routes::system::system_status))

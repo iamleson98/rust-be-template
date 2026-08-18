@@ -5,8 +5,9 @@ use axum::extract::FromRef;
 use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::service::{
-    AdminService, AuthService, BookingService, NotificationService, PlaceService, PostService,
-    PriceAlertService, PublicService, ReviewService, RoutingService, UserService, WishlistService,
+    AdminService, AuthService, BookingService, NotificationService, PaymentService, PlaceService,
+    PostService, PriceAlertService, PublicService, ReviewService, RoutingService, UserService,
+    WishlistService,
 };
 use crate::store::CompositeStore;
 
@@ -58,6 +59,7 @@ pub struct AppState {
     pub price_alerts: Arc<PriceAlertService>,
     pub notifications: Arc<NotificationService>,
     pub wishlist: Arc<WishlistService>,
+    pub payments: Arc<PaymentService>,
 }
 
 /// `Arc<Config>` is also extractable — useful for handlers that need
@@ -137,5 +139,11 @@ impl FromRef<AppState> for Arc<NotificationService> {
 impl FromRef<AppState> for Arc<WishlistService> {
     fn from_ref(state: &AppState) -> Self {
         state.wishlist.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<PaymentService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.payments.clone()
     }
 }

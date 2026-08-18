@@ -39,6 +39,8 @@ pub mod consts {
     pub const ADMIN_REVIEWS_MODERATE: &str = "admin:reviews:moderate";
     pub const ADMIN_BOOKINGS_READ: &str = "admin:bookings:read";
     pub const ADMIN_BOOKINGS_WRITE: &str = "admin:bookings:write";
+    pub const ADMIN_PAYMENTS_READ: &str = "admin:payments:read";
+    pub const ADMIN_PAYMENTS_WRITE: &str = "admin:payments:write";
     pub const ADMIN_STATS_READ: &str = "admin:stats:read";
     pub const ADMIN_EXPORT: &str = "admin:export";
 }

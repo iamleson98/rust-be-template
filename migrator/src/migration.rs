@@ -21,6 +21,8 @@ mod m20260809_021550_discounts;
 mod m20260809_021759_zeroclaw;
 mod m20260809_030000_price_alert_owner;
 mod m20260817_000001_add_missing_indexes;
+mod m20260818_000001_payments;
+mod m20260818_000002_seed_payment_perms;
 
 pub struct Migrator;
 
@@ -45,6 +47,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_021759_zeroclaw::Migration),
             Box::new(m20260809_030000_price_alert_owner::Migration),
             Box::new(m20260817_000001_add_missing_indexes::Migration),
+            Box::new(m20260818_000001_payments::Migration),
+            Box::new(m20260818_000002_seed_payment_perms::Migration),
         ]
     }
 }

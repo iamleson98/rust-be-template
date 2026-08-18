@@ -12,18 +12,24 @@ use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::RefreshTokenManager;
 use crate::cache::{self, CacheBackend};
 use crate::config::Config;
+use crate::payment::cod::CodProvider;
+use crate::payment::momo::MomoProvider;
+use crate::payment::vietqr::VietQrProvider;
+use crate::payment::vnpay::VnpayProvider;
+use crate::payment::zalopay::ZalopayProvider;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, NotificationService, PlaceService, PostService,
-    PriceAlertService, PublicService, ReviewService, RoutingService, UserService, WishlistService,
+    AdminService, AuthService, BookingService, NotificationService, PaymentService, PlaceService,
+    PostService, PriceAlertService, PublicService, ReviewService, RoutingService, UserService,
+    WishlistService,
 };
 use crate::state::AppState;
 use crate::store::{
     BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAuditStore,
-    DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPlaceStore, DbPostStore,
-    DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore,
+    DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPaymentStore, DbPlaceStore,
+    DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore,
     DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore, PostStore, RbacStore,
     RefreshTokenStore, UserStore,
 };
@@ -99,6 +105,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let audit_store = Arc::new(DbAuditStore::new(db.clone()));
     let notification_store = Arc::new(DbNotificationStore::new(db.clone()));
     let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
+    let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
 
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         db.clone(),
@@ -118,6 +125,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         audit_store,
         notification_store,
         wishlist_store,
+        payment_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------
@@ -192,6 +200,23 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let notification_service = Arc::new(NotificationService::new(store.clone()));
     let wishlist_service = Arc::new(WishlistService::new(store.clone()));
 
+    // ---- Payment providers + service ────────────────────────────────
+    let vnpay_provider = Arc::new(VnpayProvider::new(&config.payment.vnpay));
+    let momo_provider = Arc::new(MomoProvider::new(&config.payment.momo));
+    let zalopay_provider = Arc::new(ZalopayProvider::new(&config.payment.zalopay));
+    let vietqr_provider = Arc::new(VietQrProvider::new(&config.payment.vietqr));
+    let cod_provider = Arc::new(CodProvider::new());
+    let payment_service = Arc::new(PaymentService::new(
+        store.clone(),
+        booking_service.clone(),
+        Arc::new(config.payment.clone()),
+        vnpay_provider,
+        momo_provider,
+        zalopay_provider,
+        vietqr_provider,
+        cod_provider,
+    ));
+
     let state = AppState {
         config: config_arc,
         store,
@@ -208,6 +233,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         price_alerts: price_alert_service,
         notifications: notification_service,
         wishlist: wishlist_service,
+        payments: payment_service,
     };
 
     Ok(state)

@@ -30,6 +30,7 @@ pub mod entity;
 pub mod error;
 pub mod middleware;
 pub mod osm;
+pub mod payment;
 pub mod rbac;
 pub mod routes;
 pub mod server;

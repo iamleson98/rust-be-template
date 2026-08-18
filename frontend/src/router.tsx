@@ -68,6 +68,7 @@ const AdminReviewsPage = lazy(() => import('./routes/admin/reviews').then((m) =>
 const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) => ({ default: m.AdminFeedbackPage })))
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
 const AdminSystemPage = lazy(() => import('./routes/admin/system').then((m) => ({ default: m.AdminSystemPage })))
+const AdminPaymentsPage = lazy(() => import('./routes/admin/payments').then((m) => ({ default: m.AdminPaymentsPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
@@ -114,6 +115,8 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/admin/reviews': { title: 'Đánh giá — Quản trị VeXeVN', description: 'Kiểm duyệt đánh giá.' },
   '/admin/feedback': { title: 'Phản hồi — Quản trị VeXeVN', description: 'Quản lý phản hồi khách hàng.' },
   '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
+  '/admin/system': { title: 'Hệ thống — Quản trị VeXeVN', description: 'Theo dõi hệ thống.' },
+  '/admin/payments': { title: 'Thanh toán — Quản trị VeXeVN', description: 'Quản lý giao dịch thanh toán.' },
   '/map': {
     title: 'Bản đồ tuyến đường — VeXeVN',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
@@ -596,6 +599,22 @@ const adminSystemRoute = createRoute({
   ),
 })
 
+const adminPaymentsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/payments',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminPaymentsPage />
+    </Suspense>
+  ),
+})
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -625,6 +644,7 @@ const routeTree = rootRoute.addChildren([
   adminFeedbackRoute,
   adminBusLayoutsRoute,
   adminSystemRoute,
+  adminPaymentsRoute,
   loginRoute,
 ])
 

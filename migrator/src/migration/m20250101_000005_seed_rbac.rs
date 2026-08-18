@@ -63,6 +63,9 @@ impl MigrationTrait for Migration {
             // Admin — Bookings
             ("admin:bookings:read", "Admin: list/view bookings"),
             ("admin:bookings:write", "Admin: update booking status"),
+            // Admin — Payments
+            ("admin:payments:read", "Admin: list/view payments"),
+            ("admin:payments:write", "Admin: update payment status, mark COD collected"),
             // Admin — Stats + Export
             ("admin:stats:read", "Admin: view booking statistics"),
             ("admin:export", "Admin: export bookings as CSV"),

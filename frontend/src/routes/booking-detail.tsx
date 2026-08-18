@@ -4,7 +4,13 @@
  * Deep-linkable booking detail. Renders the booking info inline (the
  * BookingCard component is list-oriented with expand/collapse state;
  * here we want a full-page detail view).
+ *
+ * When the booking is `pending` (held but not yet paid), a "Thanh toán
+ * ngay" button opens the PaymentDialog flow — the user picks a payment
+ * provider (VNPay/MoMo/ZaloPay/VietQR/COD) and follows the gateway's
+ * checkout flow.
  */
+import { useState } from 'react'
 import { useParams, Link } from '@tanstack/react-router'
 import { useBooking } from '@/lib/queries'
 import { useApp } from '@/lib/store'
@@ -13,12 +19,44 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
-import { ArrowLeft, AlertCircle, Bus, MapPin, Calendar, Users, Ticket, CheckCircle2, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  AlertCircle,
+  Bus,
+  MapPin,
+  Calendar,
+  Users,
+  Ticket,
+  CheckCircle2,
+  XCircle,
+  CreditCard,
+} from 'lucide-react'
+import { PaymentDialog } from '@/components/booking/payment-dialog'
+import { useBookingPayments } from '@/lib/queries/payments'
 
 export function BookingDetailPage() {
   const { code } = useParams({ from: '/bookings/$code' })
   const { data: booking, isLoading, isError, error } = useBooking(code)
   const { currency } = useApp()
+
+  // Payment state — used only when the booking is `pending` (awaiting payment).
+  // Holds the id of the most recent payment attempt (so the user can resume
+  // an in-flight payment via the PaymentDialog).
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const { data: paymentsData } = useBookingPayments(booking?.id, {
+    enabled: booking?.status === 'pending',
+  })
+  const activePayment = paymentsData?.items?.[0] // most recent (list is DESC)
+  const activePaymentId = activePayment?.id
+
+  const handlePaid = () => {
+    // The PaymentDialog polls the payment status; when it becomes `completed`,
+    // we close it. The booking query will refetch automatically because the
+    // invalidateQueries in `useCancelPayment` / `useCreatePayment` includes
+    // `['bookings']`. But just to be safe, we also force a refetch here by
+    // toggling the dialog closed.
+    setPaymentDialogOpen(false)
+  }
 
   if (isLoading) {
     return (
@@ -132,6 +170,42 @@ export function BookingDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Pay-now CTA — visible when the booking is awaiting payment. */}
+      {booking.status === 'pending' && (
+        <Card className="mb-4 border-blue-200 bg-blue-50/50">
+          <CardContent className="p-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <CreditCard className="h-6 w-6 text-blue-600 shrink-0" />
+              <div>
+                <div className="font-semibold text-sm">Thanh toán để xác nhận vé</div>
+                <div className="text-xs text-muted-foreground">
+                  Hỗ trợ VNPay, MoMo, ZaloPay, VietQR (chuyển khoản) hoặc thanh toán tiền mặt tại xe.
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={() => setPaymentDialogOpen(true)}
+              className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
+            >
+              <CreditCard className="h-4 w-4" />
+              Thanh toán
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* PaymentDialog — opens when the user clicks "Thanh toán".
+          Resumes an existing payment if one is in-flight; otherwise the user
+          picks a provider and creates a new payment intent. */}
+      <PaymentDialog
+        paymentId={activePaymentId}
+        bookingId={booking.id}
+        bookingTotal={booking.total}
+        open={paymentDialogOpen}
+        onClose={() => setPaymentDialogOpen(false)}
+        onPaid={handlePaid}
+      />
     </div>
   )
 }

@@ -29,6 +29,7 @@ pub struct Config {
     pub audio_call: AudioCallConfig,
     pub search: SearchConfig,
     pub ws: WsConfig,
+    pub payment: PaymentConfig,
 }
 
 
@@ -486,6 +487,188 @@ impl Default for WsConfig {
     }
 }
 
+// ────────────────────────────────────────────────────────────────
+//  Payment gateway (VNPay / MoMo / ZaloPay / VietQR / COD)
+// ────────────────────────────────────────────────────────────────
+
+/// Payment gateway configuration. Each provider has its own
+/// sandbox/production toggle + credentials, set via env vars.
+///
+/// All providers are optional — if a provider's `enabled` is `false`,
+/// the corresponding route returns 503 Service Unavailable.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct PaymentConfig {
+    /// Public-facing base URL of the app (used to build `returnUrl` /
+    /// `redirectUrl` / `vnp_ReturnUrl` for the gateway). Must be the
+    /// externally-reachable URL — e.g. `https://vexevn.app`.
+    pub public_base_url: String,
+    /// Default payment expiry in minutes (booking hold + provider
+    /// expiration). Must be ≤ the booking's hold expiry (10 min).
+    pub default_expiry_minutes: u32,
+    pub vnpay: VnpayConfig,
+    pub momo: MomoConfig,
+    pub zalopay: ZalopayConfig,
+    pub vietqr: VietQrConfig,
+    /// When `true`, the COD payment option is exposed to users. COD
+    /// requires no gateway — useful for rural routes / no-app riders.
+    pub cod_enabled: bool,
+}
+
+impl Default for PaymentConfig {
+    fn default() -> Self {
+        Self {
+            public_base_url: "http://localhost:8080".into(),
+            default_expiry_minutes: 10,
+            vnpay: VnpayConfig::default(),
+            momo: MomoConfig::default(),
+            zalopay: ZalopayConfig::default(),
+            vietqr: VietQrConfig::default(),
+            cod_enabled: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct VnpayConfig {
+    pub enabled: bool,
+    /// `sandbox` or `production`.
+    pub env: String,
+    pub tmn_code: String,
+    pub hash_secret: String,
+}
+
+impl Default for VnpayConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            env: "sandbox".into(),
+            tmn_code: String::new(),
+            hash_secret: String::new(),
+        }
+    }
+}
+
+impl VnpayConfig {
+    /// Base URL of the VNPay payment endpoint, picked by `env`.
+    pub fn endpoint_base(&self) -> &'static str {
+        if self.env == "production" {
+            "https://payment.vnpayment.vn/paymentv2/vpcpay.html"
+        } else {
+            "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html"
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.enabled && !self.tmn_code.is_empty() && !self.hash_secret.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct MomoConfig {
+    pub enabled: bool,
+    /// `sandbox` or `production`.
+    pub env: String,
+    pub partner_code: String,
+    pub access_key: String,
+    pub secret_key: String,
+}
+
+impl Default for MomoConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            env: "sandbox".into(),
+            partner_code: String::new(),
+            access_key: String::new(),
+            secret_key: String::new(),
+        }
+    }
+}
+
+impl MomoConfig {
+    pub fn endpoint(&self) -> &'static str {
+        if self.env == "production" {
+            "https://payment.momo.vn/v2/gateway/api/create"
+        } else {
+            "https://test-payment.momo.vn/v2/gateway/api/create"
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.enabled
+            && !self.partner_code.is_empty()
+            && !self.access_key.is_empty()
+            && !self.secret_key.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ZalopayConfig {
+    pub enabled: bool,
+    /// `sandbox` or `production`.
+    pub env: String,
+    /// ZaloPay issues `app_id` as a numeric string.
+    pub app_id: String,
+    pub key1: String,
+    pub key2: String,
+}
+
+impl Default for ZalopayConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            env: "sandbox".into(),
+            app_id: String::new(),
+            key1: String::new(),
+            key2: String::new(),
+        }
+    }
+}
+
+impl ZalopayConfig {
+    pub fn endpoint_base(&self) -> &'static str {
+        if self.env == "production" {
+            "https://openapi.zalopay.com/v2"
+        } else {
+            "https://sb-openapi.zalopay.com/v2"
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.enabled
+            && !self.app_id.is_empty()
+            && !self.key1.is_empty()
+            && !self.key2.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
+pub struct VietQrConfig {
+    pub enabled: bool,
+    /// Bank BIN — 6 digits (e.g. `970436` for Vietcombank, `970422` for MBBank).
+    /// See https://vietqr.net/danh-sach-ma-ngan-hang for the full list.
+    pub bank_bin: String,
+    /// Business bank account number (no spaces, digits only).
+    pub account_no: String,
+    /// Account holder name — uppercase ASCII, no Vietnamese tones
+    /// (the EMV QR spec doesn't support UTF-8 in the merchant name field).
+    pub account_name: String,
+}
+
+impl VietQrConfig {
+    pub fn is_active(&self) -> bool {
+        self.enabled
+            && !self.bank_bin.is_empty()
+            && !self.account_no.is_empty()
+            && !self.account_name.is_empty()
+    }
+}
+
 impl Config {
     /// Load config in this order, last wins:
     /// 1. built-in defaults
@@ -678,5 +861,42 @@ impl Config {
 
         tracing::info!("  cors:");
         tracing::info!("    origins:            {:?}", self.cors.origin_list());
+
+        tracing::info!("  payment:");
+        tracing::info!("    public_base_url:   {}", self.payment.public_base_url);
+        tracing::info!("    default_expiry:   {}m", self.payment.default_expiry_minutes);
+        tracing::info!("    cod_enabled:      {}", self.payment.cod_enabled);
+        tracing::info!(
+            "    vnpay.active:     {} (env={}, tmn={})",
+            self.payment.vnpay.is_active(),
+            self.payment.vnpay.env,
+            self.payment.vnpay.tmn_code
+        );
+        tracing::info!(
+            "    momo.active:      {} (env={}, partner={})",
+            self.payment.momo.is_active(),
+            self.payment.momo.env,
+            self.payment.momo.partner_code
+        );
+        tracing::info!(
+            "    zalopay.active:   {} (env={}, app_id={})",
+            self.payment.zalopay.is_active(),
+            self.payment.zalopay.env,
+            self.payment.zalopay.app_id
+        );
+        let vietqr_acct_tail = {
+            let a = &self.payment.vietqr.account_no;
+            if a.len() > 4 {
+                &a[a.len() - 4..]
+            } else {
+                a.as_str()
+            }
+        };
+        tracing::info!(
+            "    vietqr.active:    {} (bin={}, acct=**{})",
+            self.payment.vietqr.is_active(),
+            self.payment.vietqr.bank_bin,
+            vietqr_acct_tail
+        );
     }
 }

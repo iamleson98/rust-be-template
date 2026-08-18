@@ -27,6 +27,7 @@ pub mod admin;
 pub mod booking;
 pub mod chat;
 pub mod notification;
+pub mod payment;
 pub mod place;
 pub mod public;
 pub mod review;
