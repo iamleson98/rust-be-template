@@ -1,28 +1,68 @@
 # Deployment Guide — VeXeVN (Rust + React)
 
-This guide covers deploying the full stack (Rust backend + React frontend) to a **Kamatera** VM in **Asia-Singapore**.
+This guide covers deploying the full stack (Rust backend + React frontend) to a **Kamatera** VM in **Asia-Singapore** with full CI/CD via GitHub Actions.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│  Kamatera VM (Singapore)                    │
-│  Ubuntu 22.04                               │
-│                                             │
-│  ┌───────────────────────────────────────┐  │
-│  │  Docker Container                     │  │
-│  │                                       │  │
-│  │  Backend (Rust/Axum :8080)            │  │
-│  │    ├── REST API (/api/*)              │  │
-│  │    ├── WebSocket (/ws)                │  │
-│  │    ├── Static files (frontend/dist)   │  │
-│  │    └── SQLite database (app.db)       │  │
-│  │                                       │  │
-│  └───────────────────────────────────────┘  │
-│                                             │
-│  Port 8080 ←── Internet                     │
-└─────────────────────────────────────────────┘
+                    ┌─────────────────────────────────┐
+                    │  GitHub Actions (CI/CD)        │
+                    │                                 │
+  git push ────────►│  1. cargo check + clippy       │
+                    │  2. tsc --noEmit + vite build   │
+                    │  3. docker build + push to GHCR │
+                    │  4. SSH deploy to VM            │
+                    └──────────┬──────────────────────┘
+                               │
+                    ┌──────────▼──────────────────────┐
+                    │  Kamatera VM (Singapore)        │
+                    │  Ubuntu 22.04                    │
+                    │                                 │
+                    │  ┌───────────────────────────┐  │
+                    │  │  Docker Container         │  │
+                    │  │                           │  │
+                    │  │  Caddy (:80/:443)        │  │
+                    │  │    └── TLS (Let's Encrypt)│  │
+                    │  │    └── reverse_proxy      │  │
+                    │  │         └── :8080          │  │
+                    │  │                           │  │
+                    │  │  Backend (Rust/Axum :8080) │  │
+                    │  │    ├── REST API (/api/*)  │  │
+                    │  │    ├── WebSocket (/ws)    │  │
+                    │  │    ├── Static (frontend)   │  │
+                    │  │    └── SQLite (app.db)    │  │
+                    │  │                           │  │
+                    │  └───────────────────────────┘  │
+                    └─────────────────────────────────┘
 ```
+
+## CI/CD Pipeline
+
+### Continuous Integration (`.github/workflows/ci.yml`)
+
+Runs on every push/PR to `server` or `main`:
+
+1. **Backend (Rust)**: `cargo check` + `cargo clippy --tests` (zero warnings enforced via `-D warnings`)
+2. **Frontend (React)**: `npm install` + `tsc --noEmit` + `vite build`
+
+Both run in parallel on separate runners. Cargo cache is shared across runs.
+
+### Continuous Deployment (`.github/workflows/deploy.yml`)
+
+Triggers on push to `server` branch (after CI passes):
+
+1. **Build** — multi-stage Docker image (frontend + backend) pushed to GitHub Container Registry (`ghcr.io/iamleson98/vexevn:latest`)
+2. **Deploy** — SSH into Kamatera VM, `docker compose pull` + `docker compose up -d`, health check
+
+**Required GitHub repository secrets** (Settings → Secrets and variables → Actions):
+
+| Secret | Description |
+|---|---|
+| `VM_HOST` | Kamatera VM public IP or domain |
+| `VM_SSH_KEY` | SSH private key for root access (PEM format) |
+| `VM_USER` | SSH username (usually `root`) |
+
+The `GITHUB_TOKEN` is auto-provided for GHCR authentication — no secret needed.
 
 The Docker image is multi-stage:
 1. **Stage 1** — builds the React frontend (`vite build` → `dist/`)
@@ -146,6 +186,41 @@ open http://<VM_IP>:8080
 
 # View Swagger UI:
 open http://<VM_IP>:8080/swagger-ui
+```
+
+---
+
+## Set up CI/CD (automatic deploys)
+
+After the first manual deploy, set up GitHub Actions for automatic deploys:
+
+### 1. Add repository secrets
+
+Go to GitHub → Settings → Secrets and variables → Actions → New repository secret:
+
+| Secret | Value |
+|---|---|
+| `VM_HOST` | Your VM's public IP (e.g. `139.180.123.45`) |
+| `VM_SSH_KEY` | Contents of your SSH private key file (e.g. `~/.ssh/id_ed25519`) |
+| `VM_USER` | `root` (or whatever user you created on the VM) |
+
+### 2. Push to `server` branch
+
+Every push to `server` now triggers:
+1. CI: `cargo check` + `clippy` + `tsc --noEmit` + `vite build` (parallel)
+2. CD: Docker build → push to GHCR → SSH deploy to VM → health check
+
+You'll see deploy status in the GitHub Actions tab. The deploy job takes ~15-20 minutes (mostly the Rust build inside Docker).
+
+### 3. Auto-deploy on push
+
+From now on, just:
+```bash
+git push origin server
+```
+The CI/CD pipeline handles everything. You can monitor progress at:
+```
+https://github.com/iamleson98/rust-be-template/actions
 ```
 
 ---

@@ -1,0 +1,48 @@
+# ─── .dockerignore — exclude files from Docker build context ────────
+# Reduces build context size → faster builds + smaller push.
+
+# Git
+.git
+.gitignore
+
+# Build artifacts
+target/
+frontend/dist/
+frontend/.vite/
+frontend/stats.html
+frontend/node_modules/
+
+# Runtime data (should not be baked into the image)
+*.db
+*.db-shm
+*.db-wal
+storage/
+data/
+osm-index/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Terraform state
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform/
+terraform/.tfvars
+
+# Docs / CI
+*.md
+.github/
+agent-ctx/
+skills/
+worklog.md
+
+# Misc
+.DS_Store
+*.log
+*.pem
+.env
+.env.*
+!.env.example

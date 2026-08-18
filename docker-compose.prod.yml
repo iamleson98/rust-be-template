@@ -12,6 +12,7 @@
 services:
   # ---- Backend (serves API + frontend static files) ----
   backend:
+    image: ghcr.io/iamleson98/vexevn:latest
     build:
       context: .
       args:
@@ -24,21 +25,48 @@ services:
       - app-data:/app/data
       - app-storage:/app/storage
       - app-db:/app
+      - app-osm:/app/osm-index
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
       interval: 30s
       timeout: 5s
-      start_period: 10s
+      start_period: 15s
       retries: 3
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Resource limits — prevent OOM from killing other services
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+        reservations:
+          memory: 512m
+    # Logging — prevent disk fill from verbose logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    # Graceful shutdown — give the server 30s to drain connections
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
 
   # ---- Cache (Redis — optional, backend falls back to Moka) ----
   # Uncomment if you want shared caching across instances.
   # redis:
   #   image: redis:7-alpine
   #   restart: unless-stopped
+  #   command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
   #   volumes:
   #     - redis-data:/data
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   cap_drop:
+  #     - ALL
 
   # ---- Database (Postgres — optional, default is SQLite) ----
   # Uncomment for Postgres. Build with: docker compose build --build-arg BACKEND_FEATURES=postgres
@@ -56,10 +84,13 @@ services:
   #     interval: 5s
   #     timeout: 3s
   #     retries: 5
+  #   security_opt:
+  #     - no-new-privileges:true
 
 volumes:
   app-data:
   app-storage:
   app-db:
+  app-osm:
   # redis-data:
   # pg-data:

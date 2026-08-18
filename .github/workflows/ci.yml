@@ -1,0 +1,74 @@
+# ─── CI: test + lint on every push/PR ────────────────────────────────
+#
+# Runs cargo check + clippy on the backend and tsc --noEmit on the
+# frontend. Fast feedback — no Docker build needed.
+
+name: CI
+
+on:
+  push:
+    branches: [server, main]
+  pull_request:
+    branches: [server, main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  backend:
+    name: Backend (Rust)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Check
+        run: cargo check --no-default-features --features sqlite
+
+      - name: Clippy (zero warnings)
+        run: cargo clippy --no-default-features --features sqlite --tests -- -D warnings
+
+  frontend:
+    name: Frontend (React/TS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build

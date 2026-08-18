@@ -66,32 +66,34 @@ COPY . .
 RUN cargo build --release --no-default-features --features ${BACKEND_FEATURES}
 
 # ════════════════════════════════════════════════════════════════════
-# Stage 3: Runtime (slim image — no compiler toolchain)
+# Stage 3: Runtime (minimal — no package manager at runtime)
 # ════════════════════════════════════════════════════════════════════
 FROM debian:bookworm-slim AS runtime
 
-# Install only the runtime libs we need.
+# Install runtime deps + create non-root user in one layer.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl3 \
     ca-certificates \
     libsqlite3-0 \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    tini \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -s /bin/false -u 1000 app
 
 WORKDIR /app
 
-# Copy the compiled binary.
-COPY --from=backend-builder /app/target/release/backend /app/backend
+# Copy the compiled binary (owned by root, readable by app).
+COPY --from=backend-builder --chown=root:root --chmod=555 /app/target/release/backend /app/backend
 
-# Copy the frontend build output — the backend serves these as static files.
-COPY --from=frontend-builder /frontend/dist /app/frontend/dist
+# Copy the frontend build output.
+COPY --from=frontend-builder --chown=root:root --chmod=555 /frontend/dist /app/frontend/dist
 
-# Copy the .env.example (user mounts their own .env at runtime).
-COPY .env.example /app/.env.example
+# Copy .env.example (user mounts their own .env at runtime).
+COPY --chown=root:root --chmod=444 .env.example /app/.env.example
 
-# Create directories for runtime data.
-RUN mkdir -p /app/storage /app/data && \
-    chown -R root:root /app
+# Create writable directories for runtime data (app.db, uploads, osm-index).
+RUN mkdir -p /app/storage /app/data /app/osm-index \
+    && chown -R app:app /app/storage /app/data /app/osm-index
 
 # Default config — override via env vars or .env at runtime.
 ENV RUST_LOG=info,backend=info,tower_http=warn
@@ -104,13 +106,12 @@ ENV SEARCH__INDEX_DIR=./osm-index
 
 EXPOSE 8080
 
-# Run as non-root for security.
-RUN useradd -r -s /bin/false app && chown -R app:app /app
 USER app
 
-# Healthcheck via the /health endpoint.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+# tini as PID 1 — proper signal handling (SIGTERM → graceful shutdown).
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["/app/backend", "serve"]
 
-ENTRYPOINT ["/app/backend"]
-CMD ["serve"]
+# Healthcheck via /health endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -sf http://localhost:8080/health || exit 1
