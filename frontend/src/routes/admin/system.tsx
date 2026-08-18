@@ -2,7 +2,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Badge } from '@/components/ui/badge'
 import { Activity, Database, Wifi, Cpu, Clock } from 'lucide-react'
 
 type SystemStatus = {
@@ -119,9 +118,8 @@ export function AdminSystemPage() {
               <div className="flex items-center gap-2 mt-1">
                 <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${
-                      wsPct > 90 ? 'bg-red-500' : wsPct > 70 ? 'bg-amber-500' : 'bg-green-500'
-                    }`}
+                    className={`h-full rounded-full transition-all ${wsPct > 90 ? 'bg-red-500' : wsPct > 70 ? 'bg-amber-500' : 'bg-green-500'
+                      }`}
                     style={{ width: `${Math.min(wsPct, 100)}%` }}
                   />
                 </div>

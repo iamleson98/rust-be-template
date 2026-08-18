@@ -193,9 +193,9 @@ export function ScheduleFormDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1"
+            className="grid gap-3 max-w-xl"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="departureTime"
@@ -251,7 +251,7 @@ export function ScheduleFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="effectiveFrom"
@@ -296,11 +296,10 @@ export function ScheduleFormDialog({
                         key={i}
                         type="button"
                         onClick={() => toggleDay(i)}
-                        className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
-                          field.value[i]
+                        className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${field.value[i]
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-muted-foreground hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         {label}
                       </button>
@@ -349,7 +348,7 @@ export function ScheduleFormDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="basePriceAdult"
@@ -409,11 +408,10 @@ export function ScheduleFormDialog({
                           key={opt.key}
                           type="button"
                           onClick={() => toggleAmenity(opt.key)}
-                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
-                            active
+                          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${active
                               ? 'bg-blue-50 text-blue-700 border-blue-300'
                               : 'bg-white text-muted-foreground hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <Icon className="h-3.5 w-3.5" />
                           {opt.label}

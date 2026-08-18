@@ -9,6 +9,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::Serialize;
 use thiserror::Error;
+use validator::ValidationErrors;
 
 pub type AppResult<T> = Result<T, AppError>;
 
@@ -67,6 +68,30 @@ struct ErrorBody {
 }
 
 impl AppError {
+    pub fn from_validation_errors(errors: ValidationErrors) -> Self {
+        let mut messages = errors
+            .field_errors()
+            .iter()
+            .flat_map(|(field, errors)| {
+                errors.iter().map(move |error| {
+                    let field = field.replace('_', " ");
+                    let reason = match error.code.as_ref() {
+                        "email" => "must be a valid email address",
+                        "empty_phone" => "cannot be empty",
+                        "invalid_phone" => "must be a valid phone number",
+                        "length" => "has an invalid length",
+                        "range" => "is outside the allowed range",
+                        _ => "is invalid",
+                    };
+                    format!("{field} {reason}")
+                })
+            })
+            .collect::<Vec<_>>();
+
+        messages.sort_unstable();
+        Self::Validation(messages.join("; "))
+    }
+
     fn status(&self) -> StatusCode {
         match self {
             AppError::NotFound(_) => StatusCode::NOT_FOUND,
@@ -150,6 +175,12 @@ impl IntoResponse for AppError {
     }
 }
 
+impl From<ValidationErrors> for AppError {
+    fn from(errors: ValidationErrors) -> Self {
+        Self::from_validation_errors(errors)
+    }
+}
+
 /// Convenience trait so `?` works on anything that can become an [`AppError`].
 pub trait IntoAppError<T> {
     fn map_app(self) -> AppResult<T>;
@@ -158,5 +189,32 @@ pub trait IntoAppError<T> {
 impl<T, E: std::fmt::Display> IntoAppError<T> for Result<T, E> {
     fn map_app(self) -> AppResult<T> {
         self.map_err(|e| AppError::Internal(e.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use validator::Validate;
+
+    use super::AppError;
+
+    #[derive(Validate)]
+    struct ContactRequest {
+        #[validate(email)]
+        contact_email: Option<String>,
+    }
+
+    #[test]
+    fn validator_errors_are_human_readable() {
+        let errors = ContactRequest {
+            contact_email: Some("not-an-email".into()),
+        }
+        .validate()
+        .unwrap_err();
+
+        assert_eq!(
+            AppError::from(errors).to_string(),
+            "validation failed: contact email must be a valid email address"
+        );
     }
 }

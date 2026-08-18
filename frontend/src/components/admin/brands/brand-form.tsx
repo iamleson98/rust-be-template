@@ -143,7 +143,7 @@ export function BrandFormDialog({
       if (isEdit) {
         payload.id = brand!.id
       }
-      await upsertMutation.mutateAsync(payload as any)
+      await upsertMutation.mutateAsync({ body: payload } as any)
       toast.success(isEdit ? 'Đã cập nhật hãng xe' : 'Đã thêm hãng xe mới')
       onSaved()
     } catch (e: any) {
@@ -153,7 +153,7 @@ export function BrandFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !upsertMutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-rose-600" />
@@ -167,7 +167,7 @@ export function BrandFormDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1"
+            className="grid gap-3"
           >
             <FormField
               control={form.control}
@@ -231,7 +231,7 @@ export function BrandFormDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="contactPhone"
@@ -264,7 +264,7 @@ export function BrandFormDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="accentColor"
@@ -298,7 +298,7 @@ export function BrandFormDialog({
                     <FormLabel>Trạng thái</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                       </FormControl>

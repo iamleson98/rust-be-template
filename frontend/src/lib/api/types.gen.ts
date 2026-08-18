@@ -569,14 +569,7 @@ export type ConfirmReq = {
  * Request body for `POST /api/chat/channels` (create a new chat channel).
  */
 export type CreateChannelRequest = {
-    /**
-     * Optional brand id — when the user is asking about a specific
-     * brand, this routes the channel to that brand's support queue.
-     */
     brandId?: string | null;
-    /**
-     * Optional topic (e.g. "Hỗ trợ đặt vé"). Defaults to "Hỗ trợ" when omitted.
-     */
     topic?: string | null;
 };
 
@@ -592,23 +585,9 @@ export type CreateChannelResponse = {
  * fallback for when the WebSocket is unavailable).
  */
 export type CreateMessageRequest = {
-    /**
-     * Optional JSON-encoded attachments (e.g. ticket-card payload).
-     */
     attachments?: string | null;
-    /**
-     * Client-side correlation id for idempotency. When the same
-     * `client_msg_id` is sent twice, the second request returns the
-     * stored message instead of duplicating it.
-     */
     clientMsgId?: string | null;
-    /**
-     * Message text. Required for `kind="text"`.
-     */
     content?: string | null;
-    /**
-     * Message kind: `text` (default), `ticket`, `system`, ...
-     */
     kind?: string;
 };
 
@@ -672,6 +651,13 @@ export type CreateReviewInput = {
      * Overwritten by the server from the authenticated user.
      */
     userId?: string | null;
+};
+
+export type DatabaseStats = {
+    backend: string;
+    maxConnections: number;
+    minConnections: number;
+    urlMasked: string;
 };
 
 /**
@@ -1005,6 +991,12 @@ export type PriceAlertOut = {
     toName?: string | null;
 };
 
+export type ProcessStats = {
+    cpuCount: number;
+    memoryMb: number;
+    pid: number;
+};
+
 export type RefreshRequest = {
     /**
      * Optional refresh token in the body. If absent, the token is read
@@ -1157,16 +1149,24 @@ export type StatsResponse = {
     trips: number;
 };
 
+export type SystemStatusResponse = {
+    database: DatabaseStats;
+    process: ProcessStats;
+    uptime: SystemUptime;
+    websocket: WebsocketStats;
+};
+
+export type SystemUptime = {
+    human: string;
+    seconds: number;
+};
+
 /**
  * Request body for `POST /api/wishlist`. Toggles the route in the
  * user's wishlist — if it's already wishlisted, the existing item is
  * removed (toggle off); otherwise a new item is created (toggle on).
  */
 export type ToggleWishlistRequest = {
-    /**
-     * From/To labels shown in the wishlist UI. Stored as metadata
-     * (not enforced by the schema, but useful for display).
-     */
     fromName?: string | null;
     routeId?: string | null;
     toName?: string | null;
@@ -1472,6 +1472,15 @@ export type UserOut = {
     email?: string | null;
     fullName: string;
     id: string;
+};
+
+export type WebsocketStats = {
+    connections: number;
+    distinctIps: number;
+    idempotencyEntries: number;
+    maxConnections: number;
+    onlineEmployeeBrands: number;
+    rooms: number;
 };
 
 /**
@@ -2356,6 +2365,33 @@ export type UpdateScheduleResponses = {
 };
 
 export type UpdateScheduleResponse = UpdateScheduleResponses[keyof UpdateScheduleResponses];
+
+export type SystemStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/system';
+};
+
+export type SystemStatusErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type SystemStatusResponses = {
+    /**
+     * System status
+     */
+    200: SystemStatusResponse;
+};
+
+export type SystemStatusResponse2 = SystemStatusResponses[keyof SystemStatusResponses];
 
 export type EmployeeLoginData = {
     body: LoginRequest;

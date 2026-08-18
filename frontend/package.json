@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "bun run build:client && bun run build:prerender",
     "build:client": "vite build",
-    "build:prerender": "node prerender.mjs",
+    "build:prerender": "bun run prerender.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

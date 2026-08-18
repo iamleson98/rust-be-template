@@ -13,6 +13,14 @@ use validator::Validate;
 
 use crate::validation::validate_phone;
 
+fn empty_string_as_none<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Option::<String>::deserialize(deserializer)
+        .map(|value| value.filter(|value| !value.trim().is_empty()))
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Brands
 // ────────────────────────────────────────────────────────────────
@@ -65,8 +73,10 @@ pub struct UpsertBrandRequest {
     #[validate(length(max = 5000))]
     pub description: Option<String>,
     #[validate(length(max = 20), custom(function = "validate_phone"))]
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub contact_phone: Option<String>,
     #[validate(email, length(max = 255))]
+    #[serde(default, deserialize_with = "empty_string_as_none")]
     pub contact_email: Option<String>,
     #[validate(range(min = 0.0, max = 5.0))]
     pub rating: Option<f64>,
@@ -549,4 +559,27 @@ pub struct AdminPickupPointsQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminBusLayoutsQuery {
     pub brand_id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use validator::Validate;
+
+    use super::UpsertBrandRequest;
+
+    #[test]
+    fn blank_optional_brand_contacts_are_not_validated() {
+        let request: UpsertBrandRequest = serde_json::from_value(json!({
+            "name": "Example Brand",
+            "slug": "example-brand",
+            "contactPhone": "",
+            "contactEmail": ""
+        }))
+        .unwrap();
+
+        assert!(request.contact_phone.is_none());
+        assert!(request.contact_email.is_none());
+        assert!(request.validate().is_ok());
+    }
 }

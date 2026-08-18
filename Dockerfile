@@ -15,22 +15,19 @@
 # ════════════════════════════════════════════════════════════════════
 # Stage 1: Frontend build
 # ════════════════════════════════════════════════════════════════════
-FROM node:22-slim AS frontend-builder
+FROM oven/bun:1 AS frontend-builder
 
 WORKDIR /frontend
 
-# Copy package files and install deps.
-# Bun is used for the build script (bun run build:client && bun run build:prerender)
-# but we install via npm to avoid needing bun in the image.
-COPY frontend/package.json frontend/bun.lock* frontend/package-lock.json* ./
-RUN npm install
+# Copy package files and install dependencies from the Bun lockfile.
+COPY frontend/package.json frontend/bun.lock* ./
+RUN bun install --frozen-lockfile
 
 # Copy the rest of the frontend source.
 COPY frontend/ ./
 
 # Build the frontend. Output goes to ./dist.
-# The prerender step needs node, which is available in this image.
-RUN npm run build
+RUN bun run build
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: Backend build
@@ -44,10 +41,12 @@ WORKDIR /app
 # Install system deps needed to compile:
 # - pkg-config + libssl-dev: for rustls/native-tls
 # - ca-certificates: for HTTPS
+# - curl: for downloading Swagger UI during the utoipa-swagger-ui build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libssl-dev \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Cache deps across builds (only re-fetch when Cargo.toml changes).

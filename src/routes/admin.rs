@@ -73,7 +73,7 @@ pub async fn create_brand(
     admin: AdminUser,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate().map_err(AppError::from)?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
@@ -100,7 +100,7 @@ pub async fn update_brand(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate().map_err(AppError::from)?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;

@@ -162,9 +162,9 @@ export function RouteFormDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1"
+            className="grid gap-3 max-w-xl"
           >
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="code"
@@ -263,7 +263,7 @@ export function RouteFormDialog({
               )}
             />
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 items-start">
               <FormField
                 control={form.control}
                 name="distanceKm"

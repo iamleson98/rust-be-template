@@ -21,10 +21,11 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    environment:
+      DATABASE__URL: sqlite:///app/data/app.db?mode=rwc
     volumes:
       - app-data:/app/data
       - app-storage:/app/storage
-      - app-db:/app
       - app-osm:/app/osm-index
     restart: unless-stopped
     healthcheck:
@@ -90,7 +91,6 @@ services:
 volumes:
   app-data:
   app-storage:
-  app-db:
   app-osm:
   # redis-data:
   # pg-data:
