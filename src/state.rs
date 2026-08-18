@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::extract::FromRef;
 
 use crate::config::Config;
+use crate::rbac::RbacChecker;
 use crate::service::{
     AdminService, AuthService, BookingService, NotificationService, PlaceService, PostService,
     PriceAlertService, PublicService, ReviewService, RoutingService, UserService, WishlistService,
@@ -23,6 +24,10 @@ use crate::store::CompositeStore;
 /// - **Services hold their deps directly** (not a back-reference to
 ///   `AppState`). This avoids circular `Arc` references — a common
 ///   memory leak pitfall.
+/// - **`RbacChecker` is on `AppState`** — shared by all route handlers
+///   via `st.rbac.require(user_id, permission).await?`. Services no
+///   longer carry their own `RbacChecker` field; permission checks live
+///   at the route handler layer.
 /// - **`AuthUser` extractor is generic via `FromRef`** — works with any
 ///   state that can supply an `AuthService`, not just `AppState`.
 ///   This keeps middleware independent of the concrete app state type.
@@ -38,6 +43,7 @@ pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
     pub store: Arc<CompositeStore>,
+    pub rbac: Arc<RbacChecker>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
     pub auth: Arc<AuthService>,

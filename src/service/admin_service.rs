@@ -32,34 +32,23 @@ use crate::dto::admin::{
 };
 use crate::entity::{audit_log, booking, brand, pickup_point, review, route, schedule};
 use crate::error::{AppError, AppResult};
-use crate::rbac::RbacChecker;
 use crate::store::CompositeStore;
 
 // ────────────────────────────────────────────────────────────────
 //  Service
 // ────────────────────────────────────────────────────────────────
 
+/// Admin service — pure business logic, no auth knowledge.
+///
+/// Permission checks are done at the route handler layer via
+/// `require_permission(&st, &admin.0, rbac::ADMIN_BRANDS_WRITE).await?`.
 pub struct AdminService {
     store: Arc<CompositeStore>,
-    #[allow(dead_code)]
-    rbac: Arc<RbacChecker>,
 }
 
 impl AdminService {
-    pub fn new(store: Arc<CompositeStore>, rbac: Arc<RbacChecker>) -> Self {
-        Self { store, rbac }
-    }
-
-    // ── Role guard ──────────────────────────────────────────────
-
-    /// Ensure the caller is an admin (employee with admin role).
-    /// Returns `AppError::Forbidden` if not.
-    pub fn require_admin(_caller_id: Uuid, role: &str, actor_type: &str) -> AppResult<()> {
-        if actor_type == "employee" && role == "admin" {
-            Ok(())
-        } else {
-            Err(AppError::Forbidden("admin access required".into()))
-        }
+    pub fn new(store: Arc<CompositeStore>) -> Self {
+        Self { store }
     }
 
     // ── Brands ──────────────────────────────────────────────────
@@ -1439,21 +1428,5 @@ mod tests {
         assert!(!is_days_of_week("111111"));
         assert!(!is_days_of_week("11111111"));
         assert!(!is_days_of_week("2020111"));
-    }
-
-    #[test]
-    fn require_admin_allows_employee_admin() {
-        let id = Uuid::new_v4();
-        assert!(AdminService::require_admin(id, "admin", "employee").is_ok());
-    }
-    #[test]
-    fn require_admin_rejects_customer() {
-        let id = Uuid::new_v4();
-        assert!(AdminService::require_admin(id, "user", "user").is_err());
-    }
-    #[test]
-    fn require_admin_rejects_employee_non_admin() {
-        let id = Uuid::new_v4();
-        assert!(AdminService::require_admin(id, "support_agent", "employee").is_err());
     }
 }

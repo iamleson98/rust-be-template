@@ -4,18 +4,19 @@ use uuid::Uuid;
 
 use crate::entity::posts;
 use crate::error::{AppError, AppResult};
-use crate::rbac::model::consts as rbac;
-use crate::rbac::RbacChecker;
 use crate::store::CompositeStore;
 
+/// Post service — pure business logic, no auth knowledge.
+///
+/// Permission checks are done at the route handler layer via
+/// `require_permission(&st, &auth_user.0, rbac::POSTS_WRITE).await?`.
 pub struct PostService {
     store: Arc<CompositeStore>,
-    rbac: Arc<RbacChecker>,
 }
 
 impl PostService {
-    pub fn new(store: Arc<CompositeStore>, rbac: Arc<RbacChecker>) -> Self {
-        Self { store, rbac }
+    pub fn new(store: Arc<CompositeStore>) -> Self {
+        Self { store }
     }
 
     /// List posts (paginated). Public read — no permission required.
@@ -30,29 +31,24 @@ impl PostService {
         Ok(self.store.post_store().get_post(id).await?)
     }
 
-    /// Create a post. Caller must have `posts:write`.
+    /// Create a post. Permission check is at the route handler.
     pub async fn create(
         &self,
-        caller_id: Uuid,
+        author_id: Uuid,
         title: String,
         body: String,
     ) -> AppResult<posts::Model> {
         validate_post(&title, &body)?;
-        self.rbac
-            .require(caller_id, rbac::POSTS_WRITE)
-            .await
-            .map_err(AppError::from)?;
         Ok(self
             .store
             .post_store()
-            .create_post(caller_id, title, body)
+            .create_post(author_id, title, body)
             .await?)
     }
 
-    /// Update a post. Caller must have `posts:write`.
+    /// Update a post. Permission check is at the route handler.
     pub async fn update(
         &self,
-        caller_id: Uuid,
         id: Uuid,
         title: Option<String>,
         body: Option<String>,
@@ -63,19 +59,11 @@ impl PostService {
         if let Some(ref b) = body {
             validate_body(b)?;
         }
-        self.rbac
-            .require(caller_id, rbac::POSTS_WRITE)
-            .await
-            .map_err(AppError::from)?;
         Ok(self.store.post_store().update_post(id, title, body).await?)
     }
 
-    /// Delete a post. Caller must have `posts:delete`.
-    pub async fn delete(&self, caller_id: Uuid, id: Uuid) -> AppResult<()> {
-        self.rbac
-            .require(caller_id, rbac::POSTS_DELETE)
-            .await
-            .map_err(AppError::from)?;
+    /// Delete a post. Permission check is at the route handler.
+    pub async fn delete(&self, id: Uuid) -> AppResult<()> {
         self.store.post_store().delete_post(id).await?;
         Ok(())
     }

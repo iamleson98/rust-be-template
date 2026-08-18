@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 use crate::entity::user;
 use crate::error::AppResult;
-use crate::middleware::AuthUser;
+use crate::middleware::{require_permission, AuthUser};
+use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -60,9 +61,11 @@ pub async fn list_users(
     AuthUser(user_id): AuthUser,
     Query(q): Query<ListUsersQuery>,
 ) -> AppResult<Json<Vec<UserOut>>> {
+    let session = crate::auth::SessionUser::from_id(user_id);
+    require_permission(&state, &session, rbac::USERS_READ).await?;
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
-    let users = state.users.list(user_id, limit, offset).await?;
+    let users = state.users.list(limit, offset).await?;
     Ok(Json(users.into_iter().map(UserOut::from).collect()))
 }
 
@@ -82,7 +85,9 @@ pub async fn get_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<UserOut>> {
-    let user = state.users.get(user_id, id).await?;
+    let session = crate::auth::SessionUser::from_id(user_id);
+    require_permission(&state, &session, rbac::USERS_READ).await?;
+    let user = state.users.get(id).await?;
     Ok(Json(UserOut::from(user)))
 }
 
@@ -107,6 +112,8 @@ pub async fn delete_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<()> {
-    state.users.delete(user_id, id).await?;
+    let session = crate::auth::SessionUser::from_id(user_id);
+    require_permission(&state, &session, rbac::USERS_DELETE).await?;
+    state.users.delete(id).await?;
     Ok(())
 }

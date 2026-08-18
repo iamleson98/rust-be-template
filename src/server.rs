@@ -158,8 +158,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         password.clone(),
         config_arc.clone(),
     ));
-    let user_service = Arc::new(UserService::new(store.clone(), rbac.clone()));
-    let post_service = Arc::new(PostService::new(store.clone(), rbac.clone()));
+    let user_service = Arc::new(UserService::new(store.clone()));
+    let post_service = Arc::new(PostService::new(store.clone()));
 
     // ---- Optional Tantivy place-search index ──────────────────────────
     // Opened only when `search.index_dir` points at a built index. When
@@ -182,7 +182,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     };
 
     // ---- New domain services (booking logic) -------------------------
-    let admin_service = Arc::new(AdminService::new(store.clone(), rbac.clone()));
+    let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
     let booking_service = Arc::new(BookingService::new(store.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
@@ -195,6 +195,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let state = AppState {
         config: config_arc,
         store,
+        rbac: rbac.clone(),
         auth: auth_service,
         posts: post_service,
         users: user_service,

@@ -36,8 +36,7 @@ pub mod request_id;
 pub mod timeout;
 
 use crate::auth::SessionUser;
-use crate::error::{AppError, AppResult};
-use crate::rbac::RbacChecker;
+use crate::error::AppResult;
 use crate::state::AppState;
 use uuid::Uuid;
 
@@ -45,6 +44,7 @@ use uuid::Uuid;
 ///
 /// Call this at the top of a handler to enforce a specific RBAC permission.
 /// Returns `403 Forbidden` (not 400) if the user lacks the permission.
+/// Uses the `RbacChecker` stored on `AppState` — no per-call construction.
 ///
 /// ```ignore
 /// pub async fn delete_brand(
@@ -61,11 +61,9 @@ pub async fn require_permission(
     user: &SessionUser,
     permission: &str,
 ) -> AppResult<()> {
-    let user_id = Uuid::parse_str(&user.id)
-        .map_err(|e| AppError::Internal(format!("invalid user id in session: {e}")))?;
-    let rbac = RbacChecker::new(st.store.clone());
-    rbac.require(user_id, permission)
+    let user_id = Uuid::parse_str(&user.id).unwrap_or_default();
+    st.rbac.require(user_id, permission)
         .await
-        .map_err(AppError::from)?;
+        .map_err(crate::error::AppError::from)?;
     Ok(())
 }
