@@ -41,7 +41,7 @@ import { Clock, Bus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText } from '@/lib/forms'
 import { useUpsertAdminSchedule } from '@/lib/queries'
-import type { BusLayout, AdminRouteRow as RouteItem, Schedule } from '@/components/admin/types'
+import type { AdminBusLayoutOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
 import { DAY_FULL, AMENITY_OPTIONS } from '@/components/admin/types'
 import { VEHICLE_TYPE_LABELS as VEHICLE_LABELS } from '@/lib/types'
 
@@ -79,9 +79,9 @@ export function ScheduleFormDialog({
   onSaved,
 }: {
   open: boolean
-  schedule: Schedule | null
-  route: RouteItem | null
-  busLayouts: BusLayout[]
+  schedule: AdminScheduleOut | null
+  route: AdminRouteOut | null
+  busLayouts: AdminBusLayoutOut[]
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
@@ -237,7 +237,7 @@ export function ScheduleFormDialog({
                                 <Bus className="h-3 w-3" />
                                 <span>{l.name}</span>
                                 <span className="text-[10px] text-muted-foreground">
-                                  ({VEHICLE_LABELS[l.vehicleType] ?? l.vehicleType} · {l.capacity} chỗ)
+                                  ({VEHICLE_LABELS[l.vehicleType ?? ''] ?? l.vehicleType} · {l.totalSeats} chỗ)
                                 </span>
                               </span>
                             </SelectItem>

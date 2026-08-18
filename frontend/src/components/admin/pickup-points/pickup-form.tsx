@@ -42,7 +42,7 @@ import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useUpsertAdminPickupPoint } from '@/lib/queries'
-import type { PickupPoint, AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
+import type { AdminPickupPointOut, PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
 
 const pickupPointSchema = z.object({
   placeId: requiredText('Địa điểm'),
@@ -69,9 +69,9 @@ export function PickupPointFormDialog({
   onSaved,
 }: {
   open: boolean
-  pickup: PickupPoint | null
-  route: RouteItem | null
-  places: Place[]
+  pickup: AdminPickupPointOut | null
+  route: AdminRouteOut | null
+  places: PlaceOut[]
   existingCount: number
   onOpenChange: (open: boolean) => void
   onSaved: () => void
@@ -97,13 +97,13 @@ export function PickupPointFormDialog({
   useEffect(() => {
     if (open) {
       form.reset({
-        placeId: pickup?.placeId ?? '',
+        placeId: '',
         name: pickup?.name ?? '',
         stopOrder: pickup ? pickup.stopOrder : existingCount + 1,
-        etaOffsetMin: pickup ? pickup.etaOffsetMin : 0,
+        etaOffsetMin: 0,
         pickupType:
-          pickup?.pickupType === 'curb' || pickup?.pickupType === 'on_request'
-            ? pickup.pickupType
+          pickup?.kind === 'curb' || pickup?.kind === 'on_request'
+            ? pickup.kind
             : 'station',
         address: pickup?.address ?? '',
       })

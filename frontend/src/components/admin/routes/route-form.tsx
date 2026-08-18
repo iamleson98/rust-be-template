@@ -41,8 +41,8 @@ import { Route as RouteIcon, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
-import type { AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
-import { AdminBrandOut } from '@/lib/api/types.gen'
+import type { PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
+import type { AdminBrandOut } from '@/lib/api/types.gen'
 
 const routeSchema = z
   .object({
@@ -74,9 +74,9 @@ export function RouteFormDialog({
   onSaved,
 }: {
   open: boolean
-  route: RouteItem | null
+  route: AdminRouteOut | null
   brand: AdminBrandOut | null
-  places: Place[]
+  places: PlaceOut[]
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
@@ -101,7 +101,7 @@ export function RouteFormDialog({
   useEffect(() => {
     if (open) {
       form.reset({
-        code: route?.code ?? '',
+        code: route?.id.slice(0, 8) ?? '',
         name: route?.name ?? '',
         startLocationId: route?.startLocationId ?? '',
         endLocationId: route?.endLocationId ?? '',
