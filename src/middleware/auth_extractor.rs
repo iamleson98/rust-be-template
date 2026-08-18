@@ -47,10 +47,14 @@ where
         let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
 
         // Full JWT verify (HMAC-SHA256) + revocation checks.
+        // Don't echo jsonwebtoken internals to the client — log server-side.
         let user_id = auth
             .verify_access_token(&token)
             .await
-            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+            .map_err(|e| {
+                tracing::debug!(error = ?e, "access token verify failed");
+                AppError::Unauthorized("invalid or expired token".into())
+            })?;
         Ok(AuthUser(user_id))
     }
 }
@@ -75,7 +79,10 @@ where
             None => Ok(MaybeAuthUser(None)),
             Some(tok) => match auth.verify_access_token(&tok).await {
                 Ok(user_id) => Ok(MaybeAuthUser(Some(user_id))),
-                Err(_) => Ok(MaybeAuthUser(None)),
+                Err(e) => {
+                    tracing::debug!(error = ?e, "MaybeAuthUser: token present but invalid, treating as anon");
+                    Ok(MaybeAuthUser(None))
+                }
             },
         }
     }
@@ -92,6 +99,14 @@ where
 /// brand_id, ...) — useful for handlers that need to scope writes by
 /// the employee's brand.
 pub struct AdminUser(pub crate::auth::SessionUser);
+
+impl AdminUser {
+    /// Convenience: returns the user's `Uuid` for RBAC checks.
+    /// `require_permission(&st, admin.user_id(), rbac::ADMIN_BRANDS_WRITE).await?`
+    pub fn user_id(&self) -> Uuid {
+        Uuid::parse_str(&self.0.id).unwrap_or_default()
+    }
+}
 
 impl<S> FromRequestParts<S> for AdminUser
 where
@@ -110,7 +125,10 @@ where
         let session = auth
             .verify_access_token_session(&token)
             .await
-            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+            .map_err(|e| {
+                tracing::debug!(error = ?e, "admin token verify failed");
+                AppError::Unauthorized("invalid or expired token".into())
+            })?;
         if !session.is_employee() {
             return Err(AppError::Forbidden("admin access required".into()));
         }

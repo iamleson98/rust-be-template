@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::entity::user;
 use crate::error::AppResult;
 use crate::middleware::AuthUser;
+use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -26,7 +27,11 @@ impl From<user::Model> for UserOut {
     fn from(m: user::Model) -> Self {
         Self {
             id: m.id,
-            email: if m.email.is_empty() { None } else { Some(m.email) },
+            email: if m.email.is_empty() {
+                None
+            } else {
+                Some(m.email)
+            },
             full_name: m.full_name,
             created_at: m.created_at.to_rfc3339(),
         }
@@ -60,9 +65,10 @@ pub async fn list_users(
     AuthUser(user_id): AuthUser,
     Query(q): Query<ListUsersQuery>,
 ) -> AppResult<Json<Vec<UserOut>>> {
+    state.rbac.check(user_id, rbac::USERS_READ).await?;
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
-    let users = state.users.list(user_id, limit, offset).await?;
+    let users = state.users.list(limit, offset).await?;
     Ok(Json(users.into_iter().map(UserOut::from).collect()))
 }
 
@@ -82,7 +88,8 @@ pub async fn get_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<UserOut>> {
-    let user = state.users.get(user_id, id).await?;
+    state.rbac.check(user_id, rbac::USERS_READ).await?;
+    let user = state.users.get(id).await?;
     Ok(Json(UserOut::from(user)))
 }
 
@@ -107,6 +114,7 @@ pub async fn delete_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<()> {
-    state.users.delete(user_id, id).await?;
+    state.rbac.check(user_id, rbac::USERS_DELETE).await?;
+    state.users.delete(id).await?;
     Ok(())
 }

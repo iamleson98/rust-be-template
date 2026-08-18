@@ -49,6 +49,9 @@ impl JwtManager {
     pub fn verify_access(&self, token: &str) -> anyhow::Result<AccessTokenClaims> {
         let mut v = Validation::new(jsonwebtoken::Algorithm::HS256);
         v.set_issuer(&[&self.cfg.issuer]);
+        // 30-second leeway to tolerate clock skew between issuer and verifier
+        // (important in distributed deployments where NTP isn't perfectly synced).
+        v.leeway = 30;
         let data = decode::<AccessTokenClaims>(token, &self.decoding, &v)
             .map_err(|e| anyhow::anyhow!("jwt decode: {e}"))?;
         if data.claims.typ != "access" {

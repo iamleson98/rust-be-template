@@ -1,60 +1,40 @@
-//! User service — CRUD operations on user with RBAC enforcement.
-//!
-//! Holds its dependencies directly. Constructed once at startup and
-//! stored as `Arc<UserService>` on `AppState`.
-
 use std::sync::Arc;
 
 use uuid::Uuid;
 
 use crate::entity::user;
-use crate::error::{AppError, AppResult};
-use crate::rbac::model::consts as rbac;
-use crate::rbac::RbacChecker;
+use crate::error::AppResult;
 use crate::store::CompositeStore;
 
+/// User service — pure business logic, no auth knowledge.
+///
+/// Permission checks are done at the route handler layer via
+/// `require_permission(&st, &auth_user.0, rbac::USERS_READ).await?`.
 pub struct UserService {
     store: Arc<CompositeStore>,
-    rbac: Arc<RbacChecker>,
 }
 
 impl UserService {
-    pub fn new(store: Arc<CompositeStore>, rbac: Arc<RbacChecker>) -> Self {
-        Self { store, rbac }
+    pub fn new(store: Arc<CompositeStore>) -> Self {
+        Self { store }
     }
 
-    /// List users with pagination. Caller must have `user:read`.
-    ///
-    /// Previously returned an empty `Vec` with a TODO comment — silently
-    /// broken. Now actually fetches users from the store, paginated.
+    /// List users with pagination. Permission check is at the route handler.
     pub async fn list(
         &self,
-        caller_id: Uuid,
         limit: u64,
         offset: u64,
     ) -> AppResult<Vec<user::Model>> {
-        self.rbac
-            .require(caller_id, rbac::USERS_READ)
-            .await
-            .map_err(AppError::from)?;
         Ok(self.store.user_store().list_users(limit, offset).await?)
     }
 
-    /// Get a single user by ID. Caller must have `user:read`.
-    pub async fn get(&self, caller_id: Uuid, target_id: Uuid) -> AppResult<user::Model> {
-        self.rbac
-            .require(caller_id, rbac::USERS_READ)
-            .await
-            .map_err(AppError::from)?;
+    /// Get a single user by ID. Permission check is at the route handler.
+    pub async fn get(&self, target_id: Uuid) -> AppResult<user::Model> {
         Ok(self.store.user_store().get_user(target_id).await?)
     }
 
-    /// Delete a user. Caller must have `user:delete`.
-    pub async fn delete(&self, caller_id: Uuid, target_id: Uuid) -> AppResult<()> {
-        self.rbac
-            .require(caller_id, rbac::USERS_DELETE)
-            .await
-            .map_err(AppError::from)?;
+    /// Delete a user. Permission check is at the route handler.
+    pub async fn delete(&self, target_id: Uuid) -> AppResult<()> {
         self.store.user_store().delete_user(target_id).await?;
         Ok(())
     }

@@ -71,8 +71,11 @@ impl AuthService {
         }
     }
 
-    /// Register a new user account. Assigns the default `user` role.
-    /// The first registered user automatically gets the `admin` role.
+    /// Register a new user account.
+    /// - Regular users get the `user` role.
+    /// - The first registered user gets the `employee` role (bootstrapping
+    ///   the admin/support account). They can then log in via
+    ///   `/api/auth/employee-login` to access the admin dashboard.
     pub async fn register(
         &self,
         email: String,
@@ -246,7 +249,7 @@ impl AuthService {
 
     /// Issue a fresh auth session: new access JWT + new refresh token
     /// (persisted).
-    async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
+    pub async fn issue_session(&self, user: user::Model) -> AppResult<AuthSession> {
         let id = user.id;
         let access = self
             .jwt

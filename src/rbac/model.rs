@@ -23,4 +23,22 @@ pub mod consts {
     pub const POSTS_READ: &str = "posts:read";
     pub const POSTS_WRITE: &str = "posts:write";
     pub const POSTS_DELETE: &str = "posts:delete";
+
+    // Admin namespace — these are checked at the route handler layer,
+    // not the service layer, so the guard is visible at the route
+    // definition and impossible to forget.
+    pub const ADMIN_BRANDS_READ: &str = "admin:brands:read";
+    pub const ADMIN_BRANDS_WRITE: &str = "admin:brands:write";
+    pub const ADMIN_ROUTES_READ: &str = "admin:routes:read";
+    pub const ADMIN_ROUTES_WRITE: &str = "admin:routes:write";
+    pub const ADMIN_SCHEDULES_READ: &str = "admin:schedules:read";
+    pub const ADMIN_SCHEDULES_WRITE: &str = "admin:schedules:write";
+    pub const ADMIN_PICKUP_POINTS_READ: &str = "admin:pickup_points:read";
+    pub const ADMIN_PICKUP_POINTS_WRITE: &str = "admin:pickup_points:write";
+    pub const ADMIN_BUS_LAYOUTS_READ: &str = "admin:bus_layouts:read";
+    pub const ADMIN_REVIEWS_MODERATE: &str = "admin:reviews:moderate";
+    pub const ADMIN_BOOKINGS_READ: &str = "admin:bookings:read";
+    pub const ADMIN_BOOKINGS_WRITE: &str = "admin:bookings:write";
+    pub const ADMIN_STATS_READ: &str = "admin:stats:read";
+    pub const ADMIN_EXPORT: &str = "admin:export";
 }

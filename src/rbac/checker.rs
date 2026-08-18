@@ -71,7 +71,7 @@ impl RbacChecker {
         if self.check(user_id, permission).await? {
             Ok(())
         } else {
-            Err(StoreError::Validation(format!(
+            Err(StoreError::Forbidden(format!(
                 "missing permission: {permission}"
             )))
         }

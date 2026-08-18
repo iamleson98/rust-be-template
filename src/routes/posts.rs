@@ -9,6 +9,7 @@ use validator::Validate;
 use crate::entity::posts;
 use crate::error::AppResult;
 use crate::middleware::AuthUser;
+use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -106,6 +107,8 @@ pub async fn create_post(
 ) -> AppResult<Json<PostOut>> {
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    // RBAC check at the route layer — the service stays pure.
+    state.rbac.check(user_id, rbac::POSTS_WRITE).await?;
     let post = state.posts.create(user_id, body.title, body.body).await?;
     Ok(Json(PostOut::from(post)))
 }
@@ -154,10 +157,8 @@ pub async fn update_post(
 ) -> AppResult<Json<PostOut>> {
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
-    let post = state
-        .posts
-        .update(user_id, id, body.title, body.body)
-        .await?;
+    state.rbac.check(user_id, rbac::POSTS_WRITE).await?;
+    let post = state.posts.update(id, body.title, body.body).await?;
     Ok(Json(PostOut::from(post)))
 }
 
@@ -174,6 +175,8 @@ pub async fn delete_post(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<()> {
-    state.posts.delete(user_id, id).await?;
+    // require_permission(&state, user_id, rbac::POSTS_DELETE).await?;
+    state.rbac.check(user_id, rbac::POSTS_DELETE).await?;
+    state.posts.delete(id).await?;
     Ok(())
 }
