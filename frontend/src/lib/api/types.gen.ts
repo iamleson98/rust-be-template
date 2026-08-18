@@ -65,7 +65,11 @@ export type AdminBookingListResponse = {
     items: Array<AdminBookingOut>;
     limit: number;
     offset: number;
-    total: number;
+    /**
+     * Total matching-row count (independent of pagination). Omitted when
+     * the server didn't compute it (older callers may rely on this).
+     */
+    total?: number | null;
 };
 
 /**
@@ -359,7 +363,12 @@ export type BookingListItem = {
  */
 export type BookingListResponse = {
     items: Array<BookingListItem>;
-    total: number;
+    /**
+     * Total matching-row count (independent of pagination). Omitted from
+     * the JSON when the server didn't compute it (e.g. for the lookup
+     * endpoint). Use `with_total(...)` to set it.
+     */
+    total?: number | null;
 };
 
 /**
@@ -737,6 +746,11 @@ export type ListPostsResponse = {
     items: Array<PostOut>;
     limit: number;
     offset: number;
+    /**
+     * Total post count (independent of pagination). Omitted when not
+     * computed.
+     */
+    total?: number | null;
 };
 
 export type LoginRequest = {
@@ -952,12 +966,12 @@ export type PlaceSearchResponse = {
 };
 
 export type PostOut = {
-    author_id: string;
+    authorId: string;
     body: string;
-    created_at: string;
+    createdAt: string;
     id: string;
     title: string;
-    updated_at: string;
+    updatedAt: string;
 };
 
 /**
@@ -992,7 +1006,13 @@ export type PriceAlertOut = {
 };
 
 export type RefreshRequest = {
-    refresh_token: string;
+    /**
+     * Optional refresh token in the body. If absent, the token is read
+     * from the `refresh_token` httpOnly cookie. Accepting it from the
+     * body is a fallback for non-browser clients (curl, mobile) that
+     * can't use cookies.
+     */
+    refresh_token?: string | null;
 };
 
 export type RegisterRequest = {
@@ -1035,7 +1055,7 @@ export type ReviewOut = {
     createdAt: string;
     helpfulCount: number;
     id: string;
-    photos: Array<string>;
+    photos?: Array<string>;
     /**
      * 1..=5
      */
@@ -1050,7 +1070,7 @@ export type ReviewOut = {
      * `pending` | `approved` | `rejected`
      */
     status: string;
-    tags: Array<string>;
+    tags?: Array<string>;
     title?: string | null;
     tripSessionId?: string | null;
     updatedAt: string;
@@ -1443,9 +1463,14 @@ export type UpsertScheduleRequest = {
 };
 
 export type UserOut = {
-    created_at: string;
+    createdAt: string;
+    /**
+     * User's email. The underlying column is non-null but may be empty —
+     * we normalise to `None` for the wire so the frontend's optional type
+     * is honest.
+     */
     email?: string | null;
-    full_name: string;
+    fullName: string;
     id: string;
 };
 
@@ -1467,6 +1492,41 @@ export type WishlistListResponse = {
     limit: number;
     offset: number;
     total: number;
+};
+
+/**
+ * Response of `GET /api/zeroclaw/exchanges`.
+ */
+export type ZeroclawExchangeListResponse = {
+    items: Array<ZeroclawExchangeOut>;
+};
+
+/**
+ * A single ZeroClaw exchange row — the prompt + completion pair, with
+ * metadata (model used, latency, handoff flag).
+ */
+export type ZeroclawExchangeOut = {
+    assistantMessageId?: string | null;
+    channelId?: string | null;
+    completion?: string | null;
+    createdAt: string;
+    handoffToHuman: boolean;
+    id: string;
+    latencyMs?: number | null;
+    model?: string | null;
+    prompt?: string | null;
+    userMessageId?: string | null;
+};
+
+/**
+ * Response of `GET /api/zeroclaw/status`.
+ */
+export type ZeroclawStatusResponse = {
+    enabled: boolean;
+    /**
+     * Provider name (e.g. "http" or "stub").
+     */
+    provider: string;
 };
 
 export type ListBookingsData = {
@@ -2411,7 +2471,7 @@ export type RegisterErrors = {
 
 export type RegisterResponses = {
     /**
-     * Account created
+     * Account created + logged in
      */
     201: AuthResponse;
 };
@@ -2934,8 +2994,8 @@ export type ListPostsData = {
     body?: never;
     path?: never;
     query?: {
-        limit?: number | null;
-        offset?: number | null;
+        limit?: number;
+        offset?: number;
     };
     url: '/api/posts';
 };
@@ -3518,7 +3578,10 @@ export type TripDetailResponse = TripDetailResponses[keyof TripDetailResponses];
 export type ListUsersData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        limit?: number;
+        offset?: number;
+    };
     url: '/api/users';
 };
 
@@ -3683,8 +3746,8 @@ export type ListExchangesData = {
     body?: never;
     path?: never;
     query?: {
-        limit?: number | null;
-        offset?: number | null;
+        limit?: number;
+        offset?: number;
     };
     url: '/api/zeroclaw/exchanges';
 };
@@ -3693,8 +3756,10 @@ export type ListExchangesResponses = {
     /**
      * Exchange list
      */
-    200: unknown;
+    200: ZeroclawExchangeListResponse;
 };
+
+export type ListExchangesResponse = ListExchangesResponses[keyof ListExchangesResponses];
 
 export type StatusData = {
     body?: never;
@@ -3707,8 +3772,10 @@ export type StatusResponses = {
     /**
      * ZeroClaw status
      */
-    200: unknown;
+    200: ZeroclawStatusResponse;
 };
+
+export type StatusResponse = StatusResponses[keyof StatusResponses];
 
 export type HealthData = {
     body?: never;

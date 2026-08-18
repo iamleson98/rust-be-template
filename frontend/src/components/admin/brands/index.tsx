@@ -26,7 +26,6 @@ import {
   usePlacesList,
 } from '@/lib/queries'
 import type {
-  AdminBrandRow as Brand,
   AdminPlaceRow as Place,
   AdminRouteRow as RouteItem,
   BusLayout,
@@ -44,16 +43,17 @@ import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
 import { PickupPointFormDialog } from '@/components/admin/pickup-points/pickup-form'
+import { AdminBrandOut } from '@/lib/api/types.gen'
 
 export function AdminBrandManagement() {
   const [brandSearch, setBrandSearch] = useState('')
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null)
+  const [selectedBrand, setSelectedBrand] = useState<AdminBrandOut | null>(null)
   const [routeSearch, setRouteSearch] = useState('')
   const [selectedRoute, setSelectedRoute] = useState<RouteItem | null>(null)
   const [mobileView, setMobileView] = useState<'brands' | 'routes' | 'details'>('brands')
   /* --- queries: brands, places (parallel, on mount) --- */
   const brandsQuery = useAdminBrands()
-  const brands: Brand[] = (brandsQuery.data?.items ?? []) as Brand[]
+  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as AdminBrandOut[]
   const placesQuery = usePlacesList(200)
   const places: Place[] = (placesQuery.data as any)?.items ?? []
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
@@ -67,7 +67,7 @@ export function AdminBrandManagement() {
   const pickupPointsQuery = useAdminPickupPoints(selectedRoute?.id)
   const pickupPoints: PickupPoint[] = (pickupPointsQuery.data?.items ?? []) as unknown as PickupPoint[]
   /* --- selection handlers --- */
-  const selectBrand = useCallback((brand: Brand | null) => {
+  const selectBrand = useCallback((brand: AdminBrandOut | null) => {
     setSelectedBrand(brand)
     setSelectedRoute(null)
     if (brand) {
@@ -112,7 +112,7 @@ export function AdminBrandManagement() {
   const deleteScheduleMutation = useDeleteAdminSchedule()
   const deletePickupMutation = useDeleteAdminPickupPoint()
   /* --- Dialog state --- */
-  const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: Brand | null }>({
+  const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: AdminBrandOut | null }>({
     open: false,
     brand: null,
   })

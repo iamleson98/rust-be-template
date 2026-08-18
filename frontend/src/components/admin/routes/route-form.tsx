@@ -41,7 +41,8 @@ import { Route as RouteIcon, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
-import type { AdminBrandRow as Brand, AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
+import type { AdminPlaceRow as Place, AdminRouteRow as RouteItem } from '@/components/admin/types'
+import { AdminBrandOut } from '@/lib/api/types.gen'
 
 const routeSchema = z
   .object({
@@ -74,7 +75,7 @@ export function RouteFormDialog({
 }: {
   open: boolean
   route: RouteItem | null
-  brand: Brand | null
+  brand: AdminBrandOut | null
   places: Place[]
   onOpenChange: (open: boolean) => void
   onSaved: () => void
@@ -152,7 +153,7 @@ export function RouteFormDialog({
           <DialogDescription>
             {brand ? (
               <>
-                Thuộc hãng: <span className="font-medium" style={{ color: brand.accentColor }}>{brand.name}</span>
+                Thuộc hãng: <span className="font-medium" style={{ color: brand.accentColor as any }}>{brand.name}</span>
               </>
             ) : null}
           </DialogDescription>

@@ -43,7 +43,7 @@ import { Building2, Phone, Mail, Loader2, CheckCircle2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, optionalText } from '@/lib/forms'
 import { useUpsertAdminBrand } from '@/lib/queries'
-import type { AdminBrandRow as Brand } from '@/components/admin/types'
+import type { AdminBrandOut } from '@/lib/api'
 import { slugify } from './helpers'
 
 const brandSchema = z.object({
@@ -81,7 +81,7 @@ export function BrandFormDialog({
   onSaved,
 }: {
   open: boolean
-  brand: Brand | null
+  brand: AdminBrandOut | null
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {

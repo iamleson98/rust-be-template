@@ -4,7 +4,7 @@ import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOption
 
 import { client } from '../client.gen';
 import { bookingExport, bookingStats, brandDetail, brands, campaigns, cancel, confirm, create, create2, createBrand, createChannel, createPickupPoint, createPost, createRoute, createSchedule, deleteBrand, deletePickupPoint, deletePost, deleteReview, deleteRoute, deleteSchedule, deleteUser, detail, directions, employeeLogin, get, getBooking, getPost, getUser, health, hold, isochrone, list, list2, list3, list4, list5, list6, listBookings, listBrands, listBusLayouts, listChannels, listExchanges, listMessages, listPickupPoints, listPosts, listReviews, listRoutes, listSchedules, listUsers, login, logout, lookup, markRead, markRead2, matrix, me, moderateReview, type Options, postMessage, ready, recommendations, refresh, register, remove, remove2, remove3, reverse, routes, search, searchTrips, stats, status, tags, toggle, tripDetail, update, updateBookingStatus, updateBrand, updatePickupPoint, updatePost, updateRoute, updateSchedule, validateCampaign } from '../sdk.gen';
-import type { BookingExportData, BookingExportResponse, BookingStatsData, BookingStatsResponse, BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, CreateBrandData, CreateBrandResponse, CreateChannelData, CreateChannelResponse2, CreateData, CreatePickupPointData, CreatePickupPointResponse, CreatePostData, CreatePostResponse, CreateResponse, CreateRouteData, CreateRouteResponse, CreateScheduleData, CreateScheduleResponse, DeleteBrandData, DeleteBrandResponse, DeletePickupPointData, DeletePickupPointResponse, DeletePostData, DeletePostResponse, DeleteReviewData, DeleteReviewResponse, DeleteRouteData, DeleteRouteResponse, DeleteScheduleData, DeleteScheduleResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, GetBookingData, GetBookingResponse, GetData, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, ListBookingsData, ListBookingsResponse, ListBrandsData, ListBrandsResponse, ListBusLayoutsData, ListBusLayoutsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListMessagesData, ListMessagesResponse, ListPickupPointsData, ListPickupPointsResponse, ListPostsData, ListPostsResponse2, ListResponse, ListReviewsData, ListReviewsResponse, ListRoutesData, ListRoutesResponse, ListSchedulesData, ListSchedulesResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateReviewData, ModerateReviewResponse2, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReverseData, ReverseResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, StatsData, StatsResponse2, StatusData, TagsData, TagsResponse, ToggleData, ToggleResponse, TripDetailData, TripDetailResponse, UpdateBookingStatusData, UpdateBookingStatusResponse2, UpdateBrandData, UpdateBrandResponse, UpdateData, UpdatePickupPointData, UpdatePickupPointResponse, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateRouteData, UpdateRouteResponse, UpdateScheduleData, UpdateScheduleResponse, ValidateCampaignData, ValidateCampaignResponse } from '../types.gen';
+import type { BookingExportData, BookingExportResponse, BookingStatsData, BookingStatsResponse, BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, CreateBrandData, CreateBrandResponse, CreateChannelData, CreateChannelResponse2, CreateData, CreatePickupPointData, CreatePickupPointResponse, CreatePostData, CreatePostResponse, CreateResponse, CreateRouteData, CreateRouteResponse, CreateScheduleData, CreateScheduleResponse, DeleteBrandData, DeleteBrandResponse, DeletePickupPointData, DeletePickupPointResponse, DeletePostData, DeletePostResponse, DeleteReviewData, DeleteReviewResponse, DeleteRouteData, DeleteRouteResponse, DeleteScheduleData, DeleteScheduleResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, GetBookingData, GetBookingResponse, GetData, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, ListBookingsData, ListBookingsResponse, ListBrandsData, ListBrandsResponse, ListBusLayoutsData, ListBusLayoutsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPickupPointsData, ListPickupPointsResponse, ListPostsData, ListPostsResponse2, ListResponse, ListReviewsData, ListReviewsResponse, ListRoutesData, ListRoutesResponse, ListSchedulesData, ListSchedulesResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateReviewData, ModerateReviewResponse2, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReverseData, ReverseResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, StatsData, StatsResponse2, StatusData, StatusResponse, TagsData, TagsResponse, ToggleData, ToggleResponse, TripDetailData, TripDetailResponse, UpdateBookingStatusData, UpdateBookingStatusResponse2, UpdateBrandData, UpdateBrandResponse, UpdateData, UpdatePickupPointData, UpdatePickupPointResponse, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateRouteData, UpdateRouteResponse, UpdateScheduleData, UpdateScheduleResponse, ValidateCampaignData, ValidateCampaignResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -694,6 +694,10 @@ export const meOptions = (options?: Options<MeData>) => queryOptions<MeResponse,
 
 /**
  * `POST /api/auth/refresh` — rotate refresh token, issue new access.
+ *
+ * Reads the refresh token from the httpOnly cookie first (preferred —
+ * the token never touches JS), then falls back to the request body
+ * (for non-browser clients).
  */
 export const refreshMutation = (options?: Partial<Options<RefreshData>>): UseMutationOptions<RefreshResponse, DefaultError, Options<RefreshData>> => {
     const mutationOptions: UseMutationOptions<RefreshResponse, DefaultError, Options<RefreshData>> = {
@@ -710,7 +714,10 @@ export const refreshMutation = (options?: Partial<Options<RefreshData>>): UseMut
 };
 
 /**
- * `POST /api/auth/register` — create a new user account.
+ * `POST /api/auth/register` — create a new user account + auto-login.
+ *
+ * Issues auth cookies immediately on success so the user doesn't need to
+ * call `/login` separately.
  */
 export const registerMutation = (options?: Partial<Options<RegisterData>>): UseMutationOptions<RegisterResponse, DefaultError, Options<RegisterData>> => {
     const mutationOptions: UseMutationOptions<RegisterResponse, DefaultError, Options<RegisterData>> = {
@@ -1232,7 +1239,7 @@ export const listPostsInfiniteQueryKey = (options?: Options<ListPostsData>): Que
  * `GET /api/posts` — list posts (public read).
  */
 export const listPostsInfiniteOptions = (options?: Options<ListPostsData>) => {
-    const opts = infiniteQueryOptions<ListPostsResponse2, DefaultError, InfiniteData<ListPostsResponse2>, QueryKey<Options<ListPostsData>>, number | null | Pick<QueryKey<Options<ListPostsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<ListPostsResponse2, DefaultError, InfiniteData<ListPostsResponse2>, QueryKey<Options<ListPostsData>>, number | Pick<QueryKey<Options<ListPostsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -1716,6 +1723,36 @@ export const listUsersOptions = (options?: Options<ListUsersData>) => queryOptio
     queryKey: listUsersQueryKey(options)
 });
 
+export const listUsersInfiniteQueryKey = (options?: Options<ListUsersData>): QueryKey<Options<ListUsersData>> => createQueryKey('listUsers', options, true);
+
+/**
+ * `GET /api/users` — list users. Requires `users:read`.
+ */
+export const listUsersInfiniteOptions = (options?: Options<ListUsersData>) => {
+    const opts = infiniteQueryOptions<ListUsersResponse, DefaultError, InfiniteData<ListUsersResponse>, QueryKey<Options<ListUsersData>>, number | Pick<QueryKey<Options<ListUsersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListUsersData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listUsers({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listUsersInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
 /**
  * `DELETE /api/users/{id}` — delete a user. Requires `users:delete`.
  */
@@ -1841,7 +1878,7 @@ export const listExchangesQueryKey = (options?: Options<ListExchangesData>) => c
 /**
  * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
  */
-export const listExchangesOptions = (options?: Options<ListExchangesData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof listExchangesQueryKey>>({
+export const listExchangesOptions = (options?: Options<ListExchangesData>) => queryOptions<ListExchangesResponse, DefaultError, ListExchangesResponse, ReturnType<typeof listExchangesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await listExchanges({
             ...options,
@@ -1860,7 +1897,7 @@ export const listExchangesInfiniteQueryKey = (options?: Options<ListExchangesDat
  * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
  */
 export const listExchangesInfiniteOptions = (options?: Options<ListExchangesData>) => {
-    const opts = infiniteQueryOptions<unknown, DefaultError, InfiniteData<unknown>, QueryKey<Options<ListExchangesData>>, number | null | Pick<QueryKey<Options<ListExchangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    const opts = infiniteQueryOptions<ListExchangesResponse, DefaultError, InfiniteData<ListExchangesResponse>, QueryKey<Options<ListExchangesData>>, number | Pick<QueryKey<Options<ListExchangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
     // @ts-ignore
     {
         queryFn: async ({ pageParam, queryKey, signal }) => {
@@ -1889,7 +1926,7 @@ export const statusQueryKey = (options?: Options<StatusData>) => createQueryKey(
 /**
  * `GET /api/zeroclaw/status` — get ZeroClaw provider status.
  */
-export const statusOptions = (options?: Options<StatusData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof statusQueryKey>>({
+export const statusOptions = (options?: Options<StatusData>) => queryOptions<StatusResponse, DefaultError, StatusResponse, ReturnType<typeof statusQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
         const { data } = await status({
             ...options,

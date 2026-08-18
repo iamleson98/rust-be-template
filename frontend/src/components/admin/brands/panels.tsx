@@ -37,9 +37,10 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import type { AdminBrandRow as Brand, AdminRouteRow as RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
+import type { AdminRouteRow as RouteItem, Schedule, PickupPoint } from '@/components/admin/types'
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
 import { formatDurationShort, daysLabel } from './helpers'
+import { AdminBrandOut } from '@/lib/api/types.gen'
 
 /* ─── Brands list (left panel) ─── */
 
@@ -56,14 +57,14 @@ export function BrandListPanel({
   mobileView,
 }: {
   brandsLoading: boolean
-  filteredBrands: Brand[]
+  filteredBrands: AdminBrandOut[]
   brandSearch: string
   setBrandSearch: (v: string) => void
-  selectedBrand: Brand | null
-  onSelectBrand: (b: Brand) => void
+  selectedBrand: AdminBrandOut | null
+  onSelectBrand: (b: AdminBrandOut) => void
   onAdd: () => void
-  onEdit: (b: Brand) => void
-  onDelete: (b: Brand) => void
+  onEdit: (b: AdminBrandOut) => void
+  onDelete: (b: AdminBrandOut) => void
   mobileView: 'brands' | 'routes' | 'details'
 }) {
   return (
@@ -95,7 +96,7 @@ export function BrandListPanel({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[560px]">
+        <ScrollArea className="h-140">
           {brandsLoading ? (
             <div className="p-3 space-y-2">
               {[...Array(5)].map((_, i) => (
@@ -121,13 +122,12 @@ export function BrandListPanel({
                       onSelectBrand(b)
                     }
                   }}
-                  className={`w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-sm ${
-                    selectedBrand?.id === b.id ? 'bg-rose-50/60 border-l-2 border-l-rose-600' : ''
-                  }`}
+                  className={`w-full text-left p-3 hover:bg-slate-50 transition-colors flex items-start gap-2.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-sm ${selectedBrand?.id === b.id ? 'bg-rose-50/60 border-l-2 border-l-rose-600' : ''
+                    }`}
                 >
                   <div
                     className="h-9 w-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ background: b.accentColor }}
+                    style={{ background: b.accentColor as any }}
                   >
                     {b.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>
@@ -140,7 +140,7 @@ export function BrandListPanel({
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-0.5 text-amber-500">
-                        <Star className="h-3 w-3 fill-current" /> {b.rating.toFixed(1)}
+                        <Star className="h-3 w-3 fill-current" /> {(b.rating ?? 0).toFixed(1)}
                       </span>
                       <span>{b.routeCount} tuyến</span>
                       <span>{b.layoutCount} xe</span>
@@ -202,7 +202,7 @@ export function RouteListPanel({
   filteredRoutes: RouteItem[]
   routeSearch: string
   setRouteSearch: (v: string) => void
-  selectedBrand: Brand | null
+  selectedBrand: AdminBrandOut | null
   selectedRoute: RouteItem | null
   onSelectRoute: (r: RouteItem) => void
   onAdd: () => void
@@ -241,7 +241,7 @@ export function RouteListPanel({
         </div>
         {selectedBrand ? (
           <div className="text-[11px] text-muted-foreground truncate">
-            Thuộc: <span className="font-medium" style={{ color: selectedBrand.accentColor }}>{selectedBrand.name}</span>
+            Thuộc: <span className="font-medium" style={{ color: selectedBrand.accentColor as any }}>{selectedBrand.name}</span>
           </div>
         ) : null}
         <div className="relative mt-1">
@@ -256,7 +256,7 @@ export function RouteListPanel({
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[540px]">
+        <ScrollArea className="h-135">
           {!selectedBrand ? (
             <div className="p-8 text-center text-xs text-muted-foreground">
               <RouteIcon className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -287,9 +287,8 @@ export function RouteListPanel({
                       onSelectRoute(r)
                     }
                   }}
-                  className={`w-full text-left p-3 hover:bg-slate-50 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-200 rounded-sm ${
-                    selectedRoute?.id === r.id ? 'bg-blue-50/60 border-l-2 border-l-blue-600' : ''
-                  }`}
+                  className={`w-full text-left p-3 hover:bg-slate-50 transition-colors cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-blue-200 rounded-sm ${selectedRoute?.id === r.id ? 'bg-blue-50/60 border-l-2 border-l-blue-600' : ''
+                    }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <code className="text-[11px] font-mono font-bold text-blue-700">{r.code}</code>
@@ -409,7 +408,7 @@ export function ScheduleAndPickupPanel({
             Chọn một tuyến đường để xem lịch trình và điểm đón/trả
           </div>
         ) : (
-          <ScrollArea className="h-[560px]">
+          <ScrollArea className="h-140">
             <div className="divide-y">
               {/* Schedules section */}
               <div className="p-3">
@@ -570,13 +569,12 @@ export function ScheduleAndPickupPanel({
                             <span className="font-medium text-sm truncate">{p.name}</span>
                             <Badge
                               variant="outline"
-                              className={`text-[9px] h-4 px-1 ${
-                                p.pickupType === 'station'
-                                  ? 'bg-blue-50 text-blue-700'
-                                  : p.pickupType === 'curb'
-                                    ? 'bg-amber-50 text-amber-700'
-                                    : 'bg-slate-100 text-slate-700'
-                              }`}
+                              className={`text-[9px] h-4 px-1 ${p.pickupType === 'station'
+                                ? 'bg-blue-50 text-blue-700'
+                                : p.pickupType === 'curb'
+                                  ? 'bg-amber-50 text-amber-700'
+                                  : 'bg-slate-100 text-slate-700'
+                                }`}
                             >
                               {PICKUP_TYPE_LABELS[p.pickupType] ?? p.pickupType}
                             </Badge>
@@ -634,7 +632,7 @@ export function BrandManagementBreadcrumb({
   onBrandsClick,
   onRoutesClick,
 }: {
-  selectedBrand: Brand | null
+  selectedBrand: AdminBrandOut | null
   selectedRoute: RouteItem | null
   onBrandsClick: () => void
   onRoutesClick: () => void

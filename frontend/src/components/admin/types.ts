@@ -21,21 +21,21 @@ import { Wifi, Snowflake, Droplet, Plug, type LucideIcon } from 'lucide-react'
  * imports from both sources.
  */
 
-export type AdminBrandRow = {
-  id: string
-  slug: string
-  name: string
-  logoUrl: string | null
-  description: string | null
-  contactPhone: string | null
-  contactEmail: string | null
-  rating: number
-  status: string
-  accentColor: string
-  totalTrips: number
-  routeCount: number
-  layoutCount: number
-}
+// export type AdminBrandRow = {
+//   id: string
+//   slug: string
+//   name: string
+//   logoUrl: string | null
+//   description: string | null
+//   contactPhone: string | null
+//   contactEmail: string | null
+//   rating: number
+//   status: string
+//   accentColor: string
+//   totalTrips: number
+//   routeCount: number
+//   layoutCount: number
+// }
 
 export type AdminPlaceRow = {
   id: string

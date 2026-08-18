@@ -249,6 +249,10 @@ export const me = <ThrowOnError extends boolean = false>(options?: Options<MeDat
 
 /**
  * `POST /api/auth/refresh` — rotate refresh token, issue new access.
+ *
+ * Reads the refresh token from the httpOnly cookie first (preferred —
+ * the token never touches JS), then falls back to the request body
+ * (for non-browser clients).
  */
 export const refresh = <ThrowOnError extends boolean = false>(options: Options<RefreshData, ThrowOnError>): RequestResult<RefreshResponses, unknown, ThrowOnError> => (options.client ?? client).post<RefreshResponses, unknown, ThrowOnError>({
     url: '/api/auth/refresh',
@@ -260,7 +264,10 @@ export const refresh = <ThrowOnError extends boolean = false>(options: Options<R
 });
 
 /**
- * `POST /api/auth/register` — create a new user account.
+ * `POST /api/auth/register` — create a new user account + auto-login.
+ *
+ * Issues auth cookies immediately on success so the user doesn't need to
+ * call `/login` separately.
  */
 export const register = <ThrowOnError extends boolean = false>(options: Options<RegisterData, ThrowOnError>): RequestResult<RegisterResponses, RegisterErrors, ThrowOnError> => (options.client ?? client).post<RegisterResponses, RegisterErrors, ThrowOnError>({
     url: '/api/auth/register',
