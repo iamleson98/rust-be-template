@@ -26,7 +26,8 @@ use crate::dto::admin::{
     UpsertScheduleRequest,
 };
 use crate::error::AppError;
-use crate::middleware::AdminUser;
+use crate::middleware::{require_permission, AdminUser};
+use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
 // ────────────────────────────────────────────────────────────────
@@ -46,8 +47,9 @@ use crate::state::AppState;
 )]
 pub async fn list_brands(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
 ) -> Result<Json<AdminBrandListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BRANDS_READ).await?;
     Ok(Json(st.admin.list_brands().await?))
 }
 
@@ -65,9 +67,10 @@ pub async fn list_brands(
 )]
 pub async fn create_brand(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BRANDS_WRITE).await?;
     Ok(Json(st.admin.create_brand(&body).await?))
 }
 
@@ -87,10 +90,11 @@ pub async fn create_brand(
 )]
 pub async fn update_brand(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BRANDS_WRITE).await?;
     Ok(Json(st.admin.update_brand(id, &body).await?))
 }
 
@@ -109,9 +113,10 @@ pub async fn update_brand(
 )]
 pub async fn delete_brand(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BRANDS_WRITE).await?;
     Ok(Json(st.admin.delete_brand(id).await?))
 }
 
@@ -133,9 +138,10 @@ pub async fn delete_brand(
 )]
 pub async fn list_routes(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(_q): Query<AdminRoutesQuery>,
 ) -> Result<Json<AdminRouteListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_ROUTES_READ).await?;
     // The store's list_all_routes doesn't support brand_id filter yet;
     // we return all and let the caller filter client-side. For full
     // server-side filtering, the store trait would need extension.
@@ -156,9 +162,10 @@ pub async fn list_routes(
 )]
 pub async fn create_route(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Json(body): Json<UpsertRouteRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_ROUTES_WRITE).await?;
     Ok(Json(st.admin.create_route(&body).await?))
 }
 
@@ -178,10 +185,11 @@ pub async fn create_route(
 )]
 pub async fn update_route(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertRouteRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_ROUTES_WRITE).await?;
     Ok(Json(st.admin.update_route(id, &body).await?))
 }
 
@@ -200,9 +208,10 @@ pub async fn update_route(
 )]
 pub async fn delete_route(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_ROUTES_WRITE).await?;
     Ok(Json(st.admin.delete_route(id).await?))
 }
 
@@ -224,9 +233,10 @@ pub async fn delete_route(
 )]
 pub async fn list_schedules(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminSchedulesQuery>,
 ) -> Result<Json<AdminScheduleListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_SCHEDULES_READ).await?;
     let route_id = q
         .route_id
         .as_deref()
@@ -248,9 +258,10 @@ pub async fn list_schedules(
 )]
 pub async fn create_schedule(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Json(body): Json<UpsertScheduleRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_SCHEDULES_WRITE).await?;
     Ok(Json(st.admin.create_schedule(&body).await?))
 }
 
@@ -270,10 +281,11 @@ pub async fn create_schedule(
 )]
 pub async fn update_schedule(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertScheduleRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_SCHEDULES_WRITE).await?;
     Ok(Json(st.admin.update_schedule(id, &body).await?))
 }
 
@@ -292,9 +304,10 @@ pub async fn update_schedule(
 )]
 pub async fn delete_schedule(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_SCHEDULES_WRITE).await?;
     st.admin.delete_schedule(id).await?;
     Ok(())
 }
@@ -317,9 +330,10 @@ pub async fn delete_schedule(
 )]
 pub async fn list_pickup_points(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminPickupPointsQuery>,
 ) -> Result<Json<AdminPickupPointListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_PICKUP_POINTS_READ).await?;
     let route_id = q
         .route_id
         .as_deref()
@@ -341,9 +355,10 @@ pub async fn list_pickup_points(
 )]
 pub async fn create_pickup_point(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Json(body): Json<UpsertPickupPointRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_PICKUP_POINTS_WRITE).await?;
     Ok(Json(st.admin.create_pickup_point(&body).await?))
 }
 
@@ -363,10 +378,11 @@ pub async fn create_pickup_point(
 )]
 pub async fn update_pickup_point(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertPickupPointRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_PICKUP_POINTS_WRITE).await?;
     Ok(Json(st.admin.update_pickup_point(id, &body).await?))
 }
 
@@ -385,9 +401,10 @@ pub async fn update_pickup_point(
 )]
 pub async fn delete_pickup_point(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_PICKUP_POINTS_WRITE).await?;
     st.admin.delete_pickup_point(id).await?;
     Ok(())
 }
@@ -410,9 +427,10 @@ pub async fn delete_pickup_point(
 )]
 pub async fn list_bus_layouts(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(_q): Query<AdminBusLayoutsQuery>,
 ) -> Result<Json<AdminBusLayoutListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BUS_LAYOUTS_READ).await?;
     // The store doesn't support brand_id filter yet; return all.
     Ok(Json(st.admin.list_bus_layouts().await?))
 }
@@ -435,9 +453,10 @@ pub async fn list_bus_layouts(
 )]
 pub async fn list_reviews(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminReviewsQuery>,
 ) -> Result<Json<AdminReviewListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_REVIEWS_MODERATE).await?;
     Ok(Json(
         st.admin
             .list_reviews(
@@ -467,10 +486,11 @@ pub async fn list_reviews(
 )]
 pub async fn moderate_review(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<ModerateReviewRequest>,
 ) -> Result<Json<ModerateReviewResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_REVIEWS_MODERATE).await?;
     Ok(Json(st.admin.update_review_status(id, &body).await?))
 }
 
@@ -489,9 +509,10 @@ pub async fn moderate_review(
 )]
 pub async fn delete_review(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_REVIEWS_MODERATE).await?;
     // Admin can delete any review — pass None for caller_user_id.
     st.reviews.remove(id, None).await?;
     Ok(())
@@ -515,9 +536,10 @@ pub async fn delete_review(
 )]
 pub async fn list_bookings(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingListResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BOOKINGS_READ).await?;
     Ok(Json(
         st.admin
             .list_bookings(
@@ -549,9 +571,10 @@ pub async fn list_bookings(
 )]
 pub async fn get_booking(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminBookingDetailResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BOOKINGS_READ).await?;
     Ok(Json(st.admin.get_booking(id).await?))
 }
 
@@ -571,10 +594,11 @@ pub async fn get_booking(
 )]
 pub async fn update_booking_status(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<UpdateBookingStatusResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_BOOKINGS_WRITE).await?;
     Ok(Json(st.admin.update_booking_status(id, &body).await?))
 }
 
@@ -592,9 +616,10 @@ pub async fn update_booking_status(
 )]
 pub async fn booking_stats(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingStatsResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_STATS_READ).await?;
     Ok(Json(
         st.admin
             .booking_stats(
@@ -620,9 +645,10 @@ pub async fn booking_stats(
 )]
 pub async fn booking_export(
     State(st): State<AppState>,
-    _admin: AdminUser,
+    admin: AdminUser,
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingExportResponse>, AppError> {
+    require_permission(&st, &admin.0, rbac::ADMIN_EXPORT).await?;
     Ok(Json(
         st.admin
             .booking_export(

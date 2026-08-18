@@ -117,7 +117,10 @@ where
         let session = auth
             .verify_access_token_session(&token)
             .await
-            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+            .map_err(|e| {
+                tracing::debug!(error = ?e, "admin token verify failed");
+                AppError::Unauthorized("invalid or expired token".into())
+            })?;
         if !session.is_employee() {
             return Err(AppError::Forbidden("admin access required".into()));
         }
