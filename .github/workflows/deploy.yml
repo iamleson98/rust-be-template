@@ -70,55 +70,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy docker-compose.prod.yml to VM
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          VM_HOST: ${{ secrets.VM_HOST }}
-          VM_USER: ${{ secrets.VM_USER }}
-          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
-          IMAGE: ${{ env.IMAGE_NAME }}:latest
+      - name: Copy deployment files to VM
+        uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          envs: IMAGE
+          source: "docker-compose.prod.yml,.env.example"
+          target: "/opt/vexevn"
+
+      - name: Deploy and verify
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:latest
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: IMAGE,GITHUB_TOKEN,GITHUB_ACTOR
           script: |
-            mkdir -p /opt/vexevn
             cd /opt/vexevn
 
             # Login to GHCR
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
 
             # Pull the latest image
-            docker pull $IMAGE:latest
+            echo "📦 Pulling image: ${IMAGE}"
+            docker pull "${IMAGE}"
 
             # Ensure .env exists (create from example on first run)
             if [ ! -f .env ]; then
-              echo "Creating .env from .env.example..."
-              # Download .env.example from the repo
-              curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/server/.env.example" -o .env
+              echo "📝 Creating .env from .env.example..."
+              cp .env.example .env
               JWT_SECRET=$(openssl rand -hex 32)
               sed -i "s|^JWT__SECRET=.*|JWT__SECRET=${JWT_SECRET}|g" .env
-              sed -i 's|^COOKIE__SECURE=.*|COOKIE__SECURE=false|g' .env
-              sed -i 's|^CORS__ORIGINS=.*|CORS__ORIGINS=*|g' .env
-              echo "✅ .env created"
+              sed -i 's|^COOKIE__SECURE=.*|COOKIE__SECURE=true|g' .env
+              sed -i 's|^CORS__ORIGINS=.*|CORS__ORIGINS=https://yourdomain.com|g' .env
+              echo "✅ .env created with secure defaults"
             fi
 
             # Stop old container
+            echo "🛑 Stopping previous deployment..."
             docker compose -f docker-compose.prod.yml down 2>/dev/null || true
 
-            # Write the compose file from repo
-            curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/server/docker-compose.prod.yml" -o docker-compose.prod.yml
-
             # Start new container
+            echo "🚀 Starting new deployment..."
             docker compose -f docker-compose.prod.yml up -d
 
-            # Wait + health check
+            # Wait for container to be ready
+            echo "⏳ Waiting for health check..."
             sleep 10
-            if curl -sf http://localhost:8080/health; then
-              echo "✅ Deployed successfully"
+            
+            # Health check
+            if curl -sf http://localhost:8080/health > /dev/null; then
+              echo "✅ Deployment successful!"
+              docker compose -f docker-compose.prod.yml ps
             else
-              echo "❌ Health check failed — check logs:"
+              echo "❌ Health check failed"
               docker compose -f docker-compose.prod.yml logs --tail 50
               exit 1
             fi
