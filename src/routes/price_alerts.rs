@@ -20,6 +20,7 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::dto::ListEnvelope;
 use crate::entity::price_alert;
@@ -126,17 +127,23 @@ impl ListPriceAlertsQuery {
 ///
 /// Accepts both `targetPrice` (canonical) and `maxPrice` (legacy alias
 /// used by some frontend hooks) — the route normalizes to `targetPrice`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePriceAlertRequest {
+    #[validate(length(min = 1, max = 20), custom(function = "crate::validation::validate_phone"))]
     pub phone: String,
+    #[validate(email, length(max = 255))]
     pub email: Option<String>,
+    #[validate(length(min = 1, max = 255))]
     pub from_name: String,
+    #[validate(length(min = 1, max = 255))]
     pub to_name: String,
     pub route_id: Option<String>,
     /// Canonical target price field.
     #[serde(alias = "maxPrice")]
+    #[validate(range(min = 0, max = 1_000_000_000))]
     pub target_price: i64,
+    #[validate(length(max = 10))]
     pub frequency: Option<String>,
 }
 
@@ -260,6 +267,7 @@ pub async fn create(
     AuthUser(uid): AuthUser,
     Json(body): Json<CreatePriceAlertRequest>,
 ) -> AppResult<Json<CreatePriceAlertResponse>> {
+    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let input = CreatePriceAlertInput {
         user_id: Some(uid),
         phone: body.phone,

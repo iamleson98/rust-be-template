@@ -52,7 +52,7 @@ pub async fn list_exchanges(
     let rows = st
         .store
         .chat_store()
-        .list_zeroclaw_exchanges(q.limit.unwrap_or(50), q.offset.unwrap_or(0))
+        .list_zeroclaw_exchanges(q.limit.unwrap_or(50).min(200), q.offset.unwrap_or(0))
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let items: Vec<ZeroclawExchangeOut> = rows.into_iter().map(ZeroclawExchangeOut::from).collect();

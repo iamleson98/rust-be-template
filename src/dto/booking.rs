@@ -8,46 +8,62 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
+
+use crate::validation::validate_phone;
 
 // ────────────────────────────────────────────────────────────────
 //  Request DTOs
 // ────────────────────────────────────────────────────────────────
 
 /// One passenger on a booking.
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Clone, Serialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct PassengerReq {
+    #[validate(length(min = 1, max = 255))]
     pub name: String,
     /// `adult` | `child` | `infant`. Serialized as `type` on the wire
     /// (matches the legacy field name the frontend sends).
     #[serde(rename = "type")]
+    #[validate(length(min = 1, max = 10))]
     pub passenger_type: String,
     #[serde(default)]
+    #[validate(range(min = 0, max = 150))]
     pub age: i64,
 }
 
 /// Request body for `POST /api/bookings` and `POST /api/bookings/hold`.
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct HoldReq {
+    #[validate(length(min = 1, max = 64))]
     pub trip_id: String,
+    #[validate(length(min = 1, max = 50))]
     pub seat_ids: Vec<String>,
+    #[validate(length(min = 1, max = 50))]
     pub passengers: Vec<PassengerReq>,
+    #[validate(length(min = 1, max = 64))]
     pub boarding_point_id: String,
+    #[validate(length(min = 1, max = 64))]
     pub dropping_point_id: String,
+    #[validate(length(min = 1, max = 255))]
     pub contact_name: String,
+    #[validate(length(min = 1, max = 20), custom(function = "validate_phone"))]
     pub contact_phone: String,
     #[serde(default)]
+    #[validate(email, length(max = 255))]
     pub contact_email: Option<String>,
     #[serde(default)]
+    #[validate(length(max = 50))]
     pub campaign_code: Option<String>,
 }
 
 /// Request body for `POST /api/bookings/:id/confirm`.
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfirmReq {
     #[serde(default = "default_payment")]
+    #[validate(length(max = 30))]
     pub payment_method: String,
 }
 
@@ -56,10 +72,11 @@ fn default_payment() -> String {
 }
 
 /// Request body for `POST /api/bookings/:id/cancel`.
-#[derive(Debug, Deserialize, Clone, ToSchema)]
+#[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CancelReq {
     #[serde(default)]
+    #[validate(length(max = 1000))]
     pub reason: Option<String>,
 }
 

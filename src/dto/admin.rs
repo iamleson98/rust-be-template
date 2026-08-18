@@ -9,6 +9,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
+
+use crate::validation::validate_phone;
 
 // ────────────────────────────────────────────────────────────────
 //  Brands
@@ -50,26 +53,26 @@ pub struct AdminBrandListResponse {
 
 /// Request body for `POST /api/admin/brands` (create) and
 /// `PUT /api/admin/brands/{id}` (update — all fields optional).
-#[derive(Debug, Deserialize, ToSchema, Default)]
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertBrandRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 120))]
     pub slug: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 500))]
     pub logo_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 5000))]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 20), custom(function = "validate_phone"))]
     pub contact_phone: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(email, length(max = 255))]
     pub contact_email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0.0, max = 5.0))]
     pub rating: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 30))]
     pub status: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 9))]
     pub accent_color: Option<String>,
 }
 
@@ -129,22 +132,19 @@ pub struct AdminRouteListResponse {
 }
 
 /// Request body for `POST /api/admin/routes` + `PUT /api/admin/routes/{id}`.
-#[derive(Debug, Deserialize, ToSchema, Default)]
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertRouteRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub start_location_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub end_location_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0.0, max = 50000.0))]
     pub distance_km: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0, max = 60000))]
     pub duration_min: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 30))]
     pub status: Option<String>,
 }
 
@@ -182,26 +182,23 @@ pub struct AdminScheduleListResponse {
 }
 
 /// Request body for `POST /api/admin/schedules` + `PUT /api/admin/schedules/{id}`.
-#[derive(Debug, Deserialize, ToSchema, Default)]
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertScheduleRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 64))]
     pub route_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 10))]
     pub departure_time: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_to: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 20))]
     pub days_of_week: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub bus_layout_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_adult: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_child: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 5000))]
     pub amenities: Option<String>,
 }
 
@@ -236,22 +233,22 @@ pub struct AdminPickupPointListResponse {
 }
 
 /// Request body for `POST /api/admin/pickup-points` + `PUT /api/admin/pickup-points/{id}`.
-#[derive(Debug, Deserialize, ToSchema, Default)]
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertPickupPointRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 64))]
     pub route_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 1000))]
     pub address: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = -90.0, max = 90.0))]
     pub lat: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = -180.0, max = 180.0))]
     pub lon: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(range(min = 0, max = 1000))]
     pub stop_order: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 20))]
     pub kind: Option<String>,
 }
 
@@ -299,14 +296,13 @@ pub struct AdminReviewListResponse {
 }
 
 /// Request body for `PATCH /api/admin/reviews/{id}` (moderation).
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct ModerateReviewRequest {
     /// `pending` | `approved` | `rejected` | `hidden`
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 30))]
     pub status: Option<String>,
     /// Brand's reply text (sets `replied_at` automatically).
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_reply: Option<Option<String>>,
 }
 
@@ -415,13 +411,14 @@ pub struct AdminBookingDetailResponse {
 }
 
 /// Request body for `PATCH /api/admin/bookings/{id}`.
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateBookingStatusRequest {
     /// `pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.
     /// `paid` is normalized to `confirmed`; `refunded` to `cancelled`.
+    #[validate(length(min = 1, max = 30))]
     pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 1000))]
     pub reason: Option<String>,
     /// When `true`, skips the state-machine transition check (admin override).
     #[serde(default)]

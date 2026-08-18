@@ -7,6 +7,7 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
 
 /// A wishlist item, as returned by `GET /api/wishlist`.
 #[derive(Debug, Serialize, ToSchema)]
@@ -31,14 +32,16 @@ pub struct WishlistListResponse {
 /// Request body for `POST /api/wishlist`. Toggles the route in the
 /// user's wishlist — if it's already wishlisted, the existing item is
 /// removed (toggle off); otherwise a new item is created (toggle on).
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct ToggleWishlistRequest {
+    #[validate(length(max = 64))]
     pub route_id: Option<String>,
+    #[validate(length(max = 64))]
     pub trip_id: Option<String>,
-    /// From/To labels shown in the wishlist UI. Stored as metadata
-    /// (not enforced by the schema, but useful for display).
+    #[validate(length(max = 255))]
     pub from_name: Option<String>,
+    #[validate(length(max = 255))]
     pub to_name: Option<String>,
 }
 

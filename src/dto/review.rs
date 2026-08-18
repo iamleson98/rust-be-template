@@ -7,6 +7,9 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
+
+use crate::validation::validate_phone;
 
 /// A review row, as returned by `GET /api/reviews` and `GET /api/reviews/{id}`.
 #[derive(Debug, Serialize, ToSchema)]
@@ -85,19 +88,26 @@ pub struct ReviewTagsResponse {
 /// Input for creating a review. Field names on the wire are camelCase
 /// (so the frontend can send `{ bookingId, routeId, brandId, rating, ... }`)
 /// but the Rust struct uses snake_case.
-#[derive(Debug, Clone, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReviewInput {
     pub booking_id: Option<String>,
     pub trip_session_id: Option<String>,
     pub route_id: Option<String>,
     pub brand_id: Option<String>,
+    #[validate(range(min = 1, max = 5))]
     pub rating: i32,
+    #[validate(length(max = 255))]
     pub title: Option<String>,
+    #[validate(length(max = 10000))]
     pub content: Option<String>,
+    #[validate(length(max = 20))]
     pub tags: Option<Vec<String>>,
+    #[validate(length(max = 10))]
     pub photos: Option<Vec<String>>,
+    #[validate(length(max = 255))]
     pub author_name: Option<String>,
+    #[validate(length(max = 20), custom(function = "validate_phone"))]
     pub author_phone: Option<String>,
     /// Overwritten by the server from the authenticated user.
     #[serde(default)]
@@ -105,12 +115,16 @@ pub struct CreateReviewInput {
 }
 
 /// Input for updating a review.
-#[derive(Debug, Clone, Default, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Default, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateReviewInput {
+    #[validate(range(min = 1, max = 5))]
     pub rating: Option<i32>,
+    #[validate(length(max = 255))]
     pub title: Option<String>,
+    #[validate(length(max = 10000))]
     pub content: Option<String>,
+    #[validate(length(max = 20))]
     pub tags: Option<Vec<String>>,
     pub photos: Option<Vec<String>>,
 }

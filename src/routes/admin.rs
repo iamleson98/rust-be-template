@@ -29,6 +29,7 @@ use crate::error::AppError;
 use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
+use validator::Validate;
 
 // ────────────────────────────────────────────────────────────────
 //  Brands
@@ -72,6 +73,7 @@ pub async fn create_brand(
     admin: AdminUser,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
@@ -98,6 +100,7 @@ pub async fn update_brand(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertBrandRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
@@ -175,6 +178,7 @@ pub async fn create_route(
     admin: AdminUser,
     Json(body): Json<UpsertRouteRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
@@ -201,6 +205,7 @@ pub async fn update_route(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertRouteRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
@@ -279,6 +284,7 @@ pub async fn create_schedule(
     admin: AdminUser,
     Json(body): Json<UpsertScheduleRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
         .await?;
@@ -305,6 +311,7 @@ pub async fn update_schedule(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertScheduleRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
         .await?;
@@ -384,6 +391,7 @@ pub async fn create_pickup_point(
     admin: AdminUser,
     Json(body): Json<UpsertPickupPointRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
         .await?;
@@ -410,6 +418,7 @@ pub async fn update_pickup_point(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertPickupPointRequest>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
         .await?;
@@ -499,7 +508,7 @@ pub async fn list_reviews(
                 q.status.as_deref(),
                 q.brand_id.as_deref(),
                 q.route_id.as_deref(),
-                q.limit.unwrap_or(50),
+                q.limit.unwrap_or(50).min(200),
                 q.offset.unwrap_or(0),
             )
             .await?,
@@ -526,6 +535,7 @@ pub async fn moderate_review(
     Path(id): Path<Uuid>,
     Json(body): Json<ModerateReviewRequest>,
 ) -> Result<Json<ModerateReviewResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
         .await?;
@@ -591,7 +601,7 @@ pub async fn list_bookings(
                 q.date_from.as_deref(),
                 q.date_to.as_deref(),
                 q.search.as_deref(),
-                q.limit.unwrap_or(50),
+                q.limit.unwrap_or(50).min(200),
                 q.offset.unwrap_or(0),
             )
             .await?,
@@ -642,6 +652,7 @@ pub async fn update_booking_status(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<UpdateBookingStatusResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_BOOKINGS_WRITE)
         .await?;

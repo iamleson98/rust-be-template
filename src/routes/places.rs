@@ -29,7 +29,7 @@ pub async fn list(
 ) -> Result<Json<PlaceListResponse>, AppError> {
     Ok(Json(
         st.places
-            .list(q.limit.unwrap_or(50), q.offset.unwrap_or(0))
+            .list(q.limit.unwrap_or(50).min(200), q.offset.unwrap_or(0))
             .await?,
     ))
 }
@@ -58,7 +58,7 @@ pub async fn search(
 ) -> Result<Json<PlaceSearchResponse>, AppError> {
     Ok(Json(
         st.places
-            .search(&q.q, q.limit.unwrap_or(10), q.lat, q.lon)
+            .search(&q.q, q.limit.unwrap_or(10).min(50), q.lat, q.lon)
             .await?,
     ))
 }
@@ -86,7 +86,7 @@ pub async fn reverse(
 ) -> Result<Json<PlaceReverseResponse>, AppError> {
     Ok(Json(
         st.places
-            .reverse(q.lat, q.lon, q.limit.unwrap_or(10))
+            .reverse(q.lat, q.lon, q.limit.unwrap_or(10).min(50))
             .await?,
     ))
 }

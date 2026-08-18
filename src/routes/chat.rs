@@ -1,4 +1,5 @@
 use axum::extract::{Path, Query, State};
+use validator::Validate;
 use axum::Json;
 use serde::Deserialize;
 use utoipa::IntoParams;
@@ -40,7 +41,7 @@ pub async fn list_channels(
     let channels = st
         .store
         .chat_store()
-        .list_channels(&uid.to_string(), q.limit.unwrap_or(50))
+        .list_channels(&uid.to_string(), q.limit.unwrap_or(50).min(200))
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let items: Vec<ChatChannelOut> = channels.into_iter().map(channel_to_dto).collect();
@@ -87,7 +88,7 @@ pub async fn list_messages(
         .chat_store()
         .list_messages(
             &id.to_string(),
-            q.limit.unwrap_or(50),
+            q.limit.unwrap_or(50).min(200),
             q.offset.unwrap_or(0),
         )
         .await
@@ -155,6 +156,7 @@ pub async fn create_channel(
     AuthUser(uid): AuthUser,
     Json(body): Json<CreateChannelRequest>,
 ) -> Result<Json<CreateChannelResponse>, AppError> {
+    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel = st
         .store
         .chat_store()
@@ -194,6 +196,7 @@ pub async fn post_message(
     Path(id): Path<Uuid>,
     Json(body): Json<CreateMessageRequest>,
 ) -> Result<Json<CreateMessageResponse>, AppError> {
+    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel_id = id.to_string();
 
     // Verify the channel exists.
