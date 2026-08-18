@@ -36,25 +36,6 @@ pub struct SessionUser {
 }
 
 impl SessionUser {
-    /// Minimal `SessionUser` from just a user id — used by route handlers
-    /// that have `AuthUser(uid)` and need to pass a `&SessionUser` to
-    /// `require_permission`. Only the `id` is used for RBAC checks; the
-    /// other fields are defaults.
-    pub fn from_id(user_id: uuid::Uuid) -> Self {
-        Self {
-            id: user_id.to_string(),
-            actor_type: "user".into(),
-            role: "user".into(),
-            name: String::new(),
-            email: None,
-            phone: None,
-            avatar_url: None,
-            brand_id: None,
-            brand_name: None,
-            employee_role: None,
-        }
-    }
-
     /// Build a `SessionUser` from a `user::Model`.
     ///
     /// `brand_name` is left `None` here — the caller (typically the auth

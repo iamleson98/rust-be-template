@@ -61,8 +61,7 @@ pub async fn list_users(
     AuthUser(user_id): AuthUser,
     Query(q): Query<ListUsersQuery>,
 ) -> AppResult<Json<Vec<UserOut>>> {
-    let session = crate::auth::SessionUser::from_id(user_id);
-    require_permission(&state, &session, rbac::USERS_READ).await?;
+    require_permission(&state, user_id, rbac::USERS_READ).await?;
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
     let users = state.users.list(limit, offset).await?;
@@ -85,8 +84,7 @@ pub async fn get_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<UserOut>> {
-    let session = crate::auth::SessionUser::from_id(user_id);
-    require_permission(&state, &session, rbac::USERS_READ).await?;
+    require_permission(&state, user_id, rbac::USERS_READ).await?;
     let user = state.users.get(id).await?;
     Ok(Json(UserOut::from(user)))
 }
@@ -112,8 +110,7 @@ pub async fn delete_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<()> {
-    let session = crate::auth::SessionUser::from_id(user_id);
-    require_permission(&state, &session, rbac::USERS_DELETE).await?;
+    require_permission(&state, user_id, rbac::USERS_DELETE).await?;
     state.users.delete(id).await?;
     Ok(())
 }
