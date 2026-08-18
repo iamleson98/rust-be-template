@@ -15,27 +15,21 @@ use crate::state::AppState;
 pub struct RegisterRequest {
     #[validate(length(min = 1, max = 128))]
     pub full_name: String,
-    #[validate(email)]
+    #[validate(email, length(max = 255))]
     pub email: Option<String>,
-    #[validate(custom(function = "validate_phone"))]
+    #[validate(length(max = 20), custom(function = "validate_phone"))]
     pub phone: Option<String>,
     #[validate(length(min = 8, max = 128))]
     pub password: String,
 }
 
-fn validate_phone(phone: &str) -> Result<(), validator::ValidationError> {
-    if phone.is_empty() || (phone.starts_with('0') && phone.len() >= 9 && phone.len() <= 11) {
-        Ok(())
-    } else {
-        Err(validator::ValidationError::new("invalid_phone"))
-    }
-}
+use crate::validation::validate_phone;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct LoginRequest {
-    #[validate(email)]
+    #[validate(email, length(max = 255))]
     pub email: String,
-    #[validate(length(min = 1))]
+    #[validate(length(min = 1, max = 255))]
     pub password: String,
 }
 
@@ -179,12 +173,13 @@ pub async fn employee_login(
     ))
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 pub struct RefreshRequest {
     /// Optional refresh token in the body. If absent, the token is read
     /// from the `refresh_token` httpOnly cookie. Accepting it from the
     /// body is a fallback for non-browser clients (curl, mobile) that
     /// can't use cookies.
+    #[validate(length(max = 4096))]
     pub refresh_token: Option<String>,
 }
 

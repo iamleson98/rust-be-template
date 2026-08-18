@@ -38,7 +38,7 @@ pub async fn list(
 ) -> Result<Json<NotificationListResponse>, AppError> {
     Ok(Json(
         st.notifications
-            .list(uid, q.limit.unwrap_or(20), q.offset.unwrap_or(0))
+            .list(uid, q.limit.unwrap_or(20).min(200), q.offset.unwrap_or(0))
             .await?,
     ))
 }

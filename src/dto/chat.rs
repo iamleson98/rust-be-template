@@ -7,17 +7,15 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use uuid::Uuid;
+use validator::Validate;
 
 /// Request body for `POST /api/chat/channels` (create a new chat channel).
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateChannelRequest {
-    /// Optional topic (e.g. "Hỗ trợ đặt vé"). Defaults to "Hỗ trợ" when omitted.
-    #[serde(default)]
+    #[validate(length(max = 255))]
     pub topic: Option<String>,
-    /// Optional brand id — when the user is asking about a specific
-    /// brand, this routes the channel to that brand's support queue.
-    #[serde(default)]
+    #[validate(length(max = 64))]
     pub brand_id: Option<String>,
 }
 
@@ -51,22 +49,19 @@ pub struct ChatChannelOut {
 
 /// Request body for `POST /api/chat/channels/{id}/messages` (REST
 /// fallback for when the WebSocket is unavailable).
-#[derive(Debug, Deserialize, ToSchema)]
+#[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageRequest {
-    /// Message text. Required for `kind="text"`.
-    #[serde(default)]
+    #[validate(length(max = 10000))]
     pub content: Option<String>,
-    /// Message kind: `text` (default), `ticket`, `system`, ...
     #[serde(default = "default_kind")]
+    #[validate(length(max = 20))]
     pub kind: String,
-    /// Optional JSON-encoded attachments (e.g. ticket-card payload).
     #[serde(default)]
+    #[validate(length(max = 16384))]
     pub attachments: Option<String>,
-    /// Client-side correlation id for idempotency. When the same
-    /// `client_msg_id` is sent twice, the second request returns the
-    /// stored message instead of duplicating it.
     #[serde(default)]
+    #[validate(length(max = 100))]
     pub client_msg_id: Option<String>,
 }
 

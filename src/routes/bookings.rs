@@ -1,4 +1,5 @@
 use axum::extract::{Path, Query, State};
+use validator::Validate;
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
@@ -35,7 +36,7 @@ pub async fn list(
     Query(q): Query<ListQuery>,
 ) -> Result<Json<BookingListResponse>, AppError> {
     let status = q.status.unwrap_or_else(|| "all".into());
-    let limit = q.limit.unwrap_or(20);
+    let limit = q.limit.unwrap_or(20).min(200);
     let offset = q.offset.unwrap_or(0);
     Ok(Json(
         st.bookings
@@ -60,6 +61,7 @@ pub async fn hold(
     AuthUser(_uid): AuthUser,
     Json(body): Json<HoldReq>,
 ) -> Result<Json<BookingHoldResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.hold(&body).await?))
 }
 
@@ -130,6 +132,7 @@ pub async fn cancel(
     Path(id): Path<Uuid>,
     Json(body): Json<CancelReq>,
 ) -> Result<Json<BookingCancelResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.cancel(id, body.reason.as_deref()).await?))
 }
 
@@ -152,5 +155,6 @@ pub async fn confirm(
     Path(id): Path<Uuid>,
     Json(body): Json<ConfirmReq>,
 ) -> Result<Json<BookingConfirmResponse>, AppError> {
+    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.confirm(id, &body.payment_method).await?))
 }

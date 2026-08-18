@@ -37,6 +37,7 @@ pub mod service;
 pub mod state;
 pub mod storage;
 pub mod store;
+pub mod validation;
 pub mod worker;
 pub mod ws;
 pub mod zeroclaw;

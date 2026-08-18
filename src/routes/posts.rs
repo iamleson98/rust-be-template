@@ -68,7 +68,7 @@ pub async fn list_posts(
     State(state): State<AppState>,
     Query(q): Query<ListPostsQuery>,
 ) -> AppResult<Json<ListPostsResponse>> {
-    let limit = q.limit.unwrap_or(20);
+    let limit = q.limit.unwrap_or(20).min(200);
     let offset = q.offset.unwrap_or(0);
     let posts = state.posts.list(limit, offset).await?;
     Ok(Json(ListPostsResponse {

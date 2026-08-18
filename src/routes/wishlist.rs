@@ -6,6 +6,7 @@ use axum::Json;
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::dto::wishlist::{
     DeleteWishlistResponse, ToggleWishlistRequest, ToggleWishlistResponse, WishlistListResponse,
@@ -64,6 +65,7 @@ pub async fn toggle(
     AuthUser(uid): AuthUser,
     Json(body): Json<ToggleWishlistRequest>,
 ) -> Result<Json<ToggleWishlistResponse>, AppError> {
+    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     Ok(Json(
         st.wishlist
             .toggle(uid, body.route_id.as_deref(), body.trip_id.as_deref())
