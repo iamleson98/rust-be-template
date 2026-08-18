@@ -19,7 +19,7 @@ pub struct RegisterRequest {
     pub email: Option<String>,
     #[validate(custom(function = "validate_phone"))]
     pub phone: Option<String>,
-    #[validate(length(min = 6, max = 128))]
+    #[validate(length(min = 8, max = 128))]
     pub password: String,
 }
 
@@ -54,21 +54,25 @@ impl AuthResponse {
     }
 }
 
-/// `POST /api/auth/register` — create a new user account.
+/// `POST /api/auth/register` — create a new user account + auto-login.
+///
+/// Issues auth cookies immediately on success so the user doesn't need to
+/// call `/login` separately.
 #[utoipa::path(
     post,
     path = "/api/auth/register",
     tag = "auth",
     request_body = RegisterRequest,
     responses(
-        (status = 201, description = "Account created", body = AuthResponse),
+        (status = 201, description = "Account created + logged in", body = AuthResponse),
         (status = 409, description = "Email/username already taken"),
     )
 )]
 pub async fn register(
     State(state): State<AppState>,
+    jar: axum_extra::extract::CookieJar,
     Json(body): Json<RegisterRequest>,
-) -> AppResult<Json<AuthResponse>> {
+) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
@@ -84,10 +88,18 @@ pub async fn register(
         .auth
         .register(email, body.full_name, body.password)
         .await?;
-    Ok(Json(AuthResponse::from_user(
-        &user,
-        state.auth.access_ttl_secs(),
-    )))
+
+    // Auto-login: issue a session immediately so the user doesn't need
+    // to call /login separately after registering.
+    let session = state.auth.issue_session(user).await?;
+    let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
+    Ok((
+        jar,
+        Json(AuthResponse::from_user(
+            &session.user,
+            state.auth.access_ttl_secs(),
+        )),
+    ))
 }
 
 /// `POST /api/auth/login` — exchange credentials for cookies.
@@ -169,10 +181,18 @@ pub async fn employee_login(
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct RefreshRequest {
-    pub refresh_token: String,
+    /// Optional refresh token in the body. If absent, the token is read
+    /// from the `refresh_token` httpOnly cookie. Accepting it from the
+    /// body is a fallback for non-browser clients (curl, mobile) that
+    /// can't use cookies.
+    pub refresh_token: Option<String>,
 }
 
 /// `POST /api/auth/refresh` — rotate refresh token, issue new access.
+///
+/// Reads the refresh token from the httpOnly cookie first (preferred —
+/// the token never touches JS), then falls back to the request body
+/// (for non-browser clients).
 #[utoipa::path(
     post,
     path = "/api/auth/refresh",
@@ -185,7 +205,14 @@ pub async fn refresh(
     jar: axum_extra::extract::CookieJar,
     Json(body): Json<RefreshRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
-    let session = state.auth.refresh(body.refresh_token).await?;
+    // Read refresh token: cookie first (preferred — JS can't read it),
+    // body as fallback for non-browser clients.
+    use crate::auth::cookies::extract_tokens;
+    let (_, cookie_refresh) = extract_tokens(&jar);
+    let refresh_token = cookie_refresh
+        .or(body.refresh_token)
+        .ok_or_else(|| AppError::Unauthorized("missing refresh token".into()))?;
+    let session = state.auth.refresh(refresh_token).await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,

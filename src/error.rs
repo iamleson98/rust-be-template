@@ -77,6 +77,8 @@ impl AppError {
             AppError::Store(e) => match e {
                 crate::store::StoreError::NotFound(_) => StatusCode::NOT_FOUND,
                 crate::store::StoreError::Validation(_) => StatusCode::BAD_REQUEST,
+                crate::store::StoreError::Forbidden(_) => StatusCode::FORBIDDEN,
+                crate::store::StoreError::Conflict(_) => StatusCode::CONFLICT,
                 crate::store::StoreError::Exhausted { .. } => StatusCode::SERVICE_UNAVAILABLE,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             },

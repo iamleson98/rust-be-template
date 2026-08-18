@@ -13,6 +13,9 @@ pub enum StoreError {
     #[error("validation error: {0}")]
     Validation(String),
 
+    #[error("forbidden: {0}")]
+    Forbidden(String),
+
     #[error("conflict: {0}")]
     Conflict(String),
 
@@ -26,13 +29,14 @@ pub enum StoreError {
 
 impl StoreError {
     /// Whether the error is worth retrying. Transient DB hiccups return
-    /// `true`; logical errors (`NotFound`, `Validation`, `Conflict`,
-    /// `Exhausted`) return `false`.
+    /// `true`; logical errors (`NotFound`, `Validation`, `Forbidden`,
+    /// `Conflict`, `Exhausted`) return `false`.
     pub fn is_retryable(&self) -> bool {
         match self {
             StoreError::Database(_) => true,
             StoreError::NotFound(_) => false,
             StoreError::Validation(_) => false,
+            StoreError::Forbidden(_) => false,
             StoreError::Conflict(_) => false,
             StoreError::Exhausted { .. } => false,
         }

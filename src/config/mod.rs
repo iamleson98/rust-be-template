@@ -521,6 +521,15 @@ impl Config {
         if self.worker.concurrency == 0 {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
         }
+        // Warn (not bail) when cookie.secure is false — this is expected
+        // for localhost dev, but in production it means the refresh token
+        // will be sent over plain HTTP.
+        if !self.cookie.secure {
+            tracing::warn!(
+                "COOKIE_SECURE=false — refresh token will be sent over \
+                 HTTP. Set COOKIE_SECURE=true in production."
+            );
+        }
         Ok(())
     }
 

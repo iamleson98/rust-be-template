@@ -47,10 +47,14 @@ where
         let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
 
         // Full JWT verify (HMAC-SHA256) + revocation checks.
+        // Don't echo jsonwebtoken internals to the client — log server-side.
         let user_id = auth
             .verify_access_token(&token)
             .await
-            .map_err(|e| AppError::Unauthorized(format!("invalid token: {e}")))?;
+            .map_err(|e| {
+                tracing::debug!(error = ?e, "access token verify failed");
+                AppError::Unauthorized("invalid or expired token".into())
+            })?;
         Ok(AuthUser(user_id))
     }
 }
@@ -75,7 +79,10 @@ where
             None => Ok(MaybeAuthUser(None)),
             Some(tok) => match auth.verify_access_token(&tok).await {
                 Ok(user_id) => Ok(MaybeAuthUser(Some(user_id))),
-                Err(_) => Ok(MaybeAuthUser(None)),
+                Err(e) => {
+                    tracing::debug!(error = ?e, "MaybeAuthUser: token present but invalid, treating as anon");
+                    Ok(MaybeAuthUser(None))
+                }
             },
         }
     }
