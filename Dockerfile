@@ -2,7 +2,7 @@
 # Compile with the sqlite feature by default. Override with --build-arg
 # to produce a postgres build:
 #   docker build --build-arg BACKEND_FEATURES=postgres -t backend:pg .
-FROM rust:1.83-slim AS builder
+FROM rust:1.97-slim AS builder
 
 ARG BACKEND_FEATURES=sqlite
 

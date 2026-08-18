@@ -38,7 +38,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -77,6 +76,5 @@ server.log
 /db
 
 /data
-/osm-index
 /hello
 app.db
