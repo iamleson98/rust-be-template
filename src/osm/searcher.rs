@@ -357,6 +357,12 @@ fn build_query(index: &Index, normalized_query: &str) -> Result<Box<dyn Query>> 
     let mut parser = QueryParser::for_index(index, fields);
     parser.set_conjunction_by_default();
 
+    // Fuzzy search: 1-edit Levenshtein on the primary name field.
+    // This lets "hnoi" match "hanoi", "saigonn" match "saigon", etc.
+    // Only on name_ascii (the main field) — n-gram field already
+    // provides partial matching; fuzzy on both would be too noisy.
+    parser.set_field_fuzzy(SCHEMA.name_ascii, true, 1, false);
+
     // Field boosts -- higher = more important for ranking.
     parser.set_field_boost(SCHEMA.name_ascii, 3.0);
     parser.set_field_boost(SCHEMA.house_number, 4.0); // exact house-number match is a strong signal

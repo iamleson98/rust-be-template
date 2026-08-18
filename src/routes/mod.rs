@@ -17,6 +17,7 @@ mod public;
 mod reviews;
 mod router;
 mod routing;
+mod system;
 mod users;
 mod wishlist;
 mod zeroclaw;

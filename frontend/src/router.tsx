@@ -67,6 +67,7 @@ const AdminChatPage = lazy(() => import('./routes/admin/chat').then((m) => ({ de
 const AdminReviewsPage = lazy(() => import('./routes/admin/reviews').then((m) => ({ default: m.AdminReviewsPage })))
 const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) => ({ default: m.AdminFeedbackPage })))
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
+const AdminSystemPage = lazy(() => import('./routes/admin/system').then((m) => ({ default: m.AdminSystemPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
@@ -579,6 +580,22 @@ const adminBusLayoutsRoute = createRoute({
   ),
 })
 
+const adminSystemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/system',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (!user || user.type !== 'employee') {
+      throw redirect({ to: '/login' })
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminSystemPage />
+    </Suspense>
+  ),
+})
+
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -607,6 +624,7 @@ const routeTree = rootRoute.addChildren([
   adminReviewsRoute,
   adminFeedbackRoute,
   adminBusLayoutsRoute,
+  adminSystemRoute,
   loginRoute,
 ])
 

@@ -107,6 +107,8 @@ use utoipa::OpenApi;
         // zeroclaw
         crate::routes::zeroclaw::status,
         crate::routes::zeroclaw::list_exchanges,
+        // system monitoring
+        crate::routes::system::system_status,
     ),
     components(schemas(
         // auth
@@ -240,6 +242,12 @@ use utoipa::OpenApi;
         crate::dto::admin::AdminBookingTotals,
         crate::dto::admin::AdminBookingDayBucket,
         crate::dto::admin::AdminBookingExportResponse,
+        // system monitoring
+        crate::routes::system::SystemStatusResponse,
+        crate::routes::system::SystemUptime,
+        crate::routes::system::WebsocketStats,
+        crate::routes::system::DatabaseStats,
+        crate::routes::system::ProcessStats,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
