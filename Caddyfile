@@ -8,29 +8,66 @@
 #   1. Ensure DNS A record points to the VM's public IP
 #   2. Copy this file to the VM: /etc/caddy/Caddyfile
 #   3. Restart: systemctl restart caddy
-#
-# For multiple domains, duplicate the block and change the domain name.
+#   4. Allow UDP/443 on the firewall for HTTP/3 (QUIC).
 
 yourdomain.com {
-    # Proxy all traffic to the backend container
-    reverse_proxy localhost:8080
+    # ── Reverse proxy to backend ─────────────────────────────────
+    reverse_proxy localhost:8080 {
+        # Pass real client IP + protocol to the backend (so tower_governor
+        # can rate-limit per IP, and the audit log shows real origins).
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        # Flush immediately so SSE / chunked transfer (streaming CSV export,
+        # WebSocket upgrades) reach the client without buffering.
+        flush_interval -1
+    }
 
-    # Security headers
+    # ── Security headers ─────────────────────────────────────────
     header {
-        # HSTS — force HTTPS for 1 year
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        # XSS protection
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # Remove Caddy version header
+        # CSP — restrict asset origins.
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; font-src 'self' https://fonts.gstatic.com; connect-src 'self' wss: https:; media-src 'self' blob:; frame-ancestors 'self'; form-action 'self'; base-uri 'self'"
+        Permissions-Policy "camera=(), microphone=(self), geolocation=(self), interest-cohort=()"
         -Server
     }
 
-    # Compression
-    encode zstd gzip
+    # ── Compression ──────────────────────────────────────────────
+    # zstd is ~10-15% smaller than brotli, supported in Chrome 96+ and
+    # Firefox 113+. Both are LRU-cached on disk by Caddy.
+    encode zstd gzip {
+        minimum_length 256
+        exclude *.jpg *.jpeg *.png *.gif *.webp *.avif *.mp4 *.woff2 *.woff
+    }
 
-    # Access logs
+    # ── Cache headers ────────────────────────────────────────────
+    # Vite emits content-hashed asset names. When content changes the
+    # hash changes → URL changes → safe to cache for a YEAR with `immutable`.
+    @assets path /assets/* /icons/* /brands/* /logo.svg /hero-vietnam-bus.* /og-image.png
+    header @assets {
+        Cache-Control "public, max-age=31536000, immutable"
+    }
+
+    # Service worker — must always revalidate so users get the latest SW.
+    @sw path /sw.js /manifest.webmanifest
+    header @sw Cache-Control "no-cache, must-revalidate"
+
+    # HTML pages — revalidate on every request.
+    @html path / /index.html
+    header @html Cache-Control "no-cache, must-revalidate"
+
+    # Sitemap + robots — cache 1h at the CDN edge.
+    @seo path /sitemap.xml /robots.txt
+    header @seo Cache-Control "public, max-age=3600"
+
+    # API responses — no cache (TanStack Query handles client-side caching).
+    @api path /api/*
+    header @api Cache-Control "no-store"
+
+    # ── Access logs ──────────────────────────────────────────────
     log {
         output file /var/log/caddy/access.log {
             roll_size 100mb
@@ -38,15 +75,25 @@ yourdomain.com {
         }
         format json
     }
-
-    # Rate limiting (Caddy enterprise feature — for community edition,
-    # the backend's tower_governor handles rate limiting)
-    # rate_limit {
-    #     zone static 100r/m
-    # }
 }
 
 # Optional: www → apex redirect
 www.yourdomain.com {
     redir https://yourdomain.com{uri} permanent
+}
+
+# ── Global options ──────────────────────────────────────────────
+# Must be at the top of the file (above site blocks). Enables HTTP/3
+# (QUIC) on UDP/443 + reasonable timeouts.
+{
+    servers {
+        protocols h1 h2 h3
+        timeouts {
+            read_body 30s
+            read_header 10s
+            write 0
+            idle 2m
+        }
+        max_header_size 1MB
+    }
 }

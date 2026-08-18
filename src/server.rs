@@ -57,6 +57,17 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // (e.g. `?statement-cache-capacity=100`) on sqlx 0.7+. sea-orm 1.1
     // doesn't expose a builder method for it.
     let db = Database::connect(opts).await.context("db connect")?;
+
+    // ── SQLite performance pragmas ────────────────────────────────
+    // WAL mode lets readers + writers run concurrently; synchronous=NORMAL
+    // trades a 1ms crash window for 10× faster writes; busy_timeout waits
+    // 5s on lock contention; cache_size 64MB; mmap_size 256MB; foreign_keys
+    // ON (sea-orm migrations assume FK enforcement but SQLite has it OFF
+    // by default).
+    if config.database.url.starts_with("sqlite") {
+        apply_sqlite_pragmas(&db).await?;
+    }
+
     let db = Arc::new(db);
 
     // ---- Cache backend (shared via Arc<dyn CacheBackend>) ------------
@@ -308,10 +319,27 @@ async fn shutdown_signal() {
 
 fn init_tracing(directive: &str) {
     let filter = EnvFilter::try_new(directive).unwrap_or_else(|_| EnvFilter::new("info"));
-    // `try_init` returns Err if a subscriber is already installed (e.g.
-    // by `cli::run`). That's fine — the CLI's filter takes precedence.
     let _ = tracing_subscriber::registry()
         .with(fmt::layer().with_target(true))
         .with(filter)
         .try_init();
+}
+
+/// Apply SQLite performance pragmas to the connection pool.
+async fn apply_sqlite_pragmas(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    use sea_orm::ConnectionTrait;
+    let pragmas = [
+        "PRAGMA journal_mode=WAL;",
+        "PRAGMA synchronous=NORMAL;",
+        "PRAGMA busy_timeout=5000;",
+        "PRAGMA cache_size=-65536;",
+        "PRAGMA temp_store=MEMORY;",
+        "PRAGMA mmap_size=268435456;",
+        "PRAGMA foreign_keys=ON;",
+    ];
+    for stmt in pragmas {
+        db.execute_unprepared(stmt).await?;
+    }
+    tracing::info!("applied SQLite performance pragmas (WAL, sync=NORMAL, 64MB cache, FK on)");
+    Ok(())
 }

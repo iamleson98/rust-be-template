@@ -52,6 +52,10 @@ use utoipa::OpenApi;
         crate::routes::payments::zalopay_callback,
         crate::routes::payments::list_admin_payments,
         crate::routes::payments::update_payment_status,
+        // vitals + seo
+        crate::routes::vitals::report_vitals,
+        crate::routes::seo::sitemap,
+        crate::routes::seo::robots,
         // chat
         crate::routes::chat::list_channels,
         crate::routes::chat::create_channel,
@@ -179,6 +183,8 @@ use utoipa::OpenApi;
         crate::dto::payment::AdminPaymentsQuery,
         crate::dto::payment::UpdatePaymentStatusReq,
         crate::dto::payment::UpdatePaymentStatusResponse,
+        // vitals
+        crate::routes::vitals::VitalsReport,
         // places
         crate::dto::place::PlaceOut,
         crate::dto::place::PlaceListResponse,
@@ -285,6 +291,8 @@ use utoipa::OpenApi;
         (name = "reviews", description = "Review management"),
         (name = "bookings", description = "Booking management"),
         (name = "payments", description = "Payment intents + provider webhooks (VNPay/MoMo/ZaloPay/VietQR/COD)"),
+        (name = "vitals", description = "Web Vitals RUM (real-user monitoring)"),
+        (name = "seo", description = "SEO — sitemap.xml, robots.txt, PWA manifest"),
         (name = "chat", description = "Chat channels & messages"),
         (name = "notifications", description = "User notifications"),
         (name = "wishlist", description = "Saved routes / trips"),

@@ -1,5 +1,6 @@
 use axum::routing::{delete, get, patch, post};
 use axum::Router;
+use axum::response::IntoResponse;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::compression::CompressionLayer;
@@ -113,6 +114,8 @@ pub fn build_router(state: AppState) -> Router<()> {
             "/payments/ipn/zalopay",
             post(crate::routes::payments::zalopay_callback),
         )
+        // ── Web Vitals RUM (anonymous; body capped by RequestBodyLimitLayer) ──
+        .route("/vitals", post(crate::routes::vitals::report_vitals))
         // ── Public catalog ─────────────────────────────────────────────
         .route("/brands", get(crate::routes::public::brands))
         .route("/brands/{slug}", get(crate::routes::public::brand_detail))
@@ -308,6 +311,37 @@ pub fn build_router(state: AppState) -> Router<()> {
     Router::<AppState>::new()
         .route("/health", get(crate::routes::health::health))
         .route("/ready", get(crate::routes::health::ready))
+        // SEO routes — bypass the rate limiter so crawlers aren't blocked.
+        .route("/sitemap.xml", get(crate::routes::seo::sitemap))
+        .route("/robots.txt", get(crate::routes::seo::robots))
+        // PWA service worker — bypass the rate limiter (loaded on every page load).
+        .route(
+            "/sw.js",
+            get(|| async {
+                let path = std::path::Path::new("./frontend/dist/sw.js");
+                if path.exists() {
+                    let bytes = tokio::fs::read(path).await.unwrap_or_default();
+                    let mut resp = axum::response::Response::new(axum::body::Body::from(bytes));
+                    resp.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        axum::http::HeaderValue::from_static(
+                            "application/javascript; charset=utf-8",
+                        ),
+                    );
+                    resp.headers_mut().insert(
+                        "Service-Worker-Allowed",
+                        axum::http::HeaderValue::from_static("/"),
+                    );
+                    resp.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::HeaderValue::from_static("no-cache, must-revalidate"),
+                    );
+                    resp
+                } else {
+                    axum::http::StatusCode::NOT_FOUND.into_response()
+                }
+            }),
+        )
         .nest("/api", api_routes)
         // Chat WebSocket hub (`/ws`) — mounted at the root (not under /api)
         // so the frontend can connect to `/ws` directly. JWT auth via

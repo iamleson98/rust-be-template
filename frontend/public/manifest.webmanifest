@@ -1,0 +1,58 @@
+{
+  "name": "VeXeVN — Đặt vé xe khách online",
+  "short_name": "VeXeVN",
+  "description": "Đặt vé xe khách trực tuyến: limousine, giường nằm, ghế ngồi. So sánh giá từ hàng chục hãng xe.",
+  "lang": "vi-VN",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1d4ed8",
+  "categories": ["travel", "navigation", "shopping"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tìm chuyến xe",
+      "short_name": "Tìm",
+      "description": "Tìm chuyến xe theo tuyến đường và ngày",
+      "url": "/search?source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Vé của tôi",
+      "short_name": "Vé",
+      "description": "Xem lịch sử vé đã đặt",
+      "url": "/bookings?source=shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
+}
