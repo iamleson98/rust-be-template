@@ -33,35 +33,3 @@ pub use self::timeout::request_timeout;
 pub mod auth_extractor;
 pub mod request_id;
 pub mod timeout;
-
-use crate::error::AppResult;
-use crate::state::AppState;
-use uuid::Uuid;
-
-/// Permission guard for route handlers.
-///
-/// Call at the top of a handler to enforce an RBAC permission.
-/// Uses the `RbacChecker` on `AppState`.
-/// Returns `403 Forbidden` if the user lacks the permission.
-///
-/// ```ignore
-/// pub async fn delete_brand(
-///     State(st): State<AppState>,
-///     admin: AdminUser,
-///     Path(id): Path<Uuid>,
-/// ) -> AppResult<Json<AdminMutationResponse>> {
-///     require_permission(&st, admin.user_id(), rbac::ADMIN_BRANDS_WRITE).await?;
-///     Ok(Json(st.admin.delete_brand(id).await?))
-/// }
-/// ```
-pub async fn require_permission(
-    st: &AppState,
-    user_id: Uuid,
-    permission: &str,
-) -> AppResult<()> {
-    st.rbac
-        .require(user_id, permission)
-        .await
-        .map_err(crate::error::AppError::from)?;
-    Ok(())
-}
