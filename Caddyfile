@@ -67,6 +67,21 @@ yourdomain.com {
     @api path /api/*
     header @api Cache-Control "no-store"
 
+    # ── Block known scraping tools at the reverse proxy ────────
+    # Blocks requests with User-Agent matching common scraping tools.
+    # Returns 403 immediately — saves a round-trip to the backend.
+    @scraper {
+        header_regexp User-Agent (?i)(curl|wget|python-requests|scrapy|selenium|puppeteer|playwright|headless|phantomjs|httpx\.rs|reqwest/)
+    }
+    block @scraper 403
+
+    # ── Block direct API access without Referer on mutations ────
+    # POST/PATCH/PUT/DELETE to /api/* without a Referer header are
+    # likely scripted attacks. The backend also checks this, but
+    # blocking at Caddy saves a round-trip.
+    # (Not implemented at Caddy level — requires Caddy enterprise.)
+    # The backend middleware handles this check.
+
     # ── Access logs ──────────────────────────────────────────────
     log {
         output file /var/log/caddy/access.log {

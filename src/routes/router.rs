@@ -28,6 +28,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
 
+use crate::middleware::anti_scraping;
 use crate::middleware::request_id::request_id_layer;
 use crate::state::AppState;
 
@@ -42,6 +43,11 @@ use crate::state::AppState;
 ///      CORS, request-id).
 ///   5. Capture state via `.with_state(state)`.
 pub fn build_router(state: AppState) -> Router<()> {
+    // ---- Initialize anti-scraping allowed origins --------------------
+    // Stored in a static OnceLock so the middleware can access it
+    // without state being passed through every request.
+    anti_scraping::init_allowed_origins(state.config.cors.origin_list());
+
     // ---- Rate-limit config ------------------------------------------
     let rpm = state.config.rate_limit.rpm.max(1) as u64;
     let interval_ms = (60_000 / rpm).max(1);
@@ -200,6 +206,10 @@ pub fn build_router(state: AppState) -> Router<()> {
                     axum::http::HeaderName::from_static("x-request-id"),
                 ]),
         )
+        // Anti-scraping: blocks known scraping tools (curl, python-requests,
+        // selenium, etc.) + requires Referer/Origin on mutation requests.
+        // Applied after CORS so preflight OPTIONS pass through.
+        .layer(axum::middleware::from_fn(anti_scraping::anti_scraping))
         .layer(axum::middleware::from_fn(request_id_layer))
         .with_state(state)
 }
