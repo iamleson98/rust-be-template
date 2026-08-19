@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/form'
 import { formatDateTimeVN, formatDuration, normalizePhone, SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
+import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { toast } from 'sonner'
 import {
   CheckCircle2,
@@ -780,6 +781,9 @@ export function BookingDialog() {
             {/* Step: contact + campaign */}
             {bookingStep === 'contact' && (
               <div className="p-5 space-y-5">
+                {/* Privacy trust signal — affirms data protection */}
+                <PrivacyNotice />
+
                 <div>
                   <h3 className="font-semibold text-sm mb-3">Thông tin liên hệ</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

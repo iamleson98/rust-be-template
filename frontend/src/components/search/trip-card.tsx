@@ -196,7 +196,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
   return (
     <div onMouseEnter={handleHoverPrefetch}>
       <Card
-        className="overflow-visible border-border/60 shadow-sm hover:shadow-md hover:border-slate-300 transition-[border-color,box-shadow] duration-300 group relative"
+        className="overflow-visible border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 card-hover-lift group relative"
       >
         {/* Recommended badge — sits flush on the top-left, above content */}
         {isRecommended && (

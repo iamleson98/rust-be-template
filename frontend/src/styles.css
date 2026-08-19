@@ -39,6 +39,15 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /* Semantic colors — success / warning / info */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  /* Brand accent — gold for loyalty / promo badges */
+  --color-brand-accent: var(--brand-accent);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -57,7 +66,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  /* Brand primary — trust blue (hue 250, 4.5:1 contrast on white) */
+  --primary: oklch(0.50 0.18 250);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -68,7 +78,16 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.50 0.18 250);
+  /* Semantic colors */
+  --success: oklch(0.62 0.17 145);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.75 0.16 70);
+  --warning-foreground: oklch(0.205 0 0);
+  --info: oklch(0.62 0.13 230);
+  --info-foreground: oklch(0.985 0 0);
+  /* Brand accent — gold (Vietnamese prosperity cue) */
+  --brand-accent: oklch(0.78 0.15 85);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -76,12 +95,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.50 0.18 250);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.50 0.18 250);
 }
 
 .dark {
@@ -91,8 +110,9 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  /* Brand primary in dark mode — brighter for AA contrast on dark bg */
+  --primary: oklch(0.62 0.16 250);
+  --primary-foreground: oklch(0.145 0 0);
   /* Brightened from 0.269 → 0.3 for visible hover states */
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -106,8 +126,16 @@
   --border: oklch(1 0 0 / 10%);
   /* Brightened from 15% → 22% for visible input borders */
   --input: oklch(1 0 0 / 15%);
-  /* Brightened for visible focus ring in dark mode */
-  --ring: oklch(0.556 0 0);
+  /* Brand ring in dark mode */
+  --ring: oklch(0.62 0.16 250);
+  /* Semantic colors — dark mode variants */
+  --success: oklch(0.70 0.17 145);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.80 0.16 70);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.70 0.13 230);
+  --info-foreground: oklch(0.145 0 0);
+  --brand-accent: oklch(0.82 0.15 85);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -196,6 +224,48 @@
 @keyframes pulse-glow {
   0%, 100% { opacity: 0.4; transform: scale(1); }
   50%      { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* Success checkmark draw-on animation — <400ms for premium feel */
+@keyframes checkmark-draw {
+  0%   { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes checkmark-circle {
+  0%   { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
+}
+
+/* Card lift on hover — used by TripCard, BookingCard, BrandShowcase */
+.card-hover-lift {
+  transition: transform 100ms ease-out, box-shadow 100ms ease-out;
+}
+.card-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -8px oklch(0 0 0 / 0.15);
+}
+
+/* Seat pop-in animation when selected */
+@keyframes seat-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.12); }
+  100% { transform: scale(1.05); }
+}
+
+/* Page fade-in on route change */
+@keyframes page-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: page-fade-in 150ms ease-out;
+}
+
+/* Trust badge pulse — subtle attention draw */
+@keyframes trust-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.8; }
 }
 
 /* Smooth scrollbar for filter/side panels */

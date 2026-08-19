@@ -170,7 +170,7 @@ export function PaymentDialog({
             {/* Footer */}
             <div className="flex justify-between items-center pt-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                 Mã hoá SSL 256-bit. Vé điện tử gửi qua SMS/email.
               </div>
               {p.status === 'pending' && (
@@ -262,7 +262,7 @@ function ProviderPicker({
               type="button"
               disabled={creating}
               onClick={() => onPick(m.key)}
-              className="rounded-lg border p-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-slate-200 hover:border-blue-300"
+              className="rounded-lg border p-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-slate-200 hover:border-primary/40"
             >
               <div className="flex items-center gap-2">
                 <span className="text-xl">{m.icon}</span>
@@ -277,7 +277,7 @@ function ProviderPicker({
       </div>
 
       <div className="flex items-center gap-2 text-xs text-muted-foreground bg-slate-50 rounded-lg p-3">
-        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
+        <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
         Thông tin của bạn được mã hoá SSL 256-bit. Vé điện tử sẽ gửi qua SMS &amp; email sau khi thanh toán.
       </div>
 
@@ -305,7 +305,7 @@ function StatusPill({ status }: { status: PaymentOut['status'] }) {
     },
     failed: { label: 'Thất bại', color: 'bg-rose-100 text-rose-800', icon: XCircle },
     cancelled: { label: 'Đã huỷ', color: 'bg-slate-100 text-slate-700', icon: XCircle },
-    refunded: { label: 'Đã hoàn tiền', color: 'bg-blue-100 text-blue-800', icon: ShieldCheck },
+    refunded: { label: 'Đã hoàn tiền', color: 'bg-primary/10 text-primary', icon: ShieldCheck },
   } as const
   const cfg = map[status] ?? map.pending
   const Icon = cfg.icon
@@ -322,11 +322,11 @@ function StatusPill({ status }: { status: PaymentOut['status'] }) {
 function providerMeta(provider: PaymentProvider): { label: string; icon: React.ReactNode } {
   switch (provider) {
     case 'vnpay':
-      return { label: 'VNPay QR', icon: <Wallet className="h-5 w-5 text-blue-600" /> }
+      return { label: 'VNPay QR', icon: <Wallet className="h-5 w-5 text-primary" /> }
     case 'momo':
       return { label: 'Ví MoMo', icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> }
     case 'zalopay':
-      return { label: 'ZaloPay', icon: <Wallet className="h-5 w-5 text-blue-600" /> }
+      return { label: 'ZaloPay', icon: <Wallet className="h-5 w-5 text-primary" /> }
     case 'vietqr':
       return { label: 'VietQR / Chuyển khoản', icon: <QrCode className="h-5 w-5 text-emerald-600" /> }
     case 'cod':
@@ -371,7 +371,7 @@ function GatewayRedirect({
       </div>
       <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
         <Button
-          className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
+          className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90"
         >
           <ExternalLink className="h-4 w-4" />
           Mở trang thanh toán
@@ -479,7 +479,7 @@ function CopyRow({
       <div className="flex items-center gap-1.5">
         <span
           className={`text-sm font-medium ${
-            highlight ? 'text-blue-700 font-bold' : 'text-slate-900'
+            highlight ? 'text-primary font-bold' : 'text-slate-900'
           }`}
         >
           {value}
@@ -487,7 +487,7 @@ function CopyRow({
         <button
           type="button"
           onClick={copy}
-          className="text-slate-400 hover:text-blue-600 transition-colors"
+          className="text-slate-400 hover:text-primary transition-colors"
           aria-label={`Sao chép ${label}`}
         >
           {copied ? (
