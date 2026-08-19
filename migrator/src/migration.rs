@@ -23,6 +23,7 @@ mod m20260809_030000_price_alert_owner;
 mod m20260817_000001_add_missing_indexes;
 mod m20260818_000001_payments;
 mod m20260818_000002_seed_payment_perms;
+mod m20260819_000001_fix_phone_unique;
 
 pub struct Migrator;
 
@@ -49,6 +50,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260817_000001_add_missing_indexes::Migration),
             Box::new(m20260818_000001_payments::Migration),
             Box::new(m20260818_000002_seed_payment_perms::Migration),
+            Box::new(m20260819_000001_fix_phone_unique::Migration),
         ]
     }
 }
