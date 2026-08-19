@@ -15,7 +15,7 @@ impl MigrationTrait for Migration {
                     .col(text_null(User::BrandId))
                     .col(string_len(User::FullName, 255))
                     .col(string_len_uniq(User::Email, 255))
-                    .col(string_len_uniq(User::Phone, 20))
+                    .col(text_null(User::Phone))
                     .col(text_null(User::EmailVerifiedAt))
                     .col(text_null(User::PhoneVerifiedAt))
                     .col(string_len(User::Status, 30).default("active"))

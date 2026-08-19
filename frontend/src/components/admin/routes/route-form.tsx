@@ -8,7 +8,7 @@
  * query (both admin and public) on success.
  */
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -37,10 +37,11 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { Route as RouteIcon, MapPin, Loader2 } from 'lucide-react'
+import { Route as RouteIcon, MapPin, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
+import { QuickPickupPointDialog } from '@/components/admin/pickup-points/quick-pickup-dialog'
 import type { PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
 
@@ -83,6 +84,11 @@ export function RouteFormDialog({
   const isEdit = !!route
   const upsertMutation = useUpsertAdminRoute()
   const saving = upsertMutation.isPending
+  const [pickupDialogOpen, setPickupDialogOpen] = useState(false)
+  const [pickupDialogTarget, setPickupDialogTarget] = useState<'start' | 'end'>('start')
+  // Local cache of newly-created places (merged with the `places` prop
+  // so the Select dropdown shows them immediately without a refetch).
+  const [extraPlaces, setExtraPlaces] = useState<PlaceOut[]>([])
 
   const form = useForm<z.input<typeof routeSchema>, unknown, z.output<typeof routeSchema>>({
     resolver: zodResolver(routeSchema),
@@ -111,10 +117,11 @@ export function RouteFormDialog({
     }
   }, [open, route, form])
 
-  // Sort places by name for easier selection
+  // Merge prop places with locally-created ones.
+  const allPlaces = useMemo(() => [...places, ...extraPlaces], [places, extraPlaces])
   const sortedPlaces = useMemo(() => {
-    return [...places].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-  }, [places])
+    return [...allPlaces].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
+  }, [allPlaces])
 
   const onSubmit = async (values: RouteFormValues) => {
     if (!brand) {
@@ -205,26 +212,39 @@ export function RouteFormDialog({
                   <FormLabel>
                     Điểm đi <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn điểm đi..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-70">
-                      {sortedPlaces.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-blue-500" />
-                            <span>{p.name}</span>
-                            {p.province && (
-                              <span className="text-[10px] text-muted-foreground">· {p.province}</span>
-                            )}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-1.5">
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Chọn điểm đi..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-70">
+                        {sortedPlaces.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            <span className="flex items-center gap-1.5">
+                              <MapPin className="h-3 w-3 text-primary" />
+                              <span>{p.name}</span>
+                              {p.province && (
+                                <span className="text-[10px] text-muted-foreground">· {p.province}</span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {/* Quick-create button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 h-9 w-9"
+                      onClick={() => { setPickupDialogTarget('start'); setPickupDialogOpen(true) }}
+                      title="Tạo điểm đón mới"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -238,26 +258,38 @@ export function RouteFormDialog({
                   <FormLabel>
                     Điểm đến <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn điểm đến..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-70">
-                      {sortedPlaces.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-rose-500" />
-                            <span>{p.name}</span>
-                            {p.province && (
-                              <span className="text-[10px] text-muted-foreground">· {p.province}</span>
-                            )}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex gap-1.5">
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Chọn điểm đến..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-70">
+                        {sortedPlaces.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            <span className="flex items-center gap-1.5">
+                              <MapPin className="h-3 w-3 text-rose-500" />
+                              <span>{p.name}</span>
+                              {p.province && (
+                                <span className="text-[10px] text-muted-foreground">· {p.province}</span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 h-9 w-9"
+                      onClick={() => { setPickupDialogTarget('end'); setPickupDialogOpen(true) }}
+                      title="Tạo điểm đến mới"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -329,6 +361,32 @@ export function RouteFormDialog({
           </form>
         </Form>
       </DialogContent>
+
+      {/* Inline pickup-point creation dialog */}
+      <QuickPickupPointDialog
+        open={pickupDialogOpen}
+        onOpenChange={setPickupDialogOpen}
+        onCreated={(point) => {
+          // Add the newly-created point to the local list
+          const newPlace: PlaceOut = {
+            id: point.id,
+            name: point.name,
+            province: null,
+            lat: point.lat ?? 0,
+            lon: point.lon ?? 0,
+            population: 0,
+            type: 'pickup_point',
+          }
+          setExtraPlaces((prev) => [...prev, newPlace])
+          // Auto-select the new point in the right field
+          if (pickupDialogTarget === 'start') {
+            form.setValue('startLocationId', point.id)
+          } else {
+            form.setValue('endLocationId', point.id)
+          }
+          toast.success(`Đã thêm "${point.name}" vào danh sách`)
+        }}
+      />
     </Dialog>
   )
 }
