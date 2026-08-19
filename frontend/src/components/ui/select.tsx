@@ -1,10 +1,23 @@
 "use client"
 
-import { type ComponentProps } from "react"
+import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
+// ── Root ────────────────────────────────────────────────────────
+// Thin wrapper around Base UI's Select.Root that adapts the
+// `onValueChange` callback to match the Radix-style API:
+//   - Base UI:   `(value: string | null, eventDetails) => void`
+//   - Radix/shadcn callers: `(value: string) => void`
+// We strip the null (convert to empty string) + drop the eventDetails
+// so existing callers like `onValueChange={field.onChange}` from
+// react-hook-form keep working without type errors.
+//
+// We also convert `value` / `defaultValue` from `string | null` to
+// `string | undefined` — Base UI treats `null` as "controlled empty"
+// but `undefined` as "uncontrolled", which is what react-hook-form
+// expects when a field has no default value.
 function Select({
   value,
   defaultValue,
@@ -12,7 +25,7 @@ function Select({
   onOpenChange,
   ...props
 }: Omit<
-  ComponentProps<typeof SelectPrimitive.Root>,
+  React.ComponentProps<typeof SelectPrimitive.Root>,
   "onValueChange" | "onOpenChange"
 > & {
   value?: string | null
@@ -25,7 +38,7 @@ function Select({
       data-slot="select"
       value={value ?? undefined}
       defaultValue={defaultValue ?? undefined}
-      onValueChange={(val) => onValueChange?.(val as any)}
+      onValueChange={(val) => onValueChange?.((val ?? "") as string)}
       onOpenChange={(open) => onOpenChange?.(open)}
       {...props}
     />
@@ -33,46 +46,68 @@ function Select({
 }
 
 function SelectGroup({
+  className,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Group>) {
-  return <SelectPrimitive.Group data-slot="select-group" {...props} />
-}
-
-function SelectValue({
-  placeholder,
-  ...props
-}: ComponentProps<typeof SelectPrimitive.Value> & { placeholder?: string }) {
+}: React.ComponentProps<typeof SelectPrimitive.Group>) {
   return (
-    <SelectPrimitive.Value data-slot="select-value" {...props}>
-      {(value) => value ?? placeholder}
-    </SelectPrimitive.Value>
+    <SelectPrimitive.Group
+      data-slot="select-group"
+      className={cn("p-1", className)}
+      {...props}
+    />
   )
 }
 
+// ── Value ───────────────────────────────────────────────────────
+// NO children render function — let Base UI render the placeholder
+// natively via the `placeholder` prop. The previous code used:
+//   <SelectPrimitive.Value>
+//     {(value) => value ?? placeholder}
+//   </SelectPrimitive.Value>
+// which returned `""` (empty string) when react-hook-form initialized
+// fields to `""`, making the trigger collapse to just the chevron icon
+// (≈16px wide) — effectively invisible.
+function SelectValue({
+  className,
+  ...props
+}: React.ComponentProps<typeof SelectPrimitive.Value>) {
+  return (
+    <SelectPrimitive.Value
+      data-slot="select-value"
+      className={cn("flex flex-1 text-left", className)}
+      {...props}
+    />
+  )
+}
+
+// ── Trigger ─────────────────────────────────────────────────────
+// Base UI's Trigger already renders a native <button> — no `render`
+// prop shim needed. The previous `render` prop added an extra wrapper
+// + manually set `data-state` + `data-placeholder`, which Base UI
+// already sets via `data-popup-open` + its own placeholder logic.
 function SelectTrigger({
   className,
   size = "default",
   children,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Trigger> & {
+}: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default"
 }) {
   return (
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       data-size={size}
-      render={(renderProps, state) => (
-        <button
-          {...renderProps}
-          data-state={state.open ? "open" : "closed"}
-          data-placeholder={state.value == null ? "" : undefined}
-        >
-          {renderProps.children}
-        </button>
-      )}
       className={cn(
-        "border-input data-placeholder:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        "border-input data-placeholder:text-muted-foreground",
+        "[&_svg:not([class*='text-'])]:text-muted-foreground",
+        "focus-visible:border-ring focus-visible:ring-ring/50",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+        "aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50",
+        "flex w-fit items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        "data-[size=default]:h-9 data-[size=sm]:h-8",
+        "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className,
       )}
       {...props}
     >
@@ -84,47 +119,52 @@ function SelectTrigger({
   )
 }
 
+// ── Content (Portal + Positioner + Popup + List) ────────────────
+// Base UI uses `alignItemWithTrigger` (boolean) instead of Radix's
+// `position="popper" | "item-aligned"`. The CSS var is
+// `--available-height` (NOT `--anchor-available-height`).
+//
+// Base UI sets `data-open` / `data-closed` (NOT `data-state="open"`),
+// so we use `data-open:` / `data-closed:` for animation classes.
 function SelectContent({
   className,
   children,
-  position = "popper",
+  side = "bottom",
+  sideOffset = 4,
+  align = "center",
+  alignOffset = 0,
+  alignItemWithTrigger = true,
   ...props
-}: Omit<
-  ComponentProps<typeof SelectPrimitive.Positioner>,
-  "render" | "className"
-> &
-  Omit<ComponentProps<typeof SelectPrimitive.Popup>, "render"> & {
-    className?: string
-    position?: "popper" | "item-aligned"
-  }) {
+}: React.ComponentProps<typeof SelectPrimitive.Popup> &
+  Pick<
+    React.ComponentProps<typeof SelectPrimitive.Positioner>,
+    "side" | "align" | "sideOffset" | "alignOffset" | "alignItemWithTrigger"
+  >) {
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
-        className={cn(
-          position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-          className
-        )}
-        {...props}
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        alignOffset={alignOffset}
+        alignItemWithTrigger={alignItemWithTrigger}
+        className="z-50"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
-          render={(renderProps, state) => (
-            <div
-              {...renderProps}
-              data-state={state.open ? "open" : "closed"}
-              data-side={state.side}
-              data-align={state.align}
-            />
-          )}
           className={cn(
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--anchor-available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md p-1",
-            position === "popper" &&
-            "w-full min-w-(--anchor-width) scroll-my-1"
+            "bg-popover text-popover-foreground",
+            "relative z-50 max-h-(--available-height) min-w-32 w-(--anchor-width) origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
+            // Base UI native attributes (NOT data-[state=open])
+            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
+            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2",
+            className,
           )}
+          {...props}
         >
           <SelectScrollUpButton />
-          {children}
+          <SelectPrimitive.List>{children}</SelectPrimitive.List>
           <SelectScrollDownButton />
         </SelectPrimitive.Popup>
       </SelectPrimitive.Positioner>
@@ -135,42 +175,50 @@ function SelectContent({
 function SelectLabel({
   className,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Label>) {
+}: React.ComponentProps<typeof SelectPrimitive.Label>) {
   return (
     <SelectPrimitive.Label
       data-slot="select-label"
-      className={cn("text-muted-foreground px-2 py-1.5 text-xs", className)}
+      className={cn("px-2 py-1.5 text-xs text-muted-foreground", className)}
       {...props}
     />
   )
 }
 
+// ── Item ────────────────────────────────────────────────────────
+// Base UI's Item uses `value` + `label` (for keyboard nav text).
+// The `label` defaults to the item's text content, but callers that
+// migrated from Radix may pass `textValue` — we map it to `label`.
 function SelectItem({
   className,
   children,
   textValue,
-  value,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Item> & {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
   textValue?: string
 }) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
-      value={value}
       label={textValue}
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
-        className
+        "focus:bg-accent focus:text-accent-foreground",
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className,
       )}
       {...props}
     >
-      <span className="absolute right-2 flex size-3.5 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
-        </SelectPrimitive.ItemIndicator>
-      </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemText className="flex flex-1 shrink-0 gap-2 whitespace-nowrap">
+        {children}
+      </SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemIndicator
+        render={
+          <span className="pointer-events-none absolute right-2 flex size-4 items-center justify-center" />
+        }
+      >
+        <CheckIcon className="size-4" />
+      </SelectPrimitive.ItemIndicator>
     </SelectPrimitive.Item>
   )
 }
@@ -178,7 +226,7 @@ function SelectItem({
 function SelectSeparator({
   className,
   ...props
-}: ComponentProps<typeof SelectPrimitive.Separator>) {
+}: React.ComponentProps<typeof SelectPrimitive.Separator>) {
   return (
     <SelectPrimitive.Separator
       data-slot="select-separator"
@@ -191,13 +239,13 @@ function SelectSeparator({
 function SelectScrollUpButton({
   className,
   ...props
-}: ComponentProps<typeof SelectPrimitive.ScrollUpArrow>) {
+}: React.ComponentProps<typeof SelectPrimitive.ScrollUpArrow>) {
   return (
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
       className={cn(
-        "flex cursor-default items-center justify-center py-1",
-        className
+        "top-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1",
+        className,
       )}
       {...props}
     >
@@ -209,13 +257,13 @@ function SelectScrollUpButton({
 function SelectScrollDownButton({
   className,
   ...props
-}: ComponentProps<typeof SelectPrimitive.ScrollDownArrow>) {
+}: React.ComponentProps<typeof SelectPrimitive.ScrollDownArrow>) {
   return (
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
       className={cn(
-        "flex cursor-default items-center justify-center py-1",
-        className
+        "bottom-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1",
+        className,
       )}
       {...props}
     >

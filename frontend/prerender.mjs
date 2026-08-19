@@ -2,21 +2,10 @@
  * Prerender script — runs AFTER `vite build` to produce the final
  * `dist/index.html` with the homepage shell rendered to static HTML.
  *
- * Flow:
- *  1. `vite build` produces:
- *     - `dist/index.html` (template, has `<!--app-html-->` placeholder + <script> tags)
- *     - `dist/assets/*.{js,css}` (client bundles)
- *     - `dist/.vite/ssr-manifest.json` (chunk → asset mapping)
- *  2. This script loads `entry-server.tsx` via Vite's SSR loader, calls
- *     `render('/')` to get the HTML string, and injects it into the
- *     template in place of `<!--app-html-->`.
- *  3. The result is written back to `dist/index.html`.
- *
- * The static HTML gives us:
- *  - Real SEO content (crawlers see the marketing copy without executing JS)
- *  - Fast first paint (no blank white screen while JS downloads)
- *  - Progressive enhancement (islands hydrate on demand)
+ * Also injects Google Search Console verification + GA4 script tags
+ * from env vars (VITE_GSC_VERIFICATION, VITE_GA4_ID).
  */
+
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,9 +16,40 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = __dirname
 const distDir = resolve(root, 'dist')
 
+// ── Google env vars ────────────────────────────────────────────
+const GSC_VERIFICATION = process.env.VITE_GSC_VERIFICATION?.trim() || ''
+const GA4_ID = process.env.VITE_GA4_ID?.trim() || ''
+
 async function main() {
   const templatePath = resolve(distDir, 'index.html')
   let template = readFileSync(templatePath, 'utf-8')
+
+  // ── Inject Google Search Console verification meta tag ──────
+  // Replaces `<!-- %VITE_GSC_VERIFICATION_META% -->` in index.html.
+  if (GSC_VERIFICATION) {
+    const gscTag = `<meta name="google-site-verification" content="${GSC_VERIFICATION}" />`
+    template = template.replace('<!-- %VITE_GSC_VERIFICATION_META% -->', gscTag)
+    console.log('[prerender] ✓ injected Google Search Console verification')
+  } else {
+    template = template.replace('<!-- %VITE_GSC_VERIFICATION_META% -->', '')
+  }
+
+  // ── Inject GA4 script tags ───────────────────────────────────
+  // Replaces `<!-- %VITE_GA4_SCRIPT% -->` in index.html.
+  if (GA4_ID) {
+    const ga4Script = `
+<script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_ID}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '${GA4_ID}', { send_page_view: false });
+</script>`
+    template = template.replace('<!-- %VITE_GA4_SCRIPT% -->', ga4Script)
+    console.log('[prerender] ✓ injected GA4 (ID: %s)', GA4_ID)
+  } else {
+    template = template.replace('<!-- %VITE_GA4_SCRIPT% -->', '')
+  }
 
   // Load the server entry via Vite's SSR module system (handles TSX, aliases).
   const vite = await createServer({
