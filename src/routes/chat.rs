@@ -309,3 +309,12 @@ fn message_to_dto(m: crate::entity::chat_message::Model) -> ChatMessageOut {
         created_at: m.created_at,
     }
 }
+
+/// Build the chat (REST fallback for WS) router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/channels", get(list_channels).post(create_channel))
+        .route("/channels/{id}/messages", get(list_messages).post(post_message))
+        .route("/channels/{id}/read", post(mark_read))
+}

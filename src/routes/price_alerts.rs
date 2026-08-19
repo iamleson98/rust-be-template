@@ -308,3 +308,11 @@ pub async fn remove(
     let model = st.price_alerts.remove(id, Some(uid)).await?;
     Ok(Json(PriceAlertOut::from(model)))
 }
+
+/// Build the price-alerts router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{delete, get};
+    axum::Router::new()
+        .route("/", get(list).post(create))
+        .route("/{id}", delete(remove))
+}

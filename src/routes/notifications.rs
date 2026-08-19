@@ -65,3 +65,11 @@ pub async fn mark_read(
 ) -> Result<Json<MarkNotificationsReadResponse>, AppError> {
     Ok(Json(st.notifications.mark_read(uid, body.ids).await?))
 }
+
+/// Build the notifications router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/", get(list))
+        .route("/read", post(mark_read))
+}

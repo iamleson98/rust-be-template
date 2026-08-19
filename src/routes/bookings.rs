@@ -158,3 +158,19 @@ pub async fn confirm(
     body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.confirm(id, &body.payment_method).await?))
 }
+
+/// Build the bookings router.
+///
+/// Mounts both `/` (list + hold + lookup) and `/{id}` (detail + cancel +
+/// confirm). The `/hold` alias is kept for backward compatibility with
+/// older frontend code that POSTs to `/api/bookings/hold` directly.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/", get(list).post(hold))
+        .route("/hold", post(hold))
+        .route("/lookup", get(lookup))
+        .route("/{id}", get(detail))
+        .route("/{id}/cancel", post(cancel))
+        .route("/{id}/confirm", post(confirm))
+}

@@ -251,3 +251,15 @@ pub async fn me(
         state.auth.access_ttl_secs(),
     )))
 }
+
+/// Build the auth router — mounts all `/auth/*` routes.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/register", post(register))
+        .route("/login", post(login))
+        .route("/employee-login", post(employee_login))
+        .route("/refresh", post(refresh))
+        .route("/logout", post(logout))
+        .route("/me", get(me))
+}

@@ -67,3 +67,9 @@ pub async fn report_vitals(
     );
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
+
+/// Build the vitals RUM router (`/api/vitals`).
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::post;
+    axum::Router::new().route("/", post(report_vitals))
+}

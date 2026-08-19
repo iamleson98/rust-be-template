@@ -146,3 +146,15 @@ pub async fn remove(
 pub async fn tags(State(st): State<AppState>) -> Result<Json<ReviewTagsResponse>, AppError> {
     Ok(Json(st.reviews.tags_index().await?))
 }
+
+/// Build the reviews router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    // `get` is both a routing function (axum::routing::get) and a handler
+    // in this module (the `pub async fn get` above). Import the routing
+    // function under a different name to avoid the `get(get)` collision.
+    use axum::routing::get as rget;
+    axum::Router::new()
+        .route("/tags", rget(tags))
+        .route("/", rget(list).post(create))
+        .route("/{id}", rget(get).patch(update).delete(remove))
+}

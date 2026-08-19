@@ -175,3 +175,9 @@ fn format_uptime(secs: u64) -> String {
         format!("{}s", s)
     }
 }
+
+/// Build the system monitoring router (`/api/admin/system`).
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/", get(system_status))
+}

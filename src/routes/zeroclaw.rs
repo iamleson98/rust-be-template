@@ -58,3 +58,11 @@ pub async fn list_exchanges(
     let items: Vec<ZeroclawExchangeOut> = rows.into_iter().map(ZeroclawExchangeOut::from).collect();
     Ok(Json(ZeroclawExchangeListResponse { items }))
 }
+
+/// Build the ZeroClaw router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/status", get(status))
+        .route("/exchanges", get(list_exchanges))
+}

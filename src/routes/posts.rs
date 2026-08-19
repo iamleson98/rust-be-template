@@ -180,3 +180,11 @@ pub async fn delete_post(
     state.posts.delete(id).await?;
     Ok(())
 }
+
+/// Build the posts router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/", get(list_posts).post(create_post))
+        .route("/{id}", get(get_post).patch(update_post).delete(delete_post))
+}

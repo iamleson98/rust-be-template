@@ -118,3 +118,11 @@ pub async fn delete_user(
     state.users.delete(id).await?;
     Ok(())
 }
+
+/// Build the users router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/", get(list_users))
+        .route("/{id}", get(get_user).delete(delete_user))
+}

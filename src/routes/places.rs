@@ -90,3 +90,12 @@ pub async fn reverse(
             .await?,
     ))
 }
+
+/// Build the places router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/", get(list))
+        .route("/search", get(search))
+        .route("/reverse", get(reverse))
+}
