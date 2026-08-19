@@ -67,6 +67,50 @@ export function AudioCallWidget() {
   const clientRef = useRef<AudioCallClient | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Wake Lock sentinel — keeps the screen on during an active call so
+  // the proximity sensor doesn't dim/lock the screen and drop the call.
+  const wakeLockRef = useRef<any>(null)
+
+  // ── Wake Lock helpers ──────────────────────────────────────────
+  // Keeps the screen on during an active call. The wake lock is released
+  // when the call ends or when the user switches tabs (the OS re-acquires
+  // it on resume; we listen for visibilitychange and re-request).
+  const requestWakeLock = useCallback(async () => {
+    if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
+    try {
+      wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+      wakeLockRef.current?.addEventListener?.('release', () => {
+        wakeLockRef.current = null
+      })
+    } catch {
+      // Wake Lock can fail if not HTTPS, user denied, or screen off.
+      // Silent failure — calls still work, just no wake lock.
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(() => {
+    if (wakeLockRef.current) {
+      try {
+        wakeLockRef.current.release()
+      } catch {
+        // noop
+      }
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  // Re-acquire wake lock on tab visibility change (mobile browsers
+  // release the lock when the tab is backgrounded).
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && state === 'active') {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [state, requestWakeLock])
 
   // Initialize client when the panel is first opened.
   const ensureClient = useCallback(async () => {
@@ -76,9 +120,6 @@ export function AudioCallWidget() {
     const role = user.type === 'employee' ? 'agent' : 'customer'
     const client = new AudioCallClient({
       signalingUrl: buildSignalingUrl(),
-      // No token in URL — the browser sends the `vx_access` cookie on the
-      // WS upgrade, and the Rust handler reads it (preferred over ?token=
-      // because it keeps the JWT out of access logs).
       token: '',
       userId: user.id,
       role,
@@ -87,17 +128,18 @@ export function AudioCallWidget() {
     if (audioRef.current) client.remoteAudioElement = audioRef.current
     client.on('state', (s: CallState) => {
       setState(s)
-      // Drive the duration timer from state transitions. (The old
-      // `connection-state` listener captured `state` in a stale closure —
-      // it was registered once with state='idle' — so the timer never
-      // started on the customer side.)
       if (s === 'active' && callTimerRef.current === null) {
         callTimerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000)
+        // ── Wake Lock — keep the screen on while the call is live.
+        // Mobile browsers will dim + sleep after ~30s of inactivity;
+        // on iOS this also drops the WebRTC audio track.
+        requestWakeLock()
       }
       if ((s === 'ended' || s === 'idle') && callTimerRef.current) {
         clearInterval(callTimerRef.current)
         callTimerRef.current = null
         setCallDuration(0)
+        releaseWakeLock()
       }
     })
     client.on('presence', ({ onlineAgents }: { onlineAgents: number }) => setOnlineAgents(onlineAgents))

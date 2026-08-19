@@ -200,3 +200,56 @@ pub async fn validate_campaign(
 pub async fn stats(State(st): State<AppState>) -> Result<Json<StatsResponse>, AppError> {
     Ok(Json(st.public.stats().await?))
 }
+
+// ────────────────────────────────────────────────────────────────
+//  Per-domain routers — exposed for `build_router` composition.
+//  The public catalog has multiple sub-paths so each gets its own
+//  small router function. Keeps `build_router` flat + readable.
+// ────────────────────────────────────────────────────────────────
+
+/// `/api/brands` + `/api/brands/{slug}`.
+pub fn brands_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/", get(brands))
+        .route("/{slug}", get(brand_detail))
+}
+
+/// `/api/routes` (public list of bus routes — distinct from the admin
+/// route CRUD at `/api/admin/routes`).
+pub fn routes_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/", get(routes))
+}
+
+/// `/api/trips/{id}`.
+pub fn trips_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/{id}", get(trip_detail))
+}
+
+/// `/api/search`.
+pub fn search_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/", get(search_trips))
+}
+
+/// `/api/recommendations`.
+pub fn recommendations_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/", get(recommendations))
+}
+
+/// `/api/campaigns` + `/api/campaigns/validate`.
+pub fn campaigns_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/", get(campaigns))
+        .route("/validate", get(validate_campaign))
+}
+
+/// `/api/stats`.
+pub fn stats_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new().route("/", get(stats))
+}

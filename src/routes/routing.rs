@@ -111,3 +111,12 @@ pub async fn isochrone(
             .await?,
     ))
 }
+
+/// Build the routing (Valhalla proxy) router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::get;
+    axum::Router::new()
+        .route("/directions", get(directions))
+        .route("/matrix", get(matrix))
+        .route("/isochrone", get(isochrone))
+}

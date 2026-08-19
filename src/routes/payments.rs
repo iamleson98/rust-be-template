@@ -406,3 +406,32 @@ pub async fn update_payment_status(
             .await?,
     ))
 }
+
+/// Build the user-facing payments router (`/api/payments/*`).
+///
+/// Includes the IPN webhook routes — they're mounted under `/payments/ipn/*`
+/// and use NO auth (verified via HMAC signature instead).
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, post};
+    axum::Router::new()
+        .route("/", post(create_payment))
+        .route("/booking/{bookingId}", get(list_booking_payments))
+        .route("/{id}", get(get_payment))
+        .route("/{id}/cancel", post(cancel_payment))
+        .route("/{id}/mark-cod-collected", post(mark_cod_collected))
+        // IPN webhooks (no auth — verified via HMAC signature).
+        .route("/ipn/vnpay", get(vnpay_ipn))
+        .route("/ipn/momo", post(momo_ipn))
+        .route("/ipn/zalopay", post(zalopay_callback))
+}
+
+/// Build the admin payments router (`/api/admin/payments/*`).
+///
+/// Mounted under `/admin/payments` by `build_router`. RBAC-guarded
+/// (AdminUser extractor + permission check inside each handler).
+pub fn admin_router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{get, patch};
+    axum::Router::new()
+        .route("/", get(list_admin_payments))
+        .route("/{id}", patch(update_payment_status))
+}

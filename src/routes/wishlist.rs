@@ -92,3 +92,11 @@ pub async fn remove(
 ) -> Result<Json<DeleteWishlistResponse>, AppError> {
     Ok(Json(st.wishlist.remove(uid, id).await?))
 }
+
+/// Build the wishlist router.
+pub fn router() -> axum::Router<crate::state::AppState> {
+    use axum::routing::{delete, get};
+    axum::Router::new()
+        .route("/", get(list).post(toggle))
+        .route("/{id}", delete(remove))
+}

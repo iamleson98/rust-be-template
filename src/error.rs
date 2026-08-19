@@ -59,6 +59,17 @@ pub enum AppError {
 
     #[error("internal error: {0}")]
     Internal(String),
+
+    /// HTTP client error from `reqwest` (e.g. gateway timeout, connection
+    /// refused). Maps to 503 Service Unavailable — the upstream provider is
+    /// unavailable, not the app itself.
+    #[error("upstream http error: {0}")]
+    UpstreamHttp(#[from] reqwest::Error),
+
+    /// JSON (de)serialization error. Maps to 500 Internal — never the
+    /// client's fault (the wire format is controlled by our own DTOs).
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[derive(Debug, Serialize)]
@@ -114,6 +125,11 @@ impl AppError {
             AppError::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
             AppError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            // Upstream HTTP errors (reqwest) → 503 — the upstream provider
+            // is unavailable, not our app.
+            AppError::UpstreamHttp(_) => StatusCode::SERVICE_UNAVAILABLE,
+            // JSON (de)serialization errors → 500 — never the client's fault.
+            AppError::Json(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -133,6 +149,8 @@ impl AppError {
             AppError::ServiceUnavailable(_) => "service_unavailable",
             AppError::TooManyRequests(_) => "too_many_requests",
             AppError::Internal(_) => "internal_error",
+            AppError::UpstreamHttp(_) => "upstream_http_error",
+            AppError::Json(_) => "json_error",
         }
     }
 }

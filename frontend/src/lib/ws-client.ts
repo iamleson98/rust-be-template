@@ -53,9 +53,10 @@ export class WsClient {
   private everOpened = false
   /** Public read-only connection flag (mirrors `readyState === OPEN`). */
   public connected = false
+  /** Was the connection paused by the OS backgrounding the tab? */
+  private pausedByVisibility = false
   /** Bound online listener (kept so we can remove it on dispose). */
   private readonly onlineListener = (): void => {
-    // Network came back — abandon the backoff timer and reconnect now.
     if (this.disposed) return
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
@@ -64,15 +65,46 @@ export class WsClient {
     this.reconnectAttempts = 0
     this.connect()
   }
+  /** visibilitychange listener — mobile browsers freeze WS in background
+   * tabs; reconnect immediately when the page becomes visible again. */
+  private readonly visibilityListener = (): void => {
+    if (this.disposed) return
+    if (document.visibilityState === 'visible') {
+      if (this.pausedByVisibility || !this.connected) {
+        this.pausedByVisibility = false
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer)
+          this.reconnectTimer = null
+        }
+        this.reconnectAttempts = 0
+        this.connect()
+      } else if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        // Socket looks open — send a ping to verify liveness.
+        this.send('ping', { __client_ts: Date.now() })
+      }
+    } else {
+      this.pausedByVisibility = true
+    }
+  }
+  /** pagehide listener — close the socket cleanly on iOS app-switch so
+   * the server doesn't wait for the TCP keepalive timeout. */
+  private readonly pagehideListener = (): void => {
+    if (this.disposed) return
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.close(1001, 'pagehide')
+      } catch {
+        // noop
+      }
+    }
+  }
 
   constructor(token?: string | null) {
     this.url = buildWsUrl(token)
-    // When the browser regains connectivity (e.g. after sleep / wifi toggle),
-    // reconnect immediately instead of waiting out the backoff timer. Without
-    // this, a laptop that wakes from sleep waits up to 30s before the next
-    // scheduled reconnect attempt.
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.onlineListener)
+      document.addEventListener('visibilitychange', this.visibilityListener)
+      window.addEventListener('pagehide', this.pagehideListener)
     }
     this.connect()
   }
@@ -236,6 +268,8 @@ export class WsClient {
     this.disposed = true
     if (typeof window !== 'undefined') {
       window.removeEventListener('online', this.onlineListener)
+      document.removeEventListener('visibilitychange', this.visibilityListener)
+      window.removeEventListener('pagehide', this.pagehideListener)
     }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
