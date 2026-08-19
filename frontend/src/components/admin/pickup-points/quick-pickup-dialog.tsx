@@ -4,19 +4,15 @@
  * QuickPickupPointDialog — inline creation of a pickup point directly
  * from the route form.
  *
- * Renders a dialog with:
- *   - Name field
- *   - Stop order field (optional)
- *   - Lat/Lng fields (auto-filled from map click)
- *   - Address field (auto-filled from reverse geocode)
- *   - Kind select (boarding / dropping)
- *   - An embedded LeafletMap with click-to-select + search
- *
- * On save, creates the pickup point via the admin API, then calls
- * onCreated(point) so the parent can auto-select it in the dropdown.
+ * Uses:
+ *   - `reverse` from the generated SDK for reverse geocoding (no raw fetch).
+ *   - `createPickupPointMutation` from the generated TanStack mutation
+ *     for POST /api/admin/pickup-points (no raw fetch).
+ *   - A single `form` state object instead of 8 separate useState calls.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -35,9 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Plus, MapPin, Loader2, Search, Crosshair } from 'lucide-react'
+import { Plus, MapPin, Loader2, Crosshair } from 'lucide-react'
 import { toast } from 'sonner'
 import { LeafletMap, type PickedPlace } from '@/components/map/leaflet-map'
+import { reverse as sdkReverse, createPickupPoint } from '@/lib/api/sdk.gen'
+import type { PlaceSearchHit } from '@/lib/api/types.gen'
 
 type Props = {
   open: boolean
@@ -46,52 +44,107 @@ type Props = {
   onCreated: (point: { id: string; name: string; lat?: number; lon?: number }) => void
 }
 
+// ── Form state shape (single object, not 8 separate useState calls) ──
+type FormState = {
+  name: string
+  kind: string
+  stopOrder: string
+  lat: number | null
+  lon: number | null
+  address: string
+}
+
+const EMPTY_FORM: FormState = {
+  name: '',
+  kind: 'boarding',
+  stopOrder: '',
+  lat: null,
+  lon: null,
+  address: '',
+}
+
 export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated }: Props) {
-  const [name, setName] = useState('')
-  const [stopOrder, setStopOrder] = useState('')
-  const [lat, setLat] = useState<number | null>(null)
-  const [lon, setLon] = useState<number | null>(null)
-  const [address, setAddress] = useState('')
-  const [kind, setKind] = useState('boarding')
-  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [picked, setPicked] = useState<PickedPlace | null>(null)
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null)
 
+  // ── Mutation: create pickup point via generated SDK ──────────
+  const createMutation = useMutation({
+    mutationFn: async (body: FormState) => {
+      const { data } = await createPickupPoint({
+        body: {
+          name: body.name,
+          kind: body.kind,
+          lat: body.lat,
+          lon: body.lon,
+          address: body.address || undefined,
+          stopOrder: body.stopOrder ? parseInt(body.stopOrder, 10) : undefined,
+          routeId: routeId ?? undefined,
+        },
+      })
+      return data
+    },
+    onSuccess: (data: any) => {
+      toast.success('Đã tạo điểm đón/trả mới')
+      onCreated({
+        id: data?.id ?? '',
+        name: form.name,
+        lat: form.lat ?? undefined,
+        lon: form.lon ?? undefined,
+      })
+      setForm(EMPTY_FORM)
+      setPicked(null)
+      onOpenChange(false)
+    },
+    onError: (err: any) => {
+      toast.error('Không thể tạo điểm', {
+        description: err?.message ?? 'Vui lòng thử lại',
+      })
+    },
+  })
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setForm(EMPTY_FORM)
+      setPicked(null)
+      setFlyTarget(null)
+    }
+  }, [open])
+
+  // ── Map click → reverse geocode via generated SDK ────────────
   const handleMapClick = useCallback(async (clickLat: number, clickLon: number) => {
-    setLat(clickLat)
-    setLon(clickLon)
+    setForm((f) => ({ ...f, lat: clickLat, lon: clickLon }))
     setPicked({ name: 'Đang tải...', lat: clickLat, lon: clickLon })
+
     try {
-      const res = await fetch(
-        `/api/places/reverse?lat=${clickLat}&lon=${clickLon}&limit=1`,
-        { credentials: 'include' },
-      )
-      if (res.ok) {
-        const data = await res.json()
-        const hit = data?.items?.[0]
-        if (hit) {
-          const placeName = hit.name || `${clickLat.toFixed(3)}, ${clickLon.toFixed(3)}`
-          setName(placeName)
-          setAddress(hit.name ? `${hit.name}, ${hit.province ?? ''}`.trim() : '')
-          setPicked({ name: placeName, lat: clickLat, lon: clickLon, province: hit.province })
-        } else {
-          setName(`${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}`)
-          setPicked({ name: 'Vị trí đã chọn', lat: clickLat, lon: clickLon })
-        }
+      const { data } = await sdkReverse({ query: { lat: clickLat, lon: clickLon, limit: 1 } })
+      const hits: PlaceSearchHit[] = (data as any) ?? []
+      const hit = hits[0]
+      if (hit) {
+        const placeName = hit.name || `${clickLat.toFixed(3)}, ${clickLon.toFixed(3)}`
+        setForm((f) => ({
+          ...f,
+          name: placeName,
+          address: hit.name ? `${hit.name}, ${hit.province ?? ''}`.trim() : '',
+        }))
+        setPicked({ name: placeName, lat: clickLat, lon: clickLon, province: hit.province })
+      } else {
+        setForm((f) => ({ ...f, name: `${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}` }))
+        setPicked({ name: 'Vị trí đã chọn', lat: clickLat, lon: clickLon })
       }
     } catch {
-      setName(`${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}`)
+      setForm((f) => ({ ...f, name: `${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}` }))
       setPicked({ name: 'Vị trí đã chọn', lat: clickLat, lon: clickLon })
     }
   }, [])
 
+  // ── GPS "my location" ──────────────────────────────────────
   const handleMyLocation = useCallback(() => {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude, longitude } = pos.coords
-        setLat(latitude)
-        setLon(longitude)
         setFlyTarget([latitude, longitude])
         handleMapClick(latitude, longitude)
       },
@@ -100,64 +153,20 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
     )
   }, [handleMapClick])
 
-  const handleSave = async () => {
-    if (!name.trim()) {
+  // ── Submit ──────────────────────────────────────────────────
+  const handleSave = () => {
+    if (!form.name.trim()) {
       toast.error('Vui lòng nhập tên điểm đón/trả')
       return
     }
-    setSaving(true)
-    try {
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        kind,
-        lat: lat,
-        lon: lon,
-        address: address.trim() || undefined,
-        stopOrder: stopOrder ? parseInt(stopOrder, 10) : undefined,
-      }
-      // Use the admin create pickup point endpoint
-      const res = await fetch('/api/admin/pickup-points', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.message || `HTTP ${res.status}`)
-      }
-      const created = await res.json()
-      toast.success('Đã tạo điểm đón/trả mới')
-      onCreated({
-        id: created.id || created.item?.id,
-        name: name.trim(),
-        lat: lat ?? undefined,
-        lon: lon ?? undefined,
-      })
-      // Reset form
-      setName('')
-      setStopOrder('')
-      setLat(null)
-      setLon(null)
-      setAddress('')
-      setKind('boarding')
-      setPicked(null)
-      onOpenChange(false)
-    } catch (e: any) {
-      toast.error('Không thể tạo điểm', { description: e?.message })
-    } finally {
-      setSaving(false)
-    }
+    createMutation.mutate(form)
   }
 
-  const handleSearchSelect = useCallback((hit: any) => {
-    setName(hit.name)
-    setLat(hit.lat)
-    setLon(hit.lon)
-    setAddress(hit.name + (hit.province ? `, ${hit.province}` : ''))
-    setPicked({ name: hit.name, lat: hit.lat, lon: hit.lon, province: hit.province })
-    setFlyTarget([hit.lat, hit.lon])
-  }, [])
+  const saving = createMutation.isPending
+
+  // Convenience accessor for form fields
+  const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+    setForm((f) => ({ ...f, [key]: value }))
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
@@ -177,15 +186,15 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             <div>
               <Label className="text-xs">Tên điểm <span className="text-destructive">*</span></Label>
               <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={form.name}
+                onChange={(e) => update('name', e.target.value)}
                 placeholder="VD: Bến xe Mỹ Đình"
                 className="mt-1"
               />
             </div>
             <div>
               <Label className="text-xs">Loại điểm</Label>
-              <Select value={kind} onValueChange={setKind}>
+              <Select value={form.kind} onValueChange={(v) => update('kind', v)}>
                 <SelectTrigger className="mt-1 w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -198,12 +207,12 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             </div>
           </div>
 
-          {/* Lat/Lng + Address */}
+          {/* Lat/Lng + Stop order */}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label className="text-xs">Vĩ độ</Label>
               <Input
-                value={lat ? lat.toFixed(6) : ''}
+                value={form.lat ? form.lat.toFixed(6) : ''}
                 readOnly
                 placeholder="Tự động từ bản đồ"
                 className="mt-1 bg-muted/30 font-mono text-xs"
@@ -212,7 +221,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             <div>
               <Label className="text-xs">Kinh độ</Label>
               <Input
-                value={lon ? lon.toFixed(6) : ''}
+                value={form.lon ? form.lon.toFixed(6) : ''}
                 readOnly
                 placeholder="Tự động từ bản đồ"
                 className="mt-1 bg-muted/30 font-mono text-xs"
@@ -222,8 +231,8 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
               <Label className="text-xs">Thứ tự dừng</Label>
               <Input
                 type="number"
-                value={stopOrder}
-                onChange={(e) => setStopOrder(e.target.value)}
+                value={form.stopOrder}
+                onChange={(e) => update('stopOrder', e.target.value)}
                 placeholder="VD: 1, 2, 3..."
                 className="mt-1"
               />
@@ -263,7 +272,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Huỷ
           </Button>
-          <Button onClick={handleSave} disabled={saving || !name.trim()}>
+          <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
             Tạo điểm
           </Button>
