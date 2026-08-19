@@ -73,14 +73,14 @@ impl MigrationTrait for Migration {
 
         // Look up the `employee` role id once. If the role doesn't exist
         // (shouldn't happen on a populated DB, but defensive), skip the grants.
-        let employee_role_id: Option<String> = {
+        let employee_role_id: Option<uuid::Uuid> = {
             let stmt = sea_orm::Statement::from_sql_and_values(
                 conn.get_database_backend(),
                 r#"SELECT "id" FROM "roles" WHERE "name" = 'employee' LIMIT 1"#,
                 [],
             );
             let row = conn.query_one(stmt).await?;
-            row.and_then(|r| r.try_get::<String>("", "id").ok())
+            row.and_then(|r| r.try_get::<uuid::Uuid>("", "id").ok())
         };
 
         for (name, desc) in NEW_PERMS {
@@ -91,11 +91,11 @@ impl MigrationTrait for Migration {
                 [(*name).into()],
             );
             let existing = conn.query_one(exists_stmt).await?;
-            let perm_id_str: String = match existing {
+            let perm_id: uuid::Uuid = match existing {
                 Some(row) => row.try_get("", "id")?,
                 None => {
                     // Insert it.
-                    let new_id = uuid::Uuid::new_v4().to_string();
+                    let new_id = uuid::Uuid::new_v4();
                     let insert_perm = sea_orm::sea_query::Query::insert()
                         .into_table(Permissions::Table)
                         .columns([
@@ -105,7 +105,7 @@ impl MigrationTrait for Migration {
                             Permissions::CreatedAt,
                         ])
                         .values_panic([
-                            new_id.clone().into(),
+                            new_id.into(),
                             (*name).into(),
                             (*desc).into(),
                             Expr::current_timestamp().into(),
@@ -117,12 +117,12 @@ impl MigrationTrait for Migration {
             };
 
             // 3. Grant to employee (if the role was found).
-            if let Some(role_id_str) = &employee_role_id {
+            if let Some(role_id) = &employee_role_id {
                 // Check if the grant already exists.
                 let grant_exists_stmt = sea_orm::Statement::from_sql_and_values(
                     conn.get_database_backend(),
                     r#"SELECT 1 FROM "role_permissions" WHERE "role_id" = $1 AND "permission_id" = $2 LIMIT 1"#,
-                    [role_id_str.clone().into(), perm_id_str.clone().into()],
+                    [(*role_id).into(), perm_id.into()],
                 );
                 let already_granted = conn.query_one(grant_exists_stmt).await?.is_some();
                 if !already_granted {
@@ -134,8 +134,8 @@ impl MigrationTrait for Migration {
                             RolePermissions::AssignedAt,
                         ])
                         .values_panic([
-                            role_id_str.clone().into(),
-                            perm_id_str.clone().into(),
+                            (*role_id).into(),
+                            perm_id.into(),
                             Expr::current_timestamp().into(),
                         ])
                         .to_owned();

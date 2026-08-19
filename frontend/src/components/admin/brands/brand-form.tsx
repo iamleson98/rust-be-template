@@ -123,7 +123,7 @@ export function BrandFormDialog({
   // Auto-suggest slug from name when adding new or slug not manually touched
   useEffect(() => {
     if (open && !isEdit && !slugTouched) {
-      form.setValue('slug', slugify(nameValue ?? ''))
+      form.setValue('slug', slugify(nameValue))
     }
   }, [nameValue, isEdit, slugTouched, open, form])
 

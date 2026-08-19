@@ -15,7 +15,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
 import {
-  UserCircle,
   Ticket,
   Gift,
   Heart,
@@ -24,10 +23,9 @@ import {
   ChevronRight,
   Shield,
 } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
 
 export function ProfileContent() {
-  const { user, loyaltyPoints, currency } = useApp()
+  const { user, loyaltyPoints } = useApp()
   const navigate = useNavigate()
 
   const initials = user?.name
