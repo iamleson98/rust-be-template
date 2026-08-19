@@ -3,7 +3,7 @@
 import { cn } from '@/lib/utils'
 import { SEAT_CLASS_LABELS, SEAT_CLASS_COLORS, formatVND } from '@/lib/types'
 import { SteeringWheel } from '@/components/icons/icons'
-import { Check } from 'lucide-react'
+import { Check, Info } from 'lucide-react'
 
 export type SeatInv = {
   id: string
@@ -30,6 +30,16 @@ type Props = {
 export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Props) {
   return (
     <div className="space-y-5">
+      {/* Instructional banner — guides the user on how to select seats */}
+      <div className="flex items-start gap-2 rounded-lg bg-info/5 border border-info/20 p-3 text-xs text-muted-foreground">
+        <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
+        <div>
+          <span className="font-medium text-info-foreground">Hướng dẫn chọn ghế:</span>{' '}
+          Nhấn vào ghế trống (viền trắng) để chọn. Ghế đã có người ngồi hiển thị mờ.
+          Tối đa {maxSeats} ghế mỗi lượt đặt.
+        </div>
+      </div>
+
       {decks.map((d) => {
         // Compute a global seat counter per deck for stagger delay
         let seatCounter = 0
@@ -88,9 +98,9 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <LegendItem className="bg-white border-2 border-slate-300" label="Còn trống" />
-        <LegendItem className="bg-blue-600 text-white" label="Đang chọn" />
+        <LegendItem className="bg-primary text-primary-foreground" label="Đang chọn" />
         <LegendItem className="bg-slate-300 text-slate-500" label="Đã đặt" />
-        <LegendItem className="bg-amber-200 border border-amber-400" label="Đang giữ" />
+        <LegendItem className="bg-warning/30 border border-warning/50" label="Đang giữ" />
         <div className="w-px h-4 bg-slate-300 mx-1" />
         {Object.entries(SEAT_CLASS_COLORS).map(([cls, color]) => (
           <div key={cls} className="flex items-center gap-1.5">
@@ -126,15 +136,17 @@ function SeatButton({
       onClick={onClick}
       disabled={disabled}
       title={`${seat.code} • ${SEAT_CLASS_LABELS[cls] ?? cls} • ${formatVND(seat.finalPrice)}`}
+      aria-label={`Ghế ${seat.code}, ${SEAT_CLASS_LABELS[cls] ?? cls}, ${formatVND(seat.finalPrice)}, ${selected ? 'đang chọn' : status === 'available' ? 'còn trống' : 'đã có người'}`}
+      aria-pressed={selected}
       className={cn(
-        'relative h-9 w-9 sm:h-10 sm:w-10 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all ',
+        'relative h-11 w-11 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all',
         'border-2',
         selected
-          ? 'bg-blue-600 text-white border-blue-700 scale-105'
+          ? 'bg-primary text-primary-foreground border-primary scale-105'
           : status === 'available'
-            ? 'bg-white text-slate-700 hover:border-blue-400 '
+            ? 'bg-white text-slate-700 hover:border-primary/50'
             : status === 'locked'
-              ? 'bg-amber-100 text-amber-700 border-amber-300 cursor-not-allowed'
+              ? 'bg-warning/20 text-warning-foreground border-warning/40 cursor-not-allowed'
               : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed line-through'
       )}
       style={{

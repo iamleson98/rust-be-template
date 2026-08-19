@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { SearchWidget } from '@/components/home/search-widget'
+import { TrustBar } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
 import { useStats } from '@/lib/queries'
 import { formatNum } from '@/lib/types'
@@ -260,6 +261,9 @@ export function Hero() {
           </button>
         </div>
       </div>
+
+      {/* Trust signals bar — SSL + data protection + Decree 13 compliance */}
+      <TrustBar className="bg-white/95 dark:bg-slate-900/95 border-t border-border" />
     </section>
   )
 }

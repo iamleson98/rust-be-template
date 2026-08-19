@@ -16,6 +16,7 @@ import { ChevronLeft, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { PriceSummary, type InsuranceLevel } from './price-summary'
+import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
@@ -71,8 +72,8 @@ export function PaymentMethodStep({
               onClick={() => onSetPaymentMethod(m.key)}
               className={`rounded-lg border p-3 text-left transition-colors ${
                 paymentMethod === m.key
-                  ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
-                  : 'border-slate-200 hover:border-blue-300'
+                  ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
+                  : 'border-slate-200 hover:border-primary/40'
               }`}
             >
               <div className="flex items-center gap-2">
@@ -99,9 +100,12 @@ export function PaymentMethodStep({
         currency={currency}
       />
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-slate-50 rounded-lg p-3">
-        <ShieldCheck className="h-4 w-4 text-blue-600 shrink-0" />
-        Thông tin của bạn được mã hoá SSL 256-bit. Vé điện tử sẽ gửi qua SMS &amp; email sau khi thanh toán.
+      <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 border border-info/20 rounded-lg p-3">
+        <ShieldCheck className="h-4 w-4 text-success shrink-0 mt-0.5" />
+        <div className="space-y-0.5">
+          <p className="font-medium text-foreground">Thanh toán an toàn</p>
+          <p>Thông tin của bạn được mã hoá SSL 256-bit. Ve điện tử sẽ gửi qua SMS &amp; email sau khi thanh toán. Dữ liệu cá nhân được xử lý theo Nghị định 13/2023/NĐ-CP — không chia sẻ với bên thứ ba.</p>
+        </div>
       </div>
 
       {error && (
@@ -110,6 +114,9 @@ export function PaymentMethodStep({
         </div>
       )}
 
+      {/* Payment trust badges — SSL + PCI DSS + refund guarantee */}
+      <PaymentTrustBadges className="mb-1" />
+
       <div className="flex justify-between">
         <Button variant="outline" onClick={onGoBack} className="gap-1">
           <ChevronLeft className="h-4 w-4" /> Quay lại
@@ -117,7 +124,7 @@ export function PaymentMethodStep({
         <Button
           onClick={onSubmit}
           disabled={submitting}
-          className="gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
+          className="gap-2"
         >
           {submitting ? (
             <>

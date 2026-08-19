@@ -56,17 +56,50 @@ export function BookingSuccess({
   return (
     <div className="p-5">
       <div className="text-center py-6">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
-          <PartyPopper className="h-8 w-8 text-blue-600" />
+        {/* Animated success checkmark — SVG draw-on animation */}
+        <div className="inline-flex items-center justify-center mb-4">
+          <svg
+            className="h-20 w-20"
+            viewBox="0 0 52 52"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle
+              cx="26"
+              cy="26"
+              r="24"
+              stroke="oklch(0.62 0.17 145)"
+              strokeWidth="2"
+              fill="oklch(0.62 0.17 145 / 0.1)"
+              style={{
+                strokeDasharray: 200,
+                strokeDashoffset: 200,
+                animation: 'checkmark-circle 400ms ease-out forwards',
+              }}
+            />
+            <path
+              d="M14 27 L22 35 L38 19"
+              stroke="oklch(0.62 0.17 145)"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+              style={{
+                strokeDasharray: 100,
+                strokeDashoffset: 100,
+                animation: 'checkmark-draw 300ms ease-out 200ms forwards',
+              }}
+            />
+          </svg>
         </div>
-        <h3 className="text-xl font-extrabold text-blue-700">Đặt vé thành công!</h3>
+        <h3 className="text-xl font-extrabold text-primary">Đặt vé thành công!</h3>
         <p className="text-sm text-muted-foreground mt-1">
           Vé điện tử đã được gửi đến số điện thoại &amp; email của bạn
         </p>
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2">
           <span className="text-xs text-muted-foreground">Mã vé</span>
-          <code className="font-mono font-bold text-lg text-blue-700">{lastBooking.code}</code>
+          <code className="font-mono font-bold text-lg text-primary">{lastBooking.code}</code>
           <button
             onClick={() => {
               navigator.clipboard.writeText(lastBooking.code)
@@ -76,7 +109,7 @@ export function BookingSuccess({
             className="ml-1 p-1 rounded hover:bg-white"
             aria-label="Sao chép mã vé"
           >
-            {copied ? <CheckCircle2 className="h-4 w-4 text-blue-600" /> : <Copy className="h-4 w-4" />}
+            {copied ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -122,17 +155,17 @@ export function BookingSuccess({
           {insuranceLevel !== 'none' && (
             <div className="flex justify-between">
               <span className="text-muted-foreground flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                 Bảo hiểm
               </span>
-              <span className="font-medium text-blue-700">
+              <span className="font-medium text-primary">
                 {INSURANCE_LABEL_MAP[insuranceLevel]} ({formatCurrency(insuranceCost, currency)})
               </span>
             </div>
           )}
           <div className="flex justify-between border-t pt-2 font-bold text-base">
             <span>Tổng thanh toán</span>
-            <span className="text-blue-700">{formatCurrency(lastBooking.total, currency)}</span>
+            <span className="text-primary">{formatCurrency(lastBooking.total, currency)}</span>
           </div>
         </div>
       )}
