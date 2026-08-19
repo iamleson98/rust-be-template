@@ -17,6 +17,7 @@ import { client } from './lib/api/client.gen'
 import { createAuthFetch } from './lib/auth-fetch'
 import './styles.css'
 import { bootstrapWebVitals } from './lib/web-vitals'
+import { initConsoleProtection } from './lib/console-protection'
 
 client.setConfig({ credentials: 'include', fetch: createAuthFetch() })
 
@@ -61,5 +62,6 @@ if (import.meta.env.PROD && typeof navigator !== 'undefined') {
         .catch((err) => console.warn('[sw] registration failed', err))
     }
     bootstrapWebVitals()
+    initConsoleProtection()
   })
 }

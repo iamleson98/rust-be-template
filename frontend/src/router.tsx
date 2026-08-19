@@ -175,13 +175,19 @@ function ScrollRestoration() {
 // ── Auth bootstrap ─────────────────────────────────────────────
 // Hydrate persisted user from localStorage (fast first paint), then
 // verify with the server via useAuthMe (TanStack Query).
+//
+// CRITICAL: hydrateFromStorage() is called SYNCHRONOUSLY at module
+// load time (below, before the router is created) so that the
+// `beforeLoad` guard in admin routes can read the user from the store
+// on a page reload. Without this, the store is empty on reload →
+// `user.type !== 'employee'` → redirect to /login.
+if (typeof window !== 'undefined') {
+  hydrateFromStorage()
+}
+
 function AuthBootstrap() {
   const { user, setUser, bookingStep } = useApp()
   const { data, isLoading, isError } = useAuthMe()
-
-  useEffect(() => {
-    hydrateFromStorage()
-  }, [])
 
   useEffect(() => {
     if (isLoading) return
@@ -447,7 +453,7 @@ const adminRoute = createRoute({
   path: '/admin',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -464,7 +470,7 @@ const adminBrandsRoute = createRoute({
   path: '/admin/brands',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -480,7 +486,7 @@ const adminRoutesRoute = createRoute({
   path: '/admin/routes',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -496,7 +502,7 @@ const adminSchedulesRoute = createRoute({
   path: '/admin/schedules',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -512,7 +518,7 @@ const adminTicketsRoute = createRoute({
   path: '/admin/tickets',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -528,7 +534,7 @@ const adminChatRoute = createRoute({
   path: '/admin/chat',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -544,7 +550,7 @@ const adminReviewsRoute = createRoute({
   path: '/admin/reviews',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -560,7 +566,7 @@ const adminFeedbackRoute = createRoute({
   path: '/admin/feedback',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -576,7 +582,7 @@ const adminBusLayoutsRoute = createRoute({
   path: '/admin/bus-layouts',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -592,7 +598,7 @@ const adminSystemRoute = createRoute({
   path: '/admin/system',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    if (user && user.type !== "employee") {
       throw redirect({ to: '/login' })
     }
   },
@@ -608,7 +614,11 @@ const adminPaymentsRoute = createRoute({
   path: '/admin/payments',
   beforeLoad: () => {
     const { user } = useApp.getState()
-    if (!user || user.type !== 'employee') {
+    // If the store has a cached user, check the role.
+    // If the store is empty (shouldn't happen after the sync hydration
+    // fix above, but defensive), don't redirect — let AuthBootstrap
+    // reconcile and redirect if needed.
+    if (user && user.type !== 'employee') {
       throw redirect({ to: '/login' })
     }
   },

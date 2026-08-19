@@ -201,11 +201,14 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
             <div className="inline-flex rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
               <button
                 type="button"
-                onClick={() => setSearchParams({ roundTrip: false })}
+                onClick={() => {
+                  form.setValue('roundTrip', false)
+                  setSearchParams({ roundTrip: false })
+                }}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all',
                   !searchParams.roundTrip
-                    ? 'bg-white text-blue-700 shadow-sm'
+                    ? 'bg-white text-primary shadow-sm'
                     : 'text-slate-500 hover:text-slate-700',
                 )}
               >
@@ -214,11 +217,14 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
               </button>
               <button
                 type="button"
-                onClick={() => setSearchParams({ roundTrip: true })}
+                onClick={() => {
+                  form.setValue('roundTrip', true)
+                  setSearchParams({ roundTrip: true })
+                }}
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all',
                   searchParams.roundTrip
-                    ? 'bg-white text-blue-700 shadow-sm'
+                    ? 'bg-white text-primary shadow-sm'
                     : 'text-slate-500 hover:text-slate-700',
                 )}
               >
@@ -256,10 +262,9 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                       value={field.value}
                       onChange={(v) => {
                         field.onChange(v)
-                        setSearchParams({ from: v })
                       }}
                       placeholder="Thành phố / bến xe"
-                      icon={<CircleDot className="h-4 w-4 text-blue-600" />}
+                      icon={<CircleDot className="h-4 w-4 text-primary" />}
                       pinColor="blue"
                       className="[&_input]:h-10"
                     />
@@ -297,7 +302,6 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                       value={field.value}
                       onChange={(v) => {
                         field.onChange(v)
-                        setSearchParams({ to: v })
                       }}
                       placeholder="Thành phố / bến xe"
                       icon={<MapPin className="h-4 w-4 text-rose-600 fill-rose-600/20" />}
