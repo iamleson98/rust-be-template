@@ -277,6 +277,9 @@ function MapSearchBox({
 }
 
 // ── Reverse geocode helper (Tantivy) ────────────────────────
+// Returns a PickedPlace with the NAME of the nearest known place
+// (for display) but keeps the EXACT lat/lon the user clicked (so
+// the marker doesn't jump to a nearby indexed place).
 async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
   try {
     const { data } = await sdkReverseGeocode({ query: { lat, lon, limit: 1 } })
@@ -285,8 +288,10 @@ async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
     if (!h) return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
     return {
       name: h.name,
-      lat: h.lat,
-      lon: h.lon,
+      // Keep the EXACT clicked coordinates — NOT h.lat/h.lon (which is
+      // the nearest indexed place, potentially hundreds of meters away).
+      lat,
+      lon,
       type: h.type,
       province: h.province ?? null,
     }
