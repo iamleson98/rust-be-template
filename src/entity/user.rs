@@ -13,8 +13,8 @@ pub struct Model {
     pub full_name: String,
     #[sea_orm(unique)]
     pub email: String,
-    #[sea_orm(unique)]
-    pub phone: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub phone: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub email_verified_at: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]

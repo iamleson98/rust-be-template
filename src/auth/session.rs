@@ -52,7 +52,7 @@ impl SessionUser {
             role: m.role.clone(),
             name: m.full_name.clone(),
             email: Some(m.email.clone()),
-            phone: Some(m.phone.clone()),
+            phone: m.phone.clone(),
             avatar_url: m.avatar_url.clone(),
             brand_id: m.brand_id.clone(),
             brand_name: None,
