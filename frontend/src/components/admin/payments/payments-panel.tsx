@@ -1,27 +1,21 @@
 'use client'
 
 /**
- * AdminPaymentsPanel — the "Thanh toán" admin tab.
+ * AdminPaymentsPanel — redesigned "Thanh toán" admin page.
  *
- * Lists all payment rows with status + provider filters + pagination.
- * Each row shows: booking code, provider, amount, status, created_at,
- * and (for COD) a "Mark collected" button.
- *
- * Admin actions:
- *   - For pending payments: cancel (returns row to "no active payment" state).
- *   - For completed payments: mark refunded (separate flow).
- *   - For pending COD: mark collected (driver / agent confirms cash received).
- *
- * The page uses the manually-written TanStack Query hooks in
- * `@/lib/queries/payments`, which wrap the payment SDK in
- * `@/lib/api/payments`.
+ * Features:
+ *   - KPI summary cards (total revenue, pending count, completed count)
+ *   - Filter bar with status + provider dropdowns
+ *   - Responsive table → card list on mobile
+ *   - Detail dialog with full payment info
+ *   - Admin actions: cancel, refund, mark COD collected
+ *   - Provider + status badges with semantic colors
  */
 
 import { useMemo, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -38,6 +32,7 @@ import {
 } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
@@ -50,10 +45,12 @@ import {
   XCircle,
   Clock,
   Ban,
-  DollarSign,
-  Banknote,
   Loader2,
   AlertCircle,
+  TrendingUp,
+  Wallet,
+  Banknote,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { useApp } from '@/lib/store'
@@ -67,15 +64,15 @@ import type {
   PaymentStatus,
 } from '@/lib/api/payments'
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 15
 
-const PROVIDER_OPTIONS: { value: string; label: string; icon: string }[] = [
-  { value: 'all', label: 'Tất cả phương thức', icon: '💳' },
-  { value: 'vnpay', label: 'VNPay', icon: '🔵' },
-  { value: 'momo', label: 'MoMo', icon: '🟣' },
-  { value: 'zalopay', label: 'ZaloPay', icon: '🟢' },
-  { value: 'vietqr', label: 'VietQR', icon: '🏦' },
-  { value: 'cod', label: 'Tiền mặt', icon: '💵' },
+const PROVIDER_OPTIONS: { value: string; label: string; icon: React.ReactNode; color: string }[] = [
+  { value: 'all', label: 'Tất cả', icon: <Filter className="h-3.5 w-3.5" />, color: 'text-muted-foreground' },
+  { value: 'vnpay', label: 'VNPay', icon: <span className="text-blue-500 font-bold text-xs">VNP</span>, color: 'text-blue-600' },
+  { value: 'momo', label: 'MoMo', icon: <span className="text-fuchsia-500 font-bold text-xs">MM</span>, color: 'text-fuchsia-600' },
+  { value: 'zalopay', label: 'ZaloPay', icon: <span className="text-emerald-500 font-bold text-xs">ZLP</span>, color: 'text-emerald-600' },
+  { value: 'vietqr', label: 'VietQR', icon: <span className="text-amber-500 font-bold text-xs">QR</span>, color: 'text-amber-600' },
+  { value: 'cod', label: 'Tiền mặt', icon: <Banknote className="h-3.5 w-3.5" />, color: 'text-amber-600' },
 ]
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -86,6 +83,34 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'cancelled', label: 'Đã huỷ' },
   { value: 'refunded', label: 'Đã hoàn tiền' },
 ]
+
+function ProviderBadge({ provider }: { provider: PaymentProvider }) {
+  const meta = PROVIDER_OPTIONS.find((p) => p.value === provider)
+  if (!meta) return <Badge variant="outline" className="text-xs">{provider}</Badge>
+  return (
+    <Badge variant="outline" className={`gap-1.5 text-xs ${meta.color} border-current/20`}>
+      {meta.icon}
+      {meta.label}
+    </Badge>
+  )
+}
+
+function StatusBadge({ status }: { status: PaymentStatus }) {
+  const map: Record<PaymentStatus, { label: string; cls: string; icon: React.ReactNode }> = {
+    pending: { label: 'Đang chờ', cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900', icon: <Clock className="h-3 w-3" /> },
+    completed: { label: 'Hoàn tất', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900', icon: <CheckCircle2 className="h-3 w-3" /> },
+    failed: { label: 'Thất bại', cls: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-900', icon: <XCircle className="h-3 w-3" /> },
+    cancelled: { label: 'Đã huỷ', cls: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/50 dark:text-slate-400 dark:border-slate-800', icon: <Ban className="h-3 w-3" /> },
+    refunded: { label: 'Hoàn tiền', cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900', icon: <ArrowLeftRight className="h-3 w-3" /> },
+  }
+  const m = map[status] ?? map.pending
+  return (
+    <Badge variant="outline" className={`gap-1 text-xs font-medium ${m.cls}`}>
+      {m.icon}
+      {m.label}
+    </Badge>
+  )
+}
 
 export function AdminPaymentsPanel() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -117,6 +142,19 @@ export function AdminPaymentsPanel() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  // Compute KPIs from current page data
+  const kpis = useMemo(() => {
+    const completed = items.filter((p) => p.status === 'completed')
+    const pending = items.filter((p) => p.status === 'pending')
+    const revenue = completed.reduce((sum, p) => sum + p.amount, 0)
+    return {
+      revenue,
+      pendingCount: pending.length,
+      completedCount: completed.length,
+      totalCount: total,
+    }
+  }, [items, total])
+
   const handleSubmitAction = async () => {
     if (!actionDialog) return
     const { type, payment } = actionDialog
@@ -134,8 +172,6 @@ export function AdminPaymentsPanel() {
         } as unknown as { id: string; body: { status: PaymentStatus; reason?: string } })
         toast.success('Đã đánh dấu hoàn tiền')
       } else if (type === 'mark_collected') {
-        // For COD mark-collected, use the dedicated endpoint via a mutation
-        // (we don't have it as a TanStack hook yet — fall back to fetch).
         const amount = actionAmount ? parseInt(actionAmount, 10) : payment.amount
         const res = await fetch(
           `/api/payments/${encodeURIComponent(payment.id)}/mark-cod-collected`,
@@ -161,8 +197,8 @@ export function AdminPaymentsPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
+    <div className="space-y-5">
+      {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -170,25 +206,54 @@ export function AdminPaymentsPanel() {
             Thanh toán
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">Quản lý giao dịch</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Theo dõi và quản lý tất cả giao dịch thanh toán
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="gap-1.5"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            Làm mới
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="gap-1.5"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          Làm mới
+        </Button>
       </div>
 
-      {/* Filters */}
+      {/* ── KPI cards ──────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label="Tổng giao dịch"
+          value={kpis.totalCount.toString()}
+          color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+        />
+        <KpiCard
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          label="Đã hoàn tất"
+          value={kpis.completedCount.toString()}
+          color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+        />
+        <KpiCard
+          icon={<Clock className="h-4 w-4" />}
+          label="Đang chờ"
+          value={kpis.pendingCount.toString()}
+          color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+        />
+        <KpiCard
+          icon={<Wallet className="h-4 w-4" />}
+          label="Doanh thu (trang)"
+          value={formatCurrency(kpis.revenue, currency)}
+          color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
+        />
+      </div>
+
+      {/* ── Filter bar ─────────────────────────────────────── */}
       <Card>
         <CardContent className="p-3 flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Filter className="h-3.5 w-3.5" />
             Lọc:
           </div>
@@ -205,139 +270,218 @@ export function AdminPaymentsPanel() {
             </SelectContent>
           </Select>
           <Select value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setPage(0) }}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectTrigger className="w-[160px] h-8 text-xs">
               <SelectValue placeholder="Phương thức" />
             </SelectTrigger>
             <SelectContent>
               {PROVIDER_OPTIONS.map((o) => (
                 <SelectItem key={o.value} value={o.value} className="text-xs">
-                  <span className="mr-1.5">{o.icon}</span>
-                  {o.label}
+                  <span className="flex items-center gap-1.5">
+                    {o.icon}
+                    {o.label}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <div className="ml-auto text-xs text-muted-foreground">
+          <div className="ml-auto text-xs text-muted-foreground font-medium">
             {total} giao dịch
           </div>
         </CardContent>
       </Card>
 
-      {/* Table */}
+      {/* ── Table / Cards ─────────────────────────────────── */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
             <div className="p-4 space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
               ))}
             </div>
           ) : isError ? (
-            <div className="p-8 text-center">
-              <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                Không tải được danh sách giao dịch. Thử lại.
-              </p>
+            <div className="p-12 text-center">
+              <AlertCircle className="h-10 w-10 text-rose-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground">Không tải được danh sách giao dịch</p>
+              <p className="text-xs text-muted-foreground mt-1">Vui lòng thử lại sau.</p>
+              <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => refetch()}>
+                <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+              </Button>
             </div>
           ) : items.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">
-              Chưa có giao dịch nào khớp với bộ lọc.
+            <div className="p-12 text-center">
+              <CreditCard className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground">Chưa có giao dịch nào</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {statusFilter !== 'all' || providerFilter !== 'all'
+                  ? 'Thử thay đổi bộ lọc.'
+                  : 'Giao dịch sẽ xuất hiện ở đây khi có khách đặt vé.'}
+              </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-xs text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-medium">Mã vé</th>
-                    <th className="text-left px-3 py-2 font-medium">Phương thức</th>
-                    <th className="text-left px-3 py-2 font-medium">Trạng thái</th>
-                    <th className="text-right px-3 py-2 font-medium">Số tiền</th>
-                    <th className="text-left px-3 py-2 font-medium">Tham chiếu</th>
-                    <th className="text-left px-3 py-2 font-medium">Thời gian</th>
-                    <th className="text-right px-3 py-2 font-medium">Thao tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {items.map((p) => (
-                    <tr
-                      key={p.id}
-                      className="hover:bg-slate-50/50 cursor-pointer"
-                      onClick={() => setSelectedPayment(p)}
-                    >
-                      <td className="px-3 py-2 font-mono text-xs">
+            <>
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs text-muted-foreground border-b">
+                    <tr>
+                      <th className="text-left px-4 py-2.5 font-medium">Mã vé</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Phương thức</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Trạng thái</th>
+                      <th className="text-right px-4 py-2.5 font-medium">Số tiền</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Tham chiếu</th>
+                      <th className="text-left px-4 py-2.5 font-medium">Thời gian</th>
+                      <th className="text-right px-4 py-2.5 font-medium">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/50">
+                    {items.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="hover:bg-muted/30 cursor-pointer transition-colors card-hover-lift"
+                        onClick={() => setSelectedPayment(p)}
+                      >
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-semibold text-xs">
+                            {p.bookingCode ?? p.bookingId.slice(0, 8)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3"><ProviderBadge provider={p.provider} /></td>
+                        <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                        <td className="px-4 py-3 text-right font-bold tabular-nums">
+                          {formatCurrency(p.amount, currency)}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {p.providerTxnRef.slice(0, 14)}
+                          {p.providerTxnRef.length > 14 ? '…' : ''}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">
+                          {new Date(p.createdAt).toLocaleString('vi-VN', {
+                            day: '2-digit', month: '2-digit',
+                            hour: '2-digit', minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1">
+                            {p.status === 'pending' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                                disabled={updateStatus.isPending}
+                                onClick={() => setActionDialog({ type: 'cancel', payment: p })}
+                              >
+                                Huỷ
+                              </Button>
+                            )}
+                            {p.status === 'pending' && p.provider === 'cod' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                disabled={updateStatus.isPending}
+                                onClick={() => {
+                                  setActionDialog({ type: 'mark_collected', payment: p })
+                                  setActionAmount(String(p.amount))
+                                }}
+                              >
+                                Đã thu
+                              </Button>
+                            )}
+                            {p.status === 'completed' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                                disabled={updateStatus.isPending}
+                                onClick={() => setActionDialog({ type: 'refund', payment: p })}
+                              >
+                                Hoàn tiền
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y divide-border/50">
+                {items.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-4 hover:bg-muted/30 cursor-pointer transition-colors"
+                    onClick={() => setSelectedPayment(p)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-mono font-semibold text-xs">
                         {p.bookingCode ?? p.bookingId.slice(0, 8)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <ProviderBadge provider={p.provider} />
-                      </td>
-                      <td className="px-3 py-2">
-                        <StatusBadge status={p.status} />
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold">
+                      </span>
+                      <StatusBadge status={p.status} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <ProviderBadge provider={p.provider} />
+                      <span className="font-bold tabular-nums text-sm">
                         {formatCurrency(p.amount, currency)}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-                        {p.providerTxnRef.slice(0, 16)}
-                        {p.providerTxnRef.length > 16 ? '…' : ''}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
-                        {new Date(p.createdAt).toLocaleString('vi-VN')}
-                      </td>
-                      <td className="px-3 py-2 text-right">
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1.5">
+                      {new Date(p.createdAt).toLocaleString('vi-VN', {
+                        day: '2-digit', month: '2-digit',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </div>
+                    {(p.status === 'pending' || p.status === 'completed') && (
+                      <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
                         {p.status === 'pending' && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 h-7 text-xs"
+                            className="h-7 text-xs text-rose-600 border-rose-200 hover:bg-rose-50"
                             disabled={updateStatus.isPending}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActionDialog({ type: 'cancel', payment: p })
-                            }}
+                            onClick={() => setActionDialog({ type: 'cancel', payment: p })}
                           >
                             Huỷ
                           </Button>
                         )}
                         {p.status === 'pending' && p.provider === 'cod' && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-7 text-xs ml-1"
+                            className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
                             disabled={updateStatus.isPending}
-                            onClick={(e) => {
-                              e.stopPropagation()
+                            onClick={() => {
                               setActionDialog({ type: 'mark_collected', payment: p })
                               setActionAmount(String(p.amount))
                             }}
                           >
-                            Đã thu
+                            Đã thu tiền
                           </Button>
                         )}
                         {p.status === 'completed' && (
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-7 text-xs"
+                            className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
                             disabled={updateStatus.isPending}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setActionDialog({ type: 'refund', payment: p })
-                            }}
+                            onClick={() => setActionDialog({ type: 'refund', payment: p })}
                           >
                             Hoàn tiền
                           </Button>
                         )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t px-3 py-2 text-xs">
+            <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs">
               <span className="text-muted-foreground">
                 Trang {page + 1} / {totalPages}
               </span>
@@ -345,7 +489,7 @@ export function AdminPaymentsPanel() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7"
+                  className="h-7 w-7 p-0"
                   disabled={page === 0}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                 >
@@ -354,7 +498,7 @@ export function AdminPaymentsPanel() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-7"
+                  className="h-7 w-7 p-0"
                   disabled={page >= totalPages - 1}
                   onClick={() => setPage((p) => p + 1)}
                 >
@@ -366,7 +510,7 @@ export function AdminPaymentsPanel() {
         </CardContent>
       </Card>
 
-      {/* Detail dialog */}
+      {/* ── Detail dialog ──────────────────────────────────── */}
       <Dialog open={!!selectedPayment} onOpenChange={(o) => !o && setSelectedPayment(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -376,25 +520,25 @@ export function AdminPaymentsPanel() {
             </DialogDescription>
           </DialogHeader>
           {selectedPayment && (
-            <div className="space-y-3 text-sm">
-              <DetailRow label="Mã vé" value={selectedPayment.bookingCode ?? '—'} />
-              <DetailRow
-                label="Phương thức"
-                value={<ProviderBadge provider={selectedPayment.provider} />}
-              />
-              <DetailRow
-                label="Trạng thái"
-                value={<StatusBadge status={selectedPayment.status} />}
-              />
+            <div className="space-y-2.5 text-sm">
+              <DetailRow label="Mã vé" value={
+                <span className="font-mono font-semibold">{selectedPayment.bookingCode ?? '—'}</span>
+              } />
+              <DetailRow label="Phương thức" value={<ProviderBadge provider={selectedPayment.provider} />} />
+              <DetailRow label="Trạng thái" value={<StatusBadge status={selectedPayment.status} />} />
               <DetailRow
                 label="Số tiền"
                 value={
-                  <span className="font-bold text-blue-700">
+                  <span className="font-bold text-primary text-base">
                     {formatCurrency(selectedPayment.amount, currency)}
                   </span>
                 }
               />
-              <DetailRow label="Mã GD cổng" value={selectedPayment.providerTransId ?? '—'} />
+              <DetailRow label="Mã GD cổng" value={
+                <span className="font-mono text-xs text-muted-foreground">
+                  {selectedPayment.providerTransId ?? '—'}
+                </span>
+              } />
               <DetailRow label="Nội dung" value={selectedPayment.memo ?? '—'} />
               <DetailRow
                 label="Thời gian tạo"
@@ -411,16 +555,63 @@ export function AdminPaymentsPanel() {
                 />
               )}
               {selectedPayment.failureReason && (
-                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2">
+                <div className="rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-400 text-xs px-3 py-2">
                   Lý do thất bại: {selectedPayment.failureReason}
                 </div>
               )}
+
+              {/* Action buttons in detail dialog */}
+              <div className="flex items-center gap-2 pt-3 border-t">
+                {selectedPayment.status === 'pending' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => {
+                      setActionDialog({ type: 'cancel', payment: selectedPayment })
+                      setSelectedPayment(null)
+                    }}
+                  >
+                    <Ban className="h-3.5 w-3.5" /> Huỷ giao dịch
+                  </Button>
+                )}
+                {selectedPayment.status === 'pending' && selectedPayment.provider === 'cod' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => {
+                      setActionDialog({ type: 'mark_collected', payment: selectedPayment })
+                      setActionAmount(String(selectedPayment.amount))
+                      setSelectedPayment(null)
+                    }}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Đã thu tiền
+                  </Button>
+                )}
+                {selectedPayment.status === 'completed' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => {
+                      setActionDialog({ type: 'refund', payment: selectedPayment })
+                      setSelectedPayment(null)
+                    }}
+                  >
+                    <ArrowLeftRight className="h-3.5 w-3.5" /> Hoàn tiền
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Action dialog */}
+      {/* ── Action dialog ──────────────────────────────────── */}
       <Dialog open={!!actionDialog} onOpenChange={(o) => !o && setActionDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -487,9 +678,35 @@ export function AdminPaymentsPanel() {
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Sub-components
-// ─────────────────────────────────────────────────────────────
+// ── Helper components ───────────────────────────────────────────
+
+function KpiCard({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  color: string
+}) {
+  return (
+    <Card>
+      <CardContent className="p-3 sm:p-4">
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center justify-center h-8 w-8 rounded-lg ${color}`}>
+            {icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] text-muted-foreground truncate">{label}</div>
+            <div className="text-base font-bold tabular-nums truncate">{value}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 function DetailRow({
   label,
@@ -499,86 +716,9 @@ function DetailRow({
   value: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between border-b pb-2">
+    <div className="flex items-center justify-between border-b pb-2 last:border-b-0">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm font-medium">{value}</span>
+      <span className="text-sm font-medium text-right">{value}</span>
     </div>
-  )
-}
-
-function ProviderBadge({ provider }: { provider: PaymentProvider }) {
-  const meta: Record<
-    PaymentProvider,
-    { label: string; cls: string; icon: React.ReactNode }
-  > = {
-    vnpay: {
-      label: 'VNPay',
-      cls: 'bg-blue-100 text-blue-800',
-      icon: <DollarSign className="h-3 w-3" />,
-    },
-    momo: {
-      label: 'MoMo',
-      cls: 'bg-fuchsia-100 text-fuchsia-800',
-      icon: <DollarSign className="h-3 w-3" />,
-    },
-    zalopay: {
-      label: 'ZaloPay',
-      cls: 'bg-emerald-100 text-emerald-800',
-      icon: <DollarSign className="h-3 w-3" />,
-    },
-    vietqr: {
-      label: 'VietQR',
-      cls: 'bg-amber-100 text-amber-800',
-      icon: <Banknote className="h-3 w-3" />,
-    },
-    cod: {
-      label: 'Tiền mặt',
-      cls: 'bg-amber-100 text-amber-800',
-      icon: <Banknote className="h-3 w-3" />,
-    },
-  }
-  const m = meta[provider] ?? meta.cod
-  return (
-    <Badge variant="outline" className={`gap-1 text-[11px] ${m.cls}`}>
-      {m.icon}
-      {m.label}
-    </Badge>
-  )
-}
-
-function StatusBadge({ status }: { status: PaymentStatus }) {
-  const map: Record<PaymentStatus, { label: string; cls: string; icon: React.ReactNode }> = {
-    pending: {
-      label: 'Đang chờ',
-      cls: 'bg-amber-100 text-amber-800',
-      icon: <Clock className="h-3 w-3" />,
-    },
-    completed: {
-      label: 'Hoàn tất',
-      cls: 'bg-emerald-100 text-emerald-800',
-      icon: <CheckCircle2 className="h-3 w-3" />,
-    },
-    failed: {
-      label: 'Thất bại',
-      cls: 'bg-rose-100 text-rose-800',
-      icon: <XCircle className="h-3 w-3" />,
-    },
-    cancelled: {
-      label: 'Đã huỷ',
-      cls: 'bg-slate-100 text-slate-700',
-      icon: <Ban className="h-3 w-3" />,
-    },
-    refunded: {
-      label: 'Đã hoàn tiền',
-      cls: 'bg-blue-100 text-blue-800',
-      icon: <RefreshCw className="h-3 w-3" />,
-    },
-  }
-  const m = map[status] ?? map.pending
-  return (
-    <Badge variant="outline" className={`gap-1 text-[11px] ${m.cls}`}>
-      {m.icon}
-      {m.label}
-    </Badge>
   )
 }
