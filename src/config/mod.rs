@@ -32,7 +32,6 @@ pub struct Config {
     pub payment: PaymentConfig,
 }
 
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ServerConfig {
@@ -310,7 +309,10 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
-        Self { rpm: 600, burst: 100 }
+        Self {
+            rpm: 600,
+            burst: 100,
+        }
     }
 }
 
@@ -447,7 +449,6 @@ pub struct SearchConfig {
     /// Path to the OSM PBF file used by `import-osm` to build the index.
     pub osm_pbf_path: Option<PathBuf>,
 }
-
 
 // ────────────────────────────────────────────────────────────────
 //  WebSocket chat hub
@@ -639,10 +640,7 @@ impl ZalopayConfig {
     }
 
     pub fn is_active(&self) -> bool {
-        self.enabled
-            && !self.app_id.is_empty()
-            && !self.key1.is_empty()
-            && !self.key2.is_empty()
+        self.enabled && !self.app_id.is_empty() && !self.key1.is_empty() && !self.key2.is_empty()
     }
 }
 
@@ -835,7 +833,10 @@ impl Config {
         tracing::info!("    enabled:            {}", self.zeroclaw.enabled);
         tracing::info!("    is_active:          {}", self.zeroclaw.is_active());
         tracing::info!("    api_url:             {}", self.zeroclaw.api_url);
-        tracing::info!("    api_key:            {}", mask_secret(&self.zeroclaw.api_key));
+        tracing::info!(
+            "    api_key:            {}",
+            mask_secret(&self.zeroclaw.api_key)
+        );
         tracing::info!("    model:              {}", self.zeroclaw.model);
         tracing::info!("    timeout:            {}ms", self.zeroclaw.timeout_ms);
         tracing::info!("    max_history:        {}", self.zeroclaw.max_history);
@@ -864,7 +865,10 @@ impl Config {
 
         tracing::info!("  payment:");
         tracing::info!("    public_base_url:   {}", self.payment.public_base_url);
-        tracing::info!("    default_expiry:   {}m", self.payment.default_expiry_minutes);
+        tracing::info!(
+            "    default_expiry:   {}m",
+            self.payment.default_expiry_minutes
+        );
         tracing::info!("    cod_enabled:      {}", self.payment.cod_enabled);
         tracing::info!(
             "    vnpay.active:     {} (env={}, tmn={})",

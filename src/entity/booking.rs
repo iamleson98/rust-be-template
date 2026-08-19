@@ -69,6 +69,8 @@ pub enum Relation {
         on_delete = "SetNull"
     )]
     Campaign,
+    #[sea_orm(has_many = "super::payment::Entity")]
+    Payment,
     #[sea_orm(
         belongs_to = "super::pickup_point::Entity",
         from = "Column::DroppingPointId",
@@ -116,6 +118,12 @@ impl Related<super::booking_seat::Entity> for Entity {
 impl Related<super::campaign::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Campaign.def()
+    }
+}
+
+impl Related<super::payment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Payment.def()
     }
 }
 

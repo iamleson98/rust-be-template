@@ -1,7 +1,7 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::migration::m20260809_020741_bookings::Booking;
 use crate::migration::m20250101_000001_create_users::User;
+use crate::migration::m20260809_020741_bookings::Booking;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

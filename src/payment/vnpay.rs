@@ -63,10 +63,7 @@ impl Provider for VnpayProvider {
         super::providers::VNPAY
     }
 
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError> {
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError> {
         if !self.is_configured() {
             return Err(AppError::ServiceUnavailable(
                 "VNPay provider is not configured (missing tmn_code / hash_secret)".into(),
@@ -168,7 +165,9 @@ impl VnpayProvider {
 
         // Constant-time compare to prevent timing attacks.
         if !constant_time_eq::constant_time_eq(computed.as_bytes(), received_hash.as_bytes()) {
-            return Err(AppError::Unauthorized("invalid vnp_SecureHash signature".into()));
+            return Err(AppError::Unauthorized(
+                "invalid vnp_SecureHash signature".into(),
+            ));
         }
 
         let txn_ref = params

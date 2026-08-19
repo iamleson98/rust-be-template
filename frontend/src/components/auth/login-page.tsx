@@ -63,7 +63,7 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         <button
           onClick={() => navigate({ to: '/' })}
-          className="inline-flex items-center gap-1.5 text-sm text-blue-200 hover:text-white transition-colors mb-5"
+          className="inline-flex items-center gap-1.5 text-sm text-blue-600 mb-5"
         >
           <ArrowLeft className="h-4 w-4" />
           Về trang chủ
@@ -117,9 +117,9 @@ export function LoginPage() {
         </div>
 
         {/* Trust note */}
-        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-blue-200/80">
+        <div className="mt-5 flex items-center justify-center gap-2 text-xs text-blue-600">
           <ShieldCheck className="h-3.5 w-3.5" />
-          Bảo mật bởi JWT + Refresh Token, mật khẩu mã hoá bcrypt
+          Thông tin cá nhân của bạn được bảo mật và mã hoá an toàn tuyệt đối.
         </div>
       </div>
     </div>

@@ -626,10 +626,22 @@ impl PublicService {
         // (already loaded above) — they're independent of each other.
         // Running them concurrently with `tokio::try_join!` cuts 5
         // sequential DB round-trips down to 1 (the slowest one).
-        let brand_id_uid = route.brand_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
-        let start_location_uid = route.start_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
-        let end_location_uid = route.end_location_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
-        let bus_layout_uid = schedule.bus_layout_id.as_deref().and_then(|s| Uuid::parse_str(s).ok());
+        let brand_id_uid = route
+            .brand_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+        let start_location_uid = route
+            .start_location_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+        let end_location_uid = route
+            .end_location_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
+        let bus_layout_uid = schedule
+            .bus_layout_id
+            .as_deref()
+            .and_then(|s| Uuid::parse_str(s).ok());
 
         let brand_fut = async {
             if let Some(uid) = brand_id_uid {
@@ -664,8 +676,7 @@ impl PublicService {
         // borrows them) to be polled.
         let route_id_str = route.id.to_string();
         let route_store = self.store.route_store();
-        let pickup_points_fut = route_store
-            .list_pickup_points_by_route(&route_id_str);
+        let pickup_points_fut = route_store.list_pickup_points_by_route(&route_id_str);
 
         let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
             brand_fut,

@@ -65,7 +65,8 @@ pub async fn toggle(
     AuthUser(uid): AuthUser,
     Json(body): Json<ToggleWishlistRequest>,
 ) -> Result<Json<ToggleWishlistResponse>, AppError> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     Ok(Json(
         st.wishlist
             .toggle(uid, body.route_id.as_deref(), body.trip_id.as_deref())

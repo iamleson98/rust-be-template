@@ -1,8 +1,8 @@
 use axum::extract::{Path, Query, State};
-use validator::Validate;
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::dto::review::{
     CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
@@ -82,7 +82,8 @@ pub async fn create(
     AuthUser(uid): AuthUser,
     Json(body): Json<CreateReviewInput>,
 ) -> Result<Json<ReviewMutationResponse>, AppError> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let mut input = body;
     input.user_id = Some(uid.to_string());
     Ok(Json(st.reviews.create(&input).await?))
@@ -107,7 +108,8 @@ pub async fn update(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateReviewInput>,
 ) -> Result<Json<ReviewMutationResponse>, AppError> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     Ok(Json(
         st.reviews.update(id, Some(&uid.to_string()), &body).await?,
     ))

@@ -40,11 +40,11 @@ use uuid::Uuid;
 
 use crate::config::PaymentConfig;
 use crate::dto::payment::{
-    AdminPaymentOut, AdminPaymentListResponse, BankTransferInstructions, CancelPaymentResponse,
+    AdminPaymentListResponse, AdminPaymentOut, BankTransferInstructions, CancelPaymentResponse,
     CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse, MarkCodCollectedResponse,
     PaymentOut, UpdatePaymentStatusResponse,
 };
-use crate::entity::payment::{self, providers, statuses};
+use crate::entity::payment::{self};
 use crate::error::{AppError, AppResult};
 use crate::payment::cod::CodProvider;
 use crate::payment::momo::{MomoIpnPayload, MomoProvider};
@@ -52,6 +52,7 @@ use crate::payment::provider::{CreatePaymentInput, Provider};
 use crate::payment::vietqr::VietQrProvider;
 use crate::payment::vnpay::VnpayProvider;
 use crate::payment::zalopay::{ZalopayCallbackPayload, ZalopayProvider};
+use crate::payment::{providers, statuses};
 use crate::store::CompositeStore;
 
 use base64::Engine;
@@ -126,9 +127,8 @@ impl PaymentService {
         req.validate_provider()?;
 
         // Look up the booking.
-        let booking_id = Uuid::parse_str(&req.booking_id).map_err(|_| {
-            AppError::BadRequest("booking_id is not a valid UUID".into())
-        })?;
+        let booking_id = Uuid::parse_str(&req.booking_id)
+            .map_err(|_| AppError::BadRequest("booking_id is not a valid UUID".into()))?;
         let booking = self
             .store
             .booking_store()
@@ -224,7 +224,9 @@ impl PaymentService {
             .ok_or_else(|| AppError::Internal("payment row not found after insert".into()))?;
 
         let payment_out = self.to_payment_out(&model, &result.qr_image_png);
-        Ok(CreatePaymentResponse { payment: payment_out })
+        Ok(CreatePaymentResponse {
+            payment: payment_out,
+        })
     }
 
     /// Fetch a single payment by id. Caller must own the payment's
@@ -296,10 +298,7 @@ impl PaymentService {
             .iter()
             .map(|p| self.to_payment_out(p, &None))
             .collect();
-        Ok(ListPaymentsResponse {
-            items,
-            total: None,
-        })
+        Ok(ListPaymentsResponse { items, total: None })
     }
 
     /// Cancel a pending payment (user-initiated). Does NOT cancel the
@@ -397,13 +396,9 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Confirm the booking (flips seats from held → booked).
-        let booking_id = Uuid::parse_str(&updated.booking_id).map_err(|_| {
-            AppError::Internal("payment.booking_id is not a valid UUID".into())
-        })?;
-        let _ = self
-            .booking
-            .confirm(booking_id, providers::COD)
-            .await?;
+        let booking_id = Uuid::parse_str(&updated.booking_id)
+            .map_err(|_| AppError::Internal("payment.booking_id is not a valid UUID".into()))?;
+        let _ = self.booking.confirm(booking_id, providers::COD).await?;
 
         Ok(MarkCodCollectedResponse {
             payment_id: updated.id,
@@ -447,7 +442,10 @@ impl PaymentService {
         // Extract the gateway's response code. `vnp_ResponseCode == "00"`
         // means success; `vnp_TransactionStatus == "00"` confirms the
         // transaction was successful.
-        let response_code = params.get("vnp_ResponseCode").map(|s| s.as_str()).unwrap_or("");
+        let response_code = params
+            .get("vnp_ResponseCode")
+            .map(|s| s.as_str())
+            .unwrap_or("");
         let txn_status = params
             .get("vnp_TransactionStatus")
             .map(|s| s.as_str())
@@ -477,8 +475,12 @@ impl PaymentService {
                 }
             }
 
-            self.mark_completed(p, provider_trans_id, serde_json::to_string(params).unwrap_or_default())
-                .await?;
+            self.mark_completed(
+                p,
+                provider_trans_id,
+                serde_json::to_string(params).unwrap_or_default(),
+            )
+            .await?;
         } else {
             // Failure — mark payment failed (booking stays pending so the
             // user can retry with a different provider).
@@ -797,11 +799,7 @@ impl PaymentService {
 
     // ── Internal helpers ─────────────────────────────────────────
 
-    async fn assert_ownership(
-        &self,
-        p: &payment::Model,
-        user_id: Option<&str>,
-    ) -> AppResult<()> {
+    async fn assert_ownership(&self, p: &payment::Model, user_id: Option<&str>) -> AppResult<()> {
         if let Some(uid) = user_id {
             if p.user_id.as_deref() == Some(uid) {
                 return Ok(());
@@ -949,28 +947,25 @@ impl PaymentService {
     /// Convert a `payment::Model` to a `PaymentOut` DTO, optionally
     /// attaching the PNG bytes as a data URI.
     fn to_payment_out(&self, p: &payment::Model, qr_image_png: &Option<Vec<u8>>) -> PaymentOut {
-        let qr_image_data_uri = qr_image_png
-            .as_ref()
-            .map(|bytes| {
-                let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
-                format!("data:image/png;base64,{b64}")
-            });
+        let qr_image_data_uri = qr_image_png.as_ref().map(|bytes| {
+            let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+            format!("data:image/png;base64,{b64}")
+        });
 
         // For VietQR, include the bank-transfer instructions.
-        let bank_transfer_instructions = if p.provider == providers::VIETQR
-            && self.cfg.vietqr.is_active()
-        {
-            Some(BankTransferInstructions {
-                bank_bin: self.cfg.vietqr.bank_bin.clone(),
-                bank_name: bank_name_for_bin(&self.cfg.vietqr.bank_bin),
-                account_no: self.cfg.vietqr.account_no.clone(),
-                account_name: self.cfg.vietqr.account_name.clone(),
-                amount: p.amount,
-                memo: p.memo.clone().unwrap_or_default(),
-            })
-        } else {
-            None
-        };
+        let bank_transfer_instructions =
+            if p.provider == providers::VIETQR && self.cfg.vietqr.is_active() {
+                Some(BankTransferInstructions {
+                    bank_bin: self.cfg.vietqr.bank_bin.clone(),
+                    bank_name: bank_name_for_bin(&self.cfg.vietqr.bank_bin),
+                    account_no: self.cfg.vietqr.account_no.clone(),
+                    account_name: self.cfg.vietqr.account_name.clone(),
+                    amount: p.amount,
+                    memo: p.memo.clone().unwrap_or_default(),
+                })
+            } else {
+                None
+            };
 
         PaymentOut {
             id: p.id,

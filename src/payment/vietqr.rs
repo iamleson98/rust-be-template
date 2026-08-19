@@ -55,9 +55,7 @@ impl VietQrProvider {
     }
 
     pub fn is_configured(&self) -> bool {
-        !self.bank_bin.is_empty()
-            && !self.account_no.is_empty()
-            && !self.account_name.is_empty()
+        !self.bank_bin.is_empty() && !self.account_no.is_empty() && !self.account_name.is_empty()
     }
 
     pub fn bank_bin(&self) -> &str {
@@ -77,10 +75,7 @@ impl Provider for VietQrProvider {
         super::providers::VIETQR
     }
 
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError> {
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError> {
         if !self.is_configured() {
             return Err(AppError::ServiceUnavailable(
                 "VietQR provider is not configured (missing bank_bin / account_no / account_name)"
@@ -107,27 +102,28 @@ impl Provider for VietQrProvider {
         // + a PNG encoder, avoiding the `image` crate's `ImageBuffer` wrapper
         // (which would require a separate `.into_raw()` call).
         let payload_for_png = qr_payload.clone();
-        let qr_image_png: Vec<u8> = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, AppError> {
-            let code = qrcode::QrCode::new(payload_for_png.as_bytes())
-                .map_err(|e| AppError::Internal(format!("qr encode failed: {e}")))?;
-            // Render to a greyscale pixel buffer (1 byte per pixel).
-            let mut renderer = code.render::<image::Luma<u8>>();
-            let image_buffer = renderer.min_dimensions(480, 480).build();
-            // Encode the ImageBuffer to PNG.
-            let mut png_bytes: Vec<u8> = Vec::new();
-            let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
-            image::ImageEncoder::write_image(
-                encoder,
-                image_buffer.as_raw(),
-                image_buffer.width(),
-                image_buffer.height(),
-                image::ExtendedColorType::L8,
-            )
-            .map_err(|e| AppError::Internal(format!("png encode failed: {e}")))?;
-            Ok(png_bytes)
-        })
-        .await
-        .map_err(|e| AppError::Internal(format!("qr render join failed: {e}")))??;
+        let qr_image_png: Vec<u8> =
+            tokio::task::spawn_blocking(move || -> Result<Vec<u8>, AppError> {
+                let code = qrcode::QrCode::new(payload_for_png.as_bytes())
+                    .map_err(|e| AppError::Internal(format!("qr encode failed: {e}")))?;
+                // Render to a greyscale pixel buffer (1 byte per pixel).
+                let mut renderer = code.render::<image::Luma<u8>>();
+                let image_buffer = renderer.min_dimensions(480, 480).build();
+                // Encode the ImageBuffer to PNG.
+                let mut png_bytes: Vec<u8> = Vec::new();
+                let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
+                image::ImageEncoder::write_image(
+                    encoder,
+                    image_buffer.as_raw(),
+                    image_buffer.width(),
+                    image_buffer.height(),
+                    image::ExtendedColorType::L8,
+                )
+                .map_err(|e| AppError::Internal(format!("png encode failed: {e}")))?;
+                Ok(png_bytes)
+            })
+            .await
+            .map_err(|e| AppError::Internal(format!("qr render join failed: {e}")))??;
 
         Ok(ProviderResult {
             gateway_url: None,
@@ -240,13 +236,15 @@ mod tests {
         // Must start with the payload format indicator.
         assert!(s.starts_with("000201010212"));
         // Must end with a 4-digit hex CRC after "6304".
-        assert!(s.ends_with("6304") || {
-            let tail = &s[s.len() - 8..];
-            tail.starts_with("6304") && {
-                let _ = u16::from_str_radix(&s[s.len() - 4..], 16);
-                true
+        assert!(
+            s.ends_with("6304") || {
+                let tail = &s[s.len() - 8..];
+                tail.starts_with("6304") && {
+                    let _ = u16::from_str_radix(&s[s.len() - 4..], 16);
+                    true
+                }
             }
-        });
+        );
         // Must contain the NAPAS AID.
         assert!(s.contains("A000000727"));
         // Must contain the bank BIN + account number.

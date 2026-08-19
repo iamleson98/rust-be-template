@@ -1,8 +1,8 @@
 use axum::extract::{Path, Query, State};
-use validator::Validate;
 use axum::Json;
 use serde::Deserialize;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::dto::booking::{
     BookingCancelResponse, BookingConfirmResponse, BookingDetailResponse, BookingHoldResponse,
@@ -61,7 +61,8 @@ pub async fn hold(
     AuthUser(_uid): AuthUser,
     Json(body): Json<HoldReq>,
 ) -> Result<Json<BookingHoldResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.hold(&body).await?))
 }
 
@@ -132,7 +133,8 @@ pub async fn cancel(
     Path(id): Path<Uuid>,
     Json(body): Json<CancelReq>,
 ) -> Result<Json<BookingCancelResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.cancel(id, body.reason.as_deref()).await?))
 }
 
@@ -155,7 +157,8 @@ pub async fn confirm(
     Path(id): Path<Uuid>,
     Json(body): Json<ConfirmReq>,
 ) -> Result<Json<BookingConfirmResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     Ok(Json(st.bookings.confirm(id, &body.payment_method).await?))
 }
 

@@ -29,7 +29,11 @@ pub async fn brands(
     State(st): State<AppState>,
     Query(q): Query<LimitQuery>,
 ) -> Result<Json<BrandListResponse>, AppError> {
-    Ok(Json(st.public.list_brands(q.limit.unwrap_or(20).min(200)).await?))
+    Ok(Json(
+        st.public
+            .list_brands(q.limit.unwrap_or(20).min(200))
+            .await?,
+    ))
 }
 
 /// `GET /api/brands/{slug}` — get brand detail.

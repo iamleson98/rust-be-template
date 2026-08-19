@@ -48,7 +48,7 @@ pub struct ChatHub {
     rooms: DashMap<String, DashSet<u64>>,
     online_employees: OnlineEmployees,
     ip_conns: DashMap<String, std::sync::atomic::AtomicUsize>,
-    idempotency: DashMap<String, (Instant, Option<String>)>,  // (stored_at, value)
+    idempotency: DashMap<String, (Instant, Option<String>)>, // (stored_at, value)
     next_id: std::sync::atomic::AtomicU64,
     /// Total live sessions across all IPs (atomic for O(1) admission checks).
     global_conns: AtomicUsize,
@@ -489,8 +489,10 @@ impl ChatHub {
 
     /// Record the final message id for a previously-claimed `clientMsgId`.
     pub fn idem_store(&self, client_msg_id: &str, msg_id: &str) {
-        self.idempotency
-            .insert(client_msg_id.to_string(), (Instant::now(), Some(msg_id.to_string())));
+        self.idempotency.insert(
+            client_msg_id.to_string(),
+            (Instant::now(), Some(msg_id.to_string())),
+        );
     }
 
     /// Garbage-collect idempotency entries older than `IDEM_TTL`.
@@ -503,12 +505,17 @@ impl ChatHub {
         for entry in self.idempotency.iter() {
             let (stored_at, _) = entry.value();
             if now.duration_since(*stored_at) > Self::IDEM_TTL
-                && self.idempotency.remove(entry.key()).is_some() {
-                    removed += 1;
-                }
+                && self.idempotency.remove(entry.key()).is_some()
+            {
+                removed += 1;
+            }
         }
         if removed > 0 {
-            tracing::debug!(removed, remaining = self.idempotency.len(), "idem_gc swept expired entries");
+            tracing::debug!(
+                removed,
+                remaining = self.idempotency.len(),
+                "idem_gc swept expired entries"
+            );
         }
     }
 
@@ -543,9 +550,10 @@ impl ChatHub {
         let mut purged = 0;
         for entry in self.channel_exists_cache.iter() {
             if now.duration_since(*entry.value()) >= ttl
-                && self.channel_exists_cache.remove(entry.key()).is_some() {
-                    purged += 1;
-                }
+                && self.channel_exists_cache.remove(entry.key()).is_some()
+            {
+                purged += 1;
+            }
         }
         if purged > 0 {
             tracing::debug!(
@@ -582,7 +590,9 @@ impl ChatHub {
     /// Used by the drain path to push a `system: shutting down` notice.
     pub fn send_raw_to(&self, id: u64, payload: &str) {
         if let Some(sess) = self.sessions.get(&id) {
-            let _ = sess.tx.try_send(bytes::Bytes::copy_from_slice(payload.as_bytes()));
+            let _ = sess
+                .tx
+                .try_send(bytes::Bytes::copy_from_slice(payload.as_bytes()));
         }
     }
 }

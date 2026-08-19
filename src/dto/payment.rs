@@ -11,7 +11,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::entity::payment::{providers, statuses};
+use crate::payment::model::{providers, statuses};
 use crate::validation::validate_phone;
 
 // ────────────────────────────────────────────────────────────────

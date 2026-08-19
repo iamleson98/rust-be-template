@@ -73,7 +73,9 @@ impl Peer {
     /// the peer's outbound queue is full or the socket has been dropped —
     /// caller should treat that as "peer gone" and clean up.
     pub fn send_raw(&self, payload: &str) -> bool {
-        self.tx.try_send(bytes::Bytes::copy_from_slice(payload.as_bytes())).is_ok()
+        self.tx
+            .try_send(bytes::Bytes::copy_from_slice(payload.as_bytes()))
+            .is_ok()
     }
 
     /// Convenience: serialise a `serde_json::Value` and send it.

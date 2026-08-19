@@ -115,7 +115,10 @@ impl AuthService {
         // admin (first-user case). Propagate now.
         let roles = self.store.rbac_store().list_roles().await?;
         if let Some(role) = roles.iter().find(|r| r.name == role_name) {
-            self.store.rbac_store().assign_role(model.id, role.id).await?;
+            self.store
+                .rbac_store()
+                .assign_role(model.id, role.id)
+                .await?;
         }
 
         Ok(model)
@@ -140,11 +143,10 @@ impl AuthService {
         let password_arc = self.password.clone();
         let pwd_string = password.to_string();
         let hash_string = hash.to_string();
-        let password_ok = tokio::task::spawn_blocking(move || {
-            password_arc.verify(&pwd_string, &hash_string)
-        })
-        .await
-        .map_err(|e| AppError::Internal(format!("verify join: {e}")))?;
+        let password_ok =
+            tokio::task::spawn_blocking(move || password_arc.verify(&pwd_string, &hash_string))
+                .await
+                .map_err(|e| AppError::Internal(format!("verify join: {e}")))?;
 
         if !password_ok {
             return Err(AppError::Unauthorized("invalid credentials".into()));

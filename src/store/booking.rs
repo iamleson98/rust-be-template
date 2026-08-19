@@ -30,10 +30,7 @@ pub trait BookingStore: Send + Sync {
 
     /// Batch fetch bookings by id. Used by the payment admin list to
     /// resolve booking codes without an N+1 round-trip per payment row.
-    async fn find_bookings_by_ids(
-        &self,
-        ids: Vec<Uuid>,
-    ) -> StoreResult<Vec<booking::Model>>;
+    async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>>;
 
     async fn list_bookings_by_user(
         &self,
@@ -140,10 +137,7 @@ impl BookingStore for DbBookingStore {
             .await?)
     }
 
-    async fn find_bookings_by_ids(
-        &self,
-        ids: Vec<Uuid>,
-    ) -> StoreResult<Vec<booking::Model>> {
+    async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>> {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
@@ -207,7 +201,10 @@ impl BookingStore for DbBookingStore {
         use crate::entity::trip_session;
         let mut query = booking::Entity::find()
             .filter(booking::Column::UserId.eq(user_id.to_string()))
-            .join(JoinType::InnerJoin, trip_session::Relation::Booking.def().rev());
+            .join(
+                JoinType::InnerJoin,
+                trip_session::Relation::Booking.def().rev(),
+            );
 
         // Status filter
         match status {

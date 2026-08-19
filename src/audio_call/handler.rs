@@ -86,7 +86,14 @@ pub async fn ws_upgrade(
     let channel_capacity = st.config.ws.channel_capacity.max(1);
 
     Ok(ws.on_upgrade(move |socket| {
-        handle_socket(socket, user, heartbeat_sec, idle_timeout_sec, ice_servers, channel_capacity)
+        handle_socket(
+            socket,
+            user,
+            heartbeat_sec,
+            idle_timeout_sec,
+            ice_servers,
+            channel_capacity,
+        )
     }))
 }
 
@@ -164,33 +171,35 @@ pub async fn handle_socket(
                                 let ty = v.get("type").and_then(|x| x.as_str()).unwrap_or("");
 
                                 if ty == "heartbeat" {
-                                    let _ = tx.try_send(bytes::Bytes::from(json!({ "type": "pong" }).to_string()));
+                                    let _ = tx.try_send(bytes::Bytes::from(
+                                        json!({ "type": "pong" }).to_string(),
+                                    ));
                                     continue;
                                 }
 
                                 if ty == "register" {
                                     if registered_role.is_some() {
-                                        let _ = tx.try_send(
-                                            bytes::Bytes::from(json!({ "type": "error", "code": "already-registered",
+                                        let _ = tx.try_send(bytes::Bytes::from(
+                                            json!({ "type": "error", "code": "already-registered",
                                                     "message": "Already registered" })
-                                            .to_string()),
-                                        );
+                                            .to_string(),
+                                        ));
                                         continue;
                                     }
                                     match do_register(&user_r, &v, tx.clone(), sid) {
                                         Ok(role) => {
                                             registered_role = Some(role);
                                             let n = call_hub().online_agent_count();
-                                            let _ = tx.try_send(
-                                                bytes::Bytes::from(json!({
+                                            let _ = tx.try_send(bytes::Bytes::from(
+                                                json!({
                                                     "type": "registered",
                                                     "role": role.as_str(),
                                                     "userId": user_r.id,
                                                     "onlineAgents": n,
                                                     "iceServers": &ice_servers,
                                                 })
-                                                .to_string()),
-                                            );
+                                                .to_string(),
+                                            ));
                                             call_hub().broadcast_presence();
                                         }
                                         Err(msg) => {
@@ -203,11 +212,11 @@ pub async fn handle_socket(
                                 }
 
                                 if registered_role.is_none() {
-                                    let _ = tx.try_send(
-                                        bytes::Bytes::from(json!({ "type": "error", "code": "not-registered",
+                                    let _ = tx.try_send(bytes::Bytes::from(
+                                        json!({ "type": "error", "code": "not-registered",
                                                 "message": "Send a register message first" })
-                                        .to_string()),
-                                    );
+                                        .to_string(),
+                                    ));
                                     continue;
                                 }
 
@@ -216,26 +225,26 @@ pub async fn handle_socket(
                                     registered_role.unwrap(),
                                     &v,
                                 ) {
-                                    let _ = tx.try_send(
-                                        bytes::Bytes::from(json!({ "type": "error", "message": e }).to_string()),
-                                    );
+                                    let _ = tx.try_send(bytes::Bytes::from(
+                                        json!({ "type": "error", "message": e }).to_string(),
+                                    ));
                                 }
                             }
                             Err(e) => {
-                                let _ = tx.try_send(
-                                    bytes::Bytes::from(json!({ "type": "error", "code": "bad-json",
+                                let _ = tx.try_send(bytes::Bytes::from(
+                                    json!({ "type": "error", "code": "bad-json",
                                             "message": format!("invalid JSON: {e}") })
-                                    .to_string()),
-                                );
+                                    .to_string(),
+                                ));
                             }
                         }
                     }
                     Message::Binary(_) => {
-                        let _ = tx.try_send(
-                            bytes::Bytes::from(json!({ "type": "error", "code": "binary-unsupported",
+                        let _ = tx.try_send(bytes::Bytes::from(
+                            json!({ "type": "error", "code": "binary-unsupported",
                                     "message": "Binary frames are not supported" })
-                            .to_string()),
-                        );
+                            .to_string(),
+                        ));
                     }
                     Message::Ping(_) | Message::Pong(_) => {}
                     Message::Close(_) => break,

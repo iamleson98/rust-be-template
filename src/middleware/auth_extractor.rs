@@ -48,13 +48,10 @@ where
 
         // Full JWT verify (HMAC-SHA256) + revocation checks.
         // Don't echo jsonwebtoken internals to the client — log server-side.
-        let user_id = auth
-            .verify_access_token(&token)
-            .await
-            .map_err(|e| {
-                tracing::debug!(error = ?e, "access token verify failed");
-                AppError::Unauthorized("invalid or expired token".into())
-            })?;
+        let user_id = auth.verify_access_token(&token).await.map_err(|e| {
+            tracing::debug!(error = ?e, "access token verify failed");
+            AppError::Unauthorized("invalid or expired token".into())
+        })?;
         Ok(AuthUser(user_id))
     }
 }

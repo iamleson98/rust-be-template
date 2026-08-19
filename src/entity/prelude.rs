@@ -11,6 +11,7 @@ pub use super::chat_channel::Entity as ChatChannel;
 pub use super::chat_message::Entity as ChatMessage;
 pub use super::discount_program::Entity as DiscountProgram;
 pub use super::notification::Entity as Notification;
+pub use super::payment::Entity as Payment;
 pub use super::permissions::Entity as Permissions;
 pub use super::pickup_point::Entity as PickupPoint;
 pub use super::place::Entity as Place;

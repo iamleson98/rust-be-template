@@ -52,20 +52,32 @@ impl MigrationTrait for Migration {
             ("admin:routes:write", "Admin: create/update/delete routes"),
             // Admin — Schedules
             ("admin:schedules:read", "Admin: list/view schedules"),
-            ("admin:schedules:write", "Admin: create/update/delete schedules"),
+            (
+                "admin:schedules:write",
+                "Admin: create/update/delete schedules",
+            ),
             // Admin — Pickup points
             ("admin:pickup_points:read", "Admin: list/view pickup points"),
-            ("admin:pickup_points:write", "Admin: create/update/delete pickup points"),
+            (
+                "admin:pickup_points:write",
+                "Admin: create/update/delete pickup points",
+            ),
             // Admin — Bus layouts
             ("admin:bus_layouts:read", "Admin: list bus layouts"),
             // Admin — Reviews
-            ("admin:reviews:moderate", "Admin: moderate reviews (approve/reject/delete)"),
+            (
+                "admin:reviews:moderate",
+                "Admin: moderate reviews (approve/reject/delete)",
+            ),
             // Admin — Bookings
             ("admin:bookings:read", "Admin: list/view bookings"),
             ("admin:bookings:write", "Admin: update booking status"),
             // Admin — Payments
             ("admin:payments:read", "Admin: list/view payments"),
-            ("admin:payments:write", "Admin: update payment status, mark COD collected"),
+            (
+                "admin:payments:write",
+                "Admin: update payment status, mark COD collected",
+            ),
             // Admin — Stats + Export
             ("admin:stats:read", "Admin: view booking statistics"),
             ("admin:export", "Admin: export bookings as CSV"),
@@ -139,10 +151,7 @@ impl MigrationTrait for Migration {
 
         // ---- User gets read + write on posts, read on users --------------
         for (pid, name) in &perm_ids {
-            let allowed = matches!(
-                *name,
-                "posts:read" | "posts:write" | "users:read"
-            );
+            let allowed = matches!(*name, "posts:read" | "posts:write" | "users:read");
             if allowed {
                 let stmt = sea_orm::sea_query::Query::insert()
                     .into_table(RolePermissions::Table)

@@ -756,71 +756,80 @@ impl BookingService {
         let reason_owned = reason.map(|s| s.to_string());
 
         let db = self.store.db();
-        let txn_result = db.transaction::<_, BookingCancelResponse, AppError>(|txn| {
-            Box::pin(async move {
-                // 1. Bulk-release held seats (single UPDATE)
-                use crate::entity::{booking as booking_entity, seat_inventory, trip_session as trip_entity};
-                use sea_orm::sea_query::Expr;
-                use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        let txn_result = db
+            .transaction::<_, BookingCancelResponse, AppError>(|txn| {
+                Box::pin(async move {
+                    // 1. Bulk-release held seats (single UPDATE)
+                    use crate::entity::{
+                        booking as booking_entity, seat_inventory, trip_session as trip_entity,
+                    };
+                    use sea_orm::sea_query::Expr;
+                    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-                let released = seat_inventory::Entity::update_many()
-                    .col_expr(seat_inventory::Column::Status, Expr::value("available"))
-                    .col_expr(seat_inventory::Column::HeldUntil, Expr::value(None::<String>))
-                    .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(None::<String>))
-                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
-                    .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-                let seat_count = released.rows_affected as i64;
-
-                // 2. Re-add available seats to trip session
-                if let Some(t) = &trip {
-                    let current_available = t.available_seats;
-                    trip_entity::Entity::update_many()
+                    let released = seat_inventory::Entity::update_many()
+                        .col_expr(seat_inventory::Column::Status, Expr::value("available"))
                         .col_expr(
-                            trip_entity::Column::AvailableSeats,
-                            Expr::value(current_available + seat_count),
+                            seat_inventory::Column::HeldUntil,
+                            Expr::value(None::<String>),
                         )
-                        .filter(trip_entity::Column::Id.eq(t.id))
+                        .col_expr(
+                            seat_inventory::Column::HeldByBookingId,
+                            Expr::value(None::<String>),
+                        )
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
                         .exec(txn)
                         .await
                         .map_err(|e| AppError::Internal(e.to_string()))?;
-                }
+                    let seat_count = released.rows_affected as i64;
 
-                // 3. Mark booking cancelled
-                booking_entity::Entity::update_many()
-                    .col_expr(booking_entity::Column::Status, Expr::value("cancelled"))
-                    .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
-                    .filter(booking_entity::Column::Id.eq(booking_id_str.clone()))
-                    .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    // 2. Re-add available seats to trip session
+                    if let Some(t) = &trip {
+                        let current_available = t.available_seats;
+                        trip_entity::Entity::update_many()
+                            .col_expr(
+                                trip_entity::Column::AvailableSeats,
+                                Expr::value(current_available + seat_count),
+                            )
+                            .filter(trip_entity::Column::Id.eq(t.id))
+                            .exec(txn)
+                            .await
+                            .map_err(|e| AppError::Internal(e.to_string()))?;
+                    }
 
-                // 4. Generate cancellation reference code
-                let ts_b36 = to_base36(Utc::now().timestamp_millis());
-                let ref_code = format!(
-                    "HX-{}-{}",
-                    booking_code.to_uppercase(),
-                    ts_b36.to_uppercase()
-                );
+                    // 3. Mark booking cancelled
+                    booking_entity::Entity::update_many()
+                        .col_expr(booking_entity::Column::Status, Expr::value("cancelled"))
+                        .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
+                        .filter(booking_entity::Column::Id.eq(booking_id_str.clone()))
+                        .exec(txn)
+                        .await
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
 
-                Ok(BookingCancelResponse {
-                    success: true,
-                    refund_percent,
-                    refund_amount,
-                    cancelled_at: now_iso(),
-                    ref_code,
-                    reason: reason_owned,
+                    // 4. Generate cancellation reference code
+                    let ts_b36 = to_base36(Utc::now().timestamp_millis());
+                    let ref_code = format!(
+                        "HX-{}-{}",
+                        booking_code.to_uppercase(),
+                        ts_b36.to_uppercase()
+                    );
+
+                    Ok(BookingCancelResponse {
+                        success: true,
+                        refund_percent,
+                        refund_amount,
+                        cancelled_at: now_iso(),
+                        ref_code,
+                        reason: reason_owned,
+                    })
                 })
             })
-        })
-        .await
-        .map_err(|e| match e {
-            sea_orm::TransactionError::Connection(e) => {
-                AppError::Internal(format!("transaction start failed: {e}"))
-            }
-            sea_orm::TransactionError::Transaction(app_err) => app_err,
-        })?;
+            .await
+            .map_err(|e| match e {
+                sea_orm::TransactionError::Connection(e) => {
+                    AppError::Internal(format!("transaction start failed: {e}"))
+                }
+                sea_orm::TransactionError::Transaction(app_err) => app_err,
+            })?;
 
         Ok(txn_result)
     }
@@ -869,7 +878,10 @@ impl BookingService {
                                     seat_inventory::Column::HeldByBookingId,
                                     Expr::value(None::<String>),
                                 )
-                                .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
+                                .filter(
+                                    seat_inventory::Column::HeldByBookingId
+                                        .eq(booking_id_str.clone()),
+                                )
                                 .exec(txn)
                                 .await
                                 .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -904,52 +916,53 @@ impl BookingService {
         let booking_id_str = b.id.to_string();
         let payment_method_owned = payment_method.to_string();
         let db = self.store.db();
-        let txn_result = db.transaction::<_, BookingConfirmResponse, AppError>(|txn| {
-            Box::pin(async move {
-                use crate::entity::{booking as booking_entity, seat_inventory};
-                use sea_orm::sea_query::Expr;
-                use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+        let txn_result = db
+            .transaction::<_, BookingConfirmResponse, AppError>(|txn| {
+                Box::pin(async move {
+                    use crate::entity::{booking as booking_entity, seat_inventory};
+                    use sea_orm::sea_query::Expr;
+                    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
-                // 1. Bulk flip held → booked (single UPDATE)
-                seat_inventory::Entity::update_many()
-                    .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
-                    .col_expr(
-                        seat_inventory::Column::HeldUntil,
-                        Expr::value(None::<String>),
-                    )
-                    .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
-                    .filter(seat_inventory::Column::Status.eq("held"))
-                    .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    // 1. Bulk flip held → booked (single UPDATE)
+                    seat_inventory::Entity::update_many()
+                        .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
+                        .col_expr(
+                            seat_inventory::Column::HeldUntil,
+                            Expr::value(None::<String>),
+                        )
+                        .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id_str.clone()))
+                        .filter(seat_inventory::Column::Status.eq("held"))
+                        .exec(txn)
+                        .await
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
 
-                // 2. Update booking status + payment method
-                booking_entity::Entity::update_many()
-                    .col_expr(booking_entity::Column::Status, Expr::value("confirmed"))
-                    .col_expr(
-                        booking_entity::Column::PaymentMethod,
-                        Expr::value(Some(payment_method_owned.clone())),
-                    )
-                    .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
-                    .filter(booking_entity::Column::Id.eq(booking_id_str))
-                    .exec(txn)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                    // 2. Update booking status + payment method
+                    booking_entity::Entity::update_many()
+                        .col_expr(booking_entity::Column::Status, Expr::value("confirmed"))
+                        .col_expr(
+                            booking_entity::Column::PaymentMethod,
+                            Expr::value(Some(payment_method_owned.clone())),
+                        )
+                        .col_expr(booking_entity::Column::UpdatedAt, Expr::value(now_iso()))
+                        .filter(booking_entity::Column::Id.eq(booking_id_str))
+                        .exec(txn)
+                        .await
+                        .map_err(|e| AppError::Internal(e.to_string()))?;
 
-                Ok(BookingConfirmResponse {
-                    booking_id: id,
-                    status: "confirmed".to_string(),
-                    payment_method: payment_method_owned,
+                    Ok(BookingConfirmResponse {
+                        booking_id: id,
+                        status: "confirmed".to_string(),
+                        payment_method: payment_method_owned,
+                    })
                 })
             })
-        })
-        .await
-        .map_err(|e| match e {
-            sea_orm::TransactionError::Connection(e) => {
-                AppError::Internal(format!("transaction start failed: {e}"))
-            }
-            sea_orm::TransactionError::Transaction(app_err) => app_err,
-        })?;
+            .await
+            .map_err(|e| match e {
+                sea_orm::TransactionError::Connection(e) => {
+                    AppError::Internal(format!("transaction start failed: {e}"))
+                }
+                sea_orm::TransactionError::Transaction(app_err) => app_err,
+            })?;
 
         Ok(txn_result)
     }

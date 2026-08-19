@@ -60,10 +60,13 @@ pub async fn create_payment(
     maybe: MaybeAuthUser,
     Json(body): Json<CreatePaymentReq>,
 ) -> Result<Json<CreatePaymentResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let user_id = maybe.0.map(|u| u.to_string());
     Ok(Json(
-        st.payments.create_payment(&body, user_id.as_deref()).await?,
+        st.payments
+            .create_payment(&body, user_id.as_deref())
+            .await?,
     ))
 }
 
@@ -136,7 +139,8 @@ pub async fn cancel_payment(
     Path(id): Path<Uuid>,
     Json(body): Json<CancelPaymentReq>,
 ) -> Result<Json<CancelPaymentResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     let user_id = maybe.0.map(|u| u.to_string());
     Ok(Json(
         st.payments
@@ -167,7 +171,8 @@ pub async fn mark_cod_collected(
     Path(id): Path<Uuid>,
     Json(body): Json<MarkCodCollectedReq>,
 ) -> Result<Json<MarkCodCollectedResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)
         .await?;
@@ -309,11 +314,14 @@ pub async fn zalopay_callback(
     State(st): State<AppState>,
     raw_body: Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let payload: ZalopayCallbackPayload = serde_json::from_slice(&raw_body).map_err(|e| {
-        AppError::BadRequest(format!("ZaloPay callback body parse failed: {e}"))
-    })?;
+    let payload: ZalopayCallbackPayload = serde_json::from_slice(&raw_body)
+        .map_err(|e| AppError::BadRequest(format!("ZaloPay callback body parse failed: {e}")))?;
 
-    match st.payments.handle_zalopay_callback(&payload, &raw_body).await {
+    match st
+        .payments
+        .handle_zalopay_callback(&payload, &raw_body)
+        .await
+    {
         Ok(()) => Ok(Json(serde_json::json!({
             "return_code": 1,
             "return_message": "Success"
@@ -395,7 +403,8 @@ pub async fn update_payment_status(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePaymentStatusReq>,
 ) -> Result<Json<UpdatePaymentStatusResponse>, AppError> {
-    body.validate().map_err(|e| AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
     body.validate_status()?;
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)

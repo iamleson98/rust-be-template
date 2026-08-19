@@ -237,14 +237,12 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         let inner = self.inner.clone();
         // Use stampede-protected get_or_fetch: concurrent requests for the
         // same brand_id will all share the same DB fetch result.
-        let result: Option<brand::Model> = crate::cache::get_or_fetch(
-            self.cache.as_ref(),
-            &key,
-            self.ttl,
-            || async move { inner.get_by_id(id).await.map_err(anyhow::Error::from) },
-        )
-        .await
-        .map_err(StoreError::from)?;
+        let result: Option<brand::Model> =
+            crate::cache::get_or_fetch(self.cache.as_ref(), &key, self.ttl, || async move {
+                inner.get_by_id(id).await.map_err(anyhow::Error::from)
+            })
+            .await
+            .map_err(StoreError::from)?;
         Ok(result)
     }
 
@@ -252,28 +250,27 @@ impl<S: BrandStore> BrandStore for CacheBrandStore<S> {
         let key = key_by_slug(slug);
         let inner = self.inner.clone();
         let slug_owned = slug.to_string();
-        let result: Option<brand::Model> = crate::cache::get_or_fetch(
-            self.cache.as_ref(),
-            &key,
-            self.ttl,
-            || async move { inner.get_by_slug(&slug_owned).await.map_err(anyhow::Error::from) },
-        )
-        .await
-        .map_err(StoreError::from)?;
+        let result: Option<brand::Model> =
+            crate::cache::get_or_fetch(self.cache.as_ref(), &key, self.ttl, || async move {
+                inner
+                    .get_by_slug(&slug_owned)
+                    .await
+                    .map_err(anyhow::Error::from)
+            })
+            .await
+            .map_err(StoreError::from)?;
         Ok(result)
     }
 
     async fn list_active(&self, limit: u64) -> StoreResult<Vec<brand::Model>> {
         let key = key_list_active(limit);
         let inner = self.inner.clone();
-        let result: Vec<brand::Model> = crate::cache::get_or_fetch(
-            self.cache.as_ref(),
-            &key,
-            self.ttl,
-            || async move { inner.list_active(limit).await.map_err(anyhow::Error::from) },
-        )
-        .await
-        .map_err(StoreError::from)?;
+        let result: Vec<brand::Model> =
+            crate::cache::get_or_fetch(self.cache.as_ref(), &key, self.ttl, || async move {
+                inner.list_active(limit).await.map_err(anyhow::Error::from)
+            })
+            .await
+            .map_err(StoreError::from)?;
         Ok(result)
     }
 

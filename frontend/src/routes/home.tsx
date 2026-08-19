@@ -21,7 +21,7 @@ const BrandShowcase = lazy(() => import('@/components/brand/brand-showcase').the
 const Testimonials = lazy(() => import('@/components/home/testimonials').then((m) => ({ default: m.Testimonials })))
 const Recommendations = lazy(() => import('@/components/home/recommendations').then((m) => ({ default: m.Recommendations })))
 const FaqSection = lazy(() => import('@/components/home/faq-section').then((m) => ({ default: m.FaqSection })))
-const AppDownload = lazy(() => import('@/components/home/app-download').then((m) => ({ default: m.AppDownload })))
+// const AppDownload = lazy(() => import('@/components/home/app-download').then((m) => ({ default: m.AppDownload })))
 
 export function HomePage() {
   return (
@@ -51,9 +51,9 @@ export function HomePage() {
       <Suspense fallback={<IslandFallback minHeight={400} />}>
         <FaqSection />
       </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={300} />}>
+      {/* <Suspense fallback={<IslandFallback minHeight={300} />}>
         <AppDownload />
-      </Suspense>
+      </Suspense> */}
     </div>
   )
 }

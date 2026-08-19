@@ -55,8 +55,8 @@ impl RefreshTokenValue {
     /// is not enough to forge tokens — the attacker also needs the
     /// JWT secret, which is held in process memory + env vars only.
     pub fn secret_hash(&self, jwt_secret: &str) -> String {
-        let mut mac = HmacSha256::new_from_slice(jwt_secret.as_bytes())
-            .expect("hmac key length is valid");
+        let mut mac =
+            HmacSha256::new_from_slice(jwt_secret.as_bytes()).expect("hmac key length is valid");
         mac.update(self.secret.as_bytes());
         let bytes = mac.finalize().into_bytes();
         hex::encode(bytes)

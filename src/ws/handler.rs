@@ -116,7 +116,9 @@ pub async fn ws_upgrade(
             max = hub().max_connections(),
             "WS upgrade rejected: global connection cap reached"
         );
-        return Err(AppError::ServiceUnavailable("ws connection cap reached".into()));
+        return Err(AppError::ServiceUnavailable(
+            "ws connection cap reached".into(),
+        ));
     }
 
     // ── Per-IP connection cap ───────────────────────────────────────────

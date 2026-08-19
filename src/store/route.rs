@@ -151,18 +151,14 @@ impl RouteStore for DbRouteStore {
         use sea_orm::sea_query::Expr;
         Ok(route::Entity::find()
             .filter(route::Column::Status.eq("active"))
-            .filter(
-                Expr::cust_with_values(
-                    "LOWER(name) LIKE '%' || ? || '%'",
-                    [from_lower.to_string()],
-                ),
-            )
-            .filter(
-                Expr::cust_with_values(
-                    "LOWER(name) LIKE '%' || ? || '%'",
-                    [to_lower.to_string()],
-                ),
-            )
+            .filter(Expr::cust_with_values(
+                "LOWER(name) LIKE '%' || ? || '%'",
+                [from_lower.to_string()],
+            ))
+            .filter(Expr::cust_with_values(
+                "LOWER(name) LIKE '%' || ? || '%'",
+                [to_lower.to_string()],
+            ))
             .limit(limit)
             .all(self.db.as_ref())
             .await?)

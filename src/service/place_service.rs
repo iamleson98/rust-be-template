@@ -106,12 +106,10 @@ impl PlaceService {
             // worker. Cloning `Arc<PlaceSearcher>` is a refcount bump.
             let searcher = searcher.clone();
             let q = q_trim.to_string();
-            let results = tokio::task::spawn_blocking(move || {
-                searcher.search(&q, limit as usize)
-            })
-            .await
-            .map_err(|e| AppError::Internal(format!("search join: {e}")))?
-            .map_err(|e| AppError::Internal(format!("place search: {e}")))?;
+            let results = tokio::task::spawn_blocking(move || searcher.search(&q, limit as usize))
+                .await
+                .map_err(|e| AppError::Internal(format!("search join: {e}")))?
+                .map_err(|e| AppError::Internal(format!("place search: {e}")))?;
             let items = results
                 .into_iter()
                 .map(|r| PlaceSearchHit {

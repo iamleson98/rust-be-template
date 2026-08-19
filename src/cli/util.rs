@@ -50,7 +50,14 @@ pub fn mask_secret(s: &str) -> String {
         return "*".repeat(chars.len());
     }
     let head: String = chars.iter().take(4).collect();
-    let tail: String = chars.iter().rev().take(4).collect::<String>().chars().rev().collect();
+    let tail: String = chars
+        .iter()
+        .rev()
+        .take(4)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
     format!("{head}…{tail}")
 }
 

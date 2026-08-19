@@ -42,10 +42,7 @@ impl Provider for CodProvider {
         super::providers::COD
     }
 
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError> {
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError> {
         // For COD there's no gateway interaction. We just record the
         // intent-to-pay-cash and let the booking hold keep the seats.
         //

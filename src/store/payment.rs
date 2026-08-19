@@ -16,6 +16,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::entity::payment;
+use crate::payment::statuses;
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
@@ -52,11 +53,7 @@ pub trait PaymentStore: Send + Sync {
 
     /// Admin: count rows matching the same filters as `list_admin`.
     /// Uses `COUNT(*)` — does NOT load rows into memory.
-    async fn count_admin(
-        &self,
-        status: Option<&str>,
-        provider: Option<&str>,
-    ) -> StoreResult<u64>;
+    async fn count_admin(&self, status: Option<&str>, provider: Option<&str>) -> StoreResult<u64>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -109,7 +106,7 @@ impl PaymentStore for DbPaymentStore {
         // atomically when a new payment is created (see PaymentService::create).
         Ok(payment::Entity::find()
             .filter(payment::Column::BookingId.eq(booking_id))
-            .filter(payment::Column::Status.eq(payment::statuses::PENDING))
+            .filter(payment::Column::Status.eq(statuses::PENDING))
             .order_by(payment::Column::CreatedAt, Order::Desc)
             .limit(1)
             .one(self.db.as_ref())
@@ -117,7 +114,9 @@ impl PaymentStore for DbPaymentStore {
     }
 
     async fn insert(&self, model: payment::ActiveModel) -> StoreResult<()> {
-        payment::Entity::insert(model).exec(self.db.as_ref()).await?;
+        payment::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -148,11 +147,7 @@ impl PaymentStore for DbPaymentStore {
             .await?)
     }
 
-    async fn count_admin(
-        &self,
-        status: Option<&str>,
-        provider: Option<&str>,
-    ) -> StoreResult<u64> {
+    async fn count_admin(&self, status: Option<&str>, provider: Option<&str>) -> StoreResult<u64> {
         let mut q = payment::Entity::find();
         if let Some(s) = status {
             q = q.filter(payment::Column::Status.eq(s));

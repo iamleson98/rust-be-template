@@ -1,9 +1,9 @@
 use axum::extract::{Path, Query, State};
-use validator::Validate;
 use axum::Json;
 use serde::Deserialize;
 use utoipa::IntoParams;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::dto::chat::{
     ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse, ChatMessageOut,
@@ -156,7 +156,8 @@ pub async fn create_channel(
     AuthUser(uid): AuthUser,
     Json(body): Json<CreateChannelRequest>,
 ) -> Result<Json<CreateChannelResponse>, AppError> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel = st
         .store
         .chat_store()
@@ -196,7 +197,8 @@ pub async fn post_message(
     Path(id): Path<Uuid>,
     Json(body): Json<CreateMessageRequest>,
 ) -> Result<Json<CreateMessageResponse>, AppError> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel_id = id.to_string();
 
     // Verify the channel exists.
@@ -315,6 +317,9 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/channels", get(list_channels).post(create_channel))
-        .route("/channels/{id}/messages", get(list_messages).post(post_message))
+        .route(
+            "/channels/{id}/messages",
+            get(list_messages).post(post_message),
+        )
         .route("/channels/{id}/read", post(mark_read))
 }

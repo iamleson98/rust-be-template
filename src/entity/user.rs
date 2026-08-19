@@ -47,6 +47,8 @@ pub enum Relation {
     ChatChannel,
     #[sea_orm(has_many = "super::notification::Entity")]
     Notification,
+    #[sea_orm(has_many = "super::payment::Entity")]
+    Payment,
     #[sea_orm(has_many = "super::posts::Entity")]
     Posts,
     #[sea_orm(has_many = "super::refresh_tokens::Entity")]
@@ -76,6 +78,12 @@ impl Related<super::chat_channel::Entity> for Entity {
 impl Related<super::notification::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Notification.def()
+    }
+}
+
+impl Related<super::payment::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Payment.def()
     }
 }
 

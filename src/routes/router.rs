@@ -17,8 +17,8 @@
 //! this is the idiomatic Axum pattern + avoids the cost of building
 //! a `GovernorLayer` per route.
 
-use axum::Router;
 use axum::response::IntoResponse;
+use axum::Router;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::compression::CompressionLayer;
@@ -70,7 +70,10 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/routes", crate::routes::public::routes_router())
         .nest("/trips", crate::routes::public::trips_router())
         .nest("/search", crate::routes::public::search_router())
-        .nest("/recommendations", crate::routes::public::recommendations_router())
+        .nest(
+            "/recommendations",
+            crate::routes::public::recommendations_router(),
+        )
         .nest("/campaigns", crate::routes::public::campaigns_router())
         .nest("/stats", crate::routes::public::stats_router())
         .nest("/places", crate::routes::places::router())
@@ -121,8 +124,14 @@ pub fn build_router(state: AppState) -> Router<()> {
         .route("/health", axum::routing::get(crate::routes::health::health))
         .route("/ready", axum::routing::get(crate::routes::health::ready))
         // SEO routes — bypass the rate limiter so crawlers aren't blocked.
-        .route("/sitemap.xml", axum::routing::get(crate::routes::seo::sitemap))
-        .route("/robots.txt", axum::routing::get(crate::routes::seo::robots))
+        .route(
+            "/sitemap.xml",
+            axum::routing::get(crate::routes::seo::sitemap),
+        )
+        .route(
+            "/robots.txt",
+            axum::routing::get(crate::routes::seo::robots),
+        )
         // PWA service worker — bypass the rate limiter (loaded on every page load).
         .route(
             "/sw.js",

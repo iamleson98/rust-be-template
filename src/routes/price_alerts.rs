@@ -130,7 +130,10 @@ impl ListPriceAlertsQuery {
 #[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePriceAlertRequest {
-    #[validate(length(min = 1, max = 20), custom(function = "crate::validation::validate_phone"))]
+    #[validate(
+        length(min = 1, max = 20),
+        custom(function = "crate::validation::validate_phone")
+    )]
     pub phone: String,
     #[validate(email, length(max = 255))]
     pub email: Option<String>,
@@ -267,7 +270,8 @@ pub async fn create(
     AuthUser(uid): AuthUser,
     Json(body): Json<CreatePriceAlertRequest>,
 ) -> AppResult<Json<CreatePriceAlertResponse>> {
-    body.validate().map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+    body.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let input = CreatePriceAlertInput {
         user_id: Some(uid),
         phone: body.phone,

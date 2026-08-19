@@ -50,9 +50,7 @@ impl MomoProvider {
     }
 
     pub fn is_configured(&self) -> bool {
-        !self.partner_code.is_empty()
-            && !self.access_key.is_empty()
-            && !self.secret_key.is_empty()
+        !self.partner_code.is_empty() && !self.access_key.is_empty() && !self.secret_key.is_empty()
     }
 }
 
@@ -62,10 +60,7 @@ impl Provider for MomoProvider {
         super::providers::MOMO
     }
 
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError> {
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError> {
         if !self.is_configured() {
             return Err(AppError::ServiceUnavailable(
                 "MoMo provider is not configured (missing partner_code / access_key / secret_key)"
@@ -118,7 +113,9 @@ impl Provider for MomoProvider {
             .json(&body)
             .send()
             .await
-            .map_err(|e| AppError::ServiceUnavailable(format!("MoMo create-payment failed: {e}")))?;
+            .map_err(|e| {
+                AppError::ServiceUnavailable(format!("MoMo create-payment failed: {e}"))
+            })?;
 
         let status = resp.status();
         let text = resp
@@ -286,7 +283,10 @@ mod tests {
         // Known test vector for HMAC-SHA256("key", "The quick brown fox jumps over the lazy dog")
         // (https://tools.ietf.org/html/rfc4231#section-4.2 — not the same input, but a sanity check)
         assert_eq!(
-            hmac_sha256_hex("key", "The quick brown fox jumps over the lazy dog".as_bytes()),
+            hmac_sha256_hex(
+                "key",
+                "The quick brown fox jumps over the lazy dog".as_bytes()
+            ),
             "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
         );
     }

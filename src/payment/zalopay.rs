@@ -63,10 +63,7 @@ impl Provider for ZalopayProvider {
         super::providers::ZALOPAY
     }
 
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError> {
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError> {
         if !self.is_configured() {
             return Err(AppError::ServiceUnavailable(
                 "ZaloPay provider is not configured (missing app_id / key1 / key2)".into(),
@@ -123,13 +120,9 @@ impl Provider for ZalopayProvider {
         });
 
         let url = format!("{}/create", self.endpoint_base);
-        let resp = self
-            .http
-            .post(&url)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| AppError::ServiceUnavailable(format!("ZaloPay create-payment failed: {e}")))?;
+        let resp = self.http.post(&url).json(&body).send().await.map_err(|e| {
+            AppError::ServiceUnavailable(format!("ZaloPay create-payment failed: {e}"))
+        })?;
 
         let status = resp.status();
         let text = resp

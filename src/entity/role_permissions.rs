@@ -6,9 +6,17 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "role_permissions")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
+    #[sea_orm(
+        primary_key,
+        auto_increment = false,
+        unique_key = "role_permissions_role_perm_uniq"
+    )]
     pub role_id: Uuid,
-    #[sea_orm(primary_key, auto_increment = false)]
+    #[sea_orm(
+        primary_key,
+        auto_increment = false,
+        unique_key = "role_permissions_role_perm_uniq"
+    )]
     pub permission_id: Uuid,
     pub assigned_at: DateTimeUtc,
 }

@@ -118,19 +118,13 @@ pub trait TripStore: Send + Sync {
     /// (one per seat) with `let _ =` swallowing any errors. Returns the
     /// number of seats released. Idempotent — safe to call even if no
     /// seats are currently held.
-    async fn release_held_seats_for_booking(
-        &self,
-        held_by_booking_id: &str,
-    ) -> StoreResult<u64>;
+    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
 
     /// Bulk mark held seats as 'booked' for a given booking (the
     /// confirmation step). Single SQL UPDATE replaces the per-seat
     /// loop in `booking_service::confirm`. Returns the number of seats
     /// flipped. Idempotent — safe to call on already-booked seats.
-    async fn mark_seats_booked_for_booking(
-        &self,
-        held_by_booking_id: &str,
-    ) -> StoreResult<u64>;
+    async fn mark_seats_booked_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
     async fn list_trips_by_schedule_ids(
         &self,
         schedule_ids: Vec<Uuid>,
@@ -362,10 +356,7 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn release_held_seats_for_booking(
-        &self,
-        held_by_booking_id: &str,
-    ) -> StoreResult<u64> {
+    async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64> {
         // Single bulk UPDATE — replaces the N-row load + N sequential
         // UPDATE pattern that previously dominated cancel/confirm latency
         // for multi-seat bookings. Conditional on `held_by_booking_id`
@@ -388,10 +379,7 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn mark_seats_booked_for_booking(
-        &self,
-        held_by_booking_id: &str,
-    ) -> StoreResult<u64> {
+    async fn mark_seats_booked_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64> {
         // Single bulk UPDATE — flips all seats held by this booking from
         // 'held' → 'booked'. Used by booking_service::confirm. Idempotent:
         // already-booked seats are not affected (filter is on status='held').

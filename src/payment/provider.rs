@@ -83,8 +83,5 @@ pub trait Provider: Send + Sync {
 
     /// Initiate a payment. Returns the gateway URL or QR payload that
     /// the front-end will use to render the payment UI.
-    async fn create_payment(
-        &self,
-        input: &CreatePaymentInput,
-    ) -> Result<ProviderResult, AppError>;
+    async fn create_payment(&self, input: &CreatePaymentInput) -> Result<ProviderResult, AppError>;
 }

@@ -151,8 +151,7 @@ pub fn pass1_discover_admin<P: AsRef<Path>>(path: P) -> anyhow::Result<Pass1Resu
 // -----------------------------------------------------------------------
 
 /// Controls how way centroids are computed, trading RAM for accuracy.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CentroidMode {
     /// Cache ALL node coords for every named way and compute a proper
     /// `LineString` centroid. Uses ~2 GB RAM for full Vietnam but gives
@@ -165,7 +164,6 @@ pub enum CentroidMode {
     /// first node).
     FirstNode,
 }
-
 
 /// Result of Pass 2.
 pub struct Pass2Result {
@@ -335,10 +333,9 @@ pub fn pass3_collect_node_coords<P: AsRef<Path>>(
                     node_coords.insert(node.id(), (node.lat() as f32, node.lon() as f32));
                 }
             }
-            Element::DenseNode(node)
-                if needed_node_ids.contains(&node.id()) => {
-                    node_coords.insert(node.id(), (node.lat() as f32, node.lon() as f32));
-                }
+            Element::DenseNode(node) if needed_node_ids.contains(&node.id()) => {
+                node_coords.insert(node.id(), (node.lat() as f32, node.lon() as f32));
+            }
             _ => {}
         })
         .map_err(|e| anyhow::anyhow!("pass3: {e}"))?;
