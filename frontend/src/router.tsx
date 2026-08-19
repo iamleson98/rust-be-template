@@ -70,6 +70,12 @@ const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) 
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
 const AdminSystemPage = lazy(() => import('./routes/admin/system').then((m) => ({ default: m.AdminSystemPage })))
 const AdminPaymentsPage = lazy(() => import('./routes/admin/payments').then((m) => ({ default: m.AdminPaymentsPage })))
+// Account pages
+const AccountPage = lazy(() => import('./routes/account').then((m) => ({ default: m.AccountPage })))
+const AccountWishlistPage = lazy(() => import('./routes/account/wishlist').then((m) => ({ default: m.AccountWishlistPage })))
+const AccountLoyaltyPage = lazy(() => import('./routes/account/loyalty').then((m) => ({ default: m.AccountLoyaltyPage })))
+const AccountNotificationsPage = lazy(() => import('./routes/account/notifications').then((m) => ({ default: m.AccountNotificationsPage })))
+const AccountSecurityPage = lazy(() => import('./routes/account/security').then((m) => ({ default: m.AccountSecurityPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
@@ -118,6 +124,11 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
   '/admin/system': { title: 'Hệ thống — Quản trị VeXeVN', description: 'Theo dõi hệ thống.' },
   '/admin/payments': { title: 'Thanh toán — Quản trị VeXeVN', description: 'Quản lý giao dịch thanh toán.' },
+  '/account': { title: 'Tài khoản — VeXeVN', description: 'Quản lý tài khoản và cài đặt.' },
+  '/account/wishlist': { title: 'Yêu thích — VeXeVN', description: 'Danh sách yêu thích.' },
+  '/account/loyalty': { title: 'Điểm thưởng — VeXeVN', description: 'Điểm tích lũy.' },
+  '/account/notifications': { title: 'Thông báo — VeXeVN', description: 'Cài đặt thông báo.' },
+  '/account/security': { title: 'Bảo mật — VeXeVN', description: 'Bảo mật tài khoản.' },
   '/map': {
     title: 'Bản đồ tuyến đường — VeXeVN',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
@@ -297,12 +308,18 @@ function RootComponent() {
         </Suspense>
       )}
 
-      <Suspense fallback={null}>
-        <MobileNav />
-      </Suspense>
-      <Suspense fallback={null}>
-        <SupportFab />
-      </Suspense>
+      {/* MobileNav + SupportFab are hidden on admin/account pages — those
+          routes have their own sidebar drawer + top bar. */}
+      {!pathname.startsWith('/admin') && !pathname.startsWith('/account') && (
+        <Suspense fallback={null}>
+          <MobileNav />
+        </Suspense>
+      )}
+      {!pathname.startsWith('/admin') && !pathname.startsWith('/account') && (
+        <Suspense fallback={null}>
+          <SupportFab />
+        </Suspense>
+      )}
     </div>
   )
 }
@@ -639,6 +656,64 @@ const loginRoute = createRoute({
   ),
 })
 
+// ── Account routes (sidebar layout) ────────────────────────────
+const accountRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account',
+  beforeLoad: () => {
+    const { user } = useApp.getState()
+    if (user && user.type !== 'employee') {
+      // Allow regular users — only block non-employees if they're somehow
+      // trying to access admin routes (handled by admin beforeLoad).
+    }
+  },
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountPage />
+    </Suspense>
+  ),
+})
+
+const accountWishlistRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account/wishlist',
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountWishlistPage />
+    </Suspense>
+  ),
+})
+
+const accountLoyaltyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account/loyalty',
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountLoyaltyPage />
+    </Suspense>
+  ),
+})
+
+const accountNotificationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account/notifications',
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountNotificationsPage />
+    </Suspense>
+  ),
+})
+
+const accountSecurityRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account/security',
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountSecurityPage />
+    </Suspense>
+  ),
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   searchRoute,
@@ -659,6 +734,11 @@ const routeTree = rootRoute.addChildren([
   adminBusLayoutsRoute,
   adminSystemRoute,
   adminPaymentsRoute,
+  accountRoute,
+  accountWishlistRoute,
+  accountLoyaltyRoute,
+  accountNotificationsRoute,
+  accountSecurityRoute,
   loginRoute,
 ])
 

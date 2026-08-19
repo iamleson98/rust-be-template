@@ -1,8 +1,7 @@
-/**
- * Admin payments route — `/admin/payments` (employee-guarded via router beforeLoad).
- */
+/** Admin payments route — `/admin/payments` */
+import { AdminShell } from '@/components/layout/admin-shell'
 import { AdminPaymentsPanel } from '@/components/admin/payments/payments-panel'
 
 export function AdminPaymentsPage() {
-  return <AdminPaymentsPanel />
+  return <AdminShell><AdminPaymentsPanel /></AdminShell>
 }

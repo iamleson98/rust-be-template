@@ -1,4 +1,5 @@
 /** Admin route — `/admin/bus-layouts` — bus layout management page. */
+import { AdminShell } from '@/components/layout/admin-shell'
 import { useAdminBusLayouts } from '@/lib/queries'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -9,9 +10,8 @@ export function AdminBusLayoutsPage() {
   const { data, isLoading } = useAdminBusLayouts()
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
+    <AdminShell>
       <div className="container mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-4">Sơ đồ ghế</h1>
         {isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : (
@@ -37,6 +37,6 @@ export function AdminBusLayoutsPage() {
           </Card>
         )}
       </div>
-    </div>
+    </AdminShell>
   )
 }
