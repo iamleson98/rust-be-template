@@ -95,7 +95,7 @@ export function GoogleAdSlot() {
     const s = document.createElement('script')
     s.async = true
     s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${AD_CLIENT}`
-    s.crossOrigin = 'anonymous'
+    s.setAttribute('crossorigin', 'anonymous')
     document.head.appendChild(s)
   }, [])
 

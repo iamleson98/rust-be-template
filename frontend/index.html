@@ -95,6 +95,23 @@
   -->
   <link rel="preload" as="image" href="/hero-vietnam-bus.avif" type="image/avif" fetchpriority="high" />
 
+  <!-- ── Google Search Console verification ──────────────────────
+       Set VITE_GSC_VERIFICATION in .env to the token Google gives you
+       in Search Console → Settings → Ownership verification → HTML tag.
+       The value is injected at build time by Vite's HTML env substitution.
+       If the env var is not set, this tag is omitted (no empty tag).
+  -->
+  <!-- %VITE_GSC_VERIFICATION_META% -->
+
+  <!-- ── Google Analytics 4 (GA4) ────────────────────────────────
+       Set VITE_GA4_ID in .env to your GA4 measurement ID (G-XXXXXXXXXX).
+       The script is loaded async (doesn't block page render) and only
+       fires if the env var is set. SPA page-view tracking is handled
+       client-side in `src/lib/analytics.ts` (fires on TanStack Router
+       route changes).
+  -->
+  <!-- %VITE_GA4_SCRIPT% -->
+
   <!-- Prevent FOUC: set the font CSS variables before the stylesheet loads -->
   <style>
     :root {
@@ -153,8 +170,10 @@
     }
   </style>
 
-  <!-- JSON-LD structured data — gives Google rich results (rating
-       stars, price range, breadcrumbs) for the homepage. -->
+  <!-- JSON-LD structured data — gives Google rich results.
+       Three schemas on the homepage: WebSite, Organization, FAQPage.
+       Per-route schemas (BreadcrumbList, Product) are injected
+       client-side by `src/components/seo/json-ld.tsx`. -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -171,6 +190,74 @@
       },
       "query-input": "required name=from"
     }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "VeXeVN",
+    "url": "https://vexevn.vn",
+    "logo": "https://vexevn.vn/logo.svg",
+    "description": "Nền tảng đặt vé xe khách trực tuyến toàn Việt Nam — limousine, giường nằm, ghế ngồi.",
+    "foundingDate": "2024",
+    "areaServed": "VN",
+    "knowsLanguage": ["vi", "en"],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+84-1900-6067",
+      "contactType": "customer service",
+      "areaServed": "VN",
+      "availableLanguage": ["vi", "en"]
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Làm thế nào để đặt vé xe trên VeXeVN?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Chỉ với 4 bước: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Tôi có thể đổi hoặc hoàn vé không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. Bạn được đổi vé miễn phí trước 24 giờ so với giờ khởi hành. Với hoàn vé: thu phí 10% nếu hoàn trước 24 giờ, thu phí 30% nếu hoàn trong vòng 24 giờ, và không hoàn vé sau giờ khởi hành."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Những phương thức thanh toán nào được hỗ trợ?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "VeXeVN hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Vé điện tử có hợp lệ không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. Vé điện tử trên VeXeVN có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Trẻ em có được giảm giá không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có: trẻ dưới 2 tuổi đi miễn phí, trẻ từ 2-5 tuổi được giảm 50% giá vé, trẻ từ 6 tuổi trở lên mua vé như người lớn."
+        }
+      }
+    ]
   }
   </script>
 </head>

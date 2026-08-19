@@ -46,6 +46,7 @@ import {
 import { lazy, Suspense, useEffect } from 'react'
 import { useApp, hydrateFromStorage } from '@/lib/store'
 import { useAuthMe } from '@/lib/queries'
+import { trackPageView } from '@/lib/analytics'
 import { Header } from '@/components/layout/header'
 import { IslandFallback } from '@/routes/_fallback'
 
@@ -151,6 +152,9 @@ function RouteMeta() {
       document.title = meta.title
       const descTag = document.querySelector('meta[name="description"]')
       if (descTag) descTag.setAttribute('content', meta.description)
+      // ── GA4 page-view tracking ──────────────────────────────
+      // Fires on every SPA route change. No-op if GA4 isn't configured.
+      trackPageView(pathname, meta.title)
     }
   }, [pathname])
   return null
