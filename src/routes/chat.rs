@@ -158,6 +158,46 @@ pub async fn create_channel(
 ) -> Result<Json<CreateChannelResponse>, AppError> {
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+
+    // The `AuthUser` extractor only verifies the JWT signature — it does
+    // NOT confirm the user still exists in the DB. The `chat_channel`
+    // table has `fk_chatchannel_user` (ON DELETE CASCADE), so inserting
+    // a row for a deleted user fails with a FOREIGN KEY constraint error
+    // (SQLite code 787) that surfaces as a 500. Verify the user exists
+    // first and return 401 for a stale token instead.
+    st.store
+        .user_store()
+        .get_user(uid)
+        .await
+        .map_err(|e| match e {
+            crate::store::StoreError::NotFound(_) => AppError::Unauthorized(
+                "authentication token references a non-existent user".into(),
+            ),
+            other => AppError::Internal(other.to_string()),
+        })?;
+
+    // `fk_chatchannel_brand` requires `brand_id` to reference an existing
+    // brand. Validate it up front so an invalid id returns 400 instead of
+    // a 500 FK error.
+    if let Some(brand_id) = body.brand_id.as_deref() {
+        if !brand_id.is_empty() {
+            let brand_uuid = Uuid::parse_str(brand_id).map_err(|_| {
+                crate::error::AppError::Validation(format!("invalid brand_id: {brand_id}"))
+            })?;
+            let brand = st
+                .store
+                .brand_store()
+                .get_by_id(brand_uuid)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+            if brand.is_none() {
+                return Err(crate::error::AppError::Validation(format!(
+                    "brand not found: {brand_id}"
+                )));
+            }
+        }
+    }
+
     let channel = st
         .store
         .chat_store()

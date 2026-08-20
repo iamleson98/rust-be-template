@@ -365,6 +365,6 @@ fn build_provider(
 pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
     axum::Router::new()
-        .route("/:provider/start", get(oauth_start))
-        .route("/:provider/callback", get(oauth_callback))
+        .route("/{provider}/start", get(oauth_start))
+        .route("/{provider}/callback", get(oauth_callback))
 }

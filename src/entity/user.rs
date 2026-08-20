@@ -35,15 +35,16 @@ pub struct Model {
     pub last_login_ip: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub password_changed_at: Option<String>,
-    /// OAuth provider if the user signed in via social auth
-    /// (`"facebook"` / `"google"` / `"twitter"`). NULL for password users.
-    #[sea_orm(column_type = "Text", nullable)]
-    pub oauth_provider: Option<String>,
-    /// Stable subject id from the OAuth provider. NULL for password users.
-    #[sea_orm(column_type = "Text", nullable)]
-    pub oauth_subject: Option<String>,
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
+    #[sea_orm(unique_key = "User_oauth_provider_subject_uniq")]
+    pub oauth_provider: Option<String>,
+    #[sea_orm(
+        column_type = "Text",
+        nullable,
+        unique_key = "User_oauth_provider_subject_uniq"
+    )]
+    pub oauth_subject: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
