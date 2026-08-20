@@ -146,17 +146,10 @@ pub async fn employee_login(
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let session = state.auth.login(body.email, body.password).await?;
 
-    // Check the user_roles table (source of truth) for non-"user" roles
-    let user_perms = state
-        .store
-        .rbac_store()
-        .get_user_permissions(session.user.id)
-        .await
-        .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
-
-    // Only allow employees (must have at least one role that isn't "user")
-    let is_employee = user_perms.role_names.iter().any(|role| role != "user");
-
+    // Only allow employees (must have at least one role that isn't "user").
+    // The role check lives in AuthService — keeps the store access
+    // inside the service layer (clean architecture).
+    let is_employee = state.auth.is_employee(session.user.id).await?;
     if !is_employee {
         return Err(AppError::Forbidden(
             "This endpoint is for employees only".into(),

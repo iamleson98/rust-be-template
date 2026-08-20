@@ -35,6 +35,7 @@
 pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
+pub mod chat_service;
 pub mod notification_service;
 pub mod payment_service;
 pub mod place_service;
@@ -49,6 +50,7 @@ pub mod wishlist_service;
 pub use admin_service::AdminService;
 pub use auth_service::AuthService;
 pub use booking_service::BookingService;
+pub use chat_service::ChatService;
 pub use notification_service::NotificationService;
 pub use payment_service::PaymentService;
 pub use place_service::PlaceService;

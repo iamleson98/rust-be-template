@@ -47,11 +47,10 @@ use serde_json::json;
 use tokio::sync::mpsc;
 use tracing::Instrument;
 
+use crate::auth::SessionUser;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::store::chat::NewChatMessage;
-use crate::zeroclaw;
-use crate::{auth::SessionUser};
 
 use super::hub::hub;
 
@@ -301,14 +300,9 @@ async fn handle_join(
         .ok_or_else(|| AppError::BadRequest("missing channelId".into()))?
         .to_string();
 
-    // Cache short-circuit; fall back to the chat store on miss.
+    // Cache short-circuit; fall back to the chat service on miss.
     if !hub().channel_exists_cached(&channel_id) {
-        let exists = st
-            .store
-            .chat_store()
-            .channel_exists(&channel_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let exists = st.chats.channel_exists(&channel_id).await?;
         if !exists {
             return Err(AppError::NotFound("chat channel not found".into()));
         }
@@ -391,8 +385,7 @@ async fn handle_message(
             // Persist a soft system notice so the human agent sees it.
             let now_warn = chrono::Utc::now().to_rfc3339();
             let _ = st
-                .store
-                .chat_store()
+                .chats
                 .insert_message(NewChatMessage {
                     channel_id: channel_uuid,
                     sender_type: "system".into(),
@@ -419,8 +412,7 @@ async fn handle_message(
             // Record the ban in the channel as a system message.
             let now_ban = chrono::Utc::now().to_rfc3339();
             let _ = st
-                .store
-                .chat_store()
+                .chats
                 .insert_message(NewChatMessage {
                     channel_id: channel_uuid,
                     sender_type: "system".into(),
@@ -471,14 +463,12 @@ async fn handle_message(
         }
     }
 
-    let now = chrono::Utc::now().to_rfc3339();
     let stored = st
-        .store
-        .chat_store()
+        .chats
         .insert_message(NewChatMessage {
             channel_id: channel_uuid,
             sender_type: user.actor_type.clone(),
-            sender_id: Some(user.id.clone()),
+            sender_id: Some(user.id),
             content: Some(text.clone()),
             kind: "text".into(),
             attachments: None,
@@ -488,17 +478,9 @@ async fn handle_message(
                 Some(client_msg_id.clone())
             },
         })
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .await?;
     let id = stored.id.to_string();
-
-    // Update channel's last-message preview.
-    let preview: String = text.chars().take(100).collect();
-    let _ = st
-        .store
-        .chat_store()
-        .update_channel_preview(&channel_id, preview, now.clone())
-        .await;
+    let now = stored.created_at.clone();
 
     if !client_msg_id.is_empty() {
         hub().idem_store(&client_msg_id, &id);
@@ -522,74 +504,69 @@ async fn handle_message(
     );
 
     // ── ZeroClaw AI assistant hook ────────────────────────────────
+    // Goes through ChatService so the chat store stays encapsulated
+    // in the service layer (clean architecture: API/WS → service → store).
     if user.actor_type == "user" {
-        let provider = zeroclaw::provider();
-        if provider.is_enabled() {
-            let brand_id = st
-                .store
-                .chat_store()
-                .get_channel(&channel_id)
-                .await
-                .ok()
-                .flatten()
-                .and_then(|c| c.brand_id);
+        let brand_id = st
+            .chats
+            .get_channel(&channel_id)
+            .await?
+            .and_then(|c| c.brand_id);
 
-            let online = hub().count_online_employees(brand_id.map(|id| id.to_string()).as_deref());
-            let fallback_threshold = st.config.zeroclaw.fallback_online_employees;
+        let online = hub().count_online_employees(brand_id.map(|id| id.to_string()).as_deref());
+        let fallback_threshold = st.config.zeroclaw.fallback_online_employees;
 
-            let chat_store = st.store.chat_store();
-            let channel_id2 = channel_id.clone();
-            let brand_id2 = brand_id.clone();
-            let user2 = user.clone();
-            let user_msg_id = id.clone();
-            let text2 = text.clone();
-            // Capture the current tracing span so logs inside the spawned
-            // task (an LLM HTTP call that can take 5-15s) stay correlated
-            // to the WS handler that triggered them. Without `.instrument`
-            // the span context is dropped at the `tokio::spawn` boundary.
-            let span = tracing::Span::current();
-            tokio::spawn(
-                async move {
-                    match provider
-                        .maybe_reply(
-                            chat_store.as_ref(),
-                            &channel_id2,
-                            brand_id2.map(|id| id.to_string()).as_deref(),
-                            &user2,
-                            &user_msg_id,
-                            &text2,
-                            online,
-                            fallback_threshold,
-                        )
-                        .await
-                    {
-                        Ok(Some(outcome)) => {
-                            let assistant_broadcast = json!({
-                                "type": "message",
-                                "id": outcome.assistant_message_id,
-                                "channelId": channel_id2,
-                                "senderType": "assistant",
-                                "senderId": format!("zeroclaw:{}", outcome.reply.model),
-                                "senderName": "ZeroClaw AI",
-                                "text": outcome.reply.reply,
-                                "createdAt": outcome.created_at,
-                                "meta": {
-                                    "confidence": outcome.reply.confidence,
-                                    "model": outcome.reply.model,
-                                    "handoffToHuman": outcome.reply.handoff_to_human,
-                                }
-                            });
-                            hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
-                        }
-                        Ok(None) => {}
-                        Err(e) => {
-                            tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
-                        }
+        let chats = st.chats.clone();
+        let channel_id2 = channel_id.clone();
+        let brand_id2 = brand_id.map(|id| id.to_string());
+        let user2 = user.clone();
+        let user_msg_id = id.clone();
+        let text2 = text.clone();
+        // Capture the current tracing span so logs inside the spawned
+        // task (an LLM HTTP call that can take 5-15s) stay correlated
+        // to the WS handler that triggered them. Without `.instrument`
+        // the span context is dropped at the `tokio::spawn` boundary.
+        let span = tracing::Span::current();
+        tokio::spawn(
+            async move {
+                match chats
+                    .maybe_zeroclaw_reply(
+                        &channel_id2,
+                        brand_id2.as_deref(),
+                        &user2,
+                        &user_msg_id,
+                        &text2,
+                        online,
+                        fallback_threshold,
+                    )
+                    .await
+                {
+                    Ok(Some(outcome)) => {
+                        let assistant_broadcast = json!({
+                            "type": "message",
+                            "id": outcome.assistant_message_id,
+                            "channelId": channel_id2,
+                            "senderType": "assistant",
+                            "senderId": format!("zeroclaw:{}", outcome.reply.model),
+                            "senderName": "ZeroClaw AI",
+                            "text": outcome.reply.reply,
+                            "createdAt": outcome.created_at,
+                            "meta": {
+                                "confidence": outcome.reply.confidence,
+                                "model": outcome.reply.model,
+                                "handoffToHuman": outcome.reply.handoff_to_human,
+                            }
+                        });
+                        hub().broadcast_to_room(&channel_id2, &assistant_broadcast);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
                     }
                 }
-                .instrument(span),
-            );
-        }
+            }
+            .instrument(span),
+        );
     }
 
     Ok(())
@@ -614,7 +591,7 @@ async fn handle_read(
     } else {
         "user"
     };
-    let _ = st.store.chat_store().clear_unread(&channel_id, side).await;
+    let _ = st.chats.clear_unread(&channel_id, side).await;
 
     hub().broadcast_to_room(
         &channel_id,

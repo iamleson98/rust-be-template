@@ -10,6 +10,16 @@
  *   - 'message' — message sent/received (short blip)
  *   - 'connect' — call connected (single ascending tone)
  *   - 'end' — call ended (descending tone)
+ *
+ * ## Ring-tone cancellation
+ *
+ * `startRingTone()` returns a stop function. When called, it cancels
+ * BOTH the repeating interval AND any pending one-shot tones that
+ * were scheduled by the last `sounds[type]()` invocation. Without the
+ * pending-timer cancellation, the stop function would clear the
+ * interval but a half-second later a final scheduled tone would
+ * still fire — which is exactly the "user cancels call but still
+ * hears a beep" bug.
  */
 
 let audioCtx: AudioContext | null = null
@@ -55,6 +65,14 @@ function playTone(freq: number, duration: number, type: OscillatorType = 'sine',
   oscillator.stop(now + duration / 1000)
 }
 
+/**
+ * Track all pending `setTimeout` IDs from `playSequence` so that a
+ * ring-tone stop can cancel them. Without this, cancelling a ring
+ * tone mid-cycle would still let the next scheduled tone fire ~300ms
+ * later (the "phantom beep" bug).
+ */
+const pendingToneTimers = new Set<ReturnType<typeof setTimeout>>()
+
 /** Play two tones in sequence (for ringtones / connect sounds). */
 function playSequence(tones: Array<{ freq: number; dur: number; type?: OscillatorType; vol?: number }>) {
   const ctx = getCtx()
@@ -62,22 +80,43 @@ function playSequence(tones: Array<{ freq: number; dur: number; type?: Oscillato
 
   let offset = 0
   for (const tone of tones) {
-    setTimeout(() => playTone(tone.freq, tone.dur, tone.type, tone.vol), offset)
+    const id = setTimeout(() => {
+      pendingToneTimers.delete(id)
+      playTone(tone.freq, tone.dur, tone.type, tone.vol)
+    }, offset)
+    pendingToneTimers.add(id)
     offset += tone.dur
   }
+}
+
+/** Cancel ALL pending one-shot tones. Called by `startRingTone`'s
+ *  stop function so a cancelled ring tone doesn't leak a final beep. */
+function cancelPendingTones() {
+  for (const id of pendingToneTimers) {
+    clearTimeout(id)
+  }
+  pendingToneTimers.clear()
 }
 
 const sounds = {
   /** Outgoing call — repeating ring tone. */
   ring: () => {
     playTone(440, 300, 'sine', 0.12)
-    setTimeout(() => playTone(550, 300, 'sine', 0.12), 350)
+    const id1 = setTimeout(() => {
+      pendingToneTimers.delete(id1)
+      playTone(550, 300, 'sine', 0.12)
+    }, 350)
+    pendingToneTimers.add(id1)
   },
 
   /** Incoming call — repeating double-beep. */
   incoming: () => {
     playTone(800, 150, 'sine', 0.15)
-    setTimeout(() => playTone(1000, 150, 'sine', 0.15), 200)
+    const id1 = setTimeout(() => {
+      pendingToneTimers.delete(id1)
+      playTone(1000, 150, 'sine', 0.15)
+    }, 200)
+    pendingToneTimers.add(id1)
   },
 
   /** Message sent/received — short blip. */
@@ -111,10 +150,23 @@ export function playSound(type: SoundType): void {
   sounds[type]?.()
 }
 
-/** Start a repeating ring/incoming tone. Returns a stop function. */
+/**
+ * Start a repeating ring/incoming tone. Returns a stop function that:
+ *   1. Cancels the repeating interval (so no NEW tones get scheduled).
+ *   2. Cancels any pending one-shot tones from the LAST scheduled
+ *      cycle (so the half-finished beep doesn't leak).
+ *
+ * Without step 2, calling `stop()` immediately after a ring cycle
+ * started would still let the second tone of the cycle fire ~300ms
+ * later — which is exactly the bug where cancelling an unanswered
+ * call still played a sound.
+ */
 export function startRingTone(type: 'ring' | 'incoming'): () => void {
   const interval = type === 'ring' ? 1500 : 3000
   sounds[type]()
   const id = setInterval(() => sounds[type](), interval)
-  return () => clearInterval(id)
+  return () => {
+    clearInterval(id)
+    cancelPendingTones()
+  }
 }

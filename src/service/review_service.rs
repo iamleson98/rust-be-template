@@ -250,7 +250,7 @@ impl ReviewService {
             }
         }
 
-        let brand_id = existing.brand_id.clone();
+        let brand_id = existing.brand_id;
 
         self.store
             .review_store()

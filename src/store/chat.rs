@@ -166,7 +166,7 @@ impl ChatStore for DbChatStore {
     ) -> StoreResult<chat_channel::Model> {
         let id = Uuid::new_v4();
         let now = chrono::Utc::now().to_rfc3339();
-        let brand_id_clone = brand_id.clone();
+        let brand_id_clone = brand_id;
         let topic_clone = topic.clone();
         let model = chat_channel::ActiveModel {
             id: Set(id),
@@ -245,7 +245,7 @@ impl ChatStore for DbChatStore {
             id: Set(id),
             channel_id: Set(msg.channel_id),
             sender_type: Set(msg.sender_type.clone()),
-            sender_id: Set(msg.sender_id.clone()),
+            sender_id: Set(msg.sender_id),
             content: Set(msg.content.clone()),
             kind: Set(msg.kind.clone()),
             attachments: Set(msg.attachments.clone()),

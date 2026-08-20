@@ -62,8 +62,9 @@ pub async fn ready(State(state): State<AppState>) -> AppResult<impl IntoResponse
 /// Ping the database with a trivial query. Returns false if it fails
 /// within the timeout (5s) — the connection is probably dead.
 async fn ping_db(state: &AppState) -> bool {
-    // Readiness via store path so AppState does not need a raw DB handle.
-    let ping = async { state.store.rbac_store().list_roles().await };
+    // Readiness via the AuthService `db_ping` helper — keeps the
+    // store access inside the service layer (clean architecture).
+    let ping = async { state.auth.db_ping().await };
 
     match timeout(Duration::from_secs(5), ping).await {
         Ok(Ok(_)) => true,

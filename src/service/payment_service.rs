@@ -841,7 +841,7 @@ impl PaymentService {
         provider_response: String,
     ) -> AppResult<()> {
         let now = now_iso();
-        let booking_id_str = p.booking_id.clone();
+        let booking_id_str = p.booking_id;
         let provider = p.provider.clone();
 
         // Transactional: payment UPDATE + booking confirm.

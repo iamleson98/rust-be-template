@@ -54,7 +54,7 @@ impl SessionUser {
             email: Some(m.email.clone()),
             phone: m.phone.clone(),
             avatar_url: m.avatar_url.clone(),
-            brand_id: m.brand_id.clone(),
+            brand_id: m.brand_id,
             brand_name: None,
             employee_role,
         }

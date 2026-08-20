@@ -20,9 +20,9 @@ use crate::payment::zalopay::ZalopayProvider;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, NotificationService, PaymentService, PlaceService,
-    PostService, PriceAlertService, PublicService, ReviewService, RoutingService, UserService,
-    WishlistService,
+    AdminService, AuthService, BookingService, ChatService, NotificationService, PaymentService,
+    PlaceService, PostService, PriceAlertService, PublicService, ReviewService, RoutingService,
+    UserService, WishlistService,
 };
 use crate::state::AppState;
 use crate::store::{
@@ -228,24 +228,30 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         cod_provider,
     ));
 
-    let state = AppState {
-        config: config_arc,
+    // ---- Chat service (chat channels + ZeroClaw AI hook) ───────────
+    // Encapsulates all chat_store access so route handlers + the WS
+    // hub never touch the store directly (clean-architecture rule).
+    let chat_service = Arc::new(ChatService::new(store.clone()));
+
+    let state = AppState::new(
+        config_arc,
         store,
-        rbac: rbac.clone(),
-        auth: auth_service,
-        posts: post_service,
-        users: user_service,
-        admin: admin_service,
-        reviews: review_service,
-        bookings: booking_service,
-        public: public_service,
-        routing: routing_service,
-        places: place_service,
-        price_alerts: price_alert_service,
-        notifications: notification_service,
-        wishlist: wishlist_service,
-        payments: payment_service,
-    };
+        rbac.clone(),
+        auth_service,
+        post_service,
+        user_service,
+        admin_service,
+        review_service,
+        booking_service,
+        public_service,
+        routing_service,
+        place_service,
+        price_alert_service,
+        notification_service,
+        wishlist_service,
+        payment_service,
+        chat_service,
+    );
 
     Ok(state)
 }

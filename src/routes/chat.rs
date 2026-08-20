@@ -12,8 +12,8 @@ use crate::dto::chat::{
 };
 use crate::error::AppError;
 use crate::middleware::AuthUser;
+use crate::service::chat_service::ChatMessageInput;
 use crate::state::AppState;
-use crate::store::chat::NewChatMessage;
 
 #[derive(Deserialize, IntoParams)]
 #[serde(rename_all = "camelCase")]
@@ -39,11 +39,9 @@ pub async fn list_channels(
     Query(q): Query<ListChannelsQuery>,
 ) -> Result<Json<ChatChannelListResponse>, AppError> {
     let channels = st
-        .store
-        .chat_store()
-        .list_channels(uid, q.limit.unwrap_or(50).min(200))
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .chats
+        .list_channels(uid, q.limit.unwrap_or(50))
+        .await?;
     let items: Vec<ChatChannelOut> = channels.into_iter().map(channel_to_dto).collect();
     Ok(Json(ChatChannelListResponse { items }))
 }
@@ -80,19 +78,16 @@ pub async fn list_messages(
     // they own OR that's assigned to them as an employee. For simplicity
     // (and to match the WS handler's behaviour) we just check auth here;
     // a stricter version would verify `channel.user_id == uid` or that
-    // the caller has an employee role. The previous implementation had
-    // NO auth extractor at all — anyone could read any channel's messages.
+    // the caller has an employee role.
     let _ = uid;
     let msgs = st
-        .store
-        .chat_store()
+        .chats
         .list_messages(
             &id.to_string(),
-            q.limit.unwrap_or(50).min(200),
+            q.limit.unwrap_or(50),
             q.offset.unwrap_or(0),
         )
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .await?;
     let items: Vec<ChatMessageOut> = msgs.into_iter().map(message_to_dto).collect();
     Ok(Json(ChatMessageListResponse { items }))
 }
@@ -113,29 +108,11 @@ pub async fn mark_read(
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MarkChannelReadResponse>, AppError> {
-    // The previous `if uid.to_string().is_empty() { "user" } else { "user" }`
-    // was a dead branch — always evaluated to "user". The actual side
-    // depends on whether the caller is an employee (admin/support) or
-    // the customer. We determine that here via RBAC role check.
-    let user_perms = st
-        .store
-        .rbac_store()
-        .get_user_permissions(uid)
-        .await
-        .map_err(|e| AppError::Internal(format!("failed to load user roles: {e}")))?;
-    let side = if user_perms.role_names.iter().any(|r| r != "user") {
-        "employee"
-    } else {
-        "user"
-    };
-    // Previously: `let _ = clear_unread(...)` — silently swallowed errors.
-    // Now propagate so a DB issue surfaces as a 500 instead of returning
-    // success while the unread counter stays unchanged.
-    st.store
-        .chat_store()
-        .clear_unread(&id.to_string(), side)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    // The side depends on whether the caller is an employee (admin/support)
+    // or the customer. Determine via RBAC role check.
+    let is_employee = st.chats.is_employee(uid).await?;
+    let side = if is_employee { "employee" } else { "user" };
+    st.chats.clear_unread(&id.to_string(), side).await?;
     Ok(Json(MarkChannelReadResponse { ok: true }))
 }
 
@@ -159,50 +136,10 @@ pub async fn create_channel(
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
 
-    // The `AuthUser` extractor only verifies the JWT signature — it does
-    // NOT confirm the user still exists in the DB. The `chat_channel`
-    // table has `fk_chatchannel_user` (ON DELETE CASCADE), so inserting
-    // a row for a deleted user fails with a FOREIGN KEY constraint error
-    // (SQLite code 787) that surfaces as a 500. Verify the user exists
-    // first and return 401 for a stale token instead.
-    st.store
-        .user_store()
-        .get_user(uid)
-        .await
-        .map_err(|e| match e {
-            crate::store::StoreError::NotFound(_) => {
-                AppError::Unauthorized("authentication token references a non-existent user".into())
-            }
-            other => AppError::Internal(other.to_string()),
-        })?;
-
-    // `fk_chatchannel_brand` requires `brand_id` to reference an existing
-    // brand. Validate it up front so an invalid id returns 400 instead of
-    // a 500 FK error.
-    if let Some(brand_id) = body.brand_id {
-        let brand = st
-            .store
-            .brand_store()
-            .get_by_id(brand_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        if brand.is_none() {
-            return Err(crate::error::AppError::Validation(format!(
-                "brand not found: {brand_id}"
-            )));
-        }
-    }
-
     let channel = st
-        .store
-        .chat_store()
-        .create_channel(
-            uid,
-            body.brand_id,
-            body.topic.or_else(|| Some("Hỗ trợ".to_string())),
-        )
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+        .chats
+        .create_channel(uid, body.brand_id, body.topic)
+        .await?;
     Ok(Json(CreateChannelResponse {
         channel: channel_to_dto(channel),
     }))
@@ -237,12 +174,7 @@ pub async fn post_message(
     let channel_id = id.to_string();
 
     // Verify the channel exists.
-    let exists = st
-        .store
-        .chat_store()
-        .channel_exists(&channel_id)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let exists = st.chats.channel_exists(&channel_id).await?;
     if !exists {
         return Err(AppError::NotFound("chat channel not found".into()));
     }
@@ -253,11 +185,9 @@ pub async fn post_message(
     if let Some(client_msg_id) = body.client_msg_id.as_deref() {
         if !client_msg_id.is_empty() {
             if let Some(stored) = st
-                .store
-                .chat_store()
+                .chats
                 .find_message_by_client_id(&channel_id, client_msg_id)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
+                .await?
             {
                 return Ok(Json(CreateMessageResponse {
                     message: message_to_dto(stored),
@@ -269,22 +199,12 @@ pub async fn post_message(
     // The sender type is "user" for authenticated customers, "employee"
     // for staff. We derive it from the user's role (employees have
     // non-"user" roles).
-    let user_perms = st
-        .store
-        .rbac_store()
-        .get_user_permissions(uid)
-        .await
-        .map_err(|e| AppError::Internal(format!("failed to load user roles: {e}")))?;
-    let sender_type = if user_perms.role_names.iter().any(|r| r != "user") {
-        "employee"
-    } else {
-        "user"
-    };
+    let is_employee = st.chats.is_employee(uid).await?;
+    let sender_type = if is_employee { "employee" } else { "user" };
 
     let msg = st
-        .store
-        .chat_store()
-        .insert_message(NewChatMessage {
+        .chats
+        .insert_message(ChatMessageInput {
             channel_id: id,
             sender_type: sender_type.to_string(),
             sender_id: Some(uid),
@@ -293,22 +213,7 @@ pub async fn post_message(
             attachments: body.attachments,
             client_msg_id: body.client_msg_id.filter(|s| !s.is_empty()),
         })
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    // Best-effort: update the channel's last-message preview.
-    let preview: String = msg
-        .content
-        .as_deref()
-        .unwrap_or("")
-        .chars()
-        .take(100)
-        .collect();
-    let _ = st
-        .store
-        .chat_store()
-        .update_channel_preview(&channel_id, preview, msg.created_at.clone())
-        .await;
+        .await?;
 
     Ok(Json(CreateMessageResponse {
         message: message_to_dto(msg),
