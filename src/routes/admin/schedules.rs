@@ -34,8 +34,8 @@ pub async fn list(
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_SCHEDULES_READ)
         .await?;
-    let route_id = q
-        .route_id
+    let route_id_str = q.route_id.map(|u| u.to_string());
+    let route_id = route_id_str
         .as_deref()
         .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?;
     Ok(Json(st.admin.list_schedules(route_id).await?))

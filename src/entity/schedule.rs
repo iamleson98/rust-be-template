@@ -8,8 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(column_type = "Text")]
-    pub route_id: String,
+    pub route_id: Uuid,
     #[sea_orm(column_type = "Text")]
     pub departure_time: String,
     #[sea_orm(column_type = "Text", nullable)]

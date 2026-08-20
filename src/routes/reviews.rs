@@ -85,7 +85,7 @@ pub async fn create(
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let mut input = body;
-    input.user_id = Some(uid.to_string());
+    input.user_id = Some(uid);
     Ok(Json(st.reviews.create(&input).await?))
 }
 

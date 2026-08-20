@@ -14,8 +14,8 @@ use validator::Validate;
 #[serde(rename_all = "camelCase")]
 pub struct WishlistItemOut {
     pub id: Uuid,
-    pub user_id: String,
-    pub route_id: String,
+    pub user_id: Uuid,
+    pub route_id: Uuid,
     pub created_at: String,
 }
 

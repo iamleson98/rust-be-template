@@ -15,8 +15,7 @@ use validator::Validate;
 pub struct CreateChannelRequest {
     #[validate(length(max = 255))]
     pub topic: Option<String>,
-    #[validate(length(max = 64))]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
 }
 
 /// Response of `POST /api/chat/channels`.
@@ -32,12 +31,12 @@ pub struct CreateChannelResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ChatChannelOut {
     pub id: Uuid,
-    pub user_id: String,
+    pub user_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub topic: Option<String>,
     pub status: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_message_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -82,10 +81,10 @@ pub struct CreateMessageResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessageOut {
     pub id: Uuid,
-    pub channel_id: String,
+    pub channel_id: Uuid,
     pub sender_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub sender_id: Option<String>,
+    pub sender_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<String>,
     pub kind: String,

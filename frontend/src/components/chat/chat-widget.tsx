@@ -217,7 +217,7 @@ export function ChatWidget() {
               socketRef.current = null
             }
           })
-          .catch(() => {})
+          .catch(() => { })
       }
     })
 
@@ -325,7 +325,7 @@ export function ChatWidget() {
       .then((data) => {
         if (!cancelled) setChannels(data.items ?? [])
       })
-      .catch(() => {})
+      .catch(() => { })
     return () => {
       cancelled = true
     }
@@ -440,7 +440,7 @@ export function ChatWidget() {
     if (socketRef.current?.connected) {
       socketRef.current.send('join', { channelId: ch.id })
     }
-    sdkMarkRead({ path: { id: ch.id } }).catch(() => {})
+    sdkMarkRead({ path: { id: ch.id } }).catch(() => { })
     setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, unreadUser: 0 } : c)))
   }
 
@@ -461,7 +461,7 @@ export function ChatWidget() {
             const d = data as any
             setChannels(d?.items ?? [])
           })
-          .catch(() => {})
+          .catch(() => { })
         openChannel(data.channel)
       }
     } catch (e) {
@@ -502,6 +502,7 @@ export function ChatWidget() {
   }
 
   const sendMessage = async (text?: string) => {
+    console.log(input)
     const content = (text ?? input).trim()
     if (!content || !activeChannel) return
     setInput('')
@@ -624,7 +625,7 @@ export function ChatWidget() {
             showQuickActions={showQuickActions && messages.length === 0 && !loadingMessages}
             onQuickAction={(msg) => {
               setInput(msg)
-              sendMessage(msg)
+              // sendMessage(msg)
               setShowQuickActions(false)
             }}
           />

@@ -37,6 +37,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
+use uuid::Uuid;
 
 use crate::auth::SessionUser;
 use crate::config::ZeroClawConfig;
@@ -54,9 +55,9 @@ pub struct ConversationTurn {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ZeroClawRequest {
-    pub channel_id: String,
-    pub brand_id: Option<String>,
-    pub user_id: String,
+    pub channel_id: Uuid,
+    pub brand_id: Option<Uuid>,
+    pub user_id: Uuid,
     pub user_name: String,
     pub conversation: Vec<ConversationTurn>,
     pub locale: String,
@@ -263,9 +264,16 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         }
 
         let req_body = ZeroClawRequest {
-            channel_id: channel_id.to_string(),
-            brand_id: brand_id.map(|s| s.to_string()),
-            user_id: user.id.clone(),
+            channel_id: uuid::Uuid::parse_str(channel_id)
+                .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?,
+            brand_id: match brand_id {
+                Some(s) => Some(
+                    uuid::Uuid::parse_str(s)
+                        .map_err(|e| AppError::Internal(format!("invalid brand id: {e}")))?,
+                ),
+                None => None,
+            },
+            user_id: user.id,
             user_name: user.name.clone(),
             locale: "vi".into(),
             conversation,
@@ -305,11 +313,18 @@ impl ZeroClawProvider for HttpZeroClawProvider {
 
         // 4. Persist the assistant reply as a ChatMessage row.
         let now = chrono::Utc::now().to_rfc3339();
+        // Parse once for DB inserts (`NewChatMessage.channel_id` and
+        // `NewZeroClawExchange.*` are `Uuid` so SeaORM binds them as
+        // blobs matching the `pk_uuid` parent columns).
+        let channel_uuid = uuid::Uuid::parse_str(channel_id)
+            .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?;
+        let user_msg_uuid = uuid::Uuid::parse_str(user_message_id)
+            .map_err(|e| AppError::Internal(format!("invalid user message id: {e}")))?;
         let assistant_msg = chat_store
             .insert_message(NewChatMessage {
-                channel_id: channel_id.to_string(),
+                channel_id: channel_uuid,
                 sender_type: "assistant".into(),
-                sender_id: Some(format!("zeroclaw:{}", self.model)),
+                sender_id: None,
                 content: Some(reply.reply.clone()),
                 kind: "text".into(),
                 attachments: None,
@@ -328,9 +343,9 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         // 6. Audit row.
         let _ = chat_store
             .insert_zeroclaw_exchange(NewZeroClawExchange {
-                channel_id: Some(channel_id.to_string()),
-                user_message_id: Some(user_message_id.to_string()),
-                assistant_message_id: Some(assistant_msg_id.clone()),
+                channel_id: Some(channel_uuid),
+                user_message_id: Some(user_msg_uuid),
+                assistant_message_id: Some(assistant_msg.id),
                 prompt: Some(user_text.to_string()),
                 completion: Some(reply.reply.clone()),
                 model: Some(reply.model.clone()),

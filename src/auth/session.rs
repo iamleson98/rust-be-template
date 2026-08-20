@@ -22,7 +22,7 @@ use crate::entity::user;
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUser {
-    pub id: String,
+    pub id: Uuid,
     #[serde(rename = "type")]
     pub actor_type: String,
     pub role: String,
@@ -30,7 +30,7 @@ pub struct SessionUser {
     pub email: Option<String>,
     pub phone: Option<String>,
     pub avatar_url: Option<String>,
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     pub brand_name: Option<String>,
     pub employee_role: Option<String>,
 }
@@ -47,7 +47,7 @@ impl SessionUser {
             None
         };
         Self {
-            id: m.id.to_string(),
+            id: m.id,
             actor_type: m.role.to_string(),
             role: m.role.clone(),
             name: m.full_name.clone(),
@@ -58,11 +58,6 @@ impl SessionUser {
             brand_name: None,
             employee_role,
         }
-    }
-
-    /// Convenience: parse the `id` back to a `Uuid`.
-    pub fn uuid(&self) -> Result<Uuid, uuid::Error> {
-        Uuid::parse_str(&self.id)
     }
 
     /// Is this actor an employee (staff)?

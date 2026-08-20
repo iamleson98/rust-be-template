@@ -271,7 +271,7 @@ pub async fn handle_socket(
 
     let _ = close_tx.send(()).await;
 
-    if let Some(role) = call_hub().unregister(&user_id, sid) {
+    if let Some(role) = call_hub().unregister(&user_id.to_string(), sid) {
         if role == CallRole::Agent {
             tracing::info!(user_id = %user_id, "agent went offline — broadcasting to customers");
             call_hub().broadcast_agent_offline();
@@ -356,7 +356,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                 CallRole::Customer => {
                     if call_hub().online_agent_count() == 0 {
                         let _ = call_hub().send_to(
-                            &user.id,
+                            &user.id.to_string(),
                             &json!({
                                 "type": "error",
                                 "code": "no-agent",
@@ -373,7 +373,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                     }
                     if call_hub().role_of(to) != Some(CallRole::Customer) {
                         let _ = call_hub().send_to(
-                            &user.id,
+                            &user.id.to_string(),
                             &json!({
                                 "type": "error",
                                 "code": "peer-unavailable",
@@ -399,7 +399,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                 );
                 if !sent {
                     let _ = call_hub().send_to(
-                        &user.id,
+                        &user.id.to_string(),
                         &json!({
                             "type": "error",
                             "code": "peer-unavailable",

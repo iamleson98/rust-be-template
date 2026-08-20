@@ -38,8 +38,8 @@ pub async fn list(
         st.admin
             .list_reviews(
                 q.status.as_deref(),
-                q.brand_id.as_deref(),
-                q.route_id.as_deref(),
+                q.brand_id.map(|u| u.to_string()).as_deref(),
+                q.route_id.map(|u| u.to_string()).as_deref(),
                 q.limit.unwrap_or(50).min(200),
                 q.offset.unwrap_or(0),
             )

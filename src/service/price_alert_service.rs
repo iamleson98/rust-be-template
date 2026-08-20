@@ -34,7 +34,7 @@ pub struct CreatePriceAlertInput {
     pub email: Option<String>,
     pub from_name: String,
     pub to_name: String,
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     pub target_price: i64,
     pub frequency: String,
 }
@@ -175,7 +175,7 @@ impl PriceAlertService {
             .find_duplicate_alert(
                 input.user_id.as_ref().map(|u| u.to_string()).as_deref(),
                 phone,
-                input.route_id.as_deref(),
+                input.route_id.map(|id| id.to_string()).as_deref(),
                 input.target_price,
             )
             .await?;
@@ -194,7 +194,7 @@ impl PriceAlertService {
             email: Set(input.email.as_ref().map(|e| e.trim().to_string())),
             from_name: Set(Some(input.from_name.trim().to_string())),
             to_name: Set(Some(input.to_name.trim().to_string())),
-            route_id: Set(input.route_id.as_ref().map(|r| r.trim().to_string())),
+            route_id: Set(input.route_id),
             target_price: Set(Some(input.target_price)),
             frequency: Set(freq),
             status: Set("active".to_string()),

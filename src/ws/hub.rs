@@ -225,7 +225,11 @@ impl ChatHub {
         }
         // Remove from online-employee index.
         if sess.user.actor_type == "employee" {
-            self.remove_online_employee(&sess.user.id, sess.user.brand_id.as_deref(), id);
+            self.remove_online_employee(
+                &sess.user.id.to_string(),
+                sess.user.brand_id.map(|id| id.to_string()).as_deref(),
+                id,
+            );
         }
         self.release_ip(&sess.ip);
         self.release_global();
@@ -348,7 +352,7 @@ impl ChatHub {
                     continue;
                 }
                 if let Some(sess) = self.sessions.get(&sid) {
-                    if sess.user.id == user_id {
+                    if sess.user.id.to_string() == user_id {
                         return true;
                     }
                 }
@@ -619,6 +623,7 @@ pub struct HubStats {
 mod tests {
     use super::*;
     use crate::auth::SessionUser;
+    use uuid::Uuid;
 
     /// Build a fresh (non-singleton) hub for testing. The global hub() is a
     /// `OnceLock`-cached singleton, so to test concurrent operations in
@@ -630,8 +635,15 @@ mod tests {
     }
 
     fn sample_user(id: &str, actor: &str) -> SessionUser {
+        // Generate a deterministic UUID from the string for testing
+        let mut bytes = [0u8; 16];
+        let id_bytes = id.as_bytes();
+        for (i, b) in id_bytes.iter().enumerate().take(16) {
+            bytes[i] = *b;
+        }
+        let uuid = Uuid::from_bytes(bytes);
         SessionUser {
-            id: id.into(),
+            id: uuid,
             actor_type: actor.into(),
             role: "user".into(),
             name: format!("User-{id}"),
@@ -709,7 +721,7 @@ mod tests {
         let (user, channel) = h
             .unregister(id)
             .expect("unregister should return the session");
-        assert_eq!(user.id, "u1");
+        assert_eq!(user.name, "User-u1");
         assert!(channel.is_none(), "no channel was set");
         assert!(
             h.user_of(id).is_none(),
@@ -995,14 +1007,14 @@ mod tests {
         let (tx2, _rx2) = make_tx();
         let id1 = h.register(
             SessionUser {
-                id: "e1".into(),
+                id: Uuid::parse_str("e1").unwrap_or_else(|_| Uuid::new_v4()),
                 actor_type: "employee".into(),
                 role: "agent".into(),
                 name: "Bob".into(),
                 email: None,
                 phone: None,
                 avatar_url: None,
-                brand_id: Some("b1".into()),
+                brand_id: Some(Uuid::parse_str("b1").unwrap_or_else(|_| Uuid::new_v4())),
                 brand_name: None,
                 employee_role: None,
             },
@@ -1011,14 +1023,14 @@ mod tests {
         );
         let id2 = h.register(
             SessionUser {
-                id: "e2".into(),
+                id: Uuid::parse_str("e2").unwrap_or_else(|_| Uuid::new_v4()),
                 actor_type: "employee".into(),
                 role: "agent".into(),
                 name: "Alice".into(),
                 email: None,
                 phone: None,
                 avatar_url: None,
-                brand_id: Some("b1".into()),
+                brand_id: Some(Uuid::parse_str("b1").unwrap_or_else(|_| Uuid::new_v4())),
                 brand_name: None,
                 employee_role: None,
             },
@@ -1039,7 +1051,7 @@ mod tests {
         let (tx, _rx) = make_tx();
         let id = h.register(sample_user("u7", "user"), "1.1.1.1".into(), tx);
         let u = h.user_of(id).expect("must be Some");
-        assert_eq!(u.id, "u7");
+        assert_eq!(u.name, "User-u7");
     }
 
     #[test]

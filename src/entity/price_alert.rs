@@ -12,8 +12,7 @@ pub struct Model {
     pub email: Option<String>,
     pub from_name: Option<String>,
     pub to_name: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     pub target_price: Option<i64>,
     pub frequency: String,
     pub status: String,

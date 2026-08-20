@@ -8,12 +8,9 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub channel_id: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub user_message_id: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub assistant_message_id: Option<String>,
+    pub channel_id: Option<Uuid>,
+    pub user_message_id: Option<Uuid>,
+    pub assistant_message_id: Option<Uuid>,
     #[sea_orm(column_type = "Text", nullable)]
     pub prompt: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]

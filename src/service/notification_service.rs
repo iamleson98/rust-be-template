@@ -101,7 +101,7 @@ impl NotificationService {
         let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let model = notification::ActiveModel {
             id: Set(id),
-            user_id: Set(user_id.to_string()),
+            user_id: Set(user_id),
             r#type: Set(kind.to_string()),
             title: Set(title.map(|s| s.to_string())),
             body: Set(body.map(|s| s.to_string())),

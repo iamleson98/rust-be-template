@@ -47,11 +47,11 @@ use serde_json::json;
 use tokio::sync::mpsc;
 use tracing::Instrument;
 
-use crate::auth::SessionUser;
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::store::chat::NewChatMessage;
 use crate::zeroclaw;
+use crate::{auth::SessionUser};
 
 use super::hub::hub;
 
@@ -88,19 +88,30 @@ impl WsLimits {
     }
 }
 
-/// HTTP→WS upgrade handler. Authenticates via `?token=` query param,
-/// applies the global + per-IP connection caps, then hands off to
-/// [`handle_socket`].
+/// HTTP→WS upgrade handler. Authenticates via `?token=` query param or
+/// `access_token` cookie, applies the global + per-IP connection caps,
+/// then hands off to [`handle_socket`].
 pub async fn ws_upgrade(
     State(st): State<AppState>,
     Query(q): Query<WsQ>,
+    jar: axum_extra::extract::CookieJar,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
     // Resolve the session user via the auth service (verifies JWT + loads user).
-    let user = match q.token.as_deref() {
-        Some(t) if !t.is_empty() => st.auth.verify_access_token_session(t).await.ok(),
-        _ => None,
+    // Try query param first, then fall back to cookie (same as REST endpoints).
+    let token = q
+        .token
+        .as_deref()
+        .filter(|t| !t.is_empty())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            let (access, _) = crate::auth::cookies::extract_tokens(&jar);
+            access
+        });
+    let user = match token.as_deref() {
+        Some(t) => st.auth.verify_access_token_session(t).await.ok(),
+        None => None,
     };
     let user = user
         .ok_or_else(|| AppError::Unauthorized("ws handshake: missing or invalid token".into()))?;
@@ -154,8 +165,10 @@ pub async fn handle_socket(
     let sid = hub().register(user.clone(), ip.clone(), tx);
 
     // If this is an employee, add to the online-employee index.
+    let user_id = user.id.to_string();
+    let brand_id = user.brand_id.map(|id| id.to_string());
     if user.is_employee() {
-        hub().add_online_employee(&user.id, user.brand_id.as_deref(), sid);
+        hub().add_online_employee(&user_id, brand_id.as_deref(), sid);
     }
 
     tracing::debug!(
@@ -306,7 +319,7 @@ async fn handle_join(
     hub().join_room(&channel_id, sid);
 
     if let Some(prev) = prev {
-        if !hub().user_still_in_room(&prev, &user.id, sid) {
+        if !hub().user_still_in_room(&prev, &user.id.to_string(), sid) {
             hub().broadcast_to_room(
                 &prev,
                 &json!({ "type": "presence", "channelId": prev, "userId": user.id, "online": false }),
@@ -320,7 +333,9 @@ async fn handle_join(
         sid,
     );
 
-    let online_count = hub().count_online_employees(user.brand_id.as_deref());
+    let brand_id = user.brand_id.map(|id| id.to_string());
+
+    let online_count = hub().count_online_employees(brand_id.as_deref());
     hub().send_to(
         sid,
         &json!({
@@ -345,6 +360,10 @@ async fn handle_message(
         .and_then(|v| v.as_str())
         .ok_or_else(|| AppError::BadRequest("missing channelId".into()))?
         .to_string();
+    // Parsed form for DB inserts (`NewChatMessage.channel_id` is a `Uuid`
+    // so SeaORM binds it as a blob matching `chat_channel.id` storage).
+    let channel_uuid = uuid::Uuid::parse_str(&channel_id)
+        .map_err(|e| AppError::BadRequest(format!("invalid channelId: {e}")))?;
     let text = msg
         .get("text")
         .and_then(|v| v.as_str())
@@ -365,7 +384,7 @@ async fn handle_message(
     // when they pick up the channel).
     let guard = crate::guard::AbuseGuard::shared();
     let ip_for_guard = hub().session_ip(sid);
-    let verdict = guard.check(Some(&user.id), ip_for_guard.as_deref(), &text);
+    let verdict = guard.check(Some(&user.id.to_string()), ip_for_guard.as_deref(), &text);
     match &verdict {
         crate::guard::AbuseVerdict::Ok => { /* proceed */ }
         crate::guard::AbuseVerdict::Warned { reason } => {
@@ -375,9 +394,9 @@ async fn handle_message(
                 .store
                 .chat_store()
                 .insert_message(NewChatMessage {
-                    channel_id: channel_id.clone(),
+                    channel_id: channel_uuid,
                     sender_type: "system".into(),
-                    sender_id: Some("abuse-guard".into()),
+                    sender_id: None,
                     content: Some(format!("⚠️ Cảnh báo: {reason}")),
                     kind: "text".into(),
                     attachments: None,
@@ -403,9 +422,9 @@ async fn handle_message(
                 .store
                 .chat_store()
                 .insert_message(NewChatMessage {
-                    channel_id: channel_id.clone(),
+                    channel_id: channel_uuid,
                     sender_type: "system".into(),
-                    sender_id: Some("abuse-guard".into()),
+                    sender_id: None,
                     content: Some(format!("🚫 Tài khoản bị tạm khóa: {reason}")),
                     kind: "text".into(),
                     attachments: None,
@@ -457,7 +476,7 @@ async fn handle_message(
         .store
         .chat_store()
         .insert_message(NewChatMessage {
-            channel_id: channel_id.clone(),
+            channel_id: channel_uuid,
             sender_type: user.actor_type.clone(),
             sender_id: Some(user.id.clone()),
             content: Some(text.clone()),
@@ -515,7 +534,7 @@ async fn handle_message(
                 .flatten()
                 .and_then(|c| c.brand_id);
 
-            let online = hub().count_online_employees(brand_id.as_deref());
+            let online = hub().count_online_employees(brand_id.map(|id| id.to_string()).as_deref());
             let fallback_threshold = st.config.zeroclaw.fallback_online_employees;
 
             let chat_store = st.store.chat_store();
@@ -535,7 +554,7 @@ async fn handle_message(
                         .maybe_reply(
                             chat_store.as_ref(),
                             &channel_id2,
-                            brand_id2.as_deref(),
+                            brand_id2.map(|id| id.to_string()).as_deref(),
                             &user2,
                             &user_msg_id,
                             &text2,

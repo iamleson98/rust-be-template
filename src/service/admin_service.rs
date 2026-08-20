@@ -265,15 +265,11 @@ impl AdminService {
         // find_place_by_id(start) + find_place_by_id(end).
         let mut place_ids: Vec<Uuid> = Vec::new();
         for r in &routes {
-            if let Some(id) = r.start_location_id.as_deref() {
-                if let Ok(uid) = Uuid::parse_str(id) {
-                    place_ids.push(uid);
-                }
+            if let Some(id) = r.start_location_id {
+                place_ids.push(id);
             }
-            if let Some(id) = r.end_location_id.as_deref() {
-                if let Ok(uid) = Uuid::parse_str(id) {
-                    place_ids.push(uid);
-                }
+            if let Some(id) = r.end_location_id {
+                place_ids.push(id);
             }
         }
         place_ids.dedup();
@@ -294,8 +290,6 @@ impl AdminService {
 
             let start_place = r
                 .start_location_id
-                .as_deref()
-                .and_then(|id| Uuid::parse_str(id).ok())
                 .and_then(|uid| place_map.get(&uid))
                 .map(|p| AdminPlacePreview {
                     id: p.id,
@@ -304,8 +298,6 @@ impl AdminService {
                 });
             let end_place = r
                 .end_location_id
-                .as_deref()
-                .and_then(|id| Uuid::parse_str(id).ok())
                 .and_then(|uid| place_map.get(&uid))
                 .map(|p| AdminPlacePreview {
                     id: p.id,
@@ -315,10 +307,10 @@ impl AdminService {
 
             items.push(AdminRouteOut {
                 id: r.id,
-                brand_id: r.brand_id.clone(),
+                brand_id: r.brand_id,
                 name: r.name.clone(),
-                start_location_id: r.start_location_id.clone(),
-                end_location_id: r.end_location_id.clone(),
+                start_location_id: r.start_location_id,
+                end_location_id: r.end_location_id,
                 distance_km: r.distance_km,
                 duration_min: r.duration_min,
                 status: r.status.clone(),
@@ -345,9 +337,9 @@ impl AdminService {
             .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
-        let brand_id = body.brand_id.clone();
-        let start_location_id = body.start_location_id.clone();
-        let end_location_id = body.end_location_id.clone();
+        let brand_id = body.brand_id;
+        let start_location_id = body.start_location_id;
+        let end_location_id = body.end_location_id;
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -392,14 +384,14 @@ impl AdminService {
         if let Some(ref v) = body.name {
             active.name = Set(v.clone());
         }
-        if let Some(ref v) = body.brand_id {
-            active.brand_id = Set(Some(v.clone()));
+        if let Some(v) = body.brand_id {
+            active.brand_id = Set(Some(v));
         }
-        if let Some(ref v) = body.start_location_id {
-            active.start_location_id = Set(Some(v.clone()));
+        if let Some(v) = body.start_location_id {
+            active.start_location_id = Set(Some(v));
         }
-        if let Some(ref v) = body.end_location_id {
-            active.end_location_id = Set(Some(v.clone()));
+        if let Some(v) = body.end_location_id {
+            active.end_location_id = Set(Some(v));
         }
         if let Some(v) = body.distance_km {
             active.distance_km = Set(Some(v));
@@ -447,7 +439,7 @@ impl AdminService {
             .iter()
             .map(|s| AdminScheduleOut {
                 id: s.id,
-                route_id: s.route_id.clone(),
+                route_id: s.route_id,
                 departure_time: s.departure_time.clone(),
                 effective_from: s.effective_from.clone(),
                 effective_to: s.effective_to.clone(),
@@ -469,11 +461,7 @@ impl AdminService {
     ) -> AppResult<AdminMutationResponse> {
         let route_id = body
             .route_id
-            .as_deref()
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?
-            .to_string();
+            .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?;
         let departure_time = body
             .departure_time
             .as_deref()
@@ -538,8 +526,8 @@ impl AdminService {
 
         let mut active: schedule::ActiveModel = existing.into();
 
-        if let Some(ref v) = body.route_id {
-            active.route_id = Set(v.clone());
+        if let Some(v) = body.route_id {
+            active.route_id = Set(v);
         }
         if let Some(ref v) = body.departure_time {
             if !regex_like_hhmm(v) {
@@ -606,7 +594,7 @@ impl AdminService {
             .iter()
             .map(|p| AdminPickupPointOut {
                 id: p.id,
-                route_id: p.route_id.clone(),
+                route_id: p.route_id,
                 name: p.name.clone(),
                 address: p.address.clone(),
                 lat: p.lat,
@@ -626,11 +614,7 @@ impl AdminService {
     ) -> AppResult<AdminMutationResponse> {
         let route_id = body
             .route_id
-            .as_deref()
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?
-            .to_string();
+            .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?;
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -811,7 +795,7 @@ impl AdminService {
             .iter()
             .map(|l| AdminBusLayoutOut {
                 id: l.id,
-                brand_id: l.brand_id.clone(),
+                brand_id: l.brand_id,
                 name: l.name.clone(),
                 vehicle_type: l.vehicle_type.clone(),
                 total_seats: l.total_seats,
@@ -902,7 +886,7 @@ impl AdminService {
         let seats_out: Vec<AdminBookingSeatOut> = seats
             .iter()
             .map(|bs| AdminBookingSeatOut {
-                seat_id: Some(bs.seat_id.clone()),
+                seat_id: Some(bs.seat_id.to_string()),
                 price: bs.price,
                 passenger_name: bs.passenger_name.clone(),
                 passenger_type: bs.passenger_type.clone(),
@@ -1018,7 +1002,7 @@ impl AdminService {
             id: Set(audit_id),
             action: Set(format!("booking_status_{canonical}")),
             target_type: Set(Some("booking".to_string())),
-            target_id: Set(Some(id.to_string())),
+            target_id: Set(Some(id)),
             metadata: Set(body.reason.clone()),
             ..Default::default()
         };

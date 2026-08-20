@@ -233,17 +233,15 @@ impl AuthService {
         let user_id = self.verify_access_token(token).await?;
         let user = self.store.user_store().get_user(user_id).await?;
         let mut session = SessionUser::from_model(&user);
-        if let Some(brand_id) = &user.brand_id {
-            if let Ok(id) = uuid::Uuid::parse_str(brand_id) {
-                if let Ok(Some(brand)) = self
-                    .store
-                    .brand_store()
-                    .get_by_id(id)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))
-                {
-                    session.brand_name = Some(brand.name);
-                }
+        if let Some(brand_id) = user.brand_id {
+            if let Ok(Some(brand)) = self
+                .store
+                .brand_store()
+                .get_by_id(brand_id)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+            {
+                session.brand_name = Some(brand.name);
             }
         }
         Ok(session)

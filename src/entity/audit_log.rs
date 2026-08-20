@@ -9,12 +9,10 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub actor_type: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub actor_id: Option<String>,
+    pub actor_id: Option<Uuid>,
     pub action: String,
     pub target_type: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub target_id: Option<String>,
+    pub target_id: Option<Uuid>,
     #[sea_orm(column_type = "Text", nullable)]
     pub metadata: Option<String>,
     pub ip: Option<String>,

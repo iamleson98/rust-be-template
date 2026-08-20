@@ -8,11 +8,10 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(column_type = "Text", unique_key = "ChatMessage_clientMsgId_uniq")]
-    pub channel_id: String,
+    #[sea_orm(unique_key = "ChatMessage_clientMsgId_uniq")]
+    pub channel_id: Uuid,
     pub sender_type: String,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub sender_id: Option<String>,
+    pub sender_id: Option<Uuid>,
     #[sea_orm(column_type = "Text", nullable)]
     pub content: Option<String>,
     pub kind: String,

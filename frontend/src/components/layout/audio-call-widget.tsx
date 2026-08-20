@@ -152,14 +152,23 @@ export function AudioCallWidget() {
         stopRingRef.current?.()
         stopRingRef.current = startRingTone('incoming')
       }
-      if ((s === 'ended' || s === 'idle') && callTimerRef.current) {
-        clearInterval(callTimerRef.current)
-        callTimerRef.current = null
-        setCallDuration(0)
-        releaseWakeLock()
-        // ── Sound: call ended — descending tone.
-        playSound('end')
-        // Stop any ring tone.
+      if (s === 'ended' || s === 'idle') {
+        // Stop the call duration timer + wake lock if the call was active.
+        if (callTimerRef.current) {
+          clearInterval(callTimerRef.current)
+          callTimerRef.current = null
+          setCallDuration(0)
+          releaseWakeLock()
+          // ── Sound: call ended — descending tone.
+          // Only play this when a connected call actually ends, NOT when
+          // the user cancels an unanswered outgoing call (no sound then,
+          // per UX requirement: cancelling a call should be silent).
+          playSound('end')
+        }
+        // Always stop any ring tone — critical when the user cancels
+        // while still in 'calling'/'incoming'. The call never reached
+        // 'active', so callTimerRef was never set and the ring tone
+        // would otherwise keep looping forever.
         stopRingRef.current?.()
         stopRingRef.current = null
       }

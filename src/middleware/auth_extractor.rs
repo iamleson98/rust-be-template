@@ -101,7 +101,7 @@ impl AdminUser {
     /// Convenience: returns the user's `Uuid` for RBAC checks.
     /// `require_permission(&st, admin.user_id(), rbac::ADMIN_BRANDS_WRITE).await?`
     pub fn user_id(&self) -> Uuid {
-        Uuid::parse_str(&self.0.id).unwrap_or_default()
+        self.0.id
     }
 }
 

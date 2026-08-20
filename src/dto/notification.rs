@@ -13,7 +13,7 @@ use uuid::Uuid;
 #[serde(rename_all = "camelCase")]
 pub struct NotificationOut {
     pub id: Uuid,
-    pub user_id: String,
+    pub user_id: Uuid,
     /// Notification kind: `booking_confirmed` | `price_drop` | `review_reply` | ...
     #[serde(rename = "type")]
     pub kind: String,

@@ -53,9 +53,9 @@ impl From<crate::entity::zero_claw_exchange::Model> for ZeroclawExchangeOut {
     fn from(m: crate::entity::zero_claw_exchange::Model) -> Self {
         Self {
             id: m.id,
-            channel_id: m.channel_id,
-            user_message_id: m.user_message_id,
-            assistant_message_id: m.assistant_message_id,
+            channel_id: m.channel_id.map(|u| u.to_string()),
+            user_message_id: m.user_message_id.map(|u| u.to_string()),
+            assistant_message_id: m.assistant_message_id.map(|u| u.to_string()),
             prompt: m.prompt,
             completion: m.completion,
             model: m.model,

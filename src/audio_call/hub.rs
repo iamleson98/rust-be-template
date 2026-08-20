@@ -159,7 +159,7 @@ impl CallHub {
         // Single-agent rule: boot any other agents first.
         if role == CallRole::Agent {
             for entry in self.peers.iter_mut() {
-                if entry.value().role == CallRole::Agent && entry.key() != &user.id {
+                if entry.value().role == CallRole::Agent && entry.key() != &user.id.to_string() {
                     let booted_id = entry.key().clone();
                     let _ = entry.value().send(&json!({
                         "type": "hangup",
@@ -175,7 +175,7 @@ impl CallHub {
         }
 
         // Boot a previous session of the SAME user (multi-tab guard).
-        if let Some((_, prev)) = self.peers.remove(&user.id) {
+        if let Some((_, prev)) = self.peers.remove(&user.id.to_string()) {
             let _ = prev.send(&json!({
                 "type": "hangup",
                 "from": "system",
@@ -184,7 +184,7 @@ impl CallHub {
         }
 
         self.peers.insert(
-            user.id.clone(),
+            user.id.to_string(),
             Peer {
                 user,
                 role,
@@ -284,7 +284,9 @@ impl CallHub {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use uuid::Uuid;
+
+use super::*;
     use crate::auth::SessionUser;
 
     /// All these tests run against the SAME global singleton hub, and some
@@ -297,7 +299,7 @@ mod tests {
 
     fn fake_user(id: &str, actor: &str) -> SessionUser {
         SessionUser {
-            id: id.into(),
+            id: Uuid::parse_str(id).unwrap_or_else(|_| uuid::Uuid::new_v4()),
             actor_type: actor.into(),
             role: "customer".into(),
             name: id.into(),

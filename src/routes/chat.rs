@@ -41,7 +41,7 @@ pub async fn list_channels(
     let channels = st
         .store
         .chat_store()
-        .list_channels(&uid.to_string(), q.limit.unwrap_or(50).min(200))
+        .list_channels(uid, q.limit.unwrap_or(50).min(200))
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
     let items: Vec<ChatChannelOut> = channels.into_iter().map(channel_to_dto).collect();
@@ -170,31 +170,26 @@ pub async fn create_channel(
         .get_user(uid)
         .await
         .map_err(|e| match e {
-            crate::store::StoreError::NotFound(_) => AppError::Unauthorized(
-                "authentication token references a non-existent user".into(),
-            ),
+            crate::store::StoreError::NotFound(_) => {
+                AppError::Unauthorized("authentication token references a non-existent user".into())
+            }
             other => AppError::Internal(other.to_string()),
         })?;
 
     // `fk_chatchannel_brand` requires `brand_id` to reference an existing
     // brand. Validate it up front so an invalid id returns 400 instead of
     // a 500 FK error.
-    if let Some(brand_id) = body.brand_id.as_deref() {
-        if !brand_id.is_empty() {
-            let brand_uuid = Uuid::parse_str(brand_id).map_err(|_| {
-                crate::error::AppError::Validation(format!("invalid brand_id: {brand_id}"))
-            })?;
-            let brand = st
-                .store
-                .brand_store()
-                .get_by_id(brand_uuid)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            if brand.is_none() {
-                return Err(crate::error::AppError::Validation(format!(
-                    "brand not found: {brand_id}"
-                )));
-            }
+    if let Some(brand_id) = body.brand_id {
+        let brand = st
+            .store
+            .brand_store()
+            .get_by_id(brand_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if brand.is_none() {
+            return Err(crate::error::AppError::Validation(format!(
+                "brand not found: {brand_id}"
+            )));
         }
     }
 
@@ -202,7 +197,7 @@ pub async fn create_channel(
         .store
         .chat_store()
         .create_channel(
-            uid.to_string(),
+            uid,
             body.brand_id,
             body.topic.or_else(|| Some("Hỗ trợ".to_string())),
         )
@@ -290,9 +285,9 @@ pub async fn post_message(
         .store
         .chat_store()
         .insert_message(NewChatMessage {
-            channel_id: channel_id.clone(),
+            channel_id: id,
             sender_type: sender_type.to_string(),
-            sender_id: Some(uid.to_string()),
+            sender_id: Some(uid),
             content: body.content,
             kind: body.kind,
             attachments: body.attachments,

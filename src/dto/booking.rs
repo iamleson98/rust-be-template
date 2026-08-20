@@ -36,16 +36,13 @@ pub struct PassengerReq {
 #[derive(Debug, Deserialize, Clone, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct HoldReq {
-    #[validate(length(min = 1, max = 64))]
-    pub trip_id: String,
+    pub trip_id: Uuid,
     #[validate(length(min = 1, max = 50))]
-    pub seat_ids: Vec<String>,
+    pub seat_ids: Vec<Uuid>,
     #[validate(length(min = 1, max = 50))]
     pub passengers: Vec<PassengerReq>,
-    #[validate(length(min = 1, max = 64))]
-    pub boarding_point_id: String,
-    #[validate(length(min = 1, max = 64))]
-    pub dropping_point_id: String,
+    pub boarding_point_id: Uuid,
+    pub dropping_point_id: Uuid,
     #[validate(length(min = 1, max = 255))]
     pub contact_name: String,
     #[validate(length(min = 1, max = 20), custom(function = "validate_phone"))]
@@ -89,7 +86,7 @@ pub struct CancelReq {
 #[serde(rename_all = "camelCase")]
 pub struct BookingSeatOut {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub seat_id: Option<String>,
+    pub seat_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seat_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

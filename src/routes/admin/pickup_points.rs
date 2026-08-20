@@ -37,9 +37,10 @@ pub async fn list(
         .await?;
     let route_id = q
         .route_id
-        .as_deref()
+        .as_ref()
         .ok_or_else(|| AppError::BadRequest("routeId is required".into()))?;
-    Ok(Json(st.admin.list_pickup_points(route_id).await?))
+    let route_id_str = route_id.to_string();
+    Ok(Json(st.admin.list_pickup_points(&route_id_str).await?))
 }
 
 /// `POST /api/admin/pickup-points` — create a pickup point.
