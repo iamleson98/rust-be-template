@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils'
 import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2, Signal } from 'lucide-react'
 import type { AudioCallClient } from '@/lib/audio-call-client'
 import { playSound, startRingTone } from '@/lib/sound-effects'
-import { notifyIncomingCall } from '@/lib/notifications'
+import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
 
@@ -243,6 +243,13 @@ export function AudioCallWidget() {
   // when an agent IS online, because we never receive the `presence`
   // broadcast. For agents, connecting on open is mandatory — otherwise
   // they can't receive inbound calls at all.
+  //
+  // ALSO: trigger the notification-permission ask on first call-feature
+  // use. We do this here (not in startCall) so the prompt appears the
+  // moment the user opens the call panel — they have clear context
+  // ("I'm about to make a call → notifications make sense") and the
+  // prompt doesn't interrupt their flow. Cached in localStorage so
+  // we never ask twice.
   useEffect(() => {
     if (!open) return
     let cancelled = false
@@ -252,6 +259,10 @@ export function AudioCallWidget() {
         setTimeout(() => setError(null), 4000)
       }
     })
+    // Best-effort — don't block the panel open on the permission ask.
+    // If the user dismisses the prompt, the call still works; they
+    // just won't get a desktop ring if they switch tabs.
+    void ensureCallNotificationPermission()
     return () => { cancelled = true }
   }, [open, ensureClient])
 

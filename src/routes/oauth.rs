@@ -41,13 +41,14 @@ use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use time::Duration as SignedDuration;
 use tracing::Instrument;
+use utoipa::IntoParams;
 
 use crate::auth::oauth::{self, OAuthProvider};
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
 
 /// Cookie TTL for the OAuth state — 10 minutes.
-const STATE_COOKIE_TTL_SECS: u64 = 600;
+const STATE_COOKIE_TTL_SECS: i64 = 600;
 
 /// Cookie name pattern — `<provider>` is interpolated.
 fn state_cookie_name(provider: &str) -> String {
@@ -55,7 +56,8 @@ fn state_cookie_name(provider: &str) -> String {
 }
 
 /// Query params for the OAuth callback URL.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(rename_all = "camelCase")]
 pub struct CallbackQuery {
     /// Authorization code from the provider.
     pub code: Option<String>,
@@ -71,6 +73,19 @@ pub struct CallbackQuery {
 ///
 /// Generates a CSRF state, stores it in a cookie, and 302-redirects
 /// the user to the OAuth provider's authorization URL.
+#[utoipa::path(
+    get,
+    path = "/api/auth/oauth/{provider}/start",
+    tag = "auth",
+    params(
+        ("provider" = String, Path, description = "OAuth provider name — one of `facebook`, `google`, `twitter`")
+    ),
+    responses(
+        (status = 302, description = "Redirect to the OAuth provider's authorization URL"),
+        (status = 404, description = "Provider not configured"),
+        (status = 500, description = "OAUTH__REDIRECT_BASE_URL not set"),
+    )
+)]
 pub async fn oauth_start(
     State(st): State<AppState>,
     Path(provider): Path<String>,
@@ -126,6 +141,19 @@ pub async fn oauth_start(
 ///
 /// Verifies the state cookie, exchanges the code for an access token,
 /// fetches the user profile, and issues a session.
+#[utoipa::path(
+    get,
+    path = "/api/auth/oauth/{provider}/callback",
+    tag = "auth",
+    params(
+        ("provider" = String, Path, description = "OAuth provider name — one of `facebook`, `google`, `twitter`"),
+        CallbackQuery
+    ),
+    responses(
+        (status = 302, description = "Redirect to the frontend with auth cookies set"),
+        (status = 302, description = "Redirect to `/login?oauth_error=<msg>` on failure", headers(("Location", description = "Frontend login URL with oauth_error query param")))
+    )
+)]
 pub async fn oauth_callback(
     State(st): State<AppState>,
     Path(provider): Path<String>,

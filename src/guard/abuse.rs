@@ -10,11 +10,16 @@
 //! Heuristics:
 //!   1. **Profanity / slurs** — Vietnamese + English bad-word list.
 //!   2. **All-caps shouting** — message > 12 chars + > 70% uppercase.
-//!   3. **Repeated text** — same message hash seen N+ times recently.
-//!   4. **Phone-number spam** — 3+ distinct phone numbers in one message
+//!   3. **Phone-number spam** — 3+ distinct phone numbers in one message
 //!      (a common scam pattern).
-//!   5. **URL spam** — 3+ URLs in one message.
-//!   6. **Length abuse** — single message > 2000 chars.
+//!   4. **Repeated text** — same message hash seen N+ times recently.
+//!
+//! ## Heuristics NOT included (per user request)
+//!
+//!   * **Message-length abuse** — handled in the frontend chat-input
+//!     component (500-char hard limit + disabled send button).
+//!   * **URL spam** — too noisy; legitimate customer-service URLs
+//!     (booking links, payment receipts) frequently appear in chat.
 //!
 //! The detector is deliberately conservative — false positives would
 //! punish legitimate users. Each heuristic only fires on clear matches.
@@ -48,9 +53,6 @@ pub const BAN_SECS: u64 = 10 * 60;
 
 /// Number of violations within the window that triggers a ban.
 pub const BAN_THRESHOLD: u32 = 3;
-
-/// Message length considered abusive.
-pub const MAX_MESSAGE_LEN: usize = 2_000;
 
 /// Outcome of inspecting a user's message.
 #[derive(Debug, Clone)]
@@ -321,25 +323,26 @@ impl AbuseGuard {
 
 /// Inspect a single message. Returns `Some(reason)` if a violation is
 /// detected, `None` otherwise.
+///
+/// NOTE: This does NOT check message length or URL count. The user
+/// explicitly asked that those be removed — the frontend chat input
+/// has a 500-char hard limit + disabled send button, and legitimate
+/// customer-service URLs (booking links, payment receipts) frequently
+/// appear in chat. See `src/guard/mod.rs` for the rationale.
 fn inspect(text: &str) -> Option<&'static str> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
         return None;
     }
 
-    // 1. Length abuse — > 2000 chars in a single message.
-    if trimmed.chars().count() > MAX_MESSAGE_LEN {
-        return Some("Tin nhắn quá dài (giới hạn 2000 ký tự)");
-    }
-
     let lower = trimmed.to_lowercase();
 
-    // 2. Profanity / slurs (Vietnamese + English).
+    // 1. Profanity / slurs (Vietnamese + English).
     if contains_profanity(&lower) {
         return Some("Tin nhắn chứa từ ngữ không phù hợp");
     }
 
-    // 3. All-caps shouting — message > 12 chars, > 70% uppercase letters.
+    // 2. All-caps shouting — message > 12 chars, > 70% uppercase letters.
     if trimmed.chars().count() > 12 {
         let letters: Vec<char> = trimmed.chars().filter(|c| c.is_alphabetic()).collect();
         if !letters.is_empty() {
@@ -351,16 +354,10 @@ fn inspect(text: &str) -> Option<&'static str> {
         }
     }
 
-    // 4. Phone-number spam — 3+ distinct phone numbers in one message.
+    // 3. Phone-number spam — 3+ distinct phone numbers in one message.
     let phone_count = count_phone_numbers(trimmed);
     if phone_count >= 3 {
         return Some("Tin nhắn chứa quá nhiều số điện thoại (nghi ngờ spam/lừa đảo)");
-    }
-
-    // 5. URL spam — 3+ URLs in one message.
-    let url_count = count_urls(&lower);
-    if url_count >= 3 {
-        return Some("Tin nhắn chứa quá nhiều liên kết (nghi ngờ spam)");
     }
 
     None
@@ -415,19 +412,6 @@ fn count_phone_numbers(text: &str) -> usize {
     // Tail.
     if (10..=12).contains(&run_len) {
         count += 1;
-    }
-    count
-}
-
-/// Count URLs in a message.
-fn count_urls(lower: &str) -> usize {
-    let mut count = 0;
-    for marker in &["http://", "https://", "www.", ".com/", ".vn/", ".io/", ".me/"] {
-        let mut start = 0;
-        while let Some(idx) = lower[start..].find(marker) {
-            count += 1;
-            start += idx + marker.len();
-        }
     }
     count
 }
@@ -491,22 +475,28 @@ mod tests {
     }
 
     #[test]
-    fn detects_url_spam() {
+    fn does_not_flag_urls() {
+        // URL-spam heuristic was removed — a chat message with
+        // URLs should NOT be flagged (legitimate customer-service
+        // URLs like booking links / payment receipts are common).
         let g = guard();
         let v = g.check(
             Some("u6"),
             Some("1.1.1.6"),
-            "Visit http://a.com http://b.com http://c.com now",
+            "Bạn xem vé tại https://vexevn.app/booking/123 nhé",
         );
-        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+        assert!(matches!(v, AbuseVerdict::Ok));
     }
 
     #[test]
-    fn detects_length_abuse() {
+    fn does_not_flag_long_messages() {
+        // Length heuristic was removed — long messages are handled
+        // in the frontend chat input (500 char limit). The backend
+        // should NOT flag a long-but-legitimate message.
         let g = guard();
-        let long = "a".repeat(2_500);
+        let long = "Tôi muốn đặt vé đi Đà Lạt. ".repeat(50); // ~1350 chars
         let v = g.check(Some("u7"), Some("1.1.1.7"), &long);
-        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+        assert!(matches!(v, AbuseVerdict::Ok));
     }
 
     #[test]
