@@ -216,6 +216,74 @@ impl AuthService {
         Ok(self.store.user_store().get_user(user_id).await?)
     }
 
+    /// Register (or link) a user via OAuth 2.0. Mirrors `register()` but
+    /// skips password hashing — the user authenticated via an external
+    /// provider (Facebook / Google / X-Twitter), so there's no password
+    /// to verify. Instead, the `(provider, subject)` pair becomes the
+    /// user's authentication credential.
+    ///
+    /// Behaviour:
+    ///   1. If a user with this `(provider, subject)` already exists,
+    ///      return them (idempotent).
+    ///   2. If a user with this email already exists (registered via
+    ///      password earlier), LINK the OAuth identity to them — set
+    ///      `oauth_provider` + `oauth_subject` so future OAuth logins
+    ///      find them by id.
+    ///   3. Otherwise, create a new user with `email_verified_at = now`
+    ///      (the provider verified the email).
+    ///
+    /// Role assignment mirrors `register()`: first user → `employee`,
+    /// others → `user`.
+    pub async fn register_oauth_user(
+        &self,
+        email: String,
+        name: String,
+        provider: String,
+        subject: String,
+        avatar_url: Option<String>,
+    ) -> AppResult<user::Model> {
+        let user_count = self.store.user_store().count_users().await?;
+        let is_first_user = user_count == 0;
+        let role_name = if is_first_user { "employee" } else { "user" };
+
+        let model = self
+            .store
+            .user_store()
+            .upsert_oauth_user(email, name, provider, subject, avatar_url, role_name.to_string())
+            .await?;
+
+        // Assign role (mirrors `register()`). Idempotent — if the user
+        // was linked (not created), the role is already assigned; the
+        // RBAC store's `assign_role` is a no-op for existing grants.
+        let roles = self.store.rbac_store().list_roles().await?;
+        if let Some(role) = roles.iter().find(|r| r.name == role_name) {
+            let _ = self.store.rbac_store().assign_role(model.id, role.id).await;
+        }
+
+        Ok(model)
+    }
+
+    /// Determine whether a user is an employee (has any non-`"user"`
+    /// role). Used by the `employee-login` route + the OAuth callback
+    /// to gate employee-only endpoints.
+    pub async fn is_employee(&self, user_id: Uuid) -> AppResult<bool> {
+        let perms = self
+            .store
+            .rbac_store()
+            .get_user_permissions(user_id)
+            .await
+            .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
+        Ok(perms.role_names.iter().any(|role| role != "user"))
+    }
+
+    /// Quick DB-health ping — used by the `/health` readiness check.
+    /// Returns the number of roles in the RBAC table (a non-zero count
+    /// means migrations ran + the DB is reachable).
+    pub async fn db_ping(&self) -> AppResult<u64> {
+        let count = self.store.rbac_store().list_roles().await?.len() as u64;
+        Ok(count)
+    }
+
     /// Verify an access token and return the authenticated user id.
     pub async fn verify_access_token(&self, token: &str) -> AppResult<Uuid> {
         let claims = self
@@ -233,17 +301,15 @@ impl AuthService {
         let user_id = self.verify_access_token(token).await?;
         let user = self.store.user_store().get_user(user_id).await?;
         let mut session = SessionUser::from_model(&user);
-        if let Some(brand_id) = &user.brand_id {
-            if let Ok(id) = uuid::Uuid::parse_str(brand_id) {
-                if let Ok(Some(brand)) = self
-                    .store
-                    .brand_store()
-                    .get_by_id(id)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))
-                {
-                    session.brand_name = Some(brand.name);
-                }
+        if let Some(brand_id) = user.brand_id {
+            if let Ok(Some(brand)) = self
+                .store
+                .brand_store()
+                .get_by_id(brand_id)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+            {
+                session.brand_name = Some(brand.name);
             }
         }
         Ok(session)

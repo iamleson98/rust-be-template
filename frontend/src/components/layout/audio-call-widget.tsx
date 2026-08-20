@@ -152,14 +152,23 @@ export function AudioCallWidget() {
         stopRingRef.current?.()
         stopRingRef.current = startRingTone('incoming')
       }
-      if ((s === 'ended' || s === 'idle') && callTimerRef.current) {
-        clearInterval(callTimerRef.current)
-        callTimerRef.current = null
-        setCallDuration(0)
-        releaseWakeLock()
-        // ── Sound: call ended — descending tone.
-        playSound('end')
-        // Stop any ring tone.
+      if (s === 'ended' || s === 'idle') {
+        // Stop the call duration timer + wake lock if the call was active.
+        if (callTimerRef.current) {
+          clearInterval(callTimerRef.current)
+          callTimerRef.current = null
+          setCallDuration(0)
+          releaseWakeLock()
+          // ── Sound: call ended — descending tone.
+          // Only play this when a connected call actually ends, NOT when
+          // the user cancels an unanswered outgoing call (no sound then,
+          // per UX requirement: cancelling a call should be silent).
+          playSound('end')
+        }
+        // Always stop any ring tone — critical when the user cancels
+        // while still in 'calling'/'incoming'. The call never reached
+        // 'active', so callTimerRef was never set and the ring tone
+        // would otherwise keep looping forever.
         stopRingRef.current?.()
         stopRingRef.current = null
       }
@@ -212,13 +221,31 @@ export function AudioCallWidget() {
     const client = await ensureClient()
     client.rejectCall(incomingFrom.from)
     setIncomingFrom(null)
+    // Stop the incoming-call ring tone immediately — rejecting a call
+    // should be silent. The state handler will also do this, but we
+    // do it here first for instant feedback.
+    stopRingRef.current?.()
+    stopRingRef.current = null
   }, [ensureClient, incomingFrom])
 
-  // Hang up.
+  // Hang up. Always cancels the ring tone IMMEDIATELY — the
+  // audio-call-client's `hangup()` triggers a state transition to
+  // 'ended' which fires the state handler below, but we stop the ring
+  // here too in case the state event is delayed or dropped (e.g. WS
+  // closed). Belt + suspenders: the state handler ALSO stops the
+  // ring, so calling `stopRingRef.current?.()` twice is safe (the
+  // stop fn is idempotent — `clearInterval` + `clearTimeout` on an
+  // already-cleared id are no-ops).
   const hangup = useCallback(() => {
     clientRef.current?.hangup()
     if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null }
     setCallDuration(0)
+    // Stop any ring tone IMMEDIATELY — cancelling a call should be
+    // silent per the UX requirement. The state handler also calls
+    // this, but we do it here first so the ring stops before the
+    // 'ended' state event fires (which can take a few ms).
+    stopRingRef.current?.()
+    stopRingRef.current = null
   }, [])
 
   // Toggle mic.

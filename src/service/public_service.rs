@@ -269,19 +269,15 @@ impl PublicService {
             .collect();
 
         // Batch fetch brands
-        let brand_ids: Vec<String> = routes.iter().filter_map(|r| r.brand_id.clone()).collect();
-        let brand_uuids: Vec<Uuid> = brand_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
-        let brands: std::collections::HashMap<String, brand::Model> = self
+        let brand_uuids: Vec<Uuid> = routes.iter().filter_map(|r| r.brand_id).collect();
+        let brands: std::collections::HashMap<Uuid, brand::Model> = self
             .store
             .brand_store()
             .list_brands_by_ids(brand_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .into_iter()
-            .map(|b| (b.id.to_string(), b))
+            .map(|b| (b.id, b))
             .collect();
 
         // Batch fetch schedule counts
@@ -297,16 +293,16 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let mut schedule_count: std::collections::HashMap<String, usize> =
+        let mut schedule_count: std::collections::HashMap<Uuid, usize> =
             std::collections::HashMap::new();
         for s in &schedules {
-            *schedule_count.entry(s.route_id.clone()).or_insert(0) += 1;
+            *schedule_count.entry(s.route_id).or_insert(0) += 1;
         }
 
         let items: Vec<RouteOut> = routes
             .iter()
             .map(|r| {
-                let brand = r.brand_id.as_deref().and_then(|bid| brands.get(bid));
+                let brand = r.brand_id.and_then(|bid| brands.get(&bid));
                 let (from_name, to_name) = r
                     .name
                     .split_once(" → ")
@@ -315,7 +311,7 @@ impl PublicService {
 
                 RouteOut {
                     id: r.id,
-                    brand_id: r.brand_id.clone(),
+                    brand_id: r.brand_id,
                     name: r.name.clone(),
                     distance_km: r.distance_km,
                     duration_min: r.duration_min,
@@ -336,7 +332,7 @@ impl PublicService {
                         lat: 0.0,
                         lon: 0.0,
                     },
-                    schedule_count: schedule_count.get(&r.id.to_string()).copied().unwrap_or(0),
+                    schedule_count: schedule_count.get(&r.id).copied().unwrap_or(0),
                 }
             })
             .collect();
@@ -423,11 +419,7 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Batch fetch related data
-        let trip_schedule_ids: Vec<String> = trips.iter().map(|t| t.schedule_id.clone()).collect();
-        let trip_sched_uuids: Vec<Uuid> = trip_schedule_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
+        let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
         let sched_map: std::collections::HashMap<String, schedule::Model> = self
             .store
             .schedule_store()
@@ -438,11 +430,7 @@ impl PublicService {
             .map(|s| (s.id.to_string(), s))
             .collect();
 
-        let sched_route_ids: Vec<String> = sched_map.values().map(|s| s.route_id.clone()).collect();
-        let sched_route_uuids: Vec<Uuid> = sched_route_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
+        let sched_route_uuids: Vec<Uuid> = sched_map.values().map(|s| s.route_id).collect();
         let route_map: std::collections::HashMap<String, route::Model> = self
             .store
             .route_store()
@@ -453,13 +441,9 @@ impl PublicService {
             .map(|r| (r.id.to_string(), r))
             .collect();
 
-        let route_brand_ids: Vec<String> = route_map
+        let route_brand_uuids: Vec<Uuid> = route_map
             .values()
-            .filter_map(|r| r.brand_id.clone())
-            .collect();
-        let route_brand_uuids: Vec<Uuid> = route_brand_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
+            .filter_map(|r| r.brand_id)
             .collect();
         let brand_map: std::collections::HashMap<String, brand::Model> = self
             .store
@@ -492,14 +476,10 @@ impl PublicService {
         };
 
         // Fetch start/end places for routes
-        let place_ids: Vec<String> = route_map
+        let place_uuids: Vec<Uuid> = route_map
             .values()
-            .flat_map(|r| [r.start_location_id.clone(), r.end_location_id.clone()])
+            .flat_map(|r| [r.start_location_id, r.end_location_id])
             .flatten()
-            .collect();
-        let place_uuids: Vec<Uuid> = place_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
         let place_map: std::collections::HashMap<String, place::Model> = self
             .store
@@ -515,9 +495,9 @@ impl PublicService {
         let items: Vec<TripResult> = trips
             .iter()
             .filter_map(|t| {
-                let sched = sched_map.get(&t.schedule_id)?;
-                let route = route_map.get(&sched.route_id)?;
-                let brand = route.brand_id.as_deref().and_then(|bid| brand_map.get(bid));
+                let sched = sched_map.get(&t.schedule_id.to_string())?;
+                let route = route_map.get(&sched.route_id.to_string())?;
+                let brand = route.brand_id.map(|id| id.to_string()).as_deref().and_then(|bid| brand_map.get(bid));
                 let layout = sched
                     .bus_layout_id
                     .as_deref()
@@ -533,10 +513,12 @@ impl PublicService {
 
                 let from_place = route
                     .start_location_id
+                    .map(|id| id.to_string())
                     .as_deref()
                     .and_then(|pid| place_map.get(pid));
                 let to_place = route
                     .end_location_id
+                    .map(|id| id.to_string())
                     .as_deref()
                     .and_then(|pid| place_map.get(pid));
 
@@ -559,7 +541,7 @@ impl PublicService {
                     route_name: route.name.clone(),
                     distance_km: route.distance_km.unwrap_or(0.0),
                     duration_min: route.duration_min.unwrap_or(0),
-                    brand_id: route.brand_id.clone(),
+                    brand_id: route.brand_id,
                     brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
@@ -602,18 +584,15 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("trip not found".into()))?;
 
-        let schedule_id =
-            Uuid::parse_str(&trip.schedule_id).map_err(|e| AppError::Internal(e.to_string()))?;
         let schedule = self
             .store
             .schedule_store()
-            .find_schedule_by_id(schedule_id)
+            .find_schedule_by_id(trip.schedule_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
-        let route_id =
-            Uuid::parse_str(&schedule.route_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let route_id = schedule.route_id;
         let route = self
             .store
             .route_store()
@@ -626,18 +605,9 @@ impl PublicService {
         // (already loaded above) — they're independent of each other.
         // Running them concurrently with `tokio::try_join!` cuts 5
         // sequential DB round-trips down to 1 (the slowest one).
-        let brand_id_uid = route
-            .brand_id
-            .as_deref()
-            .and_then(|s| Uuid::parse_str(s).ok());
-        let start_location_uid = route
-            .start_location_id
-            .as_deref()
-            .and_then(|s| Uuid::parse_str(s).ok());
-        let end_location_uid = route
-            .end_location_id
-            .as_deref()
-            .and_then(|s| Uuid::parse_str(s).ok());
+        let brand_id_uid = route.brand_id;
+        let start_location_uid = route.start_location_id;
+        let end_location_uid = route.end_location_id;
         let bus_layout_uid = schedule
             .bus_layout_id
             .as_deref()
@@ -722,7 +692,7 @@ impl PublicService {
         };
 
         let inv_map: std::collections::HashMap<String, &seat_inventory::Model> =
-            seat_inv.iter().map(|si| (si.seat_id.clone(), si)).collect();
+            seat_inv.iter().map(|si| (si.seat_id.to_string(), si)).collect();
 
         // Group seats by deck → row
         let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
@@ -828,7 +798,7 @@ impl PublicService {
                 duration_min: route.duration_min,
             },
             brand: TripBrandDetail {
-                id: route.brand_id,
+                id: route.brand_id.map(|id| id.to_string()),
                 name: brand.as_ref().map(|b| b.name.clone()),
                 slug: brand.as_ref().map(|b| b.slug.clone()),
                 logo_url: brand.as_ref().and_then(|b| b.logo_url.clone()),
@@ -875,12 +845,7 @@ impl PublicService {
 
         // Reuse search_trips serialization logic
         let items: Vec<TripResult> = {
-            let trip_schedule_ids: Vec<String> =
-                trips.iter().map(|t| t.schedule_id.clone()).collect();
-            let trip_sched_uuids: Vec<Uuid> = trip_schedule_ids
-                .iter()
-                .filter_map(|s| Uuid::parse_str(s).ok())
-                .collect();
+            let trip_sched_uuids: Vec<Uuid> = trips.iter().map(|t| t.schedule_id).collect();
             let sched_map: std::collections::HashMap<String, schedule::Model> = self
                 .store
                 .schedule_store()
@@ -891,12 +856,7 @@ impl PublicService {
                 .map(|s| (s.id.to_string(), s))
                 .collect();
 
-            let sched_route_ids: Vec<String> =
-                sched_map.values().map(|s| s.route_id.clone()).collect();
-            let sched_route_uuids: Vec<Uuid> = sched_route_ids
-                .iter()
-                .filter_map(|s| Uuid::parse_str(s).ok())
-                .collect();
+            let sched_route_uuids: Vec<Uuid> = sched_map.values().map(|s| s.route_id).collect();
             let route_map: std::collections::HashMap<String, route::Model> = self
                 .store
                 .route_store()
@@ -907,13 +867,9 @@ impl PublicService {
                 .map(|r| (r.id.to_string(), r))
                 .collect();
 
-            let route_brand_ids: Vec<String> = route_map
+            let route_brand_uuids: Vec<Uuid> = route_map
                 .values()
-                .filter_map(|r| r.brand_id.clone())
-                .collect();
-            let route_brand_uuids: Vec<Uuid> = route_brand_ids
-                .iter()
-                .filter_map(|s| Uuid::parse_str(s).ok())
+                .filter_map(|r| r.brand_id)
                 .collect();
             let brand_map: std::collections::HashMap<String, brand::Model> = self
                 .store
@@ -928,9 +884,9 @@ impl PublicService {
             trips
                 .iter()
                 .filter_map(|t| {
-                    let sched = sched_map.get(&t.schedule_id)?;
-                    let route = route_map.get(&sched.route_id)?;
-                    let brand = route.brand_id.as_deref().and_then(|bid| brand_map.get(bid));
+                    let sched = sched_map.get(&t.schedule_id.to_string())?;
+                    let route = route_map.get(&sched.route_id.to_string())?;
+                    let brand = route.brand_id.map(|id| id.to_string()).as_deref().and_then(|bid| brand_map.get(bid));
                     let amenities = parse_amenities(&sched.amenities);
                     let (dep_iso, arr_iso) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
@@ -951,7 +907,7 @@ impl PublicService {
                         route_name: route.name.clone(),
                         distance_km: route.distance_km.unwrap_or(0.0),
                         duration_min: route.duration_min.unwrap_or(0),
-                        brand_id: route.brand_id.clone(),
+                        brand_id: route.brand_id,
                         brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                         brand_logo: brand.and_then(|b| b.logo_url.clone()),

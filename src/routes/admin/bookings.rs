@@ -39,8 +39,8 @@ pub async fn list(
         st.admin
             .list_bookings(
                 q.status.as_deref(),
-                q.brand_id.as_deref(),
-                q.route_id.as_deref(),
+                q.brand_id.map(|u| u.to_string()).as_deref(),
+                q.route_id.map(|u| u.to_string()).as_deref(),
                 q.date_from.as_deref(),
                 q.date_to.as_deref(),
                 q.search.as_deref(),

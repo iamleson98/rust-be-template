@@ -12,7 +12,7 @@ impl MigrationTrait for Migration {
                     .table(User::Table)
                     .if_not_exists()
                     .col(pk_uuid(User::Id)) // Use pk_uuid(User::Id) if you switch to UUID type
-                    .col(text_null(User::BrandId))
+                    .col(uuid_null(User::BrandId))
                     .col(string_len(User::FullName, 255))
                     .col(string_len_uniq(User::Email, 255))
                     .col(text_null(User::Phone))

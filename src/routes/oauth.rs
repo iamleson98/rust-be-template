@@ -125,7 +125,7 @@ pub async fn oauth_start(
     ))
     .path("/")
     .http_only(true)
-    .max_age(SignedDuration::seconds(STATE_COOKIE_TTL_SECS as i64))
+    .max_age(SignedDuration::seconds(STATE_COOKIE_TTL_SECS))
     .same_site(axum_extra::extract::cookie::SameSite::Lax);
 
     // Mirror the global cookie secure flag.
@@ -295,31 +295,18 @@ pub async fn oauth_callback(
         }
     };
 
-    // 6. Upsert the local user record + issue a session.
-    let role = if st.store.user_store().count_users().await? == 0 {
-        "employee"
-    } else {
-        "user"
-    };
-
+    // 6. Upsert the local user record (creates or links) + assign role.
+    // All store access goes through AuthService — never direct from route.
     let user = st
-        .store
-        .user_store()
-        .upsert_oauth_user(
+        .auth
+        .register_oauth_user(
             profile.email.clone(),
             profile.name.clone(),
             profile.provider.clone(),
             profile.subject.clone(),
             profile.avatar_url.clone(),
-            role.to_string(),
         )
         .await?;
-
-    // Assign the role (mirrors `register` in auth.rs).
-    let roles = st.store.rbac_store().list_roles().await?;
-    if let Some(role_row) = roles.iter().find(|r| r.name == role) {
-        let _ = st.store.rbac_store().assign_role(user.id, role_row.id).await;
-    }
 
     let session = st.auth.issue_session(user).await?;
     let jar = session.set_cookies(jar, st.auth.cookie_config(), st.auth.jwt_config());

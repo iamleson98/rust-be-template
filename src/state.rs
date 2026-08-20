@@ -5,9 +5,9 @@ use axum::extract::FromRef;
 use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::service::{
-    AdminService, AuthService, BookingService, NotificationService, PaymentService, PlaceService,
-    PostService, PriceAlertService, PublicService, ReviewService, RoutingService, UserService,
-    WishlistService,
+    AdminService, AuthService, BookingService, ChatService, NotificationService, PaymentService,
+    PlaceService, PostService, PriceAlertService, PublicService, ReviewService, RoutingService,
+    UserService, WishlistService,
 };
 use crate::store::CompositeStore;
 
@@ -33,6 +33,26 @@ use crate::store::CompositeStore;
 ///   state that can supply an `AuthService`, not just `AppState`.
 ///   This keeps middleware independent of the concrete app state type.
 ///
+/// ## Clean architecture — store is NOT public
+///
+/// The `CompositeStore` is intentionally NOT exposed as a public field
+/// on `AppState`. All store access goes through the domain services
+/// (`st.auth`, `st.chats`, `st.bookings`, etc.). Route handlers + WS
+/// handlers must NEVER call `st.store.*` directly — they call the
+/// corresponding service method, which encapsulates business logic +
+/// validation + the store call.
+///
+/// This enforces the layering:
+///   ```text
+///   HTTP / WS → routes/* (thin) → service/* (business logic) → store/* (DB)
+///   ```
+/// Keeping the store private prevents the common anti-pattern of route
+/// handlers accumulating business logic by reaching into the store.
+///
+/// The `store` field here exists only so `AppState` can be cloned cheaply
+/// (it's an `Arc`); the bootstrap code in `server.rs` hands it to each
+/// service constructor and then the field is never read again.
+///
 /// ## WebSocket hubs
 ///
 /// The chat (`/ws`) and audio-call (`/ws-call`) hubs are process-global
@@ -43,7 +63,11 @@ use crate::store::CompositeStore;
 pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
-    pub store: Arc<CompositeStore>,
+    /// Backing store — kept private so route handlers can't bypass the
+    /// service layer. Services receive their own `Arc<CompositeStore>`
+    /// clone at construction time (in `server.rs::bootstrap`).
+    #[allow(dead_code)]
+    store: Arc<CompositeStore>,
     pub rbac: Arc<RbacChecker>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
@@ -60,6 +84,62 @@ pub struct AppState {
     pub notifications: Arc<NotificationService>,
     pub wishlist: Arc<WishlistService>,
     pub payments: Arc<PaymentService>,
+    pub chats: Arc<ChatService>,
+}
+
+impl AppState {
+    /// Construct the top-level `AppState` from the shared store + the
+    /// pre-built services + RBAC checker. The `store` argument is kept
+    /// here (as a private field) so the `Arc` refcount keeps the store
+    /// alive for the lifetime of `AppState` — services hold their own
+    /// `Arc` clones, but holding one here too makes the ownership
+    /// graph obvious and survives any future service that might be
+    /// constructed lazily.
+    ///
+    /// The arg count is intentional — this is the central composition
+    /// root for the whole app, and adding a builder would just hide the
+    /// dependency surface. Clippy's `too_many_arguments` lint is silenced
+    /// here; it would fire on every new service addition otherwise.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        config: Arc<Config>,
+        store: Arc<CompositeStore>,
+        rbac: Arc<RbacChecker>,
+        auth: Arc<AuthService>,
+        posts: Arc<PostService>,
+        users: Arc<UserService>,
+        admin: Arc<AdminService>,
+        reviews: Arc<ReviewService>,
+        bookings: Arc<BookingService>,
+        public: Arc<PublicService>,
+        routing: Arc<RoutingService>,
+        places: Arc<PlaceService>,
+        price_alerts: Arc<PriceAlertService>,
+        notifications: Arc<NotificationService>,
+        wishlist: Arc<WishlistService>,
+        payments: Arc<PaymentService>,
+        chats: Arc<ChatService>,
+    ) -> Self {
+        Self {
+            config,
+            store,
+            rbac,
+            auth,
+            posts,
+            users,
+            admin,
+            reviews,
+            bookings,
+            public,
+            routing,
+            places,
+            price_alerts,
+            notifications,
+            wishlist,
+            payments,
+            chats,
+        }
+    }
 }
 
 /// `Arc<Config>` is also extractable — useful for handlers that need
@@ -145,5 +225,11 @@ impl FromRef<AppState> for Arc<WishlistService> {
 impl FromRef<AppState> for Arc<PaymentService> {
     fn from_ref(state: &AppState) -> Self {
         state.payments.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<ChatService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.chats.clone()
     }
 }

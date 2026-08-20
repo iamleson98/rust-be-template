@@ -71,7 +71,8 @@ impl WishlistService {
     ) -> AppResult<ToggleWishlistResponse> {
         // Resolve the route_id from trip_id if needed.
         let route_id = match route_id {
-            Some(rid) if !rid.is_empty() => rid.to_string(),
+            Some(rid) if !rid.is_empty() => Uuid::parse_str(rid)
+                .map_err(|e| AppError::BadRequest(format!("invalid routeId: {e}")))?,
             _ => {
                 // The frontend sometimes passes `tripId` instead of
                 // `routeId`. We resolve the trip's route_id via the
@@ -89,26 +90,22 @@ impl WishlistService {
                     .ok_or_else(|| AppError::NotFound("trip not found".into()))?;
                 // The trip's schedule_id references the route — we need
                 // to look up the schedule + route to get the route_id.
-                let schedule_id = Uuid::parse_str(&trip.schedule_id)
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
                 let schedule = self
                     .store
                     .schedule_store()
-                    .find_schedule_by_id(schedule_id)
+                    .find_schedule_by_id(trip.schedule_id)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?
                     .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
-                schedule.route_id.to_string()
+                schedule.route_id
             }
         };
-
-        let uid_str = user_id.to_string();
 
         // Check if already wishlisted.
         let existing = self
             .store
             .wishlist_store()
-            .find_by_user_and_route(&uid_str, &route_id)
+            .find_by_user_and_route(&user_id.to_string(), &route_id.to_string())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -132,7 +129,7 @@ impl WishlistService {
         let now = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
         let model = wishlist_item::ActiveModel {
             id: Set(id),
-            user_id: Set(uid_str),
+            user_id: Set(user_id),
             route_id: Set(route_id),
             created_at: Set(now),
         };

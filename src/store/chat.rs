@@ -28,9 +28,9 @@ use super::retry::RetryPolicy;
 
 #[derive(Debug, Clone)]
 pub struct NewChatMessage {
-    pub channel_id: String,
+    pub channel_id: Uuid,
     pub sender_type: String,
-    pub sender_id: Option<String>,
+    pub sender_id: Option<Uuid>,
     pub content: Option<String>,
     pub kind: String,
     pub attachments: Option<String>,
@@ -39,9 +39,9 @@ pub struct NewChatMessage {
 
 #[derive(Debug, Clone)]
 pub struct NewZeroClawExchange {
-    pub channel_id: Option<String>,
-    pub user_message_id: Option<String>,
-    pub assistant_message_id: Option<String>,
+    pub channel_id: Option<Uuid>,
+    pub user_message_id: Option<Uuid>,
+    pub assistant_message_id: Option<Uuid>,
     pub prompt: Option<String>,
     pub completion: Option<String>,
     pub model: Option<String>,
@@ -59,13 +59,13 @@ pub trait ChatStore: Send + Sync {
     async fn get_channel(&self, channel_id: &str) -> StoreResult<Option<chat_channel::Model>>;
     async fn list_channels(
         &self,
-        user_id: &str,
+        user_id: Uuid,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>>;
     async fn create_channel(
         &self,
-        user_id: String,
-        brand_id: Option<String>,
+        user_id: Uuid,
+        brand_id: Option<Uuid>,
         topic: Option<String>,
     ) -> StoreResult<chat_channel::Model>;
     async fn update_channel_preview(
@@ -146,7 +146,7 @@ impl ChatStore for DbChatStore {
 
     async fn list_channels(
         &self,
-        user_id: &str,
+        user_id: Uuid,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         Ok(chat_channel::Entity::find()
@@ -160,14 +160,13 @@ impl ChatStore for DbChatStore {
     #[store_macros::no_retry]
     async fn create_channel(
         &self,
-        user_id: String,
-        brand_id: Option<String>,
+        user_id: Uuid,
+        brand_id: Option<Uuid>,
         topic: Option<String>,
     ) -> StoreResult<chat_channel::Model> {
         let id = Uuid::new_v4();
         let now = chrono::Utc::now().to_rfc3339();
-        let user_id_clone = user_id.clone();
-        let brand_id_clone = brand_id.clone();
+        let brand_id_clone = brand_id;
         let topic_clone = topic.clone();
         let model = chat_channel::ActiveModel {
             id: Set(id),
@@ -188,7 +187,7 @@ impl ChatStore for DbChatStore {
             .await?;
         Ok(chat_channel::Model {
             id,
-            user_id: user_id_clone,
+            user_id,
             brand_id: brand_id_clone,
             topic: topic_clone,
             status: "open".into(),
@@ -227,8 +226,10 @@ impl ChatStore for DbChatStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<chat_message::Model>> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
         Ok(chat_message::Entity::find()
-            .filter(chat_message::Column::ChannelId.eq(channel_id))
+            .filter(chat_message::Column::ChannelId.eq(uuid))
             .order_by_asc(chat_message::Column::CreatedAt)
             .offset(offset)
             .limit(limit)
@@ -242,9 +243,9 @@ impl ChatStore for DbChatStore {
         let now = chrono::Utc::now().to_rfc3339();
         let model = chat_message::ActiveModel {
             id: Set(id),
-            channel_id: Set(msg.channel_id.clone()),
+            channel_id: Set(msg.channel_id),
             sender_type: Set(msg.sender_type.clone()),
-            sender_id: Set(msg.sender_id.clone()),
+            sender_id: Set(msg.sender_id),
             content: Set(msg.content.clone()),
             kind: Set(msg.kind.clone()),
             attachments: Set(msg.attachments.clone()),
@@ -285,8 +286,10 @@ impl ChatStore for DbChatStore {
         channel_id: &str,
         client_msg_id: &str,
     ) -> StoreResult<Option<chat_message::Model>> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
         Ok(chat_message::Entity::find()
-            .filter(chat_message::Column::ChannelId.eq(channel_id.to_string()))
+            .filter(chat_message::Column::ChannelId.eq(uuid))
             .filter(chat_message::Column::ClientMsgId.eq(client_msg_id.to_string()))
             .one(self.db.as_ref())
             .await?)
@@ -417,7 +420,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
 
     async fn list_channels(
         &self,
-        user_id: &str,
+        user_id: Uuid,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         self.inner.list_channels(user_id, limit).await
@@ -425,8 +428,8 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
 
     async fn create_channel(
         &self,
-        user_id: String,
-        brand_id: Option<String>,
+        user_id: Uuid,
+        brand_id: Option<Uuid>,
         topic: Option<String>,
     ) -> StoreResult<chat_channel::Model> {
         self.inner.create_channel(user_id, brand_id, topic).await

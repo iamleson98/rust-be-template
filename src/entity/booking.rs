@@ -10,17 +10,14 @@ pub struct Model {
     pub id: Uuid,
     #[sea_orm(unique)]
     pub code: String,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
     pub guest_name: Option<String>,
     pub guest_phone: Option<String>,
     pub guest_email: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub trip_session_id: String,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub boarding_point_id: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub dropping_point_id: Option<String>,
+    pub boarding_point_id: Option<Uuid>,
+    pub dropping_point_id: Option<Uuid>,
     pub adult_count: i64,
     pub child_count: i64,
     pub subtotal: i64,
@@ -30,8 +27,7 @@ pub struct Model {
     pub currency: String,
     pub status: String,
     pub payment_method: Option<String>,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub campaign_applied_id: Option<String>,
+    pub campaign_applied_id: Option<Uuid>,
     #[sea_orm(column_type = "Text", nullable)]
     pub expires_at: Option<String>,
     pub contact_name: Option<String>,

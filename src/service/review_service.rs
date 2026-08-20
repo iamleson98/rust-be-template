@@ -113,10 +113,10 @@ impl ReviewService {
 
         let model = review::ActiveModel {
             id: Set(id),
-            booking_id: Set(input.booking_id.clone()),
-            trip_session_id: Set(input.trip_session_id.clone()),
-            route_id: Set(input.route_id.clone()),
-            brand_id: Set(input.brand_id.clone()),
+            booking_id: Set(input.booking_id),
+            trip_session_id: Set(input.trip_session_id),
+            route_id: Set(input.route_id),
+            brand_id: Set(input.brand_id),
             author_name: Set(input.author_name.clone()),
             author_phone: Set(input.author_phone.clone()),
             rating: Set(input.rating as i64),
@@ -138,7 +138,7 @@ impl ReviewService {
             replied_at: Set(None),
             created_at: Set(now.clone()),
             updated_at: Set(now),
-            user_id: Set(input.user_id.clone()),
+            user_id: Set(input.user_id),
         };
 
         self.store
@@ -148,8 +148,8 @@ impl ReviewService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Recompute brand rating (best-effort)
-        if let Some(ref bid) = input.brand_id {
-            let _ = self.recompute_brand_rating(bid).await;
+        if let Some(bid) = input.brand_id {
+            let _ = self.recompute_brand_rating(&bid.to_string()).await;
         }
 
         Ok(ReviewMutationResponse { id })
@@ -173,7 +173,7 @@ impl ReviewService {
 
         // Ownership check
         if let Some(uid) = caller_user_id {
-            if existing.user_id.as_deref() != Some(uid) {
+            if existing.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
                 return Err(AppError::Forbidden(
                     "can only update your own reviews".into(),
                 ));
@@ -220,8 +220,8 @@ impl ReviewService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Recompute brand rating (best-effort)
-        if let Some(ref bid) = result.brand_id {
-            let _ = self.recompute_brand_rating(bid).await;
+        if let Some(bid) = result.brand_id {
+            let _ = self.recompute_brand_rating(&bid.to_string()).await;
         }
 
         Ok(ReviewMutationResponse { id })
@@ -243,14 +243,14 @@ impl ReviewService {
 
         // Ownership check (admin bypass is handled at the route level)
         if let Some(uid) = caller_user_id {
-            if existing.user_id.as_deref() != Some(uid) {
+            if existing.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
                 return Err(AppError::Forbidden(
                     "can only delete your own reviews".into(),
                 ));
             }
         }
 
-        let brand_id = existing.brand_id.clone();
+        let brand_id = existing.brand_id;
 
         self.store
             .review_store()
@@ -260,7 +260,7 @@ impl ReviewService {
 
         // Recompute brand rating (best-effort)
         if let Some(bid) = brand_id {
-            let _ = self.recompute_brand_rating(&bid).await;
+            let _ = self.recompute_brand_rating(&bid.to_string()).await;
         }
 
         Ok(ReviewDeleteResponse { ok: true })
@@ -329,10 +329,10 @@ pub fn review_to_dto(r: &review::Model) -> ReviewOut {
 
     ReviewOut {
         id: r.id,
-        booking_id: r.booking_id.clone(),
-        trip_session_id: r.trip_session_id.clone(),
-        route_id: r.route_id.clone(),
-        brand_id: r.brand_id.clone(),
+        booking_id: r.booking_id,
+        trip_session_id: r.trip_session_id,
+        route_id: r.route_id,
+        brand_id: r.brand_id,
         author_name: r.author_name.clone(),
         author_phone: r.author_phone.clone(),
         rating: r.rating,
@@ -346,7 +346,7 @@ pub fn review_to_dto(r: &review::Model) -> ReviewOut {
         replied_at: r.replied_at.clone(),
         created_at: r.created_at.clone(),
         updated_at: r.updated_at.clone(),
-        user_id: r.user_id.clone(),
+        user_id: r.user_id,
     }
 }
 

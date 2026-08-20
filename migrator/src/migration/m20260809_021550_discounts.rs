@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                     .table(DiscountProgram::Table)
                     .if_not_exists()
                     .col(pk_uuid(DiscountProgram::Id))
-                    .col(text_null(DiscountProgram::BrandId))
+                    .col(uuid_null(DiscountProgram::BrandId))
                     .col(string_len(DiscountProgram::Name, 255))
                     .col(text_null(DiscountProgram::Description))
                     .col(string_len(DiscountProgram::DiscountType, 10))

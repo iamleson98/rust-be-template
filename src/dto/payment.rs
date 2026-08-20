@@ -33,8 +33,7 @@ use crate::validation::validate_phone;
 #[serde(rename_all = "camelCase")]
 pub struct CreatePaymentReq {
     /// Booking id to pay for. Must be in `pending` status (not yet confirmed).
-    #[validate(length(min = 1, max = 64))]
-    pub booking_id: String,
+    pub booking_id: Uuid,
     /// One of: `vnpay` | `momo` | `zalopay` | `vietqr` | `cod`.
     /// Validated against the entity's allow-list.
     #[validate(length(min = 1, max = 16))]
@@ -128,9 +127,9 @@ impl UpdatePaymentStatusReq {
 #[serde(rename_all = "camelCase")]
 pub struct PaymentOut {
     pub id: Uuid,
-    pub booking_id: String,
+    pub booking_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
     pub provider: String,
     pub status: String,
     pub amount: i64,
@@ -237,14 +236,14 @@ pub struct MarkCodCollectedResponse {
 #[serde(rename_all = "camelCase")]
 pub struct AdminPaymentOut {
     pub id: Uuid,
-    pub booking_id: String,
+    pub booking_id: Uuid,
     /// Joined from the booking row — the human-readable booking code
     /// (e.g. `VEXEVN-AB12CD`). Lets the admin list / search without an
     /// extra round-trip per row.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub booking_code: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
     pub provider: String,
     pub status: String,
     pub amount: i64,

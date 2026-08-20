@@ -17,13 +17,13 @@ use crate::validation::validate_phone;
 pub struct ReviewOut {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub booking_id: Option<String>,
+    pub booking_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub trip_session_id: Option<String>,
+    pub trip_session_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -49,7 +49,7 @@ pub struct ReviewOut {
     pub created_at: String,
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
 }
 
 /// Response of `GET /api/reviews`.
@@ -91,10 +91,10 @@ pub struct ReviewTagsResponse {
 #[derive(Debug, Clone, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateReviewInput {
-    pub booking_id: Option<String>,
-    pub trip_session_id: Option<String>,
-    pub route_id: Option<String>,
-    pub brand_id: Option<String>,
+    pub booking_id: Option<Uuid>,
+    pub trip_session_id: Option<Uuid>,
+    pub route_id: Option<Uuid>,
+    pub brand_id: Option<Uuid>,
     #[validate(range(min = 1, max = 5))]
     pub rating: i32,
     #[validate(length(max = 255))]
@@ -111,7 +111,7 @@ pub struct CreateReviewInput {
     pub author_phone: Option<String>,
     /// Overwritten by the server from the authenticated user.
     #[serde(default)]
-    pub user_id: Option<String>,
+    pub user_id: Option<Uuid>,
 }
 
 /// Input for updating a review.

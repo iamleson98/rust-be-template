@@ -69,7 +69,7 @@ pub struct BrandListResponse {
 pub struct RouteOut {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_km: Option<f64>,
@@ -133,7 +133,7 @@ pub struct TripResult {
     pub distance_km: f64,
     pub duration_min: i16,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     pub brand_name: String,
     pub brand_slug: String,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -43,7 +43,7 @@ pub struct PriceAlertOut {
     pub email: Option<String>,
     pub from_name: Option<String>,
     pub to_name: Option<String>,
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     pub target_price: Option<i64>,
     pub frequency: String,
     pub status: String,
@@ -141,7 +141,7 @@ pub struct CreatePriceAlertRequest {
     pub from_name: String,
     #[validate(length(min = 1, max = 255))]
     pub to_name: String,
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     /// Canonical target price field.
     #[serde(alias = "maxPrice")]
     #[validate(range(min = 0, max = 1_000_000_000))]

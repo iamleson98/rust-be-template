@@ -112,7 +112,7 @@ export function ChatInput({
           )}
         </div>
         <Button
-          onClick={onSend}
+          onClick={() => onSend()}
           // Disable on empty input, while sending, OR when the message
           // exceeds the 500-char limit.
           disabled={!input.trim() || sending || overLimit}

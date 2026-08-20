@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
-    #[sea_orm(column_type = "Text", unique_key = "Seat_layout_label_uniq")]
-    pub bus_layout_id: String,
+    #[sea_orm(unique_key = "Seat_layout_label_uniq")]
+    pub bus_layout_id: Uuid,
     #[sea_orm(unique_key = "Seat_layout_label_uniq")]
     pub seat_label: String,
     pub seat_class: Option<String>,

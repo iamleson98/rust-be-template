@@ -127,12 +127,10 @@ impl PaymentService {
         req.validate_provider()?;
 
         // Look up the booking.
-        let booking_id = Uuid::parse_str(&req.booking_id)
-            .map_err(|_| AppError::BadRequest("booking_id is not a valid UUID".into()))?;
         let booking = self
             .store
             .booking_store()
-            .find_booking_by_id(booking_id)
+            .find_booking_by_id(req.booking_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
@@ -141,7 +139,7 @@ impl PaymentService {
         //   1. The authenticated user who created it (booking.user_id == user_id).
         //   2. A guest (no user_id on the booking, no auth required).
         // This matches the booking flow's existing guest-lookup pattern.
-        if let (Some(uid), Some(b_uid)) = (user_id, booking.user_id.as_deref()) {
+        if let (Some(uid), Some(b_uid)) = (user_id, booking.user_id.map(|id| id.to_string()).as_deref()) {
             if uid != b_uid {
                 return Err(AppError::Forbidden("not your booking".into()));
             }
@@ -163,7 +161,7 @@ impl PaymentService {
         let return_url = format!(
             "{}/payments/{}/return",
             self.cfg.public_base_url.trim_end_matches('/'),
-            booking_id
+            booking.id
         );
         let ipn_url = format!(
             "{}/api/payments/ipn/{}",
@@ -189,8 +187,8 @@ impl PaymentService {
         let now = now_iso();
         let active = payment::ActiveModel {
             id: Set(payment_id),
-            booking_id: Set(booking.id.to_string()),
-            user_id: Set(booking.user_id.clone()),
+            booking_id: Set(booking.id),
+            user_id: Set(booking.user_id),
             provider: Set(req.provider.clone()),
             status: Set(statuses::PENDING.to_string()),
             amount: Set(booking.total),
@@ -204,7 +202,7 @@ impl PaymentService {
             memo: Set(Some(input.memo.clone())),
             provider_response: Set(Some(result.provider_response.clone())),
             failure_reason: Set(None),
-            created_by: Set(user_id.map(|s| s.to_string())),
+            created_by: Set(user_id.and_then(|s| Uuid::parse_str(s).ok())),
             collected_at: Set(None),
             collected_by: Set(None),
         };
@@ -242,7 +240,7 @@ impl PaymentService {
 
         // Ownership check.
         if let Some(uid) = user_id {
-            if let Some(p_uid) = p.user_id.as_deref() {
+            if let Some(p_uid) = p.user_id.map(|id| id.to_string()).as_deref() {
                 if uid != p_uid {
                     return Err(AppError::Forbidden("not your payment".into()));
                 }
@@ -250,17 +248,14 @@ impl PaymentService {
                 // Payment belongs to a guest booking — only the booking
                 // owner can view. We can't enforce this without loading
                 // the booking; let's check.
-                let booking_id = Uuid::parse_str(&p.booking_id).map_err(|_| {
-                    AppError::Internal("payment.booking_id is not a valid UUID".into())
-                })?;
                 let booking = self
                     .store
                     .booking_store()
-                    .find_booking_by_id(booking_id)
+                    .find_booking_by_id(p.booking_id)
                     .await
                     .map_err(|e| AppError::Internal(e.to_string()))?
                     .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-                if booking.user_id.as_deref() != Some(uid) {
+                if booking.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
                     return Err(AppError::Forbidden("not your payment".into()));
                 }
             }
@@ -283,7 +278,7 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
         if let Some(uid) = user_id {
-            if booking.user_id.as_deref() != Some(uid) {
+            if booking.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
                 return Err(AppError::Forbidden("not your booking".into()));
             }
         }
@@ -387,7 +382,7 @@ impl PaymentService {
         active.status = Set(statuses::COMPLETED.to_string());
         active.updated_at = Set(now.clone());
         active.collected_at = Set(Some(now.clone()));
-        active.collected_by = Set(Some(admin_user_id.to_string()));
+        active.collected_by = Set(Some(admin_user_id));
         let updated = self
             .store
             .payment_store()
@@ -396,9 +391,7 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Confirm the booking (flips seats from held → booked).
-        let booking_id = Uuid::parse_str(&updated.booking_id)
-            .map_err(|_| AppError::Internal("payment.booking_id is not a valid UUID".into()))?;
-        let _ = self.booking.confirm(booking_id, providers::COD).await?;
+        let _ = self.booking.confirm(updated.booking_id, providers::COD).await?;
 
         Ok(MarkCodCollectedResponse {
             payment_id: updated.id,
@@ -667,9 +660,9 @@ impl PaymentService {
         // Batch-fetch booking codes for display.
         let booking_ids: Vec<Uuid> = items
             .iter()
-            .filter_map(|p| Uuid::parse_str(&p.booking_id).ok())
+            .map(|p| p.booking_id)
             .collect();
-        let bookings: std::collections::HashMap<String, String> = if booking_ids.is_empty() {
+        let bookings: std::collections::HashMap<Uuid, String> = if booking_ids.is_empty() {
             std::collections::HashMap::new()
         } else {
             let booking_models = self
@@ -680,7 +673,7 @@ impl PaymentService {
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             booking_models
                 .into_iter()
-                .map(|b| (b.id.to_string(), b.code))
+                .map(|b| (b.id, b.code))
                 .collect()
         };
 
@@ -688,9 +681,9 @@ impl PaymentService {
             .iter()
             .map(|p| AdminPaymentOut {
                 id: p.id,
-                booking_id: p.booking_id.clone(),
+                booking_id: p.booking_id,
                 booking_code: bookings.get(&p.booking_id).cloned(),
-                user_id: p.user_id.clone(),
+                user_id: p.user_id,
                 provider: p.provider.clone(),
                 status: p.status.clone(),
                 amount: p.amount,
@@ -705,7 +698,7 @@ impl PaymentService {
                 provider_response: p.provider_response.clone(),
                 failure_reason: p.failure_reason.clone(),
                 collected_at: p.collected_at.clone(),
-                collected_by: p.collected_by.clone(),
+                collected_by: p.collected_by.map(|id| id.to_string()),
             })
             .collect();
 
@@ -723,12 +716,12 @@ impl PaymentService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("payment not found".into()))?;
-        let booking_code = self.fetch_booking_code(&p.booking_id).await?;
+        let booking_code = self.fetch_booking_code(p.booking_id).await?;
         Ok(AdminPaymentOut {
             id: p.id,
-            booking_id: p.booking_id.clone(),
+            booking_id: p.booking_id,
             booking_code,
-            user_id: p.user_id.clone(),
+            user_id: p.user_id,
             provider: p.provider.clone(),
             status: p.status.clone(),
             amount: p.amount,
@@ -743,7 +736,7 @@ impl PaymentService {
             provider_response: p.provider_response.clone(),
             failure_reason: p.failure_reason.clone(),
             collected_at: p.collected_at.clone(),
-            collected_by: p.collected_by.clone(),
+            collected_by: p.collected_by.map(|id| id.to_string()),
         })
     }
 
@@ -784,9 +777,7 @@ impl PaymentService {
 
         // If admin marks a payment as `completed`, also confirm the booking.
         if status == statuses::COMPLETED {
-            if let Ok(booking_id) = Uuid::parse_str(&updated.booking_id) {
-                let _ = self.booking.confirm(booking_id, &updated.provider).await;
-            }
+            let _ = self.booking.confirm(updated.booking_id, &updated.provider).await;
         }
 
         Ok(UpdatePaymentStatusResponse {
@@ -801,20 +792,18 @@ impl PaymentService {
 
     async fn assert_ownership(&self, p: &payment::Model, user_id: Option<&str>) -> AppResult<()> {
         if let Some(uid) = user_id {
-            if p.user_id.as_deref() == Some(uid) {
+            if p.user_id.map(|id| id.to_string()).as_deref() == Some(uid) {
                 return Ok(());
             }
             // Payment belongs to a guest booking — load the booking to check.
-            let booking_id = Uuid::parse_str(&p.booking_id)
-                .map_err(|_| AppError::Internal("payment.booking_id is not a valid UUID".into()))?;
             let booking = self
                 .store
                 .booking_store()
-                .find_booking_by_id(booking_id)
+                .find_booking_by_id(p.booking_id)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
                 .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-            if booking.user_id.as_deref() == Some(uid) {
+            if booking.user_id.map(|id| id.to_string()).as_deref() == Some(uid) {
                 return Ok(());
             }
             return Err(AppError::Forbidden("not your payment".into()));
@@ -852,7 +841,7 @@ impl PaymentService {
         provider_response: String,
     ) -> AppResult<()> {
         let now = now_iso();
-        let booking_id_str = p.booking_id.clone();
+        let booking_id_str = p.booking_id;
         let provider = p.provider.clone();
 
         // Transactional: payment UPDATE + booking confirm.
@@ -896,9 +885,7 @@ impl PaymentService {
         // Confirm the booking outside the txn — `booking.confirm()` runs its
         // own transaction; running it nested would require passing the txn
         // handle down, which we explicitly avoid (see CompositeStore::db() docs).
-        let booking_id = Uuid::parse_str(&booking_id_str)
-            .map_err(|_| AppError::Internal("payment.booking_id is not a valid UUID".into()))?;
-        let _ = self.booking.confirm(booking_id, &provider).await;
+        let _ = self.booking.confirm(booking_id_str, &provider).await;
         Ok(())
     }
 
@@ -930,15 +917,11 @@ impl PaymentService {
         Ok(())
     }
 
-    async fn fetch_booking_code(&self, booking_id: &str) -> AppResult<Option<String>> {
-        let uid = match Uuid::parse_str(booking_id) {
-            Ok(u) => u,
-            Err(_) => return Ok(None),
-        };
+    async fn fetch_booking_code(&self, booking_id: Uuid) -> AppResult<Option<String>> {
         let b = self
             .store
             .booking_store()
-            .find_booking_by_id(uid)
+            .find_booking_by_id(booking_id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         Ok(b.map(|b| b.code))
@@ -969,8 +952,8 @@ impl PaymentService {
 
         PaymentOut {
             id: p.id,
-            booking_id: p.booking_id.clone(),
-            user_id: p.user_id.clone(),
+            booking_id: p.booking_id,
+            user_id: p.user_id,
             provider: p.provider.clone(),
             status: p.status.clone(),
             amount: p.amount,
@@ -985,7 +968,7 @@ impl PaymentService {
             memo: p.memo.clone(),
             failure_reason: p.failure_reason.clone(),
             collected_at: p.collected_at.clone(),
-            collected_by: p.collected_by.clone(),
+            collected_by: p.collected_by.map(|id| id.to_string()),
             bank_transfer_instructions,
             return_url: Some(format!(
                 "{}/payments/{}/return",

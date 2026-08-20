@@ -113,12 +113,12 @@ pub struct AdminPlacePreview {
 pub struct AdminRouteOut {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_location_id: Option<String>,
+    pub start_location_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_location_id: Option<String>,
+    pub end_location_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_km: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -147,9 +147,9 @@ pub struct AdminRouteListResponse {
 pub struct UpsertRouteRequest {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
-    pub brand_id: Option<String>,
-    pub start_location_id: Option<String>,
-    pub end_location_id: Option<String>,
+    pub brand_id: Option<Uuid>,
+    pub start_location_id: Option<Uuid>,
+    pub end_location_id: Option<Uuid>,
     #[validate(range(min = 0.0, max = 50000.0))]
     pub distance_km: Option<f64>,
     #[validate(range(min = 0, max = 60000))]
@@ -166,7 +166,7 @@ pub struct UpsertRouteRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AdminScheduleOut {
     pub id: Uuid,
-    pub route_id: String,
+    pub route_id: Uuid,
     pub departure_time: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub effective_from: Option<String>,
@@ -195,8 +195,7 @@ pub struct AdminScheduleListResponse {
 #[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertScheduleRequest {
-    #[validate(length(min = 1, max = 64))]
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     #[validate(length(min = 1, max = 10))]
     pub departure_time: Option<String>,
     pub effective_from: Option<String>,
@@ -220,7 +219,7 @@ pub struct UpsertScheduleRequest {
 #[serde(rename_all = "camelCase")]
 pub struct AdminPickupPointOut {
     pub id: Uuid,
-    pub route_id: String,
+    pub route_id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -246,8 +245,7 @@ pub struct AdminPickupPointListResponse {
 #[derive(Debug, Deserialize, ToSchema, Default, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpsertPickupPointRequest {
-    #[validate(length(min = 1, max = 64))]
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
     #[validate(length(max = 1000))]
@@ -271,7 +269,7 @@ pub struct UpsertPickupPointRequest {
 pub struct AdminBusLayoutOut {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -511,8 +509,8 @@ pub struct AdminBookingExportResponse {
 #[into_params(parameter_in = Query)]
 pub struct AdminBookingsQuery {
     pub status: Option<String>,
-    pub brand_id: Option<String>,
-    pub route_id: Option<String>,
+    pub brand_id: Option<Uuid>,
+    pub route_id: Option<Uuid>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub search: Option<String>,
@@ -526,8 +524,8 @@ pub struct AdminBookingsQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminReviewsQuery {
     pub status: Option<String>,
-    pub brand_id: Option<String>,
-    pub route_id: Option<String>,
+    pub brand_id: Option<Uuid>,
+    pub route_id: Option<Uuid>,
     pub search: Option<String>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
@@ -537,28 +535,28 @@ pub struct AdminReviewsQuery {
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
 pub struct AdminRoutesQuery {
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
 pub struct AdminSchedulesQuery {
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
 pub struct AdminPickupPointsQuery {
-    pub route_id: Option<String>,
+    pub route_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
 pub struct AdminBusLayoutsQuery {
-    pub brand_id: Option<String>,
+    pub brand_id: Option<Uuid>,
 }
 
 #[cfg(test)]
