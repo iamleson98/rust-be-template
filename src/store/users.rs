@@ -4,8 +4,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -25,6 +25,32 @@ pub trait UserStore: Send + Sync {
         email: String,
         username: String,
         password_hash: String,
+        role: String,
+    ) -> StoreResult<user::Model>;
+    /// Look up a user by their OAuth `(provider, subject)` pair.
+    /// Returns `None` if no user is linked to this OAuth identity yet.
+    async fn get_user_by_oauth(
+        &self,
+        provider: &str,
+        subject: &str,
+    ) -> StoreResult<Option<user::Model>>;
+    /// Create a new user linked to an OAuth identity, or link an
+    /// existing user (matched by email) to the OAuth identity.
+    ///
+    /// `email` — the email returned by the OAuth provider. Used to match
+    ///   an existing user; if found, their `oauth_provider` + `oauth_subject`
+    ///   are set (so future OAuth logins find them by id).
+    /// `name` — the display name from the OAuth provider.
+    /// `provider` — `"facebook"` / `"google"` / `"twitter"`.
+    /// `subject` — the provider's stable user id.
+    /// `avatar_url` — optional avatar URL from the provider.
+    async fn upsert_oauth_user(
+        &self,
+        email: String,
+        name: String,
+        provider: String,
+        subject: String,
+        avatar_url: Option<String>,
         role: String,
     ) -> StoreResult<user::Model>;
     async fn delete_user(&self, id: Uuid) -> StoreResult<()>;
@@ -95,6 +121,8 @@ impl UserStore for DbUserStore {
             last_login_at: Set(None),
             last_login_ip: Set(None),
             password_changed_at: Set(None),
+            oauth_provider: Set(None),
+            oauth_subject: Set(None),
         };
 
         match user::Entity::insert(model)
@@ -123,6 +151,117 @@ impl UserStore for DbUserStore {
                 last_login_at: None,
                 last_login_ip: None,
                 password_changed_at: None,
+                oauth_provider: None,
+                oauth_subject: None,
+            }),
+            Err(e) => {
+                let msg = e.to_string();
+                if msg.contains("unique") || msg.contains("duplicate") {
+                    Err(StoreError::Conflict(msg))
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    async fn get_user_by_oauth(
+        &self,
+        provider: &str,
+        subject: &str,
+    ) -> StoreResult<Option<user::Model>> {
+        Ok(user::Entity::find()
+            .filter(user::Column::OauthProvider.eq(provider))
+            .filter(user::Column::OauthSubject.eq(subject))
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    async fn upsert_oauth_user(
+        &self,
+        email: String,
+        name: String,
+        provider: String,
+        subject: String,
+        avatar_url: Option<String>,
+        role: String,
+    ) -> StoreResult<user::Model> {
+        // 1. Try to find by OAuth identity (provider + subject).
+        if let Some(existing) = self.get_user_by_oauth(&provider, &subject).await? {
+            return Ok(existing);
+        }
+
+        // 2. Try to find by email — if the user already exists (e.g.
+        //    registered via password), link the OAuth identity to them.
+        if let Some(existing) = self.get_user_by_email(email.clone()).await? {
+            let mut active: user::ActiveModel = existing.clone().into();
+            active.oauth_provider = Set(Some(provider));
+            active.oauth_subject = Set(Some(subject));
+            if let Some(av) = &avatar_url {
+                active.avatar_url = Set(Some(av.clone()));
+            }
+            active.updated_at = Set(Utc::now());
+            let updated = active.update(self.db.as_ref()).await?;
+            return Ok(updated);
+        }
+
+        // 3. No existing user — create a new one linked to the OAuth identity.
+        let now = Utc::now();
+        let id = Uuid::new_v4();
+        let model = user::ActiveModel {
+            id: Set(id),
+            email: Set(email.clone()),
+            full_name: Set(name.clone()),
+            password_hash: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+            brand_id: Set(None),
+            phone: Set(None),
+            email_verified_at: Set(Some(now.to_rfc3339())),
+            phone_verified_at: Set(None),
+            status: Set("active".into()),
+            block_reason: Set(None),
+            avatar_url: Set(avatar_url.clone()),
+            locale: Set("vi".into()),
+            is_guest: Set(false),
+            role: Set(role.clone()),
+            failed_login_attempts: Set(0),
+            locked_until: Set(None),
+            last_login_at: Set(None),
+            last_login_ip: Set(None),
+            password_changed_at: Set(None),
+            oauth_provider: Set(Some(provider.clone())),
+            oauth_subject: Set(Some(subject.clone())),
+        };
+
+        match user::Entity::insert(model)
+            .exec_without_returning(self.db.as_ref())
+            .await
+        {
+            Ok(_) => Ok(user::Model {
+                id,
+                email,
+                password_hash: None,
+                created_at: now,
+                updated_at: now,
+                brand_id: None,
+                full_name: name,
+                phone: None,
+                email_verified_at: Some(now.to_rfc3339()),
+                phone_verified_at: None,
+                status: "active".into(),
+                block_reason: None,
+                avatar_url,
+                locale: "vi".into(),
+                is_guest: false,
+                role,
+                failed_login_attempts: 0,
+                locked_until: None,
+                last_login_at: None,
+                last_login_ip: None,
+                password_changed_at: None,
+                oauth_provider: Some(provider),
+                oauth_subject: Some(subject),
             }),
             Err(e) => {
                 let msg = e.to_string();
@@ -222,6 +361,28 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
     ) -> StoreResult<user::Model> {
         self.inner
             .create_user(email, username, password_hash, role)
+            .await
+    }
+
+    async fn get_user_by_oauth(
+        &self,
+        provider: &str,
+        subject: &str,
+    ) -> StoreResult<Option<user::Model>> {
+        self.inner.get_user_by_oauth(provider, subject).await
+    }
+
+    async fn upsert_oauth_user(
+        &self,
+        email: String,
+        name: String,
+        provider: String,
+        subject: String,
+        avatar_url: Option<String>,
+        role: String,
+    ) -> StoreResult<user::Model> {
+        self.inner
+            .upsert_oauth_user(email, name, provider, subject, avatar_url, role)
             .await
     }
 

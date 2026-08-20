@@ -42,6 +42,7 @@ import {
   Phone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SocialAuthButtons } from './social-buttons'
 import {
   registerZodSchema,
   scorePassword,
@@ -279,6 +280,8 @@ export function RegisterForm() {
           Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của VeXeVN.
         </p>
       </form>
+
+      <SocialAuthButtons />
     </Form>
   )
 }

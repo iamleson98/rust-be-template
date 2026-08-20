@@ -24,6 +24,8 @@ import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
 import { Headset } from 'lucide-react'
+import { playSound } from '@/lib/sound-effects'
+import { notifyChatMessage } from '@/lib/notifications'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   me as sdkMe,
@@ -240,6 +242,18 @@ export function ChatWidget() {
           setWaitingForAgent(false)
           setAgentJoinedName(m.senderName ?? null)
         }
+        // ── Browser push notification when page is in background.
+        if (m.senderType !== 'user') {
+          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+        }
+        // ── Sound effect on new message.
+        playSound('message')
+      } else {
+        // Message from a different channel — show a notification.
+        if (m.senderType !== 'user') {
+          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          playSound('message')
+        }
       }
     })
 
@@ -268,6 +282,27 @@ export function ChatWidget() {
     ws.on('error', (data: Record<string, unknown>) => {
       const d = data as unknown as { code?: string; message?: string }
       if (d?.message) toast.error(d.message)
+    })
+
+    // ── Abuse-guard events ──────────────────────────────────────
+    // When the backend detects a violation, it sends a warned/banned
+    // event. We surface them as toast notifications and (for bans)
+    // block further sends.
+    ws.on('abuse:warned', (data: Record<string, unknown>) => {
+      const d = data as unknown as { reason?: string }
+      if (d?.reason) {
+        toast.warning(`Cảnh báo: ${d.reason}`, { duration: 6000 })
+      }
+    })
+
+    ws.on('abuse:banned', (data: Record<string, unknown>) => {
+      const d = data as unknown as { reason?: string }
+      const reason = d?.reason ?? 'Tài khoản tạm khóa do vi phạm quy định chat.'
+      toast.error(reason, { duration: 12000 })
+      setSending(false)
+      // Clear the input + disable the chat — the user must wait for
+      // the ban to expire before sending again.
+      setInput('')
     })
 
     return () => {
@@ -513,9 +548,8 @@ export function ChatWidget() {
         aria-label="Mở chat hỗ trợ"
       >
         <Headset className="h-6 w-6" />
-        <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-blue-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-          1
-        </span>
+        {/* Always-on availability indicator — customer always sees support is active */}
+        <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
         <span className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-900 text-white text-xs px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           Hỗ trợ trực tuyến
         </span>

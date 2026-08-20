@@ -68,6 +68,7 @@ pub fn build_router(state: AppState) -> Router<()> {
     // `router()`, and add one `.nest("/<prefix>", module::router())` line.
     let api_routes: Router<AppState> = Router::new()
         .nest("/auth", crate::routes::auth::router())
+        .nest("/auth/oauth", crate::routes::oauth::router())
         .nest("/users", crate::routes::users::router())
         .nest("/posts", crate::routes::posts::router())
         .nest("/bookings", crate::routes::bookings::router())

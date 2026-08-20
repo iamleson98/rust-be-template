@@ -129,7 +129,16 @@ pub trait ZeroClawProvider: Send + Sync {
     ) -> Result<Option<ZeroClawOutcome>, AppError>;
 }
 
-// ── Noop provider (default — ZeroClaw disabled) ─────────────────
+// ── Noop provider (default — ZeroClaw disabled) ────────────────
+//
+// The default provider when no external ZeroClaw HTTP endpoint is
+// configured. Always returns `None` — the customer's message is
+// still delivered, but no AI reply is generated. A human employee
+// (when online) will respond.
+//
+// At deploy time, set `ZEROCLAW_ENABLED=true` + `ZEROCLAW_API_URL` +
+// `ZEROCLAW_API_KEY` to switch to [`HttpZeroClawProvider`], which
+// calls the actual ZeroClaw LLM endpoint.
 
 pub struct NoopZeroClawProvider;
 
@@ -352,12 +361,21 @@ impl ZeroClawProvider for HttpZeroClawProvider {
 static PROVIDER: OnceCell<Arc<dyn ZeroClawProvider>> = OnceCell::new();
 
 /// Initialise the global ZeroClaw provider from config. Called once on boot.
+///
+/// Resolution order:
+///   1. **HTTP provider** — when `ZEROCLAW_ENABLED=true` and
+///      `ZEROCLAW_API_URL`/`ZEROCLAW_API_KEY` are set. This is what
+///      production deployments use.
+///   2. **Noop provider** — silently declines to reply. The customer's
+///      message is still delivered to the channel; a human employee
+///      will respond when online. The actual ZeroClaw endpoint will
+///      be configured at deploy time.
 pub fn init(cfg: &ZeroClawConfig) {
     let provider: Arc<dyn ZeroClawProvider> = if cfg.is_active() {
         tracing::info!(
             api_url = cfg.api_url.as_str(),
             model = cfg.model.as_str(),
-            "ZeroClaw AI customer-support assistant ENABLED"
+            "ZeroClaw AI customer-support assistant ENABLED (HTTP provider)"
         );
         Arc::new(HttpZeroClawProvider::new(
             cfg.api_url.clone(),

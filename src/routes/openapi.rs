@@ -10,6 +10,9 @@ use utoipa::OpenApi;
         crate::routes::auth::refresh,
         crate::routes::auth::logout,
         crate::routes::auth::me,
+        // oauth (social login — Facebook / Google / X-Twitter)
+        crate::routes::oauth::oauth_start,
+        crate::routes::oauth::oauth_callback,
         // users
         crate::routes::users::list_users,
         crate::routes::users::get_user,

@@ -28,6 +28,7 @@ pub mod config;
 pub mod dto;
 pub mod entity;
 pub mod error;
+pub mod guard;
 pub mod middleware;
 pub mod osm;
 pub mod payment;

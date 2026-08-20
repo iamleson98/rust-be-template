@@ -9,6 +9,7 @@ mod bookings;
 mod chat;
 mod health;
 mod notifications;
+mod oauth;
 mod openapi;
 mod payments;
 mod places;
