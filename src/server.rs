@@ -235,7 +235,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     let state = AppState::new(
         config_arc,
-        store,
         rbac.clone(),
         auth_service,
         post_service,

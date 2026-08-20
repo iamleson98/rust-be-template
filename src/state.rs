@@ -9,7 +9,6 @@ use crate::service::{
     PlaceService, PostService, PriceAlertService, PublicService, ReviewService, RoutingService,
     UserService, WishlistService,
 };
-use crate::store::CompositeStore;
 
 /// The single application state object shared across handlers.
 ///
@@ -63,11 +62,6 @@ use crate::store::CompositeStore;
 pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
-    /// Backing store — kept private so route handlers can't bypass the
-    /// service layer. Services receive their own `Arc<CompositeStore>`
-    /// clone at construction time (in `server.rs::bootstrap`).
-    #[allow(dead_code)]
-    store: Arc<CompositeStore>,
     pub rbac: Arc<RbacChecker>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
@@ -103,7 +97,6 @@ impl AppState {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: Arc<Config>,
-        store: Arc<CompositeStore>,
         rbac: Arc<RbacChecker>,
         auth: Arc<AuthService>,
         posts: Arc<PostService>,
@@ -122,7 +115,6 @@ impl AppState {
     ) -> Self {
         Self {
             config,
-            store,
             rbac,
             auth,
             posts,
