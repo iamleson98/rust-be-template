@@ -879,6 +879,7 @@ dependencies = [
  "tracing-subscriber",
  "unidecode",
  "url",
+ "urlencoding",
  "utoipa",
  "utoipa-swagger-ui",
  "uuid",

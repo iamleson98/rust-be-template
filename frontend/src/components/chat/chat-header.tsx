@@ -15,8 +15,8 @@ import {
   X,
   Minus,
   ArrowLeft,
-  Wifi,
   WifiOff,
+  CircleCheck,
 } from 'lucide-react'
 import type { CustomerChannel as Channel, View } from './_shared'
 
@@ -51,16 +51,20 @@ export function ChatHeader({
             <ArrowLeft className="h-4 w-4" />
           </button>
         )}
-        <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+        <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 relative">
           <Headset className="h-5 w-5" />
+          {/* Always-on "active" pulse — customer always sees an agent is
+              available (ZeroClaw AI replies instantly if no human is online). */}
+          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-rose-600 animate-pulse" />
         </div>
         <div className="min-w-0">
           <div className="font-bold text-sm truncate">{title}</div>
           <div className="text-[11px] text-rose-100 flex items-center gap-1">
             {connected ? (
               <>
-                <Wifi className="h-3 w-3" /> Đang trực tuyến
-                {employeesOnline > 0 && <span className="ml-1">• {employeesOnline} NV sẵn sàng</span>}
+                <CircleCheck className="h-3 w-3 text-emerald-300" />
+                <span>Nhân viên đang trực tuyến</span>
+                {employeesOnline > 0 && <span className="ml-1 opacity-80">• {employeesOnline} NV</span>}
               </>
             ) : (
               <>

@@ -18,7 +18,7 @@
  */
 
 import type React from 'react'
-import { Loader2, Check, CheckCheck, Users } from 'lucide-react'
+import { Loader2, Check, CheckCheck, Users, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from './_shared'
 
@@ -52,17 +52,21 @@ export function ChatConversation({
         ) : (
           <>
             <div className="text-center py-2">
-              <span className="inline-block rounded-full bg-slate-100 px-3 py-1 text-[10px] text-muted-foreground">
-                Tin nhắn được bảo mật • Phản hồi trung bình 1 phút
+              <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[10px] text-emerald-700 ring-1 ring-emerald-200">
+                <Sparkles className="inline h-2.5 w-2.5 mr-1" />
+                Trợ lý AI luôn sẵn sàng • Phản hồi tức thì
               </span>
             </div>
 
-            {/* Waiting-for-agent banner */}
+            {/* Waiting-for-agent banner — kept for legacy compatibility,
+                but the always-on ZeroClaw local provider means a real
+                human is no longer required to acknowledge a message.
+                The banner is now informational only. */}
             {waitingForAgent && (
               <div className="flex justify-center py-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Không có nhân viên trực tuyến, đang thông báo đội ngũ hỗ trợ...</span>
+                  <span>Đang chuyển tới nhân viên hỗ trợ...</span>
                 </div>
               </div>
             )}
@@ -82,13 +86,15 @@ export function ChatConversation({
             {messages.map((m, i) => {
               const isMe = m.senderType === 'user'
               const isSystem = m.senderType === 'system'
+              const isAssistant = m.senderType === 'assistant'
               const showName =
                 !isMe && !isSystem && (i === 0 || messages[i - 1].senderType !== m.senderType)
               return (
                 <div key={m.id} className={cn('flex', isMe ? 'justify-end' : 'justify-start')}>
                   <div className={cn('max-w-[78%]', isSystem && 'mx-auto')}>
                     {showName && (
-                      <div className="text-[10px] text-muted-foreground mb-0.5 px-1">
+                      <div className="text-[10px] text-muted-foreground mb-0.5 px-1 flex items-center gap-1">
+                        {isAssistant && <Sparkles className="h-2.5 w-2.5 text-violet-500" />}
                         {m.senderName}
                       </div>
                     )}
@@ -99,7 +105,9 @@ export function ChatConversation({
                           ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100'
                           : isMe
                             ? 'bg-rose-600 text-white rounded-br-sm'
-                            : 'bg-white border rounded-bl-sm',
+                            : isAssistant
+                              ? 'bg-violet-50 border border-violet-200 text-slate-800 rounded-bl-sm'
+                              : 'bg-white border rounded-bl-sm',
                       )}
                     >
                       {m.content}

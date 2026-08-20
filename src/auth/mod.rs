@@ -4,6 +4,7 @@
 pub mod cookies;
 pub mod jwt;
 pub mod jwt_validator;
+pub mod oauth;
 pub mod password;
 pub mod refresh;
 pub mod session;

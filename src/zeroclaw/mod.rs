@@ -129,7 +129,7 @@ pub trait ZeroClawProvider: Send + Sync {
     ) -> Result<Option<ZeroClawOutcome>, AppError>;
 }
 
-// ── Noop provider (default — ZeroClaw disabled) ─────────────────
+// ── Noop provider (used in tests only) ──────────────────────────
 
 pub struct NoopZeroClawProvider;
 
@@ -154,6 +154,179 @@ impl ZeroClawProvider for NoopZeroClawProvider {
         _fallback_threshold: usize,
     ) -> Result<Option<ZeroClawOutcome>, AppError> {
         Ok(None)
+    }
+}
+
+// ── Local provider (default — built-in canned replies) ──────────
+//
+// Always-on fallback used when no external ZeroClaw HTTP endpoint is
+// configured. When no human employee is online in the channel, it
+// produces a canned Vietnamese reply that matches the user's intent
+// (greeting / pricing / booking / refund / contact). The reply is
+// persisted as `senderType='assistant'` and broadcast just like an
+// HTTP-provider reply.
+//
+// This guarantees the customer always sees an immediate response —
+// "the chat box always shows employee active" — even when no human
+// is online and no LLM endpoint is configured.
+
+pub struct LocalZeroClawProvider {
+    pub model: String,
+}
+
+impl LocalZeroClawProvider {
+    pub fn new(model: String) -> Self {
+        Self { model }
+    }
+
+    /// Naive intent classifier — Vietnamese keywords. Returns a canned
+    /// reply string. Kept deliberately simple so it's deterministic
+    /// and cheap; a real LLM (HttpZeroClawProvider) supersedes it
+    /// when configured.
+    fn classify(&self, text: &str) -> String {
+        let t = text.to_lowercase();
+        let has = |kws: &[&str]| kws.iter().any(|k| t.contains(k));
+
+        if has(&["xin chào", "chào", "hello", "hi ", "hi,", "chao", "chào bạn"]) {
+            return "Xin chào 👋 — em là ZeroClaw, trợ lý ảo của VeXeVN. \
+                    Em có thể giúp bạn đặt vé, tra cứu lịch trình, giá vé và \
+                    chính sách hoàn/hủy. Bạn cần hỗ trợ gì ạ?"
+                .into();
+        }
+        if has(&["giá", "gia ve", "bao nhiêu", "giá vé", "giá bao nhiêu", "bnes"]) {
+            return "Bạn có thể xem giá vé trực tiếp trên trang kết quả tìm \
+                    kiếm chuyến đi — giá hiển thị đã bao gồm thuế + phí. \
+                    Nếu bạn chia sẻ tuyến đường + ngày đi, em sẽ hướng dẫn \
+                    chi tiết hơn nhé."
+                .into();
+        }
+        if has(&["đặt", "dat ve", "mua vé", "đặt vé", "book", "mua ve"]) {
+            return "Để đặt vé: 1) chọn điểm đi/đến + ngày, 2) chọn chuyến, \
+                    3) nhập thông tin hành khách, 4) thanh toán. Vé điện tử \
+                    sẽ gửi qua email/Zalo ngay sau khi thanh toán thành công. \
+                    Bạn gặp vướng mắc ở bước nào ạ?"
+                .into();
+        }
+        if has(&["hoàn", "hoan", "hủy", "huy", "refund", "trả lại", "trả tiền"]) {
+            return "Chính sách hoàn/hủy: hủy trước 24h — hoàn 100%, \
+                    12–24h — hoàn 70%, <12h — không hoàn. Vui lòng cung \
+                    cấp mã vé để em kiểm tra cụ thể cho bạn nhé."
+                .into();
+        }
+        if has(&["liên hệ", "lien he", "hotline", "gọi", "call", "số điện thoại", "sđt"]) {
+            return "Bạn có thể gọi hotline 1900 6067 (8h–22h) hoặc chat \
+                    trực tiếp tại đây. Nếu cần hỗ trợ khẩn, nhân viên sẽ \
+                    tiếp nhận ngay khi online."
+                .into();
+        }
+        if has(&["cảm ơn", "cam on", "thanks", "thank you"]) {
+            return "Rất vui được hỗ trợ bạn! Nếu cần thêm thông tin cứ \
+                    nhắn lại nhé — em luôn sẵn sàng. Chúc bạn chuyến đi \
+                    an toàn 🚌✨"
+                .into();
+        }
+        if has(&["lỗi", "không hoạt động", "không được", "bị lỗi", "error", "bug", "không load"]) {
+            return "Em ghi nhận sự cố bạn gặp phải. Vui lòng cho em biết \
+                    thêm: bạn đang thao tác ở bước nào, trên web hay app? \
+                    Nhân viên kỹ thuật sẽ kiểm tra ngay khi online."
+                .into();
+        }
+        // Default — broad helpful response + promise of human follow-up.
+        "Cảm ơn bạn đã liên hệ VeXeVN 👋 — em là ZeroClaw, trợ lý ảo. \
+         Em đã ghi nhận tin nhắn của bạn và sẽ phản hồi chi tiết hơn. \
+         Nhân viên hỗ trợ cũng sẽ chủ động tiếp nhận khi online. \
+         Bạn có thể chia sẻ thêm chi tiết (mã vé, tuyến, ngày đi) để \
+         em hỗ trợ nhanh hơn ạ."
+            .into()
+    }
+}
+
+#[async_trait]
+impl ZeroClawProvider for LocalZeroClawProvider {
+    fn name(&self) -> &'static str {
+        "local"
+    }
+    fn is_enabled(&self) -> bool {
+        true
+    }
+
+    async fn maybe_reply(
+        &self,
+        chat_store: &dyn ChatStore,
+        channel_id: &str,
+        _brand_id: Option<&str>,
+        _user: &SessionUser,
+        user_message_id: &str,
+        user_text: &str,
+        online_employees: usize,
+        fallback_threshold: usize,
+    ) -> Result<Option<ZeroClawOutcome>, AppError> {
+        // 1. If humans are online beyond the threshold, let them handle.
+        if online_employees >= fallback_threshold {
+            tracing::debug!(
+                channel_id,
+                online_employees,
+                fallback_threshold,
+                "zeroclaw-local: skipping — humans online"
+            );
+            return Ok(None);
+        }
+
+        // 2. Generate a canned reply.
+        let reply_text = self.classify(user_text);
+        let now = chrono::Utc::now().to_rfc3339();
+
+        // 3. Persist the assistant reply as a ChatMessage row.
+        let assistant_msg = chat_store
+            .insert_message(NewChatMessage {
+                channel_id: channel_id.to_string(),
+                sender_type: "assistant".into(),
+                sender_id: Some(format!("zeroclaw-local:{}", self.model)),
+                content: Some(reply_text.clone()),
+                kind: "text".into(),
+                attachments: None,
+                client_msg_id: None,
+            })
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let assistant_msg_id = assistant_msg.id.to_string();
+
+        // 4. Update channel last-message preview.
+        let preview: String = reply_text.chars().take(100).collect();
+        let _ = chat_store
+            .update_channel_preview(channel_id, preview, now.clone())
+            .await;
+
+        // 5. Audit row.
+        let _ = chat_store
+            .insert_zeroclaw_exchange(NewZeroClawExchange {
+                channel_id: Some(channel_id.to_string()),
+                user_message_id: Some(user_message_id.to_string()),
+                assistant_message_id: Some(assistant_msg_id.clone()),
+                prompt: Some(user_text.to_string()),
+                completion: Some(reply_text.clone()),
+                model: Some(self.model.clone()),
+                latency_ms: Some(0),
+                handoff_to_human: false,
+            })
+            .await;
+
+        tracing::info!(
+            channel_id,
+            "zeroclaw-local replied (canned) — no humans online"
+        );
+
+        Ok(Some(ZeroClawOutcome {
+            reply: ZeroClawReply {
+                reply: reply_text,
+                confidence: 0.5,
+                handoff_to_human: false,
+                model: self.model.clone(),
+            },
+            assistant_message_id: assistant_msg_id,
+            created_at: now,
+            handoff: false,
+        }))
     }
 }
 
@@ -352,12 +525,20 @@ impl ZeroClawProvider for HttpZeroClawProvider {
 static PROVIDER: OnceCell<Arc<dyn ZeroClawProvider>> = OnceCell::new();
 
 /// Initialise the global ZeroClaw provider from config. Called once on boot.
+///
+/// Resolution order:
+///   1. **HTTP provider** — when `ZEROCLAW_ENABLED=true` and
+///      `ZEROCLAW_API_URL`/`ZEROCLAW_API_KEY` are set.
+///   2. **Local provider** — built-in canned Vietnamese replies. Used as
+///      the always-on fallback so the customer always gets an immediate
+///      response when no human employee is online, even if no external
+///      LLM endpoint is configured.
 pub fn init(cfg: &ZeroClawConfig) {
     let provider: Arc<dyn ZeroClawProvider> = if cfg.is_active() {
         tracing::info!(
             api_url = cfg.api_url.as_str(),
             model = cfg.model.as_str(),
-            "ZeroClaw AI customer-support assistant ENABLED"
+            "ZeroClaw AI customer-support assistant ENABLED (HTTP provider)"
         );
         Arc::new(HttpZeroClawProvider::new(
             cfg.api_url.clone(),
@@ -368,9 +549,10 @@ pub fn init(cfg: &ZeroClawConfig) {
         ))
     } else {
         tracing::info!(
-            "ZeroClaw AI customer-support assistant disabled (set ZEROCLAW_ENABLED + ZEROCLAW_API_URL + ZEROCLAW_API_KEY to enable)"
+            "ZeroClaw AI customer-support assistant using LOCAL canned-replies provider \
+             (set ZEROCLAW_ENABLED + ZEROCLAW_API_URL + ZEROCLAW_API_KEY to switch to HTTP)"
         );
-        Arc::new(NoopZeroClawProvider)
+        Arc::new(LocalZeroClawProvider::new("zeroclaw-local".into()))
     };
 
     let _ = PROVIDER.set(provider);

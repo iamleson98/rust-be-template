@@ -47,6 +47,7 @@ import {
   type CustomerFormValues,
   type CustomerStep,
 } from './_shared'
+import { SocialAuthButtons } from './social-buttons'
 
 export function CustomerLogin() {
   const { setUser, setGuestPhone } = useApp()
@@ -189,6 +190,8 @@ export function CustomerLogin() {
           </div>
         </div>
       </form>
+
+      <SocialAuthButtons />
     </Form>
   )
 }

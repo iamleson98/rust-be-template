@@ -367,6 +367,13 @@ impl ChatHub {
         self.sessions.get(&id).and_then(|s| s.channel_id.clone())
     }
 
+    /// What IP did this socket connect from? Used by the abuse guard
+    /// to attribute violations to the source IP (so a banned user can't
+    /// dodge the ban by re-registering a new account from the same IP).
+    pub fn session_ip(&self, id: u64) -> Option<String> {
+        self.sessions.get(&id).map(|s| s.ip.clone())
+    }
+
     // ── online-employee tracking ──────────────────────────────
 
     fn brand_key(brand_id: Option<&str>) -> String {

@@ -356,6 +356,91 @@ async fn handle_message(
         .unwrap_or("")
         .to_string();
 
+    // ── Abuse guard ────────────────────────────────────────────────
+    // Inspect the message before storing/broadcasting. If the user is
+    // already banned (or this message triggers a ban), reject the
+    // message and notify the client. The verdict is also persisted to
+    // the channel as a `system` message so the user can see why their
+    // message was rejected (and the human staff can see the violation
+    // when they pick up the channel).
+    let guard = crate::guard::AbuseGuard::shared();
+    let ip_for_guard = hub().session_ip(sid);
+    let verdict = guard.check(Some(&user.id), ip_for_guard.as_deref(), &text);
+    match &verdict {
+        crate::guard::AbuseVerdict::Ok => { /* proceed */ }
+        crate::guard::AbuseVerdict::Warned { reason } => {
+            // Persist a soft system notice so the human agent sees it.
+            let now_warn = chrono::Utc::now().to_rfc3339();
+            let _ = st
+                .store
+                .chat_store()
+                .insert_message(NewChatMessage {
+                    channel_id: channel_id.clone(),
+                    sender_type: "system".into(),
+                    sender_id: Some("abuse-guard".into()),
+                    content: Some(format!("⚠️ Cảnh báo: {reason}")),
+                    kind: "text".into(),
+                    attachments: None,
+                    client_msg_id: None,
+                })
+                .await;
+            // Tell the sender why the message was flagged (still allow
+            // the original message through — warnings don't block).
+            hub().send_to(
+                sid,
+                &json!({
+                    "type": "abuse:warned",
+                    "channelId": channel_id,
+                    "reason": reason,
+                    "createdAt": now_warn,
+                }),
+            );
+        }
+        crate::guard::AbuseVerdict::Banned { reason, .. } => {
+            // Record the ban in the channel as a system message.
+            let now_ban = chrono::Utc::now().to_rfc3339();
+            let _ = st
+                .store
+                .chat_store()
+                .insert_message(NewChatMessage {
+                    channel_id: channel_id.clone(),
+                    sender_type: "system".into(),
+                    sender_id: Some("abuse-guard".into()),
+                    content: Some(format!("🚫 Tài khoản bị tạm khóa: {reason}")),
+                    kind: "text".into(),
+                    attachments: None,
+                    client_msg_id: None,
+                })
+                .await;
+            // Reject the user's message — send a ban notice to the client.
+            hub().send_to(
+                sid,
+                &json!({
+                    "type": "abuse:banned",
+                    "channelId": channel_id,
+                    "reason": reason,
+                    "createdAt": now_ban,
+                }),
+            );
+            // Broadcast the system message to the room (so any watching
+            // employee sees the ban).
+            hub().broadcast_to_room(
+                &channel_id,
+                &json!({
+                    "type": "message",
+                    "id": format!("ban:{}", now_ban),
+                    "channelId": channel_id,
+                    "senderType": "system",
+                    "senderId": "abuse-guard",
+                    "senderName": "Hệ thống",
+                    "text": format!("🚫 Tài khoản bị tạm khóa: {reason}"),
+                    "createdAt": now_ban,
+                }),
+            );
+            return Ok(());
+        }
+    }
+
     // Idempotency: replay the stored id if the client retries.
     if !client_msg_id.is_empty() {
         if let Some(Some(stored_id)) = hub().idem_claim(&client_msg_id) {

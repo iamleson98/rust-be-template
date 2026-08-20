@@ -30,7 +30,9 @@ pub struct Config {
     pub search: SearchConfig,
     pub ws: WsConfig,
     pub payment: PaymentConfig,
+    #[allow(dead_code)]
     pub contact: ContactConfig,
+    pub oauth: OAuthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -495,6 +497,8 @@ impl Default for WsConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
+#[allow(dead_code)]
+#[derive(Default)]
 pub struct ContactConfig {
     /// Support hotline phone number (e.g. "+8419006067").
     pub phone: String,
@@ -508,17 +512,6 @@ pub struct ContactConfig {
     pub facebook_url: String,
 }
 
-impl Default for ContactConfig {
-    fn default() -> Self {
-        Self {
-            phone: String::new(),
-            email: String::new(),
-            address: String::new(),
-            zalo_url: String::new(),
-            facebook_url: String::new(),
-        }
-    }
-}
 
 // ────────────────────────────────────────────────────────────────
 //  Payment gateway (VNPay / MoMo / ZaloPay / VietQR / COD)
@@ -696,6 +689,56 @@ impl VietQrConfig {
             && !self.bank_bin.is_empty()
             && !self.account_no.is_empty()
             && !self.account_name.is_empty()
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  OAuth (Facebook / Google / X-Twitter)
+// ────────────────────────────────────────────────────────────────
+
+/// Top-level OAuth config. Each provider is optional; if not configured,
+/// the corresponding `/api/auth/oauth/<provider>/*` routes return 404.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+#[derive(Default)]
+pub struct OAuthConfig {
+    /// Public base URL of the backend (e.g. `https://vexevn.app`).
+    /// Used to build the `redirect_uri` sent to the provider — must
+    /// match exactly the URI registered in the provider's dashboard.
+    pub redirect_base_url: String,
+    /// Frontend URL to redirect the user back to after a successful
+    /// OAuth login (e.g. `https://vexevn.app`).
+    pub frontend_url: String,
+    pub facebook: OAuthProviderConfig,
+    pub google: OAuthProviderConfig,
+    pub twitter: OAuthProviderConfig,
+}
+
+
+impl OAuthConfig {
+    /// True if at least one OAuth provider is configured.
+    pub fn any_enabled(&self) -> bool {
+        self.facebook.is_active() || self.google.is_active() || self.twitter.is_active()
+    }
+}
+
+/// Per-provider OAuth 2.0 credentials.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+#[derive(Default)]
+pub struct OAuthProviderConfig {
+    pub enabled: bool,
+    pub client_id: String,
+    pub client_secret: String,
+    /// Optional space-separated OAuth scopes (defaults are set in the
+    /// provider modules; this overrides them).
+    pub scopes: String,
+}
+
+
+impl OAuthProviderConfig {
+    pub fn is_active(&self) -> bool {
+        self.enabled && !self.client_id.is_empty() && !self.client_secret.is_empty()
     }
 }
 
