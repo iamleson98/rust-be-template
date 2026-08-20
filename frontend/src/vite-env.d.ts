@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  // ── API base URL ─────────────────────────────────────────────
+  /** Backend API base URL for SSR/prerender. In browser, window.location.origin is used. */
+  readonly VITE_API_BASE_URL?: string
+
   // ── Google integrations ──────────────────────────────────────
   /** Google Search Console verification token (from GSC → Settings → HTML tag). */
   readonly VITE_GSC_VERIFICATION?: string

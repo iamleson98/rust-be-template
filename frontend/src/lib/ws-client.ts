@@ -34,7 +34,7 @@ type Handler = (data: Record<string, unknown>) => void
 function buildWsUrl(token?: string | null): string {
   if (typeof window === 'undefined') {
     // SSR / prerender — emit a placeholder URL; never actually connects.
-    const base = 'ws://localhost:8080/ws'
+    const base = `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws`
     return token ? `${base}?token=${encodeURIComponent(token)}` : base
   }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
