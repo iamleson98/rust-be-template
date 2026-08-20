@@ -49,7 +49,7 @@ type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'en
 // prod). The browser sends the `vx_access` cookie automatically on the
 // WS upgrade, so we don't need to put the JWT in the URL.
 function buildSignalingUrl(): string {
-  if (typeof window === 'undefined') return 'ws://localhost:8080/ws-call'
+  if (typeof window === 'undefined') return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws-call`
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}/ws-call`
 }

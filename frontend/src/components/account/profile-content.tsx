@@ -6,7 +6,7 @@
  * Shows:
  *   - Profile card (avatar, name, phone, email, edit button)
  *   - Quick stats (total bookings, loyalty points, wishlist count)
- *   - Recent bookings preview (last 3)
+ *   - Quick links (bookings, wishlist, loyalty, support, security)
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +22,8 @@ import {
   Mail,
   ChevronRight,
   Shield,
+  Headset,
+  Bell,
 } from 'lucide-react'
 
 export function ProfileContent() {
@@ -102,21 +104,37 @@ export function ProfileContent() {
           <QuickLink
             icon={<Ticket className="h-4 w-4 text-blue-600" />}
             label="Vé của tôi"
+            desc="Xem lịch sử đặt vé và trạng thái chuyến đi"
             onClick={() => navigate({ to: '/bookings' })}
+          />
+          <QuickLink
+            icon={<Headset className="h-4 w-4 text-violet-600" />}
+            label="Hỗ trợ & Chat"
+            desc="Chat với nhân viên hỗ trợ hoặc gọi điện"
+            onClick={() => navigate({ to: '/' })}
           />
           <QuickLink
             icon={<Heart className="h-4 w-4 text-rose-600" />}
             label="Danh sách yêu thích"
+            desc="Các tuyến đường bạn đã lưu"
             onClick={() => navigate({ to: '/account/wishlist' })}
           />
           <QuickLink
             icon={<Gift className="h-4 w-4 text-amber-600" />}
             label="Điểm thưởng"
+            desc="Tích điểm và đổi ưu đãi"
             onClick={() => navigate({ to: '/account/loyalty' })}
+          />
+          <QuickLink
+            icon={<Bell className="h-4 w-4 text-blue-600" />}
+            label="Thông báo"
+            desc="Cài đặt loại thông báo nhận"
+            onClick={() => navigate({ to: '/account/notifications' })}
           />
           <QuickLink
             icon={<Shield className="h-4 w-4 text-emerald-600" />}
             label="Bảo mật & Mật khẩu"
+            desc="Đổi mật khẩu, xác thực 2 bước, quyền dữ liệu"
             onClick={() => navigate({ to: '/account/security' })}
           />
         </CardContent>
@@ -156,10 +174,12 @@ function StatCard({
 function QuickLink({
   icon,
   label,
+  desc,
   onClick,
 }: {
   icon: React.ReactNode
   label: string
+  desc?: string
   onClick: () => void
 }) {
   return (
@@ -168,8 +188,11 @@ function QuickLink({
       className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm hover:bg-accent transition-colors"
     >
       {icon}
-      <span className="flex-1 font-medium">{label}</span>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium">{label}</div>
+        {desc && <div className="text-xs text-muted-foreground truncate">{desc}</div>}
+      </div>
+      <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
     </button>
   )
 }
