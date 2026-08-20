@@ -41,6 +41,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2, Signal } from 'lucide-react'
 import type { AudioCallClient } from '@/lib/audio-call-client'
+import { playSound, startRingTone } from '@/lib/sound-effects'
+import { notifyIncomingCall } from '@/lib/notifications'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
 
@@ -70,6 +72,9 @@ export function AudioCallWidget() {
   // Wake Lock sentinel — keeps the screen on during an active call so
   // the proximity sensor doesn't dim/lock the screen and drop the call.
   const wakeLockRef = useRef<any>(null)
+  // Ring tone stop function — clears the repeating interval when the
+  // call transitions out of 'calling' or 'incoming'.
+  const stopRingRef = useRef<(() => void) | null>(null)
 
   // ── Wake Lock helpers ──────────────────────────────────────────
   // Keeps the screen on during an active call. The wake lock is released
@@ -130,21 +135,45 @@ export function AudioCallWidget() {
       setState(s)
       if (s === 'active' && callTimerRef.current === null) {
         callTimerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000)
-        // ── Wake Lock — keep the screen on while the call is live.
-        // Mobile browsers will dim + sleep after ~30s of inactivity;
-        // on iOS this also drops the WebRTC audio track.
         requestWakeLock()
+        // ── Sound: call connected — ascending tone.
+        playSound('connect')
+        // Stop any ring tone that was playing.
+        stopRingRef.current?.()
+        stopRingRef.current = null
+      }
+      if (s === 'calling') {
+        // ── Sound: outgoing call — repeating ring tone.
+        stopRingRef.current?.()
+        stopRingRef.current = startRingTone('ring')
+      }
+      if (s === 'incoming') {
+        // ── Sound: incoming call — repeating double-beep.
+        stopRingRef.current?.()
+        stopRingRef.current = startRingTone('incoming')
       }
       if ((s === 'ended' || s === 'idle') && callTimerRef.current) {
         clearInterval(callTimerRef.current)
         callTimerRef.current = null
         setCallDuration(0)
         releaseWakeLock()
+        // ── Sound: call ended — descending tone.
+        playSound('end')
+        // Stop any ring tone.
+        stopRingRef.current?.()
+        stopRingRef.current = null
       }
     })
     client.on('presence', ({ onlineAgents }: { onlineAgents: number }) => setOnlineAgents(onlineAgents))
+    // When the signaling WS closes (agent logged out, network drop),
+    // reset onlineAgents to 0 so the call button disables immediately.
+    client.on('_close', () => {
+      setOnlineAgents(0)
+    })
     client.on('incoming', ({ from, sdp }: { from: string; sdp: any }) => {
       setIncomingFrom({ from, sdp })
+      // ── Browser push notification for incoming call (when page is hidden).
+      notifyIncomingCall('Khách hàng')
     })
     client.on('error', ({ message }: { message: string }) => {
       setError(message)
@@ -230,9 +259,14 @@ export function AudioCallWidget() {
 
   // Agent status text.
   const isAgent = user.type === 'employee'
+  const agentsOnline = onlineAgents > 0
   const statusText = isAgent
-    ? 'Sẵn sàng nhận cuộc gọi'
-    : onlineAgents > 0
+    ? state === 'active'
+      ? 'Đang trong cuộc gọi'
+      : state === 'calling' || state === 'connecting'
+        ? 'Đang gọi...'
+        : 'Sẵn sàng nhận cuộc gọi'
+    : agentsOnline
       ? 'Nhân viên đang online'
       : 'Nhân viên đang ngoại tuyến'
 

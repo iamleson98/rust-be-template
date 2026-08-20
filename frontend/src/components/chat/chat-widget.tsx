@@ -24,6 +24,8 @@ import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
 import { Headset } from 'lucide-react'
+import { playSound } from '@/lib/sound-effects'
+import { notifyChatMessage, requestNotificationPermission } from '@/lib/notifications'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   me as sdkMe,
@@ -91,6 +93,14 @@ export function ChatWidget() {
   useEffect(() => {
     activeChannelRef.current = activeChannel
   }, [activeChannel])
+
+  // ── Request notification permission on first chat open ────
+  // Non-blocking — the user will see the browser's permission prompt.
+  useEffect(() => {
+    if (chatOpen) {
+      requestNotificationPermission()
+    }
+  }, [chatOpen])
 
   // ─── ESC to close + focus trap (WCAG 2.1.2 + 2.4.3) ───
   useEffect(() => {
@@ -239,6 +249,18 @@ export function ChatWidget() {
         if (m.senderType === 'employee') {
           setWaitingForAgent(false)
           setAgentJoinedName(m.senderName ?? null)
+        }
+        // ── Browser push notification when page is in background.
+        if (m.senderType !== 'user') {
+          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+        }
+        // ── Sound effect on new message.
+        playSound('message')
+      } else {
+        // Message from a different channel — show a notification.
+        if (m.senderType !== 'user') {
+          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          playSound('message')
         }
       }
     })

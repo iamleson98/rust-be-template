@@ -56,6 +56,7 @@ use utoipa::OpenApi;
         crate::routes::vitals::report_vitals,
         crate::routes::seo::sitemap,
         crate::routes::seo::robots,
+        crate::routes::site_info::site_info,
         // chat
         crate::routes::chat::list_channels,
         crate::routes::chat::create_channel,
@@ -185,6 +186,8 @@ use utoipa::OpenApi;
         crate::dto::payment::UpdatePaymentStatusResponse,
         // vitals
         crate::routes::vitals::VitalsReport,
+        // site info
+        crate::routes::site_info::SiteInfo,
         // places
         crate::dto::place::PlaceOut,
         crate::dto::place::PlaceListResponse,

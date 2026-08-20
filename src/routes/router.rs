@@ -82,6 +82,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         )
         .nest("/campaigns", crate::routes::public::campaigns_router())
         .nest("/stats", crate::routes::public::stats_router())
+        .route("/site-info", axum::routing::get(crate::routes::site_info::site_info))
         .nest("/places", crate::routes::places::router())
         .nest("/routing", crate::routes::routing::router())
         .nest("/reviews", crate::routes::reviews::router())

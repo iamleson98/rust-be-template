@@ -19,6 +19,7 @@ mod reviews;
 mod router;
 mod routing;
 mod seo;
+mod site_info;
 mod system;
 mod users;
 mod vitals;

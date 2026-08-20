@@ -30,6 +30,7 @@ pub struct Config {
     pub search: SearchConfig,
     pub ws: WsConfig,
     pub payment: PaymentConfig,
+    pub contact: ContactConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -484,6 +485,37 @@ impl Default for WsConfig {
             idle_timeout_sec: 90,
             max_message_bytes: 64 * 1024,
             max_frame_bytes: 64 * 1024,
+        }
+    }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Contact info (phone, email — used in UI + SEO)
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(default)]
+pub struct ContactConfig {
+    /// Support hotline phone number (e.g. "+8419006067").
+    pub phone: String,
+    /// Support email (e.g. "hotro@vexevn.vn").
+    pub email: String,
+    /// Physical address (e.g. "123 Lê Lợi, Q.1, TP.HCM").
+    pub address: String,
+    /// Zalo OA link (e.g. "https://zalo.me/123456789").
+    pub zalo_url: String,
+    /// Facebook page URL.
+    pub facebook_url: String,
+}
+
+impl Default for ContactConfig {
+    fn default() -> Self {
+        Self {
+            phone: String::new(),
+            email: String::new(),
+            address: String::new(),
+            zalo_url: String::new(),
+            facebook_url: String::new(),
         }
     }
 }
