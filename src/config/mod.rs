@@ -176,7 +176,18 @@ impl Default for CookieConfig {
         };
 
         Self {
-            domain: env_var("COOKIE_DOMAIN").unwrap_or_else(|| "127.0.0.1".into()),
+            // Default: empty domain → browser uses the request's host.
+            // This is CRITICAL for same-origin cookie sharing:
+            //   - In dev: Vite proxies /api → localhost:8080, so the
+            //     browser sees cookies for `localhost` (the Vite origin).
+            //     If we set domain=127.0.0.1, the cookies would be scoped
+            //     to 127.0.0.1 but the browser is on localhost → mismatch.
+            //   - In production: Rust serves both UI + API on the same
+            //     origin. Empty domain → cookies are scoped to the origin
+            //     host automatically.
+            // Only set COOKIE_DOMAIN if you need cross-subdomain cookies
+            // (e.g. COOKIE_DOMAIN=vexevn.vn for app.vexevn.vn + api.vexevn.vn).
+            domain: env_var("COOKIE_DOMAIN").unwrap_or_default(),
             secure: env_parse("COOKIE_SECURE").unwrap_or(false),
             samesite,
         }
