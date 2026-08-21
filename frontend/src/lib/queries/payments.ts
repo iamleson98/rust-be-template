@@ -22,7 +22,7 @@
  *   callbacks (defined at hook-creation time, per TanStack best practice).
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   cancelPayment as sdkCancelPayment,
   createPayment as sdkCreatePayment,
@@ -31,7 +31,7 @@ import {
   listBookingPayments as sdkListBookingPayments,
   markCodCollected as sdkMarkCodCollected,
   updatePaymentStatus as sdkUpdatePaymentStatus,
-} from '@/lib/api/sdk.gen'
+} from "@/lib/api/sdk.gen";
 import type {
   AdminPaymentListResponse,
   AdminPaymentOut,
@@ -47,7 +47,7 @@ import type {
   PaymentOut,
   UpdatePaymentStatusReq,
   UpdatePaymentStatusResponse,
-} from '@/lib/api/types.gen'
+} from "@/lib/api/types.gen";
 
 // ─────────────────────────────────────────────────────────────
 //  Type aliases — not in lib/api (auto-generated, don't touch)
@@ -58,18 +58,18 @@ import type {
  * `String` column, so the generated SDK types it as `string`. We
  * narrow it here so consumers get autocomplete + type-safety.
  */
-export type PaymentProvider = 'vnpay' | 'momo' | 'zalopay' | 'vietqr' | 'cod'
+export type PaymentProvider = "vnpay" | "momo" | "zalopay" | "vietqr" | "cod";
 
 /**
  * Payment lifecycle status. Same situation as `PaymentProvider` —
  * stored as `String` in the DB, narrowed here for type-safety.
  */
 export type PaymentStatus =
-  | 'pending'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'refunded'
+  | "pending"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "refunded";
 
 // Re-export the generated types so consumers can import everything
 // from one place (`@/lib/queries/payments`).
@@ -88,17 +88,21 @@ export type {
   PaymentOut,
   UpdatePaymentStatusReq,
   UpdatePaymentStatusResponse,
-}
+};
 
 // ─────────────────────────────────────────────────────────────
 //  Mutation callback type
 // ─────────────────────────────────────────────────────────────
 
 export type PaymentMutationCallbacks<TData = unknown, TVars = unknown> = {
-  onSuccess?: (data: TData, vars: TVars) => void
-  onError?: (err: unknown, vars: TVars) => void
-  onSettled?: (data: TData | undefined, err: unknown | undefined, vars: TVars) => void
-}
+  onSuccess?: (data: TData, vars: TVars) => void;
+  onError?: (err: unknown, vars: TVars) => void;
+  onSettled?: (
+    data: TData | undefined,
+    err: unknown | undefined,
+    vars: TVars,
+  ) => void;
+};
 
 // ─────────────────────────────────────────────────────────────
 //  User-facing hooks
@@ -113,23 +117,23 @@ export type PaymentMutationCallbacks<TData = unknown, TVars = unknown> = {
  */
 export function usePayment(id?: string, opts?: { enabled?: boolean }) {
   return useQuery<PaymentOut>({
-    queryKey: ['payments', id],
+    queryKey: ["payments", id],
     queryFn: async () => {
-      const { data } = await sdkGetPayment({ path: { id: id as string } })
-      return data as PaymentOut
+      const { data } = await sdkGetPayment({ path: { id: id as string } });
+      return data as PaymentOut;
     },
     enabled: !!id && (opts?.enabled ?? true),
     refetchInterval: (query) => {
-      const data = query.state.data
-      if (!data) return false
-      const status = data.status as PaymentStatus
-      if (['completed', 'failed', 'cancelled', 'refunded'].includes(status)) {
-        return false
+      const data = query.state.data;
+      if (!data) return false;
+      const status = data.status as PaymentStatus;
+      if (["completed", "failed", "cancelled", "refunded"].includes(status)) {
+        return false;
       }
-      return 3000
+      return 3000;
     },
     staleTime: 10 * 1000,
-  })
+  });
 }
 
 /**
@@ -138,19 +142,22 @@ export function usePayment(id?: string, opts?: { enabled?: boolean }) {
  * Refetches every 5s — useful while a payment is pending and the
  * user is waiting for the gateway to confirm.
  */
-export function useBookingPayments(bookingId?: string, opts?: { enabled?: boolean }) {
+export function useBookingPayments(
+  bookingId?: string,
+  opts?: { enabled?: boolean },
+) {
   return useQuery<ListPaymentsResponse>({
-    queryKey: ['payments', 'booking', bookingId],
+    queryKey: ["payments", "booking", bookingId],
     queryFn: async () => {
       const { data } = await sdkListBookingPayments({
         path: { bookingId: bookingId as string },
-      })
-      return data as ListPaymentsResponse
+      });
+      return data as ListPaymentsResponse;
     },
     enabled: !!bookingId && (opts?.enabled ?? true),
     staleTime: 15 * 1000,
     refetchInterval: 5 * 1000,
-  })
+  });
 }
 
 /**
@@ -163,24 +170,27 @@ export function useCreatePayment<
   TData = CreatePaymentResponse,
   TVars = { bookingId: string; provider: PaymentProvider },
 >(opts?: PaymentMutationCallbacks<TData, TVars>) {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
     mutationFn: async (vars) => {
-      const v = vars as unknown as { bookingId: string; provider: PaymentProvider }
+      const v = vars as unknown as {
+        bookingId: string;
+        provider: PaymentProvider;
+      };
       const { data } = await sdkCreatePayment({
         body: { bookingId: v.bookingId, provider: v.provider },
-      })
-      return data as unknown as TData
+      });
+      return data as unknown as TData;
     },
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
-      opts?.onSuccess?.(data, vars)
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      opts?.onSuccess?.(data, vars);
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars),
-  })
+  });
 }
 
 /**
@@ -192,24 +202,24 @@ export function useCancelPayment<
   TData = CancelPaymentResponse,
   TVars = { id: string; body?: CancelPaymentReq },
 >(opts?: PaymentMutationCallbacks<TData, TVars>) {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
     mutationFn: async (vars) => {
-      const v = vars as unknown as { id: string; body?: CancelPaymentReq }
+      const v = vars as unknown as { id: string; body?: CancelPaymentReq };
       const { data } = await sdkCancelPayment({
         path: { id: v.id },
         body: v.body ?? {},
-      })
-      return data as unknown as TData
+      });
+      return data as unknown as TData;
     },
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['payments'] })
-      opts?.onSuccess?.(data, vars)
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      opts?.onSuccess?.(data, vars);
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars),
-  })
+  });
 }
 
 /**
@@ -222,25 +232,25 @@ export function useMarkCodCollected<
   TData = MarkCodCollectedResponse,
   TVars = { id: string; body?: MarkCodCollectedReq },
 >(opts?: PaymentMutationCallbacks<TData, TVars>) {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
     mutationFn: async (vars) => {
-      const v = vars as unknown as { id: string; body?: MarkCodCollectedReq }
+      const v = vars as unknown as { id: string; body?: MarkCodCollectedReq };
       const { data } = await sdkMarkCodCollected({
         path: { id: v.id },
         body: v.body ?? {},
-      })
-      return data as unknown as TData
+      });
+      return data as unknown as TData;
     },
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
-      opts?.onSuccess?.(data, vars)
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      opts?.onSuccess?.(data, vars);
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars),
-  })
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -255,7 +265,7 @@ export function useMarkCodCollected<
  */
 export function useAdminPayments(query: AdminPaymentsQuery = {}) {
   return useQuery<AdminPaymentListResponse>({
-    queryKey: ['admin', 'payments', query],
+    queryKey: ["admin", "payments", query],
     queryFn: async () => {
       const { data } = await sdkListAdminPayments({
         query: {
@@ -264,11 +274,11 @@ export function useAdminPayments(query: AdminPaymentsQuery = {}) {
           limit: query.limit ?? undefined,
           offset: query.offset ?? undefined,
         },
-      })
-      return data as AdminPaymentListResponse
+      });
+      return data as AdminPaymentListResponse;
     },
     staleTime: 15 * 1000,
-  })
+  });
 }
 
 /**
@@ -281,24 +291,24 @@ export function useUpdatePaymentStatus<
   TData = UpdatePaymentStatusResponse,
   TVars = { id: string; body: UpdatePaymentStatusReq },
 >(opts?: PaymentMutationCallbacks<TData, TVars>) {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
     mutationFn: async (vars) => {
-      const v = vars as unknown as { id: string; body: UpdatePaymentStatusReq }
+      const v = vars as unknown as { id: string; body: UpdatePaymentStatusReq };
       const { data } = await sdkUpdatePaymentStatus({
         path: { id: v.id },
         body: v.body,
-      })
-      return data as unknown as TData
+      });
+      return data as unknown as TData;
     },
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['admin', 'payments'] })
-      qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
-      opts?.onSuccess?.(data, vars)
+      qc.invalidateQueries({ queryKey: ["admin", "payments"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      opts?.onSuccess?.(data, vars);
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars),
-  })
+  });
 }

@@ -94,7 +94,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
     <>
       {/* Header */}
       <div className={cn(
-        'bg-gradient-to-br from-primary to-primary/80 shrink-0',
+        'bg-linear-to-br from-primary to-primary/80 shrink-0',
         collapsed ? 'px-2 py-3' : 'px-3 py-4',
       )}>
         <Link to="/account" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
@@ -197,7 +197,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
       <aside
         className={cn(
           'hidden md:flex flex-col shrink-0 border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
-          collapsed ? 'w-[3.5rem]' : 'w-64',
+          collapsed ? 'w-14' : 'w-64',
         )}
       >
         {navContent}
