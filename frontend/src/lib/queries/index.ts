@@ -113,6 +113,8 @@ import {
   listMessagesOptions as chatMessagesListOptions,
   listMessagesQueryKey as chatMessagesListQueryKey,
   postMessageMutation as chatPostMessageMutation,
+  createChannelMutation as chatCreateChannelMutation,
+  markReadMutation as chatMarkReadMutation,
 } from '@/lib/api/@tanstack/react-query.gen'
 
 // Generated types — re-exported so components can import from here
@@ -654,10 +656,9 @@ export function useChatChannels(limit = 50) {
   return useQuery({
     ...chatChannelsListOptions({ query: { limit } }),
     staleTime: 30 * 1000,
-    // Poll every 5s so the admin sees new channels + updated unread
-    // counters without a manual refresh. The customer-facing chat
-    // widget doesn't use this hook (it has its own WS-driven state).
-    refetchInterval: 5 * 1000,
+    // No polling — the admin chat workspace subscribes to the WS
+    // hub for realtime updates. Polling is wasteful now that WS
+    // delivers new channels + unread-counter changes immediately.
   })
 }
 
@@ -667,14 +668,10 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
     queryKey: opts?.queryKey ?? ['chat', 'messages', 'disabled'],
     queryFn: opts?.queryFn as any ?? (() => Promise.resolve(null)),
     enabled: !!channelId,
-    staleTime: 3 * 1000,
-    // Poll every 3s so the admin sees new messages from users
-    // without a manual refresh. The admin chat workspace doesn't
-    // connect to the WebSocket (only the customer widget does), so
-    // polling is the simplest way to get near-real-time updates.
-    // The customer-facing chat widget uses its own WS-driven
-    // message state and doesn't use this hook.
-    refetchInterval: 3 * 1000,
+    staleTime: 10 * 1000,
+    // No polling — the admin chat workspace subscribes to the WS
+    // hub for realtime new messages. Polling would just add load
+    // without improving UX (WS already gives instant updates).
   })
 }
 
@@ -684,6 +681,43 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: Muta
     ...(chatPostMessageMutation() as any),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['listMessages'] })
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
+/**
+ * Create a chat channel (or return the existing open one — the
+ * backend enforces 1 open channel per user). Invalidates the
+ * channels list so the new/existing channel appears immediately.
+ */
+export function useCreateChatChannel<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(chatCreateChannelMutation() as any),
+    onSuccess: (data, vars) => {
+      // Invalidate the channels list so the new/existing channel
+      // appears immediately in the UI.
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
+/**
+ * Mark a chat channel as read by the current user. Invalidates the
+ * channels list so the unread badge clears immediately.
+ */
+export function useMarkChatRead<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(chatMarkReadMutation() as any),
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },

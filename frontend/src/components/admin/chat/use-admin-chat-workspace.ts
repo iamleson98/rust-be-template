@@ -14,9 +14,19 @@
  *       was already created by the time we send the ticket card)
  *   - active channel state, reply text state
  *   - sendReply / blockChannel / sendTicketCard handlers
+ *   - **realtime WS subscription** via `useAdminChatWs` — delivers
+ *     new user messages + new channels instantly without polling.
  *
  * Each mutation defines its callbacks at HOOK CREATION time; `mutate()`
  * is then called with only the params.
+ *
+ * ## Realtime strategy
+ *
+ * The admin workspace subscribes to the WS hub. When a new message
+ * arrives via WS, the hook invalidates the relevant TanStack Query
+ * (channels list or active-channel messages). This triggers a REST
+ * refetch — single source of truth (the REST endpoint), instant UX
+ * (the WS pushes the invalidation). No polling needed.
  */
 
 'use client'
@@ -29,8 +39,11 @@ import {
   usePostChatMessage,
 } from '@/lib/queries'
 import type { AdminChannel, AdminChatMessage } from '@/components/admin/dashboard/types'
+import { useAdminChatWs } from './use-admin-chat-ws'
+import { useApp } from '@/lib/store'
 
 export function useAdminChatWorkspace() {
+  const { user } = useApp()
   const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null)
   const [replyText, setReplyText] = useState('')
 
@@ -38,6 +51,12 @@ export function useAdminChatWorkspace() {
   const channels: AdminChannel[] = (channelsQuery.data?.items ?? []) as unknown as AdminChannel[]
   const messagesQuery = useChatMessages(activeChannel?.id, 50)
   const chatMessages: AdminChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as AdminChatMessage[]
+
+  // ── Realtime WS subscription ──────────────────────────────────
+  // Delivers new user messages + new channels instantly. Invalidates
+  // the relevant TanStack Query so the REST endpoint refetches
+  // (single source of truth). No polling.
+  useAdminChatWs(user, activeChannel?.id)
 
   // Reply mutation — clears the input + toasts the result.
   const postReplyMut = usePostChatMessage({
@@ -92,7 +111,11 @@ export function useAdminChatWorkspace() {
   return {
     // data
     channels,
+    channelsLoading: channelsQuery.isLoading,
+    channelsError: channelsQuery.error,
     chatMessages,
+    messagesLoading: messagesQuery.isLoading,
+    messagesError: messagesQuery.error,
     activeChannel,
     setActiveChannel,
     replyText,

@@ -88,8 +88,6 @@ impl AbuseVerdict {
 struct UserState {
     /// Timestamps of recent violations (used for rolling-window counting).
     recent_violations: VecDeque<Instant>,
-    /// Last 10 message hashes — used for repeat-spam detection.
-    recent_msg_hashes: VecDeque<u64>,
     /// Instant the ban expires, if currently banned.
     banned_until: Option<Instant>,
 }
@@ -103,10 +101,6 @@ impl UserState {
             } else {
                 break;
             }
-        }
-        // Cap message-hash history at 10 (don't grow unbounded).
-        while self.recent_msg_hashes.len() > 10 {
-            self.recent_msg_hashes.pop_front();
         }
     }
 }
@@ -197,31 +191,13 @@ impl AbuseGuard {
             }
         }
 
-        // Run heuristics — check for abusive content patterns.
-        // Repeat-spam (same message sent multiple times) is NO LONGER
-        // treated as a ban-triggering violation — the user explicitly
-        // said blocking users for sending the same message a few times
-        // is "weird". Repeat messages alone are not abuse; the user
-        // might be re-sending a message that didn't appear to go
-        // through, or emphasising a point.
-        //
-        // We still track the message hash (for future analysis / audit),
-        // but it does NOT increment the violation counter or trigger
-        // a ban. Only actual content violations (profanity, all-caps
-        // shouting, phone-number spam) count toward the ban threshold.
+        // Run the content-pattern heuristics. Repeat-spam (same
+        // message sent multiple times) is NOT checked — the user
+        // explicitly said blocking for repeat messages is "weird".
+        // Only actual content violations count toward the ban.
         let pattern_violation = inspect(text);
-        let hash = fxhash(text);
-
-        // Track the hash for audit purposes only — does NOT count
-        // toward the ban threshold.
-        if let Some(uid) = user_id {
-            let mut st = self.inner.users.entry(uid.to_string()).or_default();
-            st.purge_old(now, self.inner.window);
-            st.recent_msg_hashes.push_back(hash);
-        }
 
         // The combined violation is just the pattern violation.
-        // Repeat-spam is ignored (see comment above).
         let combined_reason: Option<String> = pattern_violation.map(|p| p.to_string());
 
         // Apply to both the user_id-keyed state and the IP-keyed state.
@@ -417,17 +393,6 @@ fn count_phone_numbers(text: &str) -> usize {
         count += 1;
     }
     count
-}
-
-/// Simple FNV-1a hash for message-content dedup. We don't need crypto
-/// strength — we just need to detect identical repeated messages.
-fn fxhash(s: &str) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for b in s.as_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x100000001b3);
-    }
-    h
 }
 
 #[cfg(test)]

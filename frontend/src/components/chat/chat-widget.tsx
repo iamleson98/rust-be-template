@@ -4,10 +4,13 @@
  * ChatWidget — the customer-facing floating support chat panel.
  *
  * Top-level orchestrator. Owns:
- *   - The chat session user + auth bootstrap (`/api/auth/me`)
+ *   - The chat session user + auth bootstrap (`useAuthMe`)
  *   - The WebSocket connection (via `WsClient`)
- *   - The channels list + active channel + messages state
- *   - Guest registration + message send/typing handlers
+ *   - The channels list + active channel + messages state — all backed
+ *     by TanStack Query (`useChatChannels`, `useChatMessages`).
+ *   - Guest registration + message send/typing handlers (mutations
+ *     via TanStack Query: `useRegister`, `useCreateChatChannel`,
+ *     `usePostChatMessage`, `useMarkChatRead`).
  *
  * Rendering is delegated to dedicated sub-components under `chat/`:
  *   - ChatHeader            — top bar (connection status, minimize/close)
@@ -17,9 +20,26 @@
  *   - ChatAuthView / ChatLoginRequiredView — auth gate views
  *
  * The widget returns `null` for employees (they use the admin workspace).
+ *
+ * ## Data flow
+ *
+ * ```text
+ *   useAuthMe() ──────────────────────► chatUser (verified session)
+ *   useChatChannels() ────────────────► channels list (REST, cached)
+ *   useChatMessages(activeChannel) ───► messages (REST, cached)
+ *   WsClient.on('message') ──────────► invalidate queries → REST refetch
+ *   usePostChatMessage.mutate() ─────► POST + invalidate → REST refetch
+ *   useCreateChatChannel.mutate() ───► POST + invalidate → REST refetch
+ *   useMarkChatRead.mutate() ────────► POST + invalidate → REST refetch
+ *   useRegister.mutate() ────────────► POST → set chatUser
+ * ```
+ *
+ * TanStack Query handles loading/error/refetch states. The widget
+ * just renders the appropriate UI based on the query states.
  */
 
 import { useEffect, useState, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
 import { toast } from 'sonner'
@@ -28,14 +48,14 @@ import { playSound } from '@/lib/sound-effects'
 import { notifyChatMessage } from '@/lib/notifications'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
-  me as sdkMe,
-  register as sdkRegister,
-  listChannels as sdkListChannels,
-  listMessages as sdkListMessages,
-  createChannel as sdkCreateChannel,
-  postMessage as sdkPostMessage,
-  markRead as sdkMarkRead,
-} from '@/lib/api/sdk.gen'
+  useAuthMe,
+  useRegister,
+  useChatChannels,
+  useChatMessages,
+  useCreateChatChannel,
+  usePostChatMessage,
+  useMarkChatRead,
+} from '@/lib/queries'
 import {
   type CustomerChannel as Channel,
   type Message,
@@ -50,34 +70,25 @@ import { ChatAuthView, ChatLoginRequiredView } from './chat-auth'
 
 export function ChatWidget() {
   const { chatOpen, setChatOpen, user: storeUser, setUser: setStoreUser } = useApp()
+  const qc = useQueryClient()
 
-  // The chat session user (may differ briefly from storeUser after guest
-  // registration — we keep a local copy to avoid race conditions).
-  // Initialise from storeUser so the first open is instant — no need
-  // to wait for /api/auth/me if we already have the user from the
-  // global app store. The /api/auth/me call below still runs to
-  // verify the session is valid, but it doesn't block the UI.
+  // The chat session user. Initialised from storeUser so the first
+  // open is instant — `useAuthMe` verifies it asynchronously.
   const [chatUser, setChatUser] = useState<SessionUser | null>(
     (storeUser as SessionUser | null) ?? null,
   )
-  const [authChecking, setAuthChecking] = useState(false)
 
   // Pre-chat registration form
   const [regName, setRegName] = useState('')
   const [regPhone, setRegPhone] = useState('')
   const [regEmail, setRegEmail] = useState('')
-  const [regSubmitting, setRegSubmitting] = useState(false)
   const [regError, setRegError] = useState<string | null>(null)
 
   const [connected, setConnected] = useState(false)
-  const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState<{ name: string } | null>(null)
-  const [loadingMessages, setLoadingMessages] = useState(false)
   const [view, setView] = useState<View>('list')
-  const [sending, setSending] = useState(false)
   const [showQuickActions, setShowQuickActions] = useState(false)
 
   // Agent presence / waiting-for-agent UI
@@ -87,8 +98,6 @@ export function ChatWidget() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<WsClient | null>(null)
-  const lastMsgIdRef = useRef<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval>>(undefined)
   const activeChannelRef = useRef<Channel | null>(null)
   // Panel container for focus trap + ESC handling.
   const panelRef = useRef<HTMLDivElement>(null)
@@ -99,6 +108,32 @@ export function ChatWidget() {
   useEffect(() => {
     activeChannelRef.current = activeChannel
   }, [activeChannel])
+
+  // ── Auth bootstrap: verify the session via /api/auth/me ──────────
+  // useAuthMe handles loading/error/data states. We derive chatUser
+  // + view from its result.
+  const authMe = useAuthMe()
+  useEffect(() => {
+    if (!chatOpen) return
+    // Hide the chat button entirely for employees (they have the admin workspace)
+    if (chatUser?.type === 'employee') return
+
+    if (authMe.isLoading) return
+    if (authMe.error) {
+      setChatUser(null)
+      setView('login-required')
+      return
+    }
+    if (authMe.data?.user) {
+      const u = authMe.data.user as unknown as SessionUser
+      setChatUser(u)
+      if (!storeUser) setStoreUser(u as any)
+      setView('list')
+    }
+  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser])
+
+  // Hide the chat button entirely for employees (they have the admin workspace)
+  const isEmployee = storeUser?.type === 'employee' || chatUser?.type === 'employee'
 
   // ─── ESC to close + focus trap (WCAG 2.1.2 + 2.4.3) ───
   useEffect(() => {
@@ -154,48 +189,6 @@ export function ChatWidget() {
     }
   }, [chatOpen, setChatOpen])
 
-  // Hide the chat button entirely for employees (they have the admin workspace)
-  const isEmployee = storeUser?.type === 'employee' || chatUser?.type === 'employee'
-
-  // ─── On chat open: verify auth via `/api/auth/me` ───
-  useEffect(() => {
-    if (!chatOpen) return
-    if (isEmployee) return // employees don't use this widget
-    if (chatUser) return // already loaded
-
-    let cancelled = false
-    setAuthChecking(true)
-    setRegError(null)
-    sdkMe()
-      .then((result) => {
-        if (cancelled) return
-        if (result.error) {
-          setChatUser(null)
-          setView('login-required')
-          setAuthChecking(false)
-          return
-        }
-        const data = result.data as any
-        if (!data) {
-          setRegError('Không thể kết nối đến dịch vụ chat. Vui lòng thử lại.')
-          setAuthChecking(false)
-          return
-        }
-        setChatUser(data.user as SessionUser)
-        if (data.user && !storeUser) setStoreUser(data.user)
-        setView('list')
-        setAuthChecking(false)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setRegError('Lỗi mạng khi kiểm tra phiên đăng nhập.')
-        setAuthChecking(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [chatOpen, isEmployee, chatUser, storeUser, setStoreUser])
-
   // ─── Connect native WebSocket (cookie-based auth) ─────
   useEffect(() => {
     if (!chatOpen || !chatUser) return
@@ -215,44 +208,27 @@ export function ChatWidget() {
       if (disposed) return
       if (!data.everOpened) {
         setConnected(false)
-        sdkMe()
-          .then((result) => {
-            if (result.error) {
-              setView('login-required')
-              ws.close()
-              socketRef.current = null
-            }
-          })
-          .catch(() => { })
+        // Force a refetch of /api/auth/me — if it errors, the
+        // session has expired and the user must re-login.
+        qc.invalidateQueries({ queryKey: ['me'] })
       }
     })
 
     ws.on('message', (msg: Record<string, unknown>) => {
       const m = normalizeWsMessage(msg)
+      // Invalidate the messages query for the channel — the REST
+      // endpoint is the single source of truth. The WS event just
+      // signals "something new arrived, refetch".
       if (activeChannelRef.current && m.channelId === activeChannelRef.current.id) {
-        setMessages((prev) => {
-          if (prev.some((x) => x.id === m.id && !x.id.startsWith('tmp-'))) return prev
-          if (m.clientMsgId) {
-            const idx = prev.findIndex(
-              (x) => x.clientMsgId === m.clientMsgId && x.id.startsWith('tmp-'),
-            )
-            if (idx >= 0) {
-              const next = [...prev]
-              next[idx] = m
-              return next
-            }
-          }
-          return [...prev, m]
-        })
         if (m.senderType === 'employee') {
           setWaitingForAgent(false)
           setAgentJoinedName(m.senderName ?? null)
         }
-        // ── Browser push notification when page is in background.
+        // Browser push notification when page is in background.
         if (m.senderType !== 'user') {
           notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
         }
-        // ── Sound effect on new message.
+        // Sound effect on new message.
         playSound('message')
       } else {
         // Message from a different channel — show a notification.
@@ -261,6 +237,10 @@ export function ChatWidget() {
           playSound('message')
         }
       }
+      // Invalidate the relevant TanStack Query so the REST endpoint
+      // refetches (single source of truth).
+      qc.invalidateQueries({ queryKey: ['listMessages'] })
+      qc.invalidateQueries({ queryKey: ['listChannels'] })
     })
 
     ws.on('typing', (data: Record<string, unknown>) => {
@@ -291,9 +271,6 @@ export function ChatWidget() {
     })
 
     // ── Abuse-guard events ──────────────────────────────────────
-    // When the backend detects a violation, it sends a warned/banned
-    // event. We surface them as toast notifications and (for bans)
-    // block further sends.
     ws.on('abuse:warned', (data: Record<string, unknown>) => {
       const d = data as unknown as { reason?: string }
       if (d?.reason) {
@@ -305,9 +282,6 @@ export function ChatWidget() {
       const d = data as unknown as { reason?: string }
       const reason = d?.reason ?? 'Tài khoản tạm khóa do vi phạm quy định chat.'
       toast.error(reason, { duration: 12000 })
-      setSending(false)
-      // Clear the input + disable the chat — the user must wait for
-      // the ban to expire before sending again.
       setInput('')
     })
 
@@ -317,71 +291,60 @@ export function ChatWidget() {
       socketRef.current = null
       setConnected(false)
     }
-  }, [chatOpen, chatUser])
+  }, [chatOpen, chatUser, qc])
 
-  // ─── Load channel list via REST ────────────────────────────────────
-  useEffect(() => {
-    if (!chatOpen || !chatUser) return
-    let cancelled = false
-    sdkListChannels({ query: { limit: 50 } })
-      .then(({ data }) => {
-        const d = data as any
-        return d
-      })
-      .then((data) => {
-        if (!cancelled) setChannels(data.items ?? [])
-      })
-      .catch(() => { })
-    return () => {
-      cancelled = true
-    }
-  }, [chatOpen, chatUser])
+  // ── Channels list via TanStack Query ──────────────────────────────
+  const channelsQuery = useChatChannels(50)
+  const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
 
-  // ─── REST polling fallback for active channel (when WS not connected) ─
-  useEffect(() => {
-    if (!activeChannel || connected) {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-        pollRef.current = undefined
-      }
-      return
-    }
-    const poll = async () => {
-      if (!activeChannel) return
-      try {
-        const { data: resData } = await sdkListMessages({
-          path: { id: activeChannel.id },
-          query: { limit: 50 },
-        })
-        const data = resData as any
-        if (!data) return
-        const items: Message[] = (data.items ?? []).map((r: Record<string, unknown>) =>
-          normalizeWsMessage(r),
-        )
-        const lastId = items.length > 0 ? items[items.length - 1].id : null
-        if (lastId && lastId !== lastMsgIdRef.current) {
-          setMessages(items)
-          lastMsgIdRef.current = lastId
-          setLoadingMessages(false)
-        }
-      } catch {
-        /* noop */
-      }
-    }
-    poll()
-    pollRef.current = setInterval(poll, 2500)
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-    }
-  }, [activeChannel, connected])
+  // ── Messages for the active channel via TanStack Query ───────────
+  const messagesQuery = useChatMessages(activeChannel?.id, 50)
+  const messages: Message[] = (messagesQuery.data?.items ?? []) as unknown as Message[]
+  const loadingMessages = messagesQuery.isLoading
 
   // Auto scroll
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, typing, waitingForAgent])
 
+  // ── Mutations ─────────────────────────────────────────────────────
+  const registerMut = useRegister({
+    onSuccess: (data: any) => {
+      const u = data?.user as SessionUser | undefined
+      if (!u) return
+      setChatUser(u)
+      if (!storeUser) setStoreUser(u as any)
+      setView('list')
+      toast.success(`Chào ${u.name}, bạn đã có thể bắt đầu trò chuyện!`)
+    },
+    onError: (err: any) => {
+      const code = err?.code
+      if (code === 'PHONE_EXISTS') {
+        setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập.')
+      } else if (code === 'EMAIL_EXISTS') {
+        setRegError('Email đã đăng ký. Vui lòng đăng nhập.')
+      } else {
+        setRegError(err?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
+      }
+    },
+  })
+
+  const createChannelMut = useCreateChatChannel({
+    onError: (err: any) => {
+      toast.error(err?.message ?? 'Không thể tạo kênh chat')
+    },
+  })
+
+  const postMessageMut = usePostChatMessage({
+    onError: () => {
+      toast.error('Không thể gửi tin nhắn')
+    },
+  })
+
+  const markReadMut = useMarkChatRead()
+
   // ─── Pre-chat registration form submit ─────────────────────────────
-  const submitGuestRegistration = async () => {
+  const submitGuestRegistration = () => {
     setRegError(null)
     const name = regName.trim()
     const phone = regPhone.trim()
@@ -398,47 +361,20 @@ export function ChatWidget() {
       setRegError('Email không hợp lệ.')
       return
     }
-
-    setRegSubmitting(true)
-    try {
-      const { data: resData, error } = await sdkRegister({
-        body: {
-          fullName: name,
-          email: email || undefined,
-          phone: phone || undefined,
-          password: Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
-        },
-      })
-      const data = resData as any
-      if (error || !data) {
-        const errData = error as any
-        const code = errData?.code
-        if (code === 'PHONE_EXISTS') {
-          setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập.')
-        } else if (code === 'EMAIL_EXISTS') {
-          setRegError('Email đã đăng ký. Vui lòng đăng nhập.')
-        } else {
-          setRegError(errData?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
-        }
-        return
-      }
-      setChatUser(data.user as SessionUser)
-      if (!storeUser) setStoreUser(data.user)
-      setView('list')
-      toast.success(`Chào ${data.user.name}, bạn đã có thể bắt đầu trò chuyện!`)
-    } catch {
-      setRegError('Lỗi mạng. Vui lòng thử lại.')
-    } finally {
-      setRegSubmitting(false)
-    }
+    registerMut.mutate({
+      body: {
+        fullName: name,
+        email: email || undefined,
+        phone: phone || undefined,
+        password:
+          Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
+      },
+    } as any)
   }
 
   const openChannel = async (ch: Channel) => {
     setActiveChannel(ch)
     setView('conversation')
-    setMessages([])
-    setLoadingMessages(true)
-    lastMsgIdRef.current = null
     setShowQuickActions(true)
     setWaitingForAgent(false)
     setAgentJoinedName(null)
@@ -446,133 +382,73 @@ export function ChatWidget() {
     if (socketRef.current?.connected) {
       socketRef.current.send('join', { channelId: ch.id })
     }
-    // ── Load historical messages via REST ──────────────────────
-    // The WS only delivers NEW messages broadcast after `join` — it
-    // does NOT replay history. Without this REST call, the user
-    // would see an empty conversation until a new message arrives.
-    // (The REST polling below only kicks in when WS is NOT
-    // connected, so it doesn't help when WS IS connected.)
-    try {
-      const { data: resData } = await sdkListMessages({
-        path: { id: ch.id },
-        query: { limit: 50 },
-      })
-      const data = resData as any
-      if (data?.items) {
-        const items: Message[] = data.items.map((r: Record<string, unknown>) =>
-          normalizeWsMessage(r),
-        )
-        setMessages(items)
-        if (items.length > 0) {
-          lastMsgIdRef.current = items[items.length - 1].id
+    markReadMut.mutate({ path: { id: ch.id } } as any)
+    // Optimistically clear the unread badge in the cache — the
+    // mutation's onSuccess will refetch from the server to confirm.
+    qc.setQueryData<{ items: Channel[] } | undefined>(
+      ['listChannels'],
+      (old) => {
+        if (!old?.items) return old
+        return {
+          ...old,
+          items: old.items.map((c) =>
+            c.id === ch.id ? { ...c, unreadUser: 0 } : c
+          ),
         }
-      }
-    } catch {
-      /* noop — WS will still deliver new messages */
-    }
-    setLoadingMessages(false)
-    sdkMarkRead({ path: { id: ch.id } }).catch(() => { })
-    setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, unreadUser: 0 } : c)))
+      },
+    )
   }
 
   const startNewChat = async () => {
     if (!chatUser) return
-    // ── Prefer opening an existing channel ──────────────────────
-    // A user should have only 1 open channel with support. Check
-    // the local channels list first — if there's already an open
-    // channel, open it directly (faster — no API call needed).
-    // The backend ALSO enforces this in create_channel, but checking
-    // here first avoids the round-trip entirely.
+    // Prefer opening an existing open channel — backend enforces 1
+    // open channel per user, but checking here first avoids a round-trip.
     const existingOpen = channels.find((c) => c.status === 'open')
     if (existingOpen) {
       openChannel(existingOpen)
       return
     }
-    // No existing open channel — create one.
-    try {
-      const { data: resData, error } = await sdkCreateChannel({
-        body: { topic: 'Hỗ trợ đặt vé', brandId: null },
-      })
-      const data = resData as any
-      if (error || !data) {
-        toast.error((error as any)?.message ?? 'Không thể tạo kênh chat')
-        return
-      }
-      if (data.channel) {
-        // Refresh the channel list so the new (or existing) channel
-        // appears. The backend may return an existing channel if one
-        // was created between our local check and the API call.
-        sdkListChannels({ query: { limit: 50 } })
-          .then(({ data }) => {
-            const d = data as any
-            setChannels(d?.items ?? [])
-          })
-          .catch(() => { })
-        openChannel(data.channel)
-      }
-    } catch (e) {
-      console.error(e)
-      toast.error('Không thể tạo kênh chat')
-    }
-  }
-
-  const emitMessage = (content: string, clientMsgId: string) => {
-    if (!activeChannel || !socketRef.current?.connected) return false
-    socketRef.current.send('message', {
-      channelId: activeChannel.id,
-      text: content,
-      clientMsgId,
-    })
-    return true
-  }
-
-  const postMessageRest = async (content: string, optimistic: Message) => {
-    if (!activeChannel) return
-    try {
-      const { data: resData } = await sdkPostMessage({
-        path: { id: activeChannel.id },
-        body: {
-          content,
-          kind: 'text',
-          clientMsgId: optimistic.clientMsgId,
+    // No existing open channel — create one via TanStack mutation.
+    // The mutation's onSuccess invalidates the channels list so the
+    // new channel appears immediately.
+    createChannelMut.mutate(
+      { body: { topic: 'Hỗ trợ đặt vé', brandId: null } } as any,
+      {
+        onSuccess: (data: any) => {
+          if (data?.channel) {
+            openChannel(data.channel)
+          }
         },
-      })
-      const data = resData as any
-      if (data?.message) {
-        setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? data.message : m)))
-        lastMsgIdRef.current = data.message.id
-      }
-    } catch (e) {
-      console.error(e)
-    }
+      },
+    )
   }
 
   const sendMessage = async (text?: string) => {
-    console.log(input)
     const content = (text ?? input).trim()
     if (!content || !activeChannel) return
     setInput('')
-    setSending(true)
     const clientMsgId = 'c' + Date.now() + Math.random().toString(36).slice(2, 6)
-    const optimistic: Message = {
-      id: 'tmp-' + clientMsgId,
-      clientMsgId,
-      channelId: activeChannel.id,
-      senderType: 'user',
-      senderId: chatUser?.id ?? '',
-      senderName: chatUser?.name ?? 'Bạn',
-      content,
-      kind: 'text',
-      createdAt: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, optimistic])
 
-    if (emitMessage(content, clientMsgId)) {
-      setSending(false)
+    // ── Try WS first (fast path) ────────────────────────────────
+    if (socketRef.current?.connected) {
+      socketRef.current.send('message', {
+        channelId: activeChannel.id,
+        text: content,
+        clientMsgId,
+      })
       return
     }
-    await postMessageRest(content, optimistic)
-    setSending(false)
+
+    // ── REST fallback (WS not connected) ────────────────────────
+    // TanStack mutation handles the POST + invalidation.
+    postMessageMut.mutate({
+      path: { id: activeChannel.id },
+      body: {
+        content,
+        kind: 'text',
+        clientMsgId,
+      },
+    } as any)
   }
 
   const onInputTyping = (val: string) => {
@@ -595,7 +471,6 @@ export function ChatWidget() {
         aria-label="Mở chat hỗ trợ"
       >
         <Headset className="h-6 w-6" />
-        {/* Always-on availability indicator — customer always sees support is active */}
         <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
         <span className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-900 text-white text-xs px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
           Hỗ trợ trực tuyến
@@ -626,14 +501,14 @@ export function ChatWidget() {
         }}
       />
 
-      {view === 'auth' || authChecking ? (
+      {view === 'auth' || authMe.isLoading ? (
         <ChatAuthView
-          authChecking={authChecking}
+          authChecking={authMe.isLoading}
           regName={regName}
           regPhone={regPhone}
           regEmail={regEmail}
           regError={regError}
-          regSubmitting={regSubmitting}
+          regSubmitting={registerMut.isPending}
           onSetName={setRegName}
           onSetPhone={setRegPhone}
           onSetEmail={setRegEmail}
@@ -667,11 +542,11 @@ export function ChatWidget() {
             input={input}
             onInputChange={onInputTyping}
             onSend={sendMessage}
-            sending={sending}
+            sending={postMessageMut.isPending}
             showQuickActions={showQuickActions && messages.length === 0 && !loadingMessages}
             onQuickAction={(msg) => {
               setInput(msg)
-              // sendMessage(msg)
+              sendMessage(msg)
               setShowQuickActions(false)
             }}
           />
