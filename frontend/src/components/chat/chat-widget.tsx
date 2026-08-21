@@ -198,6 +198,11 @@ export function ChatWidget() {
     if (!chatOpen || !chatUser) return
     let disposed = false
 
+    // Create the WsClient — it auto-connects in the constructor.
+    // In React StrictMode (dev), effects are double-invoked:
+    //   mount → unmount → mount.
+    // The unmount calls ws.close() which may close a still-CONNECTING
+    // socket. WsClient.close() handles this gracefully (see ws-client.ts).
     const ws = new WsClient()
     socketRef.current = ws
 
@@ -299,7 +304,12 @@ export function ChatWidget() {
       socketRef.current = null
       setConnected(false)
     }
-  }, [chatOpen, chatUser, qc])
+  // qc is intentionally excluded from deps — it's a stable reference
+  // (useQueryClient returns the same instance for the app's lifetime).
+  // Including it would cause the effect to re-run unnecessarily (e.g.
+  // when React StrictMode double-invokes effects in dev).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatOpen, chatUser])
 
   // ── Channels list via TanStack Query ──────────────────────────────
   const channelsQuery = useChatChannels(50)

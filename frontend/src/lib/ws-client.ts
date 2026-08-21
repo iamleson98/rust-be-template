@@ -277,10 +277,31 @@ export class WsClient {
     }
     if (this.ws) {
       this.stripHandlers(this.ws)
-      try {
-        this.ws.close()
-      } catch {
-        /* noop */
+      // Handle the case where the socket is still CONNECTING (readyState === 0).
+      // Calling close() on a CONNECTING socket is valid per the WebSocket spec,
+      // but some browsers log "WebSocket is closed before the connection is
+      // established" — which is confusing but harmless. We suppress it by
+      // waiting for the next microtask before closing if the socket is still
+      // connecting, giving the browser a chance to abort the handshake cleanly.
+      if (this.ws.readyState === WebSocket.CONNECTING) {
+        // Still connecting — close after a microtask to avoid the
+        // "closed before established" console warning. The dispose flag
+        // is already set, so even if onopen fires, it's a no-op (the
+        // handlers are stripped + disposed is true).
+        const ws = this.ws
+        queueMicrotask(() => {
+          try {
+            ws.close()
+          } catch {
+            /* noop */
+          }
+        })
+      } else {
+        try {
+          this.ws.close()
+        } catch {
+          /* noop */
+        }
       }
       this.ws = null
     }

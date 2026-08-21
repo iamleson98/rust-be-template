@@ -147,14 +147,16 @@ export default defineConfig({
       // path prefix in insertion order. Since '/ws-call' starts with
       // '/ws', the '/ws' rule would catch it first if listed before.
       '/ws-call': {
-        target: 'ws://localhost:8080',
+        target: 'http://localhost:8080',
         ws: true,
         changeOrigin: true,
       },
       // WebSocket — chat hub. Vite intercepts the HTTP upgrade
       // request and proxies it to the backend's /ws endpoint.
+      // target must be http:// (not ws://) — Vite's http-proxy uses
+      // the target for the initial HTTP upgrade handshake.
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: 'http://localhost:8080',
         ws: true,
         changeOrigin: true,
       },
