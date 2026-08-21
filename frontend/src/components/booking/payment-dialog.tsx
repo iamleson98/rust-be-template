@@ -53,7 +53,7 @@ import {
   useCreatePayment,
   usePayment,
 } from '@/lib/queries/payments'
-import type { PaymentOut, PaymentProvider } from '@/lib/api/payments'
+import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
 
 export function PaymentDialog({
   paymentId,
@@ -295,7 +295,7 @@ function ProviderPicker({
 //  Sub-components
 // ─────────────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: PaymentOut['status'] }) {
+function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
   const map = {
     pending: { label: 'Đang chờ thanh toán', color: 'bg-amber-100 text-amber-800', icon: Clock },
     completed: {
@@ -307,7 +307,7 @@ function StatusPill({ status }: { status: PaymentOut['status'] }) {
     cancelled: { label: 'Đã huỷ', color: 'bg-slate-100 text-slate-700', icon: XCircle },
     refunded: { label: 'Đã hoàn tiền', color: 'bg-primary/10 text-primary', icon: ShieldCheck },
   } as const
-  const cfg = map[status] ?? map.pending
+  const cfg = map[status as keyof typeof map] ?? map.pending
   const Icon = cfg.icon
   return (
     <div

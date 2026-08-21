@@ -41,18 +41,18 @@ import {
   campaignsOptions,
   validateCampaignOptions,
   validateCampaignQueryKey,
-  // places
+  // places (list10 = /api/places, search = /api/places/search)
   searchOptions as placeSearchOptions,
-  list3Options as placeListOptions,
-  list3QueryKey as placeListQueryKey,
-  // reviews
-  list5Options as reviewsListOptions,
-  list5QueryKey as reviewsListQueryKey,
+  list10Options as placeListOptions,
+  list10QueryKey as placeListQueryKey,
+  // reviews (list12 = /api/reviews, tags = /api/reviews/tags)
+  list12Options as reviewsListOptions,
+  list12QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
-  getOptions as reviewGetOptions,
-  updateMutation as reviewUpdateMutation,
+  get2Options as reviewGetOptions,
+  update5Mutation as reviewUpdateMutation,
   remove2Mutation as reviewDeleteMutation,
-  create2Mutation as reviewCreateMutation,
+  create6Mutation as reviewCreateMutation,
   // bookings
   listOptions as bookingsListOptions,
   detailOptions as bookingDetailOptions,
@@ -60,53 +60,56 @@ import {
   holdMutation,
   confirmMutation,
   cancelMutation,
-  // price alerts (list4 = /api/price-alerts)
-  list4Options as priceAlertsListOptions,
-  list4QueryKey as priceAlertsListQueryKey,
-  createMutation as priceAlertCreateMutation,
+  // price alerts (list11 = /api/price-alerts, create5 = POST /api/price-alerts)
+  list11Options as priceAlertsListOptions,
+  list11QueryKey as priceAlertsListQueryKey,
+  create5Mutation as priceAlertCreateMutation,
   removeMutation as priceAlertRemoveMutation,
   // notifications
-  list2Options as notificationsListOptions,
-  list2QueryKey as notificationsListQueryKey,
+  list9Options as notificationsListOptions,
+  list9QueryKey as notificationsListQueryKey,
   markRead2Mutation as notificationsMarkReadMutation,
-  // wishlist
-  list6Options as wishlistListOptions,
-  list6QueryKey as wishlistListQueryKey,
+  // wishlist (list13 = /api/wishlist)
+  list13Options as wishlistListOptions,
+  list13QueryKey as wishlistListQueryKey,
   toggleMutation as wishlistToggleMutation,
   remove3Mutation as wishlistRemoveMutation,
-  // stats
-  statsOptions,
+  // stats (stats2 = /api/stats — public, stats = /api/admin/bookings/stats)
+  stats2Options,
   // admin — brands
-  listBrandsOptions as adminBrandsListOptions,
-  listBrandsQueryKey as adminBrandsListQueryKey,
-  createBrandMutation,
-  deleteBrandMutation,
+  list2Options as adminBrandsListOptions,
+  list2QueryKey as adminBrandsListQueryKey,
+  createMutation as createBrandMutation,
+  deleteMutation as deleteBrandMutation,
+  updateMutation as updateBrandMutation,
   // admin — routes
-  listRoutesOptions as adminRoutesListOptions,
-  listRoutesQueryKey as adminRoutesListQueryKey,
-  createRouteMutation,
-  deleteRouteMutation,
+  list6Options as adminRoutesListOptions,
+  list6QueryKey as adminRoutesListQueryKey,
+  create3Mutation as createRouteMutation,
+  delete4Mutation as deleteRouteMutation,
+  update3Mutation as updateRouteMutation,
   // admin — schedules
-  listSchedulesOptions as adminSchedulesListOptions,
-  createScheduleMutation,
-  deleteScheduleMutation,
+  list7Options as adminSchedulesListOptions,
+  create4Mutation as createScheduleMutation,
+  delete5Mutation as deleteScheduleMutation,
+  update4Mutation as updateScheduleMutation,
   // admin — pickup points
-  listPickupPointsOptions as adminPickupPointsListOptions,
-  createPickupPointMutation,
-  deletePickupPointMutation,
+  list4Options as adminPickupPointsListOptions,
+  create2Mutation as createPickupPointMutation,
+  delete2Mutation as deletePickupPointMutation,
   // admin — bus layouts
-  listBusLayoutsOptions as adminBusLayoutsListOptions,
+  list3Options as adminBusLayoutsListOptions,
   // admin — reviews
-  listReviewsOptions as adminReviewsListOptions,
-  listReviewsQueryKey as adminReviewsListQueryKey,
-  moderateReviewMutation,
+  list5Options as adminReviewsListOptions,
+  list5QueryKey as adminReviewsListQueryKey,
+  moderateMutation,
   // admin — bookings
-  listBookingsOptions as adminBookingsListOptions,
-  getBookingOptions as adminGetBookingOptions,
-  bookingStatsOptions as adminBookingStatsOptions,
-  bookingExportOptions as adminBookingExportOptions,
-  bookingExportQueryKey as adminBookingExportQueryKey,
-  updateBookingStatusMutation,
+  listOptions as adminBookingsListOptions,
+  getOptions as adminGetBookingOptions,
+  statsOptions as adminBookingStatsOptions,
+  exportOptions as adminBookingExportOptions,
+  exportQueryKey as adminBookingExportQueryKey,
+  updateStatusMutation,
   // chat
   listChannelsOptions as chatChannelsListOptions,
   listChannelsQueryKey as chatChannelsListQueryKey,
@@ -348,7 +351,7 @@ export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
 
 export function usePlacesList(limit = 50) {
   return useQuery({
-    ...placeListOptions({ query: { limit } }),
+    ...placeListOptions({ query: { limit: limit ?? null } }),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -643,7 +646,7 @@ export function useEmployeeLogin<TData = unknown, TVars = unknown>(opts?: Mutati
 
 export function useStats() {
   return useQuery({
-    ...statsOptions(),
+    ...stats2Options(),
     staleTime: 60 * 1000,
   })
 }
@@ -920,7 +923,7 @@ export function useAdminReviews(opts?: { status?: string; brandId?: string; sear
 export function useModerateAdminReview() {
   const qc = useQueryClient()
   return useMutation({
-    ...moderateReviewMutation(),
+    ...moderateMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: ['reviews'] })
@@ -994,7 +997,7 @@ export function useAdminBookingStats(filter: AdminBookingFilter) {
 export function useUpdateBookingStatus() {
   const qc = useQueryClient()
   return useMutation({
-    ...updateBookingStatusMutation(),
+    ...updateStatusMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
       qc.invalidateQueries({ queryKey: ['bookings'] })

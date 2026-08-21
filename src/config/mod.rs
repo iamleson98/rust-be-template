@@ -1,19 +1,15 @@
-//! Typed application configuration loaded from `.env` (or actual environment).
+//! Typed application configuration loaded exclusively from `.env` (or environment).
 //!
-//! Resolved once at startup and stored in [`AppState`]. No environment
-//! reads happen elsewhere — every module takes a typed [`Config`] borrow.
+//! Resolved once at startup and stored in [`AppState`].
 
+use std::env;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use figment::providers::{Env, Format, Serialized, Toml};
-use figment::Figment;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct Config {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
@@ -35,38 +31,47 @@ pub struct Config {
     pub oauth: OAuthConfig,
 }
 
+// ────────────────────────────────────────────────────────────────
+// Helper functions for clean environment variable extraction
+// ────────────────────────────────────────────────────────────────
+
+fn env_var(key: &str) -> Option<String> {
+    env::var(key).ok().filter(|s| !s.trim().is_empty())
+}
+
+fn env_parse<T: std::str::FromStr>(key: &str) -> Option<T> {
+    env_var(key).and_then(|v| v.parse().ok())
+}
+
+// ────────────────────────────────────────────────────────────────
+// Struct Definitions & Defaults
+// ────────────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub rust_log: String,
-    /// Hard per-request timeout in seconds. A handler that exceeds this
-    /// returns 408. Protects against slow handlers + slowloris.
     pub request_timeout_secs: u64,
-    /// Max bytes for request bodies (POST/PATCH/PUT). Protects against
-    /// memory DoS. 2 MB is enough for typical JSON; raise for uploads.
     pub max_request_body_bytes: usize,
-    /// TCP keepalive interval for accepted connections. None = use OS default.
     pub tcp_keepalive_secs: Option<u64>,
-    /// TCP_NODELAY — disable Nagle's algorithm for lower latency.
     pub tcp_nodelay: bool,
-    /// Valhalla routing service URL (optional). If not set, routing endpoints
-    /// return 503. Example: `http://localhost:8002`
     pub valhalla_url: Option<String>,
 }
 
 impl Default for ServerConfig {
     fn default() -> Self {
         Self {
-            host: "0.0.0.0".into(),
-            port: 8080,
-            rust_log: "info,backend=debug,tower_http=info".into(),
-            request_timeout_secs: 30,
-            max_request_body_bytes: 2 * 1024 * 1024, // 2 MB
-            tcp_keepalive_secs: Some(60),
-            tcp_nodelay: true,
-            valhalla_url: None,
+            host: env_var("SERVER_HOST").unwrap_or_else(|| "0.0.0.0".into()),
+            port: env_parse("SERVER_PORT").unwrap_or(8080),
+            rust_log: env_var("RUST_LOG")
+                .unwrap_or_else(|| "info,backend=debug,tower_http=info".into()),
+            request_timeout_secs: env_parse("SERVER_REQUEST_TIMEOUT_SECS").unwrap_or(30),
+            max_request_body_bytes: env_parse("SERVER_MAX_REQUEST_BODY_BYTES")
+                .unwrap_or(2 * 1024 * 1024),
+            tcp_keepalive_secs: env_parse("SERVER_TCP_KEEPALIVE_SECS").or(Some(60)),
+            tcp_nodelay: env_parse("SERVER_TCP_NODELAY").unwrap_or(true),
+            valhalla_url: env_var("SERVER_VALHALLA_URL"),
         }
     }
 }
@@ -80,18 +85,13 @@ impl ServerConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct DatabaseConfig {
     pub url: String,
     pub max_connections: u32,
     pub min_connections: u32,
     pub connect_timeout_secs: u64,
     pub idle_timeout_secs: u64,
-    /// Maximum lifetime of a connection before it's recycled. Prevents
-    /// long-lived connections from being killed by DB-side idle limits.
     pub max_lifetime_secs: u64,
-    /// sqlx statement cache size per connection. Default 100 (sqlx default).
-    /// Set to 0 to disable. Larger = fewer recompiles but more memory.
     pub statement_cache_capacity: usize,
     pub enable_sqlx_logs: bool,
 }
@@ -99,14 +99,14 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "sqlite://./app.db?mode=rwc".into(),
-            max_connections: 20,
-            min_connections: 5,
-            connect_timeout_secs: 10,
-            idle_timeout_secs: 600,
-            max_lifetime_secs: 1800, // 30 minutes
-            statement_cache_capacity: 100,
-            enable_sqlx_logs: false,
+            url: env_var("DATABASE_URL").unwrap_or_else(|| "sqlite://./app.db?mode=rwc".into()),
+            max_connections: env_parse("DATABASE_MAX_CONNECTIONS").unwrap_or(20),
+            min_connections: env_parse("DATABASE_MIN_CONNECTIONS").unwrap_or(5),
+            connect_timeout_secs: env_parse("DATABASE_CONNECT_TIMEOUT_SECS").unwrap_or(10),
+            idle_timeout_secs: env_parse("DATABASE_IDLE_TIMEOUT_SECS").unwrap_or(600),
+            max_lifetime_secs: env_parse("DATABASE_MAX_LIFETIME_SECS").unwrap_or(1800),
+            statement_cache_capacity: env_parse("DATABASE_STATEMENT_CACHE_CAPACITY").unwrap_or(100),
+            enable_sqlx_logs: env_parse("DATABASE_ENABLE_SQLX_LOGS").unwrap_or(false),
         }
     }
 }
@@ -124,7 +124,6 @@ impl DatabaseConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct JwtConfig {
     pub secret: String,
     pub access_ttl_secs: u64,
@@ -135,10 +134,11 @@ pub struct JwtConfig {
 impl Default for JwtConfig {
     fn default() -> Self {
         Self {
-            secret: "change-me-in-production-please-use-32-bytes-or-more".into(),
-            access_ttl_secs: 900,
-            refresh_ttl_secs: 7 * 24 * 3600,
-            issuer: "backend".into(),
+            secret: env_var("JWT_SECRET")
+                .unwrap_or_else(|| "change-me-in-production-please-use-32-bytes-or-more".into()),
+            access_ttl_secs: env_parse("JWT_ACCESS_TTL_SECS").unwrap_or(900),
+            refresh_ttl_secs: env_parse("JWT_REFRESH_TTL_SECS").unwrap_or(7 * 24 * 3600),
+            issuer: env_var("JWT_ISSUER").unwrap_or_else(|| "backend".into()),
         }
     }
 }
@@ -153,7 +153,6 @@ impl JwtConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct CookieConfig {
     pub domain: String,
     pub secure: bool,
@@ -170,10 +169,16 @@ pub enum SameSite {
 
 impl Default for CookieConfig {
     fn default() -> Self {
+        let samesite = match env_var("COOKIE_SAMESITE").as_deref() {
+            Some("strict") => SameSite::Strict,
+            Some("none") => SameSite::None,
+            _ => SameSite::Lax,
+        };
+
         Self {
-            domain: "localhost".into(),
-            secure: false,
-            samesite: SameSite::Lax,
+            domain: env_var("COOKIE_DOMAIN").unwrap_or_else(|| "127.0.0.1".into()),
+            secure: env_parse("COOKIE_SECURE").unwrap_or(false),
+            samesite,
         }
     }
 }
@@ -197,7 +202,6 @@ pub enum CacheBackend {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct CacheConfig {
     pub backend: CacheBackend,
     pub ttl_secs: u64,
@@ -207,11 +211,17 @@ pub struct CacheConfig {
 
 impl Default for CacheConfig {
     fn default() -> Self {
+        let backend = match env_var("CACHE_BACKEND").as_deref() {
+            Some("redis") => CacheBackend::Redis,
+            _ => CacheBackend::Moka,
+        };
+
         Self {
-            backend: CacheBackend::Moka,
-            ttl_secs: 300,
-            max_capacity: 100_000,
-            redis_url: "redis://localhost:6379/0".into(),
+            backend,
+            ttl_secs: env_parse("CACHE_TTL_SECS").unwrap_or(300),
+            max_capacity: env_parse("CACHE_MAX_CAPACITY").unwrap_or(100_000),
+            redis_url: env_var("CACHE_REDIS_URL")
+                .unwrap_or_else(|| "redis://127.0.0.1:6379/0".into()),
         }
     }
 }
@@ -231,7 +241,6 @@ pub enum StorageBackend {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct StorageConfig {
     pub backend: StorageBackend,
     pub local_root: PathBuf,
@@ -245,15 +254,23 @@ pub struct StorageConfig {
 
 impl Default for StorageConfig {
     fn default() -> Self {
+        let backend = match env_var("STORAGE_BACKEND").as_deref() {
+            Some("s3") => StorageBackend::S3,
+            Some("minio") => StorageBackend::Minio,
+            _ => StorageBackend::Local,
+        };
+
         Self {
-            backend: StorageBackend::Local,
-            local_root: PathBuf::from("./storage"),
-            s3_region: "us-east-1".into(),
-            s3_bucket: "app-uploads".into(),
-            s3_access_key_id: String::new(),
-            s3_secret_access_key: String::new(),
-            s3_endpoint: None,
-            s3_force_path_style: false,
+            backend,
+            local_root: env_var("STORAGE_LOCAL_ROOT")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("./storage")),
+            s3_region: env_var("STORAGE_S3_REGION").unwrap_or_else(|| "us-east-1".into()),
+            s3_bucket: env_var("STORAGE_S3_BUCKET").unwrap_or_else(|| "app-uploads".into()),
+            s3_access_key_id: env_var("STORAGE_S3_ACCESS_KEY_ID").unwrap_or_default(),
+            s3_secret_access_key: env_var("STORAGE_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
+            s3_endpoint: env_var("STORAGE_S3_ENDPOINT"),
+            s3_force_path_style: env_parse("STORAGE_S3_FORCE_PATH_STYLE").unwrap_or(false),
         }
     }
 }
@@ -267,7 +284,6 @@ pub enum WorkerBackend {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct WorkerConfig {
     pub backend: WorkerBackend,
     pub concurrency: usize,
@@ -279,13 +295,21 @@ pub struct WorkerConfig {
 
 impl Default for WorkerConfig {
     fn default() -> Self {
+        let backend = match env_var("WORKER_BACKEND").as_deref() {
+            Some("db") => WorkerBackend::Db,
+            Some("kafka") => WorkerBackend::Kafka,
+            _ => WorkerBackend::Redis,
+        };
+
         Self {
-            backend: WorkerBackend::Redis,
-            concurrency: 4,
-            poll_interval_ms: 1000,
-            kafka_brokers: "localhost:9092".into(),
-            kafka_group_id: "backend-workers".into(),
-            kafka_topic: "jobs".into(),
+            backend,
+            concurrency: env_parse("WORKER_CONCURRENCY").unwrap_or(4),
+            poll_interval_ms: env_parse("WORKER_POLL_INTERVAL_MS").unwrap_or(1000),
+            kafka_brokers: env_var("WORKER_KAFKA_BROKERS")
+                .unwrap_or_else(|| "127.0.0.1:9092".into()),
+            kafka_group_id: env_var("WORKER_KAFKA_GROUP_ID")
+                .unwrap_or_else(|| "backend-workers".into()),
+            kafka_topic: env_var("WORKER_KAFKA_TOPIC").unwrap_or_else(|| "jobs".into()),
         }
     }
 }
@@ -297,30 +321,21 @@ impl WorkerConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct RateLimitConfig {
-    /// Requests per minute allowed per client IP. Default: 600 (10/sec).
-    /// The previous default of 60 RPM (1 req/sec) was too aggressive for
-    /// a SPA that makes 5-10 concurrent API calls on page load — users
-    /// would see 429 Too Many Requests constantly.
     pub rpm: u32,
-    /// Burst size — max number of requests allowed in a short window before
-    /// the per-second refill rate kicks in. Default: 100. The previous
-    /// default of 10 was easily exhausted by a single page load.
     pub burst: u32,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            rpm: 600,
-            burst: 100,
+            rpm: env_parse("RATE_LIMIT_RPM").unwrap_or(600),
+            burst: env_parse("RATE_LIMIT_BURST").unwrap_or(100),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct StaticFilesConfig {
     pub dir: PathBuf,
     pub cache_max_age: u64,
@@ -329,23 +344,24 @@ pub struct StaticFilesConfig {
 impl Default for StaticFilesConfig {
     fn default() -> Self {
         Self {
-            dir: PathBuf::from("./static"),
-            cache_max_age: 86_400,
+            dir: env_var("STATIC_FILES_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("./static")),
+            cache_max_age: env_parse("STATIC_FILES_CACHE_MAX_AGE").unwrap_or(86_400),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct CorsConfig {
-    /// Comma-separated origin list. Empty means "allow same-origin only".
     pub origins: String,
 }
 
 impl Default for CorsConfig {
     fn default() -> Self {
         Self {
-            origins: "http://localhost:3000,http://localhost:5173".into(),
+            origins: env_var("CORS_ORIGINS")
+                .unwrap_or_else(|| "http://127.0.0.1:3000,http://127.0.0.1:5173".into()),
         }
     }
 }
@@ -360,76 +376,53 @@ impl CorsConfig {
     }
 }
 
-// ────────────────────────────────────────────────────────────────
-//  ZeroClaw AI assistant
-// ────────────────────────────────────────────────────────────────
-
-/// Configuration for the ZeroClaw AI assistant. When `enabled` is false
-/// (or no `api_url`/`api_key` is set), a no-op provider is used and chat
-/// messages are never forwarded to an external model.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct ZeroClawConfig {
     pub enabled: bool,
     pub api_url: String,
     pub api_key: String,
     pub model: String,
-    /// Request timeout in milliseconds.
     pub timeout_ms: u64,
-    /// Max conversation turns sent to the model as context.
     pub max_history: usize,
-    /// If at least this many employees are online, skip the AI reply and
-    /// let humans handle the conversation.
     pub fallback_online_employees: usize,
 }
 
 impl Default for ZeroClawConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            api_url: String::new(),
-            api_key: String::new(),
-            model: "zeroclaw-default".into(),
-            timeout_ms: 15_000,
-            max_history: 12,
-            fallback_online_employees: 1,
+            enabled: env_parse("ZEROCLAW_ENABLED").unwrap_or(false),
+            api_url: env_var("ZEROCLAW_API_URL").unwrap_or_default(),
+            api_key: env_var("ZEROCLAW_API_KEY").unwrap_or_default(),
+            model: env_var("ZEROCLAW_MODEL").unwrap_or_else(|| "zeroclaw-default".into()),
+            timeout_ms: env_parse("ZEROCLAW_TIMEOUT_MS").unwrap_or(15_000),
+            max_history: env_parse("ZEROCLAW_MAX_HISTORY").unwrap_or(12),
+            fallback_online_employees: env_parse("ZEROCLAW_FALLBACK_ONLINE_EMPLOYEES").unwrap_or(1),
         }
     }
 }
 
 impl ZeroClawConfig {
-    /// True when the HTTP provider should be used.
     pub fn is_active(&self) -> bool {
         self.enabled && !self.api_url.is_empty() && !self.api_key.is_empty()
     }
 }
 
-// ────────────────────────────────────────────────────────────────
-//  Audio call (WebRTC signaling relay)
-// ────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct AudioCallConfig {
     pub enabled: bool,
-    /// ICE servers (STUN/TURN) delivered to clients on `register`.
-    /// Parsed from a JSON env var: `[{"urls":"stun:..."},{"urls":"turn:...","username":"...","credential":"..."}]`.
     pub ice_servers: String,
 }
 
 impl Default for AudioCallConfig {
     fn default() -> Self {
         Self {
-            enabled: true,
-            ice_servers: String::new(),
+            enabled: env_parse("AUDIO_CALL_ENABLED").unwrap_or(true),
+            ice_servers: env_var("AUDIO_CALL_ICE_SERVERS").unwrap_or_default(),
         }
     }
 }
 
 impl AudioCallConfig {
-    /// Parse the `ice_servers` JSON into a `serde_json::Value` array.
-    /// Returns an empty array on parse failure (clients get no ICE servers
-    /// and will fall back to host candidates only).
     pub fn ice_servers_json(&self) -> serde_json::Value {
         if self.ice_servers.is_empty() {
             return serde_json::Value::Array(vec![]);
@@ -438,128 +431,96 @@ impl AudioCallConfig {
     }
 }
 
-// ────────────────────────────────────────────────────────────────
-//  Search / OSM place index
-// ────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SearchConfig {
-    /// Directory containing the Tantivy place index. If the directory does
-    /// not exist or is empty, place search/reverse-geocode return 503.
     pub index_dir: Option<PathBuf>,
-    /// Path to the OSM PBF file used by `import-osm` to build the index.
     pub osm_pbf_path: Option<PathBuf>,
 }
 
-// ────────────────────────────────────────────────────────────────
-//  WebSocket chat hub
-// ────────────────────────────────────────────────────────────────
+impl SearchConfig {
+    pub fn from_env() -> Self {
+        Self {
+            index_dir: env_var("SEARCH_INDEX_DIR").map(PathBuf::from),
+            osm_pbf_path: env_var("SEARCH_OSM_PBF_PATH").map(PathBuf::from),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct WsConfig {
-    /// Hard cap on total live WS connections across the server. 0 = unlimited.
     pub max_connections: usize,
-    /// Max concurrent connections per client IP.
     pub max_per_ip: usize,
-    /// Bounded outbound channel capacity per session. A slow consumer fills
-    /// the queue, then `try_send` drops further messages.
     pub channel_capacity: usize,
-    /// Server-initiated Ping interval (seconds). Keeps NAT bindings warm.
     pub heartbeat_sec: u64,
-    /// Idle timeout (seconds). A socket with no inbound frame is force-closed.
     pub idle_timeout_sec: u64,
-    /// Max WS message size (bytes).
     pub max_message_bytes: usize,
-    /// Max WS frame size (bytes).
     pub max_frame_bytes: usize,
 }
 
 impl Default for WsConfig {
     fn default() -> Self {
         Self {
-            max_connections: 50_000,
-            max_per_ip: 10,
-            channel_capacity: 256,
-            heartbeat_sec: 30,
-            idle_timeout_sec: 90,
-            max_message_bytes: 64 * 1024,
-            max_frame_bytes: 64 * 1024,
+            max_connections: env_parse("WS_MAX_CONNECTIONS").unwrap_or(50_000),
+            max_per_ip: env_parse("WS_MAX_PER_IP").unwrap_or(10),
+            channel_capacity: env_parse("WS_CHANNEL_CAPACITY").unwrap_or(256),
+            heartbeat_sec: env_parse("WS_HEARTBEAT_SEC").unwrap_or(30),
+            idle_timeout_sec: env_parse("WS_IDLE_TIMEOUT_SEC").unwrap_or(90),
+            max_message_bytes: env_parse("WS_MAX_MESSAGE_BYTES").unwrap_or(64 * 1024),
+            max_frame_bytes: env_parse("WS_MAX_FRAME_BYTES").unwrap_or(64 * 1024),
         }
     }
 }
 
-// ────────────────────────────────────────────────────────────────
-//  Contact info (phone, email — used in UI + SEO)
-// ────────────────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-#[allow(dead_code)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ContactConfig {
-    /// Support hotline phone number (e.g. "+8419006067").
     pub phone: String,
-    /// Support email (e.g. "hotro@vexevn.vn").
     pub email: String,
-    /// Physical address (e.g. "123 Lê Lợi, Q.1, TP.HCM").
     pub address: String,
-    /// Zalo OA link (e.g. "https://zalo.me/123456789").
     pub zalo_url: String,
-    /// Facebook page URL.
     pub facebook_url: String,
 }
 
+impl ContactConfig {
+    pub fn from_env() -> Self {
+        Self {
+            phone: env_var("CONTACT_PHONE").unwrap_or_default(),
+            email: env_var("CONTACT_EMAIL").unwrap_or_default(),
+            address: env_var("CONTACT_ADDRESS").unwrap_or_default(),
+            zalo_url: env_var("CONTACT_ZALO_URL").unwrap_or_default(),
+            facebook_url: env_var("CONTACT_FACEBOOK_URL").unwrap_or_default(),
+        }
+    }
+}
 
-// ────────────────────────────────────────────────────────────────
-//  Payment gateway (VNPay / MoMo / ZaloPay / VietQR / COD)
-// ────────────────────────────────────────────────────────────────
-
-/// Payment gateway configuration. Each provider has its own
-/// sandbox/production toggle + credentials, set via env vars.
-///
-/// All providers are optional — if a provider's `enabled` is `false`,
-/// the corresponding route returns 503 Service Unavailable.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct PaymentConfig {
-    /// Public-facing base URL of the app (used to build `returnUrl` /
-    /// `redirectUrl` / `vnp_ReturnUrl` for the gateway). Must be the
-    /// externally-reachable URL — e.g. `https://vexevn.app`.
     pub public_base_url: String,
-    /// Default payment expiry in minutes (booking hold + provider
-    /// expiration). Must be ≤ the booking's hold expiry (10 min).
     pub default_expiry_minutes: u32,
     pub vnpay: VnpayConfig,
     pub momo: MomoConfig,
     pub zalopay: ZalopayConfig,
     pub vietqr: VietQrConfig,
-    /// When `true`, the COD payment option is exposed to users. COD
-    /// requires no gateway — useful for rural routes / no-app riders.
     pub cod_enabled: bool,
 }
 
 impl Default for PaymentConfig {
     fn default() -> Self {
         Self {
-            public_base_url: "http://localhost:8080".into(),
-            default_expiry_minutes: 10,
+            public_base_url: env_var("PAYMENT_PUBLIC_BASE_URL")
+                .unwrap_or_else(|| "http://127.0.0.1:8080".into()),
+            default_expiry_minutes: env_parse("PAYMENT_DEFAULT_EXPIRY_MINUTES").unwrap_or(10),
             vnpay: VnpayConfig::default(),
             momo: MomoConfig::default(),
             zalopay: ZalopayConfig::default(),
             vietqr: VietQrConfig::default(),
-            cod_enabled: true,
+            cod_enabled: env_parse("PAYMENT_COD_ENABLED").unwrap_or(true),
         }
     }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct VnpayConfig {
     pub enabled: bool,
-    /// `sandbox` or `production`.
     pub env: String,
     pub tmn_code: String,
     pub hash_secret: String,
@@ -568,16 +529,15 @@ pub struct VnpayConfig {
 impl Default for VnpayConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            env: "sandbox".into(),
-            tmn_code: String::new(),
-            hash_secret: String::new(),
+            enabled: env_parse("VNPAY_ENABLED").unwrap_or(false),
+            env: env_var("VNPAY_ENV").unwrap_or_else(|| "sandbox".into()),
+            tmn_code: env_var("VNPAY_TMN_CODE").unwrap_or_default(),
+            hash_secret: env_var("VNPAY_HASH_SECRET").unwrap_or_default(),
         }
     }
 }
 
 impl VnpayConfig {
-    /// Base URL of the VNPay payment endpoint, picked by `env`.
     pub fn endpoint_base(&self) -> &'static str {
         if self.env == "production" {
             "https://payment.vnpayment.vn/paymentv2/vpcpay.html"
@@ -592,10 +552,8 @@ impl VnpayConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct MomoConfig {
     pub enabled: bool,
-    /// `sandbox` or `production`.
     pub env: String,
     pub partner_code: String,
     pub access_key: String,
@@ -605,11 +563,11 @@ pub struct MomoConfig {
 impl Default for MomoConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            env: "sandbox".into(),
-            partner_code: String::new(),
-            access_key: String::new(),
-            secret_key: String::new(),
+            enabled: env_parse("MOMO_ENABLED").unwrap_or(false),
+            env: env_var("MOMO_ENV").unwrap_or_else(|| "sandbox".into()),
+            partner_code: env_var("MOMO_PARTNER_CODE").unwrap_or_default(),
+            access_key: env_var("MOMO_ACCESS_KEY").unwrap_or_default(),
+            secret_key: env_var("MOMO_SECRET_KEY").unwrap_or_default(),
         }
     }
 }
@@ -632,12 +590,9 @@ impl MomoConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
 pub struct ZalopayConfig {
     pub enabled: bool,
-    /// `sandbox` or `production`.
     pub env: String,
-    /// ZaloPay issues `app_id` as a numeric string.
     pub app_id: String,
     pub key1: String,
     pub key2: String,
@@ -646,11 +601,11 @@ pub struct ZalopayConfig {
 impl Default for ZalopayConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
-            env: "sandbox".into(),
-            app_id: String::new(),
-            key1: String::new(),
-            key2: String::new(),
+            enabled: env_parse("ZALOPAY_ENABLED").unwrap_or(false),
+            env: env_var("ZALOPAY_ENV").unwrap_or_else(|| "sandbox".into()),
+            app_id: env_var("ZALOPAY_APP_ID").unwrap_or_default(),
+            key1: env_var("ZALOPAY_KEY1").unwrap_or_default(),
+            key2: env_var("ZALOPAY_KEY2").unwrap_or_default(),
         }
     }
 }
@@ -670,20 +625,23 @@ impl ZalopayConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[serde(default)]
 pub struct VietQrConfig {
     pub enabled: bool,
-    /// Bank BIN — 6 digits (e.g. `970436` for Vietcombank, `970422` for MBBank).
-    /// See https://vietqr.net/danh-sach-ma-ngan-hang for the full list.
     pub bank_bin: String,
-    /// Business bank account number (no spaces, digits only).
     pub account_no: String,
-    /// Account holder name — uppercase ASCII, no Vietnamese tones
-    /// (the EMV QR spec doesn't support UTF-8 in the merchant name field).
     pub account_name: String,
 }
 
 impl VietQrConfig {
+    pub fn from_env() -> Self {
+        Self {
+            enabled: env_parse("VIETQR_ENABLED").unwrap_or(false),
+            bank_bin: env_var("VIETQR_BANK_BIN").unwrap_or_default(),
+            account_no: env_var("VIETQR_ACCOUNT_NO").unwrap_or_default(),
+            account_name: env_var("VIETQR_ACCOUNT_NAME").unwrap_or_default(),
+        }
+    }
+
     pub fn is_active(&self) -> bool {
         self.enabled
             && !self.bank_bin.is_empty()
@@ -692,73 +650,84 @@ impl VietQrConfig {
     }
 }
 
-// ────────────────────────────────────────────────────────────────
-//  OAuth (Facebook / Google / X-Twitter)
-// ────────────────────────────────────────────────────────────────
-
-/// Top-level OAuth config. Each provider is optional; if not configured,
-/// the corresponding `/api/auth/oauth/<provider>/*` routes return 404.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct OAuthConfig {
-    /// Public base URL of the backend (e.g. `https://vexevn.app`).
-    /// Used to build the `redirect_uri` sent to the provider — must
-    /// match exactly the URI registered in the provider's dashboard.
     pub redirect_base_url: String,
-    /// Frontend URL to redirect the user back to after a successful
-    /// OAuth login (e.g. `https://vexevn.app`).
     pub frontend_url: String,
     pub facebook: OAuthProviderConfig,
     pub google: OAuthProviderConfig,
     pub twitter: OAuthProviderConfig,
 }
 
-
 impl OAuthConfig {
-    /// True if at least one OAuth provider is configured.
+    pub fn from_env() -> Self {
+        Self {
+            redirect_base_url: env_var("OAUTH_REDIRECT_BASE_URL").unwrap_or_default(),
+            frontend_url: env_var("OAUTH_FRONTEND_URL").unwrap_or_default(),
+            facebook: OAuthProviderConfig::from_env("FACEBOOK"),
+            google: OAuthProviderConfig::from_env("GOOGLE"),
+            twitter: OAuthProviderConfig::from_env("TWITTER"),
+        }
+    }
+
     pub fn any_enabled(&self) -> bool {
         self.facebook.is_active() || self.google.is_active() || self.twitter.is_active()
     }
 }
 
-/// Per-provider OAuth 2.0 credentials.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
-#[derive(Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct OAuthProviderConfig {
     pub enabled: bool,
     pub client_id: String,
     pub client_secret: String,
-    /// Optional space-separated OAuth scopes (defaults are set in the
-    /// provider modules; this overrides them).
     pub scopes: String,
 }
 
-
 impl OAuthProviderConfig {
+    pub fn from_env(provider: &str) -> Self {
+        Self {
+            enabled: env_parse(&format!("OAUTH_{}_ENABLED", provider)).unwrap_or(false),
+            client_id: env_var(&format!("OAUTH_{}_CLIENT_ID", provider)).unwrap_or_default(),
+            client_secret: env_var(&format!("OAUTH_{}_CLIENT_SECRET", provider))
+                .unwrap_or_default(),
+            scopes: env_var(&format!("OAUTH_{}_SCOPES", provider)).unwrap_or_default(),
+        }
+    }
+
     pub fn is_active(&self) -> bool {
         self.enabled && !self.client_id.is_empty() && !self.client_secret.is_empty()
     }
 }
 
+// ────────────────────────────────────────────────────────────────
+// Core Config Loader & Validation
+// ────────────────────────────────────────────────────────────────
+
 impl Config {
-    /// Load config in this order, last wins:
-    /// 1. built-in defaults
-    /// 2. `backend.toml` if present
-    /// 3. environment variables with `__` nesting (e.g. `DATABASE__URL` → `database.url`)
-    /// 4. `.env` file (loaded explicitly by `dotenvy::dotenv()`)
     pub fn load() -> anyhow::Result<Self> {
-        // Load .env into process env if present. Ignore errors (file may not exist).
+        // Parse `.env` file into standard std::env
         let _ = dotenvy::dotenv();
 
-        let fig = Figment::from(Serialized::defaults(Config::default()))
-            .merge(Toml::file("backend.toml").nested())
-            .merge(Env::prefixed("").split("__"));
+        let cfg = Config {
+            server: ServerConfig::default(),
+            database: DatabaseConfig::default(),
+            jwt: JwtConfig::default(),
+            cookie: CookieConfig::default(),
+            cache: CacheConfig::default(),
+            storage: StorageConfig::default(),
+            worker: WorkerConfig::default(),
+            rate_limit: RateLimitConfig::default(),
+            static_files: StaticFilesConfig::default(),
+            cors: CorsConfig::default(),
+            zeroclaw: ZeroClawConfig::default(),
+            audio_call: AudioCallConfig::default(),
+            search: SearchConfig::from_env(),
+            ws: WsConfig::default(),
+            payment: PaymentConfig::default(),
+            contact: ContactConfig::from_env(),
+            oauth: OAuthConfig::from_env(),
+        };
 
-        let cfg: Config = fig
-            .extract()
-            .map_err(|e| anyhow::anyhow!("config error: {e}"))?;
         cfg.validate()?;
         Ok(cfg)
     }
@@ -770,212 +739,31 @@ impl Config {
         if self.jwt.secret == "change-me-in-production-please-use-32-bytes-or-more" {
             anyhow::bail!(
                 "JWT_SECRET is the default placeholder shipped in source. \
-                 Set a real 32+ byte secret via the JWT_SECRET env var \
-                 (e.g. `openssl rand -hex 32`)."
+                 Set a real 32+ byte secret via the JWT_SECRET env var."
             );
         }
         if self.worker.concurrency == 0 {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
         }
-        // Warn (not bail) when cookie.secure is false — this is expected
-        // for localhost dev, but in production it means the refresh token
-        // will be sent over plain HTTP.
         if !self.cookie.secure {
             tracing::warn!(
-                "COOKIE_SECURE=false — refresh token will be sent over \
-                 HTTP. Set COOKIE_SECURE=true in production."
+                "COOKIE_SECURE=false — refresh token will be sent over HTTP. \
+                 Set COOKIE_SECURE=true in production."
             );
         }
         Ok(())
     }
 
-    /// Log the active configuration at startup. Secrets are masked so they
-    /// never appear in plain text in log output.
     pub fn log_active(&self) {
         use crate::cli::util::mask_secret;
 
-        tracing::info!("active configuration (from .env / environment / backend.toml):");
-
-        tracing::info!("  server:");
-        tracing::info!("    host:               {}", self.server.host);
-        tracing::info!("    port:               {}", self.server.port);
-        tracing::info!("    rust_log:           {}", self.server.rust_log);
-        tracing::info!(
-            "    request_timeout:    {}s",
-            self.server.request_timeout_secs
-        );
-        tracing::info!(
-            "    max_body_bytes:     {}",
-            self.server.max_request_body_bytes
-        );
-        tracing::info!(
-            "    tcp_keepalive:      {:?}",
-            self.server.tcp_keepalive_secs
-        );
-        tracing::info!("    tcp_nodelay:        {}", self.server.tcp_nodelay);
-        tracing::info!("    valhalla_url:       {:?}", self.server.valhalla_url);
-
-        tracing::info!("  database:");
-        tracing::info!("    url:                {}", self.database.url);
-        tracing::info!("    max_connections:    {}", self.database.max_connections);
-        tracing::info!("    min_connections:    {}", self.database.min_connections);
-        tracing::info!(
-            "    connect_timeout:    {}s",
-            self.database.connect_timeout_secs
-        );
-        tracing::info!(
-            "    idle_timeout:       {}s",
-            self.database.idle_timeout_secs
-        );
-        tracing::info!(
-            "    max_lifetime:       {}s",
-            self.database.max_lifetime_secs
-        );
-        tracing::info!(
-            "    statement_cache:    {}",
-            self.database.statement_cache_capacity
-        );
-        tracing::info!("    sqlx_logs:          {}", self.database.enable_sqlx_logs);
-
-        tracing::info!("  jwt:");
-        tracing::info!("    secret:             {}", mask_secret(&self.jwt.secret));
-        tracing::info!("    access_ttl:         {}s", self.jwt.access_ttl_secs);
-        tracing::info!("    refresh_ttl:        {}s", self.jwt.refresh_ttl_secs);
-        tracing::info!("    issuer:             {}", self.jwt.issuer);
-
-        tracing::info!("  cookie:");
-        tracing::info!("    domain:             {}", self.cookie.domain);
-        tracing::info!("    secure:             {}", self.cookie.secure);
-        tracing::info!("    samesite:           {:?}", self.cookie.samesite);
-
-        tracing::info!("  cache:");
-        tracing::info!("    backend:            {:?}", self.cache.backend);
-        tracing::info!("    ttl:                {}s", self.cache.ttl_secs);
-        tracing::info!("    max_capacity:       {}", self.cache.max_capacity);
-        tracing::info!("    redis_url:          {}", self.cache.redis_url);
-
-        tracing::info!("  storage:");
-        tracing::info!("    backend:            {:?}", self.storage.backend);
-        tracing::info!("    local_root:         {:?}", self.storage.local_root);
-        tracing::info!("    s3_bucket:          {}", self.storage.s3_bucket);
-        tracing::info!("    s3_region:          {}", self.storage.s3_region);
-        tracing::info!("    s3_endpoint:        {:?}", self.storage.s3_endpoint);
-        tracing::info!(
-            "    s3_access_key_id:   {}",
-            mask_secret(&self.storage.s3_access_key_id)
-        );
-        tracing::info!(
-            "    s3_secret_access:   {}",
-            mask_secret(&self.storage.s3_secret_access_key)
-        );
-        tracing::info!(
-            "    s3_force_path_style:{}",
-            self.storage.s3_force_path_style
-        );
-
-        tracing::info!("  worker:");
-        tracing::info!("    backend:            {:?}", self.worker.backend);
-        tracing::info!("    concurrency:        {}", self.worker.concurrency);
-        tracing::info!("    poll_interval:      {}ms", self.worker.poll_interval_ms);
-        tracing::info!("    kafka_brokers:      {}", self.worker.kafka_brokers);
-        tracing::info!("    kafka_group_id:     {}", self.worker.kafka_group_id);
-        tracing::info!("    kafka_topic:        {}", self.worker.kafka_topic);
-
-        tracing::info!("  ws:");
-        tracing::info!("    max_connections:    {}", self.ws.max_connections);
-        tracing::info!("    max_per_ip:         {}", self.ws.max_per_ip);
-        tracing::info!("    channel_capacity:   {}", self.ws.channel_capacity);
-        tracing::info!("    heartbeat:          {}s", self.ws.heartbeat_sec);
-        tracing::info!("    idle_timeout:       {}s", self.ws.idle_timeout_sec);
-        tracing::info!("    max_message_bytes:  {}", self.ws.max_message_bytes);
-        tracing::info!("    max_frame_bytes:    {}", self.ws.max_frame_bytes);
-
-        tracing::info!("  audio_call:");
-        tracing::info!("    enabled:            {}", self.audio_call.enabled);
-        tracing::info!(
-            "    ice_servers:        {}",
-            if self.audio_call.ice_servers.is_empty() {
-                "(none)".to_string()
-            } else {
-                // Mask TURN credentials — log only the count + URL prefixes.
-                let v = self.audio_call.ice_servers_json();
-                let count = v.as_array().map(|a| a.len()).unwrap_or(0);
-                format!("({count} server(s))")
-            }
-        );
-
-        tracing::info!("  zeroclaw:");
-        tracing::info!("    enabled:            {}", self.zeroclaw.enabled);
-        tracing::info!("    is_active:          {}", self.zeroclaw.is_active());
-        tracing::info!("    api_url:             {}", self.zeroclaw.api_url);
-        tracing::info!(
-            "    api_key:            {}",
-            mask_secret(&self.zeroclaw.api_key)
-        );
-        tracing::info!("    model:              {}", self.zeroclaw.model);
-        tracing::info!("    timeout:            {}ms", self.zeroclaw.timeout_ms);
-        tracing::info!("    max_history:        {}", self.zeroclaw.max_history);
-        tracing::info!(
-            "    fallback_online_employees: {}",
-            self.zeroclaw.fallback_online_employees
-        );
-
-        tracing::info!("  search:");
-        tracing::info!("    index_dir:          {:?}", self.search.index_dir);
-        tracing::info!("    osm_pbf_path:       {:?}", self.search.osm_pbf_path);
-
-        tracing::info!("  rate_limit:");
-        tracing::info!("    rpm:                {}", self.rate_limit.rpm);
-        tracing::info!("    burst:              {}", self.rate_limit.burst);
-
-        tracing::info!("  static_files:");
-        tracing::info!("    dir:                {:?}", self.static_files.dir);
-        tracing::info!(
-            "    cache_max_age:      {}s",
-            self.static_files.cache_max_age
-        );
-
-        tracing::info!("  cors:");
-        tracing::info!("    origins:            {:?}", self.cors.origin_list());
-
-        tracing::info!("  payment:");
-        tracing::info!("    public_base_url:   {}", self.payment.public_base_url);
-        tracing::info!(
-            "    default_expiry:   {}m",
-            self.payment.default_expiry_minutes
-        );
-        tracing::info!("    cod_enabled:      {}", self.payment.cod_enabled);
-        tracing::info!(
-            "    vnpay.active:     {} (env={}, tmn={})",
-            self.payment.vnpay.is_active(),
-            self.payment.vnpay.env,
-            self.payment.vnpay.tmn_code
-        );
-        tracing::info!(
-            "    momo.active:      {} (env={}, partner={})",
-            self.payment.momo.is_active(),
-            self.payment.momo.env,
-            self.payment.momo.partner_code
-        );
-        tracing::info!(
-            "    zalopay.active:   {} (env={}, app_id={})",
-            self.payment.zalopay.is_active(),
-            self.payment.zalopay.env,
-            self.payment.zalopay.app_id
-        );
-        let vietqr_acct_tail = {
-            let a = &self.payment.vietqr.account_no;
-            if a.len() > 4 {
-                &a[a.len() - 4..]
-            } else {
-                a.as_str()
-            }
-        };
-        tracing::info!(
-            "    vietqr.active:    {} (bin={}, acct=**{})",
-            self.payment.vietqr.is_active(),
-            self.payment.vietqr.bank_bin,
-            vietqr_acct_tail
-        );
+        tracing::info!("active configuration (loaded directly from .env / environment):");
+        tracing::info!("  server: {}:{}", self.server.host, self.server.port);
+        tracing::info!("  database url: {}", self.database.url);
+        tracing::info!("  jwt issuer: {}", self.jwt.issuer);
+        tracing::info!("  jwt secret: {}", mask_secret(&self.jwt.secret));
+        tracing::info!("  storage backend: {:?}", self.storage.backend);
+        tracing::info!("  worker backend: {:?}", self.worker.backend);
+        tracing::info!("  payment cod_enabled: {}", self.payment.cod_enabled);
     }
 }

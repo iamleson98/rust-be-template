@@ -13,12 +13,4 @@ import type { ClientOptions as ClientOptions2 } from './types.gen';
  */
 export type CreateClientConfig<T extends ClientOptions = ClientOptions2> = (override?: Config<ClientOptions & T>) => Config<Required<ClientOptions> & T>;
 
-// Use the current origin in production (same-origin API calls).
-// In dev, Vite proxies /api to localhost:8080, so we use the Vite dev
-// server origin. The fallback 'http://localhost:8080' is for SSR/prerender.
-const API_BASE_URL =
-  typeof window !== 'undefined'
-    ? window.location.origin
-    : (import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080');
-
-export const client: Client = createClient(createConfig<ClientOptions2>({ baseUrl: API_BASE_URL }));
+export const client: Client = createClient(createConfig<ClientOptions2>({ baseUrl: 'http://127.0.0.1:8080' }));
