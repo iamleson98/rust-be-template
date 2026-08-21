@@ -62,7 +62,7 @@ import type {
   AdminPaymentOut,
   PaymentProvider,
   PaymentStatus,
-} from '@/lib/api/payments'
+} from '@/lib/queries/payments'
 
 const PAGE_SIZE = 15
 
@@ -84,7 +84,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'refunded', label: 'Đã hoàn tiền' },
 ]
 
-function ProviderBadge({ provider }: { provider: PaymentProvider }) {
+function ProviderBadge({ provider }: { provider: PaymentProvider | string }) {
   const meta = PROVIDER_OPTIONS.find((p) => p.value === provider)
   if (!meta) return <Badge variant="outline" className="text-xs">{provider}</Badge>
   return (
@@ -95,7 +95,7 @@ function ProviderBadge({ provider }: { provider: PaymentProvider }) {
   )
 }
 
-function StatusBadge({ status }: { status: PaymentStatus }) {
+function StatusBadge({ status }: { status: PaymentStatus | string }) {
   const map: Record<PaymentStatus, { label: string; cls: string; icon: React.ReactNode }> = {
     pending: { label: 'Đang chờ', cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900', icon: <Clock className="h-3 w-3" /> },
     completed: { label: 'Hoàn tất', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900', icon: <CheckCircle2 className="h-3 w-3" /> },
@@ -103,7 +103,7 @@ function StatusBadge({ status }: { status: PaymentStatus }) {
     cancelled: { label: 'Đã huỷ', cls: 'bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/50 dark:text-slate-400 dark:border-slate-800', icon: <Ban className="h-3 w-3" /> },
     refunded: { label: 'Hoàn tiền', cls: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900', icon: <ArrowLeftRight className="h-3 w-3" /> },
   }
-  const m = map[status] ?? map.pending
+  const m = map[status as PaymentStatus] ?? map.pending
   return (
     <Badge variant="outline" className={`gap-1 text-xs font-medium ${m.cls}`}>
       {m.icon}
