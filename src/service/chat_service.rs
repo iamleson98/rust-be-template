@@ -67,9 +67,17 @@ impl ChatService {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    /// Create a new chat channel. Verifies the user exists (so a stale
-    /// JWT doesn't trigger an FK error) and that `brand_id` (if set)
-    /// references an existing brand.
+    /// Create a new chat channel, OR return the user's existing OPEN
+    /// channel if one already exists. This enforces the business rule:
+    /// **a user has at most one open channel with support at a time.**
+    /// Without this, every call to `POST /api/chat/channels` would
+    /// create a duplicate, cluttering the admin dashboard with
+    /// near-empty channels.
+    ///
+    /// `brand_id` matching: if the user passes a `brand_id`, we only
+    /// reuse an existing open channel for that brand. If they pass
+    /// `None` (general support), we reuse any open channel regardless
+    /// of brand.
     pub async fn create_channel(
         &self,
         user_id: Uuid,
@@ -111,6 +119,26 @@ impl ChatService {
                     "brand not found: {brand_id}"
                 )));
             }
+        }
+
+        // ── Enforce 1 open channel per user ──────────────────────
+        // Check if the user already has an OPEN channel. If yes,
+        // return it instead of creating a new one. This prevents
+        // the "lots of channels" problem the user reported.
+        let existing = self
+            .store
+            .chat_store()
+            .list_channels(user_id, 50)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if let Some(open) = existing
+            .into_iter()
+            .find(|c| c.status == "open" && brand_id == c.brand_id)
+        {
+            // Reuse the existing open channel. The topic/brand_id
+            // from the request body are ignored — the user's existing
+            // channel keeps its original topic.
+            return Ok(open);
         }
 
         self

@@ -12,7 +12,6 @@
 //!   2. **All-caps shouting** — message > 12 chars + > 70% uppercase.
 //!   3. **Phone-number spam** — 3+ distinct phone numbers in one message
 //!      (a common scam pattern).
-//!   4. **Repeated text** — same message hash seen N+ times recently.
 //!
 //! ## Heuristics NOT included (per user request)
 //!
@@ -20,6 +19,12 @@
 //!     component (500-char hard limit + disabled send button).
 //!   * **URL spam** — too noisy; legitimate customer-service URLs
 //!     (booking links, payment receipts) frequently appear in chat.
+//!   * **Repeat-spam** — sending the same message multiple times is NOT
+//!     treated as a violation. The user explicitly said blocking for
+//!     repeat messages is "weird". A user might re-send a message that
+//!     didn't appear to go through, or emphasise a point. We still
+//!     track the message hash for audit, but it does NOT count toward
+//!     the ban threshold.
 //!
 //! The detector is deliberately conservative — false positives would
 //! punish legitimate users. Each heuristic only fires on clear matches.
@@ -52,7 +57,10 @@ pub const WINDOW_SECS: u64 = 5 * 60;
 pub const BAN_SECS: u64 = 10 * 60;
 
 /// Number of violations within the window that triggers a ban.
-pub const BAN_THRESHOLD: u32 = 3;
+/// Set to 5 (was 3) — the user said the ban was too aggressive.
+/// 3 violations = 3 profane messages in 5 minutes → ban. 5 is more
+/// forgiving while still catching sustained abuse.
+pub const BAN_THRESHOLD: u32 = 5;
 
 /// Outcome of inspecting a user's message.
 #[derive(Debug, Clone)]
@@ -189,37 +197,32 @@ impl AbuseGuard {
             }
         }
 
-        // Run heuristics — combine the violation pattern check with
-        // repeat-spam detection (same message hash seen N+ times
-        // recently). Repeat-spam is a violation on its own — even a
-        // clean message posted 3+ times in a row is abusive.
+        // Run heuristics — check for abusive content patterns.
+        // Repeat-spam (same message sent multiple times) is NO LONGER
+        // treated as a ban-triggering violation — the user explicitly
+        // said blocking users for sending the same message a few times
+        // is "weird". Repeat messages alone are not abuse; the user
+        // might be re-sending a message that didn't appear to go
+        // through, or emphasising a point.
+        //
+        // We still track the message hash (for future analysis / audit),
+        // but it does NOT increment the violation counter or trigger
+        // a ban. Only actual content violations (profanity, all-caps
+        // shouting, phone-number spam) count toward the ban threshold.
         let pattern_violation = inspect(text);
         let hash = fxhash(text);
 
-        // Track the hash + check repeat count on the user state.
-        let repeat_extra: Option<String> = if let Some(uid) = user_id {
+        // Track the hash for audit purposes only — does NOT count
+        // toward the ban threshold.
+        if let Some(uid) = user_id {
             let mut st = self.inner.users.entry(uid.to_string()).or_default();
             st.purge_old(now, self.inner.window);
             st.recent_msg_hashes.push_back(hash);
-            let repeats = st.recent_msg_hashes.iter().filter(|h| **h == hash).count();
-            if repeats >= 3 {
-                Some(" (lặp lại nhiều lần)".to_string())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        }
 
-        // The combined violation is the pattern violation, optionally
-        // augmented with the repeat-spam suffix. If neither is present,
-        // the message is clean.
-        let combined_reason: Option<String> = match (pattern_violation, &repeat_extra) {
-            (Some(p), Some(e)) => Some(format!("{p}{e}")),
-            (Some(p), None) => Some(p.to_string()),
-            (None, Some(e)) => Some(format!("Tin nhắn lặp lại nhiều lần{e}")),
-            (None, None) => None,
-        };
+        // The combined violation is just the pattern violation.
+        // Repeat-spam is ignored (see comment above).
+        let combined_reason: Option<String> = pattern_violation.map(|p| p.to_string());
 
         // Apply to both the user_id-keyed state and the IP-keyed state.
         // The user_id state is authoritative; the IP state is a backup
@@ -537,22 +540,18 @@ mod tests {
     }
 
     #[test]
-    fn detects_repeat_spam() {
+    fn repeat_messages_do_not_ban() {
+        // Repeat-spam is NO LONGER a ban-triggering violation.
+        // Sending the same clean message 5 times should NOT result
+        // in a ban (the user explicitly said this is "weird").
         let g = guard();
-        // Same message 4 times → 4th triggers repeat detection.
-        // The repeat-spam check returns a Warned verdict on every
-        // occurrence (each call adds the hash then checks).
         let msg = "đặt vé đi Đà Lạt";
-        let _ = g.check(Some("u11"), Some("1.1.1.11"), msg);
-        let _ = g.check(Some("u11"), Some("1.1.1.11"), msg);
-        let _ = g.check(Some("u11"), Some("1.1.1.11"), msg);
-        let v = g.check(Some("u11"), Some("1.1.1.11"), msg);
-        // The repeat-spam adds a "(lặp lại nhiều lần)" suffix.
-        if let AbuseVerdict::Warned { reason } = v {
-            assert!(reason.contains("lặp lại"), "reason = {reason}");
-        } else {
-            panic!("expected Warned, got {:?}", v);
+        for _ in 0..5 {
+            let v = g.check(Some("u11"), Some("1.1.1.11"), msg);
+            assert!(matches!(v, AbuseVerdict::Ok), "repeat message should not flag: {:?}", v);
         }
+        // Not banned.
+        assert!(g.is_banned("u11").is_none());
     }
 
     #[test]

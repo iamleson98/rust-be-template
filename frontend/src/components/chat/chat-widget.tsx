@@ -53,7 +53,13 @@ export function ChatWidget() {
 
   // The chat session user (may differ briefly from storeUser after guest
   // registration — we keep a local copy to avoid race conditions).
-  const [chatUser, setChatUser] = useState<SessionUser | null>(null)
+  // Initialise from storeUser so the first open is instant — no need
+  // to wait for /api/auth/me if we already have the user from the
+  // global app store. The /api/auth/me call below still runs to
+  // verify the session is valid, but it doesn't block the UI.
+  const [chatUser, setChatUser] = useState<SessionUser | null>(
+    (storeUser as SessionUser | null) ?? null,
+  )
   const [authChecking, setAuthChecking] = useState(false)
 
   // Pre-chat registration form
@@ -440,12 +446,49 @@ export function ChatWidget() {
     if (socketRef.current?.connected) {
       socketRef.current.send('join', { channelId: ch.id })
     }
+    // ── Load historical messages via REST ──────────────────────
+    // The WS only delivers NEW messages broadcast after `join` — it
+    // does NOT replay history. Without this REST call, the user
+    // would see an empty conversation until a new message arrives.
+    // (The REST polling below only kicks in when WS is NOT
+    // connected, so it doesn't help when WS IS connected.)
+    try {
+      const { data: resData } = await sdkListMessages({
+        path: { id: ch.id },
+        query: { limit: 50 },
+      })
+      const data = resData as any
+      if (data?.items) {
+        const items: Message[] = data.items.map((r: Record<string, unknown>) =>
+          normalizeWsMessage(r),
+        )
+        setMessages(items)
+        if (items.length > 0) {
+          lastMsgIdRef.current = items[items.length - 1].id
+        }
+      }
+    } catch {
+      /* noop — WS will still deliver new messages */
+    }
+    setLoadingMessages(false)
     sdkMarkRead({ path: { id: ch.id } }).catch(() => { })
     setChannels((prev) => prev.map((c) => (c.id === ch.id ? { ...c, unreadUser: 0 } : c)))
   }
 
   const startNewChat = async () => {
     if (!chatUser) return
+    // ── Prefer opening an existing channel ──────────────────────
+    // A user should have only 1 open channel with support. Check
+    // the local channels list first — if there's already an open
+    // channel, open it directly (faster — no API call needed).
+    // The backend ALSO enforces this in create_channel, but checking
+    // here first avoids the round-trip entirely.
+    const existingOpen = channels.find((c) => c.status === 'open')
+    if (existingOpen) {
+      openChannel(existingOpen)
+      return
+    }
+    // No existing open channel — create one.
     try {
       const { data: resData, error } = await sdkCreateChannel({
         body: { topic: 'Hỗ trợ đặt vé', brandId: null },
@@ -456,6 +499,9 @@ export function ChatWidget() {
         return
       }
       if (data.channel) {
+        // Refresh the channel list so the new (or existing) channel
+        // appears. The backend may return an existing channel if one
+        // was created between our local check and the API call.
         sdkListChannels({ query: { limit: 50 } })
           .then(({ data }) => {
             const d = data as any
