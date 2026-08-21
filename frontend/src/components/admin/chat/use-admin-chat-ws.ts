@@ -84,17 +84,16 @@ export function useAdminChatWs(
       if (!m.channelId) return
 
       // Invalidate the channels list so the unread badge updates
-      // for the channel that received the new message.
-      qc.invalidateQueries({ queryKey: listChannelsQueryKey() })
+      // for the channel that received the new message. Use partial
+      // key match { _id: 'listChannels' } to match all channel queries.
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
 
       // If the message is for the active channel, invalidate the
       // messages query so the new message appears in the workspace.
+      // Use partial key match to catch all listMessages queries.
       if (activeChannelId && m.channelId === activeChannelId) {
         qc.invalidateQueries({
-          queryKey: listMessagesQueryKey({
-            path: { id: activeChannelId },
-            query: { limit: 50 },
-          }),
+          queryKey: [{ _id: 'listMessages' }],
         })
       }
     })
@@ -104,7 +103,7 @@ export function useAdminChatWs(
     // the admin sees the new channel immediately.
     ws.on('presence', () => {
       if (disposed) return
-      qc.invalidateQueries({ queryKey: listChannelsQueryKey() })
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
     })
 
     return () => {

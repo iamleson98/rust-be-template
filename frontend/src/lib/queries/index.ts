@@ -683,8 +683,10 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: Muta
   return useMutation<TData, unknown, TVars>({
     ...(chatPostMessageMutation() as any),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['listMessages'] })
-      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      // Use partial key match to invalidate all listMessages + listChannels
+      // queries (the generated keys are object arrays, not string arrays).
+      qc.invalidateQueries({ queryKey: [{ _id: 'listMessages' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
@@ -702,9 +704,7 @@ export function useCreateChatChannel<TData = unknown, TVars = unknown>(opts?: Mu
   return useMutation<TData, unknown, TVars>({
     ...(chatCreateChannelMutation() as any),
     onSuccess: (data, vars) => {
-      // Invalidate the channels list so the new/existing channel
-      // appears immediately in the UI.
-      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
@@ -721,7 +721,7 @@ export function useMarkChatRead<TData = unknown, TVars = unknown>(opts?: Mutatio
   return useMutation<TData, unknown, TVars>({
     ...(chatMarkReadMutation() as any),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),

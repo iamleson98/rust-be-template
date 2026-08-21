@@ -57,6 +57,10 @@ import {
   useMarkChatRead,
 } from '@/lib/queries'
 import {
+  listMessagesQueryKey,
+  listChannelsQueryKey,
+} from '@/lib/api/@tanstack/react-query.gen'
+import {
   type CustomerChannel as Channel,
   type Message,
   type View,
@@ -216,9 +220,6 @@ export function ChatWidget() {
 
     ws.on('message', (msg: Record<string, unknown>) => {
       const m = normalizeWsMessage(msg)
-      // Invalidate the messages query for the channel — the REST
-      // endpoint is the single source of truth. The WS event just
-      // signals "something new arrived, refetch".
       if (activeChannelRef.current && m.channelId === activeChannelRef.current.id) {
         if (m.senderType === 'employee') {
           setWaitingForAgent(false)
@@ -237,10 +238,17 @@ export function ChatWidget() {
           playSound('message')
         }
       }
-      // Invalidate the relevant TanStack Query so the REST endpoint
-      // refetches (single source of truth).
-      qc.invalidateQueries({ queryKey: ['listMessages'] })
-      qc.invalidateQueries({ queryKey: ['listChannels'] })
+      // Invalidate the messages query using the CORRECT query key.
+      // The old code used ['listMessages'] (a string) but the actual
+      // key is a complex object from listMessagesQueryKey(). Using
+      // the partial key `{ _id: 'listMessages' }` matches all
+      // listMessages queries regardless of the path/query params.
+      qc.invalidateQueries({
+        queryKey: [{ _id: 'listMessages' }],
+      })
+      qc.invalidateQueries({
+        queryKey: [{ _id: 'listChannels' }],
+      })
     })
 
     ws.on('typing', (data: Record<string, unknown>) => {
@@ -385,13 +393,14 @@ export function ChatWidget() {
     markReadMut.mutate({ path: { id: ch.id } } as any)
     // Optimistically clear the unread badge in the cache — the
     // mutation's onSuccess will refetch from the server to confirm.
-    qc.setQueryData<{ items: Channel[] } | undefined>(
-      ['listChannels'],
-      (old) => {
+    // Use the correct query key format (partial match on _id).
+    qc.setQueryData<any>(
+      [{ _id: 'listChannels' }],
+      (old: any) => {
         if (!old?.items) return old
         return {
           ...old,
-          items: old.items.map((c) =>
+          items: old.items.map((c: any) =>
             c.id === ch.id ? { ...c, unreadUser: 0 } : c
           ),
         }
@@ -429,6 +438,36 @@ export function ChatWidget() {
     setInput('')
     const clientMsgId = 'c' + Date.now() + Math.random().toString(36).slice(2, 6)
 
+    // ── Optimistic message ──────────────────────────────────────
+    // Add the message to the TanStack Query cache IMMEDIATELY so the
+    // user sees it in his chat box without waiting for the WS round-trip
+    // or REST refetch. The WS broadcast or REST response will replace
+    // this optimistic entry (matched by clientMsgId).
+    const optimisticMsg: Message = {
+      id: 'tmp-' + clientMsgId,
+      clientMsgId,
+      channelId: activeChannel.id,
+      senderType: 'user',
+      senderId: chatUser?.id ?? '',
+      senderName: chatUser?.name ?? 'Bạn',
+      content,
+      kind: 'text',
+      createdAt: new Date().toISOString(),
+    }
+
+    // Insert into the query cache optimistically. Use the correct
+    // query key format (the generated key is an object array, not a
+    // string array). We match by partial key { _id: 'listMessages' }.
+    const msgQueryKey = listMessagesQueryKey({
+      path: { id: activeChannel.id },
+      query: { limit: 50 },
+    })
+    qc.setQueryData<any>(msgQueryKey, (old: any) => {
+      if (!old?.items) return old
+      if (old.items.some((m: any) => m.clientMsgId === clientMsgId)) return old
+      return { ...old, items: [...old.items, optimisticMsg] }
+    })
+
     // ── Try WS first (fast path) ────────────────────────────────
     if (socketRef.current?.connected) {
       socketRef.current.send('message', {
@@ -436,6 +475,8 @@ export function ChatWidget() {
         text: content,
         clientMsgId,
       })
+      // The WS broadcast will come back and invalidate the query —
+      // replacing the optimistic message with the real one.
       return
     }
 
