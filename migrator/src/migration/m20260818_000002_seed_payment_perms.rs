@@ -6,8 +6,11 @@
 //! Strategy: SELECT first to check if the perm exists, then INSERT only
 //! if missing. The grant follows the same pattern — SELECT the role id +
 //! perm id, then INSERT only if not already granted. All checks use
-//! the `ConnectionTrait` exposed by `manager.get_connection()`, so
-//! they work uniformly on SQLite + Postgres.
+//! the high-level SeaORM `Query::select()` API (NOT raw SQL) so the
+//! placeholder translation (`?` on SQLite, `$N` on Postgres) is handled
+//! by sea-query automatically. The previous version used raw SQL with
+//! `$1`/`$2` placeholders which is Postgres-only — it would fail on
+//! SQLite.
 
 use sea_orm_migration::prelude::*;
 
@@ -50,7 +53,7 @@ const NEW_PERMS: &[(&str, &str)] = &[
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        use sea_orm::sea_query::Expr;
+        use sea_orm::sea_query::{Expr, Query};
 
         // ── 1. Unique index on role_permissions(role_id, permission_id) ──
         // Lets the grant step be safely re-runnable even on databases
@@ -70,33 +73,43 @@ impl MigrationTrait for Migration {
             .await?;
 
         let conn = manager.get_connection();
+        let backend = conn.get_database_backend();
 
         // Look up the `employee` role id once. If the role doesn't exist
         // (shouldn't happen on a populated DB, but defensive), skip the grants.
+        //
+        // Uses the high-level `Query::select()` API so sea-query
+        // translates placeholders correctly (`?` on SQLite, `$1` on
+        // Postgres). The previous raw-SQL version used `$1` which is
+        // Postgres-only.
         let employee_role_id: Option<uuid::Uuid> = {
-            let stmt = sea_orm::Statement::from_sql_and_values(
-                conn.get_database_backend(),
-                r#"SELECT "id" FROM "roles" WHERE "name" = 'employee' LIMIT 1"#,
-                [],
-            );
+            let stmt = Query::select()
+                .column(Roles::Id)
+                .from(Roles::Table)
+                .and_where(Expr::col(Roles::Name).eq("employee"))
+                .limit(1)
+                .to_owned();
+            let stmt = backend.build(&stmt);
             let row = conn.query_one(stmt).await?;
             row.and_then(|r| r.try_get::<uuid::Uuid>("", "id").ok())
         };
 
         for (name, desc) in NEW_PERMS {
             // 2. Check if the permission already exists.
-            let exists_stmt = sea_orm::Statement::from_sql_and_values(
-                conn.get_database_backend(),
-                r#"SELECT "id" FROM "permissions" WHERE "name" = $1 LIMIT 1"#,
-                [(*name).into()],
-            );
+            let exists_stmt = Query::select()
+                .column(Permissions::Id)
+                .from(Permissions::Table)
+                .and_where(Expr::col(Permissions::Name).eq(*name))
+                .limit(1)
+                .to_owned();
+            let exists_stmt = backend.build(&exists_stmt);
             let existing = conn.query_one(exists_stmt).await?;
             let perm_id: uuid::Uuid = match existing {
                 Some(row) => row.try_get("", "id")?,
                 None => {
                     // Insert it.
                     let new_id = uuid::Uuid::new_v4();
-                    let insert_perm = sea_orm::sea_query::Query::insert()
+                    let insert_perm = Query::insert()
                         .into_table(Permissions::Table)
                         .columns([
                             Permissions::Id,
@@ -119,14 +132,17 @@ impl MigrationTrait for Migration {
             // 3. Grant to employee (if the role was found).
             if let Some(role_id) = &employee_role_id {
                 // Check if the grant already exists.
-                let grant_exists_stmt = sea_orm::Statement::from_sql_and_values(
-                    conn.get_database_backend(),
-                    r#"SELECT 1 FROM "role_permissions" WHERE "role_id" = $1 AND "permission_id" = $2 LIMIT 1"#,
-                    [(*role_id).into(), perm_id.into()],
-                );
+                let grant_exists_stmt = Query::select()
+                    .column(RolePermissions::RoleId)
+                    .from(RolePermissions::Table)
+                    .and_where(Expr::col(RolePermissions::RoleId).eq(*role_id))
+                    .and_where(Expr::col(RolePermissions::PermissionId).eq(perm_id))
+                    .limit(1)
+                    .to_owned();
+                let grant_exists_stmt = backend.build(&grant_exists_stmt);
                 let already_granted = conn.query_one(grant_exists_stmt).await?.is_some();
                 if !already_granted {
-                    let grant = sea_orm::sea_query::Query::insert()
+                    let grant = Query::insert()
                         .into_table(RolePermissions::Table)
                         .columns([
                             RolePermissions::RoleId,
