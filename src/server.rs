@@ -58,14 +58,24 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // doesn't expose a builder method for it.
     let db = Database::connect(opts).await.context("db connect")?;
 
-    // ── SQLite performance pragmas ────────────────────────────────
-    // WAL mode lets readers + writers run concurrently; synchronous=NORMAL
-    // trades a 1ms crash window for 10× faster writes; busy_timeout waits
-    // 5s on lock contention; cache_size 64MB; mmap_size 256MB; foreign_keys
-    // ON (sea-orm migrations assume FK enforcement but SQLite has it OFF
-    // by default).
+    // ── Backend-specific setup ───────────────────────────────────
+    // SQLite: apply performance pragmas (WAL mode, sync=NORMAL,
+    //   busy_timeout, cache_size, mmap_size, foreign_keys=ON).
+    //   SQLite has FK enforcement OFF by default — sea-orm migrations
+    //   assume FK enforcement, so we must turn it on.
+    // Postgres: no pragmas needed (FK enforcement is on by default,
+    //   MVCC handles concurrent readers/writers natively, and tuning
+    //   is done via `postgresql.conf` rather than per-connection
+    //   PRAGMAs).
     if config.database.url.starts_with("sqlite") {
         apply_sqlite_pragmas(&db).await?;
+    } else if config.database.url.starts_with("postgres") {
+        tracing::info!("Postgres detected — no pragmas needed (FK enforcement is on by default)");
+    } else {
+        tracing::warn!(
+            url = &config.database.url[..config.database.url.find("://").unwrap_or(0)],
+            "unknown database URL scheme — no backend-specific setup applied"
+        );
     }
 
     let db = Arc::new(db);
