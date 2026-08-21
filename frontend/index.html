@@ -88,6 +88,10 @@
   <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
   <link rel="dns-prefetch" href="https://unpkg.com" />
 
+  <!-- Self-hosted Geist variable font (subset by unicode-range; only
+       downloads the subsets needed for the page content) -->
+  <link rel="stylesheet" href="/fonts/geist.css" />
+
   <!-- ── Preload critical LCP asset ──────────────────────────────
        The hero image is the LCP element on the homepage. Preload it
        with fetchpriority="high" so the browser starts fetching it
@@ -116,7 +120,7 @@
   <style>
     :root {
       --font-geist-sans:
-        "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
       --font-geist-mono:
         "Geist Mono", ui-monospace, SFMono-Regular, monospace;
     }
@@ -266,7 +270,7 @@
   <!-- Skip-to-content link — appears on Tab focus, lets keyboard /
        screen-reader users jump past the nav to the main content. -->
   <a href="#main-content"
-     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-3 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md focus:shadow-lg">
+     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:px-3 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md focus:shadow-lg">
     Bỏ qua tới nội dung chính
   </a>
   <div id="root"><!--app-html--></div>
