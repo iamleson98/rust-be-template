@@ -125,16 +125,47 @@ export default defineConfig({
     // Port 3000 matches the Caddyfile's default upstream so the SPA is
     // served at the sandbox preview URL with no extra config.
     port: 3000,
-    // Proxy /api, /ws, /health, /docs to the Rust (Axum) backend on :8080.
-    // The SPA's apiFetch() uses relative "/api/..." paths and WsClient
-    // uses same-origin "/ws" — both resolve to Vite, which forwards them.
+    // Proxy all backend routes to the Rust (Axum) backend on :8080.
+    //
+    // The frontend SDK uses RELATIVE URLs (e.g. /api/auth/me) so all
+    // HTTP requests go through this proxy → same-origin → cookies work.
+    // WsClient + AudioCallWidget also use window.location.host (i.e.
+    // localhost:3000) → same-origin → Vite proxies the WS upgrade.
+    //
+    // IMPORTANT: '/ws-call' MUST be listed BEFORE '/ws' — Vite matches
+    // proxy entries by path prefix, and '/ws-call' starts with '/ws'.
+    // If '/ws' is first, it catches '/ws-call' too and proxies it to
+    // the wrong endpoint.
     proxy: {
-      '/api': 'http://localhost:8080',
-      '/ws': { target: 'ws://localhost:8080', ws: true },
-      // WebRTC audio-call signaling endpoint — same Rust backend, same port.
-      '/ws-call': { target: 'ws://localhost:8080', ws: true },
+      // HTTP API — all /api/* requests go to the backend.
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      // WebSocket — audio-call signaling relay.
+      // MUST be listed BEFORE '/ws' — Vite matches proxy entries by
+      // path prefix in insertion order. Since '/ws-call' starts with
+      // '/ws', the '/ws' rule would catch it first if listed before.
+      '/ws-call': {
+        target: 'ws://localhost:8080',
+        ws: true,
+        changeOrigin: true,
+      },
+      // WebSocket — chat hub. Vite intercepts the HTTP upgrade
+      // request and proxies it to the backend's /ws endpoint.
+      '/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
+        changeOrigin: true,
+      },
+      // Other backend routes.
       '/health': 'http://localhost:8080',
       '/docs': 'http://localhost:8080',
+      '/swagger-ui': 'http://localhost:8080',
+      '/api-docs': 'http://localhost:8080',
+      '/sitemap.xml': 'http://localhost:8080',
+      '/robots.txt': 'http://localhost:8080',
+      '/sw.js': 'http://localhost:8080',
     },
   },
 })
