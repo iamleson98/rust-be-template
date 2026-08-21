@@ -113,6 +113,8 @@ import {
   listMessagesOptions as chatMessagesListOptions,
   listMessagesQueryKey as chatMessagesListQueryKey,
   postMessageMutation as chatPostMessageMutation,
+  createChannelMutation as chatCreateChannelMutation,
+  markReadMutation as chatMarkReadMutation,
 } from '@/lib/api/@tanstack/react-query.gen'
 
 // Generated types — re-exported so components can import from here
@@ -654,6 +656,9 @@ export function useChatChannels(limit = 50) {
   return useQuery({
     ...chatChannelsListOptions({ query: { limit } }),
     staleTime: 30 * 1000,
+    // No polling — the admin chat workspace subscribes to the WS
+    // hub for realtime updates. Polling is wasteful now that WS
+    // delivers new channels + unread-counter changes immediately.
   })
 }
 
@@ -664,6 +669,9 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
     queryFn: opts?.queryFn as any ?? (() => Promise.resolve(null)),
     enabled: !!channelId,
     staleTime: 10 * 1000,
+    // No polling — the admin chat workspace subscribes to the WS
+    // hub for realtime new messages. Polling would just add load
+    // without improving UX (WS already gives instant updates).
   })
 }
 
@@ -673,6 +681,43 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(opts?: Muta
     ...(chatPostMessageMutation() as any),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['listMessages'] })
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
+/**
+ * Create a chat channel (or return the existing open one — the
+ * backend enforces 1 open channel per user). Invalidates the
+ * channels list so the new/existing channel appears immediately.
+ */
+export function useCreateChatChannel<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(chatCreateChannelMutation() as any),
+    onSuccess: (data, vars) => {
+      // Invalidate the channels list so the new/existing channel
+      // appears immediately in the UI.
+      qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
+    },
+    onError: (err, vars) => opts?.onError?.(err, vars as TVars),
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
+  })
+}
+
+/**
+ * Mark a chat channel as read by the current user. Invalidates the
+ * channels list so the unread badge clears immediately.
+ */
+export function useMarkChatRead<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
+  return useMutation<TData, unknown, TVars>({
+    ...(chatMarkReadMutation() as any),
+    onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: chatChannelsListQueryKey() })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },

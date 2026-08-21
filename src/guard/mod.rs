@@ -2,15 +2,15 @@
 //!
 //! Currently provides:
 //!   * [`abuse::AbuseGuard`] — detects bad-text patterns (profanity,
-//!     all-caps shouting, phone-number spam, repeat-spam) and
-//!     temporarily bans the offending user for ~10 minutes.
+//!     all-caps shouting, phone-number spam) and temporarily bans the
+//!     offending user for ~10 minutes.
 //!
 //! The guard is an in-memory state machine (DashMap-backed) — ban state
 //! is not persisted across restarts, which is intentional: bans are
 //! short-lived and persisting them creates stale state that's hard to
 //! reason about.
 //!
-//! ## Heuristics NOT included
+//! ## Heuristics NOT included (per user request)
 //!
 //!   * **Message-length abuse** — handled in the frontend chat-input
 //!     component (500-char hard limit + disabled send button). The
@@ -18,9 +18,11 @@
 //!     `content` column.
 //!   * **URL spam** — flagged as too noisy; legitimate customer-service
 //!     URLs (booking links, payment receipts) frequently appear in chat.
-//!     The user explicitly requested this be removed.
+//!   * **Repeat-spam** — sending the same message multiple times is NOT
+//!     treated as a violation. The user explicitly said blocking for
+//!     repeat messages is "weird".
 //!
-//! Both could be re-added later if real-world abuse patterns warrant.
+//! These could be re-added later if real-world abuse patterns warrant.
 
 pub mod abuse;
 
