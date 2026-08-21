@@ -26,6 +26,7 @@ import {
   Bell,
   ShieldCheck,
   Bus,
+  History,
   ArrowLeft,
   LogOut,
   PanelLeftClose,
@@ -40,6 +41,7 @@ const NAV_GROUPS = [
     label: 'Tài khoản',
     items: [
       { title: 'Hồ sơ cá nhân', icon: UserCircle, url: '/account' },
+      { title: 'Lịch sử chuyến đi', icon: History, url: '/account/trips' },
       { title: 'Vé của tôi', icon: Ticket, url: '/bookings' },
     ],
   },
