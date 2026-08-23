@@ -62,7 +62,7 @@ export function DatePriceCompare() {
   const { searchParams, currency } = useApp()
   const navigate = useNavigate()
   const [prices, setPrices] = useState<DatePrice[]>([])
-  const [loading, setLoading] = useState(true)
+  const [, setLoading] = useState(true)
   const abortRef = useRef<AbortController | null>(null)
 
   // Use the date string directly as dependency (not a Date object) to avoid infinite re-renders

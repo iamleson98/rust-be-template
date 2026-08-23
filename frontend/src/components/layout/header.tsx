@@ -26,7 +26,7 @@ const WishlistButton = lazy(() => import('@/components/wishlist/wishlist-button'
 const LoyaltyWidget = lazy(() => import('@/components/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 
 export const Header = memo(function Header() {
-  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser, setAuthOpen } = useApp()
+  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()

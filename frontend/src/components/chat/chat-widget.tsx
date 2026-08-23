@@ -58,7 +58,6 @@ import {
 } from '@/lib/queries'
 import {
   listMessagesQueryKey,
-  listChannelsQueryKey,
 } from '@/lib/api/@tanstack/react-query.gen'
 import {
   type CustomerChannel as Channel,

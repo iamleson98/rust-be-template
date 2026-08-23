@@ -45,24 +45,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Calendar,
   Search,
   Bus,
   Clock,
   MapPin,
   User,
-  Phone,
   Armchair,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
   Loader2,
   Ticket as TicketIcon,
-  X,
   Sparkles,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { vi } from 'date-fns/locale'
 import {
   usePlaceSearch,
   useTripSearch,
@@ -190,7 +186,6 @@ export function ChatTicketPicker({
 
   // ── Derived state ──
   const trip = tripDetail.data
-  const seatMap = trip?.seatMap ?? []
   const pickupPoints = trip?.pickupPoints ?? []
   const boardingPoints = useMemo(
     () => pickupPoints.filter((p) => true), // all points can be boarding

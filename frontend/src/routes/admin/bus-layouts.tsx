@@ -1,10 +1,9 @@
 /** Admin route — `/admin/bus-layouts` — bus layout management page. */
 import { AdminShell } from '@/components/layout/admin-shell'
 import { useAdminBusLayouts } from '@/lib/queries'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Bus } from 'lucide-react'
 
 export function AdminBusLayoutsPage() {
   const { data, isLoading } = useAdminBusLayouts()

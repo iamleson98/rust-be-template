@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import {
   CheckCircle2,
   Copy,
-  PartyPopper,
   QrCode,
   ShieldCheck,
   Ticket,

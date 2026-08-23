@@ -66,8 +66,6 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
                     {/* Row number */}
                     <div className="w-5 text-[10px] text-slate-400 text-right shrink-0">{r.row}</div>
                     {r.seats.map((seat, i) => {
-                      // aisle gap after col 2 typically
-                      const isAisleGap = i > 0 && r.seats[i - 1] === null && seat !== null
                       // Stagger delay: 40ms per seat, capped at 600ms
                       const stagger = seat ? Math.min(seatCounter++ * 40, 600) : 0
                       return seat === null ? (

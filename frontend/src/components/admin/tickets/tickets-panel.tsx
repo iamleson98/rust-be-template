@@ -84,8 +84,6 @@ import {
 } from '@/lib/queries'
 import type {
   AdminBookingFilter,
-  AdminBookingItem,
-  AdminBookingStats,
 } from '@/lib/queries'
 
 import { BookingStatusBadge, KpiCard } from '@/components/admin/dashboard/badges'
@@ -128,17 +126,6 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 function formatVND(n: number | null | undefined): string {
   if (n == null) return '—'
   return new Intl.NumberFormat('vi-VN').format(n) + '₫'
-}
-
-function formatDate(s: string | null | undefined): string {
-  if (!s) return '—'
-  try {
-    const d = parseISO(s)
-    if (!isValid(d)) return s
-    return format(d, 'dd/MM/yyyy HH:mm', { locale: vi })
-  } catch {
-    return s
-  }
 }
 
 function formatDepartureDate(s: string | null | undefined): string {

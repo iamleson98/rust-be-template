@@ -9,7 +9,6 @@
  * the "back to list" affordance when the conversation view is active.
  */
 
-import type React from 'react'
 import {
   Headset,
   X,

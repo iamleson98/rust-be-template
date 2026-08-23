@@ -173,7 +173,7 @@ export function MyBookings() {
 
   // Cancel booking mutation — invalidates the bookings cache on success
   // so the list refreshes automatically (no manual state patching).
-  const { mutateAsync: cancelBookingMut, isPending: cancelBookingPending } = useCancelBooking()
+  const { mutateAsync: cancelBookingMut } = useCancelBooking()
 
   // Auto-expand the first booking once after the initial load.
   useEffect(() => {

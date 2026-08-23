@@ -18,7 +18,7 @@
  *   - Ctrl+B keyboard shortcut to toggle collapse
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@/router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'

@@ -57,7 +57,7 @@ function buildSignalingUrl(): string {
 }
 
 export function AudioCallWidget() {
-  const { user, chatOpen, setChatOpen } = useApp()
+  const { user, chatOpen } = useApp()
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)

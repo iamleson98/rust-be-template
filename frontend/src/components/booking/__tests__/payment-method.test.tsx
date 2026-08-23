@@ -2,7 +2,7 @@
  * Tests for the PaymentMethodStep component.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { PaymentMethodStep } from '@/components/booking/payment-method'
 
 describe('PaymentMethodStep', () => {
