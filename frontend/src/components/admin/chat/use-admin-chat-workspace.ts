@@ -8,30 +8,22 @@
  * Encapsulates:
  *   - channels list (via `useChatChannels`)
  *   - messages for the active channel (via `useChatMessages`)
- *   - two distinct `usePostChatMessage` mutation instances:
- *     * `postReplyMut`     — clears input + toasts success/error
- *     * `postTicketCardMut` — silently swallows errors (the booking
- *       was already created by the time we send the ticket card)
+ *   - reply mutation (via `usePostChatMessage`)
+ *   - realtime WS subscription (via `useAdminChatWs`) — delivers new
+ *     messages, typing indicators, and presence changes instantly.
  *   - active channel state, reply text state
- *   - sendReply / blockChannel / sendTicketCard handlers
- *   - **realtime WS subscription** via `useAdminChatWs` — delivers
- *     new user messages + new channels instantly without polling.
- *
- * Each mutation defines its callbacks at HOOK CREATION time; `mutate()`
- * is then called with only the params.
+ *   - sendReply / typing / presence handlers
  *
  * ## Realtime strategy
  *
  * The admin workspace subscribes to the WS hub. When a new message
- * arrives via WS, the hook invalidates the relevant TanStack Query
- * (channels list or active-channel messages). This triggers a REST
- * refetch — single source of truth (the REST endpoint), instant UX
- * (the WS pushes the invalidation). No polling needed.
+ * arrives via WS, the hook invalidates the relevant TanStack Query.
+ * This triggers a REST refetch — single source of truth, instant UX.
  */
 
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   useChatChannels,
@@ -53,10 +45,10 @@ export function useAdminChatWorkspace() {
   const chatMessages: AdminChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as AdminChatMessage[]
 
   // ── Realtime WS subscription ──────────────────────────────────
-  // Delivers new user messages + new channels instantly. Invalidates
-  // the relevant TanStack Query so the REST endpoint refetches
-  // (single source of truth). No polling.
-  useAdminChatWs(user, activeChannel?.id)
+  const { typingUser, userOnline, sendTyping } = useAdminChatWs(
+    user,
+    activeChannel?.id,
+  )
 
   // Reply mutation — clears the input + toasts the result.
   const postReplyMut = usePostChatMessage({
@@ -69,14 +61,6 @@ export function useAdminChatWorkspace() {
     },
   })
 
-  // Ticket-card mutation — silent failure is OK because the booking
-  // has already been created by the time we send the card.
-  const postTicketCardMut = usePostChatMessage({
-    onError: () => {
-      // Silently fail — the booking was already created.
-    },
-  })
-
   const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
     postReplyMut.mutate({
@@ -85,12 +69,42 @@ export function useAdminChatWorkspace() {
     } as any)
   }, [replyText, activeChannel, postReplyMut])
 
+  // ── Typing indicator ──────────────────────────────────────────
+  // Send typing=true when the admin starts typing, typing=false after
+  // 2s of inactivity.
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onReplyTextChange = useCallback((val: string) => {
+    setReplyText(val)
+    if (activeChannel) {
+      sendTyping(activeChannel.id, true)
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = setTimeout(() => {
+        sendTyping(activeChannel.id, false)
+      }, 2000)
+    }
+  }, [activeChannel, sendTyping])
+
+  // Cleanup typing timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    }
+  }, [])
+
   const blockChannel = useCallback((channelId: string) => {
     toast.success('Đã chặn cuộc trò chuyện', {
       description: 'Khách sẽ không thể gửi tin nhắn mới',
     })
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
+
+  // Ticket-card mutation — silent failure is OK because the booking
+  // has already been created by the time we send the card.
+  const postTicketCardMut = usePostChatMessage({
+    onError: () => {
+      // Silently fail — the booking was already created.
+    },
+  })
 
   const sendTicketCard = useCallback(
     (payload: { bookingCode: string }) => {
@@ -119,8 +133,11 @@ export function useAdminChatWorkspace() {
     activeChannel,
     setActiveChannel,
     replyText,
-    setReplyText,
+    setReplyText: onReplyTextChange,
     sending: postReplyMut.isPending,
+    // realtime state
+    typingUser,
+    userOnline,
     // actions
     sendReply,
     blockChannel,
