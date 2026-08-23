@@ -22,8 +22,11 @@
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || ''
+// Use empty base URL so OAuth links are relative → go through the Vite
+// proxy in dev (same-origin) or the Rust static server in production.
+// Previously used VITE_API_BASE_URL which produced absolute URLs like
+// http://127.0.0.1:8080 — cross-origin from localhost:3000.
+const API_BASE = ''
 
 export function SocialAuthButtons() {
   // Surface OAuth errors passed back from the backend via ?oauth_error=.

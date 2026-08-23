@@ -20,6 +20,8 @@ export function AdminChatPage() {
           onBlockChannel={ws.blockChannel}
           onSetReplyText={ws.setReplyText}
           onSendTicketCard={ws.sendTicketCard}
+          typingUser={ws.typingUser}
+          userOnline={ws.userOnline}
         />
       </div>
     </AdminShell>

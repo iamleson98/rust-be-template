@@ -62,7 +62,13 @@ fn build_cookie(
     builder = builder.same_site(cfg.samesite.as_axum());
     builder = builder.secure(cfg.secure);
     builder = builder.max_age(time::Duration::seconds(ttl.num_seconds()));
-    // Clone domain into a 'static String so the cookie can outlive cfg.
-    builder = builder.domain(cfg.domain.clone());
+    // Only set the Domain attribute if explicitly configured.
+    // An empty domain means "use the request's host" — the browser
+    // scopes the cookie to the origin automatically. This is the
+    // correct default for same-origin dev (Vite proxy) + production
+    // (Rust serves both UI + API on the same origin).
+    if !cfg.domain.is_empty() {
+        builder = builder.domain(cfg.domain.clone());
+    }
     builder.build()
 }

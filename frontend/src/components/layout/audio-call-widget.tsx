@@ -264,21 +264,23 @@ export function AudioCallWidget() {
     }
   }, [])
 
-  // Connect to the signaling WS as soon as the panel opens — this lets us
-  // learn the agent presence BEFORE the user clicks "Gọi ngay". Without
-  // this, the call button stays disabled (onlineAgents=0) forever even
-  // when an agent IS online, because we never receive the `presence`
-  // broadcast. For agents, connecting on open is mandatory — otherwise
-  // they can't receive inbound calls at all.
+  // ── Auto-connect for agents ──────────────────────────────────────
+  // Agents MUST be connected to the signaling WS as soon as they log
+  // in — otherwise they can't receive inbound calls, and customers see
+  // "no agents online" until the agent manually opens the call panel.
+  // We connect automatically for employees even when the panel is
+  // closed. The panel opens only when the agent clicks the FAB.
   //
-  // ALSO: trigger the notification-permission ask on first call-feature
-  // use. We do this here (not in startCall) so the prompt appears the
-  // moment the user opens the call panel — they have clear context
-  // ("I'm about to make a call → notifications make sense") and the
-  // prompt doesn't interrupt their flow. Cached in localStorage so
-  // we never ask twice.
+  // For customers: we still connect when the panel opens (below).
+  const isAgent = user?.type === 'employee'
+
+  // Connect to the signaling WS as soon as the panel opens (for
+  // customers) OR as soon as the agent logs in (for agents).
   useEffect(() => {
-    if (!open) return
+    // Agents: connect immediately (panel doesn't need to be open).
+    // Customers: connect only when panel is open.
+    if (!isAgent && !open) return
+    if (!user) return
     let cancelled = false
     ensureClient().catch((e) => {
       if (!cancelled) {
@@ -289,14 +291,16 @@ export function AudioCallWidget() {
     // Best-effort — don't block the panel open on the permission ask.
     // If the user dismisses the prompt, the call still works; they
     // just won't get a desktop ring if they switch tabs.
-    void ensureCallNotificationPermission()
+    if (open) {
+      void ensureCallNotificationPermission()
+    }
     return () => { cancelled = true }
-  }, [open, ensureClient])
+  }, [open, ensureClient, isAgent, user])
 
   if (!user) return null
 
-  // Agent status text.
-  const isAgent = user.type === 'employee'
+  // Agent status text. isAgent is already declared above (for the
+  // auto-connect effect). Reuse it here.
   const agentsOnline = onlineAgents > 0
   const statusText = isAgent
     ? state === 'active'

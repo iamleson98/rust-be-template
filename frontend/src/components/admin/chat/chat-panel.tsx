@@ -42,6 +42,8 @@ export function ChatPanel({
   onSetReplyText,
   onSendTicketCard,
   onViewTicket,
+  typingUser,
+  userOnline,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -52,14 +54,12 @@ export function ChatPanel({
   onSendReply: () => void
   onBlockChannel: (channelId: string) => void
   onSetReplyText: (v: string) => void
-  /** Called with the booking-card payload after the employee creates a
-   * ticket via the ChatTicketPicker. The parent POSTs a `kind: 'ticket'`
-   * chat message + appends it to the local message list. */
   onSendTicketCard?: (payload: CreatedTicketPayload) => void
-  /** Called when the employee clicks "Xem chi tiết" on a ticket card
-   * rendered inline in the chat. Passes the booking code/id so the parent
-   * can open the TicketsPanel detail dialog. */
   onViewTicket?: (bookingCode: string) => void
+  /** Typing indicator from the user — null when not typing. */
+  typingUser?: { name: string } | null
+  /** Whether the user in the active channel is online. */
+  userOnline?: boolean
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   return (
@@ -160,15 +160,27 @@ export function ChatPanel({
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <div className="font-semibold text-sm truncate">{activeChannel.user?.fullName ?? 'Khách'}</div>
-                    <div className="text-[11px] text-muted-foreground truncate">
-                      {activeChannel.user?.phone && (
-                        <span className="flex items-center gap-1">
-                          <Phone className="h-3 w-3" />
-                          {activeChannel.user.phone}
-                        </span>
+                    <div className="font-semibold text-sm truncate flex items-center gap-2">
+                      {activeChannel.user?.fullName ?? 'Khách'}
+                      {/* Online status dot */}
+                      {userOnline && (
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Đang trực tuyến" />
                       )}
-                      {!activeChannel.user?.phone && activeChannel.topic}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {typingUser ? (
+                        <span className="text-blue-600 italic">{typingUser.name} đang gõ...</span>
+                      ) : (
+                        <>
+                          {activeChannel.user?.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="h-3 w-3" />
+                              {activeChannel.user.phone}
+                            </span>
+                          )}
+                          {!activeChannel.user?.phone && activeChannel.topic}
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -233,6 +245,19 @@ export function ChatPanel({
                     )
                   })}
                 </div>
+
+                {/* Typing indicator dots */}
+                {typingUser && (
+                  <div className="flex justify-start pb-2 px-1">
+                    <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
+                      <div className="flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </ScrollArea>
 
               {/* Quick replies */}

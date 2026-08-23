@@ -3,35 +3,38 @@
  * workspace.
  *
  * Connects the admin to the chat WS hub (same `/ws` endpoint the
- * customer-facing chat widget uses) so the admin sees new user
- * messages + new channels in realtime — no polling.
+ * customer-facing chat widget uses) so the admin sees:
+ *   - New user messages in realtime (no polling)
+ *   - Typing indicators from users
+ *   - Online/offline presence changes
  *
- * On receiving a WS `message` event for the active channel, the hook
- * invalidates the TanStack Query for that channel's messages, which
- * triggers a refetch from the REST API. This gives us:
- *   - Instant "something arrived" signal (WS is fast).
- *   - Authoritative data from the REST endpoint (avoids double-
- *     source-of-truth issues that arise when you try to merge WS
- *     deltas into the query cache directly).
+ * ## Room joining
  *
- * On receiving a `message` event for ANY channel (active or not),
- * the hook invalidates the channels list query so the unread badge
- * updates.
+ * The WS hub broadcasts `message` / `typing` / `presence` events only
+ * to sockets that have JOINED a channel's room (via `send('join', {channelId})`).
+ * The admin must join the active channel's room to receive its events.
+ *
+ * When the admin selects a channel, this hook sends a `join` event.
+ * When the admin switches to a different channel, the old room is
+ * automatically left (the WS hub handles this — `set_channel` replaces
+ * the previous channel).
+ *
+ * ## Query invalidation
+ *
+ * On receiving a WS `message` event, the hook invalidates the
+ * relevant TanStack Query (channels list + active-channel messages).
+ * This triggers a REST refetch — single source of truth (the REST
+ * endpoint), instant UX (the WS pushes the invalidation).
  *
  * The hook is a no-op when `user` is null or when the user is not an
  * employee (customers use their own chat widget).
  */
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import type { SessionUser } from '@/lib/api/types.gen'
-
-import {
-  listChannelsQueryKey,
-  listMessagesQueryKey,
-} from '@/lib/api/@tanstack/react-query.gen'
 
 type WsChatMessageEvent = {
   id: string
@@ -44,72 +47,94 @@ type WsChatMessageEvent = {
   createdAt?: string
 }
 
+type WsTypingEvent = {
+  channelId: string
+  name: string
+  isTyping: boolean
+}
+
+type WsPresenceEvent = {
+  channelId: string
+  userId: string
+  online: boolean
+}
+
 export function useAdminChatWs(
   user: SessionUser | null,
   activeChannelId: string | null | undefined,
 ) {
   const qc = useQueryClient()
+  const wsRef = useRef<WsClient | null>(null)
+  const [typingUser, setTypingUser] = useState<{ name: string } | null>(null)
+  const [userOnline, setUserOnline] = useState(false)
 
+  // Create the WS connection once when the admin logs in.
   useEffect(() => {
     if (!user) return
-    // Only employees (admins/support) use this hook — customers use
-    // their own chat widget which already has WS integration.
     if (user.type !== 'employee') return
 
     let disposed = false
     const ws = new WsClient()
-
-    ws.on('_open', () => {
-      if (!disposed) {
-        // Connection established — no explicit "join" needed here
-        // because the admin wants to receive broadcasts from ALL
-        // channels, not just one. The WS hub broadcasts messages
-        // to every socket in the room, and the admin's socket is
-        // implicitly in the "global" room when not joined to a
-        // specific channel.
-        //
-        // However, we DO want to join the active channel's room
-        // so we receive its messages. Let's do that when the
-        // activeChannelId changes (see separate effect below).
-      }
-    })
-
-    ws.on('_close', () => {
-      // The WsClient auto-reconnects — nothing to do here.
-    })
+    wsRef.current = ws
 
     ws.on('message', (msg: Record<string, unknown>) => {
       if (disposed) return
       const m = msg as unknown as WsChatMessageEvent
       if (!m.channelId) return
 
-      // Invalidate the channels list so the unread badge updates
-      // for the channel that received the new message.
-      qc.invalidateQueries({ queryKey: listChannelsQueryKey() })
+      // Invalidate channels list (unread badges update).
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
 
-      // If the message is for the active channel, invalidate the
-      // messages query so the new message appears in the workspace.
+      // Invalidate messages for the active channel.
       if (activeChannelId && m.channelId === activeChannelId) {
-        qc.invalidateQueries({
-          queryKey: listMessagesQueryKey({
-            path: { id: activeChannelId },
-            query: { limit: 50 },
-          }),
-        })
+        qc.invalidateQueries({ queryKey: [{ _id: 'listMessages' }] })
       }
     })
 
-    // Also listen for `joined` / `presence` events — when a new
-    // customer opens a chat, the channels list should refresh so
-    // the admin sees the new channel immediately.
-    ws.on('presence', () => {
+    ws.on('typing', (data: Record<string, unknown>) => {
       if (disposed) return
-      qc.invalidateQueries({ queryKey: listChannelsQueryKey() })
+      const d = data as unknown as WsTypingEvent
+      if (activeChannelId && d.channelId === activeChannelId) {
+        setTypingUser(d.isTyping ? { name: d.name } : null)
+      }
+    })
+
+    ws.on('presence', (data: Record<string, unknown>) => {
+      if (disposed) return
+      const d = data as unknown as WsPresenceEvent
+      if (activeChannelId && d.channelId === activeChannelId) {
+        setUserOnline(d.online)
+      }
+      // Refresh channels list when presence changes (new customer online).
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
     })
 
     return () => {
       disposed = true
       ws.close()
+      wsRef.current = null
     }
-  }, [user, qc, activeChannelId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  // Join the active channel's room when it changes.
+  useEffect(() => {
+    if (!wsRef.current?.connected || !activeChannelId) return
+    wsRef.current.send('join', { channelId: activeChannelId })
+    // Reset typing/online state when switching channels.
+    setTypingUser(null)
+    setUserOnline(false)
+  }, [activeChannelId])
+
+  // Send typing indicator when admin types.
+  const sendTyping = (channelId: string, isTyping: boolean) => {
+    if (!wsRef.current?.connected) return
+    wsRef.current.send('typing', { channelId, isTyping })
+  }
+
+  return {
+    typingUser,
+    userOnline,
+    sendTyping,
+  }
 }

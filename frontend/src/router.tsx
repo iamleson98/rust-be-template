@@ -76,6 +76,7 @@ const AccountWishlistPage = lazy(() => import('./routes/account/wishlist').then(
 const AccountLoyaltyPage = lazy(() => import('./routes/account/loyalty').then((m) => ({ default: m.AccountLoyaltyPage })))
 const AccountNotificationsPage = lazy(() => import('./routes/account/notifications').then((m) => ({ default: m.AccountNotificationsPage })))
 const AccountSecurityPage = lazy(() => import('./routes/account/security').then((m) => ({ default: m.AccountSecurityPage })))
+const AccountTripsPage = lazy(() => import('./routes/account/trips').then((m) => ({ default: m.AccountTripsPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
@@ -129,6 +130,7 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/account/loyalty': { title: 'Điểm thưởng — VeXeVN', description: 'Điểm tích lũy.' },
   '/account/notifications': { title: 'Thông báo — VeXeVN', description: 'Cài đặt thông báo.' },
   '/account/security': { title: 'Bảo mật — VeXeVN', description: 'Bảo mật tài khoản.' },
+  '/account/trips': { title: 'Lịch sử chuyến đi — VeXeVN', description: 'Lịch sử đặt vé và đánh giá chuyến đi.' },
   '/map': {
     title: 'Bản đồ tuyến đường — VeXeVN',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
@@ -714,6 +716,16 @@ const accountSecurityRoute = createRoute({
   ),
 })
 
+const accountTripsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/account/trips',
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AccountTripsPage />
+    </Suspense>
+  ),
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   searchRoute,
@@ -739,6 +751,7 @@ const routeTree = rootRoute.addChildren([
   accountLoyaltyRoute,
   accountNotificationsRoute,
   accountSecurityRoute,
+  accountTripsRoute,
   loginRoute,
 ])
 
