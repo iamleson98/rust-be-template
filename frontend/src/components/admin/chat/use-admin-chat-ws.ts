@@ -26,6 +26,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { WsClient } from '@/lib/ws-client'
 import { useMarkChatRead } from '@/lib/queries'
 import type { SessionUser } from '@/lib/api/types.gen'
@@ -100,9 +101,55 @@ export function useAdminChatWs(
       }
     })
 
+    // ── Attention signal: a customer sent a message in some channel ──
+    //
+    // `channel_message` is broadcast to ALL online employees (not
+    // just the room). It fires whether or not the admin has the
+    // channel open. We use it to:
+    //   - Invalidate the channels list (so the unread badge +
+    //     last_message_preview update for the channel row).
+    //   - Show a toast notification when the admin has NO active
+    //     channel open OR is viewing a different channel — this is
+    //     the "new message arrived, click to open" attention grab.
+    //
+    // When the admin already has this channel open, the `message`
+    // event above already handled the per-message UI update; this
+    // invalidation is a harmless duplicate (TanStack dedupes).
+    ws.on('channel_message', (data: Record<string, unknown>) => {
+      if (disposed) return
+      const d = data as unknown as {
+        channelId: string
+        senderName?: string
+        preview?: string
+      }
+      if (!d.channelId) return
+
+      // Always refetch the channels list — the row's last_message_preview
+      // + unread counter need to update.
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+
+      // Only show the toast attention signal when the admin is NOT
+      // already viewing this channel. If they're viewing it, the
+      // `message` handler already handled the UI + auto-mark-read.
+      const activeId = activeChannelIdRef.current
+      if (!activeId || activeId !== d.channelId) {
+        const name = d.senderName ?? 'Khách hàng'
+        const preview = d.preview ?? ''
+        // Truncate the preview to keep the toast compact.
+        const snippet = preview.length > 60 ? preview.slice(0, 60) + '…' : preview
+        toast.info(`Tin nhắn mới từ ${name}`, {
+          description: snippet,
+          duration: 5000,
+        })
+      }
+    })
+
     ws.on('typing', (data: Record<string, unknown>) => {
       if (disposed) return
-      const d = data as unknown as WsTypingEvent
+      const d = data as unknown as WsTypingEvent & { userId?: string }
+      // Filter out typing events from OUR OWN user id — same reason
+      // as the customer-side hook (multi-tab scenario).
+      if (user && d.userId && d.userId === user.id) return
       const activeId = activeChannelIdRef.current
       if (activeId && d.channelId === activeId) {
         setTypingUser(d.isTyping ? { name: d.name } : null)

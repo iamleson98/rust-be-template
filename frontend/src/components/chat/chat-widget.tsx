@@ -256,7 +256,18 @@ export function ChatWidget() {
     })
 
     ws.on('typing', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; name: string; isTyping: boolean }
+      const d = data as unknown as {
+        channelId: string
+        name: string
+        isTyping: boolean
+        userId?: string
+      }
+      // Filter out typing events from OUR OWN user id — the backend
+      // already excludes our socket via `broadcast_to_room_except`,
+      // but if the user has multiple tabs open (each with its own
+      // socket in the room), tab A's typing would otherwise bounce
+      // back to tab B. Filtering by userId catches that case.
+      if (chatUser && d.userId && d.userId === chatUser.id) return
       if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
         setTyping(d.isTyping ? { name: d.name } : null)
       }

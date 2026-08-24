@@ -57,6 +57,12 @@ pub trait UserStore: Send + Sync {
     async fn count_users(&self) -> StoreResult<u64>;
     /// Paginated list of users, newest first. Used by `UserService::list`.
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>>;
+    /// Find the first non-bot user with role="employee" — the system
+    /// admin. Used by the chat service to auto-assign an admin to new
+    /// channels. Ordered by `created_at ASC` so we get the FIRST
+    /// registered employee (i.e. the user who signed up first during
+    /// initial setup).
+    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>>;
 }
 
 #[derive(Clone)]
@@ -297,6 +303,16 @@ impl UserStore for DbUserStore {
             .all(self.db.as_ref())
             .await?)
     }
+
+    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>> {
+        Ok(user::Entity::find()
+            .filter(user::Column::Role.eq("employee"))
+            .filter(user::Column::IsBot.eq(false))
+            .order_by_asc(user::Column::CreatedAt)
+            .limit(1)
+            .one(self.db.as_ref())
+            .await?)
+    }
 }
 
 pub struct CacheUserStore<S: UserStore> {
@@ -406,5 +422,11 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>> {
         // List queries aren't cached — they need fresh results every call.
         self.inner.list_users(limit, offset).await
+    }
+
+    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>> {
+        // Not cached — the first-employee answer is stable per deployment
+        // but we don't want to cache in case an admin is demoted/deleted.
+        self.inner.find_first_human_employee().await
     }
 }

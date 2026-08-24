@@ -466,6 +466,36 @@ async fn handle_message(
     });
     hub().broadcast_to_room(&channel_id, &broadcast);
 
+    // ── Admin attention signal ─────────────────────────────────────
+    //
+    // When a customer sends a message, ALSO notify ALL online
+    // employees (regardless of whether they've joined this channel's
+    // room). This is the "new message arrived" notification that
+    // powers the admin dashboard's attention indicator:
+    //
+    //   - Admin has no channel open → the channel row in the list
+    //     shows a "new message" badge + the channels query refetches
+    //     (so unread counter + last_message_preview update).
+    //   - Admin has a DIFFERENT channel open → same thing — the
+    //     channel list updates + a toast may fire.
+    //   - Admin has THIS channel open → they already received the
+    //     `message` event via `broadcast_to_room`; this duplicate
+    //     notification is harmless (idempotent invalidation).
+    //
+    // Only fired for `actor_type == "user"` messages — employee
+    // messages (admin replies) don't need to notify other admins.
+    if user.actor_type == "user" {
+        let preview: String = text.chars().take(80).collect();
+        hub().broadcast_to_employees(&json!({
+            "type": "channel_message",
+            "channelId": channel_id,
+            "senderId": user.id,
+            "senderName": user.name,
+            "preview": preview,
+            "createdAt": now,
+        }));
+    }
+
     hub().send_to(
         sid,
         &json!({ "type": "ack", "clientMsgId": client_msg_id, "id": id }),
@@ -552,15 +582,21 @@ async fn handle_message(
                         // The assistant message is broadcast to the whole
                         // channel room — the customer sees it (if still
                         // connected) AND any watching admin sees it.
+                        // `senderId` uses the bot's actual UUID (looked up
+                        // at the service layer) so the frontend can fetch
+                        // the bot's avatar/name. Falls back to the bot's
+                        // name as a string when the UUID is unavailable
+                        // (degraded mode).
+                        let sender_id = match outcome.bot_user_id {
+                            Some(id) => serde_json::Value::from(id.to_string()),
+                            None => serde_json::Value::from("zeroclaw"),
+                        };
                         let assistant_broadcast = json!({
                             "type": "message",
                             "id": outcome.assistant_message_id,
                             "channelId": channel_id2,
                             "senderType": "assistant",
-                            // Use the bot's reserved UUID so the
-                            // frontend can fetch its avatar/name and so
-                            // the audit trail is consistent.
-                            "senderId": crate::zeroclaw::ZEROCLAW_BOT_USER_ID,
+                            "senderId": sender_id,
                             "senderName": crate::zeroclaw::ZEROCLAW_BOT_NAME,
                             "text": outcome.reply.reply,
                             "createdAt": outcome.created_at,
