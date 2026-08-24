@@ -2,13 +2,20 @@
 #
 # Caddy automatically provisions Let's Encrypt TLS certificates.
 #
-# ⚠️  IMPORTANT: Replace 'yourdomain.com' with your actual domain below.
+# ⚠️  IMPORTANT: Replace 'yourdomain.com' with your actual domain.
 #
 # Setup:
 #   1. Ensure DNS A record points to the VM's public IP
 #   2. Copy this file to the VM: /etc/caddy/Caddyfile
 #   3. Restart: systemctl restart caddy
 #   4. Allow UDP/443 on the firewall for HTTP/3 (QUIC).
+#
+# If using Docker Compose, you don't need Caddy — the backend
+# serves the frontend directly on :8080. Use Caddy only for:
+#   - HTTPS termination
+#   - HTTP/3 (QUIC)
+#   - Brotli/gzip compression
+#   - Security headers
 
 yourdomain.com {
     # ── Reverse proxy to backend ─────────────────────────────────
@@ -29,86 +36,59 @@ yourdomain.com {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"
-        # CSP — restrict asset origins.
-        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://*.tile.openstreetmap.org; font-src 'self' https://fonts.gstatic.com; connect-src 'self' wss: https:; media-src 'self' blob:; frame-ancestors 'self'; form-action 'self'; base-uri 'self'"
-        Permissions-Policy "camera=(), microphone=(self), geolocation=(self), interest-cohort=()"
+        Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' wss: ws: https://www.google-analytics.com https://region1.google-analytics.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
+        X-XSS-Protection "1; mode=block"
+        # Remove Server header for security through obscurity
         -Server
     }
 
-    # ── Compression ──────────────────────────────────────────────
-    # zstd is ~10-15% smaller than brotli, supported in Chrome 96+ and
-    # Firefox 113+. Both are LRU-cached on disk by Caddy.
-    encode zstd gzip {
-        minimum_length 256
-        exclude *.jpg *.jpeg *.png *.gif *.webp *.avif *.mp4 *.woff2 *.woff
-    }
+    # ── Compression ───────────────────────────────────────────────
+    # Caddy auto-negotiates between gzip + zstd (RFC 8878).
+    encode zstd gzip
 
-    # ── Cache headers ────────────────────────────────────────────
-    # Vite emits content-hashed asset names. When content changes the
-    # hash changes → URL changes → safe to cache for a YEAR with `immutable`.
-    @assets path /assets/* /icons/* /brands/* /logo.svg /hero-vietnam-bus.* /og-image.png
-    header @assets {
-        Cache-Control "public, max-age=31536000, immutable"
-    }
+    # ── Static asset caching ─────────────────────────────────────
+    # The Rust backend already sets Cache-Control headers on static
+    # files, but we also cache at the Caddy layer for CDN-like perf.
+    @static path /assets/* /sw.js /icon-*.png /manifest.json
+    header @static Cache-Control "public, max-age=31536000, immutable"
 
-    # Service worker — must always revalidate so users get the latest SW.
-    @sw path /sw.js /manifest.webmanifest
-    header @sw Cache-Control "no-cache, must-revalidate"
+    # ── WebSocket support ────────────────────────────────────────
+    # Caddy handles WS upgrades automatically when reverse_proxy is set.
+    # No special config needed — just ensure the upstream supports WS.
 
-    # HTML pages — revalidate on every request.
-    @html path / /index.html
-    header @html Cache-Control "no-cache, must-revalidate"
+    # ── Health check endpoint (no caching) ───────────────────────
+    @health path /health /ready
+    header @health Cache-Control "no-cache, no-store, must-revalidate"
 
-    # Sitemap + robots — cache 1h at the CDN edge.
-    @seo path /sitemap.xml /robots.txt
-    header @seo Cache-Control "public, max-age=3600"
-
-    # API responses — no cache (TanStack Query handles client-side caching).
-    @api path /api/*
-    header @api Cache-Control "no-store"
-
-    # ── Block known scraping tools at the reverse proxy ────────
-    # Blocks requests with User-Agent matching common scraping tools.
-    # Returns 403 immediately — saves a round-trip to the backend.
-    @scraper {
-        header_regexp User-Agent (?i)(curl|wget|python-requests|scrapy|selenium|puppeteer|playwright|headless|phantomjs|httpx\.rs|reqwest/)
-    }
-    block @scraper 403
-
-    # ── Block direct API access without Referer on mutations ────
-    # POST/PATCH/PUT/DELETE to /api/* without a Referer header are
-    # likely scripted attacks. The backend also checks this, but
-    # blocking at Caddy saves a round-trip.
-    # (Not implemented at Caddy level — requires Caddy enterprise.)
-    # The backend middleware handles this check.
+    # ── API rate limiting (bypassed for WS upgrades) ─────────────
+    # The Rust backend already has tower_governor rate limiting.
+    # Caddy's rate limiting is a second layer for DDoS protection.
+    # Uncomment to enable:
+    # rate_limit {
+    #     zone dynamic {
+    #         key {remote_host}
+    #         events 100
+    #         window 10s
+    #     }
+    # }
 
     # ── Access logs ──────────────────────────────────────────────
     log {
         output file /var/log/caddy/access.log {
             roll_size 100mb
-            roll_keep 7
+            roll_keep 10
+            roll_keep_for 720h
         }
         format json
     }
 }
 
-# Optional: www → apex redirect
-www.yourdomain.com {
-    redir https://yourdomain.com{uri} permanent
-}
+# ── HTTP → HTTPS redirect ───────────────────────────────────────────
+# Caddy does this automatically when a domain block has HTTPS enabled.
+# No explicit redirect block needed.
 
-# ── Global options ──────────────────────────────────────────────
-# Must be at the top of the file (above site blocks). Enables HTTP/3
-# (QUIC) on UDP/443 + reasonable timeouts.
-{
-    servers {
-        protocols h1 h2 h3
-        timeouts {
-            read_body 30s
-            read_header 10s
-            write 0
-            idle 2m
-        }
-        max_header_size 1MB
-    }
-}
+# ── www → non-www redirect (optional) ──────────────────────────────
+# www.yourdomain.com {
+#     redir https://yourdomain.com{uri} permanent
+# }

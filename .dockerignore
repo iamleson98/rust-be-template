@@ -4,45 +4,50 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Build artifacts
 target/
 frontend/dist/
-frontend/.vite/
-frontend/stats.html
 frontend/node_modules/
 
-# Runtime data (should not be baked into the image)
+# Database files
 *.db
 *.db-shm
 *.db-wal
-storage/
-data/
-osm-index/
+app.db*
 
 # IDE / editor
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# Terraform state
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/.terraform/
-terraform/.tfvars
-
-# Docs / CI
-*.md
-.github/
-agent-ctx/
-skills/
-worklog.md
-
-# Misc
+# OS files
 .DS_Store
-*.log
-*.pem
+Thumbs.db
+
+# Docs / scripts (not needed in Docker image)
+*.md
+docs/
+scripts/
+.github/
+.terraform/
+terraform/
+
+# Env files (use --env-file at runtime, not bake into image)
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# ZeroClaw config (mounted at runtime, not baked into image)
+zeroclaw.config.json
+
+# Caddy (used on the VM, not in Docker)
+Caddyfile
