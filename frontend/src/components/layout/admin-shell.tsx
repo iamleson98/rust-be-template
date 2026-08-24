@@ -222,7 +222,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex h-svh w-full overflow-hidden bg-background">
+    <div className="flex w-full overflow-hidden bg-background">
       {/* Desktop sidebar — fixed width, hidden on mobile */}
       <aside
         className={cn(

@@ -115,7 +115,7 @@ export function ChatPanel({
   // chat area auto-scrolls when overflowing, the channel list also
   // scrolls independently. h-[32rem] = 512px (fits 8-10 channel rows
   // or ~15 chat messages before scrolling).
-  const PANES_HEIGHT = 'h-[32rem]'
+  const PANES_HEIGHT = 'max-h-[32rem]'
 
   return (
     <div className="space-y-4">
