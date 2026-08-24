@@ -361,6 +361,25 @@ impl ChatHub {
         false
     }
 
+    /// Check whether a specific user has at least one live socket joined
+    /// to `channel_id`. Used by the ZeroClaw trigger to decide whether
+    /// the customer is still waiting on the chat (typing indicator
+    /// makes sense) or has navigated away (skip the AI reply).
+    pub fn is_user_online_in_channel(&self, channel_id: &str, user_id: &str) -> bool {
+        if let Some(set) = self.rooms.get(channel_id) {
+            for sid in set.iter() {
+                if let Some(sess) = self.sessions.get(&sid) {
+                    if sess.user.id.to_string() == user_id
+                        && sess.user.actor_type == "user"
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Get a snapshot of the user for a socket (clones the SessionUser).
     pub fn user_of(&self, id: u64) -> Option<SessionUser> {
         self.sessions.get(&id).map(|s| s.user.clone())

@@ -10,6 +10,7 @@ pub mod bus_layout;
 pub mod campaign;
 pub mod chat_assignment;
 pub mod chat_channel;
+pub mod chat_channel_member;
 pub mod chat_message;
 pub mod discount_program;
 pub mod notification;

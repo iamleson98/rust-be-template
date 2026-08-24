@@ -25,6 +25,11 @@ pub struct Model {
     pub avatar_url: Option<String>,
     pub locale: String,
     pub is_guest: bool,
+    /// True for bot accounts (ZeroClaw AI, future integrations). Bots have
+    /// `role = "user"` so RBAC is unchanged; this flag is purely
+    /// informational for the chat layer (renders the sender as "bot"
+    /// rather than "human" + lets the WS hub skip online-presence tracking).
+    pub is_bot: bool,
     pub role: String,
     pub failed_login_attempts: i64,
     #[sea_orm(column_type = "Text", nullable)]

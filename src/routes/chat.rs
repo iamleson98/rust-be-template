@@ -23,6 +23,10 @@ pub struct ListChannelsQuery {
 }
 
 /// `GET /api/chat/channels` — list chat channels for the authenticated user.
+///
+/// For **customers**: returns only their own channels (the ones they started).
+/// For **employees**: returns the entire open-channel support queue (optionally
+/// filtered by the employee's brand) so support staff see all inbound chats.
 #[utoipa::path(
     get,
     path = "/api/chat/channels",
@@ -38,9 +42,25 @@ pub async fn list_channels(
     AuthUser(uid): AuthUser,
     Query(q): Query<ListChannelsQuery>,
 ) -> Result<Json<ChatChannelListResponse>, AppError> {
+    // Determine if the caller is an employee → affects which channels they see.
+    // Employees see ALL open channels (support queue); customers see only their own.
+    let is_employee = st.chats.is_employee(uid).await?;
+    // For employees with a brand, narrow the queue to their brand. For
+    // brand-less employees (e.g. super-admins), return all open channels.
+    let brand_id = if is_employee {
+        // Look up the user to get their brand_id. Best-effort — if the
+        // lookup fails, fall back to None (all open channels).
+        match st.users.get(uid).await {
+            Ok(u) => u.brand_id,
+            Err(_) => None,
+        }
+    } else {
+        None
+    };
+
     let channels = st
         .chats
-        .list_channels(uid, q.limit.unwrap_or(50))
+        .list_channels(uid, is_employee, brand_id, q.limit.unwrap_or(50))
         .await?;
     let items: Vec<ChatChannelOut> = channels.into_iter().map(channel_to_dto).collect();
     Ok(Json(ChatChannelListResponse { items }))

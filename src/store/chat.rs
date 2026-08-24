@@ -17,7 +17,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::{chat_channel, chat_message, zero_claw_exchange};
+use crate::entity::{chat_channel, chat_channel_member, chat_message, zero_claw_exchange};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -49,6 +49,13 @@ pub struct NewZeroClawExchange {
     pub handoff_to_human: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct NewChannelMember {
+    pub channel_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Trait
 // ────────────────────────────────────────────────────────────────
@@ -57,9 +64,19 @@ pub struct NewZeroClawExchange {
 pub trait ChatStore: Send + Sync {
     async fn channel_exists(&self, channel_id: &str) -> StoreResult<bool>;
     async fn get_channel(&self, channel_id: &str) -> StoreResult<Option<chat_channel::Model>>;
+    /// List channels owned by a customer (channels they started).
+    /// Used by the customer-facing chat widget.
     async fn list_channels(
         &self,
         user_id: Uuid,
+        limit: u64,
+    ) -> StoreResult<Vec<chat_channel::Model>>;
+    /// List all OPEN channels — the employee support queue.
+    /// Optionally filtered by brand. Used by the admin chat dashboard
+    /// so all support staff see the same queue.
+    async fn list_open_channels(
+        &self,
+        brand_id: Option<Uuid>,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>>;
     async fn create_channel(
@@ -104,6 +121,26 @@ pub trait ChatStore: Send + Sync {
     /// Clear the unread counter for one side of a channel (`"user"` or
     /// `"employee"`). Best-effort — returns `Ok(())` if the channel is gone.
     async fn clear_unread(&self, channel_id: &str, side: &str) -> StoreResult<()>;
+
+    // ── Channel members ─────────────────────────────────────────
+    //
+    // Membership rows are written when a channel is created:
+    //   - the customer (role="user")
+    //   - the ZeroClaw bot (role="bot")
+    //
+    // Employees don't get explicit member rows — they see all open
+    // channels in their brand via `list_open_channels`. This avoids
+    // N×M membership explosion (every channel × every employee).
+
+    /// Add a member to a channel. Idempotent — uses INSERT OR IGNORE
+    /// semantics via the unique(channel_id, user_id) index. Returns
+    /// `Ok(())` even if the member already exists.
+    async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()>;
+    /// List all members of a channel (active = `left_at IS NULL`).
+    async fn list_channel_members(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Vec<chat_channel_member::Model>>;
     async fn invalidate(&self, channel_id: Option<&str>);
 }
 
@@ -155,6 +192,21 @@ impl ChatStore for DbChatStore {
             .limit(limit)
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn list_open_channels(
+        &self,
+        brand_id: Option<Uuid>,
+        limit: u64,
+    ) -> StoreResult<Vec<chat_channel::Model>> {
+        let mut q = chat_channel::Entity::find()
+            .filter(chat_channel::Column::Status.eq("open"))
+            .order_by_desc(chat_channel::Column::LastMessageAt)
+            .limit(limit);
+        if let Some(brand_id) = brand_id {
+            q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
+        }
+        Ok(q.all(self.db.as_ref()).await?)
     }
 
     #[store_macros::no_retry]
@@ -348,6 +400,56 @@ impl ChatStore for DbChatStore {
     }
 
     async fn invalidate(&self, _channel_id: Option<&str>) {}
+
+    // ── Channel members ─────────────────────────────────────────────
+
+    /// Insert a member row. Uses `INSERT ... ON CONFLICT DO NOTHING`
+    /// semantics so it's idempotent — re-adding an existing member is
+    /// a no-op rather than an error. We emulate this in a backend-neutral
+    /// way by catching the unique-constraint error and returning Ok.
+    async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()> {
+        let id = Uuid::new_v4();
+        let now = chrono::Utc::now().to_rfc3339();
+        let model = chat_channel_member::ActiveModel {
+            id: Set(id),
+            channel_id: Set(member.channel_id),
+            user_id: Set(member.user_id),
+            role: Set(member.role),
+            joined_at: Set(now),
+            left_at: Set(None),
+        };
+        match chat_channel_member::Entity::insert(model)
+            .exec_without_returning(self.db.as_ref())
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                // UNIQUE violation → already a member. Both SQLite
+                // ("unique") and Postgres ("duplicate key") surface this
+                // via the same string match.
+                if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict")
+                {
+                    Ok(())
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    async fn list_channel_members(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Vec<chat_channel_member::Model>> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        Ok(chat_channel_member::Entity::find()
+            .filter(chat_channel_member::Column::ChannelId.eq(uuid))
+            .filter(chat_channel_member::Column::LeftAt.is_null())
+            .all(self.db.as_ref())
+            .await?)
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -424,6 +526,14 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         self.inner.list_channels(user_id, limit).await
+    }
+
+    async fn list_open_channels(
+        &self,
+        brand_id: Option<Uuid>,
+        limit: u64,
+    ) -> StoreResult<Vec<chat_channel::Model>> {
+        self.inner.list_open_channels(brand_id, limit).await
     }
 
     async fn create_channel(
@@ -510,5 +620,16 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             let _ = self.cache.delete(&key_channel(id)).await;
             let _ = self.cache.delete(&key_channel_exists(id)).await;
         }
+    }
+
+    async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()> {
+        self.inner.add_channel_member(member).await
+    }
+
+    async fn list_channel_members(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Vec<chat_channel_member::Model>> {
+        self.inner.list_channel_members(channel_id).await
     }
 }

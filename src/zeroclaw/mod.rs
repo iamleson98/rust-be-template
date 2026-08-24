@@ -44,6 +44,28 @@ use crate::config::ZeroClawConfig;
 use crate::error::AppError;
 use crate::store::chat::{ChatStore, NewChatMessage, NewZeroClawExchange};
 
+// ── ZeroClaw bot identity ──────────────────────────────────────
+//
+// The ZeroClaw bot is represented as a real `user` row so its assistant
+// messages have a `sender_id` FK to the user table (consistent with
+// other participants) and a stable identity for the frontend to render
+// (avatar, display name, etc.). The bot is seeded by migration
+// `m20260824_000001_chat_channel_member_and_bot` with a deterministic
+// UUID — referenced here so no DB lookup is needed on every AI reply.
+//
+// If the migration didn't run (or the row was deleted), the chat code
+// degrades gracefully: `sender_id` falls back to `None` and the message
+// is still inserted. The `is_bot_user_loaded()` flag is checked lazily
+// once per process lifetime via `OnceCell` — we don't pay the DB
+// round-trip on every message.
+
+/// Reserved UUID for the ZeroClaw bot user. Picked from the nil-adjacent
+/// range (`000…001`) so it's easy to recognise in DB dumps + logs.
+pub const ZEROCLAW_BOT_USER_ID: Uuid = Uuid::from_u128(0x0000_0000_0000_0000_0000_0000_0000_0001);
+
+/// Display name used in WS broadcasts + chat messages.
+pub const ZEROCLAW_BOT_NAME: &str = "ZeroClaw AI";
+
 /// Conversation turn sent to ZeroClaw. `role` ∈ {`user`, `assistant`}.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationTurn {
@@ -324,7 +346,10 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             .insert_message(NewChatMessage {
                 channel_id: channel_uuid,
                 sender_type: "assistant".into(),
-                sender_id: None,
+                // Use the ZeroClaw bot's reserved UUID so the assistant
+                // message has a real FK to `user`. The frontend renders
+                // this as a "bot" message (with the bot's avatar/name).
+                sender_id: Some(ZEROCLAW_BOT_USER_ID),
                 content: Some(reply.reply.clone()),
                 kind: "text".into(),
                 attachments: None,

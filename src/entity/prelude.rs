@@ -8,6 +8,7 @@ pub use super::bus_layout::Entity as BusLayout;
 pub use super::campaign::Entity as Campaign;
 pub use super::chat_assignment::Entity as ChatAssignment;
 pub use super::chat_channel::Entity as ChatChannel;
+pub use super::chat_channel_member::Entity as ChatChannelMember;
 pub use super::chat_message::Entity as ChatMessage;
 pub use super::discount_program::Entity as DiscountProgram;
 pub use super::notification::Entity as Notification;

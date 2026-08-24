@@ -36,8 +36,9 @@ use uuid::Uuid;
 use crate::auth::SessionUser;
 use crate::entity::{chat_channel, chat_message, zero_claw_exchange};
 use crate::error::{AppError, AppResult};
-use crate::store::chat::NewChatMessage;
+use crate::store::chat::{NewChatMessage, NewChannelMember};
 use crate::store::CompositeStore;
+use crate::zeroclaw::ZEROCLAW_BOT_USER_ID;
 
 /// Chat service. Constructed once at startup with a shared
 /// `Arc<CompositeStore>` and stored as `Arc<ChatService>` on
@@ -53,18 +54,36 @@ impl ChatService {
 
     // ── Channels ────────────────────────────────────────────────
 
-    /// List chat channels for a user (their own + assigned-as-employee).
+    /// List chat channels.
+    ///
+    /// - For **customers** (`is_employee == false`): returns only the
+    ///   channels they started.
+    /// - For **employees** (`is_employee == true`): returns ALL open
+    ///   channels in the support queue (optionally filtered by their
+    ///   brand). This is the admin support dashboard's view.
     pub async fn list_channels(
         &self,
         user_id: Uuid,
+        is_employee: bool,
+        brand_id: Option<Uuid>,
         limit: u64,
     ) -> AppResult<Vec<chat_channel::Model>> {
-        self
-            .store
-            .chat_store()
-            .list_channels(user_id, limit.min(200))
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+        let limit = limit.min(200);
+        if is_employee {
+            self
+                .store
+                .chat_store()
+                .list_open_channels(brand_id, limit)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+        } else {
+            self
+                .store
+                .chat_store()
+                .list_channels(user_id, limit)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+        }
     }
 
     /// Create a new chat channel, OR return the user's existing OPEN
@@ -141,12 +160,67 @@ impl ChatService {
             return Ok(open);
         }
 
-        self
+        let channel = self
             .store
             .chat_store()
             .create_channel(user_id, brand_id, topic.or_else(|| Some("Hỗ trợ".to_string())))
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // ── Auto-join members: customer + ZeroClaw bot ─────────────
+        //
+        // On channel creation we add TWO membership rows:
+        //   1. The customer (role="user") — so the roster reflects
+        //      who started the conversation.
+        //   2. The ZeroClaw bot (role="bot") — so the assistant is a
+        //      first-class participant. The bot doesn't have a WS
+        //      socket; this row is purely for roster/audit purposes.
+        //
+        // Both inserts are best-effort: a failure to add a member
+        // row does NOT fail the channel creation (the channel itself
+        // is already persisted). We log + continue. The membership
+        // table is denormalized for queries — the channel works
+        // even without these rows (existing code paths check
+        // `chat_channel.user_id` directly).
+        let channel_id_v4 = channel.id;
+
+        if let Err(e) = self
+            .store
+            .chat_store()
+            .add_channel_member(NewChannelMember {
+                channel_id: channel_id_v4,
+                user_id,
+                role: "user".into(),
+            })
+            .await
+        {
+            tracing::warn!(
+                channel_id = %channel_id_v4,
+                user_id = %user_id,
+                error = %e,
+                "failed to add customer as channel member (continuing)"
+            );
+        }
+
+        if let Err(e) = self
+            .store
+            .chat_store()
+            .add_channel_member(NewChannelMember {
+                channel_id: channel_id_v4,
+                user_id: ZEROCLAW_BOT_USER_ID,
+                role: "bot".into(),
+            })
+            .await
+        {
+            tracing::warn!(
+                channel_id = %channel_id_v4,
+                bot_id = %ZEROCLAW_BOT_USER_ID,
+                error = %e,
+                "failed to add ZeroClaw bot as channel member (continuing)"
+            );
+        }
+
+        Ok(channel)
     }
 
     /// Check whether a channel exists (used by the WS `join` handler).

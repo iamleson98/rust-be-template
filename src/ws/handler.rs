@@ -485,6 +485,7 @@ async fn handle_message(
         let channel_id2 = channel_id.clone();
         let brand_id2 = brand_id.map(|id| id.to_string());
         let user2 = user.clone();
+        let user_id_str = user.id.to_string();
         let user_msg_id = id.clone();
         let text2 = text.clone();
         let sid_for_typing = sid;
@@ -495,21 +496,44 @@ async fn handle_message(
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
-                // If ZeroClaw will handle this (no humans online), send
-                // a typing indicator to the user so they see "someone
-                // is replying" while the AI processes.
-                let will_zeroclaw_reply = online < fallback_threshold;
+                // Trigger ZeroClaw only when no admin is online. The user
+                // spec says "if admin is online, system does not trigger
+                // zeroclaw, just show chat notification so admin see and
+                // go reply user." — the original message was already
+                // broadcast above (admins see the notification).
+                //
+                // We also re-check whether the customer is still in the
+                // room right before triggering. If they navigated away,
+                // there's no point in showing the typing indicator (no
+                // one will see it). We still call ZeroClaw because the
+                // reply is persisted — the user sees it when they return.
+                let admin_online = online >= fallback_threshold;
+                let will_zeroclaw_reply = !admin_online;
 
                 if will_zeroclaw_reply {
-                    hub().send_to(
-                        sid_for_typing,
-                        &json!({
-                            "type": "typing",
-                            "channelId": channel_id2,
-                            "name": "Nhân viên hỗ trợ",
-                            "isTyping": true,
-                        }),
+                    // Only show the typing indicator if the user is still
+                    // in the channel. This avoids wasted WS writes for
+                    // users who have already closed the chat widget.
+                    let user_still_here = hub().is_user_online_in_channel(
+                        &channel_id2,
+                        &user_id_str,
                     );
+                    if user_still_here {
+                        hub().send_to(
+                            sid_for_typing,
+                            &json!({
+                                "type": "typing",
+                                "channelId": channel_id2,
+                                // Show "Nhân viên hỗ trợ" rather than
+                                // "ZeroClaw AI" — the user spec asks for
+                                // the typing indicator to look like an
+                                // employee is replying (no AI disclosure
+                                // in the typing pill).
+                                "name": "Nhân viên hỗ trợ",
+                                "isTyping": true,
+                            }),
+                        );
+                    }
                 }
 
                 match chats
@@ -525,13 +549,19 @@ async fn handle_message(
                     .await
                 {
                     Ok(Some(outcome)) => {
+                        // The assistant message is broadcast to the whole
+                        // channel room — the customer sees it (if still
+                        // connected) AND any watching admin sees it.
                         let assistant_broadcast = json!({
                             "type": "message",
                             "id": outcome.assistant_message_id,
                             "channelId": channel_id2,
                             "senderType": "assistant",
-                            "senderId": format!("zeroclaw:{}", outcome.reply.model),
-                            "senderName": "ZeroClaw AI",
+                            // Use the bot's reserved UUID so the
+                            // frontend can fetch its avatar/name and so
+                            // the audit trail is consistent.
+                            "senderId": crate::zeroclaw::ZEROCLAW_BOT_USER_ID,
+                            "senderName": crate::zeroclaw::ZEROCLAW_BOT_NAME,
                             "text": outcome.reply.reply,
                             "createdAt": outcome.created_at,
                             "meta": {
@@ -550,6 +580,9 @@ async fn handle_message(
 
                 // Always clear the typing indicator after ZeroClaw
                 // finishes (whether it replied, declined, or errored).
+                // Even if the user left, sending the clear is a no-op
+                // (the socket is gone) — better to always clear than to
+                // risk leaving a stale "typing..." pill on the screen.
                 if will_zeroclaw_reply {
                     hub().send_to(
                         sid_for_typing,
