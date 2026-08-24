@@ -1,35 +1,3 @@
-//! WebSocket upgrade handler + socket.io-like message protocol.
-//!
-//! Wire format (JSON, one message per WS text frame):
-//!
-//! ```jsonc
-//! // client → server
-//! { "type": "join",    "channelId": "...", "clientMsgId": "..." }
-//! { "type": "message", "channelId": "...", "text": "...", "clientMsgId": "..." }
-//! { "type": "read",    "channelId": "..." }
-//! { "type": "typing",  "channelId": "...", "isTyping": true }
-//!
-//! // server → client
-//! { "type": "joined",    "channelId": "...", "userId": "...", "onlineEmployees": 3 }
-//! { "type": "message",   "id": "...", "channelId": "...", "senderType": "user", "senderId": "...", "text": "...", "createdAt": "..." }
-//! { "type": "presence",  "channelId": "...", "userId": "...", "online": true }
-//! { "type": "typing",    "channelId": "...", "userId": "...", "isTyping": true }
-//! { "type": "read",      "channelId": "...", "userId": "...", "lastReadAt": "..." }
-//! { "type": "error",     "message": "..." }
-//! ```
-//!
-//! ## Adaptation notes
-//!
-//! Ported from `booking-rs/ws/handler.rs`. The original used raw `sqlx`
-//! against `AppState.pool`; this version uses the [`ChatStore`] from the
-//! template's `CompositeStore` so it fits the layered store architecture
-//! (no direct DB access in the handler). Auth uses the template's
-//! `AuthService::verify_access_token_session` which returns a `SessionUser`.
-//!
-//! WS tuning knobs (max connections, heartbeat, idle timeout, etc.) are
-//! read from the template's `Config` via the `WsConfig` section. When not
-//! set, sensible defaults apply.
-
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -376,13 +344,6 @@ async fn handle_message(
         .unwrap_or("")
         .to_string();
 
-    // ── Abuse guard ────────────────────────────────────────────────
-    // Inspect the message before storing/broadcasting. If the user is
-    // already banned (or this message triggers a ban), reject the
-    // message and notify the client. The verdict is also persisted to
-    // the channel as a `system` message so the user can see why their
-    // message was rejected (and the human staff can see the violation
-    // when they pick up the channel).
     let guard = crate::guard::AbuseGuard::shared();
     let ip_for_guard = hub().session_ip(sid);
     let verdict = guard.check(Some(&user.id.to_string()), ip_for_guard.as_deref(), &text);
@@ -510,9 +471,6 @@ async fn handle_message(
         &json!({ "type": "ack", "clientMsgId": client_msg_id, "id": id }),
     );
 
-    // ── ZeroClaw AI assistant hook ────────────────────────────────
-    // Goes through ChatService so the chat store stays encapsulated
-    // in the service layer (clean architecture: API/WS → service → store).
     if user.actor_type == "user" {
         let brand_id = st
             .chats
@@ -529,10 +487,7 @@ async fn handle_message(
         let user2 = user.clone();
         let user_msg_id = id.clone();
         let text2 = text.clone();
-        // Capture the current tracing span so logs inside the spawned
-        // task (an LLM HTTP call that can take 5-15s) stay correlated
-        // to the WS handler that triggered them. Without `.instrument`
-        // the span context is dropped at the `tokio::spawn` boundary.
+
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
@@ -631,8 +586,6 @@ fn handle_typing(sid: u64, user: &SessionUser, msg: &serde_json::Value) {
         sid,
     );
 }
-
-// ── Graceful shutdown + background maintenance ─────────────────────
 
 /// Drain all live WS connections on shutdown: send a `system:shutdown`
 /// notice + Close frame, then give sockets a brief grace period.

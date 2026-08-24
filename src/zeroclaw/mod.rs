@@ -338,7 +338,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         let preview: String = reply.reply.chars().take(100).collect();
         let _ = chat_store
             .update_channel_preview(channel_id, preview, now.clone())
-            .await;
+            .await?;
 
         // 6. Audit row.
         let _ = chat_store
@@ -352,7 +352,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
                 latency_ms: Some(latency_ms),
                 handoff_to_human: reply.handoff_to_human,
             })
-            .await;
+            .await?;
 
         tracing::info!(
             channel_id,
