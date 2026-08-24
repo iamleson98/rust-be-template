@@ -232,8 +232,15 @@ pub async fn handle_socket(
                             hub().send_to(sid, &json!({ "type": "error", "message": e.to_string() }));
                         }
                     }
-                    Some(Ok(Message::Binary(_))) | Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                        // Ignore binary + ping/pong (axum auto-pongs).
+                    Some(Ok(Message::Binary(_))) | Some(Ok(Message::Ping(_))) => {
+                        // Ignore binary + ping (axum auto-pongs).
+                    }
+                    Some(Ok(Message::Pong(_))) => {
+                        // Pong received — the client is alive. Reset the
+                        // idle timer so we don't disconnect a healthy
+                        // connection just because the user hasn't sent a
+                        // text message in the last 90s.
+                        idle_timer.as_mut().reset(tokio::time::Instant::now() + idle);
                     }
                     Some(Ok(Message::Close(_))) | None => break,
                     Some(Err(e)) => {

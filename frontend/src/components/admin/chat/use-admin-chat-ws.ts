@@ -118,9 +118,29 @@ export function useAdminChatWs(
   }, [user])
 
   // Join the active channel's room when it changes.
+  // Also join on _open in case the WS wasn't connected when the
+  // channel was first selected (race between effect 1 connecting
+  // and effect 2 trying to join).
   useEffect(() => {
-    if (!wsRef.current?.connected || !activeChannelId) return
-    wsRef.current.send('join', { channelId: activeChannelId })
+    if (!activeChannelId) return
+    const ws = wsRef.current
+    if (!ws) return
+
+    const doJoin = () => {
+      ws.send('join', { channelId: activeChannelId })
+    }
+
+    if (ws.connected) {
+      doJoin()
+    } else {
+      // WS not yet connected — wait for _open then join.
+      const handler = () => {
+        doJoin()
+        ws.off('_open', handler)
+      }
+      ws.on('_open', handler)
+    }
+
     // Reset typing/online state when switching channels.
     setTypingUser(null)
     setUserOnline(false)

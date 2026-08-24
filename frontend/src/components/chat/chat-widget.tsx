@@ -396,8 +396,17 @@ export function ChatWidget() {
     setWaitingForAgent(false)
     setAgentJoinedName(null)
     setEmployeesOnline(0)
-    if (socketRef.current?.connected) {
-      socketRef.current.send('join', { channelId: ch.id })
+    if (socketRef.current) {
+      if (socketRef.current.connected) {
+        socketRef.current.send('join', { channelId: ch.id })
+      } else {
+        // WS still connecting — join once it's open.
+        const joinHandler = () => {
+          socketRef.current?.send('join', { channelId: ch.id })
+          socketRef.current?.off('_open', joinHandler)
+        }
+        socketRef.current.on('_open', joinHandler)
+      }
     }
     markReadMut.mutate({ path: { id: ch.id } } as any)
     // Optimistically clear the unread badge in the cache — the
