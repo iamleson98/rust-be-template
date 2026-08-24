@@ -18,7 +18,7 @@
  */
 
 import type React from 'react'
-import { Loader2, Check, CheckCheck, Users, Sparkles } from 'lucide-react'
+import { Loader2, Check, CheckCheck, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Message } from './_shared'
 
@@ -54,14 +54,10 @@ export function ChatConversation({
             <div className="text-center py-2">
               <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[10px] text-emerald-700 ring-1 ring-emerald-200">
                 <Sparkles className="inline h-2.5 w-2.5 mr-1" />
-                Trợ lý AI luôn sẵn sàng • Phản hồi tức thì
+                Nhân viên luôn sẵn sàng • Phản hồi tức thì
               </span>
             </div>
 
-            {/* Waiting-for-agent banner — kept for legacy compatibility,
-                but the always-on ZeroClaw local provider means a real
-                human is no longer required to acknowledge a message.
-                The banner is now informational only. */}
             {waitingForAgent && (
               <div className="flex justify-center py-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
@@ -71,8 +67,7 @@ export function ChatConversation({
               </div>
             )}
 
-            {/* Agent joined banner */}
-            {!waitingForAgent && agentJoinedName && employeesOnline > 0 && (
+            {/* {!waitingForAgent && agentJoinedName && employeesOnline > 0 && (
               <div className="flex justify-center py-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs text-blue-800">
                   <Users className="h-3 w-3" />
@@ -81,7 +76,7 @@ export function ChatConversation({
                   </span>
                 </div>
               </div>
-            )}
+            )} */}
 
             {messages.map((m, i) => {
               const isMe = m.senderType === 'user'
