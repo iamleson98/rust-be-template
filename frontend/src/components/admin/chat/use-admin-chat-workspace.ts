@@ -63,11 +63,13 @@ export function useAdminChatWorkspace() {
 
   const sendReply = useCallback(() => {
     if (!replyText.trim() || !activeChannel) return
+    // Send typing=false so the user sees the admin stopped typing.
+    sendTyping(activeChannel.id, false)
     postReplyMut.mutate({
       path: { id: activeChannel.id },
       body: { content: replyText.trim(), kind: 'text' },
     } as any)
-  }, [replyText, activeChannel, postReplyMut])
+  }, [replyText, activeChannel, postReplyMut, sendTyping])
 
   // ── Typing indicator ──────────────────────────────────────────
   // Send typing=true when the admin starts typing, typing=false after

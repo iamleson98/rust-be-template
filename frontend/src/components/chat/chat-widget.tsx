@@ -454,6 +454,12 @@ export function ChatWidget() {
     const content = (text ?? input).trim()
     if (!content || !activeChannel) return
     setInput('')
+    // Clear typing indicator after sending.
+    setTyping(null)
+    // Send typing=false so the admin sees the user stopped typing.
+    if (socketRef.current?.connected) {
+      socketRef.current.send('typing', { channelId: activeChannel.id, isTyping: false })
+    }
     const clientMsgId = 'c' + Date.now() + Math.random().toString(36).slice(2, 6)
 
     // ── Optimistic message ──────────────────────────────────────

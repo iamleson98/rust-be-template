@@ -15,19 +15,12 @@
  * The admin must join the active channel's room to receive its events.
  *
  * When the admin selects a channel, this hook sends a `join` event.
- * When the admin switches to a different channel, the old room is
- * automatically left (the WS hub handles this — `set_channel` replaces
- * the previous channel).
  *
  * ## Query invalidation
  *
  * On receiving a WS `message` event, the hook invalidates the
  * relevant TanStack Query (channels list + active-channel messages).
- * This triggers a REST refetch — single source of truth (the REST
- * endpoint), instant UX (the WS pushes the invalidation).
- *
- * The hook is a no-op when `user` is null or when the user is not an
- * employee (customers use their own chat widget).
+ * This triggers a REST refetch — single source of truth, instant UX.
  */
 'use client'
 
@@ -68,6 +61,14 @@ export function useAdminChatWs(
   const [typingUser, setTypingUser] = useState<{ name: string } | null>(null)
   const [userOnline, setUserOnline] = useState(false)
 
+  // CRITICAL: Use a ref for activeChannelId so the WS event handlers
+  // (which are registered once when the WS connects) always see the
+  // LATEST value. Without a ref, the closures capture the initial
+  // activeChannelId (undefined) and never update — so the admin never
+  // receives messages/typing/presence for the selected channel.
+  const activeChannelIdRef = useRef(activeChannelId)
+  activeChannelIdRef.current = activeChannelId
+
   // Create the WS connection once when the admin logs in.
   useEffect(() => {
     if (!user) return
@@ -82,11 +83,12 @@ export function useAdminChatWs(
       const m = msg as unknown as WsChatMessageEvent
       if (!m.channelId) return
 
-      // Invalidate channels list (unread badges update).
+      // Always invalidate channels list (unread badges update).
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
 
-      // Invalidate messages for the active channel.
-      if (activeChannelId && m.channelId === activeChannelId) {
+      // Invalidate messages for the active channel (using ref).
+      const activeId = activeChannelIdRef.current
+      if (activeId && m.channelId === activeId) {
         qc.invalidateQueries({ queryKey: [{ _id: 'listMessages' }] })
       }
     })
@@ -94,7 +96,8 @@ export function useAdminChatWs(
     ws.on('typing', (data: Record<string, unknown>) => {
       if (disposed) return
       const d = data as unknown as WsTypingEvent
-      if (activeChannelId && d.channelId === activeChannelId) {
+      const activeId = activeChannelIdRef.current
+      if (activeId && d.channelId === activeId) {
         setTypingUser(d.isTyping ? { name: d.name } : null)
       }
     })
@@ -102,10 +105,11 @@ export function useAdminChatWs(
     ws.on('presence', (data: Record<string, unknown>) => {
       if (disposed) return
       const d = data as unknown as WsPresenceEvent
-      if (activeChannelId && d.channelId === activeChannelId) {
+      const activeId = activeChannelIdRef.current
+      if (activeId && d.channelId === activeId) {
         setUserOnline(d.online)
       }
-      // Refresh channels list when presence changes (new customer online).
+      // Refresh channels list when presence changes.
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
     })
 
@@ -118,9 +122,6 @@ export function useAdminChatWs(
   }, [user])
 
   // Join the active channel's room when it changes.
-  // Also join on _open in case the WS wasn't connected when the
-  // channel was first selected (race between effect 1 connecting
-  // and effect 2 trying to join).
   useEffect(() => {
     if (!activeChannelId) return
     const ws = wsRef.current
