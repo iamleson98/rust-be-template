@@ -1,0 +1,9 @@
+# k6 test results (JSON output when K6_OUT=json is set)
+results/
+
+# k6 archive (when using `k6 archive`)
+*.tar
+
+# OS files
+.DS_Store
+Thumbs.db
