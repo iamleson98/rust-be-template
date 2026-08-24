@@ -104,23 +104,37 @@ export function withAuth(extra = {}) {
 }
 
 /**
- * Build a unique email for registration. Uses the VU id + iteration
- * number so concurrent registrations don't collide.
+ * Per-worker VU offset — used when running distributed k6 (multiple
+ * Docker containers via `docker compose --scale`). Each container
+ * is a separate k6 process with `__VU` starting at 1. Without an
+ * offset, workers would generate the same emails/phones → 409 collisions.
+ *
+ * Set `K6_VU_OFFSET` per worker (e.g. 0, 1000, 2000, ...) so each
+ * worker's VU ids are in a non-overlapping range. See
+ * `run-distributed.sh` for how this is wired.
+ */
+const VU_OFFSET = Number(__ENV.K6_VU_OFFSET) || 0;
+
+/**
+ * Build a unique email for registration. Uses the VU id (offset by
+ * `K6_VU_OFFSET` for distributed runs) + iteration number so
+ * concurrent registrations don't collide — even across multiple
+ * k6 worker containers.
  *
  * Format: `k6-vu{vu}-it{iter}@loadtest.example`
  */
 export function uniqueEmail() {
-  const vu = __VU;
+  const vu = __VU + VU_OFFSET;
   const iter = __ITER;
   return `k6-vu${vu}-it${iter}@loadtest.example`;
 }
 
 /**
  * Build a unique phone number. Vietnamese mobile format: `+849` + 8 digits.
- * Uses VU id + iteration to avoid collisions.
+ * Uses VU id (offset for distributed runs) + iteration to avoid collisions.
  */
 export function uniquePhone() {
-  const vu = __VU;
+  const vu = __VU + VU_OFFSET;
   const iter = __ITER;
   // Pad to ensure 8 digits after `+849`.
   const num = String(vu * 100000 + (iter % 100000)).padStart(8, '0').slice(-8);

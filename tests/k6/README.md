@@ -218,8 +218,10 @@ k6 outputs a summary table at the end. Key metrics:
 ```
 tests/k6/
 ├── README.md                # This file
-├── run.sh                   # Convenience runner
-├── config.js                # Shared config (BASE_URL, headers, cookies)
+├── run.sh                   # Single-process runner
+├── run-distributed.sh       # Multi-container runner (separate rate-limit buckets)
+├── docker-compose.k6.yml    # Docker Compose for 5 k6 workers
+├── config.js                # Shared config (BASE_URL, headers, cookies, VU_OFFSET)
 ├── helpers/
 │   ├── auth.js              # register, login, employeeLogin, refresh, logout, me
 │   ├── chat.js              # listChannels, createChannel, listMessages, sendMessage, markRead
@@ -282,3 +284,147 @@ the business logic.
    a long-running load test.
 5. **Use JSON output for CI** — `K6_OUT=json ./tests/k6/run.sh auth`
    writes results to `tests/k6/results/auth.json` for parsing in CI.
+
+## Distributed testing (multiple IPs, separate rate-limit buckets)
+
+### The problem
+
+k6 runs all VUs in a single process → all requests come from one IP
+(`127.0.0.1` if running locally). The backend's rate limiter
+(`tower_governor`, 600 RPM / 100 burst per IP) keys on the TCP source
+IP → all VUs share ONE rate-limit bucket. At 50+ VUs, you'll hit 429s
+before the backend's actual capacity ceiling.
+
+### The solution — Docker containers with separate IPs
+
+Run N k6 containers. Each container gets its own IP on the Docker
+bridge network (172.17.0.x on Linux). The backend sees N different
+source IPs → N separate rate-limit buckets → N× the aggregate
+throughput.
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Host machine (Linux)                               │
+│                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │ k6 w-1   │  │ k6 w-2   │  │ k6 w-3   │  ...     │
+│  │172.17.0.2│  │172.17.0.3│  │172.17.0.4│          │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
+│       │              │              │                │
+│       └──────────────┼──────────────┘                │
+│                      ▼                               │
+│              ┌──────────────┐                       │
+│              │  Backend     │  ← sees 3 different    │
+│              │  :8080       │    source IPs → 3     │
+│              └──────────────┘    rate-limit buckets  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Option A — `run-distributed.sh` (simplest)
+
+```bash
+# Prerequisites: Docker installed + backend running.
+
+# Run 3 workers hitting the public scenario:
+./tests/k6/run-distributed.sh public 3
+
+# Run 5 workers with JSON output for CI:
+K6_OUT=json ./tests/k6/run-distributed.sh mixed 5
+
+# Run against a backend on the host (cargo run):
+BASE_URL=http://host.docker.internal:8080 \
+  ./tests/k6/run-distributed.sh auth 5
+
+# With auth credentials:
+USER_EMAIL=user@example.com USER_PASSWORD=Pass123! \
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=Pass123! \
+  ./tests/k6/run-distributed.sh mixed 5
+```
+
+The script:
+1. Starts N Docker containers, each with a distinct `K6_VU_OFFSET`
+   (0, 1000, 2000, ...) so VU ids don't collide across workers.
+2. Each container runs the same scenario — the aggregate load is
+   `N × per-worker-VUs`.
+3. Waits for all workers to finish.
+4. If `K6_OUT=json`, aggregates results from `results/worker-*.json`.
+
+### Option B — `docker-compose.k6.yml` (more control)
+
+```bash
+# Run 5 k6 workers via Docker Compose:
+K6_SCENARIO=mixed docker compose -f tests/k6/docker-compose.k6.yml up
+
+# Stop + clean up:
+docker compose -f tests/k6/docker-compose.k6.yml down -v
+```
+
+The Compose file defines 5 workers (`k6-worker-1` through `k6-worker-5`),
+each with a hardcoded `K6_VU_OFFSET`. Comment out workers you don't
+need, or add more by copying the pattern.
+
+### When the backend is in Docker vs on the host
+
+**Backend in Docker** (via `docker-compose.yml`):
+```bash
+# Start backend first:
+docker compose up -d backend
+
+# Then run k6 workers on the same network:
+BASE_URL=http://backend:8080 \
+  ./tests/k6/run-distributed.sh public 5
+```
+
+**Backend on host** (`cargo run -- serve`):
+```bash
+# k6 workers connect via host.docker.internal:
+BASE_URL=http://host.docker.internal:8080 \
+  ./tests/k6/run-distributed.sh public 5
+```
+
+On Linux, `host.docker.internal` requires Docker 20.10+ (it's
+auto-resolved via `host-gateway`). On macOS Docker Desktop, it
+works out of the box — BUT all containers may appear to come from
+the same Docker VM IP (not separate IPs). For true per-container
+IP separation on macOS, use Docker's `host` networking mode (which
+shares the host stack — defeats the purpose) or run k6 natively.
+
+### How many workers do I need?
+
+Each worker gets its own 600 RPM / 100 burst budget. The aggregate
+throughput is `N × 600 RPM = N × 10 RPS sustained`.
+
+| Workers | Aggregate RPM | Aggregate sustained RPS | Notes |
+|---------|--------------|------------------------|-------|
+| 1 | 600 | 10 | Same as single-process k6 |
+| 3 | 1,800 | 30 | Good for auth/chat scenarios |
+| 5 | 3,000 | 50 | Good for public/mixed scenarios |
+| 10 | 6,000 | 100 | Approaches backend's real capacity |
+
+Start with 3 workers. If the backend handles it without errors,
+scale to 5, then 10. Watch the backend's `cargo run` logs for
+slow queries, connection-pool exhaustion, or panics.
+
+### macOS caveat
+
+On macOS, Docker runs inside a Linux VM. All k6 containers share the
+VM's network stack when connecting to `host.docker.internal` — the
+backend may see them as coming from the same IP (the VM's bridge IP).
+For true per-container IP separation on macOS, you'd need to use a
+user-defined bridge network with the backend also in Docker (not
+on the host). This is a Docker Desktop limitation, not a k6 one.
+
+### ⚠️ Honest note on per-VU SOCKS proxies
+
+You may have seen references to "per-VU SOCKS proxies" for k6.
+**This is not a real k6 feature.** k6 shares one network stack across
+all VUs in a process — there's no built-in way to assign different
+proxies to different VUs. The Docker container approach (above) is
+the practical alternative: each CONTAINER gets its own IP, even
+though all VUs within a container share that container's IP.
+
+For TRUE per-request IP rotation (each HTTP request from a different
+IP), you'd need a rotating residential proxy service (like Bright
+Data or SmartProxy) — k6 connects to one proxy URL, the proxy
+rotates the exit IP per request. This is a paid service + outside
+the scope of this repo's test suite.

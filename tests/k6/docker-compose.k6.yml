@@ -1,0 +1,194 @@
+# docker-compose.k6.yml — distributed k6 load test.
+#
+# Runs N k6 worker containers, each with its own IP on the Docker
+# bridge network. The backend's rate limiter (tower_governor, 600
+# RPM / 100 burst per IP) sees each container as a separate client
+# → each gets its own rate-limit bucket.
+#
+# ## Why this exists
+#
+# k6's `http` module shares one network stack across all VUs in a
+# single process. All VUs appear to come from the same IP (127.0.0.1
+# if running locally). The rate limiter keys on IP → all VUs share
+# one 600 RPM budget.
+#
+# By running k6 in separate Docker containers, each container gets
+# its own bridge IP (172.17.0.x on Linux). The backend sees N
+# different source IPs → N separate rate-limit buckets → N× the
+# aggregate throughput ceiling.
+#
+# ## Prerequisites
+#
+# 1. Docker + Docker Compose v2 installed.
+# 2. The backend must be running + reachable from Docker.
+#
+#    Case A — backend in Docker (via the project's docker-compose.yml):
+#      The k6 workers join the same network (`vexevn_default` by
+#      default). Set BASE_URL=http://backend:8080.
+#
+#    Case B — backend on the host (cargo run):
+#      The k6 workers connect via `host.docker.internal`. Set
+#      BASE_URL=http://host.docker.internal:8080. On Linux, uncomment
+#      the `extra_hosts` lines below.
+#
+# ## Usage
+#
+#   # Start the backend first (if not already running):
+#   docker compose up -d backend
+#
+#   # Run 3 k6 workers hitting the public scenario:
+#   K6_SCENARIO=public docker compose -f tests/k6/docker-compose.k6.yml up
+#
+#   # Run all 5 workers (default):
+#   K6_SCENARIO=mixed docker compose -f tests/k6/docker-compose.k6.yml up
+#
+#   # Stop + clean up:
+#   docker compose -f tests/k6/docker-compose.k6.yml down -v
+#
+# ## Per-worker VU offset
+#
+# Each worker is a separate k6 process with `__VU` starting at 1.
+# Without an offset, all workers would generate the same emails → 409
+# collisions. Each worker has a `K6_VU_OFFSET` env var (0, 1000, 2000,
+# 3000, 4000) so VU ids are in non-overlapping ranges. See
+# `config.js::uniqueEmail()` for how the offset is used.
+#
+# ## Results aggregation
+#
+# Each worker writes JSON results to `tests/k6/results/worker-N.json`.
+# Use `run-distributed.sh` to aggregate them into a single summary.
+
+# YAML anchor — shared config for all workers. Avoids repeating the
+# image/volumes/env block 5 times.
+x-k6-base: &k6-base
+  image: grafana/k6:0.57.0
+  volumes:
+    # Mount the k6 test suite into the container.
+    - ./tests/k6:/scripts
+    # Shared volume for JSON results (when K6_OUT=json is set).
+    - k6-results:/results
+  environment:
+    # Don't inherit the host's HTTP_PROXY — k6 should connect directly.
+    - K6_NO_SYSTEM_PROXY=true
+    # Backend URL. Defaults to the Docker-network hostname `backend`
+    # (when the backend is also in Docker). Override for host-based
+    # backends: -e BASE_URL=http://host.docker.internal:8080
+    - BASE_URL=${BASE_URL:-http://backend:8080}
+    # Origin header — must match the backend's CORS_ORIGINS.
+    - ORIGIN=${ORIGIN:-http://localhost:8080}
+    # Auth credentials (for scenarios that need login).
+    - USER_EMAIL=${USER_EMAIL:-}
+    - USER_PASSWORD=${USER_PASSWORD:-}
+    - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+    - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+    # Booking scenario params (optional).
+    - TRIP_ID=${TRIP_ID:-}
+    - SEAT_ID_1=${SEAT_ID_1:-}
+    - SEAT_ID_2=${SEAT_ID_2:-}
+    # Output format — set K6_OUT=json to write results to /results/.
+    - K6_OUT=${K6_OUT:-}
+  # The scenario to run. Override via -e K6_SCENARIO=mixed.
+  # Default to smoke so `up` without env doesn't hammer the backend.
+  command: ["run", "--out", "${K6_OUT:-text}", "/scripts/scenarios/${K6_SCENARIO:-01-smoke}.js"]
+  # Linux only — allows the container to reach `host.docker.internal`
+  # when the backend runs on the host (cargo run). Uncomment if needed.
+  # extra_hosts:
+  #   - "host.docker.internal:host-gateway"
+  networks:
+    - k6-net
+
+services:
+  # ── 5 k6 workers, each with a distinct VU offset ───────────────
+  # Each is a separate container with its own IP on the k6-net network.
+  # The backend sees 5 different source IPs → 5 separate rate-limit
+  # buckets → 5× the aggregate throughput (5 × 600 RPM = 3000 RPM).
+
+  k6-worker-1:
+    <<: *k6-base
+    environment:
+      - K6_NO_SYSTEM_PROXY=true
+      - BASE_URL=${BASE_URL:-http://backend:8080}
+      - ORIGIN=${ORIGIN:-http://localhost:8080}
+      - USER_EMAIL=${USER_EMAIL:-}
+      - USER_PASSWORD=${USER_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TRIP_ID=${TRIP_ID:-}
+      - SEAT_ID_1=${SEAT_ID_1:-}
+      - SEAT_ID_2=${SEAT_ID_2:-}
+      - K6_OUT=${K6_OUT:-}
+      - K6_VU_OFFSET=0
+
+  k6-worker-2:
+    <<: *k6-base
+    environment:
+      - K6_NO_SYSTEM_PROXY=true
+      - BASE_URL=${BASE_URL:-http://backend:8080}
+      - ORIGIN=${ORIGIN:-http://localhost:8080}
+      - USER_EMAIL=${USER_EMAIL:-}
+      - USER_PASSWORD=${USER_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TRIP_ID=${TRIP_ID:-}
+      - SEAT_ID_1=${SEAT_ID_1:-}
+      - SEAT_ID_2=${SEAT_ID_2:-}
+      - K6_OUT=${K6_OUT:-}
+      - K6_VU_OFFSET=1000
+
+  k6-worker-3:
+    <<: *k6-base
+    environment:
+      - K6_NO_SYSTEM_PROXY=true
+      - BASE_URL=${BASE_URL:-http://backend:8080}
+      - ORIGIN=${ORIGIN:-http://localhost:8080}
+      - USER_EMAIL=${USER_EMAIL:-}
+      - USER_PASSWORD=${USER_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TRIP_ID=${TRIP_ID:-}
+      - SEAT_ID_1=${SEAT_ID_1:-}
+      - SEAT_ID_2=${SEAT_ID_2:-}
+      - K6_OUT=${K6_OUT:-}
+      - K6_VU_OFFSET=2000
+
+  k6-worker-4:
+    <<: *k6-base
+    environment:
+      - K6_NO_SYSTEM_PROXY=true
+      - BASE_URL=${BASE_URL:-http://backend:8080}
+      - ORIGIN=${ORIGIN:-http://localhost:8080}
+      - USER_EMAIL=${USER_EMAIL:-}
+      - USER_PASSWORD=${USER_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TRIP_ID=${TRIP_ID:-}
+      - SEAT_ID_1=${SEAT_ID_1:-}
+      - SEAT_ID_2=${SEAT_ID_2:-}
+      - K6_OUT=${K6_OUT:-}
+      - K6_VU_OFFSET=3000
+
+  k6-worker-5:
+    <<: *k6-base
+    environment:
+      - K6_NO_SYSTEM_PROXY=true
+      - BASE_URL=${BASE_URL:-http://backend:8080}
+      - ORIGIN=${ORIGIN:-http://localhost:8080}
+      - USER_EMAIL=${USER_EMAIL:-}
+      - USER_PASSWORD=${USER_PASSWORD:-}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - TRIP_ID=${TRIP_ID:-}
+      - SEAT_ID_1=${SEAT_ID_1:-}
+      - SEAT_ID_2=${SEAT_ID_2:-}
+      - K6_OUT=${K6_OUT:-}
+      - K6_VU_OFFSET=4000
+
+volumes:
+  k6-results:
+
+networks:
+  # If the backend is also in Docker (via the project's docker-compose.yml),
+  # change this to `external: true` + `name: vexevn_default` to join the
+  # backend's network. See the README for details.
+  k6-net:
+    driver: bridge
