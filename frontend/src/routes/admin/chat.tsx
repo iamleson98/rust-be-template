@@ -22,6 +22,7 @@ export function AdminChatPage() {
           onSendTicketCard={ws.sendTicketCard}
           typingUser={ws.typingUser}
           userOnline={ws.userOnline}
+          unreadPulseChannels={ws.unreadPulseChannels}
         />
       </div>
     </AdminShell>

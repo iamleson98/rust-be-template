@@ -307,6 +307,23 @@ pub async fn post_message(
         })
         .await?;
 
+    // ── Increment the unread counter for the OTHER side ───────────
+    //
+    // Customer sends → admin's `unread_employee` grows.
+    // Employee sends → customer's `unread_user` grows.
+    // Best-effort — a failure here is logged + swallowed because the
+    // message itself was already persisted; the unread counter is
+    // secondary UX metadata. The WS handler does the same.
+    let unread_side = if sender_type == "user" { "employee" } else { "user" };
+    if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
+        tracing::warn!(
+            channel_id = %channel_id,
+            side = unread_side,
+            error = %e,
+            "failed to increment unread counter (continuing)"
+        );
+    }
+
     // ── WS broadcast: deliver to the channel room ──────────────────
     //
     // The WS handler does this for WS-originated messages. The REST

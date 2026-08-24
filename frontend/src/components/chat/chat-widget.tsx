@@ -46,6 +46,7 @@ import { toast } from 'sonner'
 import { Headset } from 'lucide-react'
 import { playSound } from '@/lib/sound-effects'
 import { notifyChatMessage } from '@/lib/notifications'
+import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   useAuthMe,
@@ -243,6 +244,9 @@ export function ChatWidget() {
         // Browser push notification when page is in background.
         if (m.senderType !== 'user') {
           notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          // Flash the page title (messenger-style) so the user notices
+          // the new message even when the tab is in the background.
+          startTitleNotification(1)
         }
         // Sound effect on new message.
         playSound('message')
@@ -250,6 +254,7 @@ export function ChatWidget() {
         // Message from a different channel — show a notification.
         if (m.senderType !== 'user') {
           notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          startTitleNotification(1)
           playSound('message')
         }
       }
@@ -425,6 +430,9 @@ export function ChatWidget() {
     setWaitingForAgent(false)
     setAgentJoinedName(null)
     setEmployeesOnline(0)
+    // Stop the title-flash notification — the user is now viewing the
+    // chat, so the attention signal is no longer needed.
+    stopTitleNotification()
     if (socketRef.current) {
       if (socketRef.current.connected) {
         socketRef.current.send('join', { channelId: ch.id })
@@ -588,7 +596,13 @@ export function ChatWidget() {
   if (!chatOpen) {
     return (
       <button
-        onClick={() => setChatOpen(true)}
+        onClick={() => {
+          setChatOpen(true)
+          // Stop the title-flash notification — the user is now
+          // opening the chat widget, so the attention signal is no
+          // longer needed.
+          stopTitleNotification()
+        }}
         className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group"
         aria-label="Mở chat hỗ trợ"
       >

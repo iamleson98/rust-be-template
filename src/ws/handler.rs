@@ -450,6 +450,25 @@ async fn handle_message(
     let id = stored.id.to_string();
     let now = stored.created_at.clone();
 
+    // ── Increment the unread counter for the OTHER side ───────────
+    //
+    // When a customer sends, the admin's `unread_employee` counter
+    // grows (so the channel row shows a "N mới" badge). When an
+    // employee sends, the customer's `unread_user` counter grows
+    // (so the chat widget shows a "N mới" badge on the channel list).
+    // Best-effort — a failure here is logged + swallowed because the
+    // message itself was already persisted; the unread counter is
+    // secondary UX metadata.
+    let unread_side = if user.actor_type == "user" { "employee" } else { "user" };
+    if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
+        tracing::warn!(
+            channel_id = %channel_id,
+            side = unread_side,
+            error = %e,
+            "failed to increment unread counter (continuing)"
+        );
+    }
+
     if !client_msg_id.is_empty() {
         hub().idem_store(&client_msg_id, &id);
     }

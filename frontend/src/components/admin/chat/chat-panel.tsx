@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -116,6 +116,29 @@ export function ChatPanel({
   // scrolls independently. h-[32rem] = 512px (fits 8-10 channel rows
   // or ~15 chat messages before scrolling).
   const PANES_HEIGHT = 'max-h-[32rem]'
+
+  // ── Auto-scroll the chat messages area to the bottom ─────────────
+  //
+  // When a new message arrives OR the typing indicator appears, the
+  // chat area should auto-scroll to the bottom so the admin sees the
+  // latest content. Without this, new messages render below the fold
+  // + the admin has to manually scroll down.
+  //
+  // We query the ScrollArea's viewport via the `data-slot` attribute
+  // (set by the base-ui ScrollArea primitive) because the primitive
+  // doesn't expose a ref to the viewport directly. The ref is on the
+  // outer ScrollArea root, then we find the viewport inside it.
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = chatScrollRef.current
+    if (!root) return
+    // The viewport is the element that actually scrolls (the root
+    // is just a positioned wrapper).
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight
+    }
+  }, [chatMessages, typingUser])
 
   return (
     <div className="space-y-4">
@@ -305,8 +328,10 @@ export function ChatPanel({
                   Uses the same fixed height as the channel list so
                   both panes align. The flex column layout ensures the
                   input area sticks to the bottom (the scroll area
-                  takes the remaining space). */}
-              <ScrollArea className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
+                  takes the remaining space).
+                  The `ref` is used by the auto-scroll effect above to
+                  scroll to the bottom on new messages + typing events. */}
+              <ScrollArea ref={chatScrollRef} className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
                 <div className="space-y-2.5">
                   {chatMessages.map((m) => {
                     const isEmployee = m.senderType === 'employee'

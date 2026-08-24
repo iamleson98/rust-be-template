@@ -443,6 +443,23 @@ impl ChatService {
         Ok(())
     }
 
+    /// Increment the unread counter for one side of a channel
+    /// (`"user"` or `"employee"`). Called when a message is inserted:
+    ///   - Customer sends → `side="employee"` (admin's badge grows).
+    ///   - Employee sends → `side="user"` (customer's badge grows).
+    ///
+    /// Best-effort — a failure here is logged + swallowed because the
+    /// message itself was already persisted; the unread counter is
+    /// secondary UX metadata.
+    pub async fn increment_unread(&self, channel_id: &str, side: &str) -> AppResult<()> {
+        self.store
+            .chat_store()
+            .increment_unread(channel_id, side)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
     // ── ZeroClaw ────────────────────────────────────────────────
 
     /// Try to generate a ZeroClaw AI reply for a user message. Returns

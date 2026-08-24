@@ -121,6 +121,14 @@ pub trait ChatStore: Send + Sync {
     /// Clear the unread counter for one side of a channel (`"user"` or
     /// `"employee"`). Best-effort — returns `Ok(())` if the channel is gone.
     async fn clear_unread(&self, channel_id: &str, side: &str) -> StoreResult<()>;
+    /// Increment the unread counter for one side of a channel
+    /// (`"user"` or `"employee"`). Used when a message is inserted:
+    ///   - Customer sends → increment `unread_employee` (admin's badge).
+    ///   - Employee sends → increment `unread_user` (customer's badge).
+    /// Best-effort — returns `Ok(())` if the channel is gone (the
+    /// message itself was already persisted; the unread counter is
+    /// secondary UX metadata).
+    async fn increment_unread(&self, channel_id: &str, side: &str) -> StoreResult<()>;
 
     // ── Channel members ─────────────────────────────────────────
     //
@@ -399,6 +407,28 @@ impl ChatStore for DbChatStore {
         Ok(())
     }
 
+    async fn increment_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        let existing = chat_channel::Entity::find_by_id(uuid)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| StoreError::NotFound(format!("channel {channel_id}")))?;
+        // Capture the current counters BEFORE `existing.into()` moves
+        // the model into `ActiveModel` (the original `existing` would
+        // be borrowed-after-move otherwise).
+        let next_unread_user = existing.unread_user + 1;
+        let next_unread_employee = existing.unread_employee + 1;
+        let mut am: chat_channel::ActiveModel = existing.into();
+        if side == "user" {
+            am.unread_user = Set(next_unread_user);
+        } else {
+            am.unread_employee = Set(next_unread_employee);
+        }
+        am.update(self.db.as_ref()).await?;
+        Ok(())
+    }
+
     async fn invalidate(&self, _channel_id: Option<&str>) {}
 
     // ── Channel members ─────────────────────────────────────────────
@@ -610,6 +640,16 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
     async fn clear_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {
         let res = self.inner.clear_unread(channel_id, side).await;
         if res.is_ok() {
+            let _ = self.cache.delete(&key_channel(channel_id)).await;
+        }
+        res
+    }
+
+    async fn increment_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {
+        let res = self.inner.increment_unread(channel_id, side).await;
+        if res.is_ok() {
+            // Invalidate the cached channel row so the next read sees
+            // the new unread count.
             let _ = self.cache.delete(&key_channel(channel_id)).await;
         }
         res

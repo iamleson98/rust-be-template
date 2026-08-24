@@ -44,6 +44,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useMarkChatRead } from '@/lib/queries'
 import { playSound } from '@/lib/sound-effects'
+import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
 
 type WsChatMessageEvent = {
@@ -155,6 +156,11 @@ export function useAdminChatWs(
       // Play the message sound (FB Messenger style).
       playSound('message')
 
+      // Flash the page title (messenger-style) so the admin notices
+      // the new message even when the tab is in the background. The
+      // flash auto-stops when the user focuses the tab.
+      startTitleNotification(1)
+
       // Pulse indicator only when the admin is NOT already viewing
       // this channel. If they're viewing it, the `message` handler
       // already handled the UI + auto-mark-read.
@@ -232,6 +238,10 @@ export function useAdminChatWs(
     // Reset typing/online state when switching channels.
     setTypingUser(null)
     setUserOnline(false)
+
+    // Stop the title-flash notification — the admin is now viewing
+    // a channel, so the attention signal is no longer needed.
+    stopTitleNotification()
 
     // Clear the pulse indicator for the now-active channel — the
     // admin is viewing it, so the "new message" pulse is no longer
