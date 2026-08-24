@@ -47,17 +47,17 @@ import { BASE_URL, withAuth } from '../config.js';
 // ── Admin bookings ──────────────────────────────────────────────
 
 export function listAdminBookings(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.brandId) params.set('brandId', filters.brandId);
-  if (filters.routeId) params.set('routeId', filters.routeId);
-  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.set('dateTo', filters.dateTo);
-  if (filters.search) params.set('search', filters.search);
-  params.set('limit', String(filters.limit || 20));
-  if (filters.offset) params.set('offset', String(filters.offset));
+  const params = [];
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  if (filters.brandId) params.push(`brandId=${encodeURIComponent(filters.brandId)}`);
+  if (filters.routeId) params.push(`routeId=${encodeURIComponent(filters.routeId)}`);
+  if (filters.dateFrom) params.push(`dateFrom=${encodeURIComponent(filters.dateFrom)}`);
+  if (filters.dateTo) params.push(`dateTo=${encodeURIComponent(filters.dateTo)}`);
+  if (filters.search) params.push(`search=${encodeURIComponent(filters.search)}`);
+  params.push(`limit=${encodeURIComponent(filters.limit || 20)}`);
+  if (filters.offset) params.push(`offset=${encodeURIComponent(filters.offset)}`);
   const res = http.get(
-    `${BASE_URL}/api/admin/bookings?${params.toString()}`,
+    `${BASE_URL}/api/admin/bookings?${params.join('&')}`,
     withAuth(),
   );
   check(res, {
@@ -67,12 +67,12 @@ export function listAdminBookings(filters = {}) {
 }
 
 export function adminBookingStats(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  const params = [];
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  if (filters.dateFrom) params.push(`dateFrom=${encodeURIComponent(filters.dateFrom)}`);
+  if (filters.dateTo) params.push(`dateTo=${encodeURIComponent(filters.dateTo)}`);
   const res = http.get(
-    `${BASE_URL}/api/admin/bookings/stats?${params.toString()}`,
+    `${BASE_URL}/api/admin/bookings/stats?${params.join('&')}`,
     withAuth(),
   );
   check(res, {
@@ -86,12 +86,12 @@ export function adminBookingStats(filters = {}) {
  * as CSV). Use sparingly in load tests.
  */
 export function exportAdminBookings(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
-  if (filters.dateTo) params.set('dateTo', filters.dateTo);
+  const params = [];
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  if (filters.dateFrom) params.push(`dateFrom=${encodeURIComponent(filters.dateFrom)}`);
+  if (filters.dateTo) params.push(`dateTo=${encodeURIComponent(filters.dateTo)}`);
   const res = http.get(
-    `${BASE_URL}/api/admin/bookings/export?${params.toString()}`,
+    `${BASE_URL}/api/admin/bookings/export?${params.join('&')}`,
     withAuth(),
   );
   check(res, {
@@ -160,14 +160,14 @@ export function listAdminPickupPoints(routeId) {
 // ── Admin reviews (moderation) ────────────────────────────────────
 
 export function listAdminReviews(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.brandId) params.set('brandId', filters.brandId);
-  if (filters.routeId) params.set('routeId', filters.routeId);
-  params.set('limit', String(filters.limit || 20));
-  if (filters.offset) params.set('offset', String(filters.offset));
+  const params = [];
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  if (filters.brandId) params.push(`brandId=${encodeURIComponent(filters.brandId)}`);
+  if (filters.routeId) params.push(`routeId=${encodeURIComponent(filters.routeId)}`);
+  params.push(`limit=${encodeURIComponent(filters.limit || 20)}`);
+  if (filters.offset) params.push(`offset=${encodeURIComponent(filters.offset)}`);
   const res = http.get(
-    `${BASE_URL}/api/admin/reviews?${params.toString()}`,
+    `${BASE_URL}/api/admin/reviews?${params.join('&')}`,
     withAuth(),
   );
   check(res, {
@@ -179,13 +179,13 @@ export function listAdminReviews(filters = {}) {
 // ── Admin payments ───────────────────────────────────────────────
 
 export function listAdminPayments(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.status) params.set('status', filters.status);
-  if (filters.provider) params.set('provider', filters.provider);
-  params.set('limit', String(filters.limit || 20));
-  if (filters.offset) params.set('offset', String(filters.offset));
+  const params = [];
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  if (filters.provider) params.push(`provider=${encodeURIComponent(filters.provider)}`);
+  params.push(`limit=${encodeURIComponent(filters.limit || 20)}`);
+  if (filters.offset) params.push(`offset=${encodeURIComponent(filters.offset)}`);
   const res = http.get(
-    `${BASE_URL}/api/admin/payments?${params.toString()}`,
+    `${BASE_URL}/api/admin/payments?${params.join('&')}`,
     withAuth(),
   );
   check(res, {

@@ -209,15 +209,15 @@ export function reverseGeocode(lat, lon, limit = 5) {
  * @returns {object} the k6 response
  */
 export function listReviews(filters = {}) {
-  const params = new URLSearchParams();
-  if (filters.brandId) params.set('brandId', filters.brandId);
-  if (filters.routeId) params.set('routeId', filters.routeId);
-  if (filters.userId) params.set('userId', filters.userId);
-  if (filters.status) params.set('status', filters.status);
-  params.set('limit', String(filters.limit || 20));
-  if (filters.offset) params.set('offset', String(filters.offset));
+  const params = [];
+  if (filters.brandId) params.push(`brandId=${encodeURIComponent(filters.brandId)}`);
+  if (filters.routeId) params.push(`routeId=${encodeURIComponent(filters.routeId)}`);
+  if (filters.userId) params.push(`userId=${encodeURIComponent(filters.userId)}`);
+  if (filters.status) params.push(`status=${encodeURIComponent(filters.status)}`);
+  params.push(`limit=${encodeURIComponent(filters.limit || 20)}`);
+  if (filters.offset) params.push(`offset=${encodeURIComponent(filters.offset)}`);
   const res = http.get(
-    `${BASE_URL}/api/reviews?${params.toString()}`,
+    `${BASE_URL}/api/reviews?${params.join('&')}`,
     withAuth(),
   );
   check(res, {
