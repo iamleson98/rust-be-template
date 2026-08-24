@@ -20,6 +20,7 @@ import {
   MapPin,
   Armchair,
   Phone,
+  Mail,
   User as UserIcon,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
@@ -29,6 +30,45 @@ import {
   ChatTicketPicker,
   type CreatedTicketPayload,
 } from '@/components/admin/tickets/chat-ticket-picker'
+
+/**
+ * Pick the best customer-facing label for a channel row.
+ *
+ * Order of preference:
+ *   1. `user.fullName` — set on signup, always present for real users.
+ *   2. `user.email` — fallback when fullName is empty.
+ *   3. `user.phone` — fallback when both fullName + email are empty.
+ *   4. `topic` — the channel topic, e.g. "Hỗ trợ".
+ *   5. `"Khách"` — generic Vietnamese for "Customer" (last-resort default).
+ */
+function customerDisplayName(channel: Channel): string {
+  const u = channel.user
+  if (u?.fullName && u.fullName.trim().length > 0) return u.fullName
+  if (u?.email && u.email.trim().length > 0) return u.email
+  if (u?.phone && u.phone.trim().length > 0) return u.phone
+  if (channel.topic && channel.topic.trim().length > 0) return channel.topic
+  return 'Khách'
+}
+
+/** First letter of the customer's display name (for the avatar fallback). */
+function customerInitial(channel: Channel): string {
+  const name = customerDisplayName(channel)
+  return (name && name[0]?.toUpperCase()) || 'K'
+}
+
+/**
+ * Build a subtitle line for the channel row — shows email or phone
+ * (whichever is present + different from the display name). Empty
+ * string when no extra info is available.
+ */
+function customerSubtitle(channel: Channel): string {
+  const u = channel.user
+  const name = customerDisplayName(channel)
+  // Prefer phone (more actionable for support), then email.
+  if (u?.phone && u.phone.trim().length > 0 && u.phone !== name) return u.phone
+  if (u?.email && u.email.trim().length > 0 && u.email !== name) return u.email
+  return ''
+}
 
 export function ChatPanel({
   channels,
@@ -44,6 +84,7 @@ export function ChatPanel({
   onViewTicket,
   typingUser,
   userOnline,
+  unreadPulseChannels,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -60,8 +101,22 @@ export function ChatPanel({
   typingUser?: { name: string } | null
   /** Whether the user in the active channel is online. */
   userOnline?: boolean
+  /**
+   * Set of channel ids that have received a new customer message while
+   * the admin was NOT viewing them. The channel row shows a pulsing
+   * blue dot until the admin opens that channel.
+   */
+  unreadPulseChannels?: Set<string>
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Aligned height for the channel list + chat workspace. Both use
+  // the same max-height so the split-view looks symmetric — the
+  // chat area auto-scrolls when overflowing, the channel list also
+  // scrolls independently. h-[32rem] = 512px (fits 8-10 channel rows
+  // or ~15 chat messages before scrolling).
+  const PANES_HEIGHT = 'h-[32rem]'
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -94,54 +149,85 @@ export function ChatPanel({
         </Card>
       </div>
 
-      {/* Chat queue + workspace split view */}
+      {/* Chat queue + workspace split view.
+          Both panes share the same fixed height so they align — the
+          channel list scrolls independently when it overflows, and the
+          chat area scrolls independently too. This avoids the previous
+          bug where long message threads were covered by the footer. */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Channel list */}
-        <Card className="xl:col-span-2">
-          <CardHeader className="pb-2">
+        <Card className="xl:col-span-2 flex flex-col">
+          <CardHeader className="pb-2 shrink-0">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-blue-600" />
               Hàng đợi cuộc trò chuyện
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-125">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className={PANES_HEIGHT}>
               <div className="divide-y">
                 {channels.length === 0 ? (
                   <div className="p-8 text-center text-sm text-muted-foreground">Chưa có cuộc trò chuyện</div>
                 ) : (
-                  channels.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => onOpenChannel(c)}
-                      className={`w-full p-4 hover:bg-slate-50 flex items-center gap-3 text-left transition-colors ${activeChannel?.id === c.id ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : ''}`}
-                    >
-                      <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback className="bg-slate-200 text-xs font-bold text-slate-600">
-                          {c.user?.fullName?.[0] ?? 'K'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium text-sm truncate">{c.user?.fullName ?? 'Khách'}</div>
-                          {c.brand?.name && (
-                            <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                  channels.map((c) => {
+                    const hasPulse = unreadPulseChannels?.has(c.id) ?? false
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => onOpenChannel(c)}
+                        className={`w-full p-4 hover:bg-slate-50 flex items-center gap-3 text-left transition-colors ${activeChannel?.id === c.id ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : ''}`}
+                      >
+                        <div className="relative shrink-0">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-slate-200 text-xs font-bold text-slate-600">
+                              {customerInitial(c)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Pulsing blue dot — Facebook Messenger style.
+                              Shown when this channel has a new customer
+                              message the admin hasn't seen yet. Cleared
+                              when the admin opens the channel. */}
+                          {hasPulse && (
+                            <span
+                              className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white animate-pulse"
+                              title="Tin nhắn mới"
+                            />
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <div className="text-xs text-muted-foreground truncate flex-1">{c.lastMessagePreview ?? c.topic}</div>
-                          <PriorityBadge priority={c.priority} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-sm truncate">{customerDisplayName(c)}</div>
+                            {c.brand?.name && (
+                              <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="text-xs text-muted-foreground truncate flex-1">{c.lastMessagePreview ?? c.topic}</div>
+                            <PriorityBadge priority={c.priority} />
+                          </div>
+                          {/* Subtitle line — email or phone (whichever
+                              the display name didn't already show). */}
+                          {customerSubtitle(c) && (
+                            <div className="text-[10px] text-muted-foreground/80 truncate mt-0.5 flex items-center gap-1">
+                              {c.user?.phone && customerSubtitle(c) === c.user.phone ? (
+                                <Phone className="h-2.5 w-2.5" />
+                              ) : (
+                                <Mail className="h-2.5 w-2.5" />
+                              )}
+                              {customerSubtitle(c)}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
-                        {c.unreadEmployee > 0 && (
-                          <Badge className="bg-rose-500 text-white text-[10px] mt-1">{c.unreadEmployee} mới</Badge>
-                        )}
-                        <StatusBadge status={c.status} />
-                      </div>
-                    </button>
-                  ))
+                        <div className="text-right shrink-0">
+                          <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
+                          {c.unreadEmployee > 0 && (
+                            <Badge className="bg-rose-500 text-white text-[10px] mt-1">{c.unreadEmployee} mới</Badge>
+                          )}
+                          <StatusBadge status={c.status} />
+                        </div>
+                      </button>
+                    )
+                  })
                 )}
               </div>
             </ScrollArea>
@@ -152,21 +238,21 @@ export function ChatPanel({
         <Card className="xl:col-span-3 flex flex-col">
           {activeChannel ? (
             <>
-              <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between">
+              <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <Avatar className="h-8 w-8 shrink-0">
                     <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
-                      {activeChannel.user?.fullName?.[0] ?? 'K'}
+                      {customerInitial(activeChannel)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate flex items-center gap-2">
-                      {activeChannel.user?.fullName ?? 'Khách'}
+                      {customerDisplayName(activeChannel)}
                       {userOnline && (
                         <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Đang trực tuyến" />
                       )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground truncate">
+                    <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
                       {typingUser ? (
                         <span className="text-blue-600 italic">{typingUser.name} đang gõ...</span>
                       ) : (
@@ -177,7 +263,13 @@ export function ChatPanel({
                               {activeChannel.user.phone}
                             </span>
                           )}
-                          {!activeChannel.user?.phone && activeChannel.topic}
+                          {activeChannel.user?.email && activeChannel.user.email !== customerDisplayName(activeChannel) && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {activeChannel.user.email}
+                            </span>
+                          )}
+                          {!activeChannel.user?.phone && !activeChannel.user?.email && activeChannel.topic}
                         </>
                       )}
                     </div>
@@ -209,7 +301,12 @@ export function ChatPanel({
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 h-80 overflow-y-scroll p-4">
+              {/* Chat messages scroll area.
+                  Uses the same fixed height as the channel list so
+                  both panes align. The flex column layout ensures the
+                  input area sticks to the bottom (the scroll area
+                  takes the remaining space). */}
+              <ScrollArea className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
                 <div className="space-y-2.5">
                   {chatMessages.map((m) => {
                     const isEmployee = m.senderType === 'employee'
@@ -231,7 +328,9 @@ export function ChatPanel({
                             ? 'bg-blue-600 text-white rounded-br-sm'
                             : m.senderType === 'system'
                               ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
-                              : 'bg-white border rounded-bl-sm '
+                              : m.senderType === 'assistant'
+                                ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
+                                : 'bg-white border rounded-bl-sm '
                             }`}
                         >
                           {m.content}
@@ -254,8 +353,9 @@ export function ChatPanel({
                 )}
               </ScrollArea>
 
-              {/* Quick replies */}
-              <div className="px-4 py-2 border-t bg-slate-50/50">
+              {/* Quick replies + input — sticks to the bottom because
+                  the scroll area is `flex-1` (takes remaining space). */}
+              <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
                 <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
                   {['Xin chào, tôi có thể giúp gì?', 'Vui lòng cho mã đặt vé.', 'Chuyến đi đã xác nhận.', 'Tôi cần kiểm tra lại.'].map((t, i) => (
                     <button
@@ -287,7 +387,7 @@ export function ChatPanel({
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className={`flex-1 flex items-center justify-center p-8 ${PANES_HEIGHT}`}>
               <div className="text-center">
                 <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
                   <Headset className="h-8 w-8 text-slate-400" />

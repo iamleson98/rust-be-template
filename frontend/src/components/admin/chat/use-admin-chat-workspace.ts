@@ -19,6 +19,13 @@
  * The admin workspace subscribes to the WS hub. When a new message
  * arrives via WS, the hook invalidates the relevant TanStack Query.
  * This triggers a REST refetch — single source of truth, instant UX.
+ *
+ * ## Typing broadcast throttle
+ *
+ * The admin's typing indicator is sent ONLY on the FIRST keystroke
+ * after becoming idle (not on every keystroke). After 2s of
+ * inactivity, a single `isTyping=false` event is sent. This matches
+ * the customer-side throttle + reduces WS traffic.
  */
 
 'use client'
@@ -35,6 +42,9 @@ import type { AdminChannel, AdminChatMessage } from '@/components/admin/dashboar
 import { useAdminChatWs } from './use-admin-chat-ws'
 import { useApp } from '@/lib/store'
 
+/** Idle threshold (ms) after which a `typing=false` event is sent. */
+const TYPING_IDLE_MS = 2000
+
 export function useAdminChatWorkspace() {
   const { user } = useApp()
   const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null)
@@ -46,7 +56,13 @@ export function useAdminChatWorkspace() {
   const chatMessages: AdminChatMessage[] = (messagesQuery.data?.items ?? []) as unknown as AdminChatMessage[]
 
   // ── Realtime WS subscription ──────────────────────────────────
-  const { typingUser, userOnline, sendTyping } = useAdminChatWs(
+  const {
+    typingUser,
+    userOnline,
+    sendTyping,
+    unreadPulseChannels,
+    clearUnreadPulse,
+  } = useAdminChatWs(
     user,
     activeChannel?.id,
   )
@@ -72,20 +88,53 @@ export function useAdminChatWorkspace() {
     } as any)
   }, [replyText, activeChannel, postReplyMut, sendTyping])
 
-  // ── Typing indicator ──────────────────────────────────────────
-  // Send typing=true when the admin starts typing, typing=false after
-  // 2s of inactivity.
+  // ── Typing indicator (throttled) ──────────────────────────────
+  //
+  // Only broadcast `typing=true` on the FIRST keystroke after becoming
+  // idle. Reset the idle timer on every keystroke; when it fires (2s
+  // of inactivity), broadcast `typing=false`. This avoids sending a
+  // WS event per keystroke (which was wasteful + unnecessary).
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isCurrentlyTypingRef = useRef(false)
+  const activeChannelIdRef = useRef<string | undefined>(activeChannel?.id)
+  activeChannelIdRef.current = activeChannel?.id
+
   const onReplyTextChange = useCallback((val: string) => {
     setReplyText(val)
-    if (activeChannel) {
-      sendTyping(activeChannel.id, true)
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
-      typingTimerRef.current = setTimeout(() => {
-        sendTyping(activeChannel.id, false)
-      }, 2000)
+
+    const channelId = activeChannelIdRef.current
+    if (!channelId) return
+
+    // Only send `typing=true` if we're not already in the "typing"
+    // state. This is the first-keystroke-only optimization.
+    if (!isCurrentlyTypingRef.current) {
+      isCurrentlyTypingRef.current = true
+      sendTyping(channelId, true)
     }
-  }, [activeChannel, sendTyping])
+
+    // Reset the idle timer — when it fires, we send `typing=false`
+    // + reset the typing flag so the next keystroke triggers a fresh
+    // `typing=true`.
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = setTimeout(() => {
+      isCurrentlyTypingRef.current = false
+      sendTyping(channelId, false)
+    }, TYPING_IDLE_MS)
+  }, [sendTyping])
+
+  // When the admin switches channels (or unmounts), clear the typing
+  // state + cancel any pending idle timer. Otherwise the timer could
+  // fire against a stale channel id (the closure captures the old
+  // value at timer-creation time, which is correct, but we still want
+  // to reset the `isCurrentlyTyping` flag so the new channel starts
+  // fresh).
+  useEffect(() => {
+    isCurrentlyTypingRef.current = false
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+    }
+  }, [activeChannel?.id])
 
   // Cleanup typing timer on unmount.
   useEffect(() => {
@@ -107,7 +156,11 @@ export function useAdminChatWorkspace() {
   const openChannel = useCallback((channel: AdminChannel) => {
     setActiveChannel(channel)
     markReadMut.mutate({ path: { id: channel.id } } as any)
-  }, [markReadMut])
+    // Clear the pulse indicator for this channel — the admin is now
+    // viewing it, so the "new message" attention signal is no longer
+    // needed.
+    clearUnreadPulse(channel.id)
+  }, [markReadMut, clearUnreadPulse])
 
   // Ticket-card mutation — silent failure is OK because the booking
   // has already been created by the time we send the card.
@@ -149,6 +202,7 @@ export function useAdminChatWorkspace() {
     // realtime state
     typingUser,
     userOnline,
+    unreadPulseChannels,
     // actions
     sendReply,
     blockChannel,

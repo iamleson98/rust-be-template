@@ -108,6 +108,17 @@ export function ChatWidget() {
   // on close (WCAG 2.4.3 — focus order).
   const triggerRef = useRef<HTMLButtonElement | null>(null)
 
+  // ── Typing broadcast throttle ──────────────────────────────────
+  //
+  // Only broadcast `typing=true` on the FIRST keystroke after becoming
+  // idle (not on every keystroke — that was wasteful for bandwidth).
+  // After `TYPING_IDLE_MS` of inactivity, broadcast `typing=false`
+  // so the admin's UI stops showing the typing indicator. Same
+  // pattern as the admin side (see `use-admin-chat-workspace.ts`).
+  const TYPING_IDLE_MS = 2000
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isCurrentlyTypingRef = useRef(false)
+
   useEffect(() => {
     activeChannelRef.current = activeChannel
   }, [activeChannel])
@@ -313,6 +324,13 @@ export function ChatWidget() {
       ws.close()
       socketRef.current = null
       setConnected(false)
+      // Clear the typing throttle timer so it doesn't fire against a
+      // closed socket (would log a warning + do nothing useful).
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current)
+        typingTimerRef.current = null
+      }
+      isCurrentlyTypingRef.current = false
     }
     // qc is intentionally excluded from deps — it's a stable reference
     // (useQueryClient returns the same instance for the app's lifetime).
@@ -467,6 +485,14 @@ export function ChatWidget() {
     setInput('')
     // Clear typing indicator after sending.
     setTyping(null)
+    // Reset the typing throttle state + cancel any pending idle
+    // timer so we don't send a stale `typing=false` after the
+    // message has been sent.
+    isCurrentlyTypingRef.current = false
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+    }
     // Send typing=false so the admin sees the user stopped typing.
     if (socketRef.current?.connected) {
       socketRef.current.send('typing', { channelId: activeChannel.id, isTyping: false })
@@ -529,9 +555,29 @@ export function ChatWidget() {
 
   const onInputTyping = (val: string) => {
     setInput(val)
-    if (socketRef.current?.connected && activeChannel) {
-      socketRef.current.send('typing', { channelId: activeChannel.id, isTyping: true })
+
+    const channel = activeChannelRef.current
+    if (!channel || !socketRef.current?.connected) return
+
+    // Only send `typing=true` on the FIRST keystroke after becoming
+    // idle. Subsequent keystrokes just reset the idle timer (we're
+    // still typing — the admin already knows).
+    if (!isCurrentlyTypingRef.current) {
+      isCurrentlyTypingRef.current = true
+      socketRef.current.send('typing', { channelId: channel.id, isTyping: true })
     }
+
+    // Reset the idle timer — when it fires (2s of inactivity),
+    // broadcast `typing=false` + reset the flag so the next keystroke
+    // triggers a fresh `typing=true`.
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = setTimeout(() => {
+      isCurrentlyTypingRef.current = false
+      const ch = activeChannelRef.current
+      if (ch && socketRef.current?.connected) {
+        socketRef.current.send('typing', { channelId: ch.id, isTyping: false })
+      }
+    }, TYPING_IDLE_MS)
   }
 
   // ─── Render: hidden for employees ──────────────────────────────────

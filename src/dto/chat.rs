@@ -25,6 +25,23 @@ pub struct CreateChannelResponse {
     pub channel: ChatChannelOut,
 }
 
+/// The customer who started the channel. Embedded in [`ChatChannelOut`]
+/// so the admin's channel list can display name / email / phone without
+/// a second round-trip per channel.
+#[derive(Debug, Serialize, ToSchema, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelUserOut {
+    pub id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub full_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub phone: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avatar_url: Option<String>,
+}
+
 /// A chat channel, as returned by `GET /api/chat/channels` and the
 /// create-channel endpoint.
 #[derive(Debug, Serialize, ToSchema)]
@@ -44,6 +61,13 @@ pub struct ChatChannelOut {
     pub unread_user: i64,
     pub unread_employee: i64,
     pub created_at: String,
+    /// The customer who started the channel. Populated by `list_channels`
+    /// + `create_channel` (joined from the `user` table by `user_id`).
+    ///
+    /// `None` only when the user has been deleted (FK CASCADE clears
+    /// the channel row, so this is rare).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<ChannelUserOut>,
 }
 
 /// Request body for `POST /api/chat/channels/{id}/messages` (REST

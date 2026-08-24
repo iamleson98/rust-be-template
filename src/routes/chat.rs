@@ -7,9 +7,10 @@ use validator::Validate;
 
 use crate::dto::chat::{
     ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse, ChatMessageOut,
-    CreateChannelRequest, CreateChannelResponse, CreateMessageRequest, CreateMessageResponse,
-    MarkChannelReadResponse,
+    ChannelUserOut, CreateChannelRequest, CreateChannelResponse, CreateMessageRequest,
+    CreateMessageResponse, MarkChannelReadResponse,
 };
+use crate::entity::{chat_channel, chat_message};
 use crate::error::AppError;
 use crate::middleware::AuthUser;
 use crate::service::chat_service::ChatMessageInput;
@@ -27,6 +28,10 @@ pub struct ListChannelsQuery {
 /// For **customers**: returns only their own channels (the ones they started).
 /// For **employees**: returns the entire open-channel support queue (optionally
 /// filtered by the employee's brand) so support staff see all inbound chats.
+///
+/// Each channel includes the customer's `user` row (`id`, `fullName`,
+/// `email`, `phone`, `avatarUrl`) so the admin's channel list can
+/// display "who" without a second round-trip per channel.
 #[utoipa::path(
     get,
     path = "/api/chat/channels",
@@ -62,7 +67,34 @@ pub async fn list_channels(
         .chats
         .list_channels(uid, is_employee, brand_id, q.limit.unwrap_or(50))
         .await?;
-    let items: Vec<ChatChannelOut> = channels.into_iter().map(channel_to_dto).collect();
+
+    // Batch-fetch the customer user rows for every channel in one
+    // round-trip (avoids N+1 queries when listing channels for the
+    // admin support queue). Each `user::Model` is then mapped to
+    // `ChannelUserOut` (fullName / email / phone / avatarUrl) and
+    // embedded in the channel DTO.
+    let user_ids: Vec<Uuid> = channels.iter().map(|c| c.user_id).collect();
+    let user_map = st.users.find_by_ids(&user_ids).await?;
+    let user_dtos: std::collections::HashMap<Uuid, ChannelUserOut> = user_map
+        .iter()
+        .map(|(id, u)| {
+            (*id, ChannelUserOut {
+                id: u.id,
+                full_name: Some(u.full_name.clone()),
+                email: Some(u.email.clone()),
+                phone: u.phone.clone(),
+                avatar_url: u.avatar_url.clone(),
+            })
+        })
+        .collect();
+
+    let items: Vec<ChatChannelOut> = channels
+        .into_iter()
+        .map(|c| {
+            let user_info = user_dtos.get(&c.user_id).cloned();
+            channel_to_dto(c, user_info)
+        })
+        .collect();
     Ok(Json(ChatChannelListResponse { items }))
 }
 
@@ -174,16 +206,38 @@ pub async fn create_channel(
         .to_string(),
     );
 
+    // Populate the customer's user row so the response includes
+    // `user.fullName` / `user.email` / `user.phone` for the admin's
+    // channel list.
+    let user_info = st
+        .users
+        .find_by_ids(&[channel.user_id])
+        .await?
+        .get(&channel.user_id)
+        .map(|u| ChannelUserOut {
+            id: u.id,
+            full_name: Some(u.full_name.clone()),
+            email: Some(u.email.clone()),
+            phone: u.phone.clone(),
+            avatar_url: u.avatar_url.clone(),
+        });
+
     Ok(Json(CreateChannelResponse {
-        channel: channel_to_dto(channel),
+        channel: channel_to_dto(channel, user_info),
     }))
 }
 
 /// `POST /api/chat/channels/{id}/messages` — REST fallback for posting
-/// a chat message when the WebSocket connection is unavailable.
+/// a chat message.
 ///
 /// Auth required: the caller must be the channel's owner (user side)
 /// or an employee. Idempotent via `client_msg_id`.
+///
+/// **WS broadcast**: after the message is persisted, we broadcast a
+/// `message` event to the channel room so the OTHER side (customer or
+/// admin) sees the reply in realtime without needing to refetch. We
+/// ALSO broadcast a `channel_message` event to ALL online employees
+/// (admin attention signal) when the sender is a customer.
 #[utoipa::path(
     post,
     path = "/api/chat/channels/{id}/messages",
@@ -236,18 +290,67 @@ pub async fn post_message(
     let is_employee = st.chats.is_employee(uid).await?;
     let sender_type = if is_employee { "employee" } else { "user" };
 
+    // Load the sender's name + email for the WS broadcast payload.
+    // Best-effort — if the lookup fails, fall back to empty strings.
+    let sender_user = st.users.get(uid).await.ok();
+
     let msg = st
         .chats
         .insert_message(ChatMessageInput {
             channel_id: id,
             sender_type: sender_type.to_string(),
             sender_id: Some(uid),
-            content: body.content,
+            content: body.content.clone(),
             kind: body.kind,
             attachments: body.attachments,
             client_msg_id: body.client_msg_id.filter(|s| !s.is_empty()),
         })
         .await?;
+
+    // ── WS broadcast: deliver to the channel room ──────────────────
+    //
+    // The WS handler does this for WS-originated messages. The REST
+    // path needs to do it manually so the other side sees the reply
+    // in realtime (otherwise the customer has to refetch messages
+    // manually — that's the "admin reply not showing in user's chat"
+    // bug).
+    let sender_name = sender_user
+        .as_ref()
+        .map(|u| u.full_name.clone())
+        .unwrap_or_default();
+    let now = msg.created_at.clone();
+    let text = body.content.clone().unwrap_or_default();
+    let preview: String = text.chars().take(80).collect();
+    let message_id_str = msg.id.to_string();
+
+    let room_broadcast = serde_json::json!({
+        "type": "message",
+        "id": message_id_str,
+        "channelId": channel_id,
+        "senderType": sender_type,
+        "senderId": uid,
+        "senderName": sender_name,
+        "text": text,
+        "createdAt": now,
+    });
+    crate::ws::hub::hub().broadcast_to_room(&channel_id, &room_broadcast);
+
+    // ── Admin attention signal ──────────────────────────────────────
+    //
+    // When a CUSTOMER sends a message via REST (rare — they usually
+    // use WS), also notify all online employees. Skipped for employee
+    // replies (no point notifying admins of their own messages).
+    if sender_type == "user" {
+        crate::ws::hub::hub().broadcast_to_employees(&serde_json::json!({
+            "type": "channel_message",
+            "channelId": channel_id,
+            "senderId": uid,
+            "senderName": sender_name,
+            "preview": preview,
+            "createdAt": now,
+            "messageId": message_id_str,
+        }));
+    }
 
     Ok(Json(CreateMessageResponse {
         message: message_to_dto(msg),
@@ -255,10 +358,10 @@ pub async fn post_message(
 }
 
 // ────────────────────────────────────────────────────────────────
-//  Mappers
+//  Mappers + helpers
 // ────────────────────────────────────────────────────────────────
 
-fn channel_to_dto(c: crate::entity::chat_channel::Model) -> ChatChannelOut {
+fn channel_to_dto(c: chat_channel::Model, user_info: Option<ChannelUserOut>) -> ChatChannelOut {
     ChatChannelOut {
         id: c.id,
         user_id: c.user_id,
@@ -270,10 +373,11 @@ fn channel_to_dto(c: crate::entity::chat_channel::Model) -> ChatChannelOut {
         unread_user: c.unread_user,
         unread_employee: c.unread_employee,
         created_at: c.created_at,
+        user: user_info,
     }
 }
 
-fn message_to_dto(m: crate::entity::chat_message::Model) -> ChatMessageOut {
+fn message_to_dto(m: chat_message::Model) -> ChatMessageOut {
     ChatMessageOut {
         id: m.id,
         channel_id: m.channel_id,

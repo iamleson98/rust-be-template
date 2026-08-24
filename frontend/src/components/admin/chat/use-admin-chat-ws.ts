@@ -21,14 +21,29 @@
  * On receiving a WS `message` event, the hook invalidates the
  * relevant TanStack Query (channels list + active-channel messages).
  * This triggers a REST refetch — single source of truth, instant UX.
+ *
+ * ## New-message attention signal (FB Messenger style)
+ *
+ * When a customer sends a message in a channel the admin is NOT
+ * currently viewing, the hook:
+ *   1. Plays a short message sound (via `playSound('message')`).
+ *   2. Adds the channel id to the `unreadPulseChannels` set — the
+ *      channel row in the list shows a pulsing blue dot until the
+ *      admin opens that channel.
+ *   3. Invalidates `listChannels` so the unread counter + last
+ *      message preview update on the channel row.
+ *
+ * No toast notification — per user feedback, the indicator + sound
+ * is enough; toasts are noisy when multiple messages arrive in quick
+ * succession.
  */
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { WsClient } from '@/lib/ws-client'
 import { useMarkChatRead } from '@/lib/queries'
+import { playSound } from '@/lib/sound-effects'
 import type { SessionUser } from '@/lib/api/types.gen'
 
 type WsChatMessageEvent = {
@@ -62,6 +77,13 @@ export function useAdminChatWs(
   const wsRef = useRef<WsClient | null>(null)
   const [typingUser, setTypingUser] = useState<{ name: string } | null>(null)
   const [userOnline, setUserOnline] = useState(false)
+  /**
+   * Set of channel ids that have received a new customer message while
+   * the admin was NOT viewing them. Used by the channel list to render
+   * a pulsing blue dot on the row (Facebook Messenger style). Cleared
+   * for a channel when the admin opens that channel.
+   */
+  const [unreadPulseChannels, setUnreadPulseChannels] = useState<Set<string>>(new Set())
   const markReadMut = useMarkChatRead()
 
   // CRITICAL: Use a ref for activeChannelId so the WS event handlers
@@ -108,13 +130,15 @@ export function useAdminChatWs(
     // channel open. We use it to:
     //   - Invalidate the channels list (so the unread badge +
     //     last_message_preview update for the channel row).
-    //   - Show a toast notification when the admin has NO active
-    //     channel open OR is viewing a different channel — this is
-    //     the "new message arrived, click to open" attention grab.
+    //   - Play a short message sound (Facebook Messenger style).
+    //   - Add the channel id to `unreadPulseChannels` when the admin
+    //     is NOT viewing it — the row shows a pulsing blue dot until
+    //     the admin opens the channel.
     //
     // When the admin already has this channel open, the `message`
-    // event above already handled the per-message UI update; this
-    // invalidation is a harmless duplicate (TanStack dedupes).
+    // event above already handled the per-message UI update; we still
+    // play the sound (so the admin hears the new message even if
+    // they're scrolled away) but skip the pulse.
     ws.on('channel_message', (data: Record<string, unknown>) => {
       if (disposed) return
       const d = data as unknown as {
@@ -128,18 +152,19 @@ export function useAdminChatWs(
       // + unread counter need to update.
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
 
-      // Only show the toast attention signal when the admin is NOT
-      // already viewing this channel. If they're viewing it, the
-      // `message` handler already handled the UI + auto-mark-read.
+      // Play the message sound (FB Messenger style).
+      playSound('message')
+
+      // Pulse indicator only when the admin is NOT already viewing
+      // this channel. If they're viewing it, the `message` handler
+      // already handled the UI + auto-mark-read.
       const activeId = activeChannelIdRef.current
       if (!activeId || activeId !== d.channelId) {
-        const name = d.senderName ?? 'Khách hàng'
-        const preview = d.preview ?? ''
-        // Truncate the preview to keep the toast compact.
-        const snippet = preview.length > 60 ? preview.slice(0, 60) + '…' : preview
-        toast.info(`Tin nhắn mới từ ${name}`, {
-          description: snippet,
-          duration: 5000,
+        setUnreadPulseChannels((prev) => {
+          if (prev.has(d.channelId)) return prev
+          const next = new Set(prev)
+          next.add(d.channelId)
+          return next
         })
       }
     })
@@ -207,6 +232,16 @@ export function useAdminChatWs(
     // Reset typing/online state when switching channels.
     setTypingUser(null)
     setUserOnline(false)
+
+    // Clear the pulse indicator for the now-active channel — the
+    // admin is viewing it, so the "new message" pulse is no longer
+    // needed.
+    setUnreadPulseChannels((prev) => {
+      if (!prev.has(activeChannelId)) return prev
+      const next = new Set(prev)
+      next.delete(activeChannelId)
+      return next
+    })
   }, [activeChannelId])
 
   // Send typing indicator when admin types.
@@ -215,9 +250,23 @@ export function useAdminChatWs(
     wsRef.current.send('typing', { channelId, isTyping })
   }
 
+  // Allow the channel list to clear the pulse manually (e.g. on hover
+  // or explicit dismiss). Currently only cleared on open via the effect
+  // above, but exposed for future use.
+  const clearUnreadPulse = useCallback((channelId: string) => {
+    setUnreadPulseChannels((prev) => {
+      if (!prev.has(channelId)) return prev
+      const next = new Set(prev)
+      next.delete(channelId)
+      return next
+    })
+  }, [])
+
   return {
     typingUser,
     userOnline,
     sendTyping,
+    unreadPulseChannels,
+    clearUnreadPulse,
   }
 }

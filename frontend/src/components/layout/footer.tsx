@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useState, useCallback } from 'react'
+import { memo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,7 +11,7 @@ import { EXCHANGE_RATE_NOTE } from '@/lib/currency'
 import {
   Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
   CreditCard, Heart, Globe, FileText, HelpCircle, MessageCircle,
-  Award, Send, Headphones, Stamp, ArrowUp, TrendingUp,
+  Award, Send, Headphones, Stamp, TrendingUp,
   Sparkles, Users, Route as RouteIcon, Building2, MapPinned
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -37,7 +37,6 @@ export const Footer = memo(function Footer() {
   const { setChatOpen } = useApp()
   const navigate = useNavigate()
   const t = useT()
-  const [showBackToTop, setShowBackToTop] = useState(false)
 
   const form = useForm<NewsletterValues>({
     resolver: zodResolver(newsletterSchema),
@@ -45,14 +44,6 @@ export const Footer = memo(function Footer() {
     reValidateMode: 'onChange',
     defaultValues: { email: '' },
   })
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 600)
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   const onSubscribe = useCallback((values: NewsletterValues) => {
     // Existing behavior: just confirm subscription with a toast.
@@ -345,17 +336,6 @@ export const Footer = memo(function Footer() {
           </div>
         </div>
       </div>
-
-      {/* ── Back to top button ── */}
-      {showBackToTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
-          aria-label="Về đầu trang"
-        >
-          <ArrowUp className="h-5 w-5" />
-        </button>
-      )}
     </footer>
   )
 })

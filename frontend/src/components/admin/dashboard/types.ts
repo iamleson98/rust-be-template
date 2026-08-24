@@ -27,7 +27,17 @@ export type AdminChannel = {
   lastMessagePreview: string | null
   unreadEmployee: number
   brand?: { name: string | null; accentColor: string | null } | null
-  user?: { fullName: string | null; phone: string | null } | null
+  /** The customer who started the channel. Populated by the backend
+   *  (joined from `user` table by `user_id`) — `email` + `avatarUrl`
+   *  are present when the backend ships the new `ChatChannelOut.user`
+   *  field (older API responses may omit them, hence optional). */
+  user?: {
+    id?: string
+    fullName?: string | null
+    email?: string | null
+    phone?: string | null
+    avatarUrl?: string | null
+  } | null
   assignments?: { employee: { id: string; name: string } }[]
 }
 
