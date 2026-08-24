@@ -69,7 +69,7 @@ export function LoginPage() {
           Về trang chủ
         </button>
 
-        <div className="rounded-2xl bg-white shadow-2xl overflow-hidden ring-1 ring-black/5">
+        <div className="rounded-2xl bg-white overflow-hidden ring-1 ring-black/5">
           {/* Header */}
           <div className="relative bg-linear-to-br from-blue-600 via-blue-700 to-blue-800 px-6 pt-6 pb-7 text-white">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />

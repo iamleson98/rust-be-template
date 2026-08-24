@@ -1,280 +1,226 @@
 <!doctype html>
 <html lang="vi" suppressHydrationWarning>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover"
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="VeXeVN" />
+    <meta name="application-name" content="VeXeVN" />
+    <meta name="format-detection" content="telephone=no" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="mask-icon" href="/logo.svg" color="#1d4ed8" />
 
-<head>
-  <meta charset="UTF-8" />
+    <title>VeXeVN — Đặt vé xe khách online toàn Việt Nam</title>
+    <meta
+      name="description"
+      content="Đặt vé xe khách trực tuyến: limousine, giường nằm, ghế ngồi. So sánh giá từ Phương Trang, Thanh Bình, Limousine Việt. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7."
+    />
+    <meta
+      name="keywords"
+      content="đặt vé xe, vé xe khách, xe limousine, giường nằm, Phương Trang, Thanh Bình, vé xe online, VeXeVN, vé xe Hà Nội Đà Nẵng, vé xe Hồ Chí Minh Đà Lạt"
+    />
+    <meta name="author" content="VeXeVN" />
+    <meta name="application-name" content="VeXeVN" />
+    <meta name="category" content="Travel" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="canonical" href="https://vexevn.vn" />
+    <meta
+      property="og:title"
+      content="VeXeVN — Đặt vé xe khách online toàn Việt Nam"
+    />
+    <meta
+      property="og:description"
+      content="So sánh giá từ hàng chục hãng xe uy tín. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7."
+    />
+    <meta property="og:url" content="https://vexevn.vn" />
+    <meta property="og:site_name" content="VeXeVN" />
+    <meta property="og:locale" content="vi_VN" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VeXeVN — Đặt vé xe khách online" />
+    <meta
+      name="twitter:description"
+      content="Đặt vé xe khách toàn Việt Nam — limousine, giường nằm, ghế ngồi"
+    />
+    <meta name="twitter:image" content="/og-image.png" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0f172a"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://unpkg.com" />
 
-  <!-- ── Mobile viewport ──────────────────────────────────────────
-       viewport-fit=cover: extend into the notch/home-indicator area
-       on iPhone X+ (paired with env(safe-area-inset-*) CSS below).
-       maximum-scale=5: allow zoom up to 5× for accessibility (WCAG 1.4.4)
-       but prevent the infamous iOS input zoom-on-focus jitter.
-  -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, viewport-fit=cover" />
+    <link rel="stylesheet" href="/fonts/geist.css" />
 
-  <!-- ── PWA / mobile web app ─────────────────────────────────────
-       These meta tags make the app installable on iOS (Add to Home
-       Screen) and Android (PWA install prompt). The manifest.json
-       link below is the standard PWA manifest (Chrome/Edge/Firefox).
-  -->
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="VeXeVN" />
-  <meta name="application-name" content="VeXeVN" />
-  <meta name="format-detection" content="telephone=no" />
+    <link
+      rel="preload"
+      as="image"
+      href="/hero-vietnam-bus.avif"
+      type="image/avif"
+      fetchpriority="high"
+    />
 
-  <!-- ── Icons ───────────────────────────────────────────────────
-       SVG favicon is ~1KB and scales perfectly to any DPI.
-       apple-touch-icon is a PNG fallback for iOS home-screen icons.
-       maskable is handled in manifest.webmanifest.
-  -->
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-  <link rel="mask-icon" href="/logo.svg" color="#1d4ed8" />
-
-  <title>VeXeVN — Đặt vé xe khách online toàn Việt Nam</title>
-  <meta name="description"
-    content="Đặt vé xe khách trực tuyến: limousine, giường nằm, ghế ngồi. So sánh giá từ Phương Trang, Thanh Bình, Limousine Việt. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7." />
-  <meta name="keywords"
-    content="đặt vé xe, vé xe khách, xe limousine, giường nằm, Phương Trang, Thanh Bình, vé xe online, VeXeVN, vé xe Hà Nội Đà Nẵng, vé xe Hồ Chí Minh Đà Lạt" />
-  <meta name="author" content="VeXeVN" />
-  <meta name="application-name" content="VeXeVN" />
-  <meta name="category" content="Travel" />
-  <meta name="color-scheme" content="light dark" />
-
-  <!-- ── SEO / canonical ─────────────────────────────────────────
-       Canonical must point to the actual production domain so Google
-       doesn't index the staging/Kamatera-IP URL as a duplicate.
-       Replace `https://vexevn.vn` with your real domain in production.
-  -->
-  <link rel="canonical" href="https://vexevn.vn" />
-
-  <!-- ── Open Graph + Twitter Card ───────────────────────────────
-       Needed for rich previews when shared on Facebook, Zalo,
-       Twitter/X, LinkedIn. The og:image should be 1200x630.
-  -->
-  <meta property="og:title" content="VeXeVN — Đặt vé xe khách online toàn Việt Nam" />
-  <meta property="og:description"
-    content="So sánh giá từ hàng chục hãng xe uy tín. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7." />
-  <meta property="og:url" content="https://vexevn.vn" />
-  <meta property="og:site_name" content="VeXeVN" />
-  <meta property="og:locale" content="vi_VN" />
-  <meta property="og:type" content="website" />
-  <meta property="og:image" content="/og-image.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="VeXeVN — Đặt vé xe khách online" />
-  <meta name="twitter:description" content="Đặt vé xe khách toàn Việt Nam — limousine, giường nằm, ghế ngồi" />
-  <meta name="twitter:image" content="/og-image.png" />
-
-  <!-- ── Theme color ─────────────────────────────────────────────
-       Per-mode theme-color so the browser chrome (URL bar on mobile,
-       task switcher on macOS) matches the active theme. Critical for
-       the "app feels native" perception on Android Chrome.
-  -->
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
-
-  <!-- ── Resource hints ──────────────────────────────────────────
-       preconnect: warm up the TLS + DNS + TCP connection to these
-       origins so the first request (CSS/JS/font/OG-tile) lands fast.
-       dns-prefetch: lighter — just DNS lookup, for less-critical origins.
-  -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
-  <link rel="dns-prefetch" href="https://unpkg.com" />
-
-  <!-- Self-hosted Geist variable font (subset by unicode-range; only
-       downloads the subsets needed for the page content) -->
-  <link rel="stylesheet" href="/fonts/geist.css" />
-
-  <!-- ── Preload critical LCP asset ──────────────────────────────
-       The hero image is the LCP element on the homepage. Preload it
-       with fetchpriority="high" so the browser starts fetching it
-       BEFORE the React bundle parses + executes.
-  -->
-  <link rel="preload" as="image" href="/hero-vietnam-bus.avif" type="image/avif" fetchpriority="high" />
-
-  <!-- ── Google Search Console verification ──────────────────────
-       Set VITE_GSC_VERIFICATION in .env to the token Google gives you
-       in Search Console → Settings → Ownership verification → HTML tag.
-       The value is injected at build time by Vite's HTML env substitution.
-       If the env var is not set, this tag is omitted (no empty tag).
-  -->
-  <!-- %VITE_GSC_VERIFICATION_META% -->
-
-  <!-- ── Google Analytics 4 (GA4) ────────────────────────────────
-       Set VITE_GA4_ID in .env to your GA4 measurement ID (G-XXXXXXXXXX).
-       The script is loaded async (doesn't block page render) and only
-       fires if the env var is set. SPA page-view tracking is handled
-       client-side in `src/lib/analytics.ts` (fires on TanStack Router
-       route changes).
-  -->
-  <!-- %VITE_GA4_SCRIPT% -->
-
-  <!-- Prevent FOUC: set the font CSS variables before the stylesheet loads -->
-  <style>
-    :root {
-      --font-geist-sans:
-        "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
-      --font-geist-mono:
-        "Geist Mono", ui-monospace, SFMono-Regular, monospace;
-    }
-
-    /* ── Mobile-friendly base styles ─────────────────────────────
-       These are CRITICAL — they're inlined in <head> so they apply
-       before any external CSS loads, preventing FOUC + layout shifts.
-
-       1. `-webkit-tap-highlight-color: transparent` removes the iOS
-          grey flash on tap (use :active styles instead).
-       2. `overscroll-behavior: none` on body prevents iOS rubber-band
-          scroll + pull-to-refresh (we have our own refresh controls).
-       3. `touch-action: manipulation` removes the 300ms tap delay on
-          touch devices (modern browsers don't need it but doesn't hurt).
-       4. `env(safe-area-inset-*)` padding respects the iPhone notch
-          + home indicator. Without it, content goes UNDER the notch.
-    */
-    html {
-      -webkit-tap-highlight-color: transparent;
-      -webkit-text-size-adjust: 100%;
-      text-size-adjust: 100%;
-    }
-    body {
-      overscroll-behavior-y: none;
-      /* Safe-area padding for notched devices. The `env()` returns 0
-         on devices without notches, so this is a no-op there. */
-      padding-top: env(safe-area-inset-top);
-      padding-bottom: env(safe-area-inset-bottom);
-      padding-left: env(safe-area-inset-left);
-      padding-right: env(safe-area-inset-right);
-    }
-    /* Make all interactive elements have a comfortable tap target
-       (WCAG 2.5.8: ≥24×24 CSS px, Apple HIG: 44×44 pt). */
-    button, a, [role="button"], input, select, textarea {
-      touch-action: manipulation;
-    }
-    /* Prevent the iOS "double-tap to zoom" misfire on buttons. */
-    button, [role="button"] {
-      -webkit-touch-callout: none;
-      user-select: none;
-    }
-    /* Respect prefers-reduced-motion at the OS level (vestibular
-       disorders, concussion recovery, photosensitive epilepsy). */
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation-duration: 0.001ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.001ms !important;
-        scroll-behavior: auto !important;
+    <style>
+      :root {
+        --font-geist-sans:
+          "Geist Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        --font-geist-mono:
+          "Geist Mono", ui-monospace, SFMono-Regular, monospace;
       }
-    }
-  </style>
-
-  <!-- JSON-LD structured data — gives Google rich results.
-       Three schemas on the homepage: WebSite, Organization, FAQPage.
-       Per-route schemas (BreadcrumbList, Product) are injected
-       client-side by `src/components/seo/json-ld.tsx`. -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "VeXeVN",
-    "url": "https://vexevn.vn",
-    "description": "Đặt vé xe khách trực tuyến — limousine, giường nằm, ghế ngồi toàn Việt Nam.",
-    "inLanguage": "vi-VN",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": {
-        "@type": "EntryPoint",
-        "urlTemplate": "https://vexevn.vn/search?from={from}&to={to}&date={date}"
-      },
-      "query-input": "required name=from"
-    }
-  }
-  </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "VeXeVN",
-    "url": "https://vexevn.vn",
-    "logo": "https://vexevn.vn/logo.svg",
-    "description": "Nền tảng đặt vé xe khách trực tuyến toàn Việt Nam — limousine, giường nằm, ghế ngồi.",
-    "foundingDate": "2024",
-    "areaServed": "VN",
-    "knowsLanguage": ["vi", "en"],
-    "contactPoint": {
-      "@type": "ContactPoint",
-      "telephone": "+84-1900-6067",
-      "contactType": "customer service",
-      "areaServed": "VN",
-      "availableLanguage": ["vi", "en"]
-    }
-  }
-  </script>
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "Làm thế nào để đặt vé xe trên VeXeVN?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Chỉ với 4 bước: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Tôi có thể đổi hoặc hoàn vé không?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Có. Bạn được đổi vé miễn phí trước 24 giờ so với giờ khởi hành. Với hoàn vé: thu phí 10% nếu hoàn trước 24 giờ, thu phí 30% nếu hoàn trong vòng 24 giờ, và không hoàn vé sau giờ khởi hành."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Những phương thức thanh toán nào được hỗ trợ?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "VeXeVN hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Vé điện tử có hợp lệ không?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Có. Vé điện tử trên VeXeVN có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe."
-        }
-      },
-      {
-        "@type": "Question",
-        "name": "Trẻ em có được giảm giá không?",
-        "acceptedAnswer": {
-          "@type": "Answer",
-          "text": "Có: trẻ dưới 2 tuổi đi miễn phí, trẻ từ 2-5 tuổi được giảm 50% giá vé, trẻ từ 6 tuổi trở lên mua vé như người lớn."
+      html {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+      }
+      body {
+        overscroll-behavior-y: none;
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+      }
+      button,
+      a,
+      [role="button"],
+      input,
+      select,
+      textarea {
+        touch-action: manipulation;
+      }
+      button,
+      [role="button"] {
+        -webkit-touch-callout: none;
+        user-select: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.001ms !important;
+          scroll-behavior: auto !important;
         }
       }
-    ]
-  }
-  </script>
-</head>
+    </style>
 
-<body class="antialiased bg-background text-foreground">
-  <!-- Skip-to-content link — appears on Tab focus, lets keyboard /
-       screen-reader users jump past the nav to the main content. -->
-  <a href="#main-content"
-     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:px-3 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md focus:shadow-lg">
-    Bỏ qua tới nội dung chính
-  </a>
-  <div id="root"><!--app-html--></div>
-  <script type="module" src="/src/entry-client.tsx"></script>
-</body>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "VeXeVN",
+        "url": "https://vexevn.vn",
+        "description": "Đặt vé xe khách trực tuyến — limousine, giường nằm, ghế ngồi toàn Việt Nam.",
+        "inLanguage": "vi-VN",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://vexevn.vn/search?from={from}&to={to}&date={date}"
+          },
+          "query-input": "required name=from"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "VeXeVN",
+        "url": "https://vexevn.vn",
+        "logo": "https://vexevn.vn/logo.svg",
+        "description": "Nền tảng đặt vé xe khách trực tuyến toàn Việt Nam — limousine, giường nằm, ghế ngồi.",
+        "foundingDate": "2024",
+        "areaServed": "VN",
+        "knowsLanguage": ["vi", "en"],
+        "contactPoint": {
+          "@type": "ContactPoint",
+          "telephone": "+84-1900-6067",
+          "contactType": "customer service",
+          "areaServed": "VN",
+          "availableLanguage": ["vi", "en"]
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Làm thế nào để đặt vé xe trên VeXeVN?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chỉ với 4 bước: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Tôi có thể đổi hoặc hoàn vé không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Có. Bạn được đổi vé miễn phí trước 24 giờ so với giờ khởi hành. Với hoàn vé: thu phí 10% nếu hoàn trước 24 giờ, thu phí 30% nếu hoàn trong vòng 24 giờ, và không hoàn vé sau giờ khởi hành."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Những phương thức thanh toán nào được hỗ trợ?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "VeXeVN hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Vé điện tử có hợp lệ không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Có. Vé điện tử trên VeXeVN có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Trẻ em có được giảm giá không?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Có: trẻ dưới 2 tuổi đi miễn phí, trẻ từ 2-5 tuổi được giảm 50% giá vé, trẻ từ 6 tuổi trở lên mua vé như người lớn."
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
 
+  <body class="antialiased bg-background text-foreground">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-9999 focus:px-3 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-md"
+    >
+      Bỏ qua tới nội dung chính
+    </a>
+    <div id="root"><!--app-html--></div>
+    <script type="module" src="/src/entry-client.tsx"></script>
+  </body>
 </html>

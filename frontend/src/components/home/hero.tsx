@@ -112,7 +112,7 @@ export function Hero() {
             width={1344}
             height={768}
             onError={(e) => {
-              ;(e.target as HTMLImageElement).style.display = 'none'
+              ; (e.target as HTMLImageElement).style.display = 'none'
             }}
           />
         </picture>
@@ -158,17 +158,17 @@ export function Hero() {
 
       <div className="relative container mx-auto px-4 pt-12 pb-16 md:pt-20 md:pb-24">
         <div className="max-w-3xl text-white">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold ring-1 ring-white/30 mb-5 shadow-lg shadow-blue-950/30">
+          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold ring-1 ring-white/30 mb-5">
             <span className="relative flex h-2 w-2">
               <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
             </span>
             <span className="text-white">Hơn {stats ? formatNum(stats.happyCustomers) : '125.000+'} hành khách tin dùng</span>
           </div>
 
-          <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] drop-shadow-sm">
+          <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] drop-">
             <span className="text-white">{t('hero.title')}</span>
             <br />
-            <span className="bg-linear-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_8px_rgba(252,211,77,0.35)]">
+            <span className="bg-linear-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent">
               {t('hero.titleHighlight')}
             </span>
           </h1>
@@ -179,7 +179,7 @@ export function Hero() {
 
         {/* Flash Sale Countdown */}
         {countdown && (countdown.hours > 0 || countdown.minutes > 0 || countdown.seconds > 0) && (
-          <div className="mt-6 inline-flex items-center gap-3 rounded-full bg-linear-to-r from-rose-500/25 via-amber-500/20 to-orange-500/25 backdrop-blur-xl ring-1 ring-amber-300/40 px-5 py-2.5 shadow-lg shadow-amber-900/30 relative overflow-hidden">
+          <div className="mt-6 inline-flex items-center gap-3 rounded-full bg-linear-to-r from-rose-500/25 via-amber-500/20 to-orange-500/25 backdrop-blur-xl ring-1 ring-amber-300/40 px-5 py-2.5 relative overflow-hidden">
             {/* shimmer sweep */}
             <div className="absolute inset-0 -translate-x-full animate-[shimmer_3s_ease-in-out_infinite] bg-linear-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
             <span className="relative flex items-center">
@@ -206,7 +206,7 @@ export function Hero() {
             backdrop-blur stacking context and is painted UNDER the trust
             badges that follow in the DOM. */}
         <div className="relative z-40 mt-8 md:mt-10">
-          <div className="rounded-3xl p-1.5 md:p-2 bg-white/15 ring-1 ring-white/25 shadow-2xl shadow-blue-950/40 backdrop-blur-md">
+          <div className="rounded-3xl p-1.5 md:p-2 bg-white/15 ring-1 ring-white/25 backdrop-blur-md">
             <SearchWidget />
           </div>
         </div>
@@ -273,7 +273,7 @@ function TrustBadge({ icon, title, sub }: { icon: React.ReactNode; title: string
     <div className="group relative flex items-center gap-3 rounded-xl bg-white/15 ring-1 ring-white/25 px-3 py-2.5 hover:bg-white/25 hover:ring-white/35 transition-all hover:-translate-y-0.5 backdrop-blur-sm overflow-hidden">
       {/* hover glow sweep */}
       <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-linear-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
-      <div className="relative h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center text-amber-300 ring-1 ring-white/20 shadow-inner shadow-amber-500/10">
+      <div className="relative h-9 w-9 rounded-lg bg-white/20 flex items-center justify-center text-amber-300 ring-1 ring-white/20">
         {icon}
       </div>
       <div className="relative leading-tight">
@@ -327,7 +327,7 @@ function Stat({ value, label }: { value: number; label: string }) {
         style={{ background: 'radial-gradient(circle, rgba(252,211,77,0.45), transparent 70%)' }}
       />
       <div className="relative text-center md:text-left">
-        <div className="text-2xl md:text-3xl font-extrabold text-white tabular-nums drop-shadow-[0_2px_8px_rgba(0,0,0,0.35)]">
+        <div className="text-2xl md:text-3xl font-extrabold text-white tabular-nums">
           {formatNum(display)}<span className="text-amber-300">+</span>
         </div>
         <div className="text-xs text-blue-100 font-semibold mt-0.5 uppercase tracking-wide">{label}</div>
@@ -339,7 +339,7 @@ function Stat({ value, label }: { value: number; label: string }) {
 function CountdownUnit({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-baseline gap-0.5">
-      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-white/25 backdrop-blur-sm text-base font-bold text-white ring-1 ring-white/30 px-1 shadow-sm">
+      <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md bg-white/25 backdrop-blur-sm text-base font-bold text-white ring-1 ring-white/30 px-1">
         {String(value).padStart(2, '0')}
       </span>
       <span className="text-[10px] font-bold text-amber-100">{label}</span>

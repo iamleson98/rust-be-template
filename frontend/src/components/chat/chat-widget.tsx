@@ -314,11 +314,11 @@ export function ChatWidget() {
       socketRef.current = null
       setConnected(false)
     }
-  // qc is intentionally excluded from deps — it's a stable reference
-  // (useQueryClient returns the same instance for the app's lifetime).
-  // Including it would cause the effect to re-run unnecessarily (e.g.
-  // when React StrictMode double-invokes effects in dev).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // qc is intentionally excluded from deps — it's a stable reference
+    // (useQueryClient returns the same instance for the app's lifetime).
+    // Including it would cause the effect to re-run unnecessarily (e.g.
+    // when React StrictMode double-invokes effects in dev).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, chatUser])
 
   // ── Channels list via TanStack Query ──────────────────────────────
@@ -543,7 +543,7 @@ export function ChatWidget() {
     return (
       <button
         onClick={() => setChatOpen(true)}
-        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group shadow-lg shadow-rose-500/30"
+        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group"
         aria-label="Mở chat hỗ trợ"
       >
         <Headset className="h-6 w-6" />

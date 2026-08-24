@@ -107,7 +107,7 @@ function NavigationMenuTrigger({
     >
       {children}{" "}
       <ChevronDownIcon
-        className="relative top-[1px] ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
+        className="relative top-px ml-1 size-3 transition duration-300 group-data-[state=open]:rotate-180"
         aria-hidden="true"
       />
     </NavigationMenuPrimitive.Trigger>
@@ -135,7 +135,7 @@ function NavigationMenuContent({
         //   data-[motion=from-start]:slide-in-from-left-52 → data-[activation-direction=left]:slide-in-from-left-52 (starting-style)
         //   data-[motion=to-end]:slide-out-to-right-52 → data-[activation-direction=right]:slide-out-to-right-52 (ending-style)
         //   data-[motion=to-start]:slide-out-to-left-52 → data-[activation-direction=left]:slide-out-to-left-52 (ending-style)
-        "data-[starting-style]:animate-in data-[ending-style]:animate-out data-[starting-style]:fade-in data-[ending-style]:fade-out data-[starting-style][data-activation-direction=right]:slide-in-from-right-52 data-[starting-style][data-activation-direction=left]:slide-in-from-left-52 data-[ending-style][data-activation-direction=right]:slide-out-to-right-52 data-[ending-style][data-activation-direction=left]:slide-out-to-left-52 top-0 left-0 w-full p-2 pr-2.5 md:absolute md:w-auto",
+        "data-starting-style:animate-in data-ending-style:animate-out data-starting-style:fade-in data-ending-style:fade-out data-[starting-style][data-activation-direction=right]:slide-in-from-right-52 data-[starting-style][data-activation-direction=left]:slide-in-from-left-52 data-[ending-style][data-activation-direction=right]:slide-out-to-right-52 data-[ending-style][data-activation-direction=left]:slide-out-to-left-52 top-0 left-0 w-full p-2 pr-2.5 md:absolute md:w-auto",
         "group-data-[viewport=false]/navigation-menu:bg-popover group-data-[viewport=false]/navigation-menu:text-popover-foreground group-data-[viewport=false]/navigation-menu:data-[state=open]:animate-in group-data-[viewport=false]/navigation-menu:data-[state=closed]:animate-out group-data-[viewport=false]/navigation-menu:data-[state=closed]:zoom-out-95 group-data-[viewport=false]/navigation-menu:data-[state=open]:zoom-in-95 group-data-[viewport=false]/navigation-menu:data-[state=open]:fade-in-0 group-data-[viewport=false]/navigation-menu:data-[state=closed]:fade-out-0 group-data-[viewport=false]/navigation-menu:top-full group-data-[viewport=false]/navigation-menu:mt-1.5 group-data-[viewport=false]/navigation-menu:overflow-hidden group-data-[viewport=false]/navigation-menu:rounded-md group-data-[viewport=false]/navigation-menu:border group-data-[viewport=false]/navigation-menu:shadow group-data-[viewport=false]/navigation-menu:duration-200 **:data-[slot=navigation-menu-link]:focus:ring-0 **:data-[slot=navigation-menu-link]:focus:outline-none",
         className
       )}
@@ -158,7 +158,7 @@ function NavigationMenuViewport({
         className={cn(
           // Base UI popup CSS vars: `--popup-height` and `--popup-width`
           // (replacing Radix's `--radix-navigation-menu-viewport-{height,width}`)
-          "origin-top-center bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 relative mt-1.5 h-[var(--popup-height)] w-full overflow-hidden rounded-md border shadow md:w-[var(--popup-width)]",
+          "origin-top-center bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-90 relative mt-1.5 h-(--popup-height) w-full overflow-hidden rounded-md border shadow md:w-(--popup-width)",
           className
         )}
         {...props}
@@ -197,12 +197,12 @@ function NavigationMenuIndicator({
     <div
       data-slot="navigation-menu-indicator"
       className={cn(
-        "data-[state=visible]:animate-in data-[state=hidden]:animate-out data-[state=hidden]:fade-out data-[state=visible]:fade-in top-full z-[1] flex h-1.5 items-end justify-center overflow-hidden",
+        "data-[state=visible]:animate-in data-[state=hidden]:animate-out data-[state=hidden]:fade-out data-[state=visible]:fade-in top-full z-1 flex h-1.5 items-end justify-center overflow-hidden",
         className
       )}
       {...props}
     >
-      <div className="bg-border relative top-[60%] h-2 w-2 rotate-45 rounded-tl-sm shadow-md" />
+      <div className="bg-border relative top-[60%] h-2 w-2 rotate-45 rounded-tl-sm " />
     </div>
   )
 }

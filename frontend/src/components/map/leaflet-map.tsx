@@ -228,7 +228,7 @@ function MapSearchBox({
           onChange={(e) => onInput(e.target.value)}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
-          className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur shadow-md text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+          className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
         />
         {loading && (
           <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />
@@ -247,7 +247,7 @@ function MapSearchBox({
         )}
       </div>
       {open && hits.length > 0 && (
-        <ul className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <ul className="mt-1 max-h-72 overflow-y-auto rounded-lg border border-slate-200 bg-white">
           {hits.map((h) => (
             <li key={h.osmId}>
               <button
@@ -378,7 +378,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         {/* My location button */}
         <button
           onClick={handleMyLocation}
-          className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur shadow-md ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
+          className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
           title="Vị trí của tôi"
           aria-label="Vị trí của tôi"
         >
@@ -386,7 +386,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         </button>
         {/* Hint overlay */}
         {!picked && (
-          <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white shadow-lg">
+          <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white">
             <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
             Chạm vào bản đồ để chọn vị trí
           </div>
@@ -423,7 +423,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         <button
           onClick={() => picked && onConfirm(picked)}
           disabled={!picked || reverseLoading}
-          className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm shadow-blue-600/30"
+          className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <Check className="h-4 w-4" />
           Chọn

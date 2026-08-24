@@ -60,8 +60,8 @@ export function BoardingPoints({
                     onClick={() => onSetBoardingPoint(p.id)}
                     className={`group w-full text-left rounded-xl border px-3.5 py-2.5 text-sm transition-all ${
                       selected
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm'
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-500/20 '
+                        : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/40 '
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2.5">
@@ -101,8 +101,8 @@ export function BoardingPoints({
                     onClick={() => onSetDroppingPoint(p.id)}
                     className={`group w-full text-left rounded-xl border px-3.5 py-2.5 text-sm transition-all ${
                       selected
-                        ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-400/20 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/40 hover:shadow-sm'
+                        ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-400/20 '
+                        : 'border-slate-200 bg-white hover:border-rose-300 hover:bg-rose-50/40 '
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2.5">

@@ -342,7 +342,7 @@ export function TicketsPanel() {
       </div>
 
       {/* ─── Filter bar ─── */}
-      <Card className="shadow-sm">
+      <Card>
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col gap-3">
             {/* Row 1: search + range + sort */}
@@ -512,7 +512,7 @@ export function TicketsPanel() {
 
       {/* ─── Optional stats drawer ─── */}
       {showStats && statsQuery.data && (
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
@@ -562,7 +562,7 @@ export function TicketsPanel() {
       )}
 
       {/* ─── Bookings table (desktop) / cards (mobile) ─── */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-base flex items-center gap-2">

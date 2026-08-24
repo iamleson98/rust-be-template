@@ -148,7 +148,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
         setFlyTarget([latitude, longitude])
         handleMapClick(latitude, longitude)
       },
-      () => {},
+      () => { },
       { enableHighAccuracy: true, timeout: 8000 },
     )
   }, [handleMapClick])
@@ -252,7 +252,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             {/* My location button */}
             <button
               onClick={handleMyLocation}
-              className="absolute right-3 top-3 z-1000 h-9 w-9 rounded-lg bg-white/95 backdrop-blur shadow-md ring-1 ring-slate-200 flex items-center justify-center text-primary hover:bg-primary/5 transition-colors"
+              className="absolute right-3 top-3 z-1000 h-9 w-9 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-primary hover:bg-primary/5 transition-colors"
               title="Vị trí của tôi"
               aria-label="Vị trí của tôi"
             >
@@ -260,7 +260,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             </button>
             {/* Hint */}
             {!picked && (
-              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white shadow-lg">
+              <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white">
                 <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
                 Chạm vào bản đồ để chọn vị trí
               </div>

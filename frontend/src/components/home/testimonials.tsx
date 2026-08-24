@@ -194,7 +194,7 @@ export const Testimonials = memo(function Testimonials() {
 
           className="mb-10 max-w-2xl mx-auto"
         >
-          <Card className="border-blue-100 shadow-sm bg-linear-to-br from-blue-50/80 to-blue-50/50">
+          <Card className="border-blue-100 bg-linear-to-br from-blue-50/80 to-blue-50/50">
             <CardContent className="p-5">
               <div className="flex flex-col sm:flex-row items-center gap-5">
                 {/* Big rating number */}
@@ -242,13 +242,9 @@ export const Testimonials = memo(function Testimonials() {
           {[...testimonials, ...testimonials].map((t, i) => (
             <div
               key={i}
-
-
-
-
               className="snap-start shrink-0 w-75 sm:w-85"
             >
-              <Card className="group h-full border-slate-100 shadow-sm relative overflow-hidden">
+              <Card className="group h-full border-slate-100 relative overflow-hidden">
                 {/* Quote mark decoration */}
                 <Quote className="absolute -top-2 -right-2 h-16 w-16 text-blue-50 rotate-0 group-hover:text-blue-100 transition-colors" />
                 {/* Gradient overlay on hover */}

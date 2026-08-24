@@ -517,13 +517,12 @@ function StepIndicator({ step }: { step: Step }) {
       {steps.map((s, i) => (
         <div key={s.key} className="flex items-center gap-1">
           <div
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-colors ${
-              i === currentIdx
-                ? 'bg-blue-600 text-white'
-                : i < currentIdx
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-colors ${i === currentIdx
+              ? 'bg-blue-600 text-white'
+              : i < currentIdx
                 ? 'bg-emerald-100 text-emerald-700'
                 : 'bg-slate-100 text-muted-foreground'
-            }`}
+              }`}
           >
             {s.icon}
             {s.label}
@@ -586,7 +585,7 @@ function SearchStep({
             className="h-9"
           />
           {fromSearch.data?.items && fromSearch.data.items.length > 0 && !fromPlace && fromQuery && (
-            <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-10 mt-1 w-full bg-white border rounded-md max-h-48 overflow-y-auto">
               {fromSearch.data.items.slice(0, 6).map((p) => (
                 <button
                   key={p.id ?? p.name}
@@ -618,7 +617,7 @@ function SearchStep({
             className="h-9"
           />
           {toSearch.data?.items && toSearch.data.items.length > 0 && !toPlace && toQuery && (
-            <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-10 mt-1 w-full bg-white border rounded-md max-h-48 overflow-y-auto">
               {toSearch.data.items.slice(0, 6).map((p) => (
                 <button
                   key={p.id ?? p.name}
@@ -800,15 +799,14 @@ function SeatsStep({
                               finalPrice: seat.finalPrice,
                             })
                           }
-                          className={`h-7 w-7 rounded text-[9px] font-mono font-bold transition-all ${
-                            !isAvailable
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                              : isSelected
+                          className={`h-7 w-7 rounded text-[9px] font-mono font-bold transition-all ${!isAvailable
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : isSelected
                               ? 'bg-blue-600 text-white ring-2 ring-blue-300'
                               : seat.seatClass === 'vip' || seat.seatClass === 'bed_lower'
-                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                              : 'bg-white border text-slate-700 hover:border-blue-400 hover:bg-blue-50'
-                          }`}
+                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                : 'bg-white border text-slate-700 hover:border-blue-400 hover:bg-blue-50'
+                            }`}
                           title={`${seat.code} · ${seat.seatClass} · ${new Intl.NumberFormat('vi-VN').format(seat.finalPrice)}₫`}
                         >
                           {seat.code}

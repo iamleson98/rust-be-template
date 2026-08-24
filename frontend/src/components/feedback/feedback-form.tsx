@@ -234,7 +234,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   // ─── "Read-only" view for an existing review ─────────────────
   if (isEditingExisting && !editMode) {
     return (
-      <Card className="ring-1 ring-amber-200 shadow-sm overflow-hidden">
+      <Card className="ring-1 ring-amber-200 overflow-hidden">
         <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
         <CardContent className="p-4 md:p-5 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -258,8 +258,8 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
               <Star
                 key={s}
                 className={`h-4 w-4 ${s <= (existingReview?.rating ?? 0)
-                    ? 'fill-amber-400 text-amber-400'
-                    : 'fill-slate-100 text-slate-200'
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'fill-slate-100 text-slate-200'
                   }`}
               />
             ))}
@@ -339,7 +339,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   // ─── "Submitted" success state ─────────────────────────────
   if (submitted) {
     return (
-      <Card className="ring-1 ring-amber-200 shadow-sm overflow-hidden">
+      <Card className="ring-1 ring-amber-200 overflow-hidden">
         <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
         <CardContent className="p-6 text-center">
           <div className="inline-flex h-16 w-16 rounded-full bg-linear-to-br from-amber-400 to-orange-500 items-center justify-center mb-3">
@@ -373,7 +373,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
 
   // ─── Editable form (POST new OR PATCH existing) ────────────
   return (
-    <Card className="ring-1 ring-amber-200 shadow-sm overflow-hidden">
+    <Card className="ring-1 ring-amber-200 overflow-hidden">
       <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
       <CardContent className="p-4 md:p-5 space-y-4">
         {/* Header */}
@@ -429,8 +429,8 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                         >
                           <Star
                             className={`h-8 w-8 transition-colors ${n <= displayRating
-                                ? 'fill-amber-400 text-amber-400 drop-shadow-sm'
-                                : 'fill-slate-100 text-slate-300'
+                              ? 'fill-amber-400 text-amber-400 drop-'
+                              : 'fill-slate-100 text-slate-300'
                               }`}
                           />
                         </button>
@@ -475,8 +475,8 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                             )
                           }
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${active
-                              ? 'bg-amber-500 text-white scale-105'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            ? 'bg-amber-500 text-white scale-105'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                         >
                           <span>{t.emoji}</span>

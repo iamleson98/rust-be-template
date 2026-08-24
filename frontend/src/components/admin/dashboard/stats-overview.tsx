@@ -254,7 +254,7 @@ export function StatsOverview({
       {/* ─── Row 0: Revenue Forecast + Booking Volume (real byDay data) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
         <div className="lg:col-span-3">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full">
+          <Card className="overflow-hidden h-full">
             <div className="h-1 bg-linear-to-r from-blue-500 via-blue-500 to-blue-500" />
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-3">
@@ -298,26 +298,25 @@ export function StatsOverview({
                 <div className="text-right">
                   <div className="text-muted-foreground">Xu hướng</div>
                   <div
-                    className={`flex items-center gap-1 font-bold mt-0.5 ${
-                      (forecast.forecast[forecast.forecast.length - 1] ?? 0) >=
+                    className={`flex items-center gap-1 font-bold mt-0.5 ${(forecast.forecast[forecast.forecast.length - 1] ?? 0) >=
                       (forecast.actualSeries[forecast.actualSeries.length - 1] ?? 0)
-                        ? 'text-blue-600'
-                        : 'text-rose-600'
-                    }`}
+                      ? 'text-blue-600'
+                      : 'text-rose-600'
+                      }`}
                   >
                     {(forecast.forecast[forecast.forecast.length - 1] ?? 0) >=
-                    (forecast.actualSeries[forecast.actualSeries.length - 1] ?? 0) ? (
+                      (forecast.actualSeries[forecast.actualSeries.length - 1] ?? 0) ? (
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     ) : (
                       <ArrowDownRight className="h-3.5 w-3.5" />
                     )}
                     {forecast.actualSeries.length > 0
                       ? Math.abs(
-                          ((forecast.forecast[forecast.forecast.length - 1] ?? 0) -
-                            (forecast.actualSeries[forecast.actualSeries.length - 1] ?? 0)) /
-                            Math.max(1, forecast.actualSeries[forecast.actualSeries.length - 1] ?? 1) *
-                            100,
-                        ).toFixed(1)
+                        ((forecast.forecast[forecast.forecast.length - 1] ?? 0) -
+                          (forecast.actualSeries[forecast.actualSeries.length - 1] ?? 0)) /
+                        Math.max(1, forecast.actualSeries[forecast.actualSeries.length - 1] ?? 1) *
+                        100,
+                      ).toFixed(1)
                       : '0.0'}
                     %
                   </div>
@@ -329,7 +328,7 @@ export function StatsOverview({
 
         {/* Booking-volume sparkline (real byDay count) */}
         <div className="lg:col-span-2">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full">
+          <Card className="overflow-hidden h-full">
             <div className="h-1 bg-linear-to-r from-amber-500 to-orange-500" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -375,7 +374,7 @@ export function StatsOverview({
       {/* ─── Row 1: Revenue Bar Chart + Booking-status Donut (real byDay + totals) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
         <div className="lg:col-span-3">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="h-1 bg-linear-to-r from-blue-500 to-blue-500" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -401,17 +400,15 @@ export function StatsOverview({
                         </div>
                         <div className="w-full relative" style={{ height: '120px' }}>
                           <div
-                            className={`absolute bottom-0 left-0 right-0 rounded-t-md bg-linear-to-t cursor-pointer group transition-all ${
-                              isHover
-                                ? 'from-blue-500 to-blue-300 scale-[1.03]'
-                                : 'from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300'
-                            }`}
+                            className={`absolute bottom-0 left-0 right-0 rounded-t-md bg-linear-to-t cursor-pointer group transition-all ${isHover
+                              ? 'from-blue-500 to-blue-300 scale-[1.03]'
+                              : 'from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300'
+                              }`}
                             style={{ height: `${heightPct}%` }}
                           >
                             <div
-                              className={`absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded transition-opacity ${
-                                isHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                              }`}
+                              className={`absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded transition-opacity ${isHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                }`}
                             >
                               {formatVNDShort(b.value)}
                             </div>
@@ -438,7 +435,7 @@ export function StatsOverview({
         </div>
 
         <div className="lg:col-span-2">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full">
+          <Card className="overflow-hidden h-full">
             <div className="h-1 bg-linear-to-r from-amber-500 to-orange-500" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -506,7 +503,7 @@ export function StatsOverview({
       {/* ─── Booking-status SegmentationDonut (real totals) + Recent Bookings ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
         <div className="lg:col-span-2">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full">
+          <Card className="overflow-hidden h-full">
             <div className="h-1 bg-linear-to-r from-violet-500 via-amber-500 to-blue-500" />
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
@@ -522,7 +519,7 @@ export function StatsOverview({
                     {statusSegments.map((s) => {
                       const pct = statusSegmentTotal > 0 ? ((s.count / statusSegmentTotal) * 100).toFixed(1) : '0.0'
                       return (
-                        <div key={s.label} className="rounded-lg border p-2.5 transition-shadow">
+                        <div key={s.label} className="rounded-lg border p-2.5">
                           <div className="flex items-center justify-between">
                             <div className="text-xs font-semibold truncate">{s.label}</div>
                             <div className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
@@ -547,7 +544,7 @@ export function StatsOverview({
 
         {/* Recent Bookings table (real /api/admin/bookings?limit=5) */}
         <div className="lg:col-span-3">
-          <Card className="shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full">
+          <Card className="overflow-hidden h-full">
             <div className="h-1 bg-linear-to-r from-blue-500 to-blue-500" />
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between gap-2">

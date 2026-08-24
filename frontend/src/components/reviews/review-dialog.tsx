@@ -292,7 +292,7 @@ export function ReviewDialog({
                             <Star
                               className={`h-9 w-9 transition-colors ${
                                 n <= displayRating
-                                  ? 'fill-amber-400 text-amber-400 drop-shadow-sm'
+                                  ? 'fill-amber-400 text-amber-400 drop-'
                                   : 'fill-slate-100 text-slate-300'
                               }`}
                             />

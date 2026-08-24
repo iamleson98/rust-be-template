@@ -43,7 +43,7 @@ export function KpiCard({ icon, label, value, change, up, color, gradient, delay
 }) {
   return (
     <div>
-      <Card className="shadow-sm hover:shadow-md transition-all duration-300 group overflow-hidden">
+      <Card className="transition-all duration-300 group overflow-hidden">
         <div className={`h-1 bg-linear-to-r ${gradient.replace('/10', '').replace('/5', '')}`} style={{ background: `linear-gradient(to right, ${color}, ${color}88)` }} />
         <CardContent className="p-5">
           <div className="flex items-start justify-between">

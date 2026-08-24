@@ -77,7 +77,7 @@ export const FaqSection = memo(function FaqSection() {
         {/* Two-column accordion grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Left column */}
-          <Card className="p-4 md:p-6 shadow-sm border-slate-200 bg-white">
+          <Card className="p-4 md:p-6 border-slate-200 bg-white">
             <Accordion
               type="multiple"
               value={openItems}
@@ -103,7 +103,7 @@ export const FaqSection = memo(function FaqSection() {
           </Card>
 
           {/* Right column */}
-          <Card className="p-4 md:p-6 shadow-sm border-slate-200 bg-white">
+          <Card className="p-4 md:p-6 border-slate-200 bg-white">
             <Accordion
               type="multiple"
               value={openItems}
@@ -130,7 +130,7 @@ export const FaqSection = memo(function FaqSection() {
         </div>
 
         {/* Contact CTA */}
-        <div className="mt-10 rounded-2xl bg-linear-to-br from-slate-900 to-rose-900 p-6 md:p-8 text-white shadow-lg">
+        <div className="mt-10 rounded-2xl bg-linear-to-br from-slate-900 to-rose-900 p-6 md:p-8 text-white">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="flex items-start gap-3">
               <div className="shrink-0 rounded-full bg-white/10 p-3">

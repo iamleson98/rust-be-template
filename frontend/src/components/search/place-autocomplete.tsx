@@ -172,7 +172,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
       </div>
 
       {open && items.length > 0 && (
-        <div className="absolute z-60 mt-1 w-full rounded-lg border bg-popover overflow-hidden shadow-xl shadow-slate-900/10">
+        <div className="absolute z-60 mt-1 w-full rounded-lg border bg-popover overflow-hidden">
           <ul className="max-h-72 overflow-y-auto py-1">
             {items.map((p, i) => (
               <li key={p.id ?? p.name + i}>
@@ -209,7 +209,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
 
       {/* Typing indicator while loading */}
       {open && loading && items.length === 0 && (
-        <div className="absolute z-60 mt-1 w-full rounded-lg border bg-popover overflow-hidden shadow-xl shadow-slate-900/10">
+        <div className="absolute z-60 mt-1 w-full rounded-lg border bg-popover overflow-hidden">
           <div className="px-3 py-3 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />

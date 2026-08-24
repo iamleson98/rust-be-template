@@ -214,7 +214,7 @@ export function DatePriceCompare() {
                 'px-3.5 py-3 rounded-xl border-2 transition-all duration-200 text-center',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1',
                 isSelected
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/25 scale-[1.03]'
+                  ? 'bg-blue-600 text-white border-blue-600  shadow-blue-600/25 scale-[1.03]'
                   : isDisabled
                     ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                     : dp.isCheapest
@@ -224,7 +224,7 @@ export function DatePriceCompare() {
             >
               {/* Cheapest badge */}
               {dp.isCheapest && !isSelected && hasPrice && (
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap z-10 shadow-sm flex items-center gap-0.5">
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap z-10  flex items-center gap-0.5">
                   <Sparkles className="h-2.5 w-2.5" />
                   Rẻ nhất
                 </span>

@@ -70,7 +70,7 @@ function ComboboxTrigger({
         "border-input data-placeholder:text-muted-foreground",
         "[&_svg:not([class*='text-'])]:text-muted-foreground",
         "focus-visible:border-ring focus-visible:ring-ring/50",
-        "flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
+        "flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
         "h-9",
         className,
       )}
@@ -125,7 +125,7 @@ function ComboboxContent({
           data-slot="combobox-content"
           className={cn(
             "bg-popover text-popover-foreground",
-            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-hidden rounded-md border shadow-md",
+            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-hidden rounded-md border ",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
             "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className,

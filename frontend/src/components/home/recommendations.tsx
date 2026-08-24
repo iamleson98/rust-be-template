@@ -178,7 +178,7 @@ export function Recommendations() {
                   key={rec.tripId + rec.routeId}
                   className="snap-start shrink-0 w-[78vw] sm:w-[320px] md:w-auto"
                 >
-                  <Card className="overflow-hidden ring-1 ring-black/5 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col">
+                  <Card className="overflow-hidden ring-1 ring-black/5 transition-all duration-300 h-full flex flex-col">
                     {/* Gradient accent header */}
                     <div className={`h-1.5 bg-linear-to-r ${style.gradient}`} />
                     <div className="p-4 flex-1 flex flex-col gap-3">

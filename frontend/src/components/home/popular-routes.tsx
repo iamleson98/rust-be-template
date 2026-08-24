@@ -117,7 +117,7 @@ export const PopularRoutes = memo(function PopularRoutes() {
                   onMouseEnter={() => handleHoverPrefetch(r.from.name, r.to.name)}
                   className="group text-left"
                 >
-                  <Card className="group overflow-hidden border-border/60 shadow-sm hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 h-full">
+                  <Card className="group overflow-hidden border-border/60 hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 h-full">
                     <div
                       className="h-1.5"
                       style={{ background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)` }}

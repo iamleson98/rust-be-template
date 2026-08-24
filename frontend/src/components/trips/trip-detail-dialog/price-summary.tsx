@@ -45,7 +45,7 @@ export function PriceSummary({
         ) : (
           <div className="flex items-center gap-3 md:gap-4">
             <div className="flex items-center gap-2 text-sm">
-              <div className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white inline-flex items-center justify-center font-bold text-xs shadow-sm">
+              <div className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-500 to-blue-600 text-white inline-flex items-center justify-center font-bold text-xs ">
                 {selectedSeatsCount}
               </div>
               <div>
@@ -76,7 +76,7 @@ export function PriceSummary({
       <Button
         onClick={onProceed}
         disabled={!canProceed}
-        className="bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 shadow-sm hover:shadow-md disabled:opacity-50 disabled:shadow-none gap-2 shrink-0 h-11 md:h-12 px-5 md:px-7 text-sm md:text-base font-semibold"
+        className="bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 gap-2 shrink-0 h-11 md:h-12 px-5 md:px-7 text-sm md:text-base font-semibold"
         size="lg"
       >
         <CheckCircle2 className="h-4 w-4" />

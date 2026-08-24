@@ -55,7 +55,7 @@ export function MobileNav() {
       <div className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
         <button
           onClick={() => navigate({ to: '/' })}
-          className="h-14 w-14 rounded-full bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center ring-4 ring-white/20 transition-shadow"
+          className="h-14 w-14 rounded-full bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center ring-4 ring-white/20"
           aria-label={t('nav.bookTicket')}
         >
           <Bus className="h-6 w-6" />
@@ -69,7 +69,7 @@ export function MobileNav() {
 
       {/* Bottom nav bar — touch targets are ≥48px (Apple HIG + Material). */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200/60 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200/60"
         aria-label="Điều hướng chính"
       >
         <div

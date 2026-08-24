@@ -65,7 +65,7 @@ export function ChatPanel({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Headset className="h-4 w-4 text-blue-600" /> Đang chờ</CardTitle>
           </CardHeader>
@@ -74,7 +74,7 @@ export function ChatPanel({
             <div className="text-xs text-muted-foreground mt-1">Cuộc trò chuyện chưa phân công</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-amber-600" /> Đang xử lý</CardTitle>
           </CardHeader>
@@ -83,7 +83,7 @@ export function ChatPanel({
             <div className="text-xs text-muted-foreground mt-1">Đã có nhân viên phụ trách</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-rose-600" /> Thời gian phản hồi TB</CardTitle>
           </CardHeader>
@@ -97,7 +97,7 @@ export function ChatPanel({
       {/* Chat queue + workspace split view */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Channel list */}
-        <Card className="shadow-sm xl:col-span-2">
+        <Card className="xl:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-blue-600" />
@@ -149,7 +149,7 @@ export function ChatPanel({
         </Card>
 
         {/* Chat workspace */}
-        <Card className="shadow-sm xl:col-span-3 flex flex-col">
+        <Card className="xl:col-span-3 flex flex-col">
           {activeChannel ? (
             <>
               <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between">
@@ -162,7 +162,6 @@ export function ChatPanel({
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate flex items-center gap-2">
                       {activeChannel.user?.fullName ?? 'Khách'}
-                      {/* Online status dot */}
                       {userOnline && (
                         <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Đang trực tuyến" />
                       )}
@@ -210,14 +209,10 @@ export function ChatPanel({
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 h-87.5 p-4">
+              <ScrollArea className="flex-1 h-80 overflow-y-scroll p-4">
                 <div className="space-y-2.5">
                   {chatMessages.map((m) => {
                     const isEmployee = m.senderType === 'employee'
-                    // Detect ticket-card messages: either `kind === 'ticket'`
-                    // or the content starts with `{` and parses as a ticket
-                    // payload. Falls back to plain-text rendering on parse
-                    // failure.
                     const ticketPayload = parseTicketPayload(m)
                     if (ticketPayload) {
                       return (
@@ -246,9 +241,8 @@ export function ChatPanel({
                   })}
                 </div>
 
-                {/* Typing indicator dots */}
                 {typingUser && (
-                  <div className="flex justify-start pb-2 px-1">
+                  <div className="flex justify-start pb-2 px-1 mt-2">
                     <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
                       <div className="flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -319,13 +313,6 @@ export function ChatPanel({
   )
 }
 
-// ── Ticket card rendering helpers ────────────────────────────
-
-/**
- * Parse a chat message into a `CreatedTicketPayload`. Returns `null` if the
- * message isn't a ticket-card message (no `kind: 'ticket'` and no parseable
- * JSON in `attachments` or `content`).
- */
 function parseTicketPayload(m: ChatMessage): CreatedTicketPayload | null {
   // Prefer the `attachments` field (canonical).
   if (m.attachments) {
@@ -363,7 +350,7 @@ function TicketCardMessage({
   const trip = payload.trip ?? ({} as CreatedTicketPayload['trip'])
   return (
     <div className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
-      <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border shadow-sm bg-white">
+      <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border bg-white">
         {/* Header strip with brand accent */}
         <div
           className="px-3 py-2 text-white flex items-center justify-between gap-2"

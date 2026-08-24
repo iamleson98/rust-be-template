@@ -65,7 +65,7 @@ function AppDownloadImpl() {
             <div className="mt-7 flex flex-col sm:flex-row gap-3 justify-center md:justify-start">
               <button
                 type="button"
-                className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-5 py-3 text-slate-900 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-100"
+                className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-5 py-3 text-slate-900 transition-transform hover:scale-[1.03] active:scale-100"
               >
                 <Smartphone className="size-5 text-slate-900" />
                 <span className="text-left leading-tight">
@@ -78,7 +78,7 @@ function AppDownloadImpl() {
 
               <button
                 type="button"
-                className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-5 py-3 text-slate-900 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-100"
+                className="group inline-flex items-center justify-center gap-3 rounded-full bg-white px-5 py-3 text-slate-900 transition-transform hover:scale-[1.03] active:scale-100"
               >
                 <Play className="size-5 fill-slate-900 text-slate-900" />
                 <span className="text-left leading-tight">
@@ -95,7 +95,7 @@ function AppDownloadImpl() {
           <div className="relative flex justify-center md:justify-end">
             <div className="relative">
               {/* Phone frame */}
-              <div className="relative w-60 sm:w-65 aspect-9/19 rounded-4xl ring-8 ring-white/20 bg-linear-to-br from-rose-500 to-amber-500 shadow-2xl shadow-black/40 overflow-hidden">
+              <div className="relative w-60 sm:w-65 aspect-9/19 rounded-4xl ring-8 ring-white/20 bg-linear-to-br from-rose-500 to-amber-500 overflow-hidden">
                 {/* Notch */}
                 <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 h-5 w-20 rounded-full bg-black/40" />
 
@@ -111,7 +111,7 @@ function AppDownloadImpl() {
                   </div>
 
                   {/* Ticket card */}
-                  <div className="rounded-2xl bg-white p-3 shadow-lg">
+                  <div className="rounded-2xl bg-white p-3">
                     <div className="flex items-center justify-between text-[9px] text-slate-400">
                       <span>Vé điện tử</span>
                       <span className="inline-flex items-center gap-1 text-rose-600 font-semibold">
@@ -182,21 +182,21 @@ function AppDownloadImpl() {
               </div>
 
               {/* Floating badges */}
-              <div className="absolute -top-3 -left-6 z-20 animate-[float-slow_3s_ease-in-out_infinite] rounded-xl bg-amber-400 px-3 py-1.5 shadow-lg ring-1 ring-black/5">
+              <div className="absolute -top-3 -left-6 z-20 animate-[float-slow_3s_ease-in-out_infinite] rounded-xl bg-amber-400 px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Zap className="size-3.5 text-amber-900" />
                   <span className="text-xs font-bold text-amber-900">⚡ Flash Sale</span>
                 </div>
               </div>
 
-              <div className="absolute top-1/2 -right-6 z-20 animate-[float-slow_3.4s_ease-in-out_infinite_0.3s] rounded-xl bg-white px-3 py-1.5 shadow-lg ring-1 ring-black/5">
+              <div className="absolute top-1/2 -right-6 z-20 animate-[float-slow_3.4s_ease-in-out_infinite_0.3s] rounded-xl bg-white px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Gift className="size-3.5 text-rose-600" />
                   <span className="text-xs font-bold text-slate-900">🎁 -50K</span>
                 </div>
               </div>
 
-              <div className="absolute -bottom-3 left-2 z-20 animate-[float-slow_3.2s_ease-in-out_infinite_0.6s] rounded-xl bg-white px-3 py-1.5 shadow-lg ring-1 ring-black/5">
+              <div className="absolute -bottom-3 left-2 z-20 animate-[float-slow_3.2s_ease-in-out_infinite_0.6s] rounded-xl bg-white px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Star className="size-3.5 fill-amber-400 text-amber-400" />
                   <span className="text-xs font-bold text-slate-900">⭐ 4.8/5</span>
