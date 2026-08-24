@@ -288,9 +288,28 @@ impl ChatStore for DbChatStore {
     ) -> StoreResult<Vec<chat_message::Model>> {
         let uuid = Uuid::parse_str(channel_id)
             .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        // ── Newest-first ordering for cursor pagination ─────────────
+        //
+        // Modern chat systems (Messenger, Discord, WhatsApp) load the
+        // LATEST N messages first, then load older ones as the user
+        // scrolls up. To support this with offset/limit pagination:
+        //
+        //   - `offset=0, limit=30` → the 30 newest messages
+        //   - `offset=30, limit=30` → the next 30 older messages
+        //   - etc.
+        //
+        // The caller (frontend) reverses the page before rendering so
+        // the oldest of the page is at the top + the newest at the
+        // bottom — the natural chat reading order.
+        //
+        // Previously this was `order_by_asc(CreatedAt)` which returned
+        // the OLDEST messages first. With offset+limit that meant: if
+        // the channel had 60 messages + limit=50, you got the 50 oldest
+        // — the latest 10 were invisible until you manually paginated.
+        // That's the "new messages stop showing up" bug.
         Ok(chat_message::Entity::find()
             .filter(chat_message::Column::ChannelId.eq(uuid))
-            .order_by_asc(chat_message::Column::CreatedAt)
+            .order_by_desc(chat_message::Column::CreatedAt)
             .offset(offset)
             .limit(limit)
             .all(self.db.as_ref())

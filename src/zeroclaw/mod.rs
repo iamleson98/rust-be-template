@@ -271,6 +271,12 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         }
 
         // 2. Fetch recent conversation history (last N messages).
+        //
+        // `list_messages` returns messages in DESC order (newest first)
+        // to support cursor pagination. For the AI conversation we need
+        // chronological order (oldest first, newest last) so the model
+        // sees the dialogue in the natural reading direction. We
+        // reverse the page after mapping.
         let history = chat_store
             .list_messages(channel_id, self.max_history as u64, 0)
             .await
@@ -286,6 +292,10 @@ impl ZeroClawProvider for HttpZeroClawProvider {
                 },
                 text: m.content.unwrap_or_default(),
             })
+            // `list_messages` is DESC (newest first); reverse to get
+            // chronological order (oldest first, newest last) so the
+            // AI sees the conversation naturally.
+            .rev()
             .collect();
 
         // If the just-sent message isn't the last entry (race), append it.

@@ -107,6 +107,21 @@ pub struct ListMessagesQuery {
 }
 
 /// `GET /api/chat/channels/{id}/messages` — list messages in a channel.
+///
+/// Returns messages in **DESC order (newest first)** to support
+/// cursor pagination. The frontend reverses the page before rendering
+/// so the oldest message is at the top + the newest at the bottom
+/// (the natural chat reading order).
+///
+/// - `limit` defaults to 30 (modern chat default — fast first paint).
+///   Max 200.
+/// - `offset` defaults to 0. `offset=30` returns the next 30 OLDER
+///   messages.
+///
+/// When a new message arrives via WS, the frontend invalidates this
+/// query so the latest page refetches with the new message at the
+/// top of the DESC page (which becomes the bottom after the
+/// frontend reverses it).
 #[utoipa::path(
     get,
     path = "/api/chat/channels/{id}/messages",
@@ -116,7 +131,7 @@ pub struct ListMessagesQuery {
         ListMessagesQuery,
     ),
     responses(
-        (status = 200, description = "Message list", body = ChatMessageListResponse),
+        (status = 200, description = "Message list (newest first)", body = ChatMessageListResponse),
         (status = 401, description = "Unauthorized"),
     )
 )]
@@ -136,7 +151,7 @@ pub async fn list_messages(
         .chats
         .list_messages(
             &id.to_string(),
-            q.limit.unwrap_or(50),
+            q.limit.unwrap_or(30).min(200),
             q.offset.unwrap_or(0),
         )
         .await?;

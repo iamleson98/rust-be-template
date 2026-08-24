@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -85,6 +85,9 @@ export function ChatPanel({
   typingUser,
   userOnline,
   unreadPulseChannels,
+  hasMoreMessages,
+  isFetchingMoreMessages,
+  onFetchMoreMessages,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -107,6 +110,12 @@ export function ChatPanel({
    * blue dot until the admin opens that channel.
    */
   unreadPulseChannels?: Set<string>
+  /** Whether there are more older messages to load (infinite scroll). */
+  hasMoreMessages?: boolean
+  /** Whether we're currently fetching the next page of older messages. */
+  isFetchingMoreMessages?: boolean
+  /** Call this when the user scrolls to the top of the chat. */
+  onFetchMoreMessages?: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -117,27 +126,100 @@ export function ChatPanel({
   // or ~15 chat messages before scrolling).
   const PANES_HEIGHT = 'max-h-[32rem]'
 
-  // ── Auto-scroll the chat messages area to the bottom ─────────────
+  // ── Chat scroll behavior (auto-scroll + infinite scroll trigger) ─
   //
-  // When a new message arrives OR the typing indicator appears, the
-  // chat area should auto-scroll to the bottom so the admin sees the
-  // latest content. Without this, new messages render below the fold
-  // + the admin has to manually scroll down.
-  //
-  // We query the ScrollArea's viewport via the `data-slot` attribute
-  // (set by the base-ui ScrollArea primitive) because the primitive
-  // doesn't expose a ref to the viewport directly. The ref is on the
-  // outer ScrollArea root, then we find the viewport inside it.
+  // The ScrollArea primitive doesn't expose the viewport ref directly,
+  // so we use a root ref + querySelector to find the viewport. This
+  // ref is also used by the infinite-scroll sentinel below to detect
+  // when the user has scrolled to the top.
   const chatScrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to the bottom when a new message arrives OR the
+  // typing indicator appears — but only if the user is already at
+  // (or near) the bottom. If they've scrolled up to read older
+  // messages, we DON'T yank them down.
+  const isAtBottomRef = useRef(true)
   useEffect(() => {
     const root = chatScrollRef.current
     if (!root) return
-    // The viewport is the element that actually scrolls (the root
-    // is just a positioned wrapper).
     const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
-    if (viewport) {
-      viewport.scrollTop = viewport.scrollHeight
+    if (!viewport) return
+
+    // Track whether the user is at the bottom on every scroll.
+    const handleScroll = () => {
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      isAtBottomRef.current = distanceFromBottom <= 80
     }
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    // ── Infinite scroll trigger ─────────────────────────────────
+    // When the user scrolls to the top (scrollTop <= 80px), fetch
+    // the next page of older messages. We use a separate scroll
+    // listener (not IntersectionObserver) because the ScrollArea's
+    // viewport is the scroll container, not the document.
+    const handleInfiniteScroll = () => {
+      if (viewport.scrollTop <= 80 && hasMoreMessages && !isFetchingMoreMessages && onFetchMoreMessages) {
+        onFetchMoreMessages()
+      }
+    }
+    viewport.addEventListener('scroll', handleInfiniteScroll, { passive: true })
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      viewport.removeEventListener('scroll', handleInfiniteScroll)
+    }
+  }, [hasMoreMessages, isFetchingMoreMessages, onFetchMoreMessages])
+
+  // Auto-scroll to the bottom on new messages + typing (only if at
+  // bottom). Also preserve scroll position when prepending older
+  // messages (so the user sees the same message they were viewing).
+  // We capture the scroll height before the DOM update + adjust
+  // scrollTop after to keep the view stable.
+  const prevScrollHeightRef = useRef(0)
+  const prevMessagesLenRef = useRef(0)
+  useLayoutEffect(() => {
+    const root = chatScrollRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+
+    const prevLen = prevMessagesLenRef.current
+    const newLen = chatMessages.length
+    const delta = newLen - prevLen
+
+    if (delta === 0) {
+      // No messages change — but the typing indicator may have
+      // appeared/disappeared. Auto-scroll to bottom if at bottom.
+      if (isAtBottomRef.current) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+      return
+    }
+
+    if (delta > 0 && prevLen > 0) {
+      // ── Append (new message at the bottom) ─────────────────────
+      // Only auto-scroll if the user was at the bottom. If they had
+      // scrolled up to read older messages, leave them where they are.
+      if (isAtBottomRef.current) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    } else if (delta > 0 && prevLen === 0) {
+      // ── Initial load ───────────────────────────────────────────
+      viewport.scrollTop = viewport.scrollHeight
+      isAtBottomRef.current = true
+    } else if (delta < 0) {
+      // ── Prepend (older messages added at the top) ───────────────
+      // The DOM grew at the top by `|delta|` messages. Preserve the
+      // user's scroll position by adding the new content's height
+      // to scrollTop.
+      const newScrollHeight = viewport.scrollHeight
+      const addedHeight = newScrollHeight - prevScrollHeightRef.current
+      viewport.scrollTop = viewport.scrollTop + addedHeight
+    }
+
+    prevMessagesLenRef.current = newLen
+    prevScrollHeightRef.current = viewport.scrollHeight
   }, [chatMessages, typingUser])
 
   return (
@@ -333,6 +415,31 @@ export function ChatPanel({
                   scroll to the bottom on new messages + typing events. */}
               <ScrollArea ref={chatScrollRef} className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
                 <div className="space-y-2.5">
+                  {/* ── "Load more" spinner (top of chat) ─────────────────
+                      Shown when the infinite-scroll hook is fetching the
+                      next page of older messages. Also serves as a
+                      visual anchor so the user knows more are coming.
+                      The scroll-position-preservation logic above keeps
+                      the user's view stable when the new messages are
+                      prepended. */}
+                  {isFetchingMoreMessages && (
+                    <div className="flex items-center justify-center py-3">
+                      <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
+                        <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
+                        Đang tải tin nhắn cũ hơn...
+                      </div>
+                    </div>
+                  )}
+                  {!isFetchingMoreMessages && hasMoreMessages && onFetchMoreMessages && (
+                    <div className="flex items-center justify-center py-2">
+                      <button
+                        onClick={onFetchMoreMessages}
+                        className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Xem tin nhắn cũ hơn
+                      </button>
+                    </div>
+                  )}
                   {chatMessages.map((m) => {
                     const isEmployee = m.senderType === 'employee'
                     const ticketPayload = parseTicketPayload(m)
@@ -347,9 +454,12 @@ export function ChatPanel({
                       )
                     }
                     return (
-                      <div key={m.id} className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        key={m.id}
+                        className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
+                      >
                         <div
-                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
+                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word shadow-sm ${isEmployee
                             ? 'bg-blue-600 text-white rounded-br-sm'
                             : m.senderType === 'system'
                               ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'

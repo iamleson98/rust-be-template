@@ -155,6 +155,9 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 typingUser={chat.typingUser}
                 userOnline={chat.userOnline}
                 unreadPulseChannels={chat.unreadPulseChannels}
+                hasMoreMessages={chat.hasMoreMessages}
+                isFetchingMoreMessages={chat.isFetchingMoreMessages}
+                onFetchMoreMessages={chat.fetchMoreMessages as any}
                 onViewTicket={(code) => {
                   // Switch to the Tickets tab + open the detail dialog.
                   // We do this via a custom event so the TicketsPanel can

@@ -23,6 +23,9 @@ export function AdminChatPage() {
           typingUser={ws.typingUser}
           userOnline={ws.userOnline}
           unreadPulseChannels={ws.unreadPulseChannels}
+          hasMoreMessages={ws.hasMoreMessages}
+          isFetchingMoreMessages={ws.isFetchingMoreMessages}
+          onFetchMoreMessages={ws.fetchMoreMessages as any}
         />
       </div>
     </AdminShell>

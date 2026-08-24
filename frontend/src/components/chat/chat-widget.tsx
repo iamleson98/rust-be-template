@@ -52,7 +52,7 @@ import {
   useAuthMe,
   useRegister,
   useChatChannels,
-  useChatMessages,
+  useChatMessagesInfinite,
   useCreateChatChannel,
   usePostChatMessage,
   useMarkChatRead,
@@ -348,15 +348,31 @@ export function ChatWidget() {
   const channelsQuery = useChatChannels(50)
   const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
 
-  // ── Messages for the active channel via TanStack Query ───────────
-  const messagesQuery = useChatMessages(activeChannel?.id, 50)
-  const messages: Message[] = (messagesQuery.data?.items ?? []) as unknown as Message[]
-  const loadingMessages = messagesQuery.isLoading
+  // ── Messages for the active channel via TanStack Query (infinite scroll) ───
+  //
+  // `useChatMessagesInfinite` fetches the latest 30 messages first
+  // (newest first in the API → reversed for display). When the user
+  // scrolls to the top, the chat-conversation component triggers
+  // `fetchNextPage()` to load older messages. Scroll position is
+  // preserved by the scroll-anchor logic in chat-conversation.tsx.
+  const {
+    messages: infiniteMessages,
+    hasNextPage: hasMoreMessages,
+    fetchNextPage: fetchMoreMessages,
+    isFetchingNextPage: isFetchingMoreMessages,
+  } = useChatMessagesInfinite(activeChannel?.id, 30)
+  const messages: Message[] = infiniteMessages as unknown as Message[]
+  const loadingMessages = !infiniteMessages && activeChannel != null
 
-  // Auto scroll
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages, typing, waitingForAgent])
+  // ── Auto-scroll + scroll-position preservation ────────────────────
+  //
+  // The auto-scroll + scroll-position-preservation logic lives in
+  // `chat-conversation.tsx` now (it has access to `scrollRef` via
+  // props + uses `useLayoutEffect` for stable position on prepend).
+  // The previous `useEffect` here was a simpler version that always
+  // scrolled to the bottom — it would yank the user down when they
+  // were reading older messages. Removed in favor of the smarter
+  // version in ChatConversation.
 
   // ── Mutations ─────────────────────────────────────────────────────
   const registerMut = useRegister({
@@ -666,6 +682,7 @@ export function ChatWidget() {
       ) : (
         <>
           <ChatConversation
+            key={activeChannel?.id ?? 'no-channel'}
             scrollRef={scrollRef}
             loadingMessages={loadingMessages}
             messages={messages}
@@ -673,6 +690,9 @@ export function ChatWidget() {
             waitingForAgent={waitingForAgent}
             agentJoinedName={agentJoinedName}
             employeesOnline={employeesOnline}
+            hasMoreMessages={hasMoreMessages}
+            isFetchingMoreMessages={isFetchingMoreMessages}
+            onFetchMoreMessages={() => fetchMoreMessages()}
           />
           <ChatInput
             input={input}

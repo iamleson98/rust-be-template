@@ -4,7 +4,7 @@ import { useCallback, useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
   useChatChannels,
-  useChatMessages,
+  useChatMessagesInfinite,
   usePostChatMessage,
   useMarkChatRead,
 } from "@/lib/queries";
@@ -16,6 +16,7 @@ import { useAdminChatWs } from "./use-admin-chat-ws";
 import { useApp } from "@/lib/store";
 
 const TYPING_IDLE_MS = 2000;
+const PAGE_SIZE = 30;
 
 export function useAdminChatWorkspace() {
   const { user } = useApp();
@@ -25,9 +26,26 @@ export function useAdminChatWorkspace() {
   const channelsQuery = useChatChannels(50);
   const channels: AdminChannel[] = (channelsQuery.data?.items ??
     []) as unknown as AdminChannel[];
-  const messagesQuery = useChatMessages(activeChannel?.id, 50);
-  const chatMessages: AdminChatMessage[] = (messagesQuery.data?.items ??
-    []) as unknown as AdminChatMessage[];
+
+  // ── Infinite-scroll messages ──────────────────────────────────
+  //
+  // `useChatMessagesInfinite` fetches the latest `PAGE_SIZE` messages
+  // first (newest first in the API → reversed for display). When the
+  // admin scrolls to the top of the chat, the panel calls
+  // `fetchNextPage()` to load the next page of older messages.
+  //
+  // Realtime updates: when a new message arrives via WS, the WS hook
+  // invalidates the `listMessages` query → TanStack refetches the
+  // FIRST page (offset=0), which now includes the new message.
+  // Older pages are NOT refetched (they're unchanged).
+  const {
+    messages: infiniteMessages,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useChatMessagesInfinite(activeChannel?.id, PAGE_SIZE);
+  const chatMessages: AdminChatMessage[] = infiniteMessages as unknown as AdminChatMessage[];
+  const messagesLoading = !infiniteMessages && hasNextPage;
 
   const {
     typingUser,
@@ -164,13 +182,17 @@ export function useAdminChatWorkspace() {
     channelsLoading: channelsQuery.isLoading,
     channelsError: channelsQuery.error,
     chatMessages,
-    messagesLoading: messagesQuery.isLoading,
-    messagesError: messagesQuery.error,
+    messagesLoading,
+    messagesError: null as any,
     activeChannel,
     setActiveChannel: openChannel,
     replyText,
     setReplyText: onReplyTextChange,
     sending: postReplyMut.isPending,
+    // infinite scroll
+    hasMoreMessages: hasNextPage,
+    fetchMoreMessages: fetchNextPage,
+    isFetchingMoreMessages: isFetchingNextPage,
     // realtime state
     typingUser,
     userOnline,
