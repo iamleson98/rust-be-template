@@ -120,6 +120,14 @@ export function useAdminChatWs(
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
     })
 
+    // Listen for `channel_created` events — broadcast to ALL sockets
+    // when a new channel is created via REST. This lets the admin's
+    // channel list auto-refetch without polling.
+    ws.on('channel_created', () => {
+      if (disposed) return
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+    })
+
     return () => {
       disposed = true
       ws.close()

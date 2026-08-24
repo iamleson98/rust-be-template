@@ -487,10 +487,31 @@ async fn handle_message(
         let user2 = user.clone();
         let user_msg_id = id.clone();
         let text2 = text.clone();
-
+        let sid_for_typing = sid;
+        // Capture the current tracing span so logs inside the spawned
+        // task (an LLM HTTP call that can take 5-15s) stay correlated
+        // to the WS handler that triggered them. Without `.instrument`
+        // the span context is dropped at the `tokio::spawn` boundary.
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
+                // If ZeroClaw will handle this (no humans online), send
+                // a typing indicator to the user so they see "someone
+                // is replying" while the AI processes.
+                let will_zeroclaw_reply = online < fallback_threshold;
+
+                if will_zeroclaw_reply {
+                    hub().send_to(
+                        sid_for_typing,
+                        &json!({
+                            "type": "typing",
+                            "channelId": channel_id2,
+                            "name": "Nhân viên hỗ trợ",
+                            "isTyping": true,
+                        }),
+                    );
+                }
+
                 match chats
                     .maybe_zeroclaw_reply(
                         &channel_id2,
@@ -525,6 +546,20 @@ async fn handle_message(
                     Err(e) => {
                         tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
                     }
+                }
+
+                // Always clear the typing indicator after ZeroClaw
+                // finishes (whether it replied, declined, or errored).
+                if will_zeroclaw_reply {
+                    hub().send_to(
+                        sid_for_typing,
+                        &json!({
+                            "type": "typing",
+                            "channelId": channel_id2,
+                            "name": "Nhân viên hỗ trợ",
+                            "isTyping": false,
+                        }),
+                    );
                 }
             }
             .instrument(span),

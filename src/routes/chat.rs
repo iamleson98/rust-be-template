@@ -140,6 +140,20 @@ pub async fn create_channel(
         .chats
         .create_channel(uid, body.brand_id, body.topic)
         .await?;
+
+    // Broadcast a `channel_created` event to ALL connected WS sockets.
+    // This lets the admin's chat workspace auto-refetch the channels
+    // list when a new user starts a chat — without the admin needing
+    // to manually reload the page.
+    crate::ws::hub::hub().broadcast_all(
+        &serde_json::json!({
+            "type": "channel_created",
+            "channelId": channel.id.to_string(),
+            "userId": uid.to_string(),
+        })
+        .to_string(),
+    );
+
     Ok(Json(CreateChannelResponse {
         channel: channel_to_dto(channel),
     }))
