@@ -1,60 +1,63 @@
-# Docker Compose for production deployment.
-#
-# Builds the multi-stage Dockerfile (frontend + backend in one image)
-# and runs the backend serving both API and static files on port 8080.
-#
-# Usage:
-#   docker compose -f docker-compose.prod.yml up -d
-#
-# The backend uses SQLite by default (no external DB container needed).
-# For Postgres, uncomment the `db` service and set DATABASE__URL.
-
 services:
-  # ---- Backend (serves API + frontend static files) ----
-  backend:
-    image: ghcr.io/iamleson98/vexevn:latest
-    build:
-      context: .
-      args:
-        BACKEND_FEATURES: sqlite
-    ports:
-      - "8080:8080"
-    env_file:
-      - .env
-    environment:
-      DATABASE__URL: sqlite:///app/data/app.db?mode=rwc
-    volumes:
-      - app-data:/app/data
-      - app-storage:/app/storage
-      - app-osm:/app/osm-index
+  zeroclaw:
+    image: ghcr.io/zeroclaw-labs/zeroclaw:latest
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 5s
-      start_period: 15s
-      retries: 3
-    # Security hardening
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    # Resource limits — prevent OOM from killing other services
-    deploy:
-      resources:
-        limits:
-          memory: 2g
-        reservations:
-          memory: 512m
-    # Logging — prevent disk fill from verbose logs
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "5"
-    # Graceful shutdown — give the server 30s to drain connections
-    stop_grace_period: 30s
-    stop_signal: SIGTERM
+    ports:
+      - "42617:42617"
+    environment:
+      # PORT: "8000"
+      ZEROCLAW_API_KEY: "${ZEROCLAW_API_KEY:-localsecret}"
+
+      # Model Provider Credentials (Google Gemini)
+      LLM_PROVIDER: "${LLM_PROVIDER:-openai}"
+      OPENAI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/"
+      OPENAI_API_KEY: "${GEMINI_API_KEY:-}"
+      ZEROCLAW_MODEL: "${ZEROCLAW_MODEL:-gemini-2.0-flash}"
+
+  # backend:
+  #   image: ghcr.io/iamleson98/vexevn:latest
+  #   build:
+  #     context: .
+  #     args:
+  #       BACKEND_FEATURES: sqlite
+  #   ports:
+  #     - "8080:8080"
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     DATABASE__URL: sqlite:///app/data/app.db?mode=rwc
+  #   volumes:
+  #     - app-data:/app/data
+  #     - app-storage:/app/storage
+  #     - app-osm:/app/osm-index
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     start_period: 15s
+  #     retries: 3
+  #   # Security hardening
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   cap_drop:
+  #     - ALL
+  #   # Resource limits — prevent OOM from killing other services
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 2g
+  #       reservations:
+  #         memory: 512m
+  #   # Logging — prevent disk fill from verbose logs
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "50m"
+  #       max-file: "5"
+  #   # Graceful shutdown — give the server 30s to drain connections
+  #   stop_grace_period: 30s
+  #   stop_signal: SIGTERM
 
   # ---- Cache (Redis — optional, backend falls back to Moka) ----
   # Uncomment if you want shared caching across instances.

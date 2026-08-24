@@ -25,11 +25,6 @@ pub struct Model {
     pub avatar_url: Option<String>,
     pub locale: String,
     pub is_guest: bool,
-    /// True for bot accounts (ZeroClaw AI, future integrations). Bots have
-    /// `role = "user"` so RBAC is unchanged; this flag is purely
-    /// informational for the chat layer (renders the sender as "bot"
-    /// rather than "human" + lets the WS hub skip online-presence tracking).
-    pub is_bot: bool,
     pub role: String,
     pub failed_login_attempts: i64,
     #[sea_orm(column_type = "Text", nullable)]
@@ -49,6 +44,7 @@ pub struct Model {
         unique_key = "User_oauth_provider_subject_uniq"
     )]
     pub oauth_subject: Option<String>,
+    pub is_bot: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -57,6 +53,8 @@ pub enum Relation {
     Booking,
     #[sea_orm(has_many = "super::chat_channel::Entity")]
     ChatChannel,
+    #[sea_orm(has_many = "super::chat_channel_member::Entity")]
+    ChatChannelMember,
     #[sea_orm(has_many = "super::notification::Entity")]
     Notification,
     #[sea_orm(has_many = "super::payment::Entity")]
@@ -84,6 +82,12 @@ impl Related<super::booking::Entity> for Entity {
 impl Related<super::chat_channel::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::ChatChannel.def()
+    }
+}
+
+impl Related<super::chat_channel_member::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ChatChannelMember.def()
     }
 }
 

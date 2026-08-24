@@ -36,6 +36,8 @@ pub enum Relation {
     Brand,
     #[sea_orm(has_one = "super::chat_assignment::Entity")]
     ChatAssignment,
+    #[sea_orm(has_many = "super::chat_channel_member::Entity")]
+    ChatChannelMember,
     #[sea_orm(has_many = "super::chat_message::Entity")]
     ChatMessage,
     #[sea_orm(
@@ -59,6 +61,12 @@ impl Related<super::brand::Entity> for Entity {
 impl Related<super::chat_assignment::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::ChatAssignment.def()
+    }
+}
+
+impl Related<super::chat_channel_member::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::ChatChannelMember.def()
     }
 }
 

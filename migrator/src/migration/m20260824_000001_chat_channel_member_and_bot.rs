@@ -1,52 +1,6 @@
-//! Adds explicit channel membership + a built-in ZeroClaw bot user.
-//!
-//! ## What this migration does
-//!
-//! 1. **Add `is_bot` column to `user`** — a boolean flag that distinguishes
-//!    bot accounts (ZeroClaw, future integrations) from human users. Defaults
-//!    to `FALSE`. Bots have `role = "user"` (so RBAC stays unchanged) but
-//!    `is_bot = TRUE`. The chat layer checks `is_bot` when deciding whether
-//!    a `sender_id` should be rendered as a human vs an assistant.
-//!
-//! 2. **Create `chat_channel_member`** — proper membership table. Replaces
-//!    the implicit "user is in their own channel" model with an explicit
-//!    `(channel_id, user_id, role)` triple. Roles: `'user'` (customer),
-//!    `'employee'` (assigned support staff), `'bot'` (ZeroClaw).
-//!    UNIQUE(channel_id, user_id) prevents duplicate joins.
-//!
-//! 3. **Seed the ZeroClaw bot user** — a deterministic UUID
-//!    (`00000000-0000-0000-0000-000000000001`) is reserved for ZeroClaw.
-//!    Inserted with `is_bot = TRUE`, `email = "bot+zeroclaw@system.local"`,
-//!    `full_name = "ZeroClaw AI"`. The chat module references this UUID
-//!    when inserting assistant messages so they have a real `sender_id`
-//!    FK to the `user` table.
-//!
-//! ## Why deterministic UUID
-//!
-//! A random UUID would require a runtime lookup on every ZeroClaw reply.
-//! A deterministic UUID lets `src/zeroclaw/mod.rs` reference the bot user
-//! as a `const`, with no DB round-trip. If the seed row is missing (e.g.
-//! the migration didn't run), the chat code gracefully degrades —
-//! `sender_id` falls back to `None` and the assistant message still inserts.
-//!
-//! ## Why a separate `chat_channel_member` table
-//!
-//! The previous model had no explicit membership:
-//!   - `chat_channel.user_id` → the customer (1:1)
-//!   - `chat_assignment` → a dormant 1:1 employee assignment table that no
-//!     code path actually wrote to.
-//!
-//! This was fine for a 2-party (user + employee) chat but breaks down with
-//! ZeroClaw as a third participant. The member table lets us:
-//!   - Track who is in a channel (customer + bot + assigned employees).
-//!   - Query "all channels I'm a member of" for the employee support queue.
-//!   - Add a `left_at` column for "leave channel" semantics later.
-
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::migration::{
-    m20250101_000001_create_users::User, m20260809_021323_chat::ChatChannel,
-};
+use crate::migration::{m20250101_000001_create_users::User, m20260809_021323_chat::ChatChannel};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -151,38 +105,6 @@ impl MigrationTrait for Migration {
                     .to_owned(),
             )
             .await?;
-
-        // 3. Seed the ZeroClaw bot user. Idempotent — uses
-        //    `INSERT ... ON CONFLICT DO NOTHING` semantics via raw SQL so
-        //    re-running the migration is safe.
-        //
-        //    UUID `00000000-0000-0000-0000-000000000001` is the reserved
-        //    bot id; the chat module references it as a `const`.
-        let db = manager.get_connection();
-        db.execute_unprepared(
-            r#"INSERT INTO "user" (
-                id, brand_id, full_name, email, phone,
-                email_verified_at, phone_verified_at, status, block_reason,
-                password_hash, avatar_url, locale, is_guest, role,
-                failed_login_attempts, locked_until, last_login_at, last_login_ip,
-                password_changed_at, created_at, updated_at,
-                oauth_provider, oauth_subject, is_bot
-            ) VALUES (
-                '00000000-0000-0000-0000-000000000001',
-                NULL,
-                'ZeroClaw AI',
-                'bot+zeroclaw@system.local',
-                NULL,
-                NULL, NULL, 'active', NULL,
-                NULL, NULL, 'vi', FALSE, 'user',
-                0, NULL, NULL, NULL,
-                NULL,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-                NULL, NULL, TRUE
-            )
-            ON CONFLICT (id) DO NOTHING"#,
-        )
-        .await?;
 
         // Defensive: also ensure the email is unique-owned by the bot
         // (some old test DBs may already have a row with this email).
