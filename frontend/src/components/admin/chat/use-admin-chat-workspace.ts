@@ -29,6 +29,7 @@ import {
   useChatChannels,
   useChatMessages,
   usePostChatMessage,
+  useMarkChatRead,
 } from '@/lib/queries'
 import type { AdminChannel, AdminChatMessage } from '@/components/admin/dashboard/types'
 import { useAdminChatWs } from './use-admin-chat-ws'
@@ -100,6 +101,14 @@ export function useAdminChatWorkspace() {
     if (activeChannel?.id === channelId) setActiveChannel(null)
   }, [activeChannel])
 
+  // Mark channel as read when admin opens it — clears the unread
+  // badge so the admin can see which channels have NEW messages.
+  const markReadMut = useMarkChatRead()
+  const openChannel = useCallback((channel: AdminChannel) => {
+    setActiveChannel(channel)
+    markReadMut.mutate({ path: { id: channel.id } } as any)
+  }, [markReadMut])
+
   // Ticket-card mutation — silent failure is OK because the booking
   // has already been created by the time we send the card.
   const postTicketCardMut = usePostChatMessage({
@@ -133,7 +142,7 @@ export function useAdminChatWorkspace() {
     messagesLoading: messagesQuery.isLoading,
     messagesError: messagesQuery.error,
     activeChannel,
-    setActiveChannel,
+    setActiveChannel: openChannel,
     replyText,
     setReplyText: onReplyTextChange,
     sending: postReplyMut.isPending,

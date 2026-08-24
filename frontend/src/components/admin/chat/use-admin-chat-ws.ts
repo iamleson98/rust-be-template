@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
+import { useMarkChatRead } from '@/lib/queries'
 import type { SessionUser } from '@/lib/api/types.gen'
 
 type WsChatMessageEvent = {
@@ -60,6 +61,7 @@ export function useAdminChatWs(
   const wsRef = useRef<WsClient | null>(null)
   const [typingUser, setTypingUser] = useState<{ name: string } | null>(null)
   const [userOnline, setUserOnline] = useState(false)
+  const markReadMut = useMarkChatRead()
 
   // CRITICAL: Use a ref for activeChannelId so the WS event handlers
   // (which are registered once when the WS connects) always see the
@@ -90,6 +92,11 @@ export function useAdminChatWs(
       const activeId = activeChannelIdRef.current
       if (activeId && m.channelId === activeId) {
         qc.invalidateQueries({ queryKey: [{ _id: 'listMessages' }] })
+        // Auto-mark as read — the admin is viewing this channel,
+        // so the unread badge should NOT increment.
+        if (m.senderType !== 'employee') {
+          markReadMut.mutate({ path: { id: activeId } } as any)
+        }
       }
     })
 
