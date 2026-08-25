@@ -15,6 +15,8 @@
  */
 
 import { z } from 'zod'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 /* ──────────────────────────────────────────────────────────────
  *  Shared zod schemas — reused across booking / auth / admin forms
@@ -41,13 +43,19 @@ export const bookingCodeSchema = z
   .max(24, 'Mã vé quá dài')
   .regex(/^[A-Z0-9-]+$/i, 'Mã vé chỉ chứa chữ cái và số')
 
-/** Passenger full name — at least 2 chars, no digits. */
+/**
+ * Passenger / customer full name — at least 2 chars, max 255 (matches
+ * backend's `full_name` column + `RegisterRequest` + `HoldReq.contact_name`).
+ *
+ * The previous version rejected digits (`^[^\d]+$`) — too strict for
+ * Vietnamese names that may contain ID numbers or suffixes. Backend
+ * allows any UTF-8 string. We only enforce min/max length.
+ */
 export const fullNameSchema = z
   .string()
   .trim()
   .min(2, 'Họ tên cần ít nhất 2 ký tự')
-  .max(60, 'Họ tên quá dài')
-  .regex(/^[^\d]+$/, 'Họ tên không được chứa số')
+  .max(255, 'Họ tên quá dài')
 
 /** Non-empty trimmed string with a custom label in the error message. */
 export const requiredText = (label = 'Trường này') =>
@@ -60,3 +68,46 @@ export const positiveInt = (min = 1) =>
 /** Optional string that defaults to empty when omitted. */
 export const optionalText = (max = 500) =>
   z.string().trim().max(max, `Tối đa ${max} ký tự`).optional().or(z.literal(''))
+
+/* ──────────────────────────────────────────────────────────────
+ *  FieldLabel — shared required-field marker
+ * ──────────────────────────────────────────────────────────────
+ *
+ * Renders a form label with an optional red asterisk for required
+ * fields. Use this instead of raw <FormLabel>Label *</FormLabel>
+ * so the marker style is consistent across all forms.
+ *
+ * Usage:
+ *   <FieldLabel required>Họ và tên</FieldLabel>
+ *   <FieldLabel>Email (tuỳ chọn)</FieldLabel>
+ */
+
+export function FieldLabel({
+  children,
+  required,
+  className,
+  htmlFor,
+}: {
+  children: React.ReactNode
+  required?: boolean
+  className?: string
+  htmlFor?: string
+}) {
+  return (
+    <Label
+      htmlFor={htmlFor}
+      className={cn(
+        'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
+        className,
+      )}
+    >
+      {children}
+      {required && (
+        <span className="text-destructive ml-0.5" aria-hidden="true">
+          *
+        </span>
+      )}
+    </Label>
+  )
+}
+

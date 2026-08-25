@@ -37,7 +37,10 @@ export const registerZodSchema = z
       .string()
       .trim()
       .refine((v) => !v || /^0\d{8,10}$/.test(v), 'Số điện thoại không hợp lệ'),
-    password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+    password: z
+      .string()
+      .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
+      .max(128, 'Mật khẩu tối đa 128 ký tự'),
     confirm: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
   })
   .refine((d) => d.email || d.phone, {
@@ -53,7 +56,7 @@ export type RegisterFormValues = z.infer<typeof registerZodSchema>
 // ── Employee login schema ─────────────────────────────────
 export const employeeZodSchema = z.object({
   email: emailSchema,
-  password: z.string().min(6, 'Mật khẩu phải có ít nhất 6 ký tự'),
+  password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự').max(128, 'Mật khẩu tối đa 128 ký tự'),
 })
 export type EmployeeFormValues = z.infer<typeof employeeZodSchema>
 

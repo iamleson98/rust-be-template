@@ -55,7 +55,7 @@ const pickupPointSchema = z.object({
     .int('ETA phải là số nguyên')
     .min(0, 'ETA phải ≥ 0'),
   pickupType: z.enum(['station', 'curb', 'on_request']),
-  address: optionalText(500),
+  address: optionalText(1000),
 })
 type PickupPointFormValues = z.infer<typeof pickupPointSchema>
 
@@ -131,14 +131,21 @@ export function PickupPointFormDialog({
       return
     }
     try {
+      // Derive lat/lon from the selected place — the backend's
+      // `UpsertPickupPointRequest` has `lat: Option<f64>` + `lon: Option<f64>`
+      // but NOT a `placeId` field. The previous version sent `placeId` +
+      // `pickupType` + `etaOffsetMin` (none exist in the backend) and
+      // omitted `lat`/`lon` → the row was saved with null coordinates.
+      const selectedPlace = places.find((p) => p.id === values.placeId)
       const payload: Record<string, unknown> = {
         routeId: route.id,
-        placeId: values.placeId,
         name: values.name.trim(),
-        stopOrder: values.stopOrder,
-        etaOffsetMin: values.etaOffsetMin,
-        pickupType: values.pickupType,
         address: (values.address ?? '').trim(),
+        lat: selectedPlace?.lat,
+        lon: selectedPlace?.lon,
+        stopOrder: values.stopOrder,
+        // Backend field is `kind` (not `pickupType`).
+        kind: values.pickupType,
       }
       if (isEdit) {
         payload.id = pickup!.id

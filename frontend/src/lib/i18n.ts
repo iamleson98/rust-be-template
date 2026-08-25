@@ -1,19 +1,56 @@
-// Simple i18n module — Vietnamese / English translation dictionary
+// i18n module — Vietnamese / English translation dictionary
+//
+// This is a lightweight, custom i18n implementation (no external
+// library dependency). It's intentionally simple:
+//
+//   - `useT()` — React hook that returns a `t(key, params?)` function.
+//     Re-renders when the language changes (via the Zustand store).
+//   - `t(key, params?)` — looks up `key` in the current language's
+//     dictionary, interpolates `{param}` placeholders, and falls back
+//     to English if the key is missing in the current locale, then to
+//     the raw key if missing in both.
+//
+// ## Interpolation
+//
+// Strings can contain `{paramName}` placeholders:
+//   'hero.trustBadge': 'Hơn {count} hành khách tin dùng'
+//   t('hero.trustBadge', { count: 1000 }) → 'Hơn 1000 hành khách tin dùng'
+//
+// ## Adding a new language
+//
+// 1. Add the locale code to the `Lang` type in `lib/store.ts`.
+// 2. Add a new dictionary object below (e.g. `const ko: TranslationMap = {...}`).
+// 3. Add it to the `dictionaries` map.
+// 4. Add a switcher option in `components/layout/header.tsx`.
 
 import { useApp } from './store'
+
+export type Lang = 'vi' | 'en'
 
 type TranslationMap = Record<string, string>
 
 const vi: TranslationMap = {
-  // Navigation
+  // ── Navigation ──────────────────────────────────────────────
   'nav.home': 'Trang chủ',
   'nav.tickets': 'Vé của tôi',
   'nav.admin': 'Quản trị',
   'nav.support': 'Hỗ trợ',
   'nav.searchTrips': 'Tìm chuyến',
   'nav.bookTicket': 'Đặt vé',
+  'nav.map': 'Bản đồ',
+  'nav.compare': 'So sánh',
+  'nav.support247': 'Hỗ trợ 24/7',
+  'nav.loyalty': 'Điểm thưởng',
+  'nav.login': 'Đăng nhập',
+  'nav.logout': 'Đăng xuất',
+  'nav.profile': 'Trang cá nhân',
+  'nav.payments': 'Thanh toán',
+  'nav.role.admin': 'Quản trị',
+  'nav.role.supportLead': 'Trưởng hỗ trợ',
+  'nav.role.operations': 'Vận hành',
+  'nav.role.support': 'Hỗ trợ',
 
-  // Search
+  // ── Search ──────────────────────────────────────────────────
   'search.title': 'Tìm chuyến xe',
   'search.from': 'Điểm đi',
   'search.to': 'Điểm đến',
@@ -24,21 +61,143 @@ const vi: TranslationMap = {
   'search.btn': 'Tìm chuyến xe',
   'search.placeholder': 'Thành phố / bến xe',
   'search.popularRoutes': 'Tuyến phổ biến',
+  'search.roundTrip': 'Khứ hồi',
+  'search.returnDate': 'Ngày về',
+  'search.noResults': 'Không tìm thấy chuyến xe nào',
+  'search.loading': 'Đang tìm kiếm...',
+  'search.filter.earlyMorning': 'Sáng sớm (0-6h)',
+  'search.filter.morning': 'Ban ngày (6-12h)',
+  'search.filter.afternoon': 'Chiều (12-18h)',
+  'search.filter.evening': 'Tối (18-24h)',
+  'search.sort.departure': 'Giờ khởi hành',
+  'search.sort.price': 'Giá vé',
+  'search.sort.duration': 'Thời gian di chuyển',
 
-  // Hero
+  // ── Hero ─────────────────────────────────────────────────────
   'hero.title': 'Đặt vé xe khách',
   'hero.titleHighlight': 'toàn Việt Nam',
   'hero.subtitle': 'So sánh giá từ hàng chục hãng xe uy tín — Phương Trang, Thanh Bình, Limousine Việt. Chọn ghế trực quan, thanh toán an toàn, hỗ trợ 24/7.',
   'hero.trustBadge': 'Hơn {count} hành khách tin dùng',
   'hero.flashSale': 'Flash Sale kết thúc sau',
 
-  // Booking
+  // ── Booking ────────────────────────────────────────────────
   'booking.passengers': 'Hành khách',
   'booking.payment': 'Thanh toán',
   'booking.complete': 'Hoàn tất',
   'booking.selectTrip': 'Chọn chuyến',
+  'booking.success': 'Đặt vé thành công!',
+  'booking.successDesc': 'Vé điện tử đã được gửi qua email/Zalo của bạn.',
+  'booking.code': 'Mã vé',
+  'booking.contactInfo': 'Thông tin liên hệ',
+  'booking.contactName': 'Họ và tên',
+  'booking.contactPhone': 'Số điện thoại',
+  'booking.contactEmail': 'Email',
+  'booking.passenger': 'Hành khách {n}',
+  'booking.passengerName': 'Họ tên hành khách',
+  'booking.passengerAge': 'Tuổi',
+  'booking.passengerType': 'Loại khách',
+  'booking.passengerType.adult': 'Người lớn',
+  'booking.passengerType.child': 'Trẻ em',
+  'booking.passengerType.infant': 'Em bé',
+  'booking.seatSelector': 'Sơ đồ ghế',
+  'booking.seatAssigned': 'Ghế {code} — {name}',
+  'booking.seatUnassigned': 'Ghế {code} — chưa gắn',
+  'booking.autoAssign': 'Tự động ghép ghế',
+  'booking.autoAssignSuccess': 'Đã tự động ghép ghế cho các hành khách!',
+  'booking.missingContact': 'Chưa có thông tin người liên hệ',
+  'booking.confirm': 'Xác nhận đặt vé',
+  'booking.totalAmount': 'Tổng tiền',
+  'booking.departure': 'Khởi hành',
+  'booking.arrival': 'Đến nơi',
+  'booking.duration': 'Thời gian',
 
-  // Common
+  // ── Payment ─────────────────────────────────────────────────
+  'payment.method': 'Phương thức thanh toán',
+  'payment.momo': 'Ví MoMo',
+  'payment.vnpay': 'VNPay QR',
+  'payment.zalopay': 'ZaloPay',
+  'payment.vietqr': 'Chuyển khoản',
+  'payment.cod': 'Thanh toán trên xe',
+  'payment.momoDesc': 'Quét mã QR',
+  'payment.vnpayDesc': 'Ngân hàng',
+  'payment.zalopayDesc': 'Ví ZaloPay',
+  'payment.vietqrDesc': 'Internet Banking',
+  'payment.codDesc': 'Thanh toán tiền mặt khi lên xe',
+  'payment.processing': 'Đang xử lý thanh toán...',
+  'payment.success': 'Thanh toán thành công',
+  'payment.failed': 'Thanh toán thất bại',
+  'payment.pending': 'Đang chờ thanh toán',
+  'payment.retry': 'Thử lại',
+  'payment.cancel': 'Huỷ thanh toán',
+  'payment.missingBooking': 'Thiếu mã đặt chỗ — không thể tạo giao dịch',
+  'payment.createFailed': 'Tạo giao dịch thất bại',
+
+  // ── Auth ────────────────────────────────────────────────────
+  'auth.login': 'Đăng nhập',
+  'auth.register': 'Đăng ký',
+  'auth.employeeLogin': 'Đăng nhập nhân viên',
+  'auth.logout': 'Đăng xuất',
+  'auth.email': 'Email',
+  'auth.password': 'Mật khẩu',
+  'auth.confirmPassword': 'Xác nhận mật khẩu',
+  'auth.fullName': 'Họ và tên',
+  'auth.phone': 'Số điện thoại',
+  'auth.emailOrPhone': 'Email hoặc số điện thoại',
+  'auth.emailOrPhoneHint': 'Vui lòng nhập email hoặc số điện thoại',
+  'auth.passwordMin': 'Tối thiểu 8 ký tự',
+  'auth.passwordWeak': 'Rất yếu',
+  'auth.passwordFair': 'Yếu',
+  'auth.passwordGood': 'Trung bình',
+  'auth.passwordStrong': 'Tốt',
+  'auth.passwordVeryStrong': 'Mạnh',
+  'auth.loginSuccess': 'Đăng nhập thành công',
+  'auth.loginFailed': 'Đăng nhập thất bại',
+  'auth.registerSuccess': 'Đăng ký thành công!',
+  'auth.registerFailed': 'Đăng ký thất bại',
+  'auth.logoutSuccess': 'Đã đăng xuất',
+  'auth.welcome': 'Chào {name}, bạn đã có thể bắt đầu trò chuyện!',
+  'auth.account': 'Tài khoản',
+  'auth.sessionExpired': 'Phiên đăng nhập hết hạn, vui lòng đăng nhập lại',
+
+  // ── Chat ────────────────────────────────────────────────────
+  'chat.title': 'Hỗ trợ trực tuyến',
+  'chat.open': 'Mở chat hỗ trợ',
+  'chat.online': 'Đang trực tuyến',
+  'chat.offline': 'Ngoại tuyến',
+  'chat.typing': '{name} đang gõ...',
+  'chat.agentTyping': 'Nhân viên hỗ trợ đang gõ...',
+  'chat.agentJoined': 'Nhân viên {name} đã tham gia',
+  'chat.waitingForAgent': 'Đang chuyển tới nhân viên hỗ trợ...',
+  'chat.aiReady': 'Trợ lý AI luôn sẵn sàng • Phản hồi tức thì',
+  'chat.inputPlaceholder': 'Nhập tin nhắn...',
+  'chat.send': 'Gửi',
+  'chat.quickActions': 'Chọn nhanh:',
+  'chat.messageTooLong': 'Tin nhắn quá dài ({n}/{m}). Vui lòng rút gọn xuống {m} ký tự để gửi.',
+  'chat.welcome': 'Hỗ trợ trực tuyến',
+  'chat.agentName': 'Nhân viên hỗ trợ',
+  'chat.botName': 'ZeroClaw AI',
+  'chat.newMessage': 'Tin nhắn mới',
+  'chat.newMessageFrom': 'Tin nhắn mới từ {name}',
+  'chat.loadMore': 'Xem tin nhắn cũ hơn',
+  'chat.loadingMore': 'Đang tải tin nhắn cũ hơn...',
+  'chat.noChannels': 'Chưa có cuộc trò chuyện',
+  'chat.selectChannel': 'Chọn cuộc trò chuyện',
+  'chat.selectChannelDesc': 'Chọn một kênh từ danh sách để bắt đầu phản hồi',
+  'chat.queue': 'Hàng đợi cuộc trò chuyện',
+  'chat.waiting': 'Đang chờ',
+  'chat.processing': 'Đang xử lý',
+  'chat.avgResponseTime': 'Thời gian phản hồi TB',
+  'chat.avgResponseTimeDesc': 'Trung bình từ tin nhắn đầu tiên đến phản hồi',
+  'chat.unassigned': 'Cuộc trò chuyện chưa phân công',
+  'chat.assigned': 'Đã có nhân viên phụ trách',
+  'chat.bookForCustomer': 'Đặt vé cho khách',
+  'chat.blockChannel': 'Chặn cuộc trò chuyện',
+  'chat.blocked': 'Đã chặn cuộc trò chuyện',
+  'chat.blockedDesc': 'Khách sẽ không thể gửi tin nhắn mới',
+  'chat.replySent': 'Đã gửi phản hồi',
+  'chat.sendFailed': 'Không thể gửi tin nhắn',
+
+  // ── Common ──────────────────────────────────────────────────
   'common.fromPrice': 'Giá từ',
   'common.seatsAvailable': 'chỗ trống',
   'common.cancel': 'Huỷ',
@@ -49,12 +208,30 @@ const vi: TranslationMap = {
   'common.success': 'Thành công',
   'common.loading': 'Đang tải...',
   'common.error': 'Có lỗi xảy ra',
+  'common.save': 'Lưu',
+  'common.delete': 'Xoá',
+  'common.edit': 'Sửa',
+  'common.add': 'Thêm',
+  'common.search': 'Tìm kiếm',
+  'common.all': 'Tất cả',
+  'common.yes': 'Có',
+  'common.no': 'Không',
+  'common.optional': '(tuỳ chọn)',
+  'common.required': 'Các trường đánh dấu * là bắt buộc.',
 
-  // Footer
+  // ── Footer ──────────────────────────────────────────────────
   'footer.hotline': 'Hotline 24/7',
   'footer.newsletter': 'Nhận ưu đãi đặt vé xe',
+  'footer.newsletterPlaceholder': 'Nhập email của bạn',
+  'footer.newsletterSuccess': 'Đăng ký thành công!',
+  'footer.newsletterBtn': 'Đăng ký',
+  'footer.about': 'Về chúng tôi',
+  'footer.terms': 'Điều khoản',
+  'footer.privacy': 'Bảo mật',
+  'footer.help': 'Trợ giúp',
+  'footer.contact': 'Liên hệ',
 
-  // Cancel dialog
+  // ── Cancel dialog ──────────────────────────────────────────
   'cancel.title': 'Huỷ vé',
   'cancel.reason': 'Lý do huỷ vé',
   'cancel.reason.change': 'Thay đổi kế hoạch',
@@ -71,18 +248,101 @@ const vi: TranslationMap = {
   'cancel.successTitle': 'Huỷ vé thành công',
   'cancel.successDesc': 'Vé của bạn đã được huỷ. Số tiền hoàn lại sẽ được chuyển về tài khoản trong 3-5 ngày làm việc.',
   'cancel.refCode': 'Mã tham chiếu huỷ',
+
+  // ── Validation messages ─────────────────────────────────────
+  'validation.required': 'Trường này là bắt buộc',
+  'validation.email': 'Email không hợp lệ',
+  'validation.phone': 'Số điện thoại không hợp lệ (vd: 0912345678)',
+  'validation.passwordMin': 'Mật khẩu phải có ít nhất 8 ký tự',
+  'validation.passwordMax': 'Mật khẩu tối đa 128 ký tự',
+  'validation.passwordMatch': 'Mật khẩu xác nhận không khớp',
+  'validation.nameMin': 'Họ tên cần ít nhất 2 ký tự',
+  'validation.nameMax': 'Họ tên quá dài',
+  'validation.bookingCode': 'Mã vé chỉ chứa chữ cái và số',
+
+  // ── Account ─────────────────────────────────────────────────
+  'account.title': 'Trang cá nhân',
+  'account.bookings': 'Vé của tôi',
+  'account.wishlist': 'Danh sách yêu thích',
+  'account.notifications': 'Thông báo',
+  'account.reviews': 'Đánh giá của tôi',
+  'account.settings': 'Cài đặt',
+  'account.language': 'Ngôn ngữ',
+  'account.noBookings': 'Chưa có vé nào',
+  'account.noWishlist': 'Chưa có mục yêu thích',
+  'account.noNotifications': 'Không có thông báo',
+  'account.noReviews': 'Chưa có đánh giá',
+
+  // ── Admin ──────────────────────────────────────────────────
+  'admin.dashboard': 'Bảng điều khiển',
+  'admin.bookings': 'Đặt vé',
+  'admin.reviews': 'Đánh giá',
+  'admin.brands': 'Hãng xe',
+  'admin.routes': 'Tuyến đường',
+  'admin.schedules': 'Lịch trình',
+  'admin.pickupPoints': 'Điểm đón/trả',
+  'admin.busLayouts': 'Sơ đồ ghế',
+  'admin.payments': 'Thanh toán',
+  'admin.users': 'Người dùng',
+  'admin.chat': 'Hỗ trợ realtime',
+  'admin.system': 'Giám sát hệ thống',
+  'admin.tickets': 'Vé',
+  'admin.campaigns': 'Khuyến mãi',
+  'admin.systemMonitoring': 'System Monitoring',
+  'admin.autoRefresh': 'Auto-refreshing every 5 seconds',
+  'admin.stats.openCount': 'Đang chờ',
+  'admin.stats.assignedCount': 'Đang xử lý',
+  'admin.stats.closedCount': 'Đã đóng',
+  'admin.stats.totalChannels': 'Tổng kênh',
+  'admin.stats.avgResponseTime': 'Thời gian phản hồi TB',
+  'admin.system.uptime': 'Uptime',
+  'admin.system.cpuMemory': 'CPU & Memory',
+  'admin.system.cpuUsage': 'CPU usage',
+  'admin.system.cores': 'cores',
+  'admin.system.websocket': 'WebSocket',
+  'admin.system.onlineStaff': 'Online staff',
+  'admin.system.rooms': 'Rooms',
+  'admin.system.distinctIps': 'Distinct IPs',
+  'admin.system.database': 'Database',
+  'admin.system.active': 'Active',
+  'admin.system.idle': 'Idle',
+  'admin.system.pool': 'Pool',
+  'admin.system.singleConn': 'Single connection (no pool)',
+  'admin.system.size': 'Size',
+  'admin.system.hostInfo': 'Host Information',
+  'admin.system.os': 'OS',
+  'admin.system.osVersion': 'OS Version',
+  'admin.system.hostname': 'Hostname',
+  'admin.system.pid': 'PID',
+  'admin.system.sinceBoot': 'seconds since boot',
+
+  // ── Language switcher ───────────────────────────────────────
+  'lang.switchedVi': 'Đã chuyển sang Tiếng Việt',
+  'lang.switchedEn': 'Switched to English',
 }
 
 const en: TranslationMap = {
-  // Navigation
+  // ── Navigation ──────────────────────────────────────────────
   'nav.home': 'Home',
   'nav.tickets': 'My Tickets',
   'nav.admin': 'Admin',
   'nav.support': 'Support',
   'nav.searchTrips': 'Search Trips',
   'nav.bookTicket': 'Book Ticket',
+  'nav.map': 'Map',
+  'nav.compare': 'Compare',
+  'nav.support247': '24/7 Support',
+  'nav.loyalty': 'Loyalty',
+  'nav.login': 'Login',
+  'nav.logout': 'Logout',
+  'nav.profile': 'Profile',
+  'nav.payments': 'Payments',
+  'nav.role.admin': 'Admin',
+  'nav.role.supportLead': 'Support Lead',
+  'nav.role.operations': 'Operations',
+  'nav.role.support': 'Support',
 
-  // Search
+  // ── Search ──────────────────────────────────────────────────
   'search.title': 'Search trips',
   'search.from': 'From',
   'search.to': 'To',
@@ -93,21 +353,143 @@ const en: TranslationMap = {
   'search.btn': 'Search trips',
   'search.placeholder': 'City / bus station',
   'search.popularRoutes': 'Popular routes',
+  'search.roundTrip': 'Round trip',
+  'search.returnDate': 'Return date',
+  'search.noResults': 'No trips found',
+  'search.loading': 'Searching...',
+  'search.filter.earlyMorning': 'Early morning (0-6h)',
+  'search.filter.morning': 'Morning (6-12h)',
+  'search.filter.afternoon': 'Afternoon (12-18h)',
+  'search.filter.evening': 'Evening (18-24h)',
+  'search.sort.departure': 'Departure time',
+  'search.sort.price': 'Price',
+  'search.sort.duration': 'Duration',
 
-  // Hero
+  // ── Hero ─────────────────────────────────────────────────────
   'hero.title': 'Book bus tickets',
   'hero.titleHighlight': 'across Vietnam',
   'hero.subtitle': 'Compare prices from dozens of trusted bus operators — Phuong Trang, Thanh Binh, Limousine Viet. Choose seats visually, pay securely, 24/7 support.',
   'hero.trustBadge': 'Trusted by {count}+ passengers',
   'hero.flashSale': 'Flash Sale ends in',
 
-  // Booking
+  // ── Booking ────────────────────────────────────────────────
   'booking.passengers': 'Passengers',
   'booking.payment': 'Payment',
   'booking.complete': 'Complete',
   'booking.selectTrip': 'Select trip',
+  'booking.success': 'Booking successful!',
+  'booking.successDesc': 'Your e-ticket has been sent to your email/Zalo.',
+  'booking.code': 'Booking code',
+  'booking.contactInfo': 'Contact information',
+  'booking.contactName': 'Full name',
+  'booking.contactPhone': 'Phone number',
+  'booking.contactEmail': 'Email',
+  'booking.passenger': 'Passenger {n}',
+  'booking.passengerName': 'Passenger name',
+  'booking.passengerAge': 'Age',
+  'booking.passengerType': 'Passenger type',
+  'booking.passengerType.adult': 'Adult',
+  'booking.passengerType.child': 'Child',
+  'booking.passengerType.infant': 'Infant',
+  'booking.seatSelector': 'Seat map',
+  'booking.seatAssigned': 'Seat {code} — {name}',
+  'booking.seatUnassigned': 'Seat {code} — unassigned',
+  'booking.autoAssign': 'Auto-assign seats',
+  'booking.autoAssignSuccess': 'Seats auto-assigned to passengers!',
+  'booking.missingContact': 'Missing contact information',
+  'booking.confirm': 'Confirm booking',
+  'booking.totalAmount': 'Total amount',
+  'booking.departure': 'Departure',
+  'booking.arrival': 'Arrival',
+  'booking.duration': 'Duration',
 
-  // Common
+  // ── Payment ─────────────────────────────────────────────────
+  'payment.method': 'Payment method',
+  'payment.momo': 'MoMo Wallet',
+  'payment.vnpay': 'VNPay QR',
+  'payment.zalopay': 'ZaloPay',
+  'payment.vietqr': 'Bank transfer',
+  'payment.cod': 'Pay on bus',
+  'payment.momoDesc': 'Scan QR code',
+  'payment.vnpayDesc': 'Bank',
+  'payment.zalopayDesc': 'ZaloPay Wallet',
+  'payment.vietqrDesc': 'Internet Banking',
+  'payment.codDesc': 'Pay cash when boarding',
+  'payment.processing': 'Processing payment...',
+  'payment.success': 'Payment successful',
+  'payment.failed': 'Payment failed',
+  'payment.pending': 'Awaiting payment',
+  'payment.retry': 'Retry',
+  'payment.cancel': 'Cancel payment',
+  'payment.missingBooking': 'Missing booking code — cannot create transaction',
+  'payment.createFailed': 'Failed to create transaction',
+
+  // ── Auth ────────────────────────────────────────────────────
+  'auth.login': 'Login',
+  'auth.register': 'Register',
+  'auth.employeeLogin': 'Employee login',
+  'auth.logout': 'Logout',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.confirmPassword': 'Confirm password',
+  'auth.fullName': 'Full name',
+  'auth.phone': 'Phone number',
+  'auth.emailOrPhone': 'Email or phone',
+  'auth.emailOrPhoneHint': 'Please enter email or phone',
+  'auth.passwordMin': 'Min 8 characters',
+  'auth.passwordWeak': 'Very weak',
+  'auth.passwordFair': 'Weak',
+  'auth.passwordGood': 'Fair',
+  'auth.passwordStrong': 'Good',
+  'auth.passwordVeryStrong': 'Strong',
+  'auth.loginSuccess': 'Login successful',
+  'auth.loginFailed': 'Login failed',
+  'auth.registerSuccess': 'Registration successful!',
+  'auth.registerFailed': 'Registration failed',
+  'auth.logoutSuccess': 'Logged out',
+  'auth.welcome': 'Welcome {name}, you can start chatting!',
+  'auth.account': 'Account',
+  'auth.sessionExpired': 'Session expired, please log in again',
+
+  // ── Chat ────────────────────────────────────────────────────
+  'chat.title': 'Online Support',
+  'chat.open': 'Open support chat',
+  'chat.online': 'Online',
+  'chat.offline': 'Offline',
+  'chat.typing': '{name} is typing...',
+  'chat.agentTyping': 'Support agent is typing...',
+  'chat.agentJoined': 'Agent {name} has joined',
+  'chat.waitingForAgent': 'Connecting to support...',
+  'chat.aiReady': 'AI assistant always ready • Instant replies',
+  'chat.inputPlaceholder': 'Type a message...',
+  'chat.send': 'Send',
+  'chat.quickActions': 'Quick replies:',
+  'chat.messageTooLong': 'Message too long ({n}/{m}). Please shorten to {m} characters.',
+  'chat.welcome': 'Online Support',
+  'chat.agentName': 'Support Agent',
+  'chat.botName': 'ZeroClaw AI',
+  'chat.newMessage': 'New message',
+  'chat.newMessageFrom': 'New message from {name}',
+  'chat.loadMore': 'Load older messages',
+  'chat.loadingMore': 'Loading older messages...',
+  'chat.noChannels': 'No conversations yet',
+  'chat.selectChannel': 'Select a conversation',
+  'chat.selectChannelDesc': 'Choose a channel from the list to start replying',
+  'chat.queue': 'Conversation queue',
+  'chat.waiting': 'Waiting',
+  'chat.processing': 'Processing',
+  'chat.avgResponseTime': 'Avg response time',
+  'chat.avgResponseTimeDesc': 'Average from first message to reply',
+  'chat.unassigned': 'Unassigned conversations',
+  'chat.assigned': 'Assigned to staff',
+  'chat.bookForCustomer': 'Book ticket for customer',
+  'chat.blockChannel': 'Block conversation',
+  'chat.blocked': 'Conversation blocked',
+  'chat.blockedDesc': 'Customer can no longer send messages',
+  'chat.replySent': 'Reply sent',
+  'chat.sendFailed': 'Failed to send message',
+
+  // ── Common ──────────────────────────────────────────────────
   'common.fromPrice': 'From price',
   'common.seatsAvailable': 'seats available',
   'common.cancel': 'Cancel',
@@ -118,12 +500,30 @@ const en: TranslationMap = {
   'common.success': 'Success',
   'common.loading': 'Loading...',
   'common.error': 'An error occurred',
+  'common.save': 'Save',
+  'common.delete': 'Delete',
+  'common.edit': 'Edit',
+  'common.add': 'Add',
+  'common.search': 'Search',
+  'common.all': 'All',
+  'common.yes': 'Yes',
+  'common.no': 'No',
+  'common.optional': '(optional)',
+  'common.required': 'Fields marked with * are required.',
 
-  // Footer
+  // ── Footer ──────────────────────────────────────────────────
   'footer.hotline': '24/7 Hotline',
   'footer.newsletter': 'Get bus ticket deals',
+  'footer.newsletterPlaceholder': 'Enter your email',
+  'footer.newsletterSuccess': 'Subscribed successfully!',
+  'footer.newsletterBtn': 'Subscribe',
+  'footer.about': 'About',
+  'footer.terms': 'Terms',
+  'footer.privacy': 'Privacy',
+  'footer.help': 'Help',
+  'footer.contact': 'Contact',
 
-  // Cancel dialog
+  // ── Cancel dialog ──────────────────────────────────────────
   'cancel.title': 'Cancel Ticket',
   'cancel.reason': 'Cancellation reason',
   'cancel.reason.change': 'Change of plans',
@@ -140,14 +540,110 @@ const en: TranslationMap = {
   'cancel.successTitle': 'Cancellation successful',
   'cancel.successDesc': 'Your ticket has been cancelled. The refund will be transferred to your account within 3-5 business days.',
   'cancel.refCode': 'Cancellation reference',
+
+  // ── Validation messages ─────────────────────────────────────
+  'validation.required': 'This field is required',
+  'validation.email': 'Invalid email',
+  'validation.phone': 'Invalid phone number (e.g. 0912345678)',
+  'validation.passwordMin': 'Password must be at least 8 characters',
+  'validation.passwordMax': 'Password max 128 characters',
+  'validation.passwordMatch': 'Passwords do not match',
+  'validation.nameMin': 'Name must be at least 2 characters',
+  'validation.nameMax': 'Name too long',
+  'validation.bookingCode': 'Booking code can only contain letters and numbers',
+
+  // ── Account ─────────────────────────────────────────────────
+  'account.title': 'Profile',
+  'account.bookings': 'My Tickets',
+  'account.wishlist': 'Wishlist',
+  'account.notifications': 'Notifications',
+  'account.reviews': 'My Reviews',
+  'account.settings': 'Settings',
+  'account.language': 'Language',
+  'account.noBookings': 'No tickets yet',
+  'account.noWishlist': 'No wishlist items',
+  'account.noNotifications': 'No notifications',
+  'account.noReviews': 'No reviews yet',
+
+  // ── Admin ──────────────────────────────────────────────────
+  'admin.dashboard': 'Dashboard',
+  'admin.bookings': 'Bookings',
+  'admin.reviews': 'Reviews',
+  'admin.brands': 'Brands',
+  'admin.routes': 'Routes',
+  'admin.schedules': 'Schedules',
+  'admin.pickupPoints': 'Pickup points',
+  'admin.busLayouts': 'Bus layouts',
+  'admin.payments': 'Payments',
+  'admin.users': 'Users',
+  'admin.chat': 'Realtime support',
+  'admin.system': 'System monitoring',
+  'admin.tickets': 'Tickets',
+  'admin.campaigns': 'Campaigns',
+  'admin.systemMonitoring': 'System Monitoring',
+  'admin.autoRefresh': 'Auto-refreshing every 5 seconds',
+  'admin.stats.openCount': 'Waiting',
+  'admin.stats.assignedCount': 'Processing',
+  'admin.stats.closedCount': 'Closed',
+  'admin.stats.totalChannels': 'Total channels',
+  'admin.stats.avgResponseTime': 'Avg response time',
+  'admin.system.uptime': 'Uptime',
+  'admin.system.cpuMemory': 'CPU & Memory',
+  'admin.system.cpuUsage': 'CPU usage',
+  'admin.system.cores': 'cores',
+  'admin.system.websocket': 'WebSocket',
+  'admin.system.onlineStaff': 'Online staff',
+  'admin.system.rooms': 'Rooms',
+  'admin.system.distinctIps': 'Distinct IPs',
+  'admin.system.database': 'Database',
+  'admin.system.active': 'Active',
+  'admin.system.idle': 'Idle',
+  'admin.system.pool': 'Pool',
+  'admin.system.singleConn': 'Single connection (no pool)',
+  'admin.system.size': 'Size',
+  'admin.system.hostInfo': 'Host Information',
+  'admin.system.os': 'OS',
+  'admin.system.osVersion': 'OS Version',
+  'admin.system.hostname': 'Hostname',
+  'admin.system.pid': 'PID',
+  'admin.system.sinceBoot': 'seconds since boot',
+
+  // ── Language switcher ───────────────────────────────────────
+  'lang.switchedVi': 'Đã chuyển sang Tiếng Việt',
+  'lang.switchedEn': 'Switched to English',
 }
 
-const dictionaries: Record<'vi' | 'en', TranslationMap> = { vi, en }
+const dictionaries: Record<Lang, TranslationMap> = { vi, en }
+
+/**
+ * Translate a key with optional interpolation params.
+ *
+ *   t('hero.trustBadge', { count: 1000 })
+ *   → 'Hơn 1000 hành khách tin dùng' (vi) / 'Trusted by 1000+ passengers' (en)
+ *
+ * Falls back to English if the key is missing in the current locale,
+ * then to the raw key if missing in both.
+ */
+export function translate(lang: Lang, key: string, params?: Record<string, string | number>): string {
+  let str = dictionaries[lang]?.[key] ?? dictionaries.en?.[key] ?? key
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v))
+    }
+  }
+  return str
+}
 
 /**
  * Hook-based translation — use this in React components for reactivity.
+ * Re-renders when the language changes (via the Zustand store).
+ *
+ *   const t = useT()
+ *   t('nav.home') → 'Trang chủ' (vi) / 'Home' (en)
+ *   t('hero.trustBadge', { count: 1000 }) → 'Hơn 1000 hành khách tin dùng'
  */
 export function useT() {
   const { lang } = useApp()
-  return (key: string): string => dictionaries[lang]?.[key] ?? key
+  return (key: string, params?: Record<string, string | number>): string =>
+    translate(lang, key, params)
 }
