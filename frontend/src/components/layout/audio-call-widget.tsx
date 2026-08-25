@@ -57,7 +57,7 @@ function buildSignalingUrl(): string {
 }
 
 export function AudioCallWidget() {
-  const { user, chatOpen, setChatOpen } = useApp()
+  const { user, chatOpen } = useApp()
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
@@ -326,7 +326,7 @@ export function AudioCallWidget() {
           aria-label="Gọi hỗ trợ"
           className={cn(
             'fixed z-40 right-4 md:right-6 flex items-center justify-center',
-            'h-12 w-12 rounded-full shadow-lg',
+            'h-12 w-12 rounded-full',
             'bg-emerald-600 hover:bg-emerald-700 text-white',
             'transition-all hover:scale-105 active:scale-95',
             'border border-emerald-400/30',
@@ -354,7 +354,7 @@ export function AudioCallWidget() {
           className={cn(
             'fixed z-50 right-3 left-3 md:left-auto md:w-80',
             'bottom-3 md:bottom-6',
-            'bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl',
+            'bg-white dark:bg-zinc-900 rounded-2xl',
             'border border-zinc-200 dark:border-zinc-800',
             'p-4 md:p-5',
             'mb-[env(safe-area-inset-bottom)]',

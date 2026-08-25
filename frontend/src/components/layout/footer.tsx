@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useState, useCallback } from 'react'
+import { memo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,7 +11,7 @@ import { EXCHANGE_RATE_NOTE } from '@/lib/currency'
 import {
   Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
   CreditCard, Heart, Globe, FileText, HelpCircle, MessageCircle,
-  Award, Send, Headphones, Stamp, ArrowUp, TrendingUp,
+  Award, Send, Headphones, Stamp, TrendingUp,
   Sparkles, Users, Route as RouteIcon, Building2, MapPinned
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -37,7 +37,6 @@ export const Footer = memo(function Footer() {
   const { setChatOpen } = useApp()
   const navigate = useNavigate()
   const t = useT()
-  const [showBackToTop, setShowBackToTop] = useState(false)
 
   const form = useForm<NewsletterValues>({
     resolver: zodResolver(newsletterSchema),
@@ -46,19 +45,11 @@ export const Footer = memo(function Footer() {
     defaultValues: { email: '' },
   })
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowBackToTop(window.scrollY > 600)
-    }
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
-
   const onSubscribe = useCallback((values: NewsletterValues) => {
     // Existing behavior: just confirm subscription with a toast.
     // (No dedicated newsletter API exists yet — preserving the original
     // success-only flow. The validation layer is what's been upgraded here.)
-    toast.success('Đăng ký thành công!')
+    toast.success(t('footer.newsletterSuccess'))
     form.reset({ email: '' })
   }, [form])
 
@@ -74,7 +65,7 @@ export const Footer = memo(function Footer() {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
               <h3 className="text-2xl md:text-3xl font-bold text-white mb-1">
-                🎫 Nhận ưu đãi đặt vé xe
+                🎫 {t('footer.newsletter')}
               </h3>
               <p className="text-blue-100/90 text-sm md:text-base">
                 Đăng ký nhận bản tin để không bỏ lỡ mã giảm giá, ưu đãi cuối tuần
@@ -345,17 +336,6 @@ export const Footer = memo(function Footer() {
           </div>
         </div>
       </div>
-
-      {/* ── Back to top button ── */}
-      {showBackToTop && (
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="fixed bottom-6 right-6 z-50 h-10 w-10 rounded-full bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center justify-center"
-          aria-label="Về đầu trang"
-        >
-          <ArrowUp className="h-5 w-5" />
-        </button>
-      )}
     </footer>
   )
 })

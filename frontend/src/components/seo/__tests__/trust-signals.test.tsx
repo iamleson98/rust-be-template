@@ -10,7 +10,7 @@ import {
   PaymentTrustBadges,
   InfoBanner,
 } from '@/components/seo/trust-signals'
-import { ShieldCheck, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 
 describe('TrustBar', () => {
   it('renders all 3 trust badges', () => {

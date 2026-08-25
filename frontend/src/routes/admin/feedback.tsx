@@ -6,7 +6,7 @@ import { MessageSquare } from 'lucide-react'
 export function AdminFeedbackPage() {
   return (
     <AdminShell>
-      <div className="container mx-auto px-4 py-6">
+      <div className="p-3">
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">
             <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />

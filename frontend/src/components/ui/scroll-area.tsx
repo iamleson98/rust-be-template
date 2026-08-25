@@ -1,17 +1,28 @@
 "use client"
 
-import { type ComponentProps } from "react"
+import { type ComponentProps, forwardRef } from "react"
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
 
-function ScrollArea({
-  className,
-  children,
-  ...props
-}: ComponentProps<typeof ScrollAreaPrimitive.Root>) {
+/**
+ * ScrollArea wrapper around the base-ui ScrollArea primitive.
+ *
+ * Uses `forwardRef` so callers can attach a ref to the ROOT element
+ * (e.g. to query the inner viewport for programmatic scrolling —
+ * see `chat-panel.tsx`'s auto-scroll effect).
+ *
+ * The viewport is the element that actually scrolls. It's marked
+ * with `data-slot="scroll-area-viewport"` so callers can find it via
+ * `root.querySelector('[data-slot="scroll-area-viewport"]')`.
+ */
+const ScrollArea = forwardRef<
+  HTMLDivElement,
+  ComponentProps<typeof ScrollAreaPrimitive.Root>
+>(function ScrollArea({ className, children, ...props }, ref) {
   return (
     <ScrollAreaPrimitive.Root
+      ref={ref as any}
       data-slot="scroll-area"
       className={cn("relative", className)}
       {...props}
@@ -26,7 +37,7 @@ function ScrollArea({
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )
-}
+})
 
 function ScrollBar({
   className,

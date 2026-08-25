@@ -196,7 +196,7 @@ export function RouteNavigationDialog({
 
         <div className="px-5 py-4 space-y-4 max-h-[80vh] overflow-y-auto">
           {/* Pickup info card */}
-          <div className="rounded-xl ring-1 ring-black/5 bg-white shadow-sm p-4 flex items-start gap-3">
+          <div className="rounded-xl ring-1 ring-black/5 bg-white  p-4 flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-rose-50 text-rose-600 inline-flex items-center justify-center shrink-0">
               <MapPin className="h-5 w-5" />
             </div>

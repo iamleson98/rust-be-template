@@ -196,12 +196,12 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
   return (
     <div onMouseEnter={handleHoverPrefetch}>
       <Card
-        className="overflow-visible border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 card-hover-lift group relative"
+        className="overflow-visible border-border/60   hover:border-primary/30 card-hover-lift group relative"
       >
         {/* Recommended badge — sits flush on the top-left, above content */}
         {isRecommended && (
           <div className="absolute -top-2 left-3 z-20">
-            <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold shadow-sm hover:bg-amber-500">
+            <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold  hover:bg-amber-500">
               <Sparkles className="h-3 w-3" />
               Phù hợp nhất
             </Badge>
@@ -214,8 +214,8 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
             onClick={handleCompareToggle}
             title="Thêm vào so sánh"
             className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
-                ? 'bg-violet-600 text-white '
-                : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200 '
+              ? 'bg-violet-600 text-white '
+              : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200 '
               }`}
           >
             <GitCompare className="h-3.5 w-3.5" />
@@ -430,7 +430,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
               <Button
                 onClick={handleSelect}
                 size="sm"
-                className="bg-slate-900 hover:bg-slate-800 text-white gap-1.5 transition-all w-full md:w-auto h-9 shadow-sm hover:shadow group-hover:bg-blue-600"
+                className="bg-slate-900 hover:bg-slate-800 text-white gap-1.5 transition-all w-full md:w-auto h-9  group-hover:bg-blue-600"
               >
                 <span className="flex items-center gap-1">
                   Chọn chuyến

@@ -30,7 +30,7 @@ export type RouteSearch = {
 
 export function SearchPage() {
   const raw = useSearch({ from: '/search' })
-  const { searchParams, setSearchParams } = useApp()
+  const { setSearchParams } = useApp()
   const navigate = useNavigate()
 
   // Apply defaults — the URL only carries non-default values for cleanliness.

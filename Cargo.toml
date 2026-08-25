@@ -82,6 +82,10 @@ num_cpus = "1"
 # High-concurrency maps for WS hubs
 dashmap = "6"
 
+# System monitoring — cross-platform CPU + memory stats for the
+# /api/admin/system endpoint. Works on Linux, macOS, + Windows.
+sysinfo = "0.32"
+
 # Payment provider integration
 # - `qrcode` generates PNG bytes for VietQR / provider-QR rendering
 #   (used in-memory, no file system access).

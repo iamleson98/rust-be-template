@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import {
   MapPin,
   Armchair,
   Phone,
+  Mail,
   User as UserIcon,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
@@ -29,6 +30,45 @@ import {
   ChatTicketPicker,
   type CreatedTicketPayload,
 } from '@/components/admin/tickets/chat-ticket-picker'
+
+/**
+ * Pick the best customer-facing label for a channel row.
+ *
+ * Order of preference:
+ *   1. `user.fullName` — set on signup, always present for real users.
+ *   2. `user.email` — fallback when fullName is empty.
+ *   3. `user.phone` — fallback when both fullName + email are empty.
+ *   4. `topic` — the channel topic, e.g. "Hỗ trợ".
+ *   5. `"Khách"` — generic Vietnamese for "Customer" (last-resort default).
+ */
+function customerDisplayName(channel: Channel): string {
+  const u = channel.user
+  if (u?.fullName && u.fullName.trim().length > 0) return u.fullName
+  if (u?.email && u.email.trim().length > 0) return u.email
+  if (u?.phone && u.phone.trim().length > 0) return u.phone
+  if (channel.topic && channel.topic.trim().length > 0) return channel.topic
+  return 'Khách'
+}
+
+/** First letter of the customer's display name (for the avatar fallback). */
+function customerInitial(channel: Channel): string {
+  const name = customerDisplayName(channel)
+  return (name && name[0]?.toUpperCase()) || 'K'
+}
+
+/**
+ * Build a subtitle line for the channel row — shows email or phone
+ * (whichever is present + different from the display name). Empty
+ * string when no extra info is available.
+ */
+function customerSubtitle(channel: Channel): string {
+  const u = channel.user
+  const name = customerDisplayName(channel)
+  // Prefer phone (more actionable for support), then email.
+  if (u?.phone && u.phone.trim().length > 0 && u.phone !== name) return u.phone
+  if (u?.email && u.email.trim().length > 0 && u.email !== name) return u.email
+  return ''
+}
 
 export function ChatPanel({
   channels,
@@ -44,6 +84,11 @@ export function ChatPanel({
   onViewTicket,
   typingUser,
   userOnline,
+  unreadPulseChannels,
+  hasMoreMessages,
+  isFetchingMoreMessages,
+  onFetchMoreMessages,
+  chatStats,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -60,88 +105,272 @@ export function ChatPanel({
   typingUser?: { name: string } | null
   /** Whether the user in the active channel is online. */
   userOnline?: boolean
+  /**
+   * Set of channel ids that have received a new customer message while
+   * the admin was NOT viewing them. The channel row shows a pulsing
+   * blue dot until the admin opens that channel.
+   */
+  unreadPulseChannels?: Set<string>
+  /** Whether there are more older messages to load (infinite scroll). */
+  hasMoreMessages?: boolean
+  /** Whether we're currently fetching the next page of older messages. */
+  isFetchingMoreMessages?: boolean
+  /** Call this when the user scrolls to the top of the chat. */
+  onFetchMoreMessages?: () => void
+  /** Aggregate chat stats from GET /api/admin/chat/stats — drives the
+   *  top-row cards (open / assigned / closed counts + avg response
+   *  time). When undefined, the cards fall back to client-side
+   *  filtering of `channels` (capped at the list's page size). */
+  chatStats?: {
+    openCount: number
+    assignedCount: number
+    closedCount: number
+    totalChannels: number
+    avgResponseTimeSecs: number
+  }
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+
+  // Aligned height for the channel list + chat workspace. Both use
+  // the same FIXED height so the split-view looks symmetric + both
+  // panes scroll independently when content overflows.
+  //
+  // IMPORTANT: use `h-[32rem]` (fixed height), NOT `max-h-[32rem]`.
+  // `max-h` on the ScrollArea root doesn't propagate to the Viewport
+  // (which is `size-full` = height:100%) — the viewport would grow
+  // with its content + never scroll. `h-[32rem]` forces the root to
+  // a fixed height → the viewport constrains to that height →
+  // overflow scrolls. This was the "channel list doesn't scroll
+  // when overflow" bug.
+  const PANES_HEIGHT = 'h-[32rem]'
+
+  // ── Chat scroll behavior (auto-scroll + infinite scroll trigger) ─
+  //
+  // The ScrollArea primitive doesn't expose the viewport ref directly,
+  // so we use a root ref + querySelector to find the viewport. This
+  // ref is also used by the infinite-scroll sentinel below to detect
+  // when the user has scrolled to the top.
+  const chatScrollRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to the bottom when a new message arrives OR the
+  // typing indicator appears — but only if the user is already at
+  // (or near) the bottom. If they've scrolled up to read older
+  // messages, we DON'T yank them down.
+  const isAtBottomRef = useRef(true)
+  useEffect(() => {
+    const root = chatScrollRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+
+    // Track whether the user is at the bottom on every scroll.
+    const handleScroll = () => {
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      isAtBottomRef.current = distanceFromBottom <= 80
+    }
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+
+    // ── Infinite scroll trigger ─────────────────────────────────
+    // When the user scrolls to the top (scrollTop <= 80px), fetch
+    // the next page of older messages. We use a separate scroll
+    // listener (not IntersectionObserver) because the ScrollArea's
+    // viewport is the scroll container, not the document.
+    const handleInfiniteScroll = () => {
+      if (viewport.scrollTop <= 80 && hasMoreMessages && !isFetchingMoreMessages && onFetchMoreMessages) {
+        onFetchMoreMessages()
+      }
+    }
+    viewport.addEventListener('scroll', handleInfiniteScroll, { passive: true })
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+      viewport.removeEventListener('scroll', handleInfiniteScroll)
+    }
+  }, [hasMoreMessages, isFetchingMoreMessages, onFetchMoreMessages])
+
+  // Auto-scroll to the bottom on new messages + typing (only if at
+  // bottom). Also preserve scroll position when prepending older
+  // messages (so the user sees the same message they were viewing).
+  // We capture the scroll height before the DOM update + adjust
+  // scrollTop after to keep the view stable.
+  const prevScrollHeightRef = useRef(0)
+  const prevMessagesLenRef = useRef(0)
+  useLayoutEffect(() => {
+    const root = chatScrollRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+
+    const prevLen = prevMessagesLenRef.current
+    const newLen = chatMessages.length
+    const delta = newLen - prevLen
+
+    if (delta === 0) {
+      // No messages change — but the typing indicator may have
+      // appeared/disappeared. Auto-scroll to bottom if at bottom.
+      if (isAtBottomRef.current) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+      return
+    }
+
+    if (delta > 0 && prevLen > 0) {
+      // ── Append (new message at the bottom) ─────────────────────
+      // Only auto-scroll if the user was at the bottom. If they had
+      // scrolled up to read older messages, leave them where they are.
+      if (isAtBottomRef.current) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    } else if (delta > 0 && prevLen === 0) {
+      // ── Initial load ───────────────────────────────────────────
+      viewport.scrollTop = viewport.scrollHeight
+      isAtBottomRef.current = true
+    } else if (delta < 0) {
+      // ── Prepend (older messages added at the top) ───────────────
+      // The DOM grew at the top by `|delta|` messages. Preserve the
+      // user's scroll position by adding the new content's height
+      // to scrollTop.
+      const newScrollHeight = viewport.scrollHeight
+      const addedHeight = newScrollHeight - prevScrollHeightRef.current
+      viewport.scrollTop = viewport.scrollTop + addedHeight
+    }
+
+    prevMessagesLenRef.current = newLen
+    prevScrollHeightRef.current = viewport.scrollHeight
+  }, [chatMessages, typingUser])
+
+  // Compute card values from `chatStats` (server-side aggregate, accurate
+  // even with > 200 channels) — fall back to client-side filtering of
+  // `channels` when stats aren't loaded yet (capped at the list's page
+  // size, but better than showing 0).
+  const openCount = chatStats?.openCount ?? channels.filter((c) => c.status === 'open').length
+  const assignedCount = chatStats?.assignedCount ?? channels.filter((c) => c.status === 'assigned').length
+  const avgResponseSecs = chatStats?.avgResponseTimeSecs ?? 0
+
+  // Format the avg response time as "Mm Ss" (e.g. "1m 42s") or "N/A"
+  // when no channels have a response yet (avgResponseSecs === 0).
+  const formatResponseTime = (secs: number): string => {
+    if (secs <= 0) return 'N/A'
+    const mins = Math.floor(secs / 60)
+    const s = Math.round(secs % 60)
+    if (mins > 0) return `${mins}m ${s}s`
+    return `${s}s`
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Headset className="h-4 w-4 text-blue-600" /> Đang chờ</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">{channels.filter((c) => c.status === 'open').length}</div>
+            <div className="text-3xl font-extrabold">{openCount}</div>
             <div className="text-xs text-muted-foreground mt-1">Cuộc trò chuyện chưa phân công</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-amber-600" /> Đang xử lý</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">{channels.filter((c) => c.status === 'assigned').length}</div>
+            <div className="text-3xl font-extrabold">{assignedCount}</div>
             <div className="text-xs text-muted-foreground mt-1">Đã có nhân viên phụ trách</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-rose-600" /> Thời gian phản hồi TB</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">1:42</div>
-            <div className="text-xs text-blue-600 flex items-center gap-1 mt-1"><ArrowDownRight className="h-3 w-3" /> -23% so với tuần trước</div>
+            <div className="text-3xl font-extrabold">{formatResponseTime(avgResponseSecs)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Trung bình từ tin nhắn đầu tiên đến phản hồi
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Chat queue + workspace split view */}
+      {/* Chat queue + workspace split view.
+          Both panes share the same fixed height so they align — the
+          channel list scrolls independently when it overflows, and the
+          chat area scrolls independently too. This avoids the previous
+          bug where long message threads were covered by the footer. */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Channel list */}
-        <Card className="shadow-sm xl:col-span-2">
-          <CardHeader className="pb-2">
+        <Card className="xl:col-span-2 flex flex-col">
+          <CardHeader className="pb-2 shrink-0">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-blue-600" />
               Hàng đợi cuộc trò chuyện
             </CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-125">
+          <CardContent className="p-0 flex-1 min-h-0">
+            <ScrollArea className={PANES_HEIGHT}>
               <div className="divide-y">
                 {channels.length === 0 ? (
                   <div className="p-8 text-center text-sm text-muted-foreground">Chưa có cuộc trò chuyện</div>
                 ) : (
-                  channels.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => onOpenChannel(c)}
-                      className={`w-full p-4 hover:bg-slate-50 flex items-center gap-3 text-left transition-colors ${activeChannel?.id === c.id ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : ''}`}
-                    >
-                      <Avatar className="h-10 w-10 shrink-0">
-                        <AvatarFallback className="bg-slate-200 text-xs font-bold text-slate-600">
-                          {c.user?.fullName?.[0] ?? 'K'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium text-sm truncate">{c.user?.fullName ?? 'Khách'}</div>
-                          {c.brand?.name && (
-                            <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                  channels.map((c) => {
+                    const hasPulse = unreadPulseChannels?.has(c.id) ?? false
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => onOpenChannel(c)}
+                        className={`w-full p-4 hover:bg-slate-50 flex items-center gap-3 text-left transition-colors ${activeChannel?.id === c.id ? 'bg-blue-50/50 border-l-2 border-l-blue-600' : ''}`}
+                      >
+                        <div className="relative shrink-0">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-slate-200 text-xs font-bold text-slate-600">
+                              {customerInitial(c)}
+                            </AvatarFallback>
+                          </Avatar>
+                          {/* Pulsing blue dot — Facebook Messenger style.
+                              Shown when this channel has a new customer
+                              message the admin hasn't seen yet. Cleared
+                              when the admin opens the channel. */}
+                          {hasPulse && (
+                            <span
+                              className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white animate-pulse"
+                              title="Tin nhắn mới"
+                            />
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <div className="text-xs text-muted-foreground truncate flex-1">{c.lastMessagePreview ?? c.topic}</div>
-                          <PriorityBadge priority={c.priority} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium text-sm truncate">{customerDisplayName(c)}</div>
+                            {c.brand?.name && (
+                              <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="text-xs text-muted-foreground truncate flex-1">{c.lastMessagePreview ?? c.topic}</div>
+                            <PriorityBadge priority={c.priority} />
+                          </div>
+                          {/* Subtitle line — email or phone (whichever
+                              the display name didn't already show). */}
+                          {customerSubtitle(c) && (
+                            <div className="text-[10px] text-muted-foreground/80 truncate mt-0.5 flex items-center gap-1">
+                              {c.user?.phone && customerSubtitle(c) === c.user.phone ? (
+                                <Phone className="h-2.5 w-2.5" />
+                              ) : (
+                                <Mail className="h-2.5 w-2.5" />
+                              )}
+                              {customerSubtitle(c)}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
-                        {c.unreadEmployee > 0 && (
-                          <Badge className="bg-rose-500 text-white text-[10px] mt-1">{c.unreadEmployee} mới</Badge>
-                        )}
-                        <StatusBadge status={c.status} />
-                      </div>
-                    </button>
-                  ))
+                        <div className="text-right shrink-0">
+                          <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
+                          {c.unreadEmployee > 0 && (
+                            <Badge className="bg-rose-500 text-white text-[10px] mt-1">{c.unreadEmployee} mới</Badge>
+                          )}
+                          <StatusBadge status={c.status} />
+                        </div>
+                      </button>
+                    )
+                  })
                 )}
               </div>
             </ScrollArea>
@@ -149,25 +378,24 @@ export function ChatPanel({
         </Card>
 
         {/* Chat workspace */}
-        <Card className="shadow-sm xl:col-span-3 flex flex-col">
+        <Card className="xl:col-span-3 flex flex-col">
           {activeChannel ? (
             <>
-              <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between">
+              <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <Avatar className="h-8 w-8 shrink-0">
                     <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
-                      {activeChannel.user?.fullName?.[0] ?? 'K'}
+                      {customerInitial(activeChannel)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm truncate flex items-center gap-2">
-                      {activeChannel.user?.fullName ?? 'Khách'}
-                      {/* Online status dot */}
+                      {customerDisplayName(activeChannel)}
                       {userOnline && (
                         <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Đang trực tuyến" />
                       )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground truncate">
+                    <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
                       {typingUser ? (
                         <span className="text-blue-600 italic">{typingUser.name} đang gõ...</span>
                       ) : (
@@ -178,7 +406,13 @@ export function ChatPanel({
                               {activeChannel.user.phone}
                             </span>
                           )}
-                          {!activeChannel.user?.phone && activeChannel.topic}
+                          {activeChannel.user?.email && activeChannel.user.email !== customerDisplayName(activeChannel) && (
+                            <span className="flex items-center gap-1">
+                              <Mail className="h-3 w-3" />
+                              {activeChannel.user.email}
+                            </span>
+                          )}
+                          {!activeChannel.user?.phone && !activeChannel.user?.email && activeChannel.topic}
                         </>
                       )}
                     </div>
@@ -210,14 +444,42 @@ export function ChatPanel({
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 h-87.5 p-4">
+              {/* Chat messages scroll area.
+                  Uses the same fixed height as the channel list so
+                  both panes align. The flex column layout ensures the
+                  input area sticks to the bottom (the scroll area
+                  takes the remaining space).
+                  The `ref` is used by the auto-scroll effect above to
+                  scroll to the bottom on new messages + typing events. */}
+              <ScrollArea ref={chatScrollRef} className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
                 <div className="space-y-2.5">
+                  {/* ── "Load more" spinner (top of chat) ─────────────────
+                      Shown when the infinite-scroll hook is fetching the
+                      next page of older messages. Also serves as a
+                      visual anchor so the user knows more are coming.
+                      The scroll-position-preservation logic above keeps
+                      the user's view stable when the new messages are
+                      prepended. */}
+                  {isFetchingMoreMessages && (
+                    <div className="flex items-center justify-center py-3">
+                      <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
+                        <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
+                        Đang tải tin nhắn cũ hơn...
+                      </div>
+                    </div>
+                  )}
+                  {!isFetchingMoreMessages && hasMoreMessages && onFetchMoreMessages && (
+                    <div className="flex items-center justify-center py-2">
+                      <button
+                        onClick={onFetchMoreMessages}
+                        className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
+                      >
+                        Xem tin nhắn cũ hơn
+                      </button>
+                    </div>
+                  )}
                   {chatMessages.map((m) => {
                     const isEmployee = m.senderType === 'employee'
-                    // Detect ticket-card messages: either `kind === 'ticket'`
-                    // or the content starts with `{` and parses as a ticket
-                    // payload. Falls back to plain-text rendering on parse
-                    // failure.
                     const ticketPayload = parseTicketPayload(m)
                     if (ticketPayload) {
                       return (
@@ -230,13 +492,18 @@ export function ChatPanel({
                       )
                     }
                     return (
-                      <div key={m.id} className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
+                      <div
+                        key={m.id}
+                        className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
+                      >
                         <div
-                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
+                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word shadow-sm ${isEmployee
                             ? 'bg-blue-600 text-white rounded-br-sm'
                             : m.senderType === 'system'
                               ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
-                              : 'bg-white border rounded-bl-sm '
+                              : m.senderType === 'assistant'
+                                ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
+                                : 'bg-white border rounded-bl-sm '
                             }`}
                         >
                           {m.content}
@@ -246,9 +513,8 @@ export function ChatPanel({
                   })}
                 </div>
 
-                {/* Typing indicator dots */}
                 {typingUser && (
-                  <div className="flex justify-start pb-2 px-1">
+                  <div className="flex justify-start pb-2 px-1 mt-2">
                     <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
                       <div className="flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -260,8 +526,9 @@ export function ChatPanel({
                 )}
               </ScrollArea>
 
-              {/* Quick replies */}
-              <div className="px-4 py-2 border-t bg-slate-50/50">
+              {/* Quick replies + input — sticks to the bottom because
+                  the scroll area is `flex-1` (takes remaining space). */}
+              <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
                 <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
                   {['Xin chào, tôi có thể giúp gì?', 'Vui lòng cho mã đặt vé.', 'Chuyến đi đã xác nhận.', 'Tôi cần kiểm tra lại.'].map((t, i) => (
                     <button
@@ -293,7 +560,7 @@ export function ChatPanel({
               </div>
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center p-8">
+            <div className={`flex-1 flex items-center justify-center p-8 ${PANES_HEIGHT}`}>
               <div className="text-center">
                 <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
                   <Headset className="h-8 w-8 text-slate-400" />
@@ -319,13 +586,6 @@ export function ChatPanel({
   )
 }
 
-// ── Ticket card rendering helpers ────────────────────────────
-
-/**
- * Parse a chat message into a `CreatedTicketPayload`. Returns `null` if the
- * message isn't a ticket-card message (no `kind: 'ticket'` and no parseable
- * JSON in `attachments` or `content`).
- */
 function parseTicketPayload(m: ChatMessage): CreatedTicketPayload | null {
   // Prefer the `attachments` field (canonical).
   if (m.attachments) {
@@ -363,7 +623,7 @@ function TicketCardMessage({
   const trip = payload.trip ?? ({} as CreatedTicketPayload['trip'])
   return (
     <div className={`flex ${isEmployee ? 'justify-end' : 'justify-start'}`}>
-      <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border shadow-sm bg-white">
+      <div className="max-w-[88%] sm:max-w-[75%] rounded-2xl overflow-hidden border bg-white">
         {/* Header strip with brand accent */}
         <div
           className="px-3 py-2 text-white flex items-center justify-between gap-2"

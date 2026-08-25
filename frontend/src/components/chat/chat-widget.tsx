@@ -46,19 +46,19 @@ import { toast } from 'sonner'
 import { Headset } from 'lucide-react'
 import { playSound } from '@/lib/sound-effects'
 import { notifyChatMessage } from '@/lib/notifications'
+import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   useAuthMe,
   useRegister,
   useChatChannels,
-  useChatMessages,
+  useChatMessagesInfinite,
   useCreateChatChannel,
   usePostChatMessage,
   useMarkChatRead,
 } from '@/lib/queries'
 import {
   listMessagesQueryKey,
-  listChannelsQueryKey,
 } from '@/lib/api/@tanstack/react-query.gen'
 import {
   type CustomerChannel as Channel,
@@ -108,6 +108,17 @@ export function ChatWidget() {
   // Remember the element that had focus before opening, so we can restore it
   // on close (WCAG 2.4.3 — focus order).
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+
+  // ── Typing broadcast throttle ──────────────────────────────────
+  //
+  // Only broadcast `typing=true` on the FIRST keystroke after becoming
+  // idle (not on every keystroke — that was wasteful for bandwidth).
+  // After `TYPING_IDLE_MS` of inactivity, broadcast `typing=false`
+  // so the admin's UI stops showing the typing indicator. Same
+  // pattern as the admin side (see `use-admin-chat-workspace.ts`).
+  const TYPING_IDLE_MS = 2000
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isCurrentlyTypingRef = useRef(false)
 
   useEffect(() => {
     activeChannelRef.current = activeChannel
@@ -233,6 +244,9 @@ export function ChatWidget() {
         // Browser push notification when page is in background.
         if (m.senderType !== 'user') {
           notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          // Flash the page title (messenger-style) so the user notices
+          // the new message even when the tab is in the background.
+          startTitleNotification(1)
         }
         // Sound effect on new message.
         playSound('message')
@@ -240,6 +254,7 @@ export function ChatWidget() {
         // Message from a different channel — show a notification.
         if (m.senderType !== 'user') {
           notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          startTitleNotification(1)
           playSound('message')
         }
       }
@@ -257,7 +272,18 @@ export function ChatWidget() {
     })
 
     ws.on('typing', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; name: string; isTyping: boolean }
+      const d = data as unknown as {
+        channelId: string
+        name: string
+        isTyping: boolean
+        userId?: string
+      }
+      // Filter out typing events from OUR OWN user id — the backend
+      // already excludes our socket via `broadcast_to_room_except`,
+      // but if the user has multiple tabs open (each with its own
+      // socket in the room), tab A's typing would otherwise bounce
+      // back to tab B. Filtering by userId catches that case.
+      if (chatUser && d.userId && d.userId === chatUser.id) return
       if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
         setTyping(d.isTyping ? { name: d.name } : null)
       }
@@ -303,27 +329,50 @@ export function ChatWidget() {
       ws.close()
       socketRef.current = null
       setConnected(false)
+      // Clear the typing throttle timer so it doesn't fire against a
+      // closed socket (would log a warning + do nothing useful).
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current)
+        typingTimerRef.current = null
+      }
+      isCurrentlyTypingRef.current = false
     }
-  // qc is intentionally excluded from deps — it's a stable reference
-  // (useQueryClient returns the same instance for the app's lifetime).
-  // Including it would cause the effect to re-run unnecessarily (e.g.
-  // when React StrictMode double-invokes effects in dev).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // qc is intentionally excluded from deps — it's a stable reference
+    // (useQueryClient returns the same instance for the app's lifetime).
+    // Including it would cause the effect to re-run unnecessarily (e.g.
+    // when React StrictMode double-invokes effects in dev).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, chatUser])
 
   // ── Channels list via TanStack Query ──────────────────────────────
   const channelsQuery = useChatChannels(50)
   const channels: Channel[] = (channelsQuery.data?.items ?? []) as unknown as Channel[]
 
-  // ── Messages for the active channel via TanStack Query ───────────
-  const messagesQuery = useChatMessages(activeChannel?.id, 50)
-  const messages: Message[] = (messagesQuery.data?.items ?? []) as unknown as Message[]
-  const loadingMessages = messagesQuery.isLoading
+  // ── Messages for the active channel via TanStack Query (infinite scroll) ───
+  //
+  // `useChatMessagesInfinite` fetches the latest 30 messages first
+  // (newest first in the API → reversed for display). When the user
+  // scrolls to the top, the chat-conversation component triggers
+  // `fetchNextPage()` to load older messages. Scroll position is
+  // preserved by the scroll-anchor logic in chat-conversation.tsx.
+  const {
+    messages: infiniteMessages,
+    hasNextPage: hasMoreMessages,
+    fetchNextPage: fetchMoreMessages,
+    isFetchingNextPage: isFetchingMoreMessages,
+  } = useChatMessagesInfinite(activeChannel?.id, 30)
+  const messages: Message[] = infiniteMessages as unknown as Message[]
+  const loadingMessages = !infiniteMessages && activeChannel != null
 
-  // Auto scroll
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages, typing, waitingForAgent])
+  // ── Auto-scroll + scroll-position preservation ────────────────────
+  //
+  // The auto-scroll + scroll-position-preservation logic lives in
+  // `chat-conversation.tsx` now (it has access to `scrollRef` via
+  // props + uses `useLayoutEffect` for stable position on prepend).
+  // The previous `useEffect` here was a simpler version that always
+  // scrolled to the bottom — it would yank the user down when they
+  // were reading older messages. Removed in favor of the smarter
+  // version in ChatConversation.
 
   // ── Mutations ─────────────────────────────────────────────────────
   const registerMut = useRegister({
@@ -397,8 +446,20 @@ export function ChatWidget() {
     setWaitingForAgent(false)
     setAgentJoinedName(null)
     setEmployeesOnline(0)
-    if (socketRef.current?.connected) {
-      socketRef.current.send('join', { channelId: ch.id })
+    // Stop the title-flash notification — the user is now viewing the
+    // chat, so the attention signal is no longer needed.
+    stopTitleNotification()
+    if (socketRef.current) {
+      if (socketRef.current.connected) {
+        socketRef.current.send('join', { channelId: ch.id })
+      } else {
+        // WS still connecting — join once it's open.
+        const joinHandler = () => {
+          socketRef.current?.send('join', { channelId: ch.id })
+          socketRef.current?.off('_open', joinHandler)
+        }
+        socketRef.current.on('_open', joinHandler)
+      }
     }
     markReadMut.mutate({ path: { id: ch.id } } as any)
     // Optimistically clear the unread badge in the cache — the
@@ -446,6 +507,20 @@ export function ChatWidget() {
     const content = (text ?? input).trim()
     if (!content || !activeChannel) return
     setInput('')
+    // Clear typing indicator after sending.
+    setTyping(null)
+    // Reset the typing throttle state + cancel any pending idle
+    // timer so we don't send a stale `typing=false` after the
+    // message has been sent.
+    isCurrentlyTypingRef.current = false
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
+    }
+    // Send typing=false so the admin sees the user stopped typing.
+    if (socketRef.current?.connected) {
+      socketRef.current.send('typing', { channelId: activeChannel.id, isTyping: false })
+    }
     const clientMsgId = 'c' + Date.now() + Math.random().toString(36).slice(2, 6)
 
     // ── Optimistic message ──────────────────────────────────────
@@ -504,9 +579,29 @@ export function ChatWidget() {
 
   const onInputTyping = (val: string) => {
     setInput(val)
-    if (socketRef.current?.connected && activeChannel) {
-      socketRef.current.send('typing', { channelId: activeChannel.id, isTyping: true })
+
+    const channel = activeChannelRef.current
+    if (!channel || !socketRef.current?.connected) return
+
+    // Only send `typing=true` on the FIRST keystroke after becoming
+    // idle. Subsequent keystrokes just reset the idle timer (we're
+    // still typing — the admin already knows).
+    if (!isCurrentlyTypingRef.current) {
+      isCurrentlyTypingRef.current = true
+      socketRef.current.send('typing', { channelId: channel.id, isTyping: true })
     }
+
+    // Reset the idle timer — when it fires (2s of inactivity),
+    // broadcast `typing=false` + reset the flag so the next keystroke
+    // triggers a fresh `typing=true`.
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = setTimeout(() => {
+      isCurrentlyTypingRef.current = false
+      const ch = activeChannelRef.current
+      if (ch && socketRef.current?.connected) {
+        socketRef.current.send('typing', { channelId: ch.id, isTyping: false })
+      }
+    }, TYPING_IDLE_MS)
   }
 
   // ─── Render: hidden for employees ──────────────────────────────────
@@ -517,8 +612,14 @@ export function ChatWidget() {
   if (!chatOpen) {
     return (
       <button
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group shadow-lg shadow-rose-500/30"
+        onClick={() => {
+          setChatOpen(true)
+          // Stop the title-flash notification — the user is now
+          // opening the chat widget, so the attention signal is no
+          // longer needed.
+          stopTitleNotification()
+        }}
+        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group"
         aria-label="Mở chat hỗ trợ"
       >
         <Headset className="h-6 w-6" />
@@ -581,6 +682,7 @@ export function ChatWidget() {
       ) : (
         <>
           <ChatConversation
+            key={activeChannel?.id ?? 'no-channel'}
             scrollRef={scrollRef}
             loadingMessages={loadingMessages}
             messages={messages}
@@ -588,6 +690,9 @@ export function ChatWidget() {
             waitingForAgent={waitingForAgent}
             agentJoinedName={agentJoinedName}
             employeesOnline={employeesOnline}
+            hasMoreMessages={hasMoreMessages}
+            isFetchingMoreMessages={isFetchingMoreMessages}
+            onFetchMoreMessages={() => fetchMoreMessages()}
           />
           <ChatInput
             input={input}

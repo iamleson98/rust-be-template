@@ -23,7 +23,7 @@ type StatProps = {
 
 export const StatCard = memo(function StatCard({ icon, label, value, accent, subtitle }: StatProps) {
   return (
-    <Card className="ring-1 ring-black/5 shadow-sm overflow-hidden transition-shadow">
+    <Card className="ring-1 ring-black/5 overflow-hidden">
       <CardContent className="p-0">
         <div className={`h-1 bg-linear-to-r ${accent}`} />
         <div className="p-4 md:p-5 flex items-center gap-3.5">
@@ -95,7 +95,7 @@ export const UserTabTrigger = memo(function UserTabTrigger({
 export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
   const accent = r.brand?.accentColor || '#2563eb'
   return (
-    <Card className="overflow-hidden ring-1 ring-black/5 shadow-sm hover:shadow-md transition-all duration-300">
+    <Card className="overflow-hidden ring-1 ring-black/5 transition-all duration-300">
       <div className="relative flex">
         <div
           className="hidden md:block w-1.5 shrink-0 self-stretch"
@@ -143,11 +143,10 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
-                    className={`h-4 w-4 ${
-                      s <= r.rating
-                        ? 'fill-amber-400 text-amber-400'
-                        : 'fill-slate-100 text-slate-200'
-                    }`}
+                    className={`h-4 w-4 ${s <= r.rating
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'fill-slate-100 text-slate-200'
+                      }`}
                   />
                 ))}
                 <span className="ml-1.5 text-xs font-bold text-amber-600">{r.rating}.0</span>

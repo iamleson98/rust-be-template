@@ -41,8 +41,6 @@ import type { AdminRouteOut, AdminScheduleOut, AdminPickupPointOut, AdminBrandOu
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
 import { formatDurationShort, daysLabel } from './helpers'
 
-/* ─── Brands list (left panel) ─── */
-
 export function BrandListPanel({
   brandsLoading,
   filteredBrands,
@@ -68,7 +66,7 @@ export function BrandListPanel({
 }) {
   return (
     <Card
-      className={`shadow-sm overflow-hidden ${mobileView === 'brands' ? 'block' : 'hidden lg:block'}`}
+      className={` overflow-hidden ${mobileView === 'brands' ? 'block' : 'hidden lg:block'}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -181,8 +179,6 @@ export function BrandListPanel({
   )
 }
 
-/* ─── Routes list (middle panel) ─── */
-
 export function RouteListPanel({
   routesLoading,
   filteredRoutes,
@@ -212,7 +208,7 @@ export function RouteListPanel({
 }) {
   return (
     <Card
-      className={`shadow-sm overflow-hidden ${mobileView === 'routes' ? 'block' : 'hidden lg:block'}`}
+      className={` overflow-hidden ${mobileView === 'routes' ? 'block' : 'hidden lg:block'}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
@@ -344,8 +340,6 @@ export function RouteListPanel({
   )
 }
 
-/* ─── Schedules + Pickup points detail (right panel) ─── */
-
 export function ScheduleAndPickupPanel({
   selectedRoute,
   schedulesLoading,
@@ -377,7 +371,7 @@ export function ScheduleAndPickupPanel({
 }) {
   return (
     <Card
-      className={`shadow-sm overflow-hidden ${mobileView === 'details' ? 'block' : 'hidden lg:block'}`}
+      className={` overflow-hidden ${mobileView === 'details' ? 'block' : 'hidden lg:block'}`}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-2">
@@ -442,7 +436,7 @@ export function ScheduleAndPickupPanel({
                       return (
                         <div
                           key={s.id}
-                          className="rounded-lg border p-2.5 hover:shadow-sm transition-shadow bg-white"
+                          className="rounded-lg border p-2.5 bg-white"
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
@@ -551,7 +545,7 @@ export function ScheduleAndPickupPanel({
                     {pickupPoints.map((p) => (
                       <div
                         key={p.id}
-                        className="rounded-lg border p-2.5 flex items-start gap-2 hover:shadow-sm transition-shadow bg-white"
+                        className="rounded-lg border p-2.5 flex items-start gap-2 bg-white"
                       >
                         <div className="flex flex-col items-center shrink-0">
                           <div className="h-6 w-6 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[10px] font-bold">
@@ -611,8 +605,6 @@ export function ScheduleAndPickupPanel({
     </Card>
   )
 }
-
-/* ─── Breadcrumb header ─── */
 
 export function BrandManagementBreadcrumb({
   selectedBrand,

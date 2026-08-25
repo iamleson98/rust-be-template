@@ -90,7 +90,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                     key={brand.id}
                     className="snap-start shrink-0 w-65 sm:w-70"
                   >
-                    <Card className="group overflow-hidden border-border/60 shadow-sm hover:shadow-md hover:border-blue-400 transition-all duration-300 h-full">
+                    <Card className="group overflow-hidden border-border/60 hover:border-blue-400 transition-all duration-300 h-full">
                       {/* Accent color top bar */}
                       <div
                         className="h-1.5"

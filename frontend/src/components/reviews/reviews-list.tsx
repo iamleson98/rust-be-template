@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useReviewsByRoute, useReviewsByBrand, useReviewTags } from '@/lib/queries'
 import {
   Star,
@@ -92,27 +91,6 @@ type Props = {
 }
 
 const PAGE_SIZE = 5
-
-/**
- * Aggregate response shape returned by `/api/reviews?brandId=X&aggregate=1`.
- * The backend computes avg + 5-bucket distribution across ALL published
- * reviews for the brand (not just the first 20).
- */
-type BrandAggregateResponse = {
-  // The backend returns `{ items: Review[] }` from `GET /api/reviews`.
-  // We compute the aggregate fields client-side from those items.
-  items?: { rating?: number }[]
-  // Legacy fields kept for backward compat (not present in the response).
-  avgRating?: number
-  count?: number
-  distribution?: number[]
-  tags?: Record<string, unknown>
-}
-
-/**
- * Tag-stats response shape returned by `/api/reviews/tags`.
- */
-type TagStatsResponse = { items: TagStat[] }
 
 /** Compute the 5-bucket distribution from raw review items. */
 function computeDistribution(reviews: { rating?: number }[]): number[] {

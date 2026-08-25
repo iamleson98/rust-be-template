@@ -1,35 +1,3 @@
-//! WebSocket upgrade handler + socket.io-like message protocol.
-//!
-//! Wire format (JSON, one message per WS text frame):
-//!
-//! ```jsonc
-//! // client → server
-//! { "type": "join",    "channelId": "...", "clientMsgId": "..." }
-//! { "type": "message", "channelId": "...", "text": "...", "clientMsgId": "..." }
-//! { "type": "read",    "channelId": "..." }
-//! { "type": "typing",  "channelId": "...", "isTyping": true }
-//!
-//! // server → client
-//! { "type": "joined",    "channelId": "...", "userId": "...", "onlineEmployees": 3 }
-//! { "type": "message",   "id": "...", "channelId": "...", "senderType": "user", "senderId": "...", "text": "...", "createdAt": "..." }
-//! { "type": "presence",  "channelId": "...", "userId": "...", "online": true }
-//! { "type": "typing",    "channelId": "...", "userId": "...", "isTyping": true }
-//! { "type": "read",      "channelId": "...", "userId": "...", "lastReadAt": "..." }
-//! { "type": "error",     "message": "..." }
-//! ```
-//!
-//! ## Adaptation notes
-//!
-//! Ported from `booking-rs/ws/handler.rs`. The original used raw `sqlx`
-//! against `AppState.pool`; this version uses the [`ChatStore`] from the
-//! template's `CompositeStore` so it fits the layered store architecture
-//! (no direct DB access in the handler). Auth uses the template's
-//! `AuthService::verify_access_token_session` which returns a `SessionUser`.
-//!
-//! WS tuning knobs (max connections, heartbeat, idle timeout, etc.) are
-//! read from the template's `Config` via the `WsConfig` section. When not
-//! set, sensible defaults apply.
-
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -232,8 +200,15 @@ pub async fn handle_socket(
                             hub().send_to(sid, &json!({ "type": "error", "message": e.to_string() }));
                         }
                     }
-                    Some(Ok(Message::Binary(_))) | Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                        // Ignore binary + ping/pong (axum auto-pongs).
+                    Some(Ok(Message::Binary(_))) | Some(Ok(Message::Ping(_))) => {
+                        // Ignore binary + ping (axum auto-pongs).
+                    }
+                    Some(Ok(Message::Pong(_))) => {
+                        // Pong received — the client is alive. Reset the
+                        // idle timer so we don't disconnect a healthy
+                        // connection just because the user hasn't sent a
+                        // text message in the last 90s.
+                        idle_timer.as_mut().reset(tokio::time::Instant::now() + idle);
                     }
                     Some(Ok(Message::Close(_))) | None => break,
                     Some(Err(e)) => {
@@ -369,13 +344,6 @@ async fn handle_message(
         .unwrap_or("")
         .to_string();
 
-    // ── Abuse guard ────────────────────────────────────────────────
-    // Inspect the message before storing/broadcasting. If the user is
-    // already banned (or this message triggers a ban), reject the
-    // message and notify the client. The verdict is also persisted to
-    // the channel as a `system` message so the user can see why their
-    // message was rejected (and the human staff can see the violation
-    // when they pick up the channel).
     let guard = crate::guard::AbuseGuard::shared();
     let ip_for_guard = hub().session_ip(sid);
     let verdict = guard.check(Some(&user.id.to_string()), ip_for_guard.as_deref(), &text);
@@ -482,6 +450,25 @@ async fn handle_message(
     let id = stored.id.to_string();
     let now = stored.created_at.clone();
 
+    // ── Increment the unread counter for the OTHER side ───────────
+    //
+    // When a customer sends, the admin's `unread_employee` counter
+    // grows (so the channel row shows a "N mới" badge). When an
+    // employee sends, the customer's `unread_user` counter grows
+    // (so the chat widget shows a "N mới" badge on the channel list).
+    // Best-effort — a failure here is logged + swallowed because the
+    // message itself was already persisted; the unread counter is
+    // secondary UX metadata.
+    let unread_side = if user.actor_type == "user" { "employee" } else { "user" };
+    if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
+        tracing::warn!(
+            channel_id = %channel_id,
+            side = unread_side,
+            error = %e,
+            "failed to increment unread counter (continuing)"
+        );
+    }
+
     if !client_msg_id.is_empty() {
         hub().idem_store(&client_msg_id, &id);
     }
@@ -498,14 +485,41 @@ async fn handle_message(
     });
     hub().broadcast_to_room(&channel_id, &broadcast);
 
+    // ── Admin attention signal ─────────────────────────────────────
+    //
+    // When a customer sends a message, ALSO notify ALL online
+    // employees (regardless of whether they've joined this channel's
+    // room). This is the "new message arrived" notification that
+    // powers the admin dashboard's attention indicator:
+    //
+    //   - Admin has no channel open → the channel row in the list
+    //     shows a "new message" badge + the channels query refetches
+    //     (so unread counter + last_message_preview update).
+    //   - Admin has a DIFFERENT channel open → same thing — the
+    //     channel list updates + a toast may fire.
+    //   - Admin has THIS channel open → they already received the
+    //     `message` event via `broadcast_to_room`; this duplicate
+    //     notification is harmless (idempotent invalidation).
+    //
+    // Only fired for `actor_type == "user"` messages — employee
+    // messages (admin replies) don't need to notify other admins.
+    if user.actor_type == "user" {
+        let preview: String = text.chars().take(80).collect();
+        hub().broadcast_to_employees(&json!({
+            "type": "channel_message",
+            "channelId": channel_id,
+            "senderId": user.id,
+            "senderName": user.name,
+            "preview": preview,
+            "createdAt": now,
+        }));
+    }
+
     hub().send_to(
         sid,
         &json!({ "type": "ack", "clientMsgId": client_msg_id, "id": id }),
     );
 
-    // ── ZeroClaw AI assistant hook ────────────────────────────────
-    // Goes through ChatService so the chat store stays encapsulated
-    // in the service layer (clean architecture: API/WS → service → store).
     if user.actor_type == "user" {
         let brand_id = st
             .chats
@@ -520,8 +534,10 @@ async fn handle_message(
         let channel_id2 = channel_id.clone();
         let brand_id2 = brand_id.map(|id| id.to_string());
         let user2 = user.clone();
+        let user_id_str = user.id.to_string();
         let user_msg_id = id.clone();
         let text2 = text.clone();
+        let sid_for_typing = sid;
         // Capture the current tracing span so logs inside the spawned
         // task (an LLM HTTP call that can take 5-15s) stay correlated
         // to the WS handler that triggered them. Without `.instrument`
@@ -529,6 +545,46 @@ async fn handle_message(
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
+                // Trigger ZeroClaw only when no admin is online. The user
+                // spec says "if admin is online, system does not trigger
+                // zeroclaw, just show chat notification so admin see and
+                // go reply user." — the original message was already
+                // broadcast above (admins see the notification).
+                //
+                // We also re-check whether the customer is still in the
+                // room right before triggering. If they navigated away,
+                // there's no point in showing the typing indicator (no
+                // one will see it). We still call ZeroClaw because the
+                // reply is persisted — the user sees it when they return.
+                let admin_online = online >= fallback_threshold;
+                let will_zeroclaw_reply = !admin_online;
+
+                if will_zeroclaw_reply {
+                    // Only show the typing indicator if the user is still
+                    // in the channel. This avoids wasted WS writes for
+                    // users who have already closed the chat widget.
+                    let user_still_here = hub().is_user_online_in_channel(
+                        &channel_id2,
+                        &user_id_str,
+                    );
+                    if user_still_here {
+                        hub().send_to(
+                            sid_for_typing,
+                            &json!({
+                                "type": "typing",
+                                "channelId": channel_id2,
+                                // Show "Nhân viên hỗ trợ" rather than
+                                // "ZeroClaw AI" — the user spec asks for
+                                // the typing indicator to look like an
+                                // employee is replying (no AI disclosure
+                                // in the typing pill).
+                                "name": "Nhân viên hỗ trợ",
+                                "isTyping": true,
+                            }),
+                        );
+                    }
+                }
+
                 match chats
                     .maybe_zeroclaw_reply(
                         &channel_id2,
@@ -542,13 +598,25 @@ async fn handle_message(
                     .await
                 {
                     Ok(Some(outcome)) => {
+                        // The assistant message is broadcast to the whole
+                        // channel room — the customer sees it (if still
+                        // connected) AND any watching admin sees it.
+                        // `senderId` uses the bot's actual UUID (looked up
+                        // at the service layer) so the frontend can fetch
+                        // the bot's avatar/name. Falls back to the bot's
+                        // name as a string when the UUID is unavailable
+                        // (degraded mode).
+                        let sender_id = match outcome.bot_user_id {
+                            Some(id) => serde_json::Value::from(id.to_string()),
+                            None => serde_json::Value::from("zeroclaw"),
+                        };
                         let assistant_broadcast = json!({
                             "type": "message",
                             "id": outcome.assistant_message_id,
                             "channelId": channel_id2,
                             "senderType": "assistant",
-                            "senderId": format!("zeroclaw:{}", outcome.reply.model),
-                            "senderName": "ZeroClaw AI",
+                            "senderId": sender_id,
+                            "senderName": crate::zeroclaw::ZEROCLAW_BOT_NAME,
                             "text": outcome.reply.reply,
                             "createdAt": outcome.created_at,
                             "meta": {
@@ -563,6 +631,23 @@ async fn handle_message(
                     Err(e) => {
                         tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
                     }
+                }
+
+                // Always clear the typing indicator after ZeroClaw
+                // finishes (whether it replied, declined, or errored).
+                // Even if the user left, sending the clear is a no-op
+                // (the socket is gone) — better to always clear than to
+                // risk leaving a stale "typing..." pill on the screen.
+                if will_zeroclaw_reply {
+                    hub().send_to(
+                        sid_for_typing,
+                        &json!({
+                            "type": "typing",
+                            "channelId": channel_id2,
+                            "name": "Nhân viên hỗ trợ",
+                            "isTyping": false,
+                        }),
+                    );
                 }
             }
             .instrument(span),
@@ -624,8 +709,6 @@ fn handle_typing(sid: u64, user: &SessionUser, msg: &serde_json::Value) {
         sid,
     );
 }
-
-// ── Graceful shutdown + background maintenance ─────────────────────
 
 /// Drain all live WS connections on shutdown: send a `system:shutdown`
 /// notice + Close frame, then give sockets a brief grace period.

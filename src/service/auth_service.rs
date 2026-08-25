@@ -90,9 +90,6 @@ impl AuthService {
         let user_count = self.store.user_store().count_users().await?;
         let is_first_user = user_count == 0;
 
-        // Argon2 hash is CPU-heavy (~50ms with default params). Run on a
-        // blocking-pool thread so we don't stall the tokio worker. Also
-        // propagate the assign_role error (previously swallowed via `let _ =`).
         let password_arc = self.password.clone();
         let pwd_for_hash = password.clone();
         let hash = tokio::task::spawn_blocking(move || password_arc.hash(&pwd_for_hash))
@@ -108,11 +105,20 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // Assign role: first user gets "employee", others get "user".
-        // Errors here used to be swallowed via `let _ =` — if the role
-        // table was empty or the DB failed, the user ended up with no role
-        // and couldn't log in via employee-login even when they should be
-        // admin (first-user case). Propagate now.
+        // If this is first time setup, then also create zeroclaw agent
+        if is_first_user {
+            let _ = self
+                .store
+                .user_store()
+                .create_user(
+                    "zeroclaw_agent@example.com".into(),
+                    "zeroclaw_agent".into(),
+                    "hashed_password".into(),
+                    role_name.to_string(),
+                )
+                .await?;
+        }
+
         let roles = self.store.rbac_store().list_roles().await?;
         if let Some(role) = roles.iter().find(|r| r.name == role_name) {
             self.store
@@ -249,7 +255,14 @@ impl AuthService {
         let model = self
             .store
             .user_store()
-            .upsert_oauth_user(email, name, provider, subject, avatar_url, role_name.to_string())
+            .upsert_oauth_user(
+                email,
+                name,
+                provider,
+                subject,
+                avatar_url,
+                role_name.to_string(),
+            )
             .await?;
 
         // Assign role (mirrors `register()`). Idempotent — if the user

@@ -119,9 +119,6 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
 
   const currentTier = getTier(loyaltyPoints)
   const nextTier = getNextTier(loyaltyPoints)
-  const progressToNext = nextTier
-    ? ((loyaltyPoints - currentTier.min) / (nextTier.max - currentTier.min + 1)) * 100
-    : 100
 
   const handleRedeem = (voucher: Voucher) => {
     if (loyaltyPoints < voucher.points) return

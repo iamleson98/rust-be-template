@@ -157,7 +157,7 @@ function StatCard({
   onClick?: () => void
 }) {
   return (
-    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+    <Card className="cursor-pointer" onClick={onClick}>
       <CardContent className="p-4 flex items-center gap-3">
         <div className={`flex items-center justify-center h-10 w-10 rounded-lg ${color}`}>
           {icon}

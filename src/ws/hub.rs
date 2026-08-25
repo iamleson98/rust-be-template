@@ -334,6 +334,32 @@ impl ChatHub {
         }
     }
 
+    /// Broadcast a JSON message to ALL online employee sockets (across
+    /// every brand). Used for the admin "new message arrived in another
+    /// channel" attention signal — when a customer sends a message in
+    /// a channel the admin hasn't joined, this delivers a lightweight
+    /// notification so the admin's frontend can:
+    ///   - Invalidate the channels list (so unread badges update).
+    ///   - Show a toast / flash the channel row.
+    ///
+    /// Iterates the `online_employees` index: `brandKey → employeeId →
+    /// set<socketId>`. Each socket gets one delivery (even if the same
+    /// employee has multiple sockets open, both receive the event —
+    /// that's intentional so each browser tab updates its UI).
+    pub fn broadcast_to_employees(&self, msg: &serde_json::Value) {
+        let payload = serde_json::to_string(msg).unwrap_or_default();
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        for brand_entry in self.online_employees.iter() {
+            for emp_entry in brand_entry.value().iter() {
+                for sid in emp_entry.value().iter() {
+                    if let Some(sess) = self.sessions.get(&sid) {
+                        let _ = sess.tx.try_send(bytes.clone());
+                    }
+                }
+            }
+        }
+    }
+
     /// Request every live socket to close. The actual close happens when
     /// each socket's write pump drains (see `handler::drain_all_connections`).
     pub fn close_all(&self) {
@@ -353,6 +379,25 @@ impl ChatHub {
                 }
                 if let Some(sess) = self.sessions.get(&sid) {
                     if sess.user.id.to_string() == user_id {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    /// Check whether a specific user has at least one live socket joined
+    /// to `channel_id`. Used by the ZeroClaw trigger to decide whether
+    /// the customer is still waiting on the chat (typing indicator
+    /// makes sense) or has navigated away (skip the AI reply).
+    pub fn is_user_online_in_channel(&self, channel_id: &str, user_id: &str) -> bool {
+        if let Some(set) = self.rooms.get(channel_id) {
+            for sid in set.iter() {
+                if let Some(sess) = self.sessions.get(&sid) {
+                    if sess.user.id.to_string() == user_id
+                        && sess.user.actor_type == "user"
+                    {
                         return true;
                     }
                 }
@@ -587,6 +632,22 @@ impl ChatHub {
             online_employee_brands: self.online_employees.len(),
             distinct_ips: self.ip_conns.len(),
         }
+    }
+
+    /// Total online employees across all brands — sum of the per-brand
+    /// employee counts. Used by `/api/admin/system` to show "how many
+    /// support staff are online?" on the dashboard.
+    ///
+    /// Iterates the `online_employees` index: `brandKey → employeeId →
+    /// set<socketId>`. Each employee is counted ONCE (even if they
+    /// have multiple sockets open). Returns the sum across all brand
+    /// keys (including the `"global"` pool for unbranded employees).
+    pub fn count_online_employees_total(&self) -> usize {
+        let mut total = 0;
+        for entry in self.online_employees.iter() {
+            total += entry.value().len();
+        }
+        total
     }
 
     // ── graceful shutdown ──────────────────────────────────────

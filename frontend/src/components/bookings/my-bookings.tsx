@@ -173,7 +173,7 @@ export function MyBookings() {
 
   // Cancel booking mutation — invalidates the bookings cache on success
   // so the list refreshes automatically (no manual state patching).
-  const { mutateAsync: cancelBookingMut, isPending: cancelBookingPending } = useCancelBooking()
+  const { mutateAsync: cancelBookingMut } = useCancelBooking()
 
   // Auto-expand the first booking once after the initial load.
   useEffect(() => {
@@ -361,7 +361,7 @@ export function MyBookings() {
         {isUserLoggedIn ? (
           <Tabs value={userTab} onValueChange={(v) => setUserTab(v as UserTab)} className="w-full">
             <div className="flex justify-center">
-              <TabsList className="bg-white shadow-sm ring-1 ring-black/5 backdrop-blur h-auto p-1.5 rounded-xl gap-1 flex-wrap">
+              <TabsList className="bg-white ring-1 ring-black/5 backdrop-blur h-auto p-1.5 rounded-xl gap-1 flex-wrap">
                 <UserTabTrigger
                   value="upcoming"
                   icon={<CalendarCheck className="h-4 w-4" />}
@@ -498,7 +498,7 @@ export function MyBookings() {
               {reviewsLoading && !reviewsData ? (
                 <MyBookingsSkeleton count={3} />
               ) : userReviews.length === 0 ? (
-                <UiCard className="ring-1 ring-black/5 shadow-sm overflow-hidden">
+                <UiCard className="ring-1 ring-black/5 overflow-hidden">
                   <NoReviewsYet onWrite={() => navigate({ to: '/' })} />
                   <div className="border-t bg-slate-50/50 px-6 py-4">
                     <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
@@ -545,7 +545,7 @@ export function MyBookings() {
 
             {/* Secondary: manual lookup for other bookings */}
             <div className="mt-8">
-              <div className="rounded-xl ring-1 ring-black/5 bg-white shadow-sm overflow-hidden">
+              <div className="rounded-xl ring-1 ring-black/5 bg-white overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setShowGuestLookup((s) => !s)}
@@ -579,7 +579,7 @@ export function MyBookings() {
                     {loading ? (
                       <MyBookingsSkeleton count={2} />
                     ) : searched && results.length === 0 ? (
-                      <UiCard className="ring-1 ring-black/5 shadow-sm overflow-hidden">
+                      <UiCard className="ring-1 ring-black/5 overflow-hidden">
                         <NoResultsFound
                           onReset={() => {
                             setSearchCode('')
@@ -612,7 +612,7 @@ export function MyBookings() {
         ) : (
           /* ── Guest view ── */
           <>
-            <Card className="ring-1 ring-black/5 shadow-sm overflow-hidden backdrop-blur">
+            <Card className="ring-1 ring-black/5 overflow-hidden backdrop-blur">
               <CardContent className="p-5 md:p-7">
                 <GuestLookupForm
                   searchCode={searchCode}
@@ -639,7 +639,7 @@ export function MyBookings() {
               {loading ? (
                 <MyBookingsSkeleton count={3} />
               ) : searched && results.length === 0 ? (
-                <UiCard className="ring-1 ring-black/5 shadow-sm overflow-hidden">
+                <UiCard className="ring-1 ring-black/5 overflow-hidden">
                   <NoResultsFound
                     onReset={() => {
                       setSearchCode('')
@@ -673,7 +673,7 @@ export function MyBookings() {
                   />
                 </div>
               ) : (
-                <UiCard className="ring-1 ring-black/5 shadow-sm overflow-hidden">
+                <UiCard className="ring-1 ring-black/5 overflow-hidden">
                   <NoBookingsYet onSearch={() => navigate({ to: '/' })} />
                   <div className="border-t bg-blue-50/60 px-6 py-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">

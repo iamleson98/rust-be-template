@@ -18,7 +18,7 @@
  *   - Ctrl+B keyboard shortcut to toggle collapse
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useRouterState } from '@/router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -123,7 +123,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const navContent = (
     <>
       {/* Header */}
-      <div className={cn(
+      {/* <div className={cn(
         'bg-linear-to-br from-primary to-primary/80 shrink-0',
         collapsed ? 'px-2 py-3' : 'px-3 py-4',
       )}>
@@ -138,7 +138,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
         </Link>
-      </div>
+      </div> */}
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
@@ -222,7 +222,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex h-svh w-full overflow-hidden bg-background">
+    <div className="flex w-full overflow-hidden bg-background">
       {/* Desktop sidebar — fixed width, hidden on mobile */}
       <aside
         className={cn(
@@ -271,7 +271,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {user?.name || 'Admin'} · VeXeVN Admin
           </span>
         </header>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1">
           {children}
         </div>
       </div>

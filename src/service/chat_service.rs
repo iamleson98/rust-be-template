@@ -31,40 +31,144 @@
 
 use std::sync::Arc;
 
+use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 use crate::auth::SessionUser;
 use crate::entity::{chat_channel, chat_message, zero_claw_exchange};
 use crate::error::{AppError, AppResult};
-use crate::store::chat::NewChatMessage;
+use crate::store::chat::{NewChatMessage, NewChannelMember};
 use crate::store::CompositeStore;
+use crate::zeroclaw::ZEROCLAW_BOT_EMAIL;
 
 /// Chat service. Constructed once at startup with a shared
 /// `Arc<CompositeStore>` and stored as `Arc<ChatService>` on
 /// `AppState`.
 pub struct ChatService {
     store: Arc<CompositeStore>,
+    /// Cached lookup of the ZeroClaw bot user's UUID. Resolved lazily
+    /// on first access via `resolve_bot_user_id()`. The bot user is
+    /// created at first-user signup time (see `AuthService::register`)
+    /// with a runtime-assigned UUID — so we can't hardcode it.
+    ///
+    /// `None` here means "lookup attempted, bot user not found". The
+    /// chat code degrades gracefully in that case — `sender_id` falls
+    /// back to `None` and the bot member row is skipped.
+    bot_user_id: OnceCell<Option<Uuid>>,
+    /// Cached lookup of the system admin's UUID (first non-bot
+    /// employee). Resolved lazily on first access via
+    /// `resolve_admin_employee_id()`. Used to auto-assign an admin
+    /// to every new channel so the support queue has a human owner.
+    admin_employee_id: OnceCell<Option<Uuid>>,
 }
 
 impl ChatService {
     pub fn new(store: Arc<CompositeStore>) -> Self {
-        Self { store }
+        Self {
+            store,
+            bot_user_id: OnceCell::new(),
+            admin_employee_id: OnceCell::new(),
+        }
+    }
+
+    /// Look up the ZeroClaw bot user's UUID by its well-known email
+    /// (`zeroclaw_agent@example.com`). Cached for the process lifetime
+    /// via `OnceCell` — the lookup runs at most once per boot.
+    ///
+    /// Returns `None` if the bot user doesn't exist (e.g. signup ran
+    /// before this code shipped, or the bot user was deleted). Callers
+    /// should handle `None` gracefully (skip the bot member row, use
+    /// `sender_id = None` for AI replies).
+    async fn resolve_bot_user_id(&self) -> Option<Uuid> {
+        *self
+            .bot_user_id
+            .get_or_init(|| async {
+                match self
+                    .store
+                    .user_store()
+                    .get_user_by_email(ZEROCLAW_BOT_EMAIL.to_string())
+                    .await
+                {
+                    Ok(Some(bot)) => Some(bot.id),
+                    Ok(None) => {
+                        tracing::warn!(
+                            email = ZEROCLAW_BOT_EMAIL,
+                            "ZeroClaw bot user not found — channel member row + AI sender_id will be skipped. Run signup to create the bot user."
+                        );
+                        None
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            email = ZEROCLAW_BOT_EMAIL,
+                            error = %e,
+                            "failed to look up ZeroClaw bot user — falling back to None"
+                        );
+                        None
+                    }
+                }
+            })
+            .await
+    }
+
+    /// Look up the system admin's UUID — the first non-bot user with
+    /// role="employee". Cached for the process lifetime. Returns `None`
+    /// if no admin exists (e.g. before first-user signup completes).
+    async fn resolve_admin_employee_id(&self) -> Option<Uuid> {
+        *self
+            .admin_employee_id
+            .get_or_init(|| async {
+                match self.store.user_store().find_first_human_employee().await {
+                    Ok(Some(admin)) => Some(admin.id),
+                    Ok(None) => {
+                        tracing::warn!(
+                            "no human employee found — admin member row will be skipped. Run signup to create the first admin."
+                        );
+                        None
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            error = %e,
+                            "failed to look up admin employee — falling back to None"
+                        );
+                        None
+                    }
+                }
+            })
+            .await
     }
 
     // ── Channels ────────────────────────────────────────────────
 
-    /// List chat channels for a user (their own + assigned-as-employee).
+    /// List chat channels.
+    ///
+    /// - For **customers** (`is_employee == false`): returns only the
+    ///   channels they started.
+    /// - For **employees** (`is_employee == true`): returns ALL open
+    ///   channels in the support queue (optionally filtered by their
+    ///   brand). This is the admin support dashboard's view.
     pub async fn list_channels(
         &self,
         user_id: Uuid,
+        is_employee: bool,
+        brand_id: Option<Uuid>,
         limit: u64,
     ) -> AppResult<Vec<chat_channel::Model>> {
-        self
-            .store
-            .chat_store()
-            .list_channels(user_id, limit.min(200))
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+        let limit = limit.min(200);
+        if is_employee {
+            self
+                .store
+                .chat_store()
+                .list_open_channels(brand_id, limit)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+        } else {
+            self
+                .store
+                .chat_store()
+                .list_channels(user_id, limit)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))
+        }
     }
 
     /// Create a new chat channel, OR return the user's existing OPEN
@@ -141,12 +245,99 @@ impl ChatService {
             return Ok(open);
         }
 
-        self
+        let channel = self
             .store
             .chat_store()
             .create_channel(user_id, brand_id, topic.or_else(|| Some("Hỗ trợ".to_string())))
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // ── Auto-join members: customer + ZeroClaw bot + admin ──────
+        //
+        // On channel creation we add THREE membership rows:
+        //   1. The customer (role="user") — the participant who started
+        //      the conversation.
+        //   2. The ZeroClaw bot (role="bot") — the AI assistant. The
+        //      bot doesn't have a WS socket; this row is for roster /
+        //      audit purposes.
+        //   3. The admin employee (role="employee") — the first non-bot
+        //      employee (i.e. the system admin who signed up first).
+        //      This is the human responsible for the support queue.
+        //
+        // All three inserts are best-effort: a failure to add a member
+        // row does NOT fail channel creation (the channel itself is
+        // already persisted). We log + continue. Real-time routing
+        // still works because the WS hub uses in-memory room membership
+        // (set via the `join` WS message) — NOT the DB member table.
+        // The DB table is for roster metadata + future "leave channel"
+        // semantics.
+        let channel_id_v4 = channel.id;
+
+        // 1. Customer.
+        if let Err(e) = self
+            .store
+            .chat_store()
+            .add_channel_member(NewChannelMember {
+                channel_id: channel_id_v4,
+                user_id,
+                role: "user".into(),
+            })
+            .await
+        {
+            tracing::warn!(
+                channel_id = %channel_id_v4,
+                user_id = %user_id,
+                error = %e,
+                "failed to add customer as channel member (continuing)"
+            );
+        }
+
+        // 2. ZeroClaw bot (resolved by email — the bot user is created
+        //    at first-user signup time, not by a migration seed).
+        if let Some(bot_id) = self.resolve_bot_user_id().await {
+            if let Err(e) = self
+                .store
+                .chat_store()
+                .add_channel_member(NewChannelMember {
+                    channel_id: channel_id_v4,
+                    user_id: bot_id,
+                    role: "bot".into(),
+                })
+                .await
+            {
+                tracing::warn!(
+                    channel_id = %channel_id_v4,
+                    bot_id = %bot_id,
+                    error = %e,
+                    "failed to add ZeroClaw bot as channel member (continuing)"
+                );
+            }
+        }
+
+        // 3. Admin employee — the first non-bot user with role="employee".
+        //    This is the human admin who signed up first (created by
+        //    `AuthService::register` before the ZeroClaw bot user).
+        if let Some(admin_id) = self.resolve_admin_employee_id().await {
+            if let Err(e) = self
+                .store
+                .chat_store()
+                .add_channel_member(NewChannelMember {
+                    channel_id: channel_id_v4,
+                    user_id: admin_id,
+                    role: "employee".into(),
+                })
+                .await
+            {
+                tracing::warn!(
+                    channel_id = %channel_id_v4,
+                    admin_id = %admin_id,
+                    error = %e,
+                    "failed to add admin as channel member (continuing)"
+                );
+            }
+        }
+
+        Ok(channel)
     }
 
     /// Check whether a channel exists (used by the WS `join` handler).
@@ -252,6 +443,23 @@ impl ChatService {
         Ok(())
     }
 
+    /// Increment the unread counter for one side of a channel
+    /// (`"user"` or `"employee"`). Called when a message is inserted:
+    ///   - Customer sends → `side="employee"` (admin's badge grows).
+    ///   - Employee sends → `side="user"` (customer's badge grows).
+    ///
+    /// Best-effort — a failure here is logged + swallowed because the
+    /// message itself was already persisted; the unread counter is
+    /// secondary UX metadata.
+    pub async fn increment_unread(&self, channel_id: &str, side: &str) -> AppResult<()> {
+        self.store
+            .chat_store()
+            .increment_unread(channel_id, side)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
     // ── ZeroClaw ────────────────────────────────────────────────
 
     /// Try to generate a ZeroClaw AI reply for a user message. Returns
@@ -275,6 +483,9 @@ impl ChatService {
         if !provider.is_enabled() {
             return Ok(None);
         }
+        // Resolve the bot user's UUID (cached). Passed down to the
+        // provider so it can set `sender_id` on the assistant message.
+        let bot_user_id = self.resolve_bot_user_id().await;
         let chat_store = self.store.chat_store();
         provider
             .maybe_reply(
@@ -286,6 +497,7 @@ impl ChatService {
                 user_text,
                 online_employees,
                 fallback_threshold,
+                bot_user_id,
             )
             .await
     }
@@ -302,6 +514,62 @@ impl ChatService {
             .list_zeroclaw_exchanges(limit.min(200), offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Aggregate chat stats for the admin dashboard's top-row cards.
+    ///
+    /// Returns counts of channels grouped by status (open / assigned /
+    /// closed / total) + the average first-response time in seconds.
+    ///
+    /// This is a server-side aggregate so the counts are accurate even
+    /// when there are more channels than the channel list's page size
+    /// (capped at 200). Without this, the "Đang chờ" card would max
+    /// out at the list's page size.
+    pub async fn chat_stats(&self) -> AppResult<crate::dto::chat::ChatStatsResponse> {
+        let counts = self
+            .store
+            .chat_store()
+            .count_channels_by_status()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut open_count: i64 = 0;
+        let mut assigned_count: i64 = 0;
+        let mut closed_count: i64 = 0;
+        let mut total_channels: i64 = 0;
+        for (status, count) in counts {
+            total_channels += count;
+            match status.as_str() {
+                "open" => open_count = count,
+                "assigned" => assigned_count = count,
+                "closed" => closed_count = count,
+                _ => {} // unknown status — counted in total but not a card
+            }
+        }
+
+        let avg_response_time_secs = self
+            .store
+            .chat_store()
+            .avg_first_response_time_secs()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(crate::dto::chat::ChatStatsResponse {
+            open_count,
+            assigned_count,
+            closed_count,
+            total_channels,
+            avg_response_time_secs,
+        })
+    }
+
+    /// Expose the DB connection for admin stats endpoints (e.g.
+    /// `pg_stat_activity` queries in `/api/admin/system`). This is a
+    /// narrow escape hatch for system-level queries that don't fit
+    /// the domain-store pattern — route handlers should NOT use this
+    /// for business logic, only for admin/observability queries.
+    pub fn db_for_stats(&self) -> &sea_orm::DatabaseConnection {
+        self.store.db()
     }
 
     // ── RBAC helpers (for chat-specific role checks) ────────────

@@ -5,7 +5,6 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
 import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
-import { useNavigate } from '@/router'
 import {
   Dialog,
   DialogContent,
@@ -56,29 +55,21 @@ import {
   Plus,
   Trash2,
   Armchair,
-  Baby,
-  UserCheck,
   GripVertical,
-  AlertTriangle,
   Sparkles,
   Users,
 } from 'lucide-react'
 import {
   type TripDetail,
-  type PassengerType,
-  type Gender,
   type BookingValues,
   type PassengerFormValue,
   type SelectedSeat,
   bookingSchema,
-  passengerSchema,
   getPassengerType,
   PASSENGER_TYPE_META,
 } from './booking-form'
 import { SeatSelector } from './seat-selector'
 import {
-  PriceSummary,
-  INSURANCE_LABEL_MAP,
   type InsuranceLevel,
 } from './price-summary'
 import {
@@ -87,9 +78,7 @@ import {
 } from './payment-method'
 import { BookingSuccess, type LastBooking } from './booking-success'
 import {
-  PassengerStepHeader,
   PassengerSummary,
-  AddPassengerButton,
 } from './passenger-list'
 
 export function BookingDialog() {
@@ -105,11 +94,9 @@ export function BookingDialog() {
     setGuestName,
     insuranceLevel,
     setInsuranceLevel,
-    loyaltyPoints,
     setLoyaltyPoints,
     currency,
   } = useApp()
-  const navigate = useNavigate()
 
   // Fetch trip detail via the centralized TanStack Query hook — the
   // BookingContext carries the tripId the user picked in TripDetailDialog.
@@ -126,7 +113,6 @@ export function BookingDialog() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('momo')
-  const [copied, setCopied] = useState(false)
 
   const { guestName } = useApp()
 
@@ -201,15 +187,6 @@ export function BookingDialog() {
   }, [bookingContext, trip, form, searchParams.adults, searchParams.children])
 
   // Passenger helpers — index-based now (RHF field array)
-  const updatePassenger = useCallback(
-    (index: number, updates: Partial<PassengerFormValue>) => {
-      const current = passengerFields[index]
-      if (!current) return
-      update(index, { ...(current as PassengerFormValue), ...updates })
-    },
-    [passengerFields, update],
-  )
-
   const addPassenger = useCallback(() => {
     if (passengerFields.length >= selectedSeatCodes.length) return
     append({ name: '', age: 30, gender: 'male', seatId: '' })
@@ -260,15 +237,6 @@ export function BookingDialog() {
     toast.success('Đã sao chép tên người liên hệ!')
   }, [passengerFields, form, guestName, update])
 
-  // Derived: passenger type counts
-  const passengerCounts = useMemo(() => {
-    const c = { adult: 0, child: 0, infant: 0 }
-    for (const p of passengers) {
-      c[getPassengerType(p.age)]++
-    }
-    return c
-  }, [passengers])
-
   // Derived: unassigned passengers + duplicate seat check
   const unassignedCount = useMemo(
     () => passengers.filter((p) => !p.seatId).length,
@@ -290,11 +258,6 @@ export function BookingDialog() {
   // Insurance cost calculation
   const insuranceCostMap = { none: 0, basic: 5000, comprehensive: 15000 } as const
   const insuranceCost = insuranceCostMap[insuranceLevel]
-  const insuranceLabelMap = {
-    none: 'Không bảo hiểm',
-    basic: 'Bảo hiểm cơ bản',
-    comprehensive: 'Bảo hiểm toàn diện',
-  } as const
 
   const subtotal = selectedSeatCodes.reduce((s, x) => s + x.price, 0)
   const discount = campaignResult?.valid && campaignResult.campaign ? campaignResult.campaign.discount ?? 0 : 0

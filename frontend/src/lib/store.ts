@@ -185,7 +185,16 @@ export function hydrateFromStorage() {
   const chatUser = localStorage.getItem('bus_chat_user')
   const guestPhone = localStorage.getItem('bus_guest_phone')
   const guestName = localStorage.getItem('bus_guest_name')
-  const lang = localStorage.getItem('bus_lang') === 'en' ? 'en' : 'vi'
+  // Read lang from localStorage first, then fall back to the cookie
+  // (set by `setLang`). The cookie survives across subdomains +
+  // can be read by the server for SSR / localized error messages.
+  const langRaw = localStorage.getItem('bus_lang')
+    ?? (document.cookie.match(/bus_lang=(vi|en)/)?.[1] ?? null)
+  const lang = langRaw === 'en' ? 'en' : 'vi'
+  // Sync the <html lang="..."> attribute so screen readers + search
+  // engines know the page's language. The attribute is hardcoded to
+  // "vi" in index.html — we update it here on hydration.
+  document.documentElement.lang = lang
   const currency = localStorage.getItem('bus_currency') === 'USD' ? 'USD' : 'VND'
 
   let recentlyViewed: { tripId: string; routeId: string; label: string; brandName: string; seenAt: number }[] = []
@@ -369,6 +378,16 @@ export const useApp = create<AppState>((set) => ({
   setLang: (l) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('bus_lang', l)
+      // Set a cookie so the server (or SSR first paint) can read the
+      // user's language preference before the client hydrates. The
+      // cookie is SameSite=Lax (safe for same-origin requests) + lasts
+      // 1 year. The backend can read this via the `Cookie` header
+      // (future: use it for localized error messages).
+      document.cookie = `bus_lang=${l}; path=/; max-age=${60 * 60 * 24 * 365}; SameSite=Lax`
+      // Update the <html lang="..."> attribute so screen readers +
+      // search engines know the page's language. Without this, the
+      // attribute stays "vi" even when the user switches to English.
+      document.documentElement.lang = l
     }
     set({ lang: l })
   },

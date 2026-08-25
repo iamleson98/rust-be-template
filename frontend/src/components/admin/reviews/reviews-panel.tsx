@@ -57,15 +57,6 @@ import {
   StarsRow,
 } from '@/components/admin/dashboard/badges'
 
-// const EMPTY_STATS: AdminReviewStats = {
-//   total: 0,
-//   pending: 0,
-//   published: 0,
-//   hidden: 0,
-//   flagged: 0,
-//   avgRating: 0,
-//   responseRate: 0,
-// }
 
 export function ReviewsModerationPanel() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'published' | 'hidden' | 'flagged'>('all')
@@ -183,10 +174,10 @@ export function ReviewsModerationPanel() {
   const hasActiveFilters = filterStatus !== 'all' || filterBrand !== 'all' || search.trim() !== ''
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Star className="h-3.5 w-3.5 text-amber-500" />
@@ -195,7 +186,7 @@ export function ReviewsModerationPanel() {
             <div className="text-2xl font-extrabold">{stats.total}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Clock className="h-3.5 w-3.5 text-amber-500" />
@@ -204,7 +195,7 @@ export function ReviewsModerationPanel() {
             <div className="text-2xl font-extrabold text-amber-600">{stats.pending}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Star className="h-3.5 w-3.5 text-amber-500" />
@@ -213,7 +204,7 @@ export function ReviewsModerationPanel() {
             <div className="text-2xl font-extrabold text-amber-600">{stats.avgRating.toFixed(1)}</div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
+        <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <Reply className="h-3.5 w-3.5 text-blue-600" />
@@ -225,7 +216,7 @@ export function ReviewsModerationPanel() {
       </div>
 
       {/* Filter bar */}
-      <Card className="shadow-sm">
+      <Card>
         <CardContent className="p-4">
           <div className="flex flex-col md:flex-row md:items-center gap-3">
             <Form {...searchForm}>
@@ -261,8 +252,8 @@ export function ReviewsModerationPanel() {
                     key={s}
                     onClick={() => setFilterStatus(s)}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${filterStatus === s
-                        ? 'bg-white text-blue-700'
-                        : 'text-slate-600 hover:text-slate-900'
+                      ? 'bg-white text-blue-700'
+                      : 'text-slate-600 hover:text-slate-900'
                       }`}
                   >
                     {s === 'all' ? 'Tất cả' : s === 'pending' ? 'Chờ' : s === 'published' ? 'Đã đăng' : s === 'hidden' ? 'Đã ẩn' : 'Báo cáo'}
@@ -302,7 +293,7 @@ export function ReviewsModerationPanel() {
       </Card>
 
       {/* Reviews list */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base flex items-center gap-2">
             <MessageSquare className="h-4 w-4 text-blue-600" />

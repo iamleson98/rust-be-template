@@ -26,7 +26,7 @@ const WishlistButton = lazy(() => import('@/components/wishlist/wishlist-button'
 const LoyaltyWidget = lazy(() => import('@/components/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 
 export const Header = memo(function Header() {
-  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser, setAuthOpen } = useApp()
+  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()
@@ -48,7 +48,7 @@ export const Header = memo(function Header() {
   const logoutMut = useLogout({
     onSuccess: () => {
       setUser(null)
-      toast.success('Đã đăng xuất')
+      toast.success(t('auth.logoutSuccess'))
       navigate({ to: '/' })
     },
     onError: () => {
@@ -92,7 +92,7 @@ export const Header = memo(function Header() {
             {t('nav.tickets')}
           </NavBtn>
           <NavBtn active={isMap} onClick={() => navigate({ to: '/map' })} icon={<MapPinned className="h-4 w-4" />}>
-            Bản đồ
+            {t('nav.map')}
           </NavBtn>
           {/* Admin nav — only visible to employees */}
           {user?.type === 'employee' && (
@@ -105,7 +105,7 @@ export const Header = memo(function Header() {
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-400">
               <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60 animate-ping" />
             </span>
-            Hỗ trợ 24/7
+            {t('nav.support247')}
           </div>
         </nav>
 
@@ -115,10 +115,10 @@ export const Header = memo(function Header() {
             <button
               onClick={() => setCompareOpen(true)}
               className="relative inline-flex h-9 px-2.5 items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/15 text-xs font-medium transition-colors"
-              title="So sánh chuyến"
+              title={t('nav.compare')}
             >
               <span aria-hidden>⚖️</span>
-              <span className="hidden sm:inline">So sánh</span>
+              <span className="hidden sm:inline">{t('nav.compare')}</span>
               <span className="min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[9px] font-bold">
                 {compareList.length}
               </span>
@@ -136,7 +136,7 @@ export const Header = memo(function Header() {
           <button
             onClick={() => setLoyaltyOpen(true)}
             className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-white transition-colors"
-            title="Điểm thưởng"
+            title={t('nav.loyalty')}
           >
             <Gift className="h-4 w-4" />
           </button>
@@ -163,7 +163,7 @@ export const Header = memo(function Header() {
               className="gap-1.5 bg-white text-blue-800 hover:bg-blue-50 transition-colors"
             >
               <LogIn className="h-4 w-4" />
-              <span className="sm:inline">Đăng nhập</span>
+              <span className="sm:inline">{t('nav.login')}</span>
             </Button>
           ) : (
             <DropdownMenu>
@@ -233,11 +233,11 @@ export const Header = memo(function Header() {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => navigate({ to: '/' })} className="gap-2">
-                  <UserCircle className="h-4 w-4" /> Trang cá nhân
+                  <UserCircle className="h-4 w-4" /> {t('nav.profile')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logoutMut.mutate()} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
-                  <LogOut className="h-4 w-4" /> Đăng xuất
+                  <LogOut className="h-4 w-4" /> {t('nav.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -268,7 +268,7 @@ export const Header = memo(function Header() {
                 <Ticket className="h-4 w-4 mr-2" /> {t('nav.tickets')}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate({ to: '/map' })}>
-                <MapPinned className="h-4 w-4 mr-2" /> Bản đồ tuyến đường
+                <MapPinned className="h-4 w-4 mr-2" /> {t('nav.map')}
               </DropdownMenuItem>
               {user?.type === 'employee' && (
                 <DropdownMenuItem onClick={() => navigate({ to: '/admin' })}>

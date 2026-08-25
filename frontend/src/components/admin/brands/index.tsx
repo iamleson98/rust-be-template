@@ -159,7 +159,7 @@ export function AdminBrandManagement() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="p-3">
       <BrandManagementBreadcrumb
         selectedBrand={selectedBrand}
         selectedRoute={selectedRoute}

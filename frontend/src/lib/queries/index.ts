@@ -16,6 +16,7 @@
 
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   useQueryClient,
   keepPreviousData,
@@ -110,6 +111,8 @@ import {
   // chat
   listChannelsOptions as chatChannelsListOptions,
   listMessagesOptions as chatMessagesListOptions,
+  listMessagesInfiniteOptions as chatMessagesListInfiniteOptions,
+  listMessagesInfiniteQueryKey as chatMessagesListInfiniteQueryKey,
   postMessageMutation as chatPostMessageMutation,
   createChannelMutation as chatCreateChannelMutation,
   markReadMutation as chatMarkReadMutation,
@@ -663,6 +666,97 @@ export function useChatChannels(limit = 50) {
   });
 }
 
+/**
+ * `useChatStats` — aggregate chat stats for the admin dashboard's
+ * top-row cards (open / assigned / closed counts + avg response time).
+ *
+ * Server-side aggregate so the counts are accurate even when there
+ * are more channels than the channel list's page size (capped at 200).
+ *
+ * Refetches every 15s + on WS invalidation (the WS hook invalidates
+ * the `listChannels` query which this piggybacks on).
+ */
+export type ChatStats = {
+  openCount: number;
+  assignedCount: number;
+  closedCount: number;
+  totalChannels: number;
+  avgResponseTimeSecs: number;
+};
+
+export function useChatStats() {
+  return useQuery<ChatStats>({
+    queryKey: ["admin", "chat", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/chat/stats", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: window.location.origin,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch chat stats");
+      return res.json();
+    },
+    refetchInterval: 15 * 1000,
+    staleTime: 10 * 1000,
+  });
+}
+
+/**
+ * `useSystemStatus` — system monitoring data for /admin/system.
+ * Refetches every 5s for near-real-time metrics.
+ */
+export type SystemStatus = {
+  uptime: { seconds: number; human: string };
+  websocket: {
+    connections: number;
+    maxConnections: number;
+    rooms: number;
+    idempotencyEntries: number;
+    onlineEmployeeBrands: number;
+    onlineEmployees: number;
+    distinctIps: number;
+  };
+  database: {
+    backend: string;
+    urlMasked: string;
+    maxConnections: number;
+    minConnections: number;
+    activeConnections: number;
+    idleConnections: number;
+    sizeMb: number;
+  };
+  process: {
+    pid: number;
+    memoryMb: number;
+    virtualMemoryMb: number;
+    cpuUsage: number;
+    cpuCount: number;
+    osName: string;
+    osVersion: string;
+    hostname: string;
+  };
+};
+
+export function useSystemStatus() {
+  return useQuery<SystemStatus>({
+    queryKey: ["admin", "system"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/system", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: window.location.origin,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch system status");
+      return res.json();
+    },
+    refetchInterval: 5 * 1000,
+  });
+}
+
 export function useChatMessages(channelId: string | undefined, limit = 50) {
   const opts = channelId
     ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } })
@@ -676,6 +770,130 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
     // hub for realtime new messages. Polling would just add load
     // without improving UX (WS already gives instant updates).
   });
+}
+
+/**
+ * `useChatMessagesInfinite` — infinite-scroll hook for chat messages.
+ *
+ * Uses TanStack Query's `useInfiniteQuery` to fetch messages in pages
+ * of `pageSize` (default 30). The backend returns each page in DESC
+ * order (newest first) to support cursor pagination; this hook
+ * reverses each page so the final display order is chronological
+ * (oldest at the top, newest at the bottom — the natural chat
+ * reading order).
+ *
+ * ## How infinite scroll works
+ *
+ *   1. Initial load: `offset=0, limit=30` → the 30 newest messages,
+ *      reversed for display.
+ *   2. User scrolls to the top → `fetchNextPage()` is called →
+ *      `offset=30, limit=30` → the next 30 older messages, reversed
+ *      + prepended to the display list.
+ *   3. Repeat until `hasNextPage` is false (the page returned fewer
+ *      than `pageSize` items — we've reached the beginning of the
+ *      conversation).
+ *
+ * ## Why reverse each page (not the whole list)
+ *
+ * Each page arrives as `[newest, ..., oldest]` (DESC). Reversing
+ * each page independently gives `[oldest, ..., newest]` for that
+ * page. Concatenating pages in fetch order (page 0 first, then
+ * page 1, ...) gives the full chronological list:
+ *
+ *   page 0 reversed: [oldest_of_page_0, ..., newest_of_page_0]
+ *   page 1 reversed: [oldest_of_page_1, ..., newest_of_page_1]
+ *   concat: [oldest_of_page_1, ..., newest_of_page_1, oldest_of_page_0, ..., newest_of_page_0]
+ *
+ * The newest message is at the END of the array — correct for
+ * rendering (bottom of the chat).
+ *
+ * ## Realtime updates
+ *
+ * When a new message arrives via WS, the caller invalidates the
+ * `listMessages` query (partial key match). TanStack refetches the
+ * FIRST page (offset=0) — which now includes the new message at the
+ * top of the DESC page → after reverse, the new message is at the
+ * bottom of the display list. Older pages are NOT refetched (they're
+ * unchanged) — efficient.
+ *
+ * ## `getNextPageParam`
+ *
+ * Returns the next `offset` (= current total items fetched) when the
+ * last page returned a full `pageSize` (i.e. there might be more
+ * older messages). Returns `undefined` when the last page was
+ * partial (= we've reached the beginning of the conversation).
+ *
+ * ## `getPreviousPageParam`
+ *
+ * Returns 0 for the first page (so TanStack can refetch it on
+ * invalidation). Not used for backward pagination (we only paginate
+ * forward in time via `fetchNextPage`).
+ */
+export function useChatMessagesInfinite(channelId: string | undefined, pageSize = 30) {
+  const opts = channelId
+    ? chatMessagesListInfiniteOptions({
+        path: { id: channelId },
+        query: { limit: pageSize },
+      })
+    : null;
+
+  const query = useInfiniteQuery<any>({
+    queryKey: opts?.queryKey ?? ["chat", "messages", "infinite", "disabled"],
+    queryFn: opts?.queryFn as any,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any, allPages: any[], lastPageParam: any) => {
+      // `lastPage` is the API response: `{ items: [...] }`.
+      // Each page is DESC (newest first). The page size is the
+      // requested `pageSize`. If the last page returned fewer items
+      // than `pageSize`, we've reached the beginning → no more pages.
+      const items = lastPage?.items ?? [];
+      if (items.length < pageSize) return undefined;
+      // Next offset = sum of all previously fetched page sizes.
+      // `allPages` is the array of all fetched pages so far.
+      const totalFetched = allPages.reduce(
+        (sum, p) => sum + (p?.items?.length ?? 0),
+        0,
+      );
+      return totalFetched;
+    },
+    getPreviousPageParam: () => 0,
+    enabled: !!channelId,
+    staleTime: 10 * 1000,
+    // No polling — WS delivers new messages instantly.
+  });
+
+  // Flatten + reverse each page for chronological display.
+  //
+  // The backend returns each page as DESC (newest first). We reverse
+  // each page independently so the display order is:
+  //   [oldest_of_oldest_page, ..., newest_of_oldest_page, oldest_of_newest_page, ..., newest_of_newest_page]
+  //
+  // The newest message ends up at the END of the array — correct for
+  // rendering (bottom of the chat).
+  const pages = query.data?.pages ?? [];
+  const messages: any[] = [];
+  for (const page of pages) {
+    const items = page?.items ?? [];
+    // Reverse the page (DESC → ASC) + push to the messages array.
+    // This preserves chronological order across pages.
+    for (let i = items.length - 1; i >= 0; i--) {
+      messages.push(items[i]);
+    }
+  }
+
+  return {
+    // The chronological messages array (oldest first, newest last).
+    messages,
+    // The raw TanStack query result (for `isFetching`, `hasNextPage`, etc.).
+    query,
+    // Convenience: whether we're currently fetching the next page
+    // (for showing a "Loading more..." spinner at the top of the chat).
+    isFetchingNextPage: query.isFetchingNextPage,
+    // Whether there might be more older messages to load.
+    hasNextPage: query.hasNextPage,
+    // Call this when the user scrolls to the top of the chat.
+    fetchNextPage: query.fetchNextPage,
+  };
 }
 
 export function usePostChatMessage<TData = unknown, TVars = unknown>(

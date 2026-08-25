@@ -257,7 +257,7 @@ export function MapView() {
         {/* Mobile sidebar toggle */}
         <button
           onClick={() => setSidebarOpenMobile(true)}
-          className="md:hidden fixed left-4 top-35 z-30 h-10 w-10 rounded-full bg-white ring-1 ring-black/10 flex items-center justify-center text-blue-700 transition-transform shadow-md"
+          className="md:hidden fixed left-4 top-35 z-30 h-10 w-10 rounded-full bg-white ring-1 ring-black/10 flex items-center justify-center text-blue-700 transition-transform "
           aria-label="Mở bộ lọc"
         >
           <Search className="h-4 w-4" />
@@ -285,7 +285,7 @@ export function MapView() {
           {/* "Vị trí của tôi" button */}
           <button
             onClick={handleShowMyLocation}
-            className={`absolute bottom-6 right-3 z-1000 h-11 px-3 rounded-full ring-1 ring-black/10 flex items-center gap-1.5 text-xs font-medium transition-all shadow-lg ${showUserLocation ? 'bg-blue-600 text-white ring-blue-400' : 'bg-white text-blue-700 hover:bg-blue-50'
+            className={`absolute bottom-6 right-3 z-1000 h-11 px-3 rounded-full ring-1 ring-black/10 flex items-center gap-1.5 text-xs font-medium transition-all  ${showUserLocation ? 'bg-blue-600 text-white ring-blue-400' : 'bg-white text-blue-700 hover:bg-blue-50'
               }`}
             aria-label="Vị trí của tôi"
           >
@@ -294,7 +294,7 @@ export function MapView() {
           </button>
 
           {/* Compact legend (mobile) */}
-          <div className="md:hidden absolute bottom-6 left-3 z-1000 rounded-lg bg-white/95 backdrop-blur ring-1 ring-black/5 p-2.5 max-w-45 shadow-lg">
+          <div className="md:hidden absolute bottom-6 left-3 z-1000 rounded-lg bg-white/95 backdrop-blur ring-1 ring-black/5 p-2.5 max-w-45 ">
             <div className="text-[10px] font-semibold text-slate-600 uppercase mb-1.5">Hãng xe</div>
             <div className="flex flex-wrap gap-x-2 gap-y-1">
               {brands.map((b) => (
@@ -308,7 +308,7 @@ export function MapView() {
 
           {/* Selected city popup (top-left) */}
           {selectedCity && (
-            <div className="absolute top-3 left-3 md:left-72.5 z-1000 w-70 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden shadow-2xl">
+            <div className="absolute top-3 left-3 md:left-72.5 z-1000 w-70 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden ">
               <div className="bg-linear-to-r from-blue-600 to-blue-700 text-white px-4 py-2.5 flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   <MapPin className="h-4 w-4" />
@@ -376,7 +376,7 @@ export function MapView() {
 
           {/* Selected route popup (bottom-center) */}
           {selectedRoute && (
-            <div className="absolute bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-1000 w-85 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden shadow-2xl">
+            <div className="absolute bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-1000 w-85 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden ">
               <div className="h-1.5 w-full" style={{ background: selectedRoute.brand.accentColor }} />
               <div className="p-3.5">
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -440,7 +440,7 @@ export function MapView() {
           {/* Hint */}
           {!selectedCity && !selectedRoute && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 md:left-[calc(50%+145px)] z-1000 pointer-events-none">
-              <div className="rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-[11px] text-slate-600 ring-1 ring-black/5 shadow-md">
+              <div className="rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-[11px] text-slate-600 ring-1 ring-black/5 ">
                 <span className="hidden sm:inline">Kéo để di chuyển • Cuộn để zoom • Click điểm/tuyến để xem chi tiết</span>
                 <span className="sm:hidden">Chạm vào điểm để xem chi tiết</span>
               </div>

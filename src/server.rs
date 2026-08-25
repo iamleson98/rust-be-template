@@ -166,6 +166,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // singletons — no per-instance state on AppState.
     crate::zeroclaw::init(&config.zeroclaw);
 
+    // Record the process start time so `/api/admin/system` can report
+    // uptime from boot (not from first request). Set BEFORE any
+    // endpoint can be hit — the OnceLock is one-shot.
+    crate::routes::system::init_start_time();
+
     // Wire WsConfig.max_connections into the hub BEFORE the first WS
     // upgrade arrives. Previously the hub was hardcoded to 50_000 and an
     // operator setting WS__MAX_CONNECTIONS=10000 had no effect.

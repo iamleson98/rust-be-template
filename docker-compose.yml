@@ -1,36 +1,47 @@
-# Multi-service development environment.
+# ─── Docker Compose for production deployment ──────────────────────────
 #
 # Usage:
-#   docker compose up            # starts: postgres, redis, backend
-#   docker compose up backend    # just the backend (needs db + redis running)
+#   docker compose up -d              # start all services
+#   docker compose logs -f backend    # tail backend logs
+#   docker compose down               # stop all
+#
+# This compose file runs:
+#   - backend    (this app — Rust + frontend static files)
+#   - postgres   (database)
+#   - redis      (cache + worker queue)
 #
 # The backend runs migrations on startup, so the first `up` will create
 # all tables. Swagger UI at http://localhost:8080/swagger-ui.
+#
+# ZeroClaw is configured via env vars pointing at the zeroclaw service.
+# If you don't have a ZeroClaw instance, set ZEROCLAW_ENABLED=false
+# (the default) — the chat will work without AI replies; admin will
+# handle all messages manually.
 
 services:
-  # ---- Database (Postgres) ----
-  # Used when you build with --features postgres. For SQLite dev,
-  # comment this out and let the backend use a local file.
+  # ── Database (Postgres) ──────────────────────────────────────────
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: app
+      POSTGRES_USER: ${POSTGRES_USER:-vexevn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vexevn_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-vexevn}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vexevn}"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  # ---- Cache (Redis) ----
-  # Used if CACHE_BACKEND=redis or WORKER_BACKEND=redis.
+  # ── Cache + Worker queue (Redis) ─────────────────────────────────
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     healthcheck:
@@ -39,29 +50,90 @@ services:
       timeout: 3s
       retries: 5
 
-  # ---- Backend (this app) ----
+  # ── Backend (this app) ───────────────────────────────────────────
   # Build with the postgres feature:
-  #   docker compose build --build-arg BACKEND_FEATURES=postgres
+  #   docker compose build
+  # (BACKEND_FEATURES is set to "postgres" by default below)
   backend:
     build:
       context: .
       args:
         BACKEND_FEATURES: postgres
+    restart: unless-stopped
     ports:
       - "8080:8080"
-    environment:
-      # Point at the compose services, not localhost.
-      DATABASE_URL: postgres://postgres:postgres@db:5432/app
-      REDIS_URL: redis://redis:6379/0
-      CACHE_BACKEND: redis
-      WORKER_BACKEND: redis
-      JWT_SECRET: change-me-in-production-please-use-32-bytes-or-more
-      RUST_LOG: info,backend=debug,tower_http=warn
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    environment:
+      # ── Database ───────────────────────────────────────────────
+      DATABASE_URL: postgres://${POSTGRES_USER:-vexevn}:${POSTGRES_PASSWORD:-vexevn_secret}@db:5432/${POSTGRES_DB:-vexevn}
+      DATABASE_MAX_CONNECTIONS: "20"
+      DATABASE_MIN_CONNECTIONS: "5"
+
+      # ── Cache + Worker ─────────────────────────────────────────
+      CACHE_BACKEND: redis
+      CACHE_REDIS_URL: redis://redis:6379/0
+      WORKER_BACKEND: redis
+      WORKER_REDIS_URL: redis://redis:6379/1
+
+      # ── JWT ────────────────────────────────────────────────────
+      # MUST be at least 32 bytes! Generate with: openssl rand -hex 32
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please-use-32-bytes-or-more}
+
+      # ── Cookies ────────────────────────────────────────────────
+      # Leave COOKIE_DOMAIN empty for same-origin (Rust serves UI + API).
+      # Set COOKIE_SECURE=true in production (behind HTTPS).
+      COOKIE_DOMAIN: ""
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: lax
+
+      # ── CORS ───────────────────────────────────────────────────
+      # Same-origin in production — no CORS needed. Leave for dev only.
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+
+      # ── Static files ───────────────────────────────────────────
+      STATIC_FILES_DIR: "./frontend/dist"
+      STATIC_FILES_CACHE_MAX_AGE: "86400"
+
+      # ── Rate limiting ──────────────────────────────────────────
+      RATE_LIMIT_RPM: "600"
+      RATE_LIMIT_BURST: "100"
+
+      # ── WebSocket ──────────────────────────────────────────────
+      WS_MAX_CONNECTIONS: "50000"
+      WS_HEARTBEAT_SEC: "30"
+      WS_IDLE_TIMEOUT_SEC: "90"
+
+      # ── ZeroClaw AI ────────────────────────────────────────────
+      # Disabled by default. Set ZEROCLAW_API_URL + ZEROCLAW_API_KEY
+      # to enable AI replies when no admin is online.
+      ZEROCLAW_ENABLED: "${ZEROCLAW_ENABLED:-false}"
+      ZEROCLAW_API_URL: "${ZEROCLAW_API_URL:-}"
+      ZEROCLAW_API_KEY: "${ZEROCLAW_API_KEY:-}"
+      ZEROCLAW_MODEL: "${ZEROCLAW_MODEL:-zeroclaw-default}"
+      ZEROCLAW_TIMEOUT_MS: "15000"
+      ZEROCLAW_MAX_HISTORY: "12"
+      ZEROCLAW_FALLBACK_ONLINE_EMPLOYEES: "1"
+
+      # ── Audio call (WebRTC) ────────────────────────────────────
+      AUDIO_CALL_ENABLED: "false"
+
+      # ── OAuth (social login) ──────────────────────────────────
+      OAUTH_REDIRECT_BASE_URL: "${OAUTH_REDIRECT_BASE_URL:-http://localhost:8080}"
+      OAUTH_FRONTEND_URL: "${OAUTH_FRONTEND_URL:-http://localhost:8080}"
+      OAUTH_FACEBOOK_ENABLED: "false"
+      OAUTH_GOOGLE_ENABLED: "false"
+      OAUTH_TWITTER_ENABLED: "false"
+
+      # ── Logging ───────────────────────────────────────────────
+      RUST_LOG: "info,backend=debug,tower_http=warn"
+    volumes:
+      # Persist uploaded files (avatars, etc.)
+      - uploads:/app/storage
 
 volumes:
   pgdata:
+  uploads:

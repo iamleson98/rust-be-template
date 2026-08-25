@@ -44,6 +44,36 @@ use crate::config::ZeroClawConfig;
 use crate::error::AppError;
 use crate::store::chat::{ChatStore, NewChatMessage, NewZeroClawExchange};
 
+// ── ZeroClaw bot identity ──────────────────────────────────────
+//
+// The ZeroClaw bot is created at FIRST-USER SIGNUP time by
+// `AuthService::register` (see `src/service/auth_service.rs`) —
+// NOT by a migration seed. This means the bot's UUID is assigned
+// at runtime by `Uuid::new_v4()` and is therefore different per
+// deployment. We cannot hardcode the UUID as a `const`.
+//
+// Instead, we look up the bot user by its well-known email at the
+// call sites that need it (channel creation + AI reply). The lookup
+// is cached per-process via `tokio::sync::OnceCell` so we only pay
+// the DB round-trip once per boot. If the bot user doesn't exist
+// (e.g. signup happened before this code shipped), the lookup
+// returns `None` and the chat code degrades gracefully —
+// `sender_id` falls back to `None` and the bot member row is
+// skipped (but the channel still works).
+
+/// The well-known email of the ZeroClaw bot user. Created by
+/// `AuthService::register` when the first human user signs up.
+/// Changing this constant requires deleting the old bot user row
+/// + re-running signup, so don't change it without a migration.
+pub const ZEROCLAW_BOT_EMAIL: &str = "zeroclaw_agent@example.com";
+
+/// Display name used in WS broadcasts + chat messages. This is the
+/// name customers see when ZeroClaw replies (e.g. "ZeroClaw AI").
+/// The bot's `user.full_name` may differ (it's set to
+/// `"zeroclaw_agent"` by `AuthService::register`), so we use this
+/// constant for the customer-facing display name.
+pub const ZEROCLAW_BOT_NAME: &str = "ZeroClaw AI";
+
 /// Conversation turn sent to ZeroClaw. `role` ∈ {`user`, `assistant`}.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationTurn {
@@ -94,6 +124,11 @@ pub struct ZeroClawOutcome {
     pub created_at: String,
     /// True if the provider flagged `handoff_to_human`.
     pub handoff: bool,
+    /// The bot user's UUID (looked up at reply time). The caller uses
+    /// this for the WS broadcast's `senderId` field so the frontend can
+    /// fetch the bot's avatar/name. `None` if the bot user wasn't found
+    /// (degraded mode — the message is still inserted with `sender_id=NULL`).
+    pub bot_user_id: Option<Uuid>,
 }
 
 /// Pluggable ZeroClaw provider. The default is [`NoopZeroClawProvider`];
@@ -127,6 +162,7 @@ pub trait ZeroClawProvider: Send + Sync {
         user_text: &str,
         online_employees: usize,
         fallback_threshold: usize,
+        bot_user_id: Option<Uuid>,
     ) -> Result<Option<ZeroClawOutcome>, AppError>;
 }
 
@@ -162,6 +198,7 @@ impl ZeroClawProvider for NoopZeroClawProvider {
         _user_text: &str,
         _online_employees: usize,
         _fallback_threshold: usize,
+        _bot_user_id: Option<Uuid>,
     ) -> Result<Option<ZeroClawOutcome>, AppError> {
         Ok(None)
     }
@@ -220,6 +257,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         user_text: &str,
         online_employees: usize,
         fallback_threshold: usize,
+        bot_user_id: Option<Uuid>,
     ) -> Result<Option<ZeroClawOutcome>, AppError> {
         // 1. If humans are available, let them handle it.
         if online_employees >= fallback_threshold {
@@ -233,6 +271,12 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         }
 
         // 2. Fetch recent conversation history (last N messages).
+        //
+        // `list_messages` returns messages in DESC order (newest first)
+        // to support cursor pagination. For the AI conversation we need
+        // chronological order (oldest first, newest last) so the model
+        // sees the dialogue in the natural reading direction. We
+        // reverse the page after mapping.
         let history = chat_store
             .list_messages(channel_id, self.max_history as u64, 0)
             .await
@@ -248,6 +292,10 @@ impl ZeroClawProvider for HttpZeroClawProvider {
                 },
                 text: m.content.unwrap_or_default(),
             })
+            // `list_messages` is DESC (newest first); reverse to get
+            // chronological order (oldest first, newest last) so the
+            // AI sees the conversation naturally.
+            .rev()
             .collect();
 
         // If the just-sent message isn't the last entry (race), append it.
@@ -324,7 +372,14 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             .insert_message(NewChatMessage {
                 channel_id: channel_uuid,
                 sender_type: "assistant".into(),
-                sender_id: None,
+                // Use the ZeroClaw bot's UUID (looked up by email at the
+                // service layer) so the assistant message has a real FK
+                // to `user`. When `bot_user_id` is `None` (bot user
+                // missing — e.g. signup ran before this code shipped),
+                // we fall back to `sender_id = None` and the message
+                // still inserts (the chat renders it as a generic
+                // assistant message).
+                sender_id: bot_user_id,
                 content: Some(reply.reply.clone()),
                 kind: "text".into(),
                 attachments: None,
@@ -338,7 +393,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         let preview: String = reply.reply.chars().take(100).collect();
         let _ = chat_store
             .update_channel_preview(channel_id, preview, now.clone())
-            .await;
+            .await?;
 
         // 6. Audit row.
         let _ = chat_store
@@ -352,7 +407,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
                 latency_ms: Some(latency_ms),
                 handoff_to_human: reply.handoff_to_human,
             })
-            .await;
+            .await?;
 
         tracing::info!(
             channel_id,
@@ -367,6 +422,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             assistant_message_id: assistant_msg_id,
             created_at: now,
             handoff: false,
+            bot_user_id,
         }))
     }
 }

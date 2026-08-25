@@ -53,59 +53,59 @@ function FeaturesImpl() {
   return (
     <section className="bg-slate-50">
       <div className="container mx-auto px-4 py-16">
-      <div className="text-center max-w-2xl mx-auto mb-10">
-        <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-3">
-          Tại sao chọn VeXeVN?
-        </div>
-        <h2 className="text-balance text-3xl md:text-4xl font-extrabold tracking-tight">
-          Đặt vé xe dễ dàng, an toàn, tiết kiệm
-        </h2>
-        <p className="text-muted-foreground mt-3">
-          Nền tảng đặt vé xe khách hàng đầu Việt Nam với hơn 125.000 hành khách tin dùng
-        </p>
-      </div>
-
-      {/* Feature cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {features.map((f, i) => (
-          <FeatureCard key={i} feature={f} index={i} />
-        ))}
-      </div>
-
-      {/* Process strip — "How it works" with numbered gradient circles */}
-      <div className="mt-14 rounded-2xl bg-linear-to-r from-blue-900 to-blue-900 p-8 md:p-10 text-white overflow-hidden relative">
-        {/* Decorative circles */}
-        <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-blue-500/10 blur-2xl" />
-        <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-blue-500/10 blur-2xl" />
-
-        {/* Section label */}
-        <div className="text-center mb-8 relative">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-blue-200 backdrop-blur-sm">
-            🚀 Cách thức đặt vé
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-3">
+            Tại sao chọn VeXeVN?
           </div>
-          <h3 className="text-2xl md:text-3xl font-extrabold mt-2">Chỉ 4 bước đơn giản</h3>
+          <h2 className="text-balance text-3xl md:text-4xl font-extrabold tracking-tight">
+            Đặt vé xe dễ dàng, an toàn, tiết kiệm
+          </h2>
+          <p className="text-muted-foreground mt-3">
+            Nền tảng đặt vé xe khách hàng đầu Việt Nam với hơn 125.000 hành khách tin dùng
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
-          {steps.map((s, i) => (
-            <div key={s.step} className="relative text-center md:text-left">
-              {/* Numbered circle with gradient background */}
-              <div className="relative mx-auto md:mx-0 h-14 w-14 rounded-full bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center mb-3">
-                <span className="text-lg font-extrabold text-white">{s.step}</span>
-                {/* Glow ring */}
-                <div className="absolute inset-0 rounded-full ring-2 ring-blue-400/30" />
-              </div>
-              <div className="text-2xl mb-1">{s.icon}</div>
-              <h4 className="font-bold text-lg">{s.title}</h4>
-              <p className="text-sm text-blue-100/80">{s.desc}</p>
-              {/* Connecting dotted line between steps on desktop */}
-              {i < steps.length - 1 && (
-                <div className="hidden md:block absolute -right-3 top-7 w-6 border-t-2 border-dashed border-blue-400/30" />
-              )}
-            </div>
+        {/* Feature cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {features.map((f, i) => (
+            <FeatureCard key={i} feature={f} index={i} />
           ))}
         </div>
-      </div>
+
+        {/* Process strip — "How it works" with numbered gradient circles */}
+        <div className="mt-14 rounded-2xl bg-linear-to-r from-blue-900 to-blue-900 p-8 md:p-10 text-white overflow-hidden relative">
+          {/* Decorative circles */}
+          <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-blue-500/10 blur-2xl" />
+          <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-blue-500/10 blur-2xl" />
+
+          {/* Section label */}
+          <div className="text-center mb-8 relative">
+            <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-blue-200 backdrop-blur-sm">
+              🚀 Cách thức đặt vé
+            </div>
+            <h3 className="text-2xl md:text-3xl font-extrabold mt-2">Chỉ 4 bước đơn giản</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
+            {steps.map((s, i) => (
+              <div key={s.step} className="relative text-center md:text-left">
+                {/* Numbered circle with gradient background */}
+                <div className="relative mx-auto md:mx-0 h-14 w-14 rounded-full bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center mb-3">
+                  <span className="text-lg font-extrabold text-white">{s.step}</span>
+                  {/* Glow ring */}
+                  <div className="absolute inset-0 rounded-full ring-2 ring-blue-400/30" />
+                </div>
+                <div className="text-2xl mb-1">{s.icon}</div>
+                <h4 className="font-bold text-lg">{s.title}</h4>
+                <p className="text-sm text-blue-100/80">{s.desc}</p>
+                {/* Connecting dotted line between steps on desktop */}
+                {i < steps.length - 1 && (
+                  <div className="hidden md:block absolute -right-3 top-7 w-6 border-t-2 border-dashed border-blue-400/30" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -132,7 +132,7 @@ const FeatureCard = memo(function FeatureCard({ feature, index }: { feature: Fea
         }}
       >
         <div
-          className="relative rounded-2xl bg-white p-6 overflow-hidden h-full shadow-sm transition-shadow duration-300"
+          className="relative rounded-2xl bg-white p-6 overflow-hidden h-full duration-300"
         >
           {/* Subtle gradient overlay on hover */}
           <div

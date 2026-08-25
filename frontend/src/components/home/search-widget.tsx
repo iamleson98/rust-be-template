@@ -190,7 +190,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cn(
-        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 ring-1 ring-black/5 p-4 md:p-5 shadow-sm',
+        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 ring-1 ring-black/5 p-4 md:p-5',
         compact ? 'gap-3' : 'gap-4',
       )}
     >
@@ -208,7 +208,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all',
                   !searchParams.roundTrip
-                    ? 'bg-white text-primary shadow-sm'
+                    ? 'bg-white text-primary'
                     : 'text-slate-500 hover:text-slate-700',
                 )}
               >
@@ -224,7 +224,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all',
                   searchParams.roundTrip
-                    ? 'bg-white text-primary shadow-sm'
+                    ? 'bg-white text-primary'
                     : 'text-slate-500 hover:text-slate-700',
                 )}
               >
@@ -502,7 +502,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                         className={cn(
                           'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold border transition-all duration-200 whitespace-nowrap',
                           active
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-600/30'
+                            ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-foreground border-border hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50',
                         )}
                       >
@@ -517,7 +517,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
             <Button
               type="submit"
               disabled={submitting}
-              className="h-10 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white px-8 gap-2 relative overflow-hidden shadow-md shadow-blue-600/30"
+              className="h-10 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white px-8 gap-2 relative overflow-hidden"
             >
               {submitting ? (
                 <span className="relative z-10 flex items-center gap-2">

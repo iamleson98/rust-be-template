@@ -84,8 +84,6 @@ import {
 } from '@/lib/queries'
 import type {
   AdminBookingFilter,
-  AdminBookingItem,
-  AdminBookingStats,
 } from '@/lib/queries'
 
 import { BookingStatusBadge, KpiCard } from '@/components/admin/dashboard/badges'
@@ -128,17 +126,6 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
 function formatVND(n: number | null | undefined): string {
   if (n == null) return '—'
   return new Intl.NumberFormat('vi-VN').format(n) + '₫'
-}
-
-function formatDate(s: string | null | undefined): string {
-  if (!s) return '—'
-  try {
-    const d = parseISO(s)
-    if (!isValid(d)) return s
-    return format(d, 'dd/MM/yyyy HH:mm', { locale: vi })
-  } catch {
-    return s
-  }
 }
 
 function formatDepartureDate(s: string | null | undefined): string {
@@ -300,7 +287,7 @@ export function TicketsPanel() {
   }, [filter])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       {/* ─── KPI cards row ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
@@ -355,7 +342,7 @@ export function TicketsPanel() {
       </div>
 
       {/* ─── Filter bar ─── */}
-      <Card className="shadow-sm">
+      <Card>
         <CardContent className="p-3 sm:p-4">
           <div className="flex flex-col gap-3">
             {/* Row 1: search + range + sort */}
@@ -525,7 +512,7 @@ export function TicketsPanel() {
 
       {/* ─── Optional stats drawer ─── */}
       {showStats && statsQuery.data && (
-        <Card className="shadow-sm">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
@@ -575,7 +562,7 @@ export function TicketsPanel() {
       )}
 
       {/* ─── Bookings table (desktop) / cards (mobile) ─── */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -975,8 +962,6 @@ function BookingDetailDialog({
                 )}
               </Section>
 
-              {/* Trip info — the AdminBookingDetail response doesn't include
-                  a nested trip preview, so we surface pickup/dropoff names. */}
               <Section title="Thông tin chuyến đi" icon={<Bus className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField

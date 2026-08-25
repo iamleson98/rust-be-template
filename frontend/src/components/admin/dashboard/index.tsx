@@ -53,8 +53,6 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const statsQuery = useStats()
   const exportQuery = useAdminBookingExport({})
 
-  // Shared chat workspace (channels + messages + post-reply/ticket-card
-  // mutations + handlers). Identical to the standalone /admin/chat page.
   const chat = useAdminChatWorkspace()
 
   const handleExportCSV = useCallback(async () => {
@@ -77,9 +75,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+      <div className="space-y-3 p-3">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <LayoutDashboard className="h-3.5 w-3.5" />
@@ -99,11 +96,10 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 <button
                   key={opt.key}
                   onClick={() => setDateRange(opt.key)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
-                    dateRange === opt.key
-                      ? 'bg-blue-600 text-white '
-                      : 'text-muted-foreground hover:text-blue-700 hover:bg-blue-50'
-                  }`}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${dateRange === opt.key
+                    ? 'bg-blue-600 text-white '
+                    : 'text-muted-foreground hover:text-blue-700 hover:bg-blue-50'
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -120,12 +116,10 @@ export const AdminDashboard = memo(function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stats overview (KPIs + charts + recent bookings + activity feed) */}
         <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
 
-        {/* ─── Tabs: Tickets / Chat / Brands & Routes CRUD / Campaigns / Reviews ─── */}
         <div>
-          <Tabs defaultValue="tickets" className="space-y-4">
+          <Tabs defaultValue="tickets">
             <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="tickets" className="gap-1.5"><Ticket className="h-4 w-4" /> Vé đã bán</TabsTrigger>
               <TabsTrigger value="crud" className="gap-1.5"><Building2 className="h-4 w-4" /> Hãng xe &amp; Tuyến</TabsTrigger>
@@ -134,13 +128,11 @@ export const AdminDashboard = memo(function AdminDashboard() {
               <TabsTrigger value="reviews" className="gap-1.5"><Star className="h-4 w-4" /> Đánh giá</TabsTrigger>
             </TabsList>
 
-            {/* Sold tickets management — new Phase 9 tab */}
-            <TabsContent value="tickets" className="space-y-4">
+            <TabsContent value="tickets">
               <TicketsPanel />
             </TabsContent>
 
-            {/* Chat queue + workspace */}
-            <TabsContent value="chat" className="space-y-4">
+            <TabsContent value="chat">
               <ChatPanel
                 channels={chat.channels}
                 activeChannel={chat.activeChannel}
@@ -154,15 +146,14 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 onSendTicketCard={chat.sendTicketCard}
                 typingUser={chat.typingUser}
                 userOnline={chat.userOnline}
+                unreadPulseChannels={chat.unreadPulseChannels}
+                hasMoreMessages={chat.hasMoreMessages}
+                isFetchingMoreMessages={chat.isFetchingMoreMessages}
+                onFetchMoreMessages={chat.fetchMoreMessages as any}
+                chatStats={chat.chatStats}
                 onViewTicket={(code) => {
-                  // Switch to the Tickets tab + open the detail dialog.
-                  // We do this via a custom event so the TicketsPanel can
-                  // pick it up without prop-drilling.
                   const ev = new CustomEvent('admin:view-ticket', { detail: code })
                   window.dispatchEvent(ev)
-                  // Also switch the active tab via a state update — but
-                  // since the Tabs value is internal, we use a tiny URL
-                  // hash hack to force the user to the tickets tab.
                   if (typeof window !== 'undefined') {
                     const tabEl = document.querySelector('[data-state="inactive"][value="tickets"]') as HTMLButtonElement | null
                     tabEl?.click()
@@ -171,25 +162,22 @@ export const AdminDashboard = memo(function AdminDashboard() {
               />
             </TabsContent>
 
-            {/* Brand & Route CRUD master-detail — Brands, Routes, Schedules, Pickup/Dropping points */}
-            <TabsContent value="crud" className="space-y-4">
+            <TabsContent value="crud">
               <AdminBrandManagement />
             </TabsContent>
 
-            {/* Campaigns */}
-            <TabsContent value="campaigns" className="space-y-4">
+            <TabsContent value="campaigns">
               <CampaignsPanel />
             </TabsContent>
 
-            {/* Reviews moderation */}
-            <TabsContent value="reviews" className="space-y-4">
+            <TabsContent value="reviews">
               <ReviewsModerationPanel />
             </TabsContent>
           </Tabs>
         </div>
 
-        {/* CSS for auto-scrolling activity feed */}
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @keyframes scrollUp {
             0% { transform: translateY(0); }
             100% { transform: translateY(-50%); }

@@ -102,7 +102,7 @@ function BookingCardImpl({
   const accentColor = b.trip?.brandAccent ?? '#2563eb'
 
   return (
-    <Card className="overflow-hidden ring-1 ring-black/5 shadow-sm hover:shadow-md transition-all duration-300 group">
+    <Card className="overflow-hidden ring-1 ring-black/5 transition-all duration-300 group">
       {/* Brand color accent bar on left */}
       <div className="relative flex">
         <div

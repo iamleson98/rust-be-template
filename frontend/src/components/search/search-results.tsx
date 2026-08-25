@@ -9,8 +9,6 @@ import type { UseNavigateResult } from '@tanstack/react-router'
 import { TripCard, TripCardSkeleton } from '@/components/search/trip-card'
 import { SearchWidget } from '@/components/home/search-widget'
 import {
-  Loader2,
-  Bus,
   SlidersHorizontal,
   AlertCircle,
   Sparkles,
@@ -360,7 +358,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
         returnDate: routeSearch.returnDate,
       }
       : null
-  const { data: searchData, isLoading: searchLoading, isFetching } = useTripSearch(tripSearchParams)
+  const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
   const searchResults = searchData?.items ?? []
 
   // Cache results in window global so compare can read them without refetch

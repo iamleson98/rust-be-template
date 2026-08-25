@@ -88,7 +88,6 @@ export function PriceAlertDialog() {
     priceAlertOpen,
     setPriceAlertOpen,
     priceAlertContext,
-    setPriceAlertContext,
     guestPhone,
     setGuestPhone,
     guestName,

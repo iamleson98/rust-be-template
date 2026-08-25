@@ -110,9 +110,8 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                     <button
                       key={i}
                       onClick={() => setActiveIndex(i)}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        i === activeIndex ? 'w-4 bg-rose-500' : 'w-1.5 bg-rose-300/40 hover:bg-rose-400/60'
-                      }`}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${i === activeIndex ? 'w-4 bg-rose-500' : 'w-1.5 bg-rose-300/40 hover:bg-rose-400/60'
+                        }`}
                       aria-label={`Xem mã ${i + 1}`}
                     />
                   ))}
@@ -130,82 +129,82 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                 // since the API no longer returns one.
                 const bannerColor = '#f43f5e'
                 return (
-                <div
-                  key={c.id}
-                  className={i === activeIndex ? 'ring-2 ring-rose-400/30 rounded-xl' : ''}
-                >
-                  <Card className="relative overflow-hidden border-0 shadow-sm h-full">
-                    {/* Shimmer sweep overlay */}
-                    <div className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-1500 bg-linear-to-r from-transparent via-white/40 to-transparent skew-x-12 pointer-events-none z-10" />
+                  <div
+                    key={c.id}
+                    className={i === activeIndex ? 'ring-2 ring-rose-400/30 rounded-xl' : ''}
+                  >
+                    <Card className="relative overflow-hidden border-0 h-full">
+                      {/* Shimmer sweep overlay */}
+                      <div className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-1500 bg-linear-to-r from-transparent via-white/40 to-transparent skew-x-12 pointer-events-none z-10" />
 
-                    {/* Gradient overlay on the card top */}
-                    <div
-                      className="absolute inset-x-0 top-0 h-20 opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: `linear-gradient(180deg, ${bannerColor}, transparent)` }}
-                    />
-                    {/* Banner stripe */}
-                    <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all hover:w-2 duration-300" style={{ background: bannerColor }} />
+                      {/* Gradient overlay on the card top */}
+                      <div
+                        className="absolute inset-x-0 top-0 h-20 opacity-10 hover:opacity-20 transition-opacity"
+                        style={{ background: `linear-gradient(180deg, ${bannerColor}, transparent)` }}
+                      />
+                      {/* Banner stripe */}
+                      <div className="absolute left-0 top-0 bottom-0 w-1.5 transition-all hover:w-2 duration-300" style={{ background: bannerColor }} />
 
-                    {/* Decorative circles */}
-                    <div
-                      className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 hover:opacity-20 transition-opacity"
-                      style={{ background: bannerColor }}
-                    />
+                      {/* Decorative circles */}
+                      <div
+                        className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-10 hover:opacity-20 transition-opacity"
+                        style={{ background: bannerColor }}
+                      />
 
-                    {/* "Hot" badge with pulse animation on featured campaigns */}
-                    {isFeatured(c.id, i) && (
-                      <div className="absolute top-3 right-3 z-20">
-                        <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-rose-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                          <Flame className="h-3 w-3" />
-                          HOT
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="p-5 pl-6 relative">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <Badge
-                            className="mb-2 text-[11px] font-bold"
-                            style={{ background: `${bannerColor}20`, color: bannerColor }}
-                          >
-                            <Zap className="h-3 w-3 mr-0.5" />
-                            {typeLabel(c.discountType, c.discountValue)}
-                          </Badge>
-                          <h3 className="font-bold text-base leading-snug">{c.code}</h3>
+                      {/* "Hot" badge with pulse animation on featured campaigns */}
+                      {isFeatured(c.id, i) && (
+                        <div className="absolute top-3 right-3 z-20">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-rose-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                            <Flame className="h-3 w-3" />
+                            HOT
+                          </span>
                         </div>
-                        {/* Countdown timer */}
-                        <CampaignCountdown endTime={getEndTime(c.id)} />
-                      </div>
+                      )}
 
-                      <div className="mt-4 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <code
-                            className="rounded-md px-2.5 py-1.5 text-sm font-mono font-bold tracking-wider border-2 border-dashed"
-                            style={{ borderColor: `${bannerColor}50`, color: bannerColor }}
-                          >
-                            {c.code}
-                          </code>
+                      <div className="p-5 pl-6 relative">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Badge
+                              className="mb-2 text-[11px] font-bold"
+                              style={{ background: `${bannerColor}20`, color: bannerColor }}
+                            >
+                              <Zap className="h-3 w-3 mr-0.5" />
+                              {typeLabel(c.discountType, c.discountValue)}
+                            </Badge>
+                            <h3 className="font-bold text-base leading-snug">{c.code}</h3>
+                          </div>
+                          {/* Countdown timer */}
+                          <CampaignCountdown endTime={getEndTime(c.id)} />
                         </div>
-                        <button
-                          onClick={() => copy(c.code)}
-                          className="inline-flex items-center gap-1 rounded-lg px-3.5 py-2 text-xs font-bold text-white transition-all"
-                          style={{ background: bannerColor }}
-                        >
-                          {copied === c.code ? (
-                            <>
-                              <Check className="h-3.5 w-3.5" /> Đã chép
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3.5 w-3.5" /> Sao chép
-                            </>
-                          )}
-                        </button>
+
+                        <div className="mt-4 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <code
+                              className="rounded-md px-2.5 py-1.5 text-sm font-mono font-bold tracking-wider border-2 border-dashed"
+                              style={{ borderColor: `${bannerColor}50`, color: bannerColor }}
+                            >
+                              {c.code}
+                            </code>
+                          </div>
+                          <button
+                            onClick={() => copy(c.code)}
+                            className="inline-flex items-center gap-1 rounded-lg px-3.5 py-2 text-xs font-bold text-white transition-all"
+                            style={{ background: bannerColor }}
+                          >
+                            {copied === c.code ? (
+                              <>
+                                <Check className="h-3.5 w-3.5" /> Đã chép
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5" /> Sao chép
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </Card>
-                </div>
+                    </Card>
+                  </div>
                 )
               })}
             </div>

@@ -26,7 +26,7 @@ export function CampaignsPanel() {
   const campaigns: Campaign[] = (data?.items ?? []) as unknown as Campaign[]
 
   return (
-    <Card className="shadow-sm">
+    <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-500" />
