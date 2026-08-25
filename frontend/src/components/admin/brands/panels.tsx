@@ -41,8 +41,6 @@ import type { AdminRouteOut, AdminScheduleOut, AdminPickupPointOut, AdminBrandOu
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
 import { formatDurationShort, daysLabel } from './helpers'
 
-/* ─── Brands list (left panel) ─── */
-
 export function BrandListPanel({
   brandsLoading,
   filteredBrands,
@@ -180,8 +178,6 @@ export function BrandListPanel({
     </Card>
   )
 }
-
-/* ─── Routes list (middle panel) ─── */
 
 export function RouteListPanel({
   routesLoading,
@@ -343,8 +339,6 @@ export function RouteListPanel({
     </Card>
   )
 }
-
-/* ─── Schedules + Pickup points detail (right panel) ─── */
 
 export function ScheduleAndPickupPanel({
   selectedRoute,
@@ -611,8 +605,6 @@ export function ScheduleAndPickupPanel({
     </Card>
   )
 }
-
-/* ─── Breadcrumb header ─── */
 
 export function BrandManagementBreadcrumb({
   selectedBrand,

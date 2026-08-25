@@ -259,7 +259,7 @@ export function ChatPanel({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">

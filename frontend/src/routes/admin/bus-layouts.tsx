@@ -10,7 +10,7 @@ export function AdminBusLayoutsPage() {
 
   return (
     <AdminShell>
-      <div className="container mx-auto px-4 py-6">
+      <div className="p-3">
         {isLoading ? (
           <Skeleton className="h-64 w-full" />
         ) : (

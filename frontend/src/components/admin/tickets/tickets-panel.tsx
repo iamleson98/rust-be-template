@@ -287,7 +287,7 @@ export function TicketsPanel() {
   }, [filter])
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-3">
       {/* ─── KPI cards row ─── */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiCard
@@ -962,8 +962,6 @@ function BookingDetailDialog({
                 )}
               </Section>
 
-              {/* Trip info — the AdminBookingDetail response doesn't include
-                  a nested trip preview, so we surface pickup/dropoff names. */}
               <Section title="Thông tin chuyến đi" icon={<Bus className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField
