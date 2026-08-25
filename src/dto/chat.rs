@@ -141,3 +141,23 @@ pub struct ChatMessageListResponse {
 pub struct MarkChannelReadResponse {
     pub ok: bool,
 }
+
+/// Response of `GET /api/admin/chat/stats` — aggregate chat stats for
+/// the admin dashboard's top-row cards.
+///
+/// - `openCount` — channels with `status='open'` (the support queue).
+/// - `assignedCount` — channels with `status='assigned'` (being handled).
+/// - `closedCount` — channels with `status='closed'` (resolved).
+/// - `totalChannels` — sum of all statuses.
+/// - `avgResponseTimeSecs` — average seconds between the first user
+///   message + the first employee reply, across channels that have
+///   both. `0.0` when no channels have a response yet.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatStatsResponse {
+    pub open_count: i64,
+    pub assigned_count: i64,
+    pub closed_count: i64,
+    pub total_channels: i64,
+    pub avg_response_time_secs: f64,
+}

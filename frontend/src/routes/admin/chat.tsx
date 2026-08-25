@@ -26,6 +26,7 @@ export function AdminChatPage() {
           hasMoreMessages={ws.hasMoreMessages}
           isFetchingMoreMessages={ws.isFetchingMoreMessages}
           onFetchMoreMessages={ws.fetchMoreMessages as any}
+          chatStats={ws.chatStats}
         />
       </div>
     </AdminShell>

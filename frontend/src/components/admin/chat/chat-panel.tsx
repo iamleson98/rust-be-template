@@ -88,6 +88,7 @@ export function ChatPanel({
   hasMoreMessages,
   isFetchingMoreMessages,
   onFetchMoreMessages,
+  chatStats,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -116,15 +117,32 @@ export function ChatPanel({
   isFetchingMoreMessages?: boolean
   /** Call this when the user scrolls to the top of the chat. */
   onFetchMoreMessages?: () => void
+  /** Aggregate chat stats from GET /api/admin/chat/stats — drives the
+   *  top-row cards (open / assigned / closed counts + avg response
+   *  time). When undefined, the cards fall back to client-side
+   *  filtering of `channels` (capped at the list's page size). */
+  chatStats?: {
+    openCount: number
+    assignedCount: number
+    closedCount: number
+    totalChannels: number
+    avgResponseTimeSecs: number
+  }
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
   // Aligned height for the channel list + chat workspace. Both use
-  // the same max-height so the split-view looks symmetric — the
-  // chat area auto-scrolls when overflowing, the channel list also
-  // scrolls independently. h-[32rem] = 512px (fits 8-10 channel rows
-  // or ~15 chat messages before scrolling).
-  const PANES_HEIGHT = 'max-h-[32rem]'
+  // the same FIXED height so the split-view looks symmetric + both
+  // panes scroll independently when content overflows.
+  //
+  // IMPORTANT: use `h-[32rem]` (fixed height), NOT `max-h-[32rem]`.
+  // `max-h` on the ScrollArea root doesn't propagate to the Viewport
+  // (which is `size-full` = height:100%) — the viewport would grow
+  // with its content + never scroll. `h-[32rem]` forces the root to
+  // a fixed height → the viewport constrains to that height →
+  // overflow scrolls. This was the "channel list doesn't scroll
+  // when overflow" bug.
+  const PANES_HEIGHT = 'h-[32rem]'
 
   // ── Chat scroll behavior (auto-scroll + infinite scroll trigger) ─
   //
@@ -222,6 +240,24 @@ export function ChatPanel({
     prevScrollHeightRef.current = viewport.scrollHeight
   }, [chatMessages, typingUser])
 
+  // Compute card values from `chatStats` (server-side aggregate, accurate
+  // even with > 200 channels) — fall back to client-side filtering of
+  // `channels` when stats aren't loaded yet (capped at the list's page
+  // size, but better than showing 0).
+  const openCount = chatStats?.openCount ?? channels.filter((c) => c.status === 'open').length
+  const assignedCount = chatStats?.assignedCount ?? channels.filter((c) => c.status === 'assigned').length
+  const avgResponseSecs = chatStats?.avgResponseTimeSecs ?? 0
+
+  // Format the avg response time as "Mm Ss" (e.g. "1m 42s") or "N/A"
+  // when no channels have a response yet (avgResponseSecs === 0).
+  const formatResponseTime = (secs: number): string => {
+    if (secs <= 0) return 'N/A'
+    const mins = Math.floor(secs / 60)
+    const s = Math.round(secs % 60)
+    if (mins > 0) return `${mins}m ${s}s`
+    return `${s}s`
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -230,7 +266,7 @@ export function ChatPanel({
             <CardTitle className="text-sm flex items-center gap-2"><Headset className="h-4 w-4 text-blue-600" /> Đang chờ</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">{channels.filter((c) => c.status === 'open').length}</div>
+            <div className="text-3xl font-extrabold">{openCount}</div>
             <div className="text-xs text-muted-foreground mt-1">Cuộc trò chuyện chưa phân công</div>
           </CardContent>
         </Card>
@@ -239,7 +275,7 @@ export function ChatPanel({
             <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-amber-600" /> Đang xử lý</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">{channels.filter((c) => c.status === 'assigned').length}</div>
+            <div className="text-3xl font-extrabold">{assignedCount}</div>
             <div className="text-xs text-muted-foreground mt-1">Đã có nhân viên phụ trách</div>
           </CardContent>
         </Card>
@@ -248,8 +284,10 @@ export function ChatPanel({
             <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-rose-600" /> Thời gian phản hồi TB</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-extrabold">1:42</div>
-            <div className="text-xs text-blue-600 flex items-center gap-1 mt-1"><ArrowDownRight className="h-3 w-3" /> -23% so với tuần trước</div>
+            <div className="text-3xl font-extrabold">{formatResponseTime(avgResponseSecs)}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Trung bình từ tin nhắn đầu tiên đến phản hồi
+            </div>
           </CardContent>
         </Card>
       </div>

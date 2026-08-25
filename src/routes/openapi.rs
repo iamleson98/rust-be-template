@@ -127,6 +127,7 @@ use utoipa::OpenApi;
         crate::routes::zeroclaw::list_exchanges,
         // system monitoring
         crate::routes::system::system_status,
+        crate::routes::system::chat_stats,
     ),
     components(schemas(
         // auth
@@ -235,6 +236,7 @@ use utoipa::OpenApi;
         crate::dto::chat::CreateMessageRequest,
         crate::dto::chat::CreateMessageResponse,
         crate::dto::chat::MarkChannelReadResponse,
+        crate::dto::chat::ChatStatsResponse,
         // notifications
         crate::dto::notification::NotificationOut,
         crate::dto::notification::NotificationListResponse,

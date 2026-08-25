@@ -634,6 +634,22 @@ impl ChatHub {
         }
     }
 
+    /// Total online employees across all brands — sum of the per-brand
+    /// employee counts. Used by `/api/admin/system` to show "how many
+    /// support staff are online?" on the dashboard.
+    ///
+    /// Iterates the `online_employees` index: `brandKey → employeeId →
+    /// set<socketId>`. Each employee is counted ONCE (even if they
+    /// have multiple sockets open). Returns the sum across all brand
+    /// keys (including the `"global"` pool for unbranded employees).
+    pub fn count_online_employees_total(&self) -> usize {
+        let mut total = 0;
+        for entry in self.online_employees.iter() {
+            total += entry.value().len();
+        }
+        total
+    }
+
     // ── graceful shutdown ──────────────────────────────────────
 
     /// Collect every live session id (used by the drain-on-shutdown path).

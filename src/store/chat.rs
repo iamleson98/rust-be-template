@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
-    QuerySelect, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -79,6 +79,27 @@ pub trait ChatStore: Send + Sync {
         brand_id: Option<Uuid>,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>>;
+    /// Count channels grouped by status — used by the admin chat
+    /// dashboard's top-row cards (open / assigned / closed counts).
+    /// Returns a map of `status → count`.
+    ///
+    /// This is a server-side aggregate (not client-side filtering of
+    /// `list_open_channels`) so it returns the TRUE count even when
+    /// there are more channels than the list's `limit` (which caps
+    /// at 200). Without this, the "Đang chờ" card would max out at
+    /// the list's page size.
+    async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>>;
+    /// Compute the average first-response time across all channels
+    /// that have at least one user message + one employee reply.
+    ///
+    /// "First response" = time between the first `sender_type='user'`
+    /// message + the first `sender_type='employee'` message in the
+    /// SAME channel. Channels without an employee reply are excluded
+    /// (no response = no data point).
+    ///
+    /// Returns the average in seconds (0.0 if no channels have a
+    /// response yet).
+    async fn avg_first_response_time_secs(&self) -> StoreResult<f64>;
     async fn create_channel(
         &self,
         user_id: Uuid,
@@ -215,6 +236,119 @@ impl ChatStore for DbChatStore {
             q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
         }
         Ok(q.all(self.db.as_ref()).await?)
+    }
+
+    async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
+        // Group channels by status + count each group. SeaORM doesn't
+        // have a clean `GROUP BY` builder, so we use raw SQL via
+        // `execute_unprepared` for portability across SQLite + Postgres.
+        //
+        // Returns `Vec<(status, count)>` — e.g. `[("open", 42), ("assigned", 3), ("closed", 15)]`.
+        use sea_orm::FromQueryResult;
+
+        #[derive(FromQueryResult)]
+        struct StatusCount {
+            status: String,
+            count: i64,
+        }
+
+        let rows = StatusCount::find_by_statement(sea_orm::Statement::from_sql_and_values(
+            self.db.as_ref().get_database_backend(),
+            r#"SELECT status, COUNT(*) as count FROM chat_channel GROUP BY status"#,
+            [],
+        ))
+        .all(self.db.as_ref())
+        .await?;
+
+        Ok(rows.into_iter().map(|r| (r.status, r.count)).collect())
+    }
+
+    async fn avg_first_response_time_secs(&self) -> StoreResult<f64> {
+        // ── Compute average first-response time across all channels ──
+        //
+        // For each channel, find:
+        //   - t_user: the first `sender_type='user'` message's `created_at`
+        //   - t_employee: the first `sender_type='employee'` message's `created_at`
+        //
+        // If both exist + t_employee > t_user, the response time is
+        // `t_employee - t_user`. Average across all such channels.
+        //
+        // We use raw SQL because SeaORM doesn't have a clean way to
+        // express "find the min created_at per (channel_id, sender_type)
+        // group, then join the two groups on channel_id + compute the
+        // avg of the difference". The query below works on both SQLite
+        // + Postgres (standard SQL window functions).
+        //
+        // Returns 0.0 if no channels have both a user + employee message.
+        use sea_orm::FromQueryResult;
+
+        #[derive(FromQueryResult)]
+        struct AvgResult {
+            avg_secs: Option<f64>,
+        }
+
+        // The inner subquery finds the first user + first employee
+        // message per channel. The outer query averages the difference.
+        //
+        // NOTE: `created_at` is stored as TEXT (ISO 8601 RFC 3339).
+        // SQLite's `julianday()` converts to a float (days), Postgres
+        // casts to `timestamp` via `::timestamp`. We detect the backend
+        // + use the right conversion.
+        let backend = self.db.as_ref().get_database_backend();
+        let (sql, convert) = match backend {
+            sea_orm::DatabaseBackend::Sqlite => (
+                r#"SELECT
+                    AVG(
+                        (julianday(e.first_emp) - julianday(u.first_user)) * 86400.0
+                    ) as avg_secs
+                FROM (
+                    SELECT channel_id, MIN(created_at) as first_user
+                    FROM chat_message
+                    WHERE sender_type = 'user'
+                    GROUP BY channel_id
+                ) u
+                JOIN (
+                    SELECT channel_id, MIN(created_at) as first_emp
+                    FROM chat_message
+                    WHERE sender_type = 'employee'
+                    GROUP BY channel_id
+                ) e ON u.channel_id = e.channel_id
+                WHERE e.first_emp > u.first_user"#,
+                "sqlite",
+            ),
+            sea_orm::DatabaseBackend::Postgres => (
+                r#"SELECT
+                    AVG(
+                        EXTRACT(EPOCH FROM (e.first_emp::timestamp - u.first_user::timestamp))
+                    ) as avg_secs
+                FROM (
+                    SELECT channel_id, MIN(created_at) as first_user
+                    FROM chat_message
+                    WHERE sender_type = 'user'
+                    GROUP BY channel_id
+                ) u
+                JOIN (
+                    SELECT channel_id, MIN(created_at) as first_emp
+                    FROM chat_message
+                    WHERE sender_type = 'employee'
+                    GROUP BY channel_id
+                ) e ON u.channel_id = e.channel_id
+                WHERE e.first_emp > u.first_user"#,
+                "postgres",
+            ),
+            _ => return Ok(0.0),
+        };
+        let _ = convert; // silence unused warning
+
+        let row = AvgResult::find_by_statement(sea_orm::Statement::from_sql_and_values(
+            backend,
+            sql,
+            [],
+        ))
+        .one(self.db.as_ref())
+        .await?;
+
+        Ok(row.and_then(|r| r.avg_secs).unwrap_or(0.0))
     }
 
     #[store_macros::no_retry]
@@ -583,6 +717,17 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         self.inner.list_open_channels(brand_id, limit).await
+    }
+
+    async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
+        // Aggregate queries are not cached — they need fresh results
+        // every call (the channel count changes on every new channel).
+        self.inner.count_channels_by_status().await
+    }
+
+    async fn avg_first_response_time_secs(&self) -> StoreResult<f64> {
+        // Same as count_channels_by_status — aggregate, not cached.
+        self.inner.avg_first_response_time_secs().await
     }
 
     async fn create_channel(

@@ -666,6 +666,97 @@ export function useChatChannels(limit = 50) {
   });
 }
 
+/**
+ * `useChatStats` — aggregate chat stats for the admin dashboard's
+ * top-row cards (open / assigned / closed counts + avg response time).
+ *
+ * Server-side aggregate so the counts are accurate even when there
+ * are more channels than the channel list's page size (capped at 200).
+ *
+ * Refetches every 15s + on WS invalidation (the WS hook invalidates
+ * the `listChannels` query which this piggybacks on).
+ */
+export type ChatStats = {
+  openCount: number;
+  assignedCount: number;
+  closedCount: number;
+  totalChannels: number;
+  avgResponseTimeSecs: number;
+};
+
+export function useChatStats() {
+  return useQuery<ChatStats>({
+    queryKey: ["admin", "chat", "stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/chat/stats", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: window.location.origin,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch chat stats");
+      return res.json();
+    },
+    refetchInterval: 15 * 1000,
+    staleTime: 10 * 1000,
+  });
+}
+
+/**
+ * `useSystemStatus` — system monitoring data for /admin/system.
+ * Refetches every 5s for near-real-time metrics.
+ */
+export type SystemStatus = {
+  uptime: { seconds: number; human: string };
+  websocket: {
+    connections: number;
+    maxConnections: number;
+    rooms: number;
+    idempotencyEntries: number;
+    onlineEmployeeBrands: number;
+    onlineEmployees: number;
+    distinctIps: number;
+  };
+  database: {
+    backend: string;
+    urlMasked: string;
+    maxConnections: number;
+    minConnections: number;
+    activeConnections: number;
+    idleConnections: number;
+    sizeMb: number;
+  };
+  process: {
+    pid: number;
+    memoryMb: number;
+    virtualMemoryMb: number;
+    cpuUsage: number;
+    cpuCount: number;
+    osName: string;
+    osVersion: string;
+    hostname: string;
+  };
+};
+
+export function useSystemStatus() {
+  return useQuery<SystemStatus>({
+    queryKey: ["admin", "system"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/system", {
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: window.location.origin,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to fetch system status");
+      return res.json();
+    },
+    refetchInterval: 5 * 1000,
+  });
+}
+
 export function useChatMessages(channelId: string | undefined, limit = 50) {
   const opts = channelId
     ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } })

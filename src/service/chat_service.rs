@@ -516,6 +516,62 @@ impl ChatService {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
+    /// Aggregate chat stats for the admin dashboard's top-row cards.
+    ///
+    /// Returns counts of channels grouped by status (open / assigned /
+    /// closed / total) + the average first-response time in seconds.
+    ///
+    /// This is a server-side aggregate so the counts are accurate even
+    /// when there are more channels than the channel list's page size
+    /// (capped at 200). Without this, the "Đang chờ" card would max
+    /// out at the list's page size.
+    pub async fn chat_stats(&self) -> AppResult<crate::dto::chat::ChatStatsResponse> {
+        let counts = self
+            .store
+            .chat_store()
+            .count_channels_by_status()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut open_count: i64 = 0;
+        let mut assigned_count: i64 = 0;
+        let mut closed_count: i64 = 0;
+        let mut total_channels: i64 = 0;
+        for (status, count) in counts {
+            total_channels += count;
+            match status.as_str() {
+                "open" => open_count = count,
+                "assigned" => assigned_count = count,
+                "closed" => closed_count = count,
+                _ => {} // unknown status — counted in total but not a card
+            }
+        }
+
+        let avg_response_time_secs = self
+            .store
+            .chat_store()
+            .avg_first_response_time_secs()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(crate::dto::chat::ChatStatsResponse {
+            open_count,
+            assigned_count,
+            closed_count,
+            total_channels,
+            avg_response_time_secs,
+        })
+    }
+
+    /// Expose the DB connection for admin stats endpoints (e.g.
+    /// `pg_stat_activity` queries in `/api/admin/system`). This is a
+    /// narrow escape hatch for system-level queries that don't fit
+    /// the domain-store pattern — route handlers should NOT use this
+    /// for business logic, only for admin/observability queries.
+    pub fn db_for_stats(&self) -> &sea_orm::DatabaseConnection {
+        self.store.db()
+    }
+
     // ── RBAC helpers (for chat-specific role checks) ────────────
 
     /// Determine whether a user is an employee (has any non-`"user"`

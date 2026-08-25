@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   useChatChannels,
   useChatMessagesInfinite,
+  useChatStats,
   usePostChatMessage,
   useMarkChatRead,
 } from "@/lib/queries";
@@ -26,6 +27,14 @@ export function useAdminChatWorkspace() {
   const channelsQuery = useChatChannels(50);
   const channels: AdminChannel[] = (channelsQuery.data?.items ??
     []) as unknown as AdminChannel[];
+
+  // ── Aggregate chat stats (server-side count, not client-side filter) ──
+  //
+  // `useChatStats` fetches from GET /api/admin/chat/stats — returns
+  // accurate counts (open / assigned / closed / total) + avg response
+  // time, even when there are more channels than the list's page size
+  // (capped at 200). Refetches every 15s.
+  const chatStatsQuery = useChatStats();
 
   // ── Infinite-scroll messages ──────────────────────────────────
   //
@@ -197,6 +206,8 @@ export function useAdminChatWorkspace() {
     typingUser,
     userOnline,
     unreadPulseChannels,
+    // aggregate stats (from GET /api/admin/chat/stats)
+    chatStats: chatStatsQuery.data,
     // actions
     sendReply,
     blockChannel,
