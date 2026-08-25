@@ -74,11 +74,12 @@ const reviewSchema = z.object({
     .number()
     .min(1, 'Vui lòng chọn số sao đánh giá')
     .max(5, 'Đánh giá tối đa 5 sao'),
-  title: z.string().trim().max(120, 'Tiêu đề tối đa 120 ký tự'),
-  content: z.string().trim().max(1500, 'Nhận xét tối đa 1500 ký tự'),
-  author: z.string().trim().max(80, 'Tên hiển thị tối đa 80 ký tự'),
-  tags: z.array(z.string()),
-  photos: z.array(z.string()),
+  title: z.string().trim().max(255, 'Tiêu đề tối đa 255 ký tự'),
+  content: z.string().trim().max(10000, 'Nhận xét quá dài'),
+  author: z.string().trim().max(255, 'Tên hiển thị tối đa 255 ký tự'),
+  // Backend enforces max 20 tags + max 10 photos.
+  tags: z.array(z.string()).max(20, 'Tối đa 20 thẻ'),
+  photos: z.array(z.string()).max(10, 'Tối đa 10 ảnh'),
 })
 
 type ReviewValues = z.infer<typeof reviewSchema>

@@ -55,11 +55,18 @@ const scheduleSchema = z
     busLayoutId: requiredText('Loại xe'),
     basePriceAdult: z.coerce
       .number({ message: 'Giá phải là số' })
-      .min(0, 'Giá phải ≥ 0'),
+      .min(0, 'Giá phải ≥ 0')
+      .max(1_000_000_000, 'Giá quá lớn'),
     basePriceChild: z.coerce
       .number({ message: 'Giá phải là số' })
-      .min(0, 'Giá phải ≥ 0'),
-    amenities: z.array(z.string()),
+      .min(0, 'Giá phải ≥ 0')
+      .max(1_000_000_000, 'Giá quá lớn'),
+    // Amenities are stored as a comma-separated string in the backend
+    // (`amenities: Option<String>` max 5000 chars). The form edits them
+    // as an array of strings for UX (checkboxes), but we MUST join them
+    // into a single string before sending. The previous version sent
+    // the array directly → serde would 422 because it expects a string.
+    amenities: z.array(z.string()).max(20, 'Tối đa 20 tiện ích'),
   })
   .refine(
     (d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveFrom <= d.effectiveTo,
@@ -160,7 +167,10 @@ export function ScheduleFormDialog({
         busLayoutId: values.busLayoutId,
         basePriceAdult: values.basePriceAdult,
         basePriceChild: values.basePriceChild,
-        amenities: values.amenities,
+        // Backend stores `amenities` as `Option<String>` (comma-separated).
+        // The form edits them as an array — join before sending. The
+        // previous version sent the array directly → serde 422.
+        amenities: values.amenities.join(','),
       }
       if (isEdit) {
         payload.id = schedule!.id

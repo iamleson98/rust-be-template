@@ -53,13 +53,20 @@ const brandSchema = z.object({
   slug: requiredText('Slug')
     .max(80, 'Slug tối đa 80 ký tự')
     .regex(/^[a-z0-9-]+$/, 'Slug chỉ chứa chữ thường, số và dấu gạch ("-")'),
-  description: optionalText(500),
-  contactPhone: requiredText("Số điện thoại")
+  // Backend allows max 5000 chars for description.
+  description: optionalText(5000),
+  // contactPhone + contactEmail are OPTIONAL in the backend
+  // (`UpsertBrandRequest` marks them Optional). The previous version
+  // used `requiredText(...)` which marked them as required in the UI
+  // — misleading. Changed to optional with format validation only.
+  contactPhone: z
+    .string()
     .trim()
     .optional()
     .or(z.literal(''))
     .refine((v) => !v || /^0\d{8,10}$/.test(v), 'Số điện thoại không hợp lệ (vd: 0912345678)'),
-  contactEmail: requiredText("Email")
+  contactEmail: z
+    .string()
     .trim()
     .optional()
     .or(z.literal(''))
@@ -236,7 +243,7 @@ export function BrandFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel className="flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5" /> Hotline <span className="text-destructive">*</span>
+                      <Phone className="h-3.5 w-3.5" /> Hotline
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="1900 6067" />
@@ -251,7 +258,7 @@ export function BrandFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel className="flex items-center gap-1">
-                      <Mail className="h-3.5 w-3.5" /> Email <span className="text-destructive">*</span>
+                      <Mail className="h-3.5 w-3.5" /> Email
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="info@brand.vn" />
