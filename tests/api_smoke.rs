@@ -48,7 +48,7 @@ async fn boot_test_app() -> anyhow::Result<axum::Router> {
         std::env::set_var("WORKER_BACKEND", "db");
         std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
-        std::env::set_var("ZEROCLAW_ENABLED", "false");
+        std::env::set_var("NULLCLAW_ENABLED", "false");
         // Don't hit real payment gateways during tests.
         std::env::set_var("VNPAY_ENABLED", "false");
         std::env::set_var("MOMO_ENABLED", "false");

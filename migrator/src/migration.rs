@@ -18,7 +18,7 @@ mod m20260809_021159_reviews;
 mod m20260809_021323_chat;
 mod m20260809_021431_notifications_wishlist_alerts;
 mod m20260809_021550_discounts;
-mod m20260809_021759_zeroclaw;
+mod m20260809_021759_nullclaw;
 mod m20260809_030000_price_alert_owner;
 mod m20260817_000001_add_missing_indexes;
 mod m20260818_000001_payments;
@@ -26,6 +26,7 @@ mod m20260818_000002_seed_payment_perms;
 mod m20260820_000001_user_oauth;
 mod m20260824_000001_chat_channel_member_and_bot;
 mod m20260826_000001_audit_indexes;
+mod m20260825_000001_rename_zero_claw_to_null_claw;
 
 pub struct Migrator;
 
@@ -47,7 +48,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260809_021323_chat::Migration),
             Box::new(m20260809_021431_notifications_wishlist_alerts::Migration),
             Box::new(m20260809_021550_discounts::Migration),
-            Box::new(m20260809_021759_zeroclaw::Migration),
+            Box::new(m20260809_021759_nullclaw::Migration),
             Box::new(m20260809_030000_price_alert_owner::Migration),
             Box::new(m20260817_000001_add_missing_indexes::Migration),
             Box::new(m20260818_000001_payments::Migration),
@@ -55,6 +56,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260820_000001_user_oauth::Migration),
             Box::new(m20260824_000001_chat_channel_member_and_bot::Migration),
             Box::new(m20260826_000001_audit_indexes::Migration),
+            Box::new(m20260825_000001_rename_zero_claw_to_null_claw::Migration),
         ]
     }
 }

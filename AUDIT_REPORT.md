@@ -14,7 +14,7 @@ you can grep the worklog for the full detail.
 | SEC-003 | `terraform/deploy.sh` used `JWT__SECRET` (double-underscore) → config silently fell through to the leaked `.env.example` secret, shipped `COOKIE_SECURE=false`, no `CORS_ORIGINS` override | **Critical** | ✅ Fixed (single-underscore env vars, random JWT secret at first-run, `COOKIE_SECURE=true`, real CORS origins) |
 | SEC-004 | **BOLA** on `POST /api/bookings/{id}/cancel` and `/confirm` — discards `AuthUser(_uid)` and the service took no `user_id`. Any auth'd user could cancel or confirm anyone's booking | **Critical** | ✅ Fixed (`cancel`/`confirm`/`hold` now take a `caller_user_id` and verify `booking.user_id == caller_user_id`) |
 | SEC-005 | **BOLA** on chat — `list_messages`/`post_message`/`mark_read` only verified channel existence, not ownership. Any auth'd user could read/write into any other user's support chat | **Critical** | ✅ Fixed (new `assert_channel_access` helper; owner or employee only) |
-| SEC-006 | `GET /api/zeroclaw/exchanges` had no auth — public leak of every AI conversation (PII: phones, booking codes, travel plans) | **High** | ✅ Fixed (requires `admin:zeroclaw:read` RBAC) |
+| SEC-006 | `GET /api/nullclaw/exchanges` had no auth — public leak of every AI conversation (PII: phones, booking codes, travel plans) | **High** | ✅ Fixed (requires `admin:nullclaw:read` RBAC) |
 | SEC-007 | No `Origin` header check on `/ws` or `/ws-call` — Cross-Site WebSocket Hijacking when cookie auth is used | **High** | ✅ Fixed (shared `check_ws_origin` enforces CORS allowlist on every upgrade) |
 | SEC-008 | `LocalStorage::resolve` used `Path::starts_with` (lexical, foolable by symlinks / URL-decoded `..`) — path traversal | **High** | ✅ Fixed (component-walk rejection of `..`/absolute/Prefix, defense-in-depth `starts_with` kept) + tests |
 | SEC-009 | Caddyfile CSP allowed `'unsafe-inline' 'unsafe-eval'` + `wss: ws:` (any WS origin) | **High** | ✅ Fixed (`'self'` script-src, `wss://{yourdomain}` connect-src, `object-src 'none'`, `worker-src 'self'`) |
@@ -156,7 +156,7 @@ Critical / must-fix-before-prod:
 ### Tier 5 — What to remove / simplify
 1. **`audio_call`** — WebRTC signaling relay is complex; consider replacing with a hosted solution (LiveKit, Daily, Twilio) unless audio-calling is a core differentiator.
 2. **`osm-index` committed artifacts** — already removed in this audit; the index should be built at deploy time, not committed.
-3. **`zeroclaw.config.json`** — verify it doesn't contain secrets; if not, leave it; if so, move to env.
+3. **`nullclaw.config.json`** — verify it doesn't contain secrets; if not, leave it; if so, move to env.
 4. **`store_macros`** — keep, but add a `#[cfg(test)]` regression test that exercises the macro on `Result<Option<T>>` to ensure non-retryable `None` doesn't infinite-loop.
 5. **`scripts/fix-unused-imports.py`** — this looks like one-off tech debt; remove if no longer needed.
 6. **`app.db`** — already gitignored in this audit; should also add a `git filter-repo` step in your security playbook to scrub history.
@@ -176,7 +176,7 @@ The following were verified by re-reading the code (full cargo build + test pend
 - [x] `PaymentService` callers use `confirm_as_system` (server-side, no BOLA check)
 - [x] `ChatService::assert_channel_access` enforces owner-or-employee
 - [x] `routes/chat.rs` `list_messages` / `post_message` / `mark_read` call `assert_channel_access`
-- [x] `routes/zeroclaw.rs` `list_exchanges` requires `AdminUser` + `admin:zeroclaw:read`
+- [x] `routes/nullclaw.rs` `list_exchanges` requires `AdminUser` + `admin:nullclaw:read`
 - [x] `routes/bookings.rs` `cancel` / `confirm` / `hold` pass the real `uid`
 - [x] `ws/handler.rs` `ws_upgrade` calls `check_ws_origin` first
 - [x] `audio_call/handler.rs` `ws_upgrade` calls `check_ws_origin` first

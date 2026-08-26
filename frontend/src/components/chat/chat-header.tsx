@@ -53,7 +53,7 @@ export function ChatHeader({
         <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 relative">
           <Headset className="h-5 w-5" />
           {/* Always-on "active" pulse — customer always sees an agent is
-              available (ZeroClaw AI replies instantly if no human is online). */}
+              available (NullClaw AI replies instantly if no human is online). */}
           <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-rose-600 animate-pulse" />
         </div>
         <div className="min-w-0">

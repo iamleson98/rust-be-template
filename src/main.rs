@@ -11,7 +11,7 @@ async fn main() -> anyhow::Result<()> {
 /// Install a panic hook that emits a structured `tracing::error!` event
 /// (with backtrace + payload) before delegating to the default panic
 /// printer. Without this, panics in spawned tasks (WS write pumps,
-/// ZeroClaw handlers, audio-call) are invisible to log aggregators like
+/// NullClaw handlers, audio-call) are invisible to log aggregators like
 /// Loki/journald that only consume structured log lines.
 fn install_panic_hook() {
     let orig = std::panic::take_hook();

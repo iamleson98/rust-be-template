@@ -37,7 +37,7 @@ import {
   listMessages,
   sendMessage,
   markRead,
-  zeroclawStatus,
+  nullclawStatus,
 } from '../helpers/chat.js';
 
 export const options = {
@@ -61,8 +61,8 @@ export const options = {
 const vuRegistered = new Map();
 
 export function setup() {
-  // Shared setup — just verify the server is up + ZeroClaw is reachable.
-  zeroclawStatus();
+  // Shared setup — just verify the server is up + NullClaw is reachable.
+  nullclawStatus();
   return { started: Date.now() };
 }
 

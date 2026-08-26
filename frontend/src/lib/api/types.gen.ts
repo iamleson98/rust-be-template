@@ -1342,7 +1342,7 @@ export type RouteOut = {
  *
  * `actor_type` is `"user"` for customers and `"employee"` for staff. The
  * distinction matters for the chat / call hubs (only employees may register
- * as agents) and for zeroclaw (human-fallback threshold counts online
+ * as agents) and for nullclaw (human-fallback threshold counts online
  * employees).
  */
 export type SessionUser = {
@@ -1757,17 +1757,17 @@ export type WishlistListResponse = {
 };
 
 /**
- * Response of `GET /api/zeroclaw/exchanges`.
+ * Response of `GET /api/nullclaw/exchanges`.
  */
-export type ZeroclawExchangeListResponse = {
-    items: Array<ZeroclawExchangeOut>;
+export type NullclawExchangeListResponse = {
+    items: Array<NullclawExchangeOut>;
 };
 
 /**
- * A single ZeroClaw exchange row — the prompt + completion pair, with
+ * A single NullClaw exchange row — the prompt + completion pair, with
  * metadata (model used, latency, handoff flag).
  */
-export type ZeroclawExchangeOut = {
+export type NullclawExchangeOut = {
     assistantMessageId?: string | null;
     channelId?: string | null;
     completion?: string | null;
@@ -1781,9 +1781,9 @@ export type ZeroclawExchangeOut = {
 };
 
 /**
- * Response of `GET /api/zeroclaw/status`.
+ * Response of `GET /api/nullclaw/status`.
  */
-export type ZeroclawStatusResponse = {
+export type NullclawStatusResponse = {
     enabled: boolean;
     /**
      * Provider name (e.g. "http" or "stub").
@@ -4477,14 +4477,14 @@ export type ListExchangesData = {
         limit?: number;
         offset?: number;
     };
-    url: '/api/zeroclaw/exchanges';
+    url: '/api/nullclaw/exchanges';
 };
 
 export type ListExchangesResponses = {
     /**
      * Exchange list
      */
-    200: ZeroclawExchangeListResponse;
+    200: NullclawExchangeListResponse;
 };
 
 export type ListExchangesResponse = ListExchangesResponses[keyof ListExchangesResponses];
@@ -4493,14 +4493,14 @@ export type StatusData = {
     body?: never;
     path?: never;
     query?: never;
-    url: '/api/zeroclaw/status';
+    url: '/api/nullclaw/status';
 };
 
 export type StatusResponses = {
     /**
-     * ZeroClaw status
+     * NullClaw status
      */
-    200: ZeroclawStatusResponse;
+    200: NullclawStatusResponse;
 };
 
 export type StatusResponse = StatusResponses[keyof StatusResponses];

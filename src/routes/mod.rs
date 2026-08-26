@@ -24,4 +24,4 @@ pub mod system;
 mod users;
 mod vitals;
 mod wishlist;
-mod zeroclaw;
+mod nullclaw;

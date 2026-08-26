@@ -11,7 +11,7 @@
  *   - At what VU count does the error rate exceed 5%?
  *   - Does the rate limiter (600 RPM / 100 burst) kick in?
  *   - Does the DB connection pool exhaust?
- *   - Does ZeroClaw (if enabled) time out under load?
+ *   - Does NullClaw (if enabled) time out under load?
  *
  * ## How to interpret results
  *

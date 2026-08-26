@@ -776,14 +776,14 @@ export const toggle = <ThrowOnError extends boolean = false>(options: Options<To
 export const remove3 = <ThrowOnError extends boolean = false>(options: Options<Remove3Data, ThrowOnError>): RequestResult<Remove3Responses, Remove3Errors, ThrowOnError> => (options.client ?? client).delete<Remove3Responses, Remove3Errors, ThrowOnError>({ url: '/api/wishlist/{id}', ...options });
 
 /**
- * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
+ * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
  */
-export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, unknown, ThrowOnError>({ url: '/api/zeroclaw/exchanges', ...options });
+export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/exchanges', ...options });
 
 /**
- * `GET /api/zeroclaw/status` — get ZeroClaw provider status.
+ * `GET /api/nullclaw/status` — get NullClaw provider status.
  */
-export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/zeroclaw/status', ...options });
+export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/status', ...options });
 
 /**
  * `GET /health` — liveness probe. Always returns 200 (process is up).
