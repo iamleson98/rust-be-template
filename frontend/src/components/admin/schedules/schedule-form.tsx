@@ -175,7 +175,11 @@ export function ScheduleFormDialog({
       if (isEdit) {
         payload.id = schedule!.id
       }
-      await upsertMutation.mutateAsync(payload as any)
+      // SDK mutation hooks require { body: <payload> } — passing the raw
+      // payload makes `opts.body === undefined`, which causes the openapi-ts
+      // client to delete `Content-Type: application/json` before sending,
+      // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
+      await upsertMutation.mutateAsync({ body: payload } as any)
       toast.success(isEdit ? 'Đã cập nhật lịch trình' : 'Đã thêm lịch trình mới')
       onSaved()
     } catch (e: any) {

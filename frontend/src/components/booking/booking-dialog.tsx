@@ -369,20 +369,28 @@ export function BookingDialog() {
     contactPhoneRef.current = normalizePhone(values.contactPhone)
     contactNameRef.current = values.contactName
     setSubmitting(true)
+    // SDK mutation hooks require { body: <payload> } — passing the raw
+    // payload makes `opts.body === undefined`, which causes the openapi-ts
+    // client to delete `Content-Type: application/json` before sending,
+    // and axum's `Json<HoldReq>` extractor then returns 415 Unsupported
+    // Media Type. This is the customer-facing booking flow — the bug
+    // blocked all seat-hold submissions from the search results page.
     holdMut.mutate({
-      tripId: bookingContext.tripId,
-      seatIds: bookingContext.seatIds,
-      passengers: values.passengers.map((p) => ({
-        name: p.name,
-        type: getPassengerType(p.age),
-        age: p.age,
-      })),
-      boardingPointId: bookingContext.boardingPointId,
-      droppingPointId: bookingContext.droppingPointId,
-      contactName: values.contactName,
-      contactPhone: normalizePhone(values.contactPhone),
-      contactEmail: values.contactEmail || undefined,
-      campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+      body: {
+        tripId: bookingContext.tripId,
+        seatIds: bookingContext.seatIds,
+        passengers: values.passengers.map((p) => ({
+          name: p.name,
+          type: getPassengerType(p.age),
+          age: p.age,
+        })),
+        boardingPointId: bookingContext.boardingPointId,
+        droppingPointId: bookingContext.droppingPointId,
+        contactName: values.contactName,
+        contactPhone: normalizePhone(values.contactPhone),
+        contactEmail: values.contactEmail || undefined,
+        campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
+      },
     } as any)
   }
 
