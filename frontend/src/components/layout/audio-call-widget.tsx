@@ -61,6 +61,7 @@ export function AudioCallWidget() {
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
+  const [agentInCall, setAgentInCall] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
@@ -173,11 +174,15 @@ export function AudioCallWidget() {
         stopRingRef.current = null
       }
     })
-    client.on('presence', ({ onlineAgents }: { onlineAgents: number }) => setOnlineAgents(onlineAgents))
+    client.on('presence', ({ onlineAgents, agentInCall }: { onlineAgents: number; agentInCall?: boolean }) => {
+      setOnlineAgents(onlineAgents)
+      setAgentInCall(agentInCall ?? false)
+    })
     // When the signaling WS closes (agent logged out, network drop),
     // reset onlineAgents to 0 so the call button disables immediately.
     client.on('_close', () => {
       setOnlineAgents(0)
+      setAgentInCall(false)
     })
     client.on('incoming', ({ from, sdp }: { from: string; sdp: any }) => {
       setIncomingFrom({ from, sdp })
@@ -309,7 +314,9 @@ export function AudioCallWidget() {
         ? 'Đang gọi...'
         : 'Sẵn sàng nhận cuộc gọi'
     : agentsOnline
-      ? 'Nhân viên đang online'
+      ? agentInCall
+        ? 'Nhân viên đang bận'
+        : 'Nhân viên đang online'
       : 'Nhân viên đang ngoại tuyến'
 
   return (
@@ -327,9 +334,12 @@ export function AudioCallWidget() {
           className={cn(
             'fixed z-40 right-4 md:right-6 flex items-center justify-center',
             'h-12 w-12 rounded-full',
-            'bg-emerald-600 hover:bg-emerald-700 text-white',
+            agentInCall
+              ? 'bg-amber-600 hover:bg-amber-700 border-amber-400/30'
+              : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-400/30',
+            'text-white',
             'transition-all hover:scale-105 active:scale-95',
-            'border border-emerald-400/30',
+            'border',
             // Sit above the chat FAB (which is at bottom-24) — 56px above.
             chatOpen ? 'bottom-36 md:bottom-36' : 'bottom-24 md:bottom-24',
             // Safe area on iOS.
@@ -342,8 +352,11 @@ export function AudioCallWidget() {
           {state === 'incoming' && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white animate-ping" />
           )}
-          {onlineAgents > 0 && !isAgent && state !== 'incoming' && (
+          {onlineAgents > 0 && !isAgent && state !== 'incoming' && !agentInCall && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse" />
+          )}
+          {onlineAgents > 0 && !isAgent && agentInCall && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white" />
           )}
         </button>
       )}
@@ -367,7 +380,7 @@ export function AudioCallWidget() {
             <div className="flex items-center gap-2">
               <div className={cn(
                 'h-2 w-2 rounded-full',
-                onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
+                agentInCall ? 'bg-amber-500' : onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
               )} />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                 {isAgent ? 'Đại diện hỗ trợ' : 'Gọi hỗ trợ'}
@@ -396,7 +409,9 @@ export function AudioCallWidget() {
               <div className="text-zinc-600 dark:text-zinc-300 text-sm">
                 {isAgent
                   ? 'Bạn sẽ nhận được cuộc gọi khi khách hàng cần hỗ trợ.'
-                  : onlineAgents > 0
+                  : agentInCall
+                    ? 'Nhân viên đang trong cuộc gọi khác. Vui lòng thử lại sau.'
+                    : onlineAgents > 0
                     ? 'Nhấn để gọi nhân viên hỗ trợ.'
                     : 'Hiện không có nhân viên online. Vui lòng thử lại sau.'}
               </div>
@@ -448,7 +463,17 @@ export function AudioCallWidget() {
 
           {/* Actions */}
           <div className="flex items-center justify-center gap-3">
-            {state === 'idle' && !isAgent && (
+            {state === 'idle' && !isAgent && agentInCall && (
+              <div className="flex flex-col items-center gap-2 py-2">
+                <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                  Nhân viên đang bận
+                </div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Vui lòng thử lại sau hoặc gửi tin nhắn.
+                </div>
+              </div>
+            )}
+            {state === 'idle' && !isAgent && !agentInCall && (
               <Button
                 onClick={startCall}
                 disabled={onlineAgents === 0}
