@@ -40,6 +40,8 @@ pub enum Relation {
     ChatChannelMember,
     #[sea_orm(has_many = "super::chat_message::Entity")]
     ChatMessage,
+    #[sea_orm(has_many = "super::null_claw_exchange::Entity")]
+    NullClawExchange,
     #[sea_orm(
         belongs_to = "super::user::Entity",
         from = "Column::UserId",
@@ -48,8 +50,6 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     User,
-    #[sea_orm(has_many = "super::null_claw_exchange::Entity")]
-    NullClawExchange,
 }
 
 impl Related<super::brand::Entity> for Entity {
@@ -76,15 +76,15 @@ impl Related<super::chat_message::Entity> for Entity {
     }
 }
 
-impl Related<super::user::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::User.def()
-    }
-}
-
 impl Related<super::null_claw_exchange::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::NullClawExchange.def()
+    }
+}
+
+impl Related<super::user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::User.def()
     }
 }
 

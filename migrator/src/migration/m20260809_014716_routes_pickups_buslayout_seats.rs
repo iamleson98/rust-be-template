@@ -13,8 +13,6 @@ pub enum Route {
     Name,
     StartLocationId,
     EndLocationId,
-    DistanceKm,
-    DurationMin,
     Status,
     CreatedAt,
     UpdatedAt,
@@ -76,8 +74,6 @@ impl MigrationTrait for Migration {
                     .col(string_len(Route::Name, 255))
                     .col(uuid_null(Route::StartLocationId))
                     .col(uuid_null(Route::EndLocationId))
-                    .col(double_null(Route::DistanceKm))
-                    .col(small_integer_null(Route::DurationMin))
                     .col(string_len(Route::Status, 30).default("active"))
                     .col(text(Route::CreatedAt))
                     .col(text(Route::UpdatedAt))
