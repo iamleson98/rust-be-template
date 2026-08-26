@@ -593,7 +593,7 @@ async fn handle_message(
             .and_then(|c| c.brand_id);
 
         let online = hub().count_online_employees(brand_id.map(|id| id.to_string()).as_deref());
-        let fallback_threshold = st.config.zeroclaw.fallback_online_employees;
+        let fallback_threshold = st.config.nullclaw.fallback_online_employees;
 
         let chats = st.chats.clone();
         let channel_id2 = channel_id.clone();
@@ -610,21 +610,21 @@ async fn handle_message(
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
-                // Trigger ZeroClaw only when no admin is online. The user
+                // Trigger NullClaw only when no admin is online. The user
                 // spec says "if admin is online, system does not trigger
-                // zeroclaw, just show chat notification so admin see and
+                // nullclaw, just show chat notification so admin see and
                 // go reply user." — the original message was already
                 // broadcast above (admins see the notification).
                 //
                 // We also re-check whether the customer is still in the
                 // room right before triggering. If they navigated away,
                 // there's no point in showing the typing indicator (no
-                // one will see it). We still call ZeroClaw because the
+                // one will see it). We still call NullClaw because the
                 // reply is persisted — the user sees it when they return.
                 let admin_online = online >= fallback_threshold;
-                let will_zeroclaw_reply = !admin_online;
+                let will_nullclaw_reply = !admin_online;
 
-                if will_zeroclaw_reply {
+                if will_nullclaw_reply {
                     // Only show the typing indicator if the user is still
                     // in the channel. This avoids wasted WS writes for
                     // users who have already closed the chat widget.
@@ -639,7 +639,7 @@ async fn handle_message(
                                 "type": "typing",
                                 "channelId": channel_id2,
                                 // Show "Nhân viên hỗ trợ" rather than
-                                // "ZeroClaw AI" — the user spec asks for
+                                // "NullClaw AI" — the user spec asks for
                                 // the typing indicator to look like an
                                 // employee is replying (no AI disclosure
                                 // in the typing pill).
@@ -651,7 +651,7 @@ async fn handle_message(
                 }
 
                 match chats
-                    .maybe_zeroclaw_reply(
+                    .maybe_nullclaw_reply(
                         &channel_id2,
                         brand_id2.as_deref(),
                         &user2,
@@ -673,7 +673,7 @@ async fn handle_message(
                         // (degraded mode).
                         let sender_id = match outcome.bot_user_id {
                             Some(id) => serde_json::Value::from(id.to_string()),
-                            None => serde_json::Value::from("zeroclaw"),
+                            None => serde_json::Value::from("nullclaw"),
                         };
                         let assistant_broadcast = json!({
                             "type": "message",
@@ -681,7 +681,7 @@ async fn handle_message(
                             "channelId": channel_id2,
                             "senderType": "assistant",
                             "senderId": sender_id,
-                            "senderName": crate::zeroclaw::ZEROCLAW_BOT_NAME,
+                            "senderName": crate::nullclaw::NULLCLAW_BOT_NAME,
                             "text": outcome.reply.reply,
                             "createdAt": outcome.created_at,
                             "meta": {
@@ -694,16 +694,16 @@ async fn handle_message(
                     }
                     Ok(None) => {}
                     Err(e) => {
-                        tracing::warn!(error = ?e, channel_id = %channel_id2, "zeroclaw maybe_reply errored");
+                        tracing::warn!(error = ?e, channel_id = %channel_id2, "nullclaw maybe_reply errored");
                     }
                 }
 
-                // Always clear the typing indicator after ZeroClaw
+                // Always clear the typing indicator after NullClaw
                 // finishes (whether it replied, declined, or errored).
                 // Even if the user left, sending the clear is a no-op
                 // (the socket is gone) — better to always clear than to
                 // risk leaving a stale "typing..." pill on the screen.
-                if will_zeroclaw_reply {
+                if will_nullclaw_reply {
                     hub().send_to(
                         sid_for_typing,
                         &json!({

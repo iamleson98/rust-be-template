@@ -31,4 +31,4 @@ pub use super::user::Entity as User;
 pub use super::user_roles::Entity as UserRoles;
 pub use super::user_verification::Entity as UserVerification;
 pub use super::wishlist_item::Entity as WishlistItem;
-pub use super::zero_claw_exchange::Entity as ZeroClawExchange;
+pub use super::null_claw_exchange::Entity as NullClawExchange;

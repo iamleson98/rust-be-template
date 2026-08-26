@@ -388,7 +388,7 @@ impl ChatHub {
     }
 
     /// Check whether a specific user has at least one live socket joined
-    /// to `channel_id`. Used by the ZeroClaw trigger to decide whether
+    /// to `channel_id`. Used by the NullClaw trigger to decide whether
     /// the customer is still waiting on the chat (typing indicator
     /// makes sense) or has navigated away (skip the AI reply).
     pub fn is_user_online_in_channel(&self, channel_id: &str, user_id: &str) -> bool {

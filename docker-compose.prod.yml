@@ -149,20 +149,20 @@ services:
     networks:
       - vexevn-net
 
-  # ── ZeroClaw AI (chat support assistant) ──────────────────────────────
-  zeroclaw:
-    image: ghcr.io/zeroclaw-labs/zeroclaw:latest
+  # ── NullClaw AI (chat support assistant) ──────────────────────────────
+  nullclaw:
+    image: ghcr.io/nullclaw-labs/nullclaw:latest
     restart: unless-stopped
     # Bind only to 127.0.0.1 — never expose this directly to the internet.
     # The backend talks to it over the internal Docker network.
     ports:
       - "127.0.0.1:42617:42617"
     environment:
-      ZEROCLAW_API_KEY: "${ZEROCLAW_API_KEY:?set ZEROCLAW_API_KEY in .env}"
+      NULLCLAW_API_KEY: "${NULLCLAW_API_KEY:?set NULLCLAW_API_KEY in .env}"
       LLM_PROVIDER: "${LLM_PROVIDER:-openai}"
       OPENAI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/"
       OPENAI_API_KEY: "${GEMINI_API_KEY:-}"
-      ZEROCLAW_MODEL: "${ZEROCLAW_MODEL:-gemini-2.0-flash}"
+      NULLCLAW_MODEL: "${NULLCLAW_MODEL:-gemini-2.0-flash}"
     security_opt:
       - no-new-privileges:true
     cap_drop:

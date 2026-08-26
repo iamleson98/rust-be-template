@@ -21,7 +21,7 @@ pub struct Config {
     pub rate_limit: RateLimitConfig,
     pub static_files: StaticFilesConfig,
     pub cors: CorsConfig,
-    pub zeroclaw: ZeroClawConfig,
+    pub nullclaw: NullClawConfig,
     pub audio_call: AudioCallConfig,
     pub search: SearchConfig,
     pub ws: WsConfig,
@@ -388,7 +388,7 @@ impl CorsConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ZeroClawConfig {
+pub struct NullClawConfig {
     pub enabled: bool,
     pub api_url: String,
     pub api_key: String,
@@ -398,21 +398,21 @@ pub struct ZeroClawConfig {
     pub fallback_online_employees: usize,
 }
 
-impl Default for ZeroClawConfig {
+impl Default for NullClawConfig {
     fn default() -> Self {
         Self {
-            enabled: env_parse("ZEROCLAW_ENABLED").unwrap_or(false),
-            api_url: env_var("ZEROCLAW_API_URL").unwrap_or_default(),
-            api_key: env_var("ZEROCLAW_API_KEY").unwrap_or_default(),
-            model: env_var("ZEROCLAW_MODEL").unwrap_or_else(|| "zeroclaw-default".into()),
-            timeout_ms: env_parse("ZEROCLAW_TIMEOUT_MS").unwrap_or(15_000),
-            max_history: env_parse("ZEROCLAW_MAX_HISTORY").unwrap_or(12),
-            fallback_online_employees: env_parse("ZEROCLAW_FALLBACK_ONLINE_EMPLOYEES").unwrap_or(1),
+            enabled: env_parse("NULLCLAW_ENABLED").unwrap_or(false),
+            api_url: env_var("NULLCLAW_API_URL").unwrap_or_default(),
+            api_key: env_var("NULLCLAW_API_KEY").unwrap_or_default(),
+            model: env_var("NULLCLAW_MODEL").unwrap_or_else(|| "nullclaw-default".into()),
+            timeout_ms: env_parse("NULLCLAW_TIMEOUT_MS").unwrap_or(15_000),
+            max_history: env_parse("NULLCLAW_MAX_HISTORY").unwrap_or(12),
+            fallback_online_employees: env_parse("NULLCLAW_FALLBACK_ONLINE_EMPLOYEES").unwrap_or(1),
         }
     }
 }
 
-impl ZeroClawConfig {
+impl NullClawConfig {
     pub fn is_active(&self) -> bool {
         self.enabled && !self.api_url.is_empty() && !self.api_key.is_empty()
     }
@@ -730,7 +730,7 @@ impl Config {
             rate_limit: RateLimitConfig::default(),
             static_files: StaticFilesConfig::default(),
             cors: CorsConfig::default(),
-            zeroclaw: ZeroClawConfig::default(),
+            nullclaw: NullClawConfig::default(),
             audio_call: AudioCallConfig::default(),
             search: SearchConfig::from_env(),
             ws: WsConfig::default(),

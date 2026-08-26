@@ -1,11 +1,11 @@
 {
-  "$schema": "https://zeroclaw.ai/schema/v1/config.json",
+  "$schema": "https://nullclaw.ai/schema/v1/config.json",
   "name": "VeXeVN Support Assistant",
   "description": "AI customer support assistant for the VeXeVN bus ticket booking platform. Handles Vietnamese-language customer queries about bookings, payments, routes, schedules, and general support.",
 
   "model": {
     "provider": "openai-compatible",
-    "name": "${ZEROCLAW_MODEL}",
+    "name": "${NULLCLAW_MODEL}",
     "temperature": 0.3,
     "max_tokens": 500,
     "top_p": 0.9,

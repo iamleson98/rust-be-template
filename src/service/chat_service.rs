@@ -1,5 +1,5 @@
 //! Chat service — business logic for chat channels, messages, and
-//! the ZeroClaw AI assistant.
+//! the NullClaw AI assistant.
 //!
 //! ## Design
 //!
@@ -9,7 +9,7 @@
 //!   layer → store layer.
 //! - **Returns domain models** (`chat_channel::Model`,
 //!   `chat_message::Model`), NOT JSON. The route layer maps to JSON DTOs.
-//! - **ZeroClaw integration lives here.** The `maybe_zeroclaw_reply`
+//! - **NullClaw integration lives here.** The `maybe_nullclaw_reply`
 //!   method wraps the provider trait so the WS handler doesn't need to
 //!   touch the chat store directly.
 //!
@@ -18,9 +18,9 @@
 //! The chat subsystem is shared between three transports:
 //!   * REST routes (`/api/chat/*`) — list channels, post messages (WS
 //!     fallback), mark read.
-//!   * WebSocket hub (`/ws`) — real-time message broadcast + ZeroClaw
+//!   * WebSocket hub (`/ws`) — real-time message broadcast + NullClaw
 //!     AI hook.
-//!   * ZeroClaw audit API (`/api/zeroclaw/exchanges`) — list AI
+//!   * NullClaw audit API (`/api/nullclaw/exchanges`) — list AI
 //!     exchanges for the admin dashboard.
 //!
 //! Without a service layer, each transport would re-implement the same
@@ -35,18 +35,18 @@ use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 use crate::auth::SessionUser;
-use crate::entity::{chat_channel, chat_message, zero_claw_exchange};
+use crate::entity::{chat_channel, chat_message, null_claw_exchange};
 use crate::error::{AppError, AppResult};
 use crate::store::chat::{NewChannelMember, NewChatMessage};
 use crate::store::CompositeStore;
-use crate::zeroclaw::ZEROCLAW_BOT_EMAIL;
+use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 
 /// Chat service. Constructed once at startup with a shared
 /// `Arc<CompositeStore>` and stored as `Arc<ChatService>` on
 /// `AppState`.
 pub struct ChatService {
     store: Arc<CompositeStore>,
-    /// Cached lookup of the ZeroClaw bot user's UUID. Resolved lazily
+    /// Cached lookup of the NullClaw bot user's UUID. Resolved lazily
     /// on first access via `resolve_bot_user_id()`. The bot user is
     /// created at first-user signup time (see `AuthService::register`)
     /// with a runtime-assigned UUID — so we can't hardcode it.
@@ -71,8 +71,8 @@ impl ChatService {
         }
     }
 
-    /// Look up the ZeroClaw bot user's UUID by its well-known email
-    /// (`zeroclaw_agent@example.com`). Cached for the process lifetime
+    /// Look up the NullClaw bot user's UUID by its well-known email
+    /// (`nullclaw_agent@example.com`). Cached for the process lifetime
     /// via `OnceCell` — the lookup runs at most once per boot.
     ///
     /// Returns `None` if the bot user doesn't exist (e.g. signup ran
@@ -86,22 +86,22 @@ impl ChatService {
                 match self
                     .store
                     .user_store()
-                    .get_user_by_email(ZEROCLAW_BOT_EMAIL.to_string())
+                    .get_user_by_email(NULLCLAW_BOT_EMAIL.to_string())
                     .await
                 {
                     Ok(Some(bot)) => Some(bot.id),
                     Ok(None) => {
                         tracing::warn!(
-                            email = ZEROCLAW_BOT_EMAIL,
-                            "ZeroClaw bot user not found — channel member row + AI sender_id will be skipped. Run signup to create the bot user."
+                            email = NULLCLAW_BOT_EMAIL,
+                            "NullClaw bot user not found — channel member row + AI sender_id will be skipped. Run signup to create the bot user."
                         );
                         None
                     }
                     Err(e) => {
                         tracing::warn!(
-                            email = ZEROCLAW_BOT_EMAIL,
+                            email = NULLCLAW_BOT_EMAIL,
                             error = %e,
-                            "failed to look up ZeroClaw bot user — falling back to None"
+                            "failed to look up NullClaw bot user — falling back to None"
                         );
                         None
                     }
@@ -252,12 +252,12 @@ impl ChatService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // ── Auto-join members: customer + ZeroClaw bot + admin ──────
+        // ── Auto-join members: customer + NullClaw bot + admin ──────
         //
         // On channel creation we add THREE membership rows:
         //   1. The customer (role="user") — the participant who started
         //      the conversation.
-        //   2. The ZeroClaw bot (role="bot") — the AI assistant. The
+        //   2. The NullClaw bot (role="bot") — the AI assistant. The
         //      bot doesn't have a WS socket; this row is for roster /
         //      audit purposes.
         //   3. The admin employee (role="employee") — the first non-bot
@@ -292,7 +292,7 @@ impl ChatService {
             );
         }
 
-        // 2. ZeroClaw bot (resolved by email — the bot user is created
+        // 2. NullClaw bot (resolved by email — the bot user is created
         //    at first-user signup time, not by a migration seed).
         if let Some(bot_id) = self.resolve_bot_user_id().await {
             if let Err(e) = self
@@ -309,14 +309,14 @@ impl ChatService {
                     channel_id = %channel_id_v4,
                     bot_id = %bot_id,
                     error = %e,
-                    "failed to add ZeroClaw bot as channel member (continuing)"
+                    "failed to add NullClaw bot as channel member (continuing)"
                 );
             }
         }
 
         // 3. Admin employee — the first non-bot user with role="employee".
         //    This is the human admin who signed up first (created by
-        //    `AuthService::register` before the ZeroClaw bot user).
+        //    `AuthService::register` before the NullClaw bot user).
         if let Some(admin_id) = self.resolve_admin_employee_id().await {
             if let Err(e) = self
                 .store
@@ -349,7 +349,7 @@ impl ChatService {
             .map_err(|e| AppError::Internal(e.to_string()))
     }
 
-    /// Fetch a channel by id (used by the ZeroClaw hook to get the
+    /// Fetch a channel by id (used by the NullClaw hook to get the
     /// `brand_id` for fallback-threshold counting).
     pub async fn get_channel(&self, channel_id: &str) -> AppResult<Option<chat_channel::Model>> {
         self.store
@@ -450,16 +450,16 @@ impl ChatService {
         Ok(())
     }
 
-    // ── ZeroClaw ────────────────────────────────────────────────
+    // ── NullClaw ────────────────────────────────────────────────
 
-    /// Try to generate a ZeroClaw AI reply for a user message. Returns
+    /// Try to generate a NullClaw AI reply for a user message. Returns
     /// `Ok(Some(outcome))` if the AI replied (the caller broadcasts it),
-    /// `Ok(None)` if ZeroClaw declined (humans online, disabled, etc.).
+    /// `Ok(None)` if NullClaw declined (humans online, disabled, etc.).
     ///
-    /// This is the ONLY public entry point for ZeroClaw — the WS handler
+    /// This is the ONLY public entry point for NullClaw — the WS handler
     /// calls this instead of touching the chat store directly.
     #[allow(clippy::too_many_arguments)]
-    pub async fn maybe_zeroclaw_reply(
+    pub async fn maybe_nullclaw_reply(
         &self,
         channel_id: &str,
         brand_id: Option<&str>,
@@ -468,8 +468,8 @@ impl ChatService {
         user_text: &str,
         online_employees: usize,
         fallback_threshold: usize,
-    ) -> AppResult<Option<crate::zeroclaw::ZeroClawOutcome>> {
-        let provider = crate::zeroclaw::provider();
+    ) -> AppResult<Option<crate::nullclaw::NullClawOutcome>> {
+        let provider = crate::nullclaw::provider();
         if !provider.is_enabled() {
             return Ok(None);
         }
@@ -492,15 +492,15 @@ impl ChatService {
             .await
     }
 
-    /// List ZeroClaw audit exchanges (admin dashboard).
-    pub async fn list_zeroclaw_exchanges(
+    /// List NullClaw audit exchanges (admin dashboard).
+    pub async fn list_nullclaw_exchanges(
         &self,
         limit: u64,
         offset: u64,
-    ) -> AppResult<Vec<zero_claw_exchange::Model>> {
+    ) -> AppResult<Vec<null_claw_exchange::Model>> {
         self.store
             .chat_store()
-            .list_zeroclaw_exchanges(limit.min(200), offset)
+            .list_nullclaw_exchanges(limit.min(200), offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))
     }

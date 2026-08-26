@@ -15,7 +15,7 @@
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{BookingStore, DbBookingStore};
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
-pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewZeroClawExchange};
+pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
 pub use self::notification::{DbNotificationStore, NotificationStore};

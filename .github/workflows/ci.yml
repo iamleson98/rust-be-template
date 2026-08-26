@@ -71,7 +71,7 @@ jobs:
           WORKER_BACKEND: db
           SEARCH_INDEX_DIR: ""
           AUDIO_CALL_ENABLED: "false"
-          ZEROCLAW_ENABLED: "false"
+          NULLCLAW_ENABLED: "false"
           VNPAY_ENABLED: "false"
           MOMO_ENABLED: "false"
           ZALOPAY_ENABLED: "false"

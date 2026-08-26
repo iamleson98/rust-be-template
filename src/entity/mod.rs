@@ -33,4 +33,4 @@ pub mod user;
 pub mod user_roles;
 pub mod user_verification;
 pub mod wishlist_item;
-pub mod zero_claw_exchange;
+pub mod null_claw_exchange;

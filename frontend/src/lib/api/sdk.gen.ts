@@ -817,21 +817,14 @@ export const toggle = <ThrowOnError extends boolean = false>(options: Options<To
 export const remove3 = <ThrowOnError extends boolean = false>(options: Options<Remove3Data, ThrowOnError>): RequestResult<Remove3Responses, Remove3Errors, ThrowOnError> => (options.client ?? client).delete<Remove3Responses, Remove3Errors, ThrowOnError>({ url: '/api/wishlist/{id}', ...options });
 
 /**
- * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
- *
- * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
- * (any employee/support role). The exchanges contain the customer's
- * original prompt + the AI's completion, which may include PII such
- * as phone numbers, booking codes, and travel plans. Exposing them
- * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
- * Excessive Data Exposure).
+ * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
  */
-export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, ListExchangesErrors, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, ListExchangesErrors, ThrowOnError>({ url: '/api/zeroclaw/exchanges', ...options });
+export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/exchanges', ...options });
 
 /**
- * `GET /api/zeroclaw/status` — get ZeroClaw provider status.
+ * `GET /api/nullclaw/status` — get NullClaw provider status.
  */
-export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/zeroclaw/status', ...options });
+export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/status', ...options });
 
 /**
  * `GET /health` — liveness probe. Always returns 200 (process is up).

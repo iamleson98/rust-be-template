@@ -48,8 +48,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     User,
-    #[sea_orm(has_many = "super::zero_claw_exchange::Entity")]
-    ZeroClawExchange,
+    #[sea_orm(has_many = "super::null_claw_exchange::Entity")]
+    NullClawExchange,
 }
 
 impl Related<super::brand::Entity> for Entity {
@@ -82,9 +82,9 @@ impl Related<super::user::Entity> for Entity {
     }
 }
 
-impl Related<super::zero_claw_exchange::Entity> for Entity {
+impl Related<super::null_claw_exchange::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::ZeroClawExchange.def()
+        Relation::NullClawExchange.def()
     }
 }
 

@@ -2249,14 +2249,7 @@ export const remove3Mutation = (options?: Partial<Options<Remove3Data>>): UseMut
 export const listExchangesQueryKey = (options?: Options<ListExchangesData>) => createQueryKey('listExchanges', options);
 
 /**
- * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
- *
- * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
- * (any employee/support role). The exchanges contain the customer's
- * original prompt + the AI's completion, which may include PII such
- * as phone numbers, booking codes, and travel plans. Exposing them
- * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
- * Excessive Data Exposure).
+ * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
  */
 export const listExchangesOptions = (options?: Options<ListExchangesData>) => queryOptions<ListExchangesResponse, DefaultError, ListExchangesResponse, ReturnType<typeof listExchangesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2274,14 +2267,7 @@ export const listExchangesOptions = (options?: Options<ListExchangesData>) => qu
 export const listExchangesInfiniteQueryKey = (options?: Options<ListExchangesData>): QueryKey<Options<ListExchangesData>> => createQueryKey('listExchanges', options, true);
 
 /**
- * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
- *
- * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
- * (any employee/support role). The exchanges contain the customer's
- * original prompt + the AI's completion, which may include PII such
- * as phone numbers, booking codes, and travel plans. Exposing them
- * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
- * Excessive Data Exposure).
+ * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
  */
 export const listExchangesInfiniteOptions = (options?: Options<ListExchangesData>) => {
     const opts = infiniteQueryOptions<ListExchangesResponse, DefaultError, InfiniteData<ListExchangesResponse>, QueryKey<Options<ListExchangesData>>, number | Pick<QueryKey<Options<ListExchangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2311,7 +2297,7 @@ export const listExchangesInfiniteOptions = (options?: Options<ListExchangesData
 export const statusQueryKey = (options?: Options<StatusData>) => createQueryKey('status', options);
 
 /**
- * `GET /api/zeroclaw/status` — get ZeroClaw provider status.
+ * `GET /api/nullclaw/status` — get NullClaw provider status.
  */
 export const statusOptions = (options?: Options<StatusData>) => queryOptions<StatusResponse, DefaultError, StatusResponse, ReturnType<typeof statusQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

@@ -1,9 +1,9 @@
-//! ZeroClaw AI customer-support assistant — integration harness.
+//! NullClaw AI customer-support assistant — integration harness.
 //!
 //! ## Purpose
 //!
 //! When a customer opens the support chat and no human agent is online (or
-//! the queue is busy), ZeroClaw can reply on behalf of the brand. It learns
+//! the queue is busy), NullClaw can reply on behalf of the brand. It learns
 //! from the brand's data (FAQ, booking policies, route info) and answers
 //! common questions instantly — like a domain-specific chatbot.
 //!
@@ -11,23 +11,23 @@
 //!
 //! This module defines a **provider trait** so the AI backend is pluggable:
 //!
-//!   * [`NoopZeroClawProvider`] — default. Always returns `None`, meaning
-//!     "ZeroClaw not configured / let a human handle it". Zero overhead.
+//!   * [`NoopNullClawProvider`] — default. Always returns `None`, meaning
+//!     "NullClaw not configured / let a human handle it". Zero overhead.
 //!
-//!   * [`HttpZeroClawProvider`] — calls an external ZeroClaw HTTP endpoint
-//!     (set via `ZEROCLAW_API_URL` + `ZEROCLAW_API_KEY`).
+//!   * [`HttpNullClawProvider`] — calls an external NullClaw HTTP endpoint
+//!     (set via `NULLCLAW_API_URL` + `NULLCLAW_API_KEY`).
 //!
 //! ## Hook point
 //!
-//! `ws/handler.rs::handle_message` calls [`ZeroClawProvider::maybe_reply`]
+//! `ws/handler.rs::handle_message` calls [`NullClawProvider::maybe_reply`]
 //! after a user message is broadcast. If the provider returns a reply, it's
 //! inserted into `ChatMessage` with `senderType = 'assistant'` and broadcast
-//! to the room. An entry is also written to `ZeroClawExchange` for audit
+//! to the room. An entry is also written to `NullClawExchange` for audit
 //! and future training.
 //!
 //! ## Adaptation notes
 //!
-//! Ported from `booking-rs/logic/zeroclaw`. The original used raw `sqlx`
+//! Ported from `booking-rs/logic/nullclaw`. The original used raw `sqlx`
 //! against the `Pool`; this version takes a [`ChatStore`] trait object so
 //! it fits the template's layered store architecture (no DB access in the
 //! service/provider layer).
@@ -40,13 +40,13 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::auth::SessionUser;
-use crate::config::ZeroClawConfig;
+use crate::config::NullClawConfig;
 use crate::error::AppError;
-use crate::store::chat::{ChatStore, NewChatMessage, NewZeroClawExchange};
+use crate::store::chat::{ChatStore, NewChatMessage, NewNullClawExchange};
 
-// ── ZeroClaw bot identity ──────────────────────────────────────
+// ── NullClaw bot identity ──────────────────────────────────────
 //
-// The ZeroClaw bot is created at FIRST-USER SIGNUP time by
+// The NullClaw bot is created at FIRST-USER SIGNUP time by
 // `AuthService::register` (see `src/service/auth_service.rs`) —
 // NOT by a migration seed. This means the bot's UUID is assigned
 // at runtime by `Uuid::new_v4()` and is therefore different per
@@ -61,30 +61,30 @@ use crate::store::chat::{ChatStore, NewChatMessage, NewZeroClawExchange};
 // `sender_id` falls back to `None` and the bot member row is
 // skipped (but the channel still works).
 
-/// The well-known email of the ZeroClaw bot user. Created by
+/// The well-known email of the NullClaw bot user. Created by
 /// `AuthService::register` when the first human user signs up.
 /// Changing this constant requires deleting the old bot user row
 /// + re-running signup, so don't change it without a migration.
-pub const ZEROCLAW_BOT_EMAIL: &str = "zeroclaw_agent@example.com";
+pub const NULLCLAW_BOT_EMAIL: &str = "nullclaw_agent@example.com";
 
 /// Display name used in WS broadcasts + chat messages. This is the
-/// name customers see when ZeroClaw replies (e.g. "ZeroClaw AI").
+/// name customers see when NullClaw replies (e.g. "NullClaw AI").
 /// The bot's `user.full_name` may differ (it's set to
-/// `"zeroclaw_agent"` by `AuthService::register`), so we use this
+/// `"nullclaw_agent"` by `AuthService::register`), so we use this
 /// constant for the customer-facing display name.
-pub const ZEROCLAW_BOT_NAME: &str = "ZeroClaw AI";
+pub const NULLCLAW_BOT_NAME: &str = "NullClaw AI";
 
-/// Conversation turn sent to ZeroClaw. `role` ∈ {`user`, `assistant`}.
+/// Conversation turn sent to NullClaw. `role` ∈ {`user`, `assistant`}.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationTurn {
     pub role: String,
     pub text: String,
 }
 
-/// Request body sent to ZeroClaw.
+/// Request body sent to NullClaw.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ZeroClawRequest {
+pub struct NullClawRequest {
     pub channel_id: Uuid,
     pub brand_id: Option<Uuid>,
     pub user_id: Uuid,
@@ -93,10 +93,10 @@ pub struct ZeroClawRequest {
     pub locale: String,
 }
 
-/// Reply from ZeroClaw.
+/// Reply from NullClaw.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ZeroClawReply {
+pub struct NullClawReply {
     pub reply: String,
     /// 0.0–1.0. Below ~0.6 we typically hand off to a human.
     #[serde(default)]
@@ -111,13 +111,13 @@ pub struct ZeroClawReply {
 }
 
 fn default_model() -> String {
-    "zeroclaw-v1".into()
+    "nullclaw-v1".into()
 }
 
 /// Outcome of a `maybe_reply` call.
 #[derive(Debug, Clone)]
-pub struct ZeroClawOutcome {
-    pub reply: ZeroClawReply,
+pub struct NullClawOutcome {
+    pub reply: NullClawReply,
     /// ID of the `ChatMessage` row we inserted (senderType='assistant').
     pub assistant_message_id: String,
     /// ISO timestamp of the assistant message.
@@ -131,26 +131,26 @@ pub struct ZeroClawOutcome {
     pub bot_user_id: Option<Uuid>,
 }
 
-/// Pluggable ZeroClaw provider. The default is [`NoopZeroClawProvider`];
-/// when `ZEROCLAW_ENABLED=true` + `ZEROCLAW_API_URL` is set, the boot code
-/// swaps in [`HttpZeroClawProvider`].
+/// Pluggable NullClaw provider. The default is [`NoopNullClawProvider`];
+/// when `NULLCLAW_ENABLED=true` + `NULLCLAW_API_URL` is set, the boot code
+/// swaps in [`HttpNullClawProvider`].
 #[async_trait]
-pub trait ZeroClawProvider: Send + Sync {
-    /// Return the provider's display name (for logging + /api/zeroclaw/status).
+pub trait NullClawProvider: Send + Sync {
+    /// Return the provider's display name (for logging + /api/nullclaw/status).
     fn name(&self) -> &'static str;
 
-    /// True if this provider is configured to actually call ZeroClaw.
+    /// True if this provider is configured to actually call NullClaw.
     fn is_enabled(&self) -> bool;
 
     /// Try to generate a reply for the given conversation.
     ///
     /// Returns:
-    ///   * `Ok(Some(outcome))` — ZeroClaw replied; caller broadcasts it.
-    ///   * `Ok(None)` — ZeroClaw declined (low confidence, not enabled,
+    ///   * `Ok(Some(outcome))` — NullClaw replied; caller broadcasts it.
+    ///   * `Ok(None)` — NullClaw declined (low confidence, not enabled,
     ///     online employees available, etc.). Caller does nothing.
     ///   * `Err(_)` — store error. Caller logs and does nothing (the
     ///     customer's original message is still delivered; we never fail
-    ///     the chat because ZeroClaw errored).
+    ///     the chat because NullClaw errored).
     #[allow(clippy::too_many_arguments)]
     async fn maybe_reply(
         &self,
@@ -163,24 +163,24 @@ pub trait ZeroClawProvider: Send + Sync {
         online_employees: usize,
         fallback_threshold: usize,
         bot_user_id: Option<Uuid>,
-    ) -> Result<Option<ZeroClawOutcome>, AppError>;
+    ) -> Result<Option<NullClawOutcome>, AppError>;
 }
 
-// ── Noop provider (default — ZeroClaw disabled) ────────────────
+// ── Noop provider (default — NullClaw disabled) ────────────────
 //
-// The default provider when no external ZeroClaw HTTP endpoint is
+// The default provider when no external NullClaw HTTP endpoint is
 // configured. Always returns `None` — the customer's message is
 // still delivered, but no AI reply is generated. A human employee
 // (when online) will respond.
 //
-// At deploy time, set `ZEROCLAW_ENABLED=true` + `ZEROCLAW_API_URL` +
-// `ZEROCLAW_API_KEY` to switch to [`HttpZeroClawProvider`], which
-// calls the actual ZeroClaw LLM endpoint.
+// At deploy time, set `NULLCLAW_ENABLED=true` + `NULLCLAW_API_URL` +
+// `NULLCLAW_API_KEY` to switch to [`HttpNullClawProvider`], which
+// calls the actual NullClaw LLM endpoint.
 
-pub struct NoopZeroClawProvider;
+pub struct NoopNullClawProvider;
 
 #[async_trait]
-impl ZeroClawProvider for NoopZeroClawProvider {
+impl NullClawProvider for NoopNullClawProvider {
     fn name(&self) -> &'static str {
         "noop"
     }
@@ -199,14 +199,14 @@ impl ZeroClawProvider for NoopZeroClawProvider {
         _online_employees: usize,
         _fallback_threshold: usize,
         _bot_user_id: Option<Uuid>,
-    ) -> Result<Option<ZeroClawOutcome>, AppError> {
+    ) -> Result<Option<NullClawOutcome>, AppError> {
         Ok(None)
     }
 }
 
 // ── HTTP provider ───────────────────────────────────────────────
 
-pub struct HttpZeroClawProvider {
+pub struct HttpNullClawProvider {
     pub api_url: String,
     pub api_key: String,
     pub model: String,
@@ -215,7 +215,7 @@ pub struct HttpZeroClawProvider {
     pub client: reqwest::Client,
 }
 
-impl HttpZeroClawProvider {
+impl HttpNullClawProvider {
     pub fn new(
         api_url: String,
         api_key: String,
@@ -239,7 +239,7 @@ impl HttpZeroClawProvider {
 }
 
 #[async_trait]
-impl ZeroClawProvider for HttpZeroClawProvider {
+impl NullClawProvider for HttpNullClawProvider {
     fn name(&self) -> &'static str {
         "http"
     }
@@ -258,14 +258,14 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         online_employees: usize,
         fallback_threshold: usize,
         bot_user_id: Option<Uuid>,
-    ) -> Result<Option<ZeroClawOutcome>, AppError> {
+    ) -> Result<Option<NullClawOutcome>, AppError> {
         // 1. If humans are available, let them handle it.
         if online_employees >= fallback_threshold {
             tracing::debug!(
                 channel_id,
                 online_employees,
                 fallback_threshold,
-                "zeroclaw: skipping — humans online"
+                "nullclaw: skipping — humans online"
             );
             return Ok(None);
         }
@@ -311,7 +311,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             conversation = conversation.split_off(start);
         }
 
-        let req_body = ZeroClawRequest {
+        let req_body = NullClawRequest {
             channel_id: uuid::Uuid::parse_str(channel_id)
                 .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?,
             brand_id: match brand_id {
@@ -327,7 +327,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             conversation,
         };
 
-        // 3. Call ZeroClaw.
+        // 3. Call NullClaw.
         let url = format!("{}/v1/reply", self.api_url.trim_end_matches('/'));
         let started = std::time::Instant::now();
         let resp = self
@@ -342,19 +342,19 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         let resp = match resp {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!(error = ?e, url = %url, "zeroclaw: HTTP request failed");
+                tracing::warn!(error = ?e, url = %url, "nullclaw: HTTP request failed");
                 return Ok(None);
             }
         };
         let status = resp.status();
         if !status.is_success() {
-            tracing::warn!(status = %status, url = %url, "zeroclaw: non-2xx response");
+            tracing::warn!(status = %status, url = %url, "nullclaw: non-2xx response");
             return Ok(None);
         }
-        let reply: ZeroClawReply = match resp.json().await {
+        let reply: NullClawReply = match resp.json().await {
             Ok(v) => v,
             Err(e) => {
-                tracing::warn!(error = ?e, "zeroclaw: failed to parse response");
+                tracing::warn!(error = ?e, "nullclaw: failed to parse response");
                 return Ok(None);
             }
         };
@@ -362,7 +362,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
         // 4. Persist the assistant reply as a ChatMessage row.
         let now = chrono::Utc::now().to_rfc3339();
         // Parse once for DB inserts (`NewChatMessage.channel_id` and
-        // `NewZeroClawExchange.*` are `Uuid` so SeaORM binds them as
+        // `NewNullClawExchange.*` are `Uuid` so SeaORM binds them as
         // blobs matching the `pk_uuid` parent columns).
         let channel_uuid = uuid::Uuid::parse_str(channel_id)
             .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?;
@@ -372,7 +372,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             .insert_message(NewChatMessage {
                 channel_id: channel_uuid,
                 sender_type: "assistant".into(),
-                // Use the ZeroClaw bot's UUID (looked up by email at the
+                // Use the NullClaw bot's UUID (looked up by email at the
                 // service layer) so the assistant message has a real FK
                 // to `user`. When `bot_user_id` is `None` (bot user
                 // missing — e.g. signup ran before this code shipped),
@@ -397,7 +397,7 @@ impl ZeroClawProvider for HttpZeroClawProvider {
 
         // 6. Audit row.
         let _ = chat_store
-            .insert_zeroclaw_exchange(NewZeroClawExchange {
+            .insert_nullclaw_exchange(NewNullClawExchange {
                 channel_id: Some(channel_uuid),
                 user_message_id: Some(user_msg_uuid),
                 assistant_message_id: Some(assistant_msg.id),
@@ -414,10 +414,10 @@ impl ZeroClawProvider for HttpZeroClawProvider {
             latency_ms,
             confidence = reply.confidence,
             handoff = reply.handoff_to_human,
-            "zeroclaw replied"
+            "nullclaw replied"
         );
 
-        Ok(Some(ZeroClawOutcome {
+        Ok(Some(NullClawOutcome {
             reply,
             assistant_message_id: assistant_msg_id,
             created_at: now,
@@ -429,26 +429,26 @@ impl ZeroClawProvider for HttpZeroClawProvider {
 
 // ── Global provider singleton ───────────────────────────────────
 
-static PROVIDER: OnceCell<Arc<dyn ZeroClawProvider>> = OnceCell::new();
+static PROVIDER: OnceCell<Arc<dyn NullClawProvider>> = OnceCell::new();
 
-/// Initialise the global ZeroClaw provider from config. Called once on boot.
+/// Initialise the global NullClaw provider from config. Called once on boot.
 ///
 /// Resolution order:
-///   1. **HTTP provider** — when `ZEROCLAW_ENABLED=true` and
-///      `ZEROCLAW_API_URL`/`ZEROCLAW_API_KEY` are set. This is what
+///   1. **HTTP provider** — when `NULLCLAW_ENABLED=true` and
+///      `NULLCLAW_API_URL`/`NULLCLAW_API_KEY` are set. This is what
 ///      production deployments use.
 ///   2. **Noop provider** — silently declines to reply. The customer's
 ///      message is still delivered to the channel; a human employee
-///      will respond when online. The actual ZeroClaw endpoint will
+///      will respond when online. The actual NullClaw endpoint will
 ///      be configured at deploy time.
-pub fn init(cfg: &ZeroClawConfig) {
-    let provider: Arc<dyn ZeroClawProvider> = if cfg.is_active() {
+pub fn init(cfg: &NullClawConfig) {
+    let provider: Arc<dyn NullClawProvider> = if cfg.is_active() {
         tracing::info!(
             api_url = cfg.api_url.as_str(),
             model = cfg.model.as_str(),
-            "ZeroClaw AI customer-support assistant ENABLED (HTTP provider)"
+            "NullClaw AI customer-support assistant ENABLED (HTTP provider)"
         );
-        Arc::new(HttpZeroClawProvider::new(
+        Arc::new(HttpNullClawProvider::new(
             cfg.api_url.clone(),
             cfg.api_key.clone(),
             cfg.model.clone(),
@@ -457,9 +457,9 @@ pub fn init(cfg: &ZeroClawConfig) {
         ))
     } else {
         tracing::info!(
-            "ZeroClaw AI customer-support assistant disabled (set ZEROCLAW_ENABLED + ZEROCLAW_API_URL + ZEROCLAW_API_KEY to enable)"
+            "NullClaw AI customer-support assistant disabled (set NULLCLAW_ENABLED + NULLCLAW_API_URL + NULLCLAW_API_KEY to enable)"
         );
-        Arc::new(NoopZeroClawProvider)
+        Arc::new(NoopNullClawProvider)
     };
 
     let _ = PROVIDER.set(provider);
@@ -467,17 +467,17 @@ pub fn init(cfg: &ZeroClawConfig) {
         enabled = cfg.is_active(),
         api_url = cfg.api_url.as_str(),
         model = cfg.model.as_str(),
-        "zeroclaw provider initialised"
+        "nullclaw provider initialised"
     );
 }
 
-/// Access the global provider. Falls back to [`NoopZeroClawProvider`] if
+/// Access the global provider. Falls back to [`NoopNullClawProvider`] if
 /// [`init`] was never called (defensive — should not happen in practice).
-pub fn provider() -> Arc<dyn ZeroClawProvider> {
+pub fn provider() -> Arc<dyn NullClawProvider> {
     PROVIDER
         .get()
         .cloned()
-        .unwrap_or_else(|| Arc::new(NoopZeroClawProvider))
+        .unwrap_or_else(|| Arc::new(NoopNullClawProvider))
 }
 
 #[cfg(test)]
@@ -486,17 +486,17 @@ mod tests {
 
     #[test]
     fn noop_provider_returns_none() {
-        let p = NoopZeroClawProvider;
+        let p = NoopNullClawProvider;
         assert!(!p.is_enabled());
         assert_eq!(p.name(), "noop");
     }
 
     #[test]
     fn http_provider_constructs_client() {
-        let p = HttpZeroClawProvider::new(
-            "https://api.zeroclaw.ai".into(),
+        let p = HttpNullClawProvider::new(
+            "https://api.nullclaw.ai".into(),
             "secret".into(),
-            "zeroclaw-v1".into(),
+            "nullclaw-v1".into(),
             5000,
             8,
         );
@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn config_default_is_disabled() {
-        let c = ZeroClawConfig::default();
+        let c = NullClawConfig::default();
         assert!(!c.is_active());
         assert!(c.api_url.is_empty());
         assert_eq!(c.timeout_ms, 15_000);
@@ -522,12 +522,12 @@ mod tests {
     }
 
     #[test]
-    fn zeroclaw_reply_defaults_model() {
+    fn nullclaw_reply_defaults_model() {
         let json = r#"{"reply":"hello","confidence":0.9}"#;
-        let r: ZeroClawReply = serde_json::from_str(json).unwrap();
+        let r: NullClawReply = serde_json::from_str(json).unwrap();
         assert_eq!(r.reply, "hello");
         assert!((r.confidence - 0.9).abs() < 1e-6);
         assert!(!r.handoff_to_human);
-        assert_eq!(r.model, "zeroclaw-v1");
+        assert_eq!(r.model, "nullclaw-v1");
     }
 }

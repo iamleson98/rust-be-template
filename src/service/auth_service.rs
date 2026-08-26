@@ -105,14 +105,14 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // If this is first time setup, then also create zeroclaw agent
+        // If this is first time setup, then also create nullclaw agent
         if is_first_user {
             let _ = self
                 .store
                 .user_store()
                 .create_user(
-                    "zeroclaw_agent@example.com".into(),
-                    "zeroclaw_agent".into(),
+                    "nullclaw_agent@example.com".into(),
+                    "nullclaw_agent".into(),
                     "hashed_password".into(),
                     role_name.to_string(),
                 )
