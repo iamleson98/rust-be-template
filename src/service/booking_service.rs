@@ -210,10 +210,10 @@ impl BookingService {
         // parallel cuts ~3 sequential round-trips to 1.
         //
         // Note: `route.start_location_id` / `route.end_location_id`
-        // are now slug strings, not UUID FKs to `place`. The slug → city
-        // resolution is synchronous (no DB hit), so we wrap it in an
-        // async block to keep the `tokio::try_join!` shape uniform with
-        // the other futures.
+        // are now slug strings (NOT NULL), not UUID FKs to `place`.
+        // The slug → city resolution is synchronous (no DB hit), so
+        // we wrap it in an async block to keep the `tokio::try_join!`
+        // shape uniform with the other futures.
         let store = self.store.clone();
         let brand_id = route_model.brand_id;
         let start_location_slug = route_model.start_location_id.clone();
@@ -235,19 +235,11 @@ impl BookingService {
             },
             async {
                 // Start city — resolved from the hardcoded slug table.
-                Ok::<_, AppError>(
-                    start_location_slug
-                        .as_deref()
-                        .and_then(crate::cities::find_by_slug),
-                )
+                Ok::<_, AppError>(crate::cities::find_by_slug(&start_location_slug))
             },
             async {
                 // End city — resolved from the hardcoded slug table.
-                Ok::<_, AppError>(
-                    end_location_slug
-                        .as_deref()
-                        .and_then(crate::cities::find_by_slug),
-                )
+                Ok::<_, AppError>(crate::cities::find_by_slug(&end_location_slug))
             },
             async {
                 // Bus layout

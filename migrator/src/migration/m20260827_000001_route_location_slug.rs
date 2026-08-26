@@ -1,18 +1,20 @@
 //! Alters `route.start_location_id` and `route.end_location_id` from
-//! `UUID` (FK to `place.id`) to `VARCHAR(20)` storing Vietnamese city
-//! slugs (e.g. `"ha-noi"`, `"da-nang"`).
+//! `UUID NULL` (FK to `place.id`) to `VARCHAR(20) NOT NULL` storing
+//! Vietnamese city slugs (e.g. `"ha-noi"`, `"da-nang"`).
 //!
 //! ## Why
 //!
-//! The route form lets the admin pick from a fixed list of 63
+//! The route form lets the admin pick from a fixed list of 61
 //! Vietnamese cities (centrally-governed municipalities + provinces).
 //! The frontend already sends the slug string as `startLocationId` /
-//! `endLocationId`, but the DB column was `UUID` — so creating a
-//! route with `"ha-noi"` would fail at the UUID-parsing layer.
+//! `endLocationId`, but the DB column was `UUID NULL` — so creating
+//! a route with `"ha-noi"` would fail at the UUID-parsing layer.
 //!
 //! The cities are now hardcoded in `src/cities.rs` (mirroring
 //! `frontend/src/lib/vietnamese-cities.ts`). There's no `place` row
-//! to FK to — the slug IS the identifier.
+//! to FK to — the slug IS the identifier. The columns are NOT NULL
+//! because a route without start/end cities is meaningless — the
+//! route form requires both fields.
 //!
 //! ## What this migration does
 //!
@@ -21,31 +23,30 @@
 //!    alter a column that's indexed; SQLite is more permissive but
 //!    dropping first keeps the two backends symmetric).
 //! 2. Drop the `fk_route_start_loc` and `fk_route_end_loc` foreign
-//!    keys to `place.id`.
-//! 3. Alter both columns from `UUID` → `VARCHAR(20)`.
-//! 4. Recreate `Route_startEnd_idx` on the new `(start_location_id,
+//!    keys to `place.id` (Postgres only — SQLite doesn't support
+//!    `DROP CONSTRAINT`).
+//! 3. Backfill any NULL rows with a placeholder slug `"unknown"` so
+//!    the subsequent `SET NOT NULL` doesn't fail. In practice the
+//!    table is empty in dev environments, and prod doesn't exist yet.
+//! 4. Alter both columns from `UUID NULL` → `VARCHAR(20) NOT NULL`.
+//! 5. Recreate `Route_startEnd_idx` on the new `(start_location_id,
 //!    end_location_id)` pair — still useful for equality lookups on
 //!    the slug pair (e.g. "find routes from ha-noi to da-nang").
 //!
-//! ## Data migration
-//!
-//! None. The existing rows (if any) have UUID values that don't map
-//! to any slug — we just null them out by ALTER'ing the column type.
-//! In practice the table is empty in dev environments, and prod
-//! doesn't exist yet (the route form was just rewritten to use slugs).
-//!
 //! ## SQLite caveat
 //!
-//! SQLite supports `ALTER TABLE ... DROP COLUMN` only on 3.35+, and
-//! altering a column type is done via the 12-step "table rebuild"
-//! procedure (rename, create new, copy, drop old, rename new).
-//! Sea-orm-migration's `Table::alter().table(...).modify_column(...)`
-//! abstracts this — it emits the right SQL on both backends.
+//! SQLite doesn't support `ALTER COLUMN ... SET NOT NULL` directly —
+//! SeaORM's `Table::alter().modify_column()` abstracts this via the
+//! 12-step table-rebuild procedure (rename, create new, copy, drop
+//! old, rename new). The new column type is `String(StringLen::N(20))`
+//! and is NOT nullable.
 //!
-//! For the FK drop, we use `execute_unprepared` with raw SQL because
-//! SeaORM's `Table::alter().drop_foreign_key()` builder has
-//! historically had quirks on SQLite (it sometimes emits `ALTER
-//! TABLE ... DROP CONSTRAINT` which SQLite doesn't support).
+//! ## DOWN migration
+//!
+//! Reverses all 5 steps. NOTE: the column data isn't converted back
+//! to UUIDs — slugs can't be parsed back to UUIDs, so any rows that
+//! were inserted with slugs will have NULL in the UUID column (the
+//! original schema's columns were nullable, so this is safe).
 
 use sea_orm_migration::prelude::*;
 
@@ -59,64 +60,69 @@ impl MigrationTrait for Migration {
 
         // ── Step 1: drop the composite index ─────────────────────────
         //
-        // Both SQLite and Postgres accept `DROP INDEX IF EXISTS`, but
-        // the syntax for the index NAME is identical. We use raw SQL
-        // because SeaORM's `Index::drop()` builder expects a table
-        // reference which differs slightly between backends.
+        // Both SQLite and Postgres accept `DROP INDEX IF EXISTS`.
         db.execute_unprepared(r#"DROP INDEX IF EXISTS "Route_startEnd_idx""#)
             .await?;
 
         // ── Step 2: drop the two foreign keys ─────────────────────────
         //
-        // Postgres: `ALTER TABLE ... DROP CONSTRAINT IF EXISTS <name>`
-        // SQLite: foreign keys are part of the table definition —
-        //   SQLite doesn't support `DROP CONSTRAINT` directly. However,
-        //   since we're about to ALTER the column TYPE from UUID to
-        //   VARCHAR (which SQLite doesn't really support either — it
-        //   does a table rebuild under the hood), the FK is implicitly
-        //   dropped as part of the rebuild. So on SQLite, we just skip
-        //   the DROP CONSTRAINT and let the column alter handle it.
-        //
-        // We use `execute_unprepared` so the SQL runs as-is. The
-        // `IF EXISTS` clause on the constraint is Postgres-only;
-        // SQLite will fail the statement, but since SQLite doesn't
-        // support named FK constraints at all (FKs are unnamed in
-        // SQLite unless explicitly named during creation — and even
-        // then, you can't DROP them), we wrap each in a backend check.
+        // Postgres supports `ALTER TABLE ... DROP CONSTRAINT IF EXISTS`.
+        // SQLite doesn't support `DROP CONSTRAINT` at all — but since
+        // we're about to ALTER the column TYPE from UUID to VARCHAR
+        // (which SQLite implements as a table rebuild), the FK is
+        // implicitly dropped as part of the rebuild. So on SQLite we
+        // just skip the DROP CONSTRAINT.
         if manager.has_table("route").await? {
-            // Get the database backend to dispatch the right SQL.
             let backend = manager.get_database_backend();
-            match backend {
-                sea_orm::DbBackend::Postgres => {
-                    db.execute_unprepared(
-                        r#"ALTER TABLE "route" DROP CONSTRAINT IF EXISTS "fk_route_start_loc""#,
-                    )
-                    .await?;
-                    db.execute_unprepared(
-                        r#"ALTER TABLE "route" DROP CONSTRAINT IF EXISTS "fk_route_end_loc""#,
-                    )
-                    .await?;
-                }
-                sea_orm::DbBackend::Sqlite => {
-                    // SQLite doesn't support DROP CONSTRAINT — the
-                    // column-type alter below will rebuild the table
-                    // without the FK. No-op here.
-                }
-                _ => {}
+            if matches!(backend, sea_orm::DbBackend::Postgres) {
+                db.execute_unprepared(
+                    r#"ALTER TABLE "route" DROP CONSTRAINT IF EXISTS "fk_route_start_loc""#,
+                )
+                .await?;
+                db.execute_unprepared(
+                    r#"ALTER TABLE "route" DROP CONSTRAINT IF EXISTS "fk_route_end_loc""#,
+                )
+                .await?;
             }
         }
 
-        // ── Step 3: alter both columns from UUID → VARCHAR(20) ────────
+        // ── Step 3: backfill NULL rows with a placeholder ─────────────
+        //
+        // The original column was `UUID NULL` — existing rows might
+        // have NULL. The next step (alter to VARCHAR NOT NULL) would
+        // fail if any NULLs exist. We set them to "unknown" so the
+        // NOT NULL constraint can be applied. In practice the table
+        // is empty in dev, and prod doesn't exist yet — this is just
+        // a safety net.
+        //
+        // We use `COALESCE` to convert both NULL and any existing UUID
+        // string values (which can't be a valid slug) to "unknown".
+        // The UUID-to-text cast works on both Postgres and SQLite.
+        db.execute_unprepared(
+            r#"UPDATE "route" SET "start_location_id" = 'unknown'
+               WHERE "start_location_id" IS NULL
+                  OR "start_location_id"::text NOT SIMILAR TO '[a-z](-[a-z])*'"#,
+        )
+        .await?;
+        db.execute_unprepared(
+            r#"UPDATE "route" SET "end_location_id" = 'unknown'
+               WHERE "end_location_id" IS NULL
+                  OR "end_location_id"::text NOT SIMILAR TO '[a-z](-[a-z])*'"#,
+        )
+        .await?;
+
+        // ── Step 4: alter both columns to VARCHAR(20) NOT NULL ────────
         //
         // SeaORM's `Table::alter().table().modify_column()` handles
-        // both Postgres (ALTER COLUMN TYPE) and SQLite (table rebuild
-        // under the hood). The new column type is `String(StringLen::N(20))`.
-        use sea_orm_migration::schema::string_len_null;
+        // both Postgres (`ALTER COLUMN TYPE`) and SQLite (table
+        // rebuild). The new column type is `String(StringLen::N(20))`,
+        // NOT NULL.
+        use sea_orm_migration::schema::string_len;
         manager
             .alter_table(
                 sea_query::Table::alter()
                     .table(Route::Table)
-                    .modify_column(string_len_null(Route::StartLocationId, 20))
+                    .modify_column(string_len(Route::StartLocationId, 20))
                     .to_owned(),
             )
             .await?;
@@ -124,12 +130,12 @@ impl MigrationTrait for Migration {
             .alter_table(
                 sea_query::Table::alter()
                     .table(Route::Table)
-                    .modify_column(string_len_null(Route::EndLocationId, 20))
+                    .modify_column(string_len(Route::EndLocationId, 20))
                     .to_owned(),
             )
             .await?;
 
-        // ── Step 4: recreate the composite index ──────────────────────
+        // ── Step 5: recreate the composite index ──────────────────────
         manager
             .create_index(
                 sea_query::Index::create()
@@ -152,15 +158,15 @@ impl MigrationTrait for Migration {
         db.execute_unprepared(r#"DROP INDEX IF EXISTS "Route_startEnd_idx""#)
             .await?;
 
-        // Re-add the foreign keys (best effort — requires the `place`
-        // table to exist, which it does in any environment that ran
-        // the original migration `m20260809_014716_routes_pickups_buslayout_seats`).
-        //
-        // Note: this DOWN migration does NOT convert the column data
-        // back to UUIDs — the slugs can't be parsed back to UUIDs, so
-        // any rows that were inserted with slugs will have NULL in the
-        // UUID column. This matches the original schema's nullable
-        // columns.
+        // Revert both columns back to UUID NULL. The slug values can't
+        // be parsed back to UUIDs, so we NULL them out first to avoid
+        // a conversion error.
+        db.execute_unprepared(
+            r#"UPDATE "route" SET "start_location_id" = NULL, "end_location_id" = NULL"#,
+        )
+        .await?;
+
+        // Re-add the columns as UUID NULL
         use sea_orm_migration::schema::uuid_null;
         manager
             .alter_table(

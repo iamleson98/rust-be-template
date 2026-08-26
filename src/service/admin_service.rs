@@ -265,31 +265,29 @@ impl AdminService {
         // hardcoded city table (no DB round-trip). Replaces the previous
         // batched `place_store().find_places_by_ids(place_uuids)` lookup
         // — `route.start_location_id` is now a slug string, not a UUID
-        // FK to `place`.
+        // FK to `place`. Both columns are NOT NULL, so we always have
+        // a slug — `find_by_slug` returns `None` only if the slug
+        // doesn't match any hardcoded city (data corruption case).
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
             let route_id_str = r.id.to_string();
             let schedule_count = *schedule_count_map.get(&route_id_str).unwrap_or(&0);
             let pickup_count = *pickup_count_map.get(&route_id_str).unwrap_or(&0);
 
-            let start_place = r
-                .start_location_id
-                .as_deref()
-                .and_then(crate::cities::find_by_slug)
-                .map(|c| AdminPlacePreview {
+            let start_place = crate::cities::find_by_slug(&r.start_location_id).map(|c| {
+                AdminPlacePreview {
                     id: c.slug.to_string(),
                     name: c.name.to_string(),
                     province: Some(c.name.to_string()),
-                });
-            let end_place = r
-                .end_location_id
-                .as_deref()
-                .and_then(crate::cities::find_by_slug)
-                .map(|c| AdminPlacePreview {
+                }
+            });
+            let end_place = crate::cities::find_by_slug(&r.end_location_id).map(|c| {
+                AdminPlacePreview {
                     id: c.slug.to_string(),
                     name: c.name.to_string(),
                     province: Some(c.name.to_string()),
-                });
+                }
+            });
 
             items.push(AdminRouteOut {
                 id: r.id,
@@ -322,8 +320,21 @@ impl AdminService {
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
         let brand_id = body.brand_id;
-        let start_location_id = body.start_location_id.clone();
-        let end_location_id = body.end_location_id.clone();
+        // Both location slugs are required — the DB columns are NOT NULL.
+        let start_location_id = body
+            .start_location_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("start_location_id is required".into()))?
+            .to_string();
+        let end_location_id = body
+            .end_location_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("end_location_id is required".into()))?
+            .to_string();
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -369,11 +380,25 @@ impl AdminService {
         if let Some(v) = body.brand_id {
             active.brand_id = Set(Some(v));
         }
+        // Allow callers to update just one side — but if the field is
+        // present, it must be non-empty (DB column is NOT NULL).
         if let Some(ref v) = body.start_location_id {
-            active.start_location_id = Set(Some(v.clone()));
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "start_location_id cannot be empty".into(),
+                ));
+            }
+            active.start_location_id = Set(trimmed.to_string());
         }
         if let Some(ref v) = body.end_location_id {
-            active.end_location_id = Set(Some(v.clone()));
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "end_location_id cannot be empty".into(),
+                ));
+            }
+            active.end_location_id = Set(trimmed.to_string());
         }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());

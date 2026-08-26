@@ -270,13 +270,13 @@ export type AdminRouteOut = {
     brandId?: string | null;
     createdAt: string;
     endLocation?: null | AdminPlacePreview;
-    endLocationId?: string | null;
+    endLocationId: string;
     id: string;
     name: string;
     pickupPointCount: number;
     scheduleCount: number;
     startLocation?: null | AdminPlacePreview;
-    startLocationId?: string | null;
+    startLocationId: string;
     status: string;
     updatedAt: string;
 };

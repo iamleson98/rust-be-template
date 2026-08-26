@@ -12,12 +12,12 @@ pub struct Model {
     pub name: String,
     /// Vietnamese city slug (e.g. `"ha-noi"`, `"da-nang"`). Resolved to a
     /// display name via `crate::cities::find_by_slug`. NOT a UUID — the
-    /// backend stores it as `VARCHAR(20)` so the route form can pass
-    /// slugs directly without a `place` table lookup.
-    #[sea_orm(column_type = "String(StringLen::N(20))", nullable)]
-    pub start_location_id: Option<String>,
-    #[sea_orm(column_type = "String(StringLen::N(20))", nullable)]
-    pub end_location_id: Option<String>,
+    /// backend stores it as `VARCHAR(20) NOT NULL` so the route form
+    /// can pass slugs directly without a `place` table lookup.
+    #[sea_orm(column_type = "String(StringLen::N(20))")]
+    pub start_location_id: String,
+    #[sea_orm(column_type = "String(StringLen::N(20))")]
+    pub end_location_id: String,
     pub status: String,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,

@@ -117,12 +117,11 @@ pub struct AdminRouteOut {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_id: Option<Uuid>,
     pub name: String,
-    /// City slug (e.g. `"ha-noi"`). Resolved to `start_location` via
+    /// City slug (e.g. `"ha-noi"`). Required — every route has both a
+    /// start and an end city. Resolved to `start_location` via
     /// `crate::cities::find_by_slug`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_location_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_location_id: Option<String>,
+    pub start_location_id: String,
+    pub end_location_id: String,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -148,14 +147,15 @@ pub struct UpsertRouteRequest {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
     pub brand_id: Option<Uuid>,
-    /// City slug (e.g. `"ha-noi"`). Max 20 chars — matches the DB column
-    /// `VARCHAR(20)`. The slug MUST be one of the values in
-    /// `crate::cities::CITIES`; we don't enforce that here (validator
-    /// doesn't have access to the static list) but the frontend dropdown
-    /// only sends known slugs.
-    #[validate(length(max = 20))]
+    /// City slug (e.g. `"ha-noi"`). Max 20 chars — matches the DB
+    /// column `VARCHAR(20) NOT NULL`. The slug MUST be one of the
+    /// values in `crate::cities::CITIES`; we don't enforce that here
+    /// (validator doesn't have access to the static list) but the
+    /// frontend dropdown only sends known slugs. Required — a route
+    /// without start/end cities is meaningless.
+    #[validate(length(min = 1, max = 20))]
     pub start_location_id: Option<String>,
-    #[validate(length(max = 20))]
+    #[validate(length(min = 1, max = 20))]
     pub end_location_id: Option<String>,
     #[validate(length(max = 30))]
     pub status: Option<String>,

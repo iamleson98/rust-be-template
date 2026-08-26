@@ -404,13 +404,13 @@ impl PublicService {
         // batched `place_store().find_places_by_ids(place_uuids)` lookup
         // — `route.start_location_id` is now a slug string, not a UUID
         // FK to `place`. We collect into a HashMap so the per-trip
-        // closure can do `O(1)` lookups by slug.
+        // closure can do `O(1)` lookups by slug. Both columns are NOT
+        // NULL, so we always have a slug to look up — `find_by_slug`
+        // returns `None` only if the slug doesn't match any hardcoded
+        // city (data corruption case).
         let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
             .values()
-            .flat_map(|r| {
-                [r.start_location_id.as_deref(), r.end_location_id.as_deref()]
-            })
-            .flatten()
+            .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
             .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
             .collect();
 
@@ -438,14 +438,8 @@ impl PublicService {
                     return None;
                 }
 
-                let from_place = route
-                    .start_location_id
-                    .as_deref()
-                    .and_then(|slug| place_map.get(slug));
-                let to_place = route
-                    .end_location_id
-                    .as_deref()
-                    .and_then(|slug| place_map.get(slug));
+                let from_place = place_map.get(route.start_location_id.as_str());
+                let to_place = place_map.get(route.end_location_id.as_str());
 
                 let amenities = parse_amenities(&sched.amenities);
                 let (dep_iso, arr_iso) = compute_iso_timestamps(
@@ -802,10 +796,11 @@ impl PublicService {
         // sequential DB round-trips down to 1 (the slowest one).
         //
         // Note: `route.start_location_id` / `route.end_location_id`
-        // are now slug strings, not UUID FKs to `place`. The slug → city
-        // resolution is synchronous (no DB hit), so we wrap it in an
-        // async block to keep the `tokio::try_join!` shape uniform with
-        // the brand + bus_layout + pickup_points futures.
+        // are now slug strings (NOT NULL), not UUID FKs to `place`.
+        // The slug → city resolution is synchronous (no DB hit), so
+        // we wrap it in an async block to keep the `tokio::try_join!`
+        // shape uniform with the brand + bus_layout + pickup_points
+        // futures.
         let brand_id_uid = route.brand_id;
         let start_location_slug = route.start_location_id.clone();
         let end_location_slug = route.end_location_id.clone();
@@ -822,18 +817,10 @@ impl PublicService {
             }
         };
         let start_place_fut = async {
-            Ok::<_, crate::store::StoreError>(
-                start_location_slug
-                    .as_deref()
-                    .and_then(crate::cities::find_by_slug),
-            )
+            Ok::<_, crate::store::StoreError>(crate::cities::find_by_slug(&start_location_slug))
         };
         let end_place_fut = async {
-            Ok::<_, crate::store::StoreError>(
-                end_location_slug
-                    .as_deref()
-                    .and_then(crate::cities::find_by_slug),
-            )
+            Ok::<_, crate::store::StoreError>(crate::cities::find_by_slug(&end_location_slug))
         };
         let bus_layout_fut = async {
             if let Some(uid) = bus_layout_uid {

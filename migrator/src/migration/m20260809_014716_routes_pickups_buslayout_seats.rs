@@ -65,11 +65,11 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Route
         // NOTE: `start_location_id` / `end_location_id` are VARCHAR(20)
-        // storing Vietnamese city slugs (e.g. "ha-noi", "da-nang") —
-        // NOT UUIDs. The slugs are resolved to display names via
-        // `crate::cities::find_by_slug` in the service layer; no FK to
-        // the `place` table is needed. See `src/cities.rs` for the
-        // hardcoded slug list (kept in sync with the frontend's
+        // NOT NULL storing Vietnamese city slugs (e.g. "ha-noi",
+        // "da-nang") — NOT UUIDs. The slugs are resolved to display
+        // names via `crate::cities::find_by_slug` in the service layer;
+        // no FK to the `place` table is needed. See `src/cities.rs` for
+        // the hardcoded slug list (kept in sync with the frontend's
         // `vietnamese-cities.ts`).
         manager
             .create_table(
@@ -79,8 +79,8 @@ impl MigrationTrait for Migration {
                     .col(pk_uuid(Route::Id))
                     .col(uuid_null(Route::BrandId))
                     .col(string_len(Route::Name, 255))
-                    .col(string_len_null(Route::StartLocationId, 20))
-                    .col(string_len_null(Route::EndLocationId, 20))
+                    .col(string_len(Route::StartLocationId, 20))
+                    .col(string_len(Route::EndLocationId, 20))
                     .col(string_len(Route::Status, 30).default("active"))
                     .col(text(Route::CreatedAt))
                     .col(text(Route::UpdatedAt))
