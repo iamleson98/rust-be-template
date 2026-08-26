@@ -217,7 +217,7 @@ impl PlaceService {
 // ────────────────────────────────────────────────────────────────
 
 /// Haversine distance in kilometers between two lat/lon points.
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+pub fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let r = 6371.0; // Earth radius in km
     let d_lat = (lat2 - lat1).to_radians();
     let d_lon = (lon2 - lon1).to_radians();
