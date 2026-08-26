@@ -38,6 +38,7 @@
 
 pub mod discord;
 pub mod messenger;
+pub mod shared;
 pub mod telegram;
 pub mod zalo;
 

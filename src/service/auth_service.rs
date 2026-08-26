@@ -289,6 +289,37 @@ impl AuthService {
         Ok(perms.role_names.iter().any(|role| role != "user"))
     }
 
+    /// Find a user by email. Used by webhook handlers to find/create
+    /// platform users (Zalo, Messenger, Telegram, Discord).
+    pub async fn get_user_by_email(&self, email: String) -> AppResult<Option<user::Model>> {
+        self.store
+            .user_store()
+            .get_user_by_email(email)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Create a platform user — a lightweight `user` row for an external
+    /// platform user (Zalo/Messenger/Telegram/Discord). The password is
+    /// random (never used — these users are identified by webhook events,
+    /// not by password login).
+    pub async fn create_platform_user(
+        &self,
+        email: String,
+        name: String,
+    ) -> AppResult<user::Model> {
+        self.store
+            .user_store()
+            .create_user(
+                email,
+                name,
+                uuid::Uuid::new_v4().to_string(),
+                "user".into(),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
     /// Quick DB-health ping — used by the `/health` readiness check.
     /// Returns the number of roles in the RBAC table (a non-zero count
     /// means migrations ran + the DB is reachable).
