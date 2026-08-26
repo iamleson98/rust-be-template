@@ -82,11 +82,7 @@ impl OAuthProvider for FacebookProvider {
         )
     }
 
-    async fn exchange_code(
-        &self,
-        code: &str,
-        redirect_uri: &str,
-    ) -> Result<String, AppError> {
+    async fn exchange_code(&self, code: &str, redirect_uri: &str) -> Result<String, AppError> {
         let resp = self
             .http
             .post(TOKEN_URL)

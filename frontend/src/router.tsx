@@ -165,9 +165,33 @@ function RouteMeta() {
       document.title = meta.title
       const descTag = document.querySelector('meta[name="description"]')
       if (descTag) descTag.setAttribute('content', meta.description)
+
+      // ── noindex for private routes (UIUX-017) ───────────────────
+      // Admin + account pages should never be indexed by search engines.
+      // We add/update `<meta name="robots" content="noindex, nofollow">`
+      // on these routes, and remove it on public routes (so the meta
+      // element doesn't accumulate stale state across SPA navigations).
+      const isPrivate = pathname.startsWith('/admin') || pathname.startsWith('/account') || pathname === '/login'
+      let robotsTag = document.querySelector('meta[name="robots"]')
+      if (isPrivate) {
+        if (!robotsTag) {
+          robotsTag = document.createElement('meta')
+          robotsTag.setAttribute('name', 'robots')
+          document.head.appendChild(robotsTag)
+        }
+        robotsTag.setAttribute('content', 'noindex, nofollow')
+      } else if (robotsTag) {
+        // Remove the noindex tag on public routes so they're crawlable.
+        robotsTag.remove()
+      }
+
       // ── GA4 page-view tracking ──────────────────────────────
       // Fires on every SPA route change. No-op if GA4 isn't configured.
-      trackPageView(pathname, meta.title)
+      // Skip on private routes — admin/account activity shouldn't hit
+      // analytics (PII + abuse-vector protection).
+      if (!isPrivate) {
+        trackPageView(pathname, meta.title)
+      }
     }
   }, [pathname])
   return null

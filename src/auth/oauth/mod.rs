@@ -81,11 +81,7 @@ pub trait OAuthProvider: Send + Sync {
     fn authorization_url(&self, state: &str, redirect_uri: &str) -> String;
 
     /// Exchange the authorization code for an access token.
-    async fn exchange_code(
-        &self,
-        code: &str,
-        redirect_uri: &str,
-    ) -> Result<String, AppError>;
+    async fn exchange_code(&self, code: &str, redirect_uri: &str) -> Result<String, AppError>;
 
     /// Fetch the user profile using the access token.
     async fn fetch_profile(&self, access_token: &str) -> Result<OAuthProfile, AppError>;

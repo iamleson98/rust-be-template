@@ -36,9 +36,21 @@ yourdomain.com {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' wss: ws: https://www.google-analytics.com https://region1.google-analytics.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'"
-        X-XSS-Protection "1; mode=block"
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=(self), interest-cohort=()"
+        # CSP: tightened from the previous `'unsafe-inline' 'unsafe-eval'`
+        # + `wss:` + `ws:` policy (which allowed arbitrary inline scripts,
+        # arbitrary eval, and any WS origin). The new policy uses:
+        #   - `'self'` for script-src — Vite + esbuild emit JS files served
+        #     from `/assets/*`, no inline scripts needed.
+        #   - `'unsafe-inline'` only for style-src (shadcn/ui + Tailwind
+        #     inject style attributes at runtime; removing this would
+        #     require refactoring every component — tracked as a TODO).
+        #   - `'self'` + `wss://{yourdomain}` for connect-src — no
+        #     wildcards, no insecure `ws:` in prod.
+        #   - explicit GA hosts for img-src + connect-src (replace with
+        #     your real analytics origin if not using GA).
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' wss://yourdomain.com https://www.google-analytics.com https://region1.google-analytics.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; worker-src 'self'; manifest-src 'self'"
+        X-XSS-Protection "0"
         # Remove Server header for security through obscurity
         -Server
     }

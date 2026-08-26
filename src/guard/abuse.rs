@@ -159,12 +159,7 @@ impl AbuseGuard {
     /// `user_id` is the user's UUID (as string). `ip` is the remote IP.
     /// Either may be `None` for anonymous/unauthenticated traffic, but
     /// in practice the chat WS requires auth so both are present.
-    pub fn check(
-        &self,
-        user_id: Option<&str>,
-        ip: Option<&str>,
-        text: &str,
-    ) -> AbuseVerdict {
+    pub fn check(&self, user_id: Option<&str>, ip: Option<&str>, text: &str) -> AbuseVerdict {
         let now = Instant::now();
 
         // First: if the user is already banned, return the ban verdict
@@ -239,7 +234,9 @@ impl AbuseGuard {
                     until,
                 }
             } else {
-                AbuseVerdict::Warned { reason: full_reason }
+                AbuseVerdict::Warned {
+                    reason: full_reason,
+                }
             }
         } else {
             AbuseVerdict::Ok
@@ -353,12 +350,28 @@ fn contains_profanity(lower: &str) -> bool {
     /// profanity often appears as part of a phrase without spaces.
     const BAD: &[&str] = &[
         // English
-        "fuck", "shit", "bitch", "asshole", "bastard", "dickhead", "motherfucker",
+        "fuck",
+        "shit",
+        "bitch",
+        "asshole",
+        "bastard",
+        "dickhead",
+        "motherfucker",
         // Vietnamese (common slurs — kept clinical)
-        "địt", "lồn", "cặc", "đĩ", "điếm", "mẹ mày", "m é mày",
-        "s Hit", "stfu", "idiot",
+        "địt",
+        "lồn",
+        "cặc",
+        "đĩ",
+        "điếm",
+        "mẹ mày",
+        "m é mày",
+        "s Hit",
+        "stfu",
+        "idiot",
         // Scam / social-engineering
-        "khuyến mãi ngẫu nhiên", "quà tặng miễn phí", "click here to claim",
+        "khuyến mãi ngẫu nhiên",
+        "quà tặng miễn phí",
+        "click here to claim",
     ];
 
     BAD.iter().any(|w| lower.contains(w))
@@ -406,7 +419,11 @@ mod tests {
     #[test]
     fn clean_message_returns_ok() {
         let g = guard();
-        let v = g.check(Some("u1"), Some("1.1.1.1"), "Chào bạn, mình muốn đặt vé đi Đà Lạt");
+        let v = g.check(
+            Some("u1"),
+            Some("1.1.1.1"),
+            "Chào bạn, mình muốn đặt vé đi Đà Lạt",
+        );
         assert!(matches!(v, AbuseVerdict::Ok));
     }
 
@@ -427,7 +444,11 @@ mod tests {
     #[test]
     fn detects_caps_shouting() {
         let g = guard();
-        let v = g.check(Some("u4"), Some("1.1.1.4"), "STOP MESSAGING ME RIGHT NOW PLEASE");
+        let v = g.check(
+            Some("u4"),
+            Some("1.1.1.4"),
+            "STOP MESSAGING ME RIGHT NOW PLEASE",
+        );
         assert!(matches!(v, AbuseVerdict::Warned { .. }));
     }
 
@@ -513,7 +534,11 @@ mod tests {
         let msg = "đặt vé đi Đà Lạt";
         for _ in 0..5 {
             let v = g.check(Some("u11"), Some("1.1.1.11"), msg);
-            assert!(matches!(v, AbuseVerdict::Ok), "repeat message should not flag: {:?}", v);
+            assert!(
+                matches!(v, AbuseVerdict::Ok),
+                "repeat message should not flag: {:?}",
+                v
+            );
         }
         // Not banned.
         assert!(g.is_banned("u11").is_none());

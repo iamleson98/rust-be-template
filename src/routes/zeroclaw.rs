@@ -7,6 +7,8 @@ use crate::dto::zeroclaw::{
     ZeroclawExchangeListResponse, ZeroclawExchangeOut, ZeroclawStatusResponse,
 };
 use crate::error::AppError;
+use crate::middleware::AdminUser;
+use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 use crate::zeroclaw;
 
@@ -36,6 +38,13 @@ pub struct ListExchangesQuery {
 }
 
 /// `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
+///
+/// **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
+/// (any employee/support role). The exchanges contain the customer's
+/// original prompt + the AI's completion, which may include PII such
+/// as phone numbers, booking codes, and travel plans. Exposing them
+/// publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
+/// Excessive Data Exposure).
 #[utoipa::path(
     get,
     path = "/api/zeroclaw/exchanges",
@@ -43,12 +52,18 @@ pub struct ListExchangesQuery {
     params(ListExchangesQuery),
     responses(
         (status = 200, description = "Exchange list", body = ZeroclawExchangeListResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
     )
 )]
 pub async fn list_exchanges(
     State(st): State<AppState>,
+    admin: AdminUser,
     Query(q): Query<ListExchangesQuery>,
 ) -> Result<Json<ZeroclawExchangeListResponse>, AppError> {
+    st.rbac
+        .check(admin.user_id(), rbac::ADMIN_ZEROCLAW_READ)
+        .await?;
     let rows = st
         .chats
         .list_zeroclaw_exchanges(q.limit.unwrap_or(50), q.offset.unwrap_or(0))

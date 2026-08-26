@@ -58,12 +58,14 @@ pub async fn list(
 )]
 pub async fn hold(
     State(st): State<AppState>,
-    AuthUser(_uid): AuthUser,
+    AuthUser(uid): AuthUser,
     Json(body): Json<HoldReq>,
 ) -> Result<Json<BookingHoldResponse>, AppError> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(st.bookings.hold(&body).await?))
+    // Bind the booking to the authenticated caller so subsequent cancel/
+    // confirm calls can verify ownership (BOLA defense).
+    Ok(Json(st.bookings.hold_with_user(uid, &body).await?))
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -129,13 +131,15 @@ pub async fn detail(
 )]
 pub async fn cancel(
     State(st): State<AppState>,
-    AuthUser(_uid): AuthUser,
+    AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<CancelReq>,
 ) -> Result<Json<BookingCancelResponse>, AppError> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(st.bookings.cancel(id, body.reason.as_deref()).await?))
+    Ok(Json(
+        st.bookings.cancel(uid, id, body.reason.as_deref()).await?,
+    ))
 }
 
 /// `POST /api/bookings/{id}/confirm` — confirm a booking with payment.
@@ -153,13 +157,15 @@ pub async fn cancel(
 )]
 pub async fn confirm(
     State(st): State<AppState>,
-    AuthUser(_uid): AuthUser,
+    AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<ConfirmReq>,
 ) -> Result<Json<BookingConfirmResponse>, AppError> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(st.bookings.confirm(id, &body.payment_method).await?))
+    Ok(Json(
+        st.bookings.confirm(uid, id, &body.payment_method).await?,
+    ))
 }
 
 /// Build the bookings router.

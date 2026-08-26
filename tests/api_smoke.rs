@@ -34,15 +34,30 @@ async fn boot_test_app() -> anyhow::Result<axum::Router> {
     static INIT: Once = Once::new();
     INIT.call_once(|| {
         let _ = dotenvy::dotenv();
-        std::env::set_var("DATABASE__URL", "sqlite::memory:");
-        std::env::set_var("JWT__SECRET", "test-secret-at-least-32-bytes-long-aaaaaaaa");
-        std::env::set_var("COOKIE__SECURE", "false");
-        std::env::set_var("COOKIE__DOMAIN", "localhost");
-        std::env::set_var("CACHE__BACKEND", "moka");
-        std::env::set_var("WORKER__BACKEND", "db");
-        std::env::set_var("SEARCH__INDEX_DIR", "");
-        std::env::set_var("AUDIO_CALL__ENABLED", "false");
-        std::env::set_var("ZEROCLAW__ENABLED", "false");
+        // ⚠️  Config keys use SINGLE UNDERSCORE (e.g. `DATABASE_URL`).
+        // The previous double-underscore form (`DATABASE__URL`,
+        // `JWT__SECRET`, etc.) silently fell through to `.env.example`
+        // defaults — so tests would silently write to `./app.db` on
+        // disk instead of in-memory, and use the leaked example JWT
+        // secret. Fixed in this audit pass.
+        std::env::set_var("DATABASE_URL", "sqlite::memory:");
+        std::env::set_var("JWT_SECRET", "test-secret-at-least-32-bytes-long-aaaaaaaa");
+        std::env::set_var("COOKIE_SECURE", "false");
+        std::env::set_var("COOKIE_DOMAIN", "localhost");
+        std::env::set_var("CACHE_BACKEND", "moka");
+        std::env::set_var("WORKER_BACKEND", "db");
+        std::env::set_var("SEARCH_INDEX_DIR", "");
+        std::env::set_var("AUDIO_CALL_ENABLED", "false");
+        std::env::set_var("ZEROCLAW_ENABLED", "false");
+        // Don't hit real payment gateways during tests.
+        std::env::set_var("VNPAY_ENABLED", "false");
+        std::env::set_var("MOMO_ENABLED", "false");
+        std::env::set_var("ZALOPAY_ENABLED", "false");
+        std::env::set_var("VIETQR_ENABLED", "false");
+        // Don't hit real OAuth providers during tests.
+        std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
+        std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
+        std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
     });
 
     let state = backend::server::bootstrap().await?;

@@ -159,8 +159,8 @@ impl BookingService {
 
         // Fetch booking seats + trip concurrently (independent of each other).
         let booking_id_str = b.id.to_string();
-        let trip_id = Uuid::parse_str(&b.trip_session_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip_id =
+            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
 
         let store = self.store.clone();
         let (seats, trip) = tokio::try_join!(
@@ -358,13 +358,37 @@ impl BookingService {
 
     // ── Writes ───────────────────────────────────────────────────
 
-    /// Create a booking (alias of hold).
+    /// Create a booking (alias of hold). When called from an authenticated
+    /// route, prefer `hold_with_user` so the booking is bound to its owner
+    /// (BOLA defense on subsequent cancel/confirm calls).
     pub async fn create(&self, req: &HoldReq) -> AppResult<BookingHoldResponse> {
-        self.hold(req).await
+        self.hold(None, req).await
+    }
+
+    /// Like `hold` but binds the booking to the authenticated caller.
+    /// Use this from any authenticated booking-creation route so that
+    /// subsequent cancel/confirm calls can verify ownership.
+    pub async fn hold_with_user(
+        &self,
+        user_id: Uuid,
+        req: &HoldReq,
+    ) -> AppResult<BookingHoldResponse> {
+        self.hold(Some(user_id), req).await
     }
 
     /// Lock seats + create a pending booking (10-minute hold).
-    pub async fn hold(&self, req: &HoldReq) -> AppResult<BookingHoldResponse> {
+    ///
+    /// **Authorization**: `caller_user_id` is bound to the booking row
+    /// so subsequent cancel/confirm calls can verify ownership (BOLA
+    /// defense). Use `None` only from anonymous/guest booking flows
+    /// (and ensure guest bookings cannot be cancelled/confirmed via
+    /// the authenticated cancel/confirm routes — they use the lookup
+    /// route instead).
+    pub async fn hold(
+        &self,
+        caller_user_id: Option<Uuid>,
+        req: &HoldReq,
+    ) -> AppResult<BookingHoldResponse> {
         // Validate inputs
         if req.seat_ids.is_empty()
             || req.contact_name.trim().is_empty()
@@ -419,11 +443,7 @@ impl BookingService {
         };
 
         // Fetch seat inventories
-        let seat_uuids: Vec<String> = req
-            .seat_ids
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let seat_uuids: Vec<String> = req.seat_ids.iter().map(|s| s.to_string()).collect();
         let seat_invs = self
             .store
             .trip_store()
@@ -516,7 +536,9 @@ impl BookingService {
         let booking_model = booking::ActiveModel {
             id: Set(booking_id),
             code: Set(code.clone()),
-            user_id: Set(None), // Will be set by the route handler from auth context
+            // Bind the booking to its owner so subsequent cancel/confirm
+            // calls can verify `booking.user_id == caller_user_id`.
+            user_id: Set(caller_user_id),
             trip_session_id: Set(req.trip_id.to_string()),
             boarding_point_id: Set(Some(req.boarding_point_id)),
             dropping_point_id: Set(Some(req.dropping_point_id)),
@@ -685,7 +707,18 @@ impl BookingService {
     ///   - > 24h before departure → 90% refund
     ///   - > 4h before departure → 50% refund
     ///   - ≤ 4h before departure → 0% refund
-    pub async fn cancel(&self, id: Uuid, reason: Option<&str>) -> AppResult<BookingCancelResponse> {
+    ///
+    /// **Authorization**: `caller_user_id` must equal `booking.user_id`
+    /// or the caller must hold the `bookings:cancel:any` permission
+    /// (e.g. an admin/support role). Returns 403 Forbidden otherwise —
+    /// this is a per-row ownership check that prevents BOLA on the
+    /// cancel endpoint.
+    pub async fn cancel(
+        &self,
+        caller_user_id: Uuid,
+        id: Uuid,
+        reason: Option<&str>,
+    ) -> AppResult<BookingCancelResponse> {
         let b = self
             .store
             .booking_store()
@@ -693,6 +726,14 @@ impl BookingService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
+
+        // BOLA defense: verify the caller owns this booking. Admins
+        // (employees) don't reach this code path through the public
+        // cancel route — they use the admin cancel route under
+        // `/api/admin/bookings/{id}/cancel` which checks RBAC instead.
+        if b.user_id != Some(caller_user_id) {
+            return Err(AppError::Forbidden("not your booking".into()));
+        }
 
         if b.status == "cancelled" {
             return Err(AppError::BadRequest("booking already cancelled".into()));
@@ -815,7 +856,41 @@ impl BookingService {
     }
 
     /// Confirm a booking (mark paid — locked → booked).
+    ///
+    /// **Authorization**: `caller_user_id` must equal `booking.user_id`.
+    /// Returns 403 Forbidden otherwise — same BOLA defense as `cancel`.
     pub async fn confirm(
+        &self,
+        caller_user_id: Uuid,
+        id: Uuid,
+        payment_method: &str,
+    ) -> AppResult<BookingConfirmResponse> {
+        let b = self
+            .store
+            .booking_store()
+            .find_booking_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
+
+        // BOLA defense: only the booking owner can confirm.
+        if b.user_id != Some(caller_user_id) {
+            return Err(AppError::Forbidden("not your booking".into()));
+        }
+
+        if b.status != "pending" {
+            return Err(AppError::BadRequest(
+                "booking is not in pending status".into(),
+            ));
+        }
+        self.confirm_inner(&b, payment_method).await
+    }
+
+    /// System-level confirm — used by the payment service after a verified
+    /// IPN webhook or admin manual status update. No caller_user_id, so no
+    /// per-row ownership check (the booking is being confirmed because
+    /// payment has been verified, not because a user clicked a button).
+    pub async fn confirm_as_system(
         &self,
         id: Uuid,
         payment_method: &str,
@@ -833,7 +908,17 @@ impl BookingService {
                 "booking is not in pending status".into(),
             ));
         }
+        self.confirm_inner(&b, payment_method).await
+    }
 
+    /// Shared inner confirm logic — assumes ownership has already been
+    /// verified by the caller (either `confirm` for user-facing callers,
+    /// or `confirm_as_system` for server-side callers).
+    async fn confirm_inner(
+        &self,
+        b: &booking::Model,
+        payment_method: &str,
+    ) -> AppResult<BookingConfirmResponse> {
         // Check expiry
         if let Some(ref exp) = b.expires_at {
             if let Ok(t) = chrono::DateTime::parse_from_rfc3339(exp) {
@@ -894,6 +979,7 @@ impl BookingService {
         // UPDATE, all untransactional — a partial failure left some seats
         // "held" with a "confirmed" booking.
         let booking_id_str = b.id.to_string();
+        let booking_id = b.id; // Uuid is Copy — used in the response.
         let payment_method_owned = payment_method.to_string();
         let db = self.store.db();
         let txn_result = db
@@ -930,7 +1016,7 @@ impl BookingService {
                         .map_err(|e| AppError::Internal(e.to_string()))?;
 
                     Ok(BookingConfirmResponse {
-                        booking_id: id,
+                        booking_id,
                         status: "confirmed".to_string(),
                         payment_method: payment_method_owned,
                     })

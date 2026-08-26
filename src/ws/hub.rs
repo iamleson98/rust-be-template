@@ -395,9 +395,7 @@ impl ChatHub {
         if let Some(set) = self.rooms.get(channel_id) {
             for sid in set.iter() {
                 if let Some(sess) = self.sessions.get(&sid) {
-                    if sess.user.id.to_string() == user_id
-                        && sess.user.actor_type == "user"
-                    {
+                    if sess.user.id.to_string() == user_id && sess.user.actor_type == "user" {
                         return true;
                     }
                 }

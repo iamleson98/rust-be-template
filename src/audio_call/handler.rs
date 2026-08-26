@@ -20,6 +20,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         ConnectInfo, Query, State,
     },
+    http::HeaderMap,
     response::IntoResponse,
     routing::get,
     Router,
@@ -34,6 +35,8 @@ use crate::auth::cookies::ACCESS_COOKIE;
 use crate::auth::SessionUser;
 use crate::error::AppError;
 use crate::state::AppState;
+// Reuse the Origin check from the chat WS handler — same CSWSH defense.
+use crate::ws::handler::check_ws_origin;
 
 /// Build the `/ws-call` WebSocket router.
 pub fn router() -> Router<AppState> {
@@ -56,8 +59,13 @@ pub async fn ws_upgrade(
     Query(q): Query<WsQ>,
     jar: CookieJar,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
+    // ── Origin check FIRST — CSWSH defense, same as /ws ─────────────────
+    let allowed_origins = st.config.cors.origin_list();
+    check_ws_origin(&headers, &allowed_origins)?;
+
     // ── Auth (JWT) — try query param first, then cookie ─────────────────
     let user = if let Some(t) = q.token.as_deref() {
         st.auth.verify_access_token_session(t).await.ok()
@@ -267,7 +275,7 @@ pub async fn handle_socket(
         user_r.id
     });
 
-    let user_id = read_task.await.unwrap_or_else(|_| user.id);
+    let user_id = read_task.await.unwrap_or(user.id);
 
     let _ = close_tx.send(()).await;
 

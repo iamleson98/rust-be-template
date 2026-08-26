@@ -121,11 +121,7 @@ impl OAuthProvider for TwitterProvider {
         )
     }
 
-    async fn exchange_code(
-        &self,
-        code: &str,
-        redirect_uri: &str,
-    ) -> Result<String, AppError> {
+    async fn exchange_code(&self, code: &str, redirect_uri: &str) -> Result<String, AppError> {
         // The caller encodes the code_verifier into `redirect_uri`'s
         // fragment? No — the caller passes the original state (which
         // contains the verifier) via the SECOND parameter. We extract
@@ -229,10 +225,7 @@ impl OAuthProvider for TwitterProvider {
 /// fail at Twitter's end (this is intentional — PKCE is mandatory).
 fn split_state(state: &str) -> (String, String) {
     if let Some(idx) = state.find('|') {
-        (
-            state[..idx].to_string(),
-            state[idx + 1..].to_string(),
-        )
+        (state[..idx].to_string(), state[idx + 1..].to_string())
     } else {
         (state.to_string(), String::new())
     }
@@ -275,7 +268,10 @@ mod tests {
         assert!(url.contains("state=mystate"));
         assert!(url.contains("code_challenge_method=S256"));
         let challenge = TwitterProvider::code_challenge(verifier);
-        assert!(url.contains(&format!("code_challenge={}", urlencoding::encode(&challenge))));
+        assert!(url.contains(&format!(
+            "code_challenge={}",
+            urlencoding::encode(&challenge)
+        )));
     }
 
     #[test]

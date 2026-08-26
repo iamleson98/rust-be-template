@@ -770,11 +770,106 @@ impl Config {
 
         tracing::info!("active configuration (loaded directly from .env / environment):");
         tracing::info!("  server: {}:{}", self.server.host, self.server.port);
-        tracing::info!("  database url: {}", self.database.url);
+        // Mask the password in the database URL so logs / `config show`
+        // don't leak the Postgres password (STRUCT-013). Replace the
+        // `user:password@` part with `user:***@`, keep host + db name
+        // so logs are still useful for debugging connectivity issues.
+        tracing::info!("  database url: {}", mask_db_url(&self.database.url));
         tracing::info!("  jwt issuer: {}", self.jwt.issuer);
         tracing::info!("  jwt secret: {}", mask_secret(&self.jwt.secret));
+        // Also mask OAuth + payment secrets so a `config show` dump
+        // can be safely shared in a bug report.
+        tracing::info!("  oauth google client_id: {}", self.oauth.google.client_id);
+        tracing::info!(
+            "  oauth google secret: {}",
+            mask_secret(&self.oauth.google.client_secret)
+        );
+        tracing::info!("  vnpay tmn_code: {}", self.payment.vnpay.tmn_code);
+        tracing::info!(
+            "  vnpay secret: {}",
+            mask_secret(&self.payment.vnpay.hash_secret)
+        );
+        tracing::info!("  momo partner_code: {}", self.payment.momo.partner_code);
+        tracing::info!(
+            "  momo secret: {}",
+            mask_secret(&self.payment.momo.secret_key)
+        );
+        tracing::info!("  zalopay app_id: {:?}", self.payment.zalopay.app_id);
+        tracing::info!(
+            "  zalopay key1: {}",
+            mask_secret(&self.payment.zalopay.key1)
+        );
+        tracing::info!(
+            "  zalopay key2: {}",
+            mask_secret(&self.payment.zalopay.key2)
+        );
         tracing::info!("  storage backend: {:?}", self.storage.backend);
         tracing::info!("  worker backend: {:?}", self.worker.backend);
         tracing::info!("  payment cod_enabled: {}", self.payment.cod_enabled);
+    }
+}
+
+/// Mask the password in a database URL so logs and `config show` don't
+/// leak the production DB password (STRUCT-013). Keeps the scheme + host
+/// + db name so the log line is still useful for debugging.
+///
+/// Example: `postgres://user:hunter2@host:5432/db` → `postgres://user:***@host:5432/db`
+fn mask_db_url(url: &str) -> String {
+    // Only try to mask if the URL parses — fall back to a generic mask
+    // otherwise (don't risk printing the raw URL if parsing fails).
+    if let Ok(mut parts) = url::Url::parse(url) {
+        if parts.password().is_some() {
+            let _ = parts.set_password(Some("***"));
+        }
+        return parts.to_string();
+    }
+    // Last-resort: mask everything after the first `:` in the userinfo
+    // section, or just print a placeholder if we can't find one.
+    if let Some(idx) = url.find("://") {
+        let scheme_end = idx + 3;
+        if let Some(at_idx) = url[scheme_end..].find('@') {
+            let userinfo_end = scheme_end + at_idx;
+            return format!("{}***{}", &url[..scheme_end], &url[userinfo_end..]);
+        }
+    }
+    // SQLite / file URLs have no password — safe to print as-is.
+    url.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mask_db_url;
+
+    #[test]
+    fn masks_postgres_password() {
+        let url = "postgres://app:hunter2@db:5432/app";
+        let masked = mask_db_url(url);
+        assert!(!masked.contains("hunter2"), "password leaked: {masked}");
+        assert!(
+            masked.contains("postgres://app:***@db:5432/app"),
+            "got: {masked}"
+        );
+    }
+
+    #[test]
+    fn masks_postgres_url_with_special_chars() {
+        let url = "postgres://user:p@ssw0rd!@host:5432/db";
+        let masked = mask_db_url(url);
+        assert!(!masked.contains("p@ssw0rd!"), "password leaked: {masked}");
+        assert!(masked.contains("***"), "got: {masked}");
+    }
+
+    #[test]
+    fn sqlite_url_no_password_is_passed_through() {
+        let url = "sqlite://./app.db?mode=rwc";
+        let masked = mask_db_url(url);
+        assert_eq!(masked, url);
+    }
+
+    #[test]
+    fn in_memory_sqlite_is_passed_through() {
+        let url = "sqlite::memory:";
+        let masked = mask_db_url(url);
+        assert_eq!(masked, url);
     }
 }

@@ -38,10 +38,7 @@ impl UserService {
     /// Skips ids that don't exist (e.g. deleted between channel
     /// creation and now — though FK CASCADE on `chat_channel.user_id`
     /// makes this unlikely in practice).
-    pub async fn find_by_ids(
-        &self,
-        ids: &[Uuid],
-    ) -> AppResult<HashMap<Uuid, user::Model>> {
+    pub async fn find_by_ids(&self, ids: &[Uuid]) -> AppResult<HashMap<Uuid, user::Model>> {
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
         if ids.is_empty() {

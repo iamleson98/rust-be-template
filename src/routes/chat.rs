@@ -6,8 +6,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::chat::{
-    ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse, ChatMessageOut,
-    ChannelUserOut, CreateChannelRequest, CreateChannelResponse, CreateMessageRequest,
+    ChannelUserOut, ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse,
+    ChatMessageOut, CreateChannelRequest, CreateChannelResponse, CreateMessageRequest,
     CreateMessageResponse, MarkChannelReadResponse,
 };
 use crate::entity::{chat_channel, chat_message};
@@ -78,13 +78,16 @@ pub async fn list_channels(
     let user_dtos: std::collections::HashMap<Uuid, ChannelUserOut> = user_map
         .iter()
         .map(|(id, u)| {
-            (*id, ChannelUserOut {
-                id: u.id,
-                full_name: Some(u.full_name.clone()),
-                email: Some(u.email.clone()),
-                phone: u.phone.clone(),
-                avatar_url: u.avatar_url.clone(),
-            })
+            (
+                *id,
+                ChannelUserOut {
+                    id: u.id,
+                    full_name: Some(u.full_name.clone()),
+                    email: Some(u.email.clone()),
+                    phone: u.phone.clone(),
+                    avatar_url: u.avatar_url.clone(),
+                },
+            )
         })
         .collect();
 
@@ -141,12 +144,10 @@ pub async fn list_messages(
     Path(id): Path<Uuid>,
     Query(q): Query<ListMessagesQuery>,
 ) -> Result<Json<ChatMessageListResponse>, AppError> {
-    // Authorization: any authenticated user can read messages in a channel
-    // they own OR that's assigned to them as an employee. For simplicity
-    // (and to match the WS handler's behaviour) we just check auth here;
-    // a stricter version would verify `channel.user_id == uid` or that
-    // the caller has an employee role.
-    let _ = uid;
+    // BOLA defense: verify the caller owns the channel or is an employee.
+    // Returns 404 (not 403) when unauthorized so we don't leak the
+    // existence of channels the caller has no business reading.
+    st.chats.assert_channel_access(uid, &id.to_string()).await?;
     let msgs = st
         .chats
         .list_messages(
@@ -175,6 +176,8 @@ pub async fn mark_read(
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MarkChannelReadResponse>, AppError> {
+    // BOLA defense: verify the caller owns the channel or is an employee.
+    st.chats.assert_channel_access(uid, &id.to_string()).await?;
     // The side depends on whether the caller is an employee (admin/support)
     // or the customer. Determine via RBAC role check.
     let is_employee = st.chats.is_employee(uid).await?;
@@ -276,11 +279,11 @@ pub async fn post_message(
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel_id = id.to_string();
 
-    // Verify the channel exists.
-    let exists = st.chats.channel_exists(&channel_id).await?;
-    if !exists {
-        return Err(AppError::NotFound("chat channel not found".into()));
-    }
+    // BOLA defense: verify the caller owns the channel or is an employee.
+    // (Replaces the previous `channel_exists` check which only verified
+    // existence, not ownership — letting any auth'd user post into any
+    // other user's support chat.)
+    st.chats.assert_channel_access(uid, &channel_id).await?;
 
     // Idempotency: if the client already sent this client_msg_id, return
     // the stored message. Single SQL round-trip via `find_message_by_client_id`
@@ -329,7 +332,11 @@ pub async fn post_message(
     // Best-effort — a failure here is logged + swallowed because the
     // message itself was already persisted; the unread counter is
     // secondary UX metadata. The WS handler does the same.
-    let unread_side = if sender_type == "user" { "employee" } else { "user" };
+    let unread_side = if sender_type == "user" {
+        "employee"
+    } else {
+        "user"
+    };
     if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
         tracing::warn!(
             channel_id = %channel_id,

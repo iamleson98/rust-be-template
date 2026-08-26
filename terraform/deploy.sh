@@ -81,12 +81,27 @@ if [ ! -f .env ]; then
     cp .env.example .env
     # Generate a random 32-byte JWT secret.
     JWT_SECRET=$(openssl rand -hex 32)
-    sed -i "s|^JWT__SECRET=.*|JWT__SECRET=${JWT_SECRET}|g" .env
-    # Set cookie secure=true for production.
-    sed -i 's|^COOKIE__SECURE=.*|COOKIE__SECURE=false|g' .env
-    # Allow all origins (or set to your domain).
-    sed -i 's|^CORS__ORIGINS=.*|CORS__ORIGINS=*|g' .env
+    # ⚠️  The config loader reads SINGLE-UNDERSCORE env vars
+    # (`JWT_SECRET`, `COOKIE_SECURE`, `CORS_ORIGINS`). The previous
+    # double-underscore form (`JWT__SECRET`, `COOKIE__SECURE`,
+    # `CORS__ORIGINS`) silently fell through to the .env.example
+    # placeholder values, which:
+    #   1. Used the leaked JWT secret from .env.example (forged JWTs).
+    #   2. Set COOKIE_SECURE=false in production (cookies over HTTP).
+    #   3. Did NOT set CORS_ORIGINS, so the .env.example value of
+    #      localhost-only was used in prod (frontend couldn't call API).
+    sed -i "s|^JWT_SECRET=.*|JWT_SECRET=${JWT_SECRET}|g" .env
+    # Force HTTPS-only cookies in production.
+    sed -i 's|^COOKIE_SECURE=.*|COOKIE_SECURE=true|g' .env
+    # Set CORS to the production frontend origin. Replace `vexevn.vn`
+    # with your real domain. NEVER use `*` with `credentials: include`.
+    sed -i 's|^CORS_ORIGINS=.*|CORS_ORIGINS=https://vexevn.vn,https://www.vexevn.vn|g' .env
     echo "=== .env created with random JWT secret ==="
+    echo "⚠️  IMPORTANT: edit .env to set production values for:"
+    echo "   - DATABASE_URL (use Postgres, not SQLite)"
+    echo "   - OAUTH_GOOGLE_CLIENT_ID + OAUTH_GOOGLE_CLIENT_SECRET (rotate from Google Cloud Console)"
+    echo "   - VNPAY_HASH_SECRET / MOMO_SECRET_KEY / ZALOPAY_KEY1+2 (from provider dashboards)"
+    echo "   - CORS_ORIGINS (verify these match your real frontend URLs)"
 fi
 
 echo "=== Building Docker image (this may take 10-20 minutes) ==="

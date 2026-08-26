@@ -17,7 +17,7 @@ node_modules
 
 # next.js
 /.next/
-/out/
+/out
 
 # production
 /build
@@ -32,7 +32,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (only .env.example is committed)
+# env files (only .env.example is committed — and it must contain ONLY placeholders)
 .env
 .env.*
 !.env.example
@@ -48,45 +48,12 @@ local-*
 .z-ai-config
 *.log
 dev.log
-dev.out.log
-test
-prompt
 
-server.log
-# Skills directory
-/skills/
-# ── Rust / VeXeVN backend ─────────────────────────────────────
-/backend-rust/target/
-/backend-rust/data/
-/backend-rust/**/*.rs.bk
-**/*.rs.bk
-/search-index
-
-# ── Vite / frontend build ─────────────────────────────────────
-/frontend/dist/
-/frontend/.vite/
-/frontend/stats.html
-
-# ── Local snapshots / logs ────────────────────────────────────
-/.initial_snapshot.json
-/rust-backend.log
-/vite-dev.log
-/tool-results/
-
-# ── Agent context (per-session, not source) ───────────────────
-/agent-ctx/
-/db
-
-/data
-/hello
-app.db
-
-# ── Docker build cache ─────────────────────────────────────────
-.docker/
-
-# ── Terraform state (NEVER commit) ──────────────────────────────
-terraform/*.tfstate
-terraform/*.tfstate.*
-terraform/.terraform/
-terraform/*.tfvars
-terraform/crash.log
+# ── Backend runtime artifacts ───────────────────────────────────────────
+# Never commit DB files, WAL/SHM, search indexes, or local storage.
+*.db
+*.db-shm
+*.db-wal
+/osm-index/
+/data/
+/storage/
