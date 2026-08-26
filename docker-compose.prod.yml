@@ -47,6 +47,12 @@ services:
       WORKER_KAFKA_BROKERS: ""
       # Fail fast if JWT_SECRET is missing.
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      # NullClaw AI — built directly into the backend (no external container).
+      # Uses the LLM API directly via OpenAI-compatible endpoint.
+      NULLCLAW_ENABLED: ${NULLCLAW_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
     volumes:
       - app-storage:/app/storage
       - app-osm:/app/osm-index
@@ -186,52 +192,14 @@ services:
     networks:
       - vexevn-net
 
-  # ── NullClaw AI (chat support assistant) ──────────────────────────────
-  # Only starts when `--profile nullclaw` is passed to docker stack deploy.
-  #   docker stack deploy -c docker-compose.prod.yml --with-registry-auth \
-  #     --profile nullclaw vexevn
-  nullclaw:
-    image: ghcr.io/nullclaw-labs/nullclaw:latest
-    profiles: ["nullclaw"]
-    # Bind only to 127.0.0.1 — never expose this directly to the internet.
-    # The backend talks to it over the internal Docker network.
-    ports:
-      - "127.0.0.1:42617:42617"
-    environment:
-      NULLCLAW_API_KEY: "${NULLCLAW_API_KEY:?set NULLCLAW_API_KEY in .env}"
-      LLM_PROVIDER: "${LLM_PROVIDER:-openai}"
-      OPENAI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta/openai/"
-      OPENAI_API_KEY: "${GEMINI_API_KEY:?set GEMINI_API_KEY in .env}"
-      NULLCLAW_MODEL: "${NULLCLAW_MODEL:-gemini-2.0-flash}"
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
-        window: 30s
-      resources:
-        limits:
-          memory: 1g
-      placement:
-        constraints:
-          - node.role == manager
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    networks:
-      - vexevn-net
-
   # ── Caddy (TLS-terminating reverse proxy) ─────────────────────────────
   # Handles automatic Let's Encrypt HTTPS + reverse proxy to the backend.
   # Caddy automatically handles WebSocket upgrades (no special config needed).
   # Replace `yourdomain.com` in the Caddyfile before deploying.
+  #
+  # NOTE: NullClaw AI is now built directly into the backend — no separate
+  # container needed. Set NULLCLAW_ENABLED=true + LLM_API_KEY in .env to
+  # enable AI chat replies. See DEPLOYMENT.md §6 for details.
   caddy:
     image: caddy:2-alpine
     ports:

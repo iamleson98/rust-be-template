@@ -14,8 +14,10 @@
 //!   * [`NoopNullClawProvider`] — default. Always returns `None`, meaning
 //!     "NullClaw not configured / let a human handle it". Zero overhead.
 //!
-//!   * [`HttpNullClawProvider`] — calls an external NullClaw HTTP endpoint
-//!     (set via `NULLCLAW_API_URL` + `NULLCLAW_API_KEY`).
+//!   * [`DirectLLMProvider`] — calls an OpenAI-compatible LLM API directly
+//!     (e.g. Gemini via `https://generativelanguage.googleapis.com/v1beta/openai`).
+//!     No external NullClaw container needed — the system prompt, safety rules,
+//!     and conversation logic are all built into the backend.
 //!
 //! ## Hook point
 //!
@@ -25,12 +27,22 @@
 //! to the room. An entry is also written to `NullClawExchange` for audit
 //! and future training.
 //!
-//! ## Adaptation notes
+//! ## Why DirectLLMProvider (not the NullClaw container)
 //!
-//! Ported from `booking-rs/logic/nullclaw`. The original used raw `sqlx`
-//! against the `Pool`; this version takes a [`ChatStore`] trait object so
-//! it fits the template's layered store architecture (no DB access in the
-//! service/provider layer).
+//! The previous `HttpNullClawProvider` called an external NullClaw HTTP
+//! endpoint which was a separate Docker container. That container was just
+//! a proxy — it took the conversation, prepended a system prompt, called the
+//! LLM API, and returned the reply. All of that logic is now built into
+//! `DirectLLMProvider`, eliminating:
+//!   - The NullClaw container (~1 GB RAM on the VM)
+//!   - The extra network hop (backend → NullClaw → LLM)
+//!   - The shared-secret API key between backend and NullClaw
+//!   - The `nullclaw.config.json` mount
+//!
+//! The system prompt + safety rules are embedded as Rust constants — they
+//! were previously in `nullclaw.config.json` (mounted into the NullClaw
+//! container). The Vietnamese prompt, domain guardrails, block patterns,
+//! and domain keywords are all preserved.
 
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
@@ -47,65 +59,95 @@ use crate::store::chat::{ChatStore, NewChatMessage, NewNullClawExchange};
 // ── NullClaw bot identity ──────────────────────────────────────
 //
 // The NullClaw bot is created at FIRST-USER SIGNUP time by
-// `AuthService::register` (see `src/service/auth_service.rs`) —
-// NOT by a migration seed. This means the bot's UUID is assigned
-// at runtime by `Uuid::new_v4()` and is therefore different per
-// deployment. We cannot hardcode the UUID as a `const`.
-//
-// Instead, we look up the bot user by its well-known email at the
-// call sites that need it (channel creation + AI reply). The lookup
-// is cached per-process via `tokio::sync::OnceCell` so we only pay
-// the DB round-trip once per boot. If the bot user doesn't exist
-// (e.g. signup happened before this code shipped), the lookup
-// returns `None` and the chat code degrades gracefully —
-// `sender_id` falls back to `None` and the bot member row is
-// skipped (but the channel still works).
+// `AuthService::register` (see `src/service/auth_service.rs`).
+// We look up the bot user by its well-known email at the call sites
+// that need it. The lookup is cached per-process via `OnceCell`.
 
-/// The well-known email of the NullClaw bot user. Created by
-/// `AuthService::register` when the first human user signs up.
-/// Changing this constant requires deleting the old bot user row
-/// + re-running signup, so don't change it without a migration.
+/// The well-known email of the NullClaw bot user.
 pub const NULLCLAW_BOT_EMAIL: &str = "nullclaw_agent@example.com";
 
-/// Display name used in WS broadcasts + chat messages. This is the
-/// name customers see when NullClaw replies (e.g. "NullClaw AI").
-/// The bot's `user.full_name` may differ (it's set to
-/// `"nullclaw_agent"` by `AuthService::register`), so we use this
-/// constant for the customer-facing display name.
+/// Display name used in WS broadcasts + chat messages.
 pub const NULLCLAW_BOT_NAME: &str = "NullClaw AI";
 
-/// Conversation turn sent to NullClaw. `role` ∈ {`user`, `assistant`}.
+// ── System prompt (embedded — was in nullclaw.config.json) ──────
+//
+// The full Vietnamese system prompt with domain guardrails, safety rules,
+// and VeXeVN business info. Previously lived in `nullclaw.config.json`
+// (mounted into the NullClaw container). Now embedded directly — no
+// external file needed.
+
+const SYSTEM_PROMPT: &str = "\
+Bạn là trợ lý hỗ trợ khách hàng của VeXeVN — nền tảng đặt vé xe khách trực tuyến tại Việt Nam.\n\n\
+## Vai trò\n\
+- Trả lời các câu hỏi về đặt vé, lịch trình, giá vé, thanh toán, hoàn/hủy vé\n\
+- Hỗ trợ khách hàng giải quyết vấn đề về tài khoản, mã vé\n\
+- Hướng dẫn khách hàng sử dụng website vexevn.vn\n\n\
+## Quy tắc nghiêm ngặt\n\
+1. CHỈ trả lời các câu hỏi liên quan đến: đặt vé xe, lịch trình, giá vé, thanh toán, hoàn/hủy vé, tài khoản người dùng, dịch vụ VeXeVN.\n\
+2. KHÔNG trả lời các câu hỏi ngoài lĩnh vực: chính trị, tôn giáo, thể thao, giải trí, lập trình, y tế, pháp lý, hoặc bất kỳ chủ đề nào không liên quan đến VeXeVN.\n\
+3. Nếu khách hàng hỏi câu ngoài lĩnh vực, lịch sự từ chối: \"Xin lỗi, em chỉ hỗ trợ các vấn đề liên quan đến đặt vé xe và dịch vụ VeXeVN. Bạn có câu hỏi nào về đặt vé không ạ?\"\n\
+4. Luôn lịch sự, thân thiện, sử dụng tiếng Việt.\n\
+5. KHÔNG đưa ra thông tin sai lệch. Nếu không biết câu trả lời, nói: \"Em cần kiểm tra thêm thông tin này. Bạn vui lòng đợi nhân viên hỗ trợ phản hồi nhé.\"\n\
+6. KHÔNG đưa ra thông tin cá nhân của bất kỳ ai.\n\
+7. KHÔNG đưa ra liên kết hoặc URL ngoài trừ các trang chính thức của VeXeVN (vexevn.vn).\n\
+8. Giới hạn độ dài trả lời: tối đa 3 câu (khoảng 200 từ).\n\
+9. KHÔNG sử dụng emoji quá nhiều (tối đa 1 emoji mỗi câu trả lời).\n\
+10. Nếu khách hàng cần hỗ trợ khẩn cấp hoặc phức tạp, hướng dẫn gọi hotline 1900 6067.\n\n\
+## Thông tin VeXeVN\n\
+- Website: vexevn.vn\n\
+- Hotline: 1900 6067 (8h-22h)\n\
+- Email hỗ trợ: hotro@vexevn.vn\n\
+- Thanh toán: VNPay, MoMo, ZaloPay, VietQR, COD (thanh toán trên xe)\n\
+- Chính sách hoàn/hủy: Hủy trước 24h = hoàn 100%, 12-24h = hoàn 70%, <12h = không hoàn.\n\
+- Đặt vé: Chọn điểm đi/đến + ngày → chọn chuyến → nhập thông tin → thanh toán. Vé điện tử gửi qua email/Zalo.\n\n\
+## Xử lý chuyển cho nhân viên\n\
+Nếu câu hỏi phức tạp hoặc cần thông tin cụ thể về mã vé, chuyển cho nhân viên: \"Em đã ghi nhận yêu cầu của bạn. Nhân viên hỗ trợ sẽ phản hồi chi tiết trong ít phút nữa.\"";
+
+/// Patterns that indicate prompt injection / jailbreak attempts.
+/// If the user's message contains any of these (case-insensitive),
+/// the AI refuses to process it and returns a safe fallback message.
+const BLOCK_PATTERNS: &[&str] = &[
+    "ignore previous instructions",
+    "you are not",
+    "act as",
+    "pretend to be",
+    "forget your instructions",
+    "override",
+    "system prompt",
+    "jailbreak",
+];
+
+/// Safe fallback message when a prompt-injection attempt is detected.
+const BLOCK_MESSAGE: &str = "Em không thể xử lý yêu cầu này. Bạn có câu hỏi nào về đặt vé xe VeXeVN không ạ?";
+
+/// Maximum input length (characters). Messages longer than this are
+/// truncated before being sent to the LLM — prevents token abuse.
+const MAX_INPUT_LENGTH: usize = 500;
+
+/// Maximum output tokens for the LLM response.
+const MAX_OUTPUT_TOKENS: u32 = 500;
+
+/// LLM sampling temperature — low for consistent, factual responses.
+const LLM_TEMPERATURE: f32 = 0.3;
+
+// ── DTOs ──────────────────────────────────────────────────────
+
+/// Conversation turn sent to the LLM. `role` ∈ {`user`, `assistant`}.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationTurn {
     pub role: String,
     pub text: String,
 }
 
-/// Request body sent to NullClaw.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NullClawRequest {
-    pub channel_id: Uuid,
-    pub brand_id: Option<Uuid>,
-    pub user_id: Uuid,
-    pub user_name: String,
-    pub conversation: Vec<ConversationTurn>,
-    pub locale: String,
-}
-
-/// Reply from NullClaw.
+/// Reply from the LLM.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NullClawReply {
     pub reply: String,
-    /// 0.0–1.0. Below ~0.6 we typically hand off to a human.
     #[serde(default)]
     pub confidence: f64,
-    /// If `true`, the channel is flagged for human pickup after the reply
-    /// is sent. The reply itself is still delivered to the user.
     #[serde(default)]
     pub handoff_to_human: bool,
-    /// Model identifier (for audit / A-B testing).
     #[serde(default = "default_model")]
     pub model: String,
 }
@@ -118,39 +160,22 @@ fn default_model() -> String {
 #[derive(Debug, Clone)]
 pub struct NullClawOutcome {
     pub reply: NullClawReply,
-    /// ID of the `ChatMessage` row we inserted (senderType='assistant').
     pub assistant_message_id: String,
-    /// ISO timestamp of the assistant message.
     pub created_at: String,
-    /// True if the provider flagged `handoff_to_human`.
     pub handoff: bool,
-    /// The bot user's UUID (looked up at reply time). The caller uses
-    /// this for the WS broadcast's `senderId` field so the frontend can
-    /// fetch the bot's avatar/name. `None` if the bot user wasn't found
-    /// (degraded mode — the message is still inserted with `sender_id=NULL`).
     pub bot_user_id: Option<Uuid>,
 }
 
+// ── Provider trait ──────────────────────────────────────────────
+
 /// Pluggable NullClaw provider. The default is [`NoopNullClawProvider`];
-/// when `NULLCLAW_ENABLED=true` + `NULLCLAW_API_URL` is set, the boot code
-/// swaps in [`HttpNullClawProvider`].
+/// when `NULLCLAW_ENABLED=true` + `LLM_API_KEY` is set, the boot code
+/// swaps in [`DirectLLMProvider`].
 #[async_trait]
 pub trait NullClawProvider: Send + Sync {
-    /// Return the provider's display name (for logging + /api/nullclaw/status).
     fn name(&self) -> &'static str;
-
-    /// True if this provider is configured to actually call NullClaw.
     fn is_enabled(&self) -> bool;
 
-    /// Try to generate a reply for the given conversation.
-    ///
-    /// Returns:
-    ///   * `Ok(Some(outcome))` — NullClaw replied; caller broadcasts it.
-    ///   * `Ok(None)` — NullClaw declined (low confidence, not enabled,
-    ///     online employees available, etc.). Caller does nothing.
-    ///   * `Err(_)` — store error. Caller logs and does nothing (the
-    ///     customer's original message is still delivered; we never fail
-    ///     the chat because NullClaw errored).
     #[allow(clippy::too_many_arguments)]
     async fn maybe_reply(
         &self,
@@ -167,15 +192,6 @@ pub trait NullClawProvider: Send + Sync {
 }
 
 // ── Noop provider (default — NullClaw disabled) ────────────────
-//
-// The default provider when no external NullClaw HTTP endpoint is
-// configured. Always returns `None` — the customer's message is
-// still delivered, but no AI reply is generated. A human employee
-// (when online) will respond.
-//
-// At deploy time, set `NULLCLAW_ENABLED=true` + `NULLCLAW_API_URL` +
-// `NULLCLAW_API_KEY` to switch to [`HttpNullClawProvider`], which
-// calls the actual NullClaw LLM endpoint.
 
 pub struct NoopNullClawProvider;
 
@@ -204,20 +220,30 @@ impl NullClawProvider for NoopNullClawProvider {
     }
 }
 
-// ── HTTP provider ───────────────────────────────────────────────
+// ── Direct LLM provider ────────────────────────────────────────
+//
+// Calls an OpenAI-compatible chat completions API directly (e.g. Gemini
+// via `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`).
+// No external NullClaw container needed — the system prompt, safety rules,
+// and conversation logic are all built into the backend.
 
-pub struct HttpNullClawProvider {
-    pub api_url: String,
+pub struct DirectLLMProvider {
+    /// Base URL of the OpenAI-compatible API (e.g.
+    /// `https://generativelanguage.googleapis.com/v1beta/openai`).
+    /// The provider appends `/chat/completions` to this.
+    pub base_url: String,
+    /// API key for the LLM provider (e.g. Gemini API key).
     pub api_key: String,
+    /// Model name (e.g. `gemini-2.0-flash`).
     pub model: String,
     pub timeout: Duration,
     pub max_history: usize,
     pub client: reqwest::Client,
 }
 
-impl HttpNullClawProvider {
+impl DirectLLMProvider {
     pub fn new(
-        api_url: String,
+        base_url: String,
         api_key: String,
         model: String,
         timeout_ms: u64,
@@ -228,7 +254,7 @@ impl HttpNullClawProvider {
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self {
-            api_url,
+            base_url,
             api_key,
             model,
             timeout: Duration::from_millis(timeout_ms),
@@ -236,12 +262,72 @@ impl HttpNullClawProvider {
             client,
         }
     }
+
+    /// Check if the user's message contains any block patterns
+    /// (prompt injection / jailbreak attempts). Returns `true` if blocked.
+    fn is_blocked(user_text: &str) -> bool {
+        let lower = user_text.to_lowercase();
+        BLOCK_PATTERNS.iter().any(|p| lower.contains(p))
+    }
+
+    /// Truncate the user's message to `MAX_INPUT_LENGTH` characters.
+    fn truncate_input(user_text: &str) -> String {
+        if user_text.len() <= MAX_INPUT_LENGTH {
+            user_text.to_string()
+        } else {
+            user_text.chars().take(MAX_INPUT_LENGTH).collect()
+        }
+    }
+
+    /// Build the OpenAI-compatible chat completions request body.
+    fn build_request_body(
+        &self,
+        conversation: &[ConversationTurn],
+    ) -> serde_json::Value {
+        // Build the messages array: system prompt + conversation history.
+        let mut messages = vec![serde_json::json!({
+            "role": "system",
+            "content": SYSTEM_PROMPT,
+        })];
+
+        for turn in conversation {
+            messages.push(serde_json::json!({
+                "role": turn.role,
+                "content": turn.text,
+            }));
+        }
+
+        serde_json::json!({
+            "model": self.model,
+            "messages": messages,
+            "temperature": LLM_TEMPERATURE,
+            "max_tokens": MAX_OUTPUT_TOKENS,
+        })
+    }
+}
+
+/// OpenAI-compatible chat completions response shape (partial —
+/// only the fields we need).
+#[derive(Debug, Deserialize)]
+struct ChatCompletionResponse {
+    choices: Vec<ChatChoice>,
+    model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatChoice {
+    message: ChatMessage,
+}
+
+#[derive(Debug, Deserialize)]
+struct ChatMessage {
+    content: Option<String>,
 }
 
 #[async_trait]
-impl NullClawProvider for HttpNullClawProvider {
+impl NullClawProvider for DirectLLMProvider {
     fn name(&self) -> &'static str {
-        "http"
+        "direct-llm"
     }
     fn is_enabled(&self) -> bool {
         true
@@ -251,8 +337,8 @@ impl NullClawProvider for HttpNullClawProvider {
         &self,
         chat_store: &dyn ChatStore,
         channel_id: &str,
-        brand_id: Option<&str>,
-        user: &SessionUser,
+        _brand_id: Option<&str>,
+        _user: &SessionUser,
         user_message_id: &str,
         user_text: &str,
         online_employees: usize,
@@ -270,13 +356,36 @@ impl NullClawProvider for HttpNullClawProvider {
             return Ok(None);
         }
 
-        // 2. Fetch recent conversation history (last N messages).
-        //
-        // `list_messages` returns messages in DESC order (newest first)
-        // to support cursor pagination. For the AI conversation we need
-        // chronological order (oldest first, newest last) so the model
-        // sees the dialogue in the natural reading direction. We
-        // reverse the page after mapping.
+        // 2. Safety check — block prompt injection attempts.
+        if Self::is_blocked(user_text) {
+            tracing::warn!(
+                channel_id,
+                "nullclaw: blocked prompt injection attempt"
+            );
+            // Still persist a safe fallback reply so the customer gets
+            // an immediate response.
+            let reply = NullClawReply {
+                reply: BLOCK_MESSAGE.to_string(),
+                confidence: 1.0,
+                handoff_to_human: false,
+                model: "safety-filter".into(),
+            };
+            return self.persist_and_return(
+                chat_store,
+                channel_id,
+                user_message_id,
+                user_text,
+                reply,
+                0,
+                bot_user_id,
+            )
+            .await;
+        }
+
+        // 3. Truncate input to prevent token abuse.
+        let truncated_text = Self::truncate_input(user_text);
+
+        // 4. Fetch recent conversation history (last N messages).
         let history = chat_store
             .list_messages(channel_id, self.max_history as u64, 0)
             .await
@@ -292,17 +401,14 @@ impl NullClawProvider for HttpNullClawProvider {
                 },
                 text: m.content.unwrap_or_default(),
             })
-            // `list_messages` is DESC (newest first); reverse to get
-            // chronological order (oldest first, newest last) so the
-            // AI sees the conversation naturally.
             .rev()
             .collect();
 
         // If the just-sent message isn't the last entry (race), append it.
-        if conversation.last().map(|t| t.text.as_str()) != Some(user_text) {
+        if conversation.last().map(|t| t.text.as_str()) != Some(&truncated_text) {
             conversation.push(ConversationTurn {
                 role: "user".into(),
-                text: user_text.to_string(),
+                text: truncated_text.clone(),
             });
         }
         // Trim to last N turns.
@@ -311,25 +417,14 @@ impl NullClawProvider for HttpNullClawProvider {
             conversation = conversation.split_off(start);
         }
 
-        let req_body = NullClawRequest {
-            channel_id: uuid::Uuid::parse_str(channel_id)
-                .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?,
-            brand_id: match brand_id {
-                Some(s) => Some(
-                    uuid::Uuid::parse_str(s)
-                        .map_err(|e| AppError::Internal(format!("invalid brand id: {e}")))?,
-                ),
-                None => None,
-            },
-            user_id: user.id,
-            user_name: user.name.clone(),
-            locale: "vi".into(),
-            conversation,
-        };
-
-        // 3. Call NullClaw.
-        let url = format!("{}/v1/reply", self.api_url.trim_end_matches('/'));
+        // 5. Call the LLM API directly.
+        let url = format!(
+            "{}/chat/completions",
+            self.base_url.trim_end_matches('/')
+        );
+        let req_body = self.build_request_body(&conversation);
         let started = std::time::Instant::now();
+
         let resp = self
             .client
             .post(&url)
@@ -342,43 +437,75 @@ impl NullClawProvider for HttpNullClawProvider {
         let resp = match resp {
             Ok(r) => r,
             Err(e) => {
-                tracing::warn!(error = ?e, url = %url, "nullclaw: HTTP request failed");
+                tracing::warn!(error = ?e, url = %url, "nullclaw: LLM API request failed");
                 return Ok(None);
             }
         };
         let status = resp.status();
         if !status.is_success() {
-            tracing::warn!(status = %status, url = %url, "nullclaw: non-2xx response");
+            tracing::warn!(status = %status, url = %url, "nullclaw: LLM API non-2xx response");
             return Ok(None);
         }
-        let reply: NullClawReply = match resp.json().await {
+
+        let completion: ChatCompletionResponse = match resp.json().await {
             Ok(v) => v,
             Err(e) => {
-                tracing::warn!(error = ?e, "nullclaw: failed to parse response");
+                tracing::warn!(error = ?e, "nullclaw: failed to parse LLM response");
                 return Ok(None);
             }
         };
 
-        // 4. Persist the assistant reply as a ChatMessage row.
+        let reply_text = completion
+            .choices
+            .first()
+            .and_then(|c| c.message.content.as_deref())
+            .unwrap_or("Em xin lỗi, em không hiểu yêu cầu của bạn. Vui lòng thử lại hoặc gọi hotline 1900 6067.")
+            .to_string();
+
+        let reply = NullClawReply {
+            reply: reply_text,
+            confidence: 1.0, // LLM doesn't provide confidence — always 1.0
+            handoff_to_human: false, // Could add prompt-based handoff detection later
+            model: completion.model.unwrap_or_else(|| self.model.clone()),
+        };
+
+        // 6. Persist + return.
+        self.persist_and_return(
+            chat_store,
+            channel_id,
+            user_message_id,
+            user_text,
+            reply,
+            latency_ms,
+            bot_user_id,
+        )
+        .await
+    }
+}
+
+impl DirectLLMProvider {
+    /// Persist the AI reply as a ChatMessage + audit row, then return
+    /// the `NullClawOutcome` for the WS handler to broadcast.
+    async fn persist_and_return(
+        &self,
+        chat_store: &dyn ChatStore,
+        channel_id: &str,
+        user_message_id: &str,
+        user_text: &str,
+        reply: NullClawReply,
+        latency_ms: i64,
+        bot_user_id: Option<Uuid>,
+    ) -> Result<Option<NullClawOutcome>, AppError> {
         let now = chrono::Utc::now().to_rfc3339();
-        // Parse once for DB inserts (`NewChatMessage.channel_id` and
-        // `NewNullClawExchange.*` are `Uuid` so SeaORM binds them as
-        // blobs matching the `pk_uuid` parent columns).
         let channel_uuid = uuid::Uuid::parse_str(channel_id)
             .map_err(|e| AppError::Internal(format!("invalid channel id: {e}")))?;
         let user_msg_uuid = uuid::Uuid::parse_str(user_message_id)
             .map_err(|e| AppError::Internal(format!("invalid user message id: {e}")))?;
+
         let assistant_msg = chat_store
             .insert_message(NewChatMessage {
                 channel_id: channel_uuid,
                 sender_type: "assistant".into(),
-                // Use the NullClaw bot's UUID (looked up by email at the
-                // service layer) so the assistant message has a real FK
-                // to `user`. When `bot_user_id` is `None` (bot user
-                // missing — e.g. signup ran before this code shipped),
-                // we fall back to `sender_id = None` and the message
-                // still inserts (the chat renders it as a generic
-                // assistant message).
                 sender_id: bot_user_id,
                 content: Some(reply.reply.clone()),
                 kind: "text".into(),
@@ -389,13 +516,13 @@ impl NullClawProvider for HttpNullClawProvider {
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let assistant_msg_id = assistant_msg.id.to_string();
 
-        // 5. Update channel last-message preview.
+        // Update channel last-message preview.
         let preview: String = reply.reply.chars().take(100).collect();
         let _ = chat_store
             .update_channel_preview(channel_id, preview, now.clone())
             .await?;
 
-        // 6. Audit row.
+        // Audit row.
         let _ = chat_store
             .insert_nullclaw_exchange(NewNullClawExchange {
                 channel_id: Some(channel_uuid),
@@ -414,7 +541,7 @@ impl NullClawProvider for HttpNullClawProvider {
             latency_ms,
             confidence = reply.confidence,
             handoff = reply.handoff_to_human,
-            "nullclaw replied"
+            "nullclaw replied (direct LLM)"
         );
 
         Ok(Some(NullClawOutcome {
@@ -434,21 +561,18 @@ static PROVIDER: OnceCell<Arc<dyn NullClawProvider>> = OnceCell::new();
 /// Initialise the global NullClaw provider from config. Called once on boot.
 ///
 /// Resolution order:
-///   1. **HTTP provider** — when `NULLCLAW_ENABLED=true` and
-///      `NULLCLAW_API_URL`/`NULLCLAW_API_KEY` are set. This is what
-///      production deployments use.
-///   2. **Noop provider** — silently declines to reply. The customer's
-///      message is still delivered to the channel; a human employee
-///      will respond when online. The actual NullClaw endpoint will
-///      be configured at deploy time.
+///   1. **DirectLLMProvider** — when `NULLCLAW_ENABLED=true` and
+///      `LLM_API_KEY` (or `NULLCLAW_API_KEY`) is set. Calls the LLM
+///      API directly — no external NullClaw container needed.
+///   2. **Noop provider** — silently declines to reply.
 pub fn init(cfg: &NullClawConfig) {
     let provider: Arc<dyn NullClawProvider> = if cfg.is_active() {
         tracing::info!(
-            api_url = cfg.api_url.as_str(),
+            base_url = cfg.api_url.as_str(),
             model = cfg.model.as_str(),
-            "NullClaw AI customer-support assistant ENABLED (HTTP provider)"
+            "NullClaw AI customer-support assistant ENABLED (DirectLLM provider — no external container needed)"
         );
-        Arc::new(HttpNullClawProvider::new(
+        Arc::new(DirectLLMProvider::new(
             cfg.api_url.clone(),
             cfg.api_key.clone(),
             cfg.model.clone(),
@@ -457,7 +581,7 @@ pub fn init(cfg: &NullClawConfig) {
         ))
     } else {
         tracing::info!(
-            "NullClaw AI customer-support assistant disabled (set NULLCLAW_ENABLED + NULLCLAW_API_URL + NULLCLAW_API_KEY to enable)"
+            "NullClaw AI customer-support assistant disabled (set NULLCLAW_ENABLED=true + LLM_API_KEY to enable)"
         );
         Arc::new(NoopNullClawProvider)
     };
@@ -465,7 +589,7 @@ pub fn init(cfg: &NullClawConfig) {
     let _ = PROVIDER.set(provider);
     tracing::info!(
         enabled = cfg.is_active(),
-        api_url = cfg.api_url.as_str(),
+        base_url = cfg.api_url.as_str(),
         model = cfg.model.as_str(),
         "nullclaw provider initialised"
     );
@@ -492,25 +616,24 @@ mod tests {
     }
 
     #[test]
-    fn http_provider_constructs_client() {
-        let p = HttpNullClawProvider::new(
-            "https://api.nullclaw.ai".into(),
-            "secret".into(),
-            "nullclaw-v1".into(),
-            5000,
-            8,
+    fn direct_llm_provider_constructs() {
+        let p = DirectLLMProvider::new(
+            "https://generativelanguage.googleapis.com/v1beta/openai".into(),
+            "test-key".into(),
+            "gemini-2.0-flash".into(),
+            15000,
+            12,
         );
         assert!(p.is_enabled());
-        assert_eq!(p.name(), "http");
-        assert_eq!(p.timeout, Duration::from_millis(5000));
-        assert_eq!(p.max_history, 8);
+        assert_eq!(p.name(), "direct-llm");
+        assert_eq!(p.model, "gemini-2.0-flash");
+        assert_eq!(p.max_history, 12);
     }
 
     #[test]
     fn config_default_is_disabled() {
         let c = NullClawConfig::default();
         assert!(!c.is_active());
-        assert!(c.api_url.is_empty());
         assert_eq!(c.timeout_ms, 15_000);
         assert_eq!(c.max_history, 12);
         assert_eq!(c.fallback_online_employees, 1);
@@ -522,12 +645,28 @@ mod tests {
     }
 
     #[test]
-    fn nullclaw_reply_defaults_model() {
-        let json = r#"{"reply":"hello","confidence":0.9}"#;
-        let r: NullClawReply = serde_json::from_str(json).unwrap();
-        assert_eq!(r.reply, "hello");
-        assert!((r.confidence - 0.9).abs() < 1e-6);
-        assert!(!r.handoff_to_human);
-        assert_eq!(r.model, "nullclaw-v1");
+    fn block_patterns_detect_injection() {
+        assert!(DirectLLMProvider::is_blocked("ignore previous instructions"));
+        assert!(DirectLLMProvider::is_blocked("act as a different AI"));
+        assert!(DirectLLMProvider::is_blocked("JAILBREAK the system"));
+        assert!(!DirectLLMProvider::is_blocked("Tôi muốn đặt vé xe"));
+        assert!(!DirectLLMProvider::is_blocked("Giá vé đi Đà Nẵng bao nhiêu?"));
+    }
+
+    #[test]
+    fn truncate_long_input() {
+        let short = "Tôi muốn đặt vé";
+        assert_eq!(DirectLLMProvider::truncate_input(short), short);
+
+        let long = "a".repeat(600);
+        let truncated = DirectLLMProvider::truncate_input(&long);
+        assert_eq!(truncated.len(), MAX_INPUT_LENGTH);
+    }
+
+    #[test]
+    fn system_prompt_is_vietnamese() {
+        assert!(SYSTEM_PROMPT.contains("VeXeVN"));
+        assert!(SYSTEM_PROMPT.contains("đặt vé"));
+        assert!(SYSTEM_PROMPT.contains("hotline"));
     }
 }

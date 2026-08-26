@@ -402,9 +402,19 @@ impl Default for NullClawConfig {
     fn default() -> Self {
         Self {
             enabled: env_parse("NULLCLAW_ENABLED").unwrap_or(false),
-            api_url: env_var("NULLCLAW_API_URL").unwrap_or_default(),
-            api_key: env_var("NULLCLAW_API_KEY").unwrap_or_default(),
-            model: env_var("NULLCLAW_MODEL").unwrap_or_else(|| "nullclaw-default".into()),
+            // LLM_BASE_URL takes priority, fall back to NULLCLAW_API_URL
+            // for backward compat with existing .env files.
+            api_url: env_var("LLM_BASE_URL")
+                .or_else(|| env_var("NULLCLAW_API_URL"))
+                .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta/openai".into()),
+            // LLM_API_KEY takes priority, fall back to NULLCLAW_API_KEY.
+            api_key: env_var("LLM_API_KEY")
+                .or_else(|| env_var("NULLCLAW_API_KEY"))
+                .unwrap_or_default(),
+            // LLM_MODEL takes priority, fall back to NULLCLAW_MODEL.
+            model: env_var("LLM_MODEL")
+                .or_else(|| env_var("NULLCLAW_MODEL"))
+                .unwrap_or_else(|| "gemini-2.0-flash".into()),
             timeout_ms: env_parse("NULLCLAW_TIMEOUT_MS").unwrap_or(15_000),
             max_history: env_parse("NULLCLAW_MAX_HISTORY").unwrap_or(12),
             fallback_online_employees: env_parse("NULLCLAW_FALLBACK_ONLINE_EMPLOYEES").unwrap_or(1),
