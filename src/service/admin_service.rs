@@ -261,27 +261,11 @@ impl AdminService {
             .await
             .unwrap_or_default();
 
-        // Batched place lookups — replaces the N+1 of per-route
-        // find_place_by_id(start) + find_place_by_id(end).
-        let mut place_ids: Vec<Uuid> = Vec::new();
-        for r in &routes {
-            if let Some(id) = r.start_location_id {
-                place_ids.push(id);
-            }
-            if let Some(id) = r.end_location_id {
-                place_ids.push(id);
-            }
-        }
-        place_ids.dedup();
-        let places = self
-            .store
-            .place_store()
-            .find_places_by_ids(place_ids)
-            .await
-            .unwrap_or_default();
-        let place_map: std::collections::HashMap<Uuid, _> =
-            places.into_iter().map(|p| (p.id, p)).collect();
-
+        // Resolve start/end location slugs to city previews via the
+        // hardcoded city table (no DB round-trip). Replaces the previous
+        // batched `place_store().find_places_by_ids(place_uuids)` lookup
+        // — `route.start_location_id` is now a slug string, not a UUID
+        // FK to `place`.
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
             let route_id_str = r.id.to_string();
@@ -290,27 +274,29 @@ impl AdminService {
 
             let start_place = r
                 .start_location_id
-                .and_then(|uid| place_map.get(&uid))
-                .map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name.clone(),
-                    province: p.province.clone(),
+                .as_deref()
+                .and_then(crate::cities::find_by_slug)
+                .map(|c| AdminPlacePreview {
+                    id: c.slug.to_string(),
+                    name: c.name.to_string(),
+                    province: Some(c.name.to_string()),
                 });
             let end_place = r
                 .end_location_id
-                .and_then(|uid| place_map.get(&uid))
-                .map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name.clone(),
-                    province: p.province.clone(),
+                .as_deref()
+                .and_then(crate::cities::find_by_slug)
+                .map(|c| AdminPlacePreview {
+                    id: c.slug.to_string(),
+                    name: c.name.to_string(),
+                    province: Some(c.name.to_string()),
                 });
 
             items.push(AdminRouteOut {
                 id: r.id,
                 brand_id: r.brand_id,
                 name: r.name.clone(),
-                start_location_id: r.start_location_id,
-                end_location_id: r.end_location_id,
+                start_location_id: r.start_location_id.clone(),
+                end_location_id: r.end_location_id.clone(),
                 status: r.status.clone(),
                 created_at: r.created_at.clone(),
                 updated_at: r.updated_at.clone(),
@@ -336,8 +322,8 @@ impl AdminService {
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
         let brand_id = body.brand_id;
-        let start_location_id = body.start_location_id;
-        let end_location_id = body.end_location_id;
+        let start_location_id = body.start_location_id.clone();
+        let end_location_id = body.end_location_id.clone();
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -383,11 +369,11 @@ impl AdminService {
         if let Some(v) = body.brand_id {
             active.brand_id = Set(Some(v));
         }
-        if let Some(v) = body.start_location_id {
-            active.start_location_id = Set(Some(v));
+        if let Some(ref v) = body.start_location_id {
+            active.start_location_id = Set(Some(v.clone()));
         }
-        if let Some(v) = body.end_location_id {
-            active.end_location_id = Set(Some(v));
+        if let Some(ref v) = body.end_location_id {
+            active.end_location_id = Set(Some(v.clone()));
         }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());

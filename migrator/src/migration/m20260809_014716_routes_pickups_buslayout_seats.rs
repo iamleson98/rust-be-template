@@ -1,6 +1,6 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::migration::m20260809_013648_places_brands::{Brand, Place};
+use crate::migration::m20260809_013648_places_brands::Brand;
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -64,6 +64,13 @@ pub enum Seat {
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Route
+        // NOTE: `start_location_id` / `end_location_id` are VARCHAR(20)
+        // storing Vietnamese city slugs (e.g. "ha-noi", "da-nang") —
+        // NOT UUIDs. The slugs are resolved to display names via
+        // `crate::cities::find_by_slug` in the service layer; no FK to
+        // the `place` table is needed. See `src/cities.rs` for the
+        // hardcoded slug list (kept in sync with the frontend's
+        // `vietnamese-cities.ts`).
         manager
             .create_table(
                 Table::create()
@@ -72,8 +79,8 @@ impl MigrationTrait for Migration {
                     .col(pk_uuid(Route::Id))
                     .col(uuid_null(Route::BrandId))
                     .col(string_len(Route::Name, 255))
-                    .col(uuid_null(Route::StartLocationId))
-                    .col(uuid_null(Route::EndLocationId))
+                    .col(string_len_null(Route::StartLocationId, 20))
+                    .col(string_len_null(Route::EndLocationId, 20))
                     .col(string_len(Route::Status, 30).default("active"))
                     .col(text(Route::CreatedAt))
                     .col(text(Route::UpdatedAt))
@@ -83,22 +90,6 @@ impl MigrationTrait for Migration {
                             .from(Route::Table, Route::BrandId)
                             .to(Brand::Table, Brand::Id)
                             .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_route_start_loc")
-                            .from(Route::Table, Route::StartLocationId)
-                            .to(Place::Table, Place::Id)
-                            .on_delete(ForeignKeyAction::Restrict)
-                            .on_update(ForeignKeyAction::Cascade),
-                    )
-                    .foreign_key(
-                        ForeignKey::create()
-                            .name("fk_route_end_loc")
-                            .from(Route::Table, Route::EndLocationId)
-                            .to(Place::Table, Place::Id)
-                            .on_delete(ForeignKeyAction::Restrict)
                             .on_update(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),

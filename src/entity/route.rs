@@ -10,8 +10,14 @@ pub struct Model {
     pub id: Uuid,
     pub brand_id: Option<Uuid>,
     pub name: String,
-    pub start_location_id: Option<Uuid>,
-    pub end_location_id: Option<Uuid>,
+    /// Vietnamese city slug (e.g. `"ha-noi"`, `"da-nang"`). Resolved to a
+    /// display name via `crate::cities::find_by_slug`. NOT a UUID — the
+    /// backend stores it as `VARCHAR(20)` so the route form can pass
+    /// slugs directly without a `place` table lookup.
+    #[sea_orm(column_type = "String(StringLen::N(20))", nullable)]
+    pub start_location_id: Option<String>,
+    #[sea_orm(column_type = "String(StringLen::N(20))", nullable)]
+    pub end_location_id: Option<String>,
     pub status: String,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
@@ -31,22 +37,6 @@ pub enum Relation {
     Brand,
     #[sea_orm(has_many = "super::pickup_point::Entity")]
     PickupPoint,
-    #[sea_orm(
-        belongs_to = "super::place::Entity",
-        from = "Column::EndLocationId",
-        to = "super::place::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Restrict"
-    )]
-    Place2,
-    #[sea_orm(
-        belongs_to = "super::place::Entity",
-        from = "Column::StartLocationId",
-        to = "super::place::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Restrict"
-    )]
-    Place1,
     #[sea_orm(has_many = "super::price_alert::Entity")]
     PriceAlert,
     #[sea_orm(has_many = "super::review::Entity")]

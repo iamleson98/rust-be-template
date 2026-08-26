@@ -205,13 +205,19 @@ impl BookingService {
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
 
         // ── Concurrent fetch of independent relations ────────────
-        // brand, start_place, end_place, bus_layout, pickup_points all
-        // depend only on `route_model` / `schedule` (already loaded).
-        // Running them in parallel cuts ~5 sequential round-trips to 1.
+        // brand, bus_layout, pickup_points all depend only on
+        // `route_model` / `schedule` (already loaded). Running them in
+        // parallel cuts ~3 sequential round-trips to 1.
+        //
+        // Note: `route.start_location_id` / `route.end_location_id`
+        // are now slug strings, not UUID FKs to `place`. The slug → city
+        // resolution is synchronous (no DB hit), so we wrap it in an
+        // async block to keep the `tokio::try_join!` shape uniform with
+        // the other futures.
         let store = self.store.clone();
         let brand_id = route_model.brand_id;
-        let start_location_id = route_model.start_location_id;
-        let end_location_id = route_model.end_location_id;
+        let start_location_slug = route_model.start_location_id.clone();
+        let end_location_slug = route_model.end_location_id.clone();
         let bus_layout_id = schedule.bus_layout_id.clone();
         let route_id_str = route_model.id.to_string();
 
@@ -228,26 +234,20 @@ impl BookingService {
                 }
             },
             async {
-                // Start place
-                match start_location_id {
-                    Some(uid) => store
-                        .place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string())),
-                    None => Ok(None),
-                }
+                // Start city — resolved from the hardcoded slug table.
+                Ok::<_, AppError>(
+                    start_location_slug
+                        .as_deref()
+                        .and_then(crate::cities::find_by_slug),
+                )
             },
             async {
-                // End place
-                match end_location_id {
-                    Some(uid) => store
-                        .place_store()
-                        .find_place_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string())),
-                    None => Ok(None),
-                }
+                // End city — resolved from the hardcoded slug table.
+                Ok::<_, AppError>(
+                    end_location_slug
+                        .as_deref()
+                        .and_then(crate::cities::find_by_slug),
+                )
             },
             async {
                 // Bus layout
@@ -337,8 +337,8 @@ impl BookingService {
                 vehicle_type: None,
                 route: Some(BookingRoutePreview {
                     name: route_model.name,
-                    from: start_place.map(|p| p.name.clone()),
-                    to: end_place.map(|p| p.name.clone()),
+                    from: start_place.map(|c| c.name.to_string()),
+                    to: end_place.map(|c| c.name.to_string()),
                     brand: BookingBrandPreview {
                         name: brand_model.as_ref().map(|b| b.name.clone()),
                         accent_color: brand_model.as_ref().and_then(|b| b.accent_color.clone()),

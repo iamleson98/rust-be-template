@@ -21,7 +21,7 @@ use crate::dto::public::{
     TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
     TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
-use crate::entity::{brand, bus_layout, place, route, schedule, seat_inventory};
+use crate::entity::{brand, bus_layout, route, schedule, seat_inventory};
 use crate::error::{AppError, AppResult};
 use crate::store::PickupPointWithRoute;
 use crate::store::CompositeStore;
@@ -399,20 +399,19 @@ impl PublicService {
             m
         };
 
-        // Fetch start/end places for routes
-        let place_uuids: Vec<Uuid> = route_map
+        // Resolve start/end location slugs to city records via the
+        // hardcoded city table (no DB round-trip). Replaces the previous
+        // batched `place_store().find_places_by_ids(place_uuids)` lookup
+        // — `route.start_location_id` is now a slug string, not a UUID
+        // FK to `place`. We collect into a HashMap so the per-trip
+        // closure can do `O(1)` lookups by slug.
+        let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
             .values()
-            .flat_map(|r| [r.start_location_id, r.end_location_id])
+            .flat_map(|r| {
+                [r.start_location_id.as_deref(), r.end_location_id.as_deref()]
+            })
             .flatten()
-            .collect();
-        let place_map: std::collections::HashMap<String, place::Model> = self
-            .store
-            .place_store()
-            .find_places_by_ids(place_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|p| (p.id.to_string(), p))
+            .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
             .collect();
 
         // Build trip results
@@ -441,14 +440,12 @@ impl PublicService {
 
                 let from_place = route
                     .start_location_id
-                    .map(|id| id.to_string())
                     .as_deref()
-                    .and_then(|pid| place_map.get(pid));
+                    .and_then(|slug| place_map.get(slug));
                 let to_place = route
                     .end_location_id
-                    .map(|id| id.to_string())
                     .as_deref()
-                    .and_then(|pid| place_map.get(pid));
+                    .and_then(|slug| place_map.get(slug));
 
                 let amenities = parse_amenities(&sched.amenities);
                 let (dep_iso, arr_iso) = compute_iso_timestamps(
@@ -474,10 +471,10 @@ impl PublicService {
                     brand_accent: brand
                         .and_then(|b| b.accent_color.clone())
                         .unwrap_or_else(|| "#0d9488".into()),
-                    from_name: from_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    from_name: from_place.map(|p| p.name.to_string()).unwrap_or_default(),
                     from_lat: from_place.map(|p| p.lat).unwrap_or(0.0),
                     from_lon: from_place.map(|p| p.lon).unwrap_or(0.0),
-                    to_name: to_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    to_name: to_place.map(|p| p.name.to_string()).unwrap_or_default(),
                     to_lat: to_place.map(|p| p.lat).unwrap_or(0.0),
                     to_lon: to_place.map(|p| p.lon).unwrap_or(0.0),
                     departure_time: Some(sched.departure_time.clone()),
@@ -799,13 +796,19 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
 
-        // The five lookups below depend only on `route` + `schedule`
+        // The lookups below depend only on `route` + `schedule`
         // (already loaded above) — they're independent of each other.
-        // Running them concurrently with `tokio::try_join!` cuts 5
+        // Running them concurrently with `tokio::try_join!` cuts 3
         // sequential DB round-trips down to 1 (the slowest one).
+        //
+        // Note: `route.start_location_id` / `route.end_location_id`
+        // are now slug strings, not UUID FKs to `place`. The slug → city
+        // resolution is synchronous (no DB hit), so we wrap it in an
+        // async block to keep the `tokio::try_join!` shape uniform with
+        // the brand + bus_layout + pickup_points futures.
         let brand_id_uid = route.brand_id;
-        let start_location_uid = route.start_location_id;
-        let end_location_uid = route.end_location_id;
+        let start_location_slug = route.start_location_id.clone();
+        let end_location_slug = route.end_location_id.clone();
         let bus_layout_uid = schedule
             .bus_layout_id
             .as_deref()
@@ -819,18 +822,18 @@ impl PublicService {
             }
         };
         let start_place_fut = async {
-            if let Some(uid) = start_location_uid {
-                self.store.place_store().find_place_by_id(uid).await
-            } else {
-                Ok(None)
-            }
+            Ok::<_, crate::store::StoreError>(
+                start_location_slug
+                    .as_deref()
+                    .and_then(crate::cities::find_by_slug),
+            )
         };
         let end_place_fut = async {
-            if let Some(uid) = end_location_uid {
-                self.store.place_store().find_place_by_id(uid).await
-            } else {
-                Ok(None)
-            }
+            Ok::<_, crate::store::StoreError>(
+                end_location_slug
+                    .as_deref()
+                    .and_then(crate::cities::find_by_slug),
+            )
         };
         let bus_layout_fut = async {
             if let Some(uid) = bus_layout_uid {
@@ -1003,14 +1006,14 @@ impl PublicService {
                 accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
             from: TripEndpoint {
-                name: start_place.as_ref().map(|p| p.name.clone()),
-                lat: start_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                lon: start_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+                name: start_place.map(|c| c.name.to_string()),
+                lat: start_place.map(|c| c.lat).unwrap_or(0.0),
+                lon: start_place.map(|c| c.lon).unwrap_or(0.0),
             },
             to: TripEndpoint {
-                name: end_place.as_ref().map(|p| p.name.clone()),
-                lat: end_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                lon: end_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+                name: end_place.map(|c| c.name.to_string()),
+                lat: end_place.map(|c| c.lat).unwrap_or(0.0),
+                lon: end_place.map(|c| c.lon).unwrap_or(0.0),
             },
             bus_layout: TripBusLayout {
                 id: schedule.bus_layout_id,
