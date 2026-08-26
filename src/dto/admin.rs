@@ -119,10 +119,6 @@ pub struct AdminRouteOut {
     pub start_location_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_location_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distance_km: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_min: Option<i16>,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -150,10 +146,6 @@ pub struct UpsertRouteRequest {
     pub brand_id: Option<Uuid>,
     pub start_location_id: Option<Uuid>,
     pub end_location_id: Option<Uuid>,
-    #[validate(range(min = 0.0, max = 50000.0))]
-    pub distance_km: Option<f64>,
-    #[validate(range(min = 0, max = 60000))]
-    pub duration_min: Option<i64>,
     #[validate(length(max = 30))]
     pub status: Option<String>,
 }

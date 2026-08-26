@@ -35,8 +35,6 @@ describe('isBookingReviewable', () => {
       routeName: 'Test Route',
       fromName: 'A',
       toName: 'B',
-      distanceKm: 100,
-      durationMin: 120,
       brandName: 'Test Brand',
       brandAccent: '#000',
       brandLogo: null,

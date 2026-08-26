@@ -60,11 +60,15 @@ fn parse_amenities(raw: &Option<String>) -> Vec<String> {
     }
 }
 
-/// Compute full ISO departure/arrival timestamps from date + time + duration.
+/// Compute the ISO departure timestamp from date + time.
+///
+/// Returns `(Some(dep_iso), None)` — arrival is no longer computed here
+/// since the route entity no longer carries a `duration_min`. Callers
+/// that need an arrival estimate should derive it from a Valhalla
+/// directions request between the route's start/end points.
 fn compute_iso_timestamps(
     departure_date: &Option<String>,
     departure_time: &Option<String>,
-    duration_min: &Option<i64>,
 ) -> (Option<String>, Option<String>) {
     let date = match departure_date {
         Some(d) if !d.is_empty() => d.clone(),
@@ -83,84 +87,7 @@ fn compute_iso_timestamps(
         return (None, None);
     }
     let dep_iso = format!("{}T{}:00", date_only, dep_time);
-    let dep_min = match parse_hhmm_to_minutes(dep_time) {
-        Some(m) => m,
-        None => return (Some(dep_iso), None),
-    };
-    let dur = duration_min.unwrap_or(0).max(0);
-    let mut total = dep_min + dur;
-    let extra_days = total / (24 * 60);
-    total %= 24 * 60;
-    let hh = total / 60;
-    let mm = total % 60;
-    let arr_iso = if extra_days > 0 {
-        match add_days_to_ymd(&date_only, extra_days) {
-            Some(new_date) => format!("{}T{:02}:{:02}:00", new_date, hh, mm),
-            None => dep_iso.clone(),
-        }
-    } else {
-        format!("{}T{:02}:{:02}:00", date_only, hh, mm)
-    };
-    (Some(dep_iso), Some(arr_iso))
-}
-
-/// Parse "HH:MM" or "HH:MM:SS" into total minutes since midnight.
-fn parse_hhmm_to_minutes(s: &str) -> Option<i64> {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let h: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    if !(0..24).contains(&h) || !(0..60).contains(&m) {
-        return None;
-    }
-    Some(h * 60 + m)
-}
-
-/// Add `days` to a "YYYY-MM-DD" string.
-fn add_days_to_ymd(ymd: &str, days: i64) -> Option<String> {
-    let parts: Vec<&str> = ymd.split('-').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let y: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    let d: i64 = parts[2].parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
-        return None;
-    }
-    let jd = ymd_to_julian(y, m, d)?;
-    let new_jd = jd + days;
-    let (ny, nm, nd) = julian_to_ymd(new_jd)?;
-    Some(format!("{:04}-{:02}-{:02}", ny, nm, nd))
-}
-
-/// Convert a proleptic-Gregorian date to a Julian day number.
-fn ymd_to_julian(y: i64, m: i64, d: i64) -> Option<i64> {
-    let a = (14 - m) / 12;
-    let y = y + 4800 - a;
-    let m = m + 12 * a - 3;
-    Some(d + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045)
-}
-
-/// Convert a Julian day number back to a proleptic-Gregorian date.
-fn julian_to_ymd(jd: i64) -> Option<(i64, i64, i64)> {
-    let jd = jd + 32044;
-    let g = jd / 146097;
-    let dg = jd % 146097;
-    let c = (dg / 36524 + 1) * 3 / 4;
-    let dc = dg - c * 36524;
-    let b = dc / 1461;
-    let db = dc % 1461;
-    let a = (db / 365 + 1) * 3 / 4;
-    let da = db - a * 365;
-    let y = 400 * g + 100 * c + 4 * b + a;
-    let m = (da * 5 + 308) / 153 - 2;
-    let d = da - (153 * m + 2) / 5 + 1;
-    let year = y - 4800 + (m + 2) / 12;
-    let month = (m + 2) % 12 + 1;
-    Some((year, month, d))
+    (Some(dep_iso), None)
 }
 
 /// Amenity key → Vietnamese label.
@@ -315,8 +242,6 @@ impl PublicService {
                     id: r.id,
                     brand_id: r.brand_id,
                     name: r.name.clone(),
-                    distance_km: r.distance_km,
-                    duration_min: r.duration_min,
                     brand: RouteBrandPreview {
                         name: brand.map(|b| b.name.clone()),
                         slug: brand.map(|b| b.slug.clone()),
@@ -529,7 +454,6 @@ impl PublicService {
                 let (dep_iso, arr_iso) = compute_iso_timestamps(
                     &Some(t.departure_date.clone()),
                     &Some(sched.departure_time.clone()),
-                    &route.duration_min.map(|d| d as i64),
                 );
                 let vt_label = vehicle_type_label(&vehicle_type);
 
@@ -542,8 +466,6 @@ impl PublicService {
                     total_seats: t.total_seats,
                     route_id: route.id,
                     route_name: route.name.clone(),
-                    distance_km: route.distance_km.unwrap_or(0.0),
-                    duration_min: route.duration_min.unwrap_or(0),
                     brand_id: route.brand_id,
                     brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
@@ -820,8 +742,6 @@ impl PublicService {
                 available_seats: trip.available_seats,
                 total_seats: trip.total_seats,
                 route_name: route_info.route_name.clone(),
-                distance_km: 0.0, // Not available without route lookup — acceptable for geo search
-                duration_min: 0,
                 brand_id: brand.map(|b| b.id),
                 brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                 brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
@@ -1051,7 +971,6 @@ impl PublicService {
         let (dep_iso, arr_iso) = compute_iso_timestamps(
             &Some(trip.departure_date.clone()),
             &Some(schedule.departure_time.clone()),
-            &route.duration_min.map(|d| d as i64),
         );
         let vehicle_type = bus_layout
             .as_ref()
@@ -1074,8 +993,6 @@ impl PublicService {
             route: TripRouteDetail {
                 id: route.id,
                 name: route.name,
-                distance_km: route.distance_km.unwrap_or(0.0),
-                duration_min: route.duration_min,
             },
             brand: TripBrandDetail {
                 id: route.brand_id.map(|id| id.to_string()),
@@ -1173,7 +1090,6 @@ impl PublicService {
                     let (dep_iso, arr_iso) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
                         &Some(sched.departure_time.clone()),
-                        &route.duration_min.map(|d| d as i64),
                     );
                     let vehicle_type = "standard".to_string();
                     let vt_label = vehicle_type_label(&vehicle_type);
@@ -1187,8 +1103,6 @@ impl PublicService {
                         total_seats: t.total_seats,
                         route_id: route.id,
                         route_name: route.name.clone(),
-                        distance_km: route.distance_km.unwrap_or(0.0),
-                        duration_min: route.duration_min.unwrap_or(0),
                         brand_id: route.brand_id,
                         brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
@@ -1353,47 +1267,27 @@ mod tests {
     }
 
     #[test]
-    fn parse_hhmm_to_minutes_works() {
-        assert_eq!(parse_hhmm_to_minutes("00:00"), Some(0));
-        assert_eq!(parse_hhmm_to_minutes("08:30"), Some(510));
-        assert_eq!(parse_hhmm_to_minutes("23:59"), Some(1439));
-        assert_eq!(parse_hhmm_to_minutes("24:00"), None);
-        assert_eq!(parse_hhmm_to_minutes("abc"), None);
-    }
-
-    #[test]
-    fn compute_iso_timestamps_same_day() {
+    fn compute_iso_timestamps_returns_departure_only() {
+        // Arrival is no longer computed from a route-level duration —
+        // callers that need an ETA must derive it from a Valhalla
+        // directions request between the route's endpoints.
         let (dep, arr) = compute_iso_timestamps(
             &Some("2026-08-05".into()),
             &Some("08:30".into()),
-            &Some(180),
         );
         assert_eq!(dep.as_deref(), Some("2026-08-05T08:30:00"));
-        assert_eq!(arr.as_deref(), Some("2026-08-05T11:30:00"));
+        assert_eq!(arr, None);
     }
 
     #[test]
-    fn compute_iso_timestamps_crosses_midnight() {
+    fn compute_iso_timestamps_handles_missing_time() {
         let (dep, arr) = compute_iso_timestamps(
             &Some("2026-08-05".into()),
-            &Some("23:00".into()),
-            &Some(180),
+            &None,
         );
-        assert_eq!(dep.as_deref(), Some("2026-08-05T23:00:00"));
-        assert_eq!(arr.as_deref(), Some("2026-08-06T02:00:00"));
-    }
-
-    #[test]
-    fn add_days_to_ymd_handles_month_boundary() {
-        assert_eq!(add_days_to_ymd("2026-01-31", 1), Some("2026-02-01".into()));
-        assert_eq!(add_days_to_ymd("2026-12-31", 1), Some("2027-01-01".into()));
-        assert_eq!(add_days_to_ymd("2024-02-28", 1), Some("2024-02-29".into()));
-        assert_eq!(add_days_to_ymd("2026-02-28", 1), Some("2026-03-01".into()));
-    }
-
-    #[test]
-    fn add_days_to_ymd_rejects_malformed() {
-        assert_eq!(add_days_to_ymd("not-a-date", 1), None);
-        assert_eq!(add_days_to_ymd("2026-13-01", 1), None);
+        // Falls back to the time part embedded in the date string.
+        // Since "2026-08-05" has no time part, both are None.
+        assert_eq!(dep, None);
+        assert_eq!(arr, None);
     }
 }

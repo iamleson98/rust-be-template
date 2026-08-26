@@ -29,7 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { formatDateTimeVN, formatDuration, normalizePhone, SEAT_CLASS_LABELS } from '@/lib/types'
+import { formatDateTimeVN, normalizePhone, SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { toast } from 'sonner'
@@ -49,7 +49,6 @@ import {
   Copy,
   Ticket,
   Calendar,
-  Clock,
   Bus,
   // Group booking icons
   Plus,
@@ -478,10 +477,6 @@ export function BookingDialog() {
             <span className="text-muted-foreground flex items-center gap-1">
               <Calendar className="h-3 w-3" />
               {formatDateTimeVN(trip.trip.departureAt)}
-            </span>
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatDuration(trip.route.durationMin)}
             </span>
             <div className="ml-auto flex items-center gap-1">
               {selectedSeatCodes.map((s) => (

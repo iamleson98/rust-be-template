@@ -10,9 +10,8 @@ import { searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/empty-states'
-import { formatDuration } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
-import { ArrowRight, Clock, Star, MapPin, Bus, ChevronRight, TrendingUp } from 'lucide-react'
+import { ArrowRight, Star, Bus, ChevronRight, TrendingUp } from 'lucide-react'
 import { PopularRoutesSkeleton } from '@/components/layout/skeletons'
 import { buildSearchInput } from '@/lib/search-params'
 
@@ -152,14 +151,6 @@ export const PopularRoutes = memo(function PopularRoutes() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(r.durationMin ?? 0)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          {Math.round(r.distanceKm ?? 0)} km
-                        </span>
                         <span className="font-medium text-blue-600">{r.scheduleCount} chuyến/ngày</span>
                       </div>
 

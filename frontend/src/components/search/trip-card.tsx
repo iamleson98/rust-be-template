@@ -5,9 +5,9 @@ import type { TripResult } from '@/lib/store'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { formatDuration, formatTimeVN, AMENITY_LABELS, VEHICLE_TYPE_ICONS } from '@/lib/types'
+import { formatTimeVN, AMENITY_LABELS, VEHICLE_TYPE_ICONS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
-import { Clock, MapPin, Users, Star, Wifi, Snowflake, Droplet, Zap, ChevronRight, TrendingUp, TrendingDown, Minus, GitCompare, Sparkles, Bell, Share2 } from 'lucide-react'
+import { MapPin, Users, Star, Wifi, Snowflake, Droplet, Zap, ChevronRight, TrendingUp, TrendingDown, Minus, GitCompare, Sparkles, Bell, Share2 } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { useApp } from '@/lib/store'
 import { useShallow } from 'zustand/react/shallow'
@@ -279,13 +279,13 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
 
                 <div className="flex-1 min-w-12.5 md:min-w-17.5 max-w-32.5 relative">
                   <div className="border-t border-dashed border-slate-300 group-hover:border-blue-400 transition-colors" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="bg-white px-1.5 text-[10px] text-muted-foreground flex items-center gap-1 whitespace-nowrap group-hover:text-blue-600 transition-colors">
-                      <Clock className="h-3 w-3" />
-                      {formatDuration(trip.durationMin)}
-                      {overnight && <span className="text-amber-500 font-semibold">+1</span>}
+                  {overnight && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-white px-1.5 text-[10px] text-amber-500 font-semibold whitespace-nowrap">
+                        +1 ngày
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="text-center shrink-0 min-w-15">

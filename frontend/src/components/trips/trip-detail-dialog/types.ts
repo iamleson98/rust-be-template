@@ -30,8 +30,6 @@ export type TripDetailDialogData = {
     name: string
     slug: string
     code: string
-    distanceKm: number
-    durationMin: number
     geometry: [number, number][]
   }
   brand: {

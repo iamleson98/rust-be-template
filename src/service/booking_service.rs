@@ -339,8 +339,6 @@ impl BookingService {
                     name: route_model.name,
                     from: start_place.map(|p| p.name.clone()),
                     to: end_place.map(|p| p.name.clone()),
-                    distance_km: route_model.distance_km,
-                    duration_min: route_model.duration_min,
                     brand: BookingBrandPreview {
                         name: brand_model.as_ref().map(|b| b.name.clone()),
                         accent_color: brand_model.as_ref().and_then(|b| b.accent_color.clone()),

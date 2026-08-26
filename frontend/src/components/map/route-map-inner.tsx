@@ -13,8 +13,8 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapPin, Bus, Clock, Route as RouteIcon, ArrowRight, Search } from 'lucide-react'
-import { formatVND, formatDuration } from '@/lib/types'
+import { MapPin, Bus, ArrowRight, Search } from 'lucide-react'
+import { formatVND } from '@/lib/types'
 
 // Fix default icon paths (safety net; we mostly use CircleMarker / divIcon)
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -39,8 +39,6 @@ export type RouteItem = {
   slug: string
   name: string
   code: string
-  distanceKm: number
-  durationMin: number
   brand: { name: string; slug: string; accentColor: string; logoUrl: string | null; rating: number }
   from: { name: string; lat: number; lon: number }
   to: { name: string; lat: number; lon: number }
@@ -238,27 +236,25 @@ export function RouteMapInner({
               <ArrowRight className="h-3 w-3 text-blue-600 shrink-0" />
               <span className="truncate">{selectedRoute.to.name}</span>
             </div>
-            <div className="grid grid-cols-3 gap-1 mb-2 text-center">
-              <div className="rounded bg-slate-50 px-1 py-1">
-                <Clock className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-                <div className="text-[9px] text-slate-500">Thời gian</div>
-                <div className="text-[10px] font-semibold">{formatDuration(selectedRoute.durationMin)}</div>
-              </div>
-              <div className="rounded bg-slate-50 px-1 py-1">
-                <RouteIcon className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-                <div className="text-[9px] text-slate-500">Quãng đường</div>
-                <div className="text-[10px] font-semibold">{Math.round(selectedRoute.distanceKm)} km</div>
-              </div>
+            <div className="grid grid-cols-2 gap-1 mb-2 text-center">
               <div className="rounded bg-slate-50 px-1 py-1">
                 <div className="text-[9px] text-slate-500 mt-0.5">Chuyến/ngày</div>
                 <div className="text-[10px] font-semibold">{selectedRoute.scheduleCount}</div>
               </div>
-            </div>
-            {selectedRoute.minPrice > 0 && (
-              <div className="text-[11px] text-slate-500 mb-2 text-center">
-                Giá từ <b className="text-blue-700">{formatVND(selectedRoute.minPrice)}</b>
+              <div className="rounded bg-slate-50 px-1 py-1">
+                {selectedRoute.minPrice > 0 ? (
+                  <>
+                    <div className="text-[9px] text-slate-500 mt-0.5">Giá từ</div>
+                    <div className="text-[10px] font-semibold text-blue-700">{formatVND(selectedRoute.minPrice)}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-[9px] text-slate-500 mt-0.5">Giá</div>
+                    <div className="text-[10px] font-semibold">—</div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </Popup>
       )}

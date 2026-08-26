@@ -20,7 +20,7 @@ import {
 // the backend's `GET /api/trips/{id}` response shape.
 export type TripDetail = {
   trip: { id: string; departureAt: string; departureTime: string; arrivalTime: string; status: string }
-  route: { name: string; durationMin: number; distanceKm: number }
+  route: { name: string }
   brand: { id: string; name: string; accentColor: string; logoUrl: string | null }
   from: { name: string }
   to: { name: string }

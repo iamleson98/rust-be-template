@@ -26,14 +26,12 @@ export function RouteTimeline({
   arrivalTime,
   fromName,
   toName,
-  durationMin,
   pickupPoints,
 }: {
   departureTime: string
   arrivalTime: string
   fromName: string
   toName: string
-  durationMin: number
   pickupPoints: RouteTimelinePoint[]
 }) {
   // Compute time for each stop: departure + etaOffsetMin
@@ -75,28 +73,27 @@ export function RouteTimeline({
       })
     }
 
-    // Ending point
+    // Ending point — no route-level duration anymore, so we anchor it
+    // at the trip's arrival time when present (otherwise fall back to
+    // the last pickup's time + offset).
     const arrDate = new Date(arrivalTime)
     items.push({
       id: 'end',
       name: toName,
       time: arrDate,
-      offsetMin: durationMin,
+      offsetMin: 0,
       type: 'end',
       label: 'Điểm đến',
     })
 
     return items
-  }, [departureTime, arrivalTime, fromName, toName, durationMin, pickupPoints])
+  }, [departureTime, arrivalTime, fromName, toName, pickupPoints])
 
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
         <Timer className="h-4 w-4 text-blue-700" />
         <h3 className="text-sm font-semibold">Lộ trình chi tiết</h3>
-        <span className="ml-auto text-xs text-muted-foreground">
-          Tổng: {formatDuration(durationMin)}
-        </span>
       </div>
 
       <div className="relative pl-6">

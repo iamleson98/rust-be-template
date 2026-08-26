@@ -311,8 +311,6 @@ impl AdminService {
                 name: r.name.clone(),
                 start_location_id: r.start_location_id,
                 end_location_id: r.end_location_id,
-                distance_km: r.distance_km,
-                duration_min: r.duration_min,
                 status: r.status.clone(),
                 created_at: r.created_at.clone(),
                 updated_at: r.updated_at.clone(),
@@ -349,8 +347,6 @@ impl AdminService {
             name: Set(name),
             start_location_id: Set(start_location_id),
             end_location_id: Set(end_location_id),
-            distance_km: Set(body.distance_km),
-            duration_min: Set(body.duration_min.map(|n| n as i16)),
             status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
             created_at: Set(now.clone()),
             updated_at: Set(now),
@@ -392,12 +388,6 @@ impl AdminService {
         }
         if let Some(v) = body.end_location_id {
             active.end_location_id = Set(Some(v));
-        }
-        if let Some(v) = body.distance_km {
-            active.distance_km = Set(Some(v));
-        }
-        if let Some(v) = body.duration_min {
-            active.duration_min = Set(Some(v as i16));
         }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());

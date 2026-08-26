@@ -11,6 +11,12 @@
  * The city id is a slug (e.g. "ha-noi", "da-nang") stored as the
  * `startLocationId` / `endLocationId` on the route. It's NOT a UUID —
  * the backend stores it as a TEXT reference.
+ *
+ * NOTE: Route distance (km) and duration (min) used to be admin-editable
+ * fields, but they have been removed from the entity — the platform now
+ * derives ETA from the schedule's `departure_time` + Valhalla routing on
+ * the public map page. The form below only collects the route's identity
+ * (name, brand, start/end city, status).
  */
 
 import { useEffect } from 'react'
@@ -46,7 +52,7 @@ import {
 } from '@/components/ui/form'
 import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { requiredText, positiveInt } from '@/lib/forms'
+import { requiredText } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
 import {
   VIETNAMESE_CITIES,
@@ -62,11 +68,6 @@ const routeSchema = z
       .max(255, 'Tên tuyến tối đa 255 ký tự'),
     startLocationId: requiredText('Điểm đi'),
     endLocationId: requiredText('Điểm đến'),
-    distanceKm: z.coerce
-      .number({ message: 'Khoảng cách phải là số' })
-      .min(1, 'Khoảng cách phải lớn hơn 0')
-      .max(50000, 'Khoảng cách quá lớn'),
-    durationMin: positiveInt(1),
   })
   .refine((d) => d.startLocationId !== d.endLocationId, {
     message: 'Điểm đi và điểm đến phải khác nhau',
@@ -78,6 +79,21 @@ type RouteFormValues = z.infer<typeof routeSchema>
 const NORTH = VIETNAMESE_CITIES.filter((c) => c.region === 'north')
 const CENTRAL = VIETNAMESE_CITIES.filter((c) => c.region === 'central')
 const SOUTH = VIETNAMESE_CITIES.filter((c) => c.region === 'south')
+
+// Map city id (slug) → display name. Used by the SelectValue render-prop
+// so the trigger shows "Hà Nội" instead of the raw slug "ha-noi" — Base
+// UI unmounts SelectContent (and thus the SelectItems) when the popover
+// closes, so it can no longer look up the label by matching the value.
+// The slug is the only stable identifier we have, so we look it up in
+// this side table instead.
+const CITY_NAME_BY_ID = new Map<string, string>(
+  VIETNAMESE_CITIES.map((c) => [c.id, c.name]),
+)
+
+function cityLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  return CITY_NAME_BY_ID.get(value) ?? null
+}
 
 function CitySelectContent() {
   return (
@@ -141,8 +157,6 @@ export function RouteFormDialog({
       name: '',
       startLocationId: '',
       endLocationId: '',
-      distanceKm: 0,
-      durationMin: 0,
     },
   })
 
@@ -152,8 +166,6 @@ export function RouteFormDialog({
         name: route?.name ?? '',
         startLocationId: route?.startLocationId ?? '',
         endLocationId: route?.endLocationId ?? '',
-        distanceKm: route?.distanceKm ?? 0,
-        durationMin: route?.durationMin ?? 0,
       })
     }
   }, [open, route, form])
@@ -169,8 +181,6 @@ export function RouteFormDialog({
         name: values.name.trim(),
         startLocationId: values.startLocationId,
         endLocationId: values.endLocationId,
-        distanceKm: values.distanceKm,
-        durationMin: values.durationMin,
       }
       if (isEdit) {
         payload.id = route!.id
@@ -237,7 +247,9 @@ export function RouteFormDialog({
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn thành phố đi..." />
+                        <SelectValue placeholder="Chọn thành phố đi...">
+                          {(value: string | null | undefined) => cityLabel(value)}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <CitySelectContent />
@@ -262,7 +274,9 @@ export function RouteFormDialog({
                   >
                     <FormControl>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn thành phố đến..." />
+                        <SelectValue placeholder="Chọn thành phố đến...">
+                          {(value: string | null | undefined) => cityLabel(value)}
+                        </SelectValue>
                       </SelectTrigger>
                     </FormControl>
                     <CitySelectContent />
@@ -271,56 +285,6 @@ export function RouteFormDialog({
                 </FormItem>
               )}
             />
-
-            {/* Distance + Duration */}
-            <div className="grid grid-cols-2 gap-3 items-start">
-              <FormField
-                control={form.control}
-                name="distanceKm"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Khoảng cách (km) <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={field.value === 0 || field.value == null ? '' : String(field.value)}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        onBlur={field.onBlur}
-                        placeholder="650"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="durationMin"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Thời lượng (phút) <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={field.value === 0 || field.value == null ? '' : String(field.value)}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        onBlur={field.onBlur}
-                        placeholder="720"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

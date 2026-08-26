@@ -269,8 +269,6 @@ export type AdminRouteListResponse = {
 export type AdminRouteOut = {
     brandId?: string | null;
     createdAt: string;
-    distanceKm?: number | null;
-    durationMin?: number | null;
     endLocation?: null | AdminPlacePreview;
     endLocationId?: string | null;
     id: string;
@@ -443,8 +441,6 @@ export type BookingLookupResponse = {
  */
 export type BookingRoutePreview = {
     brand: BookingBrandPreview;
-    distanceKm?: number | null;
-    durationMin?: number | null;
     from?: string | null;
     name: string;
     to?: string | null;
@@ -1417,8 +1413,6 @@ export type RouteListResponse = {
 export type RouteOut = {
     brand: RouteBrandPreview;
     brandId?: string | null;
-    distanceKm?: number | null;
-    durationMin?: number | null;
     from: RouteEndpoint;
     id: string;
     name: string;
@@ -1604,8 +1598,6 @@ export type TripResult = {
     departureAt?: string | null;
     departureDate: string;
     departureTime?: string | null;
-    distanceKm: number;
-    durationMin: number;
     fromLat: number;
     fromLon: number;
     fromName: string;
@@ -1633,8 +1625,6 @@ export type TripResult = {
 };
 
 export type TripRouteDetail = {
-    distanceKm: number;
-    durationMin?: number | null;
     id: string;
     name: string;
 };
@@ -1767,8 +1757,6 @@ export type UpsertPickupPointRequest = {
  */
 export type UpsertRouteRequest = {
     brandId?: string | null;
-    distanceKm?: number | null;
-    durationMin?: number | null;
     endLocationId?: string | null;
     name?: string | null;
     startLocationId?: string | null;

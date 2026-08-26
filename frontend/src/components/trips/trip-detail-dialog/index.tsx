@@ -212,7 +212,6 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         arrivalTime={detail.trip.arrivalTime}
                         fromName={detail.from.name}
                         toName={detail.to.name}
-                        durationMin={detail.route.durationMin}
                         pickupPoints={detail.pickupPoints}
                       />
                     </TabsContent>

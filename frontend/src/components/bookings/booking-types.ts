@@ -30,8 +30,6 @@ export type BookingTrip = {
   routeName: string
   fromName: string
   toName: string
-  distanceKm: number
-  durationMin: number
   brandId?: string
   brandName: string
   brandAccent: string

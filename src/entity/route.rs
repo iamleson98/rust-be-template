@@ -12,9 +12,6 @@ pub struct Model {
     pub name: String,
     pub start_location_id: Option<Uuid>,
     pub end_location_id: Option<Uuid>,
-    #[sea_orm(column_type = "Double", nullable)]
-    pub distance_km: Option<f64>,
-    pub duration_min: Option<i16>,
     pub status: String,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
