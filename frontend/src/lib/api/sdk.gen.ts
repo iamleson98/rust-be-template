@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Responses, List11Data, List11Errors, List11Responses, List12Data, List12Responses, List13Data, List13Errors, List13Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
+import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Responses, List11Data, List11Errors, List11Responses, List12Data, List12Responses, List13Data, List13Errors, List13Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -88,6 +88,18 @@ export const update = <ThrowOnError extends boolean = false>(options: Options<Up
  * `GET /api/admin/bus-layouts` — list all bus layouts.
  */
 export const list3 = <ThrowOnError extends boolean = false>(options?: Options<List3Data, ThrowOnError>): RequestResult<List3Responses, List3Errors, ThrowOnError> => (options?.client ?? client).get<List3Responses, List3Errors, ThrowOnError>({ url: '/api/admin/bus-layouts', ...options });
+
+/**
+ * `GET /api/admin/chat/stats` — aggregate chat stats for the admin
+ * dashboard's top-row cards.
+ *
+ * Returns counts of channels grouped by status (open / assigned /
+ * closed / total) + the average first-response time in seconds.
+ *
+ * Server-side aggregate so the counts are accurate even when there
+ * are more channels than the channel list's page size (capped at 200).
+ */
+export const chatStats = <ThrowOnError extends boolean = false>(options?: Options<ChatStatsData, ThrowOnError>): RequestResult<ChatStatsResponses, ChatStatsErrors, ThrowOnError> => (options?.client ?? client).get<ChatStatsResponses, ChatStatsErrors, ThrowOnError>({ url: '/api/admin/chat/stats', ...options });
 
 /**
  * `GET /api/admin/payments` — paginated payment list.
@@ -393,6 +405,14 @@ export const validateCampaign = <ThrowOnError extends boolean = false>(options: 
 
 /**
  * `GET /api/chat/channels` — list chat channels for the authenticated user.
+ *
+ * For **customers**: returns only their own channels (the ones they started).
+ * For **employees**: returns the entire open-channel support queue (optionally
+ * filtered by the employee's brand) so support staff see all inbound chats.
+ *
+ * Each channel includes the customer's `user` row (`id`, `fullName`,
+ * `email`, `phone`, `avatarUrl`) so the admin's channel list can
+ * display "who" without a second round-trip per channel.
  */
 export const listChannels = <ThrowOnError extends boolean = false>(options?: Options<ListChannelsData, ThrowOnError>): RequestResult<ListChannelsResponses, ListChannelsErrors, ThrowOnError> => (options?.client ?? client).get<ListChannelsResponses, ListChannelsErrors, ThrowOnError>({ url: '/api/chat/channels', ...options });
 
@@ -411,15 +431,36 @@ export const createChannel = <ThrowOnError extends boolean = false>(options: Opt
 
 /**
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
+ *
+ * Returns messages in **DESC order (newest first)** to support
+ * cursor pagination. The frontend reverses the page before rendering
+ * so the oldest message is at the top + the newest at the bottom
+ * (the natural chat reading order).
+ *
+ * - `limit` defaults to 30 (modern chat default — fast first paint).
+ * Max 200.
+ * - `offset` defaults to 0. `offset=30` returns the next 30 OLDER
+ * messages.
+ *
+ * When a new message arrives via WS, the frontend invalidates this
+ * query so the latest page refetches with the new message at the
+ * top of the DESC page (which becomes the bottom after the
+ * frontend reverses it).
  */
 export const listMessages = <ThrowOnError extends boolean = false>(options: Options<ListMessagesData, ThrowOnError>): RequestResult<ListMessagesResponses, ListMessagesErrors, ThrowOnError> => (options.client ?? client).get<ListMessagesResponses, ListMessagesErrors, ThrowOnError>({ url: '/api/chat/channels/{id}/messages', ...options });
 
 /**
  * `POST /api/chat/channels/{id}/messages` — REST fallback for posting
- * a chat message when the WebSocket connection is unavailable.
+ * a chat message.
  *
  * Auth required: the caller must be the channel's owner (user side)
  * or an employee. Idempotent via `client_msg_id`.
+ *
+ * **WS broadcast**: after the message is persisted, we broadcast a
+ * `message` event to the channel room so the OTHER side (customer or
+ * admin) sees the reply in realtime without needing to refetch. We
+ * ALSO broadcast a `channel_message` event to ALL online employees
+ * (admin attention signal) when the sender is a customer.
  */
 export const postMessage = <ThrowOnError extends boolean = false>(options: Options<PostMessageData, ThrowOnError>): RequestResult<PostMessageResponses, PostMessageErrors, ThrowOnError> => (options.client ?? client).post<PostMessageResponses, PostMessageErrors, ThrowOnError>({
     url: '/api/chat/channels/{id}/messages',
@@ -777,8 +818,15 @@ export const remove3 = <ThrowOnError extends boolean = false>(options: Options<R
 
 /**
  * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
+ *
+ * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
+ * (any employee/support role). The exchanges contain the customer's
+ * original prompt + the AI's completion, which may include PII such
+ * as phone numbers, booking codes, and travel plans. Exposing them
+ * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
+ * Excessive Data Exposure).
  */
-export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, unknown, ThrowOnError>({ url: '/api/zeroclaw/exchanges', ...options });
+export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, ListExchangesErrors, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, ListExchangesErrors, ThrowOnError>({ url: '/api/zeroclaw/exchanges', ...options });
 
 /**
  * `GET /api/zeroclaw/status` — get ZeroClaw provider status.

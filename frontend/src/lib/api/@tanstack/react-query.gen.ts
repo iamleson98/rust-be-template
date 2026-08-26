@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, cancelPayment, confirm, create, create2, create3, create4, create5, create6, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, sitemap, stats, stats2, status, systemStatus, tags, toggle, tripDetail, update, update2, update3, update4, update5, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { brandDetail, brands, campaigns, cancel, cancelPayment, chatStats, confirm, create, create2, create3, create4, create5, create6, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, sitemap, stats, stats2, status, systemStatus, tags, toggle, tripDetail, update, update2, update3, update4, update5, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -332,6 +332,31 @@ export const list3Options = (options?: Options<List3Data>) => queryOptions<List3
         return data;
     },
     queryKey: list3QueryKey(options)
+});
+
+export const chatStatsQueryKey = (options?: Options<ChatStatsData>) => createQueryKey('chatStats', options);
+
+/**
+ * `GET /api/admin/chat/stats` — aggregate chat stats for the admin
+ * dashboard's top-row cards.
+ *
+ * Returns counts of channels grouped by status (open / assigned /
+ * closed / total) + the average first-response time in seconds.
+ *
+ * Server-side aggregate so the counts are accurate even when there
+ * are more channels than the channel list's page size (capped at 200).
+ */
+export const chatStatsOptions = (options?: Options<ChatStatsData>) => queryOptions<ChatStatsResponse2, DefaultError, ChatStatsResponse2, ReturnType<typeof chatStatsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await chatStats({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: chatStatsQueryKey(options)
 });
 
 export const listAdminPaymentsQueryKey = (options?: Options<ListAdminPaymentsData>) => createQueryKey('listAdminPayments', options);
@@ -1073,6 +1098,14 @@ export const listChannelsQueryKey = (options?: Options<ListChannelsData>) => cre
 
 /**
  * `GET /api/chat/channels` — list chat channels for the authenticated user.
+ *
+ * For **customers**: returns only their own channels (the ones they started).
+ * For **employees**: returns the entire open-channel support queue (optionally
+ * filtered by the employee's brand) so support staff see all inbound chats.
+ *
+ * Each channel includes the customer's `user` row (`id`, `fullName`,
+ * `email`, `phone`, `avatarUrl`) so the admin's channel list can
+ * display "who" without a second round-trip per channel.
  */
 export const listChannelsOptions = (options?: Options<ListChannelsData>) => queryOptions<ListChannelsResponse, DefaultError, ListChannelsResponse, ReturnType<typeof listChannelsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1109,6 +1142,21 @@ export const listMessagesQueryKey = (options: Options<ListMessagesData>) => crea
 
 /**
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
+ *
+ * Returns messages in **DESC order (newest first)** to support
+ * cursor pagination. The frontend reverses the page before rendering
+ * so the oldest message is at the top + the newest at the bottom
+ * (the natural chat reading order).
+ *
+ * - `limit` defaults to 30 (modern chat default — fast first paint).
+ * Max 200.
+ * - `offset` defaults to 0. `offset=30` returns the next 30 OLDER
+ * messages.
+ *
+ * When a new message arrives via WS, the frontend invalidates this
+ * query so the latest page refetches with the new message at the
+ * top of the DESC page (which becomes the bottom after the
+ * frontend reverses it).
  */
 export const listMessagesOptions = (options: Options<ListMessagesData>) => queryOptions<ListMessagesResponse, DefaultError, ListMessagesResponse, ReturnType<typeof listMessagesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1127,6 +1175,21 @@ export const listMessagesInfiniteQueryKey = (options: Options<ListMessagesData>)
 
 /**
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
+ *
+ * Returns messages in **DESC order (newest first)** to support
+ * cursor pagination. The frontend reverses the page before rendering
+ * so the oldest message is at the top + the newest at the bottom
+ * (the natural chat reading order).
+ *
+ * - `limit` defaults to 30 (modern chat default — fast first paint).
+ * Max 200.
+ * - `offset` defaults to 0. `offset=30` returns the next 30 OLDER
+ * messages.
+ *
+ * When a new message arrives via WS, the frontend invalidates this
+ * query so the latest page refetches with the new message at the
+ * top of the DESC page (which becomes the bottom after the
+ * frontend reverses it).
  */
 export const listMessagesInfiniteOptions = (options: Options<ListMessagesData>) => {
     const opts = infiniteQueryOptions<ListMessagesResponse, DefaultError, InfiniteData<ListMessagesResponse>, QueryKey<Options<ListMessagesData>>, number | Pick<QueryKey<Options<ListMessagesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -1155,10 +1218,16 @@ export const listMessagesInfiniteOptions = (options: Options<ListMessagesData>) 
 
 /**
  * `POST /api/chat/channels/{id}/messages` — REST fallback for posting
- * a chat message when the WebSocket connection is unavailable.
+ * a chat message.
  *
  * Auth required: the caller must be the channel's owner (user side)
  * or an employee. Idempotent via `client_msg_id`.
+ *
+ * **WS broadcast**: after the message is persisted, we broadcast a
+ * `message` event to the channel room so the OTHER side (customer or
+ * admin) sees the reply in realtime without needing to refetch. We
+ * ALSO broadcast a `channel_message` event to ALL online employees
+ * (admin attention signal) when the sender is a customer.
  */
 export const postMessageMutation = (options?: Partial<Options<PostMessageData>>): UseMutationOptions<PostMessageResponse, DefaultError, Options<PostMessageData>> => {
     const mutationOptions: UseMutationOptions<PostMessageResponse, DefaultError, Options<PostMessageData>> = {
@@ -2181,6 +2250,13 @@ export const listExchangesQueryKey = (options?: Options<ListExchangesData>) => c
 
 /**
  * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
+ *
+ * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
+ * (any employee/support role). The exchanges contain the customer's
+ * original prompt + the AI's completion, which may include PII such
+ * as phone numbers, booking codes, and travel plans. Exposing them
+ * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
+ * Excessive Data Exposure).
  */
 export const listExchangesOptions = (options?: Options<ListExchangesData>) => queryOptions<ListExchangesResponse, DefaultError, ListExchangesResponse, ReturnType<typeof listExchangesQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2199,6 +2275,13 @@ export const listExchangesInfiniteQueryKey = (options?: Options<ListExchangesDat
 
 /**
  * `GET /api/zeroclaw/exchanges` — list ZeroClaw exchanges.
+ *
+ * **Authorization**: requires the `ADMIN_ZEROCLAW_READ` permission
+ * (any employee/support role). The exchanges contain the customer's
+ * original prompt + the AI's completion, which may include PII such
+ * as phone numbers, booking codes, and travel plans. Exposing them
+ * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
+ * Excessive Data Exposure).
  */
 export const listExchangesInfiniteOptions = (options?: Options<ListExchangesData>) => {
     const opts = infiniteQueryOptions<ListExchangesResponse, DefaultError, InfiniteData<ListExchangesResponse>, QueryKey<Options<ListExchangesData>>, number | Pick<QueryKey<Options<ListExchangesData>>[0], 'body' | 'headers' | 'path' | 'query'>>(

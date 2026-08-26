@@ -13,6 +13,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "allowImportingTsExtensions": false,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
