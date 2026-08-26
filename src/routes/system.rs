@@ -156,9 +156,7 @@ pub async fn system_status(
     // compute usage — the second call will have the real value).
     use sysinfo::{ProcessRefreshKind, RefreshKind, System};
     let mut sys = System::new();
-    sys.refresh_specifics(
-        RefreshKind::new().with_processes(ProcessRefreshKind::everything()),
-    );
+    sys.refresh_specifics(RefreshKind::new().with_processes(ProcessRefreshKind::everything()));
     let pid = std::process::id();
     let cpu_count = num_cpus::get();
     let sysinfo_pid = sysinfo::Pid::from_u32(pid);
@@ -181,8 +179,7 @@ pub async fn system_status(
     // ── Database stats ─────────────────────────────────────────────
     let db_url_masked = mask_db_url(&st.config.database.url);
     let db_backend = crate::cli::util::db_backend_name().to_string();
-    let (active_connections, idle_connections, size_mb) =
-        collect_db_stats(&st, &db_backend).await;
+    let (active_connections, idle_connections, size_mb) = collect_db_stats(&st, &db_backend).await;
 
     Ok(Json(SystemStatusResponse {
         uptime: SystemUptime {

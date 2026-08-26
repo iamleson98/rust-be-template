@@ -275,7 +275,7 @@ pub async fn handle_socket(
         user_r.id
     });
 
-    let user_id = read_task.await.unwrap_or_else(|_| user.id);
+    let user_id = read_task.await.unwrap_or(user.id);
 
     let _ = close_tx.send(()).await;
 

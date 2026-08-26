@@ -289,7 +289,7 @@ impl ReviewService {
         let avg = if reviews.is_empty() {
             None
         } else {
-            let sum: i64 = reviews.iter().map(|r| r.rating as i64).sum();
+            let sum: i64 = reviews.iter().map(|r| r.rating).sum();
             Some(sum as f64 / reviews.len() as f64)
         };
 
@@ -335,13 +335,13 @@ pub fn review_to_dto(r: &review::Model) -> ReviewOut {
         brand_id: r.brand_id,
         author_name: r.author_name.clone(),
         author_phone: r.author_phone.clone(),
-        rating: r.rating as i64,
+        rating: r.rating,
         title: r.title.clone(),
         content: r.content.clone(),
         tags,
         photos,
         status: r.status.clone(),
-        helpful_count: r.helpful_count as i64,
+        helpful_count: r.helpful_count,
         reply: r.reply.clone(),
         replied_at: r.replied_at.clone(),
         created_at: r.created_at.clone(),

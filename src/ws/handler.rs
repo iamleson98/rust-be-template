@@ -52,7 +52,10 @@ fn parse_origin(headers: &HeaderMap) -> Option<String> {
 /// Returns `Ok(())` if the origin is allowed (or if no allowlist is
 /// configured, which is the dev case). Returns `Err` with a 403 if
 /// the origin is rejected.
-fn check_ws_origin(headers: &HeaderMap, allowed_origins: &[String]) -> Result<(), AppError> {
+pub(crate) fn check_ws_origin(
+    headers: &HeaderMap,
+    allowed_origins: &[String],
+) -> Result<(), AppError> {
     // Empty allowlist = dev mode, allow all. In prod this MUST be set.
     if allowed_origins.is_empty() {
         return Ok(());
@@ -517,7 +520,11 @@ async fn handle_message(
     // Best-effort — a failure here is logged + swallowed because the
     // message itself was already persisted; the unread counter is
     // secondary UX metadata.
-    let unread_side = if user.actor_type == "user" { "employee" } else { "user" };
+    let unread_side = if user.actor_type == "user" {
+        "employee"
+    } else {
+        "user"
+    };
     if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
         tracing::warn!(
             channel_id = %channel_id,

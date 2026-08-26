@@ -82,7 +82,10 @@ impl MigrationTrait for Migration {
             ("admin:stats:read", "Admin: view booking statistics"),
             ("admin:export", "Admin: export bookings as CSV"),
             // Admin — ZeroClaw AI exchange audit log (contains customer PII)
-            ("admin:zeroclaw:read", "Admin: view ZeroClaw AI exchange audit log"),
+            (
+                "admin:zeroclaw:read",
+                "Admin: view ZeroClaw AI exchange audit log",
+            ),
         ];
 
         // ---- Insert roles ------------------------------------------------

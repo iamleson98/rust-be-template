@@ -119,14 +119,12 @@ pub async fn oauth_start(
     // Build the cookie. We use a raw cookie + axum_extra's CookieJar
     // builder so we can set SameSite=Lax + a short Max-Age.
     let cookie_name = state_cookie_name(&provider);
-    let mut cookie = axum_extra::extract::cookie::Cookie::build((
-        cookie_name.clone(),
-        state_value.clone(),
-    ))
-    .path("/")
-    .http_only(true)
-    .max_age(SignedDuration::seconds(STATE_COOKIE_TTL_SECS))
-    .same_site(axum_extra::extract::cookie::SameSite::Lax);
+    let mut cookie =
+        axum_extra::extract::cookie::Cookie::build((cookie_name.clone(), state_value.clone()))
+            .path("/")
+            .http_only(true)
+            .max_age(SignedDuration::seconds(STATE_COOKIE_TTL_SECS))
+            .same_site(axum_extra::extract::cookie::SameSite::Lax);
 
     // Mirror the global cookie secure flag.
     if st.config.cookie.secure {
@@ -217,7 +215,10 @@ pub async fn oauth_callback(
     //    Twitter, the cookie is `{state}|{verifier}`).
     let (cookie_state, code_verifier) = if provider == "twitter" {
         if let Some(idx) = cookie_value.find('|') {
-            (cookie_value[..idx].to_string(), cookie_value[idx + 1..].to_string())
+            (
+                cookie_value[..idx].to_string(),
+                cookie_value[idx + 1..].to_string(),
+            )
         } else {
             (cookie_value, String::new())
         }
@@ -270,7 +271,10 @@ pub async fn oauth_callback(
     }
 
     let span = tracing::Span::current();
-    let exchange_result = provider_impl.exchange_code(&code, &cb_url).instrument(span).await;
+    let exchange_result = provider_impl
+        .exchange_code(&code, &cb_url)
+        .instrument(span)
+        .await;
     let access_token = match exchange_result {
         Ok(t) => t,
         Err(e) => {

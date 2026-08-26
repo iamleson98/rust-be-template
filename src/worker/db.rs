@@ -134,6 +134,10 @@ impl WorkerBroker for DbBroker {
 
         // Build the inner SELECT: oldest available job, with optional
         // `FOR UPDATE SKIP LOCKED` on Postgres.
+        // The `mut` is required when the `postgres` feature is enabled
+        // (because `lock_with_behavior` is `&mut self`); on sqlite it's
+        // not, so we allow the unused_mut warning conditionally.
+        #[allow(unused_mut)]
         let mut select_oldest = SelectStatement::new()
             .column(Jobs::Id)
             .from(Jobs::Table)

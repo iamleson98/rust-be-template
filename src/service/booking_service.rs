@@ -159,8 +159,8 @@ impl BookingService {
 
         // Fetch booking seats + trip concurrently (independent of each other).
         let booking_id_str = b.id.to_string();
-        let trip_id = Uuid::parse_str(&b.trip_session_id)
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip_id =
+            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
 
         let store = self.store.clone();
         let (seats, trip) = tokio::try_join!(
@@ -443,11 +443,7 @@ impl BookingService {
         };
 
         // Fetch seat inventories
-        let seat_uuids: Vec<String> = req
-            .seat_ids
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let seat_uuids: Vec<String> = req.seat_ids.iter().map(|s| s.to_string()).collect();
         let seat_invs = self
             .store
             .trip_store()
@@ -983,6 +979,7 @@ impl BookingService {
         // UPDATE, all untransactional — a partial failure left some seats
         // "held" with a "confirmed" booking.
         let booking_id_str = b.id.to_string();
+        let booking_id = b.id; // Uuid is Copy — used in the response.
         let payment_method_owned = payment_method.to_string();
         let db = self.store.db();
         let txn_result = db
@@ -1019,7 +1016,7 @@ impl BookingService {
                         .map_err(|e| AppError::Internal(e.to_string()))?;
 
                     Ok(BookingConfirmResponse {
-                        booking_id: id,
+                        booking_id,
                         status: "confirmed".to_string(),
                         payment_method: payment_method_owned,
                     })

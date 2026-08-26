@@ -286,7 +286,7 @@ impl CallHub {
 mod tests {
     use uuid::Uuid;
 
-use super::*;
+    use super::*;
     use crate::auth::SessionUser;
 
     /// All these tests run against the SAME global singleton hub, and some

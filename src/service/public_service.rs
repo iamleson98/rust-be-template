@@ -441,10 +441,7 @@ impl PublicService {
             .map(|r| (r.id.to_string(), r))
             .collect();
 
-        let route_brand_uuids: Vec<Uuid> = route_map
-            .values()
-            .filter_map(|r| r.brand_id)
-            .collect();
+        let route_brand_uuids: Vec<Uuid> = route_map.values().filter_map(|r| r.brand_id).collect();
         let brand_map: std::collections::HashMap<String, brand::Model> = self
             .store
             .brand_store()
@@ -497,7 +494,11 @@ impl PublicService {
             .filter_map(|t| {
                 let sched = sched_map.get(&t.schedule_id.to_string())?;
                 let route = route_map.get(&sched.route_id.to_string())?;
-                let brand = route.brand_id.map(|id| id.to_string()).as_deref().and_then(|bid| brand_map.get(bid));
+                let brand = route
+                    .brand_id
+                    .map(|id| id.to_string())
+                    .as_deref()
+                    .and_then(|bid| brand_map.get(bid));
                 let layout = sched
                     .bus_layout_id
                     .as_deref()
@@ -691,8 +692,10 @@ impl PublicService {
             Vec::new()
         };
 
-        let inv_map: std::collections::HashMap<String, &seat_inventory::Model> =
-            seat_inv.iter().map(|si| (si.seat_id.to_string(), si)).collect();
+        let inv_map: std::collections::HashMap<String, &seat_inventory::Model> = seat_inv
+            .iter()
+            .map(|si| (si.seat_id.to_string(), si))
+            .collect();
 
         // Group seats by deck → row
         let mut decks_map: BTreeMap<i16, BTreeMap<i16, Vec<TripSeat>>> = BTreeMap::new();
@@ -867,10 +870,8 @@ impl PublicService {
                 .map(|r| (r.id.to_string(), r))
                 .collect();
 
-            let route_brand_uuids: Vec<Uuid> = route_map
-                .values()
-                .filter_map(|r| r.brand_id)
-                .collect();
+            let route_brand_uuids: Vec<Uuid> =
+                route_map.values().filter_map(|r| r.brand_id).collect();
             let brand_map: std::collections::HashMap<String, brand::Model> = self
                 .store
                 .brand_store()
@@ -886,7 +887,11 @@ impl PublicService {
                 .filter_map(|t| {
                     let sched = sched_map.get(&t.schedule_id.to_string())?;
                     let route = route_map.get(&sched.route_id.to_string())?;
-                    let brand = route.brand_id.map(|id| id.to_string()).as_deref().and_then(|bid| brand_map.get(bid));
+                    let brand = route
+                        .brand_id
+                        .map(|id| id.to_string())
+                        .as_deref()
+                        .and_then(|bid| brand_map.get(bid));
                     let amenities = parse_amenities(&sched.amenities);
                     let (dep_iso, arr_iso) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),

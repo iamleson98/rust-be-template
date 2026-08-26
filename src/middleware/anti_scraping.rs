@@ -61,8 +61,8 @@ const BLOCKED_UA_SUBSTRINGS: &[&str] = &[
     "mechanize",
     "httpx.rs",
     "reqwest/", // our own backend uses this — but only server-to-server,
-                 // never from the browser. If a request arrives with this
-                 // UA, it's a scraper pretending to be our backend.
+    // never from the browser. If a request arrives with this
+    // UA, it's a scraper pretending to be our backend.
     // Headless browsers used for scraping
     "headless",
     "phantomjs",
@@ -89,7 +89,9 @@ fn is_allowed_referer(referer: Option<&str>, allowed_origins: &[String]) -> bool
         None => return false,
     };
     // Allow requests with no path (just origin) or with path.
-    allowed_origins.iter().any(|origin| referer.starts_with(origin.as_str()))
+    allowed_origins
+        .iter()
+        .any(|origin| referer.starts_with(origin.as_str()))
 }
 
 /// Check if a User-Agent looks like a real browser.
@@ -214,8 +216,7 @@ pub async fn anti_scraping(
     {
         // Allow known monitoring tools (uptime checkers) that send a
         // proper User-Agent but aren't browsers.
-        if !ua_lower_contains(ua, &["uptimerobot", "statuscake", "pingdom", "newrelic"])
-        {
+        if !ua_lower_contains(ua, &["uptimerobot", "statuscake", "pingdom", "newrelic"]) {
             tracing::warn!(
                 ua = %ua,
                 path = %path,
@@ -336,6 +337,9 @@ mod tests {
 
     #[test]
     fn test_is_allowed_referer_none() {
-        assert!(!is_allowed_referer(None, &["http://localhost:5173".to_string()]));
+        assert!(!is_allowed_referer(
+            None,
+            &["http://localhost:5173".to_string()]
+        ));
     }
 }

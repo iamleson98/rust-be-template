@@ -6,8 +6,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::chat::{
-    ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse, ChatMessageOut,
-    ChannelUserOut, CreateChannelRequest, CreateChannelResponse, CreateMessageRequest,
+    ChannelUserOut, ChatChannelListResponse, ChatChannelOut, ChatMessageListResponse,
+    ChatMessageOut, CreateChannelRequest, CreateChannelResponse, CreateMessageRequest,
     CreateMessageResponse, MarkChannelReadResponse,
 };
 use crate::entity::{chat_channel, chat_message};
@@ -78,13 +78,16 @@ pub async fn list_channels(
     let user_dtos: std::collections::HashMap<Uuid, ChannelUserOut> = user_map
         .iter()
         .map(|(id, u)| {
-            (*id, ChannelUserOut {
-                id: u.id,
-                full_name: Some(u.full_name.clone()),
-                email: Some(u.email.clone()),
-                phone: u.phone.clone(),
-                avatar_url: u.avatar_url.clone(),
-            })
+            (
+                *id,
+                ChannelUserOut {
+                    id: u.id,
+                    full_name: Some(u.full_name.clone()),
+                    email: Some(u.email.clone()),
+                    phone: u.phone.clone(),
+                    avatar_url: u.avatar_url.clone(),
+                },
+            )
         })
         .collect();
 
@@ -329,7 +332,11 @@ pub async fn post_message(
     // Best-effort — a failure here is logged + swallowed because the
     // message itself was already persisted; the unread counter is
     // secondary UX metadata. The WS handler does the same.
-    let unread_side = if sender_type == "user" { "employee" } else { "user" };
+    let unread_side = if sender_type == "user" {
+        "employee"
+    } else {
+        "user"
+    };
     if let Err(e) = st.chats.increment_unread(&channel_id, unread_side).await {
         tracing::warn!(
             channel_id = %channel_id,

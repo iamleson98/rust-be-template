@@ -340,13 +340,10 @@ impl ChatStore for DbChatStore {
         };
         let _ = convert; // silence unused warning
 
-        let row = AvgResult::find_by_statement(sea_orm::Statement::from_sql_and_values(
-            backend,
-            sql,
-            [],
-        ))
-        .one(self.db.as_ref())
-        .await?;
+        let row =
+            AvgResult::find_by_statement(sea_orm::Statement::from_sql_and_values(backend, sql, []))
+                .one(self.db.as_ref())
+                .await?;
 
         Ok(row.and_then(|r| r.avg_secs).unwrap_or(0.0))
     }
@@ -611,8 +608,7 @@ impl ChatStore for DbChatStore {
                 // UNIQUE violation → already a member. Both SQLite
                 // ("unique") and Postgres ("duplicate key") surface this
                 // via the same string match.
-                if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict")
-                {
+                if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict") {
                     Ok(())
                 } else {
                     Err(e.into())

@@ -137,7 +137,9 @@ pub async fn cancel(
 ) -> Result<Json<BookingCancelResponse>, AppError> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(st.bookings.cancel(uid, id, body.reason.as_deref()).await?))
+    Ok(Json(
+        st.bookings.cancel(uid, id, body.reason.as_deref()).await?,
+    ))
 }
 
 /// `POST /api/bookings/{id}/confirm` — confirm a booking with payment.
@@ -161,7 +163,9 @@ pub async fn confirm(
 ) -> Result<Json<BookingConfirmResponse>, AppError> {
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
-    Ok(Json(st.bookings.confirm(uid, id, &body.payment_method).await?))
+    Ok(Json(
+        st.bookings.confirm(uid, id, &body.payment_method).await?,
+    ))
 }
 
 /// Build the bookings router.

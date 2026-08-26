@@ -780,14 +780,29 @@ impl Config {
         // Also mask OAuth + payment secrets so a `config show` dump
         // can be safely shared in a bug report.
         tracing::info!("  oauth google client_id: {}", self.oauth.google.client_id);
-        tracing::info!("  oauth google secret: {}", mask_secret(&self.oauth.google.client_secret));
+        tracing::info!(
+            "  oauth google secret: {}",
+            mask_secret(&self.oauth.google.client_secret)
+        );
         tracing::info!("  vnpay tmn_code: {}", self.payment.vnpay.tmn_code);
-        tracing::info!("  vnpay secret: {}", mask_secret(&self.payment.vnpay.hash_secret));
+        tracing::info!(
+            "  vnpay secret: {}",
+            mask_secret(&self.payment.vnpay.hash_secret)
+        );
         tracing::info!("  momo partner_code: {}", self.payment.momo.partner_code);
-        tracing::info!("  momo secret: {}", mask_secret(&self.payment.momo.secret_key));
+        tracing::info!(
+            "  momo secret: {}",
+            mask_secret(&self.payment.momo.secret_key)
+        );
         tracing::info!("  zalopay app_id: {:?}", self.payment.zalopay.app_id);
-        tracing::info!("  zalopay key1: {}", mask_secret(&self.payment.zalopay.key1));
-        tracing::info!("  zalopay key2: {}", mask_secret(&self.payment.zalopay.key2));
+        tracing::info!(
+            "  zalopay key1: {}",
+            mask_secret(&self.payment.zalopay.key1)
+        );
+        tracing::info!(
+            "  zalopay key2: {}",
+            mask_secret(&self.payment.zalopay.key2)
+        );
         tracing::info!("  storage backend: {:?}", self.storage.backend);
         tracing::info!("  worker backend: {:?}", self.worker.backend);
         tracing::info!("  payment cod_enabled: {}", self.payment.cod_enabled);
@@ -830,7 +845,10 @@ mod tests {
         let url = "postgres://app:hunter2@db:5432/app";
         let masked = mask_db_url(url);
         assert!(!masked.contains("hunter2"), "password leaked: {masked}");
-        assert!(masked.contains("postgres://app:***@db:5432/app"), "got: {masked}");
+        assert!(
+            masked.contains("postgres://app:***@db:5432/app"),
+            "got: {masked}"
+        );
     }
 
     #[test]

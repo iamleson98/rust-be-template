@@ -139,7 +139,9 @@ impl PaymentService {
         //   1. The authenticated user who created it (booking.user_id == user_id).
         //   2. A guest (no user_id on the booking, no auth required).
         // This matches the booking flow's existing guest-lookup pattern.
-        if let (Some(uid), Some(b_uid)) = (user_id, booking.user_id.map(|id| id.to_string()).as_deref()) {
+        if let (Some(uid), Some(b_uid)) =
+            (user_id, booking.user_id.map(|id| id.to_string()).as_deref())
+        {
             if uid != b_uid {
                 return Err(AppError::Forbidden("not your booking".into()));
             }
@@ -394,7 +396,10 @@ impl PaymentService {
         // `confirm_as_system` because this is a server-side call (no
         // user in context) — payment has been verified, so bypass
         // the per-row ownership check.
-        let _ = self.booking.confirm_as_system(updated.booking_id, providers::COD).await?;
+        let _ = self
+            .booking
+            .confirm_as_system(updated.booking_id, providers::COD)
+            .await?;
 
         Ok(MarkCodCollectedResponse {
             payment_id: updated.id,
@@ -661,10 +666,7 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Batch-fetch booking codes for display.
-        let booking_ids: Vec<Uuid> = items
-            .iter()
-            .map(|p| p.booking_id)
-            .collect();
+        let booking_ids: Vec<Uuid> = items.iter().map(|p| p.booking_id).collect();
         let bookings: std::collections::HashMap<Uuid, String> = if booking_ids.is_empty() {
             std::collections::HashMap::new()
         } else {
@@ -674,10 +676,7 @@ impl PaymentService {
                 .find_bookings_by_ids(booking_ids)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
-            booking_models
-                .into_iter()
-                .map(|b| (b.id, b.code))
-                .collect()
+            booking_models.into_iter().map(|b| (b.id, b.code)).collect()
         };
 
         let items: Vec<AdminPaymentOut> = items
@@ -780,7 +779,10 @@ impl PaymentService {
 
         // If admin marks a payment as `completed`, also confirm the booking.
         if status == statuses::COMPLETED {
-            let _ = self.booking.confirm_as_system(updated.booking_id, &updated.provider).await;
+            let _ = self
+                .booking
+                .confirm_as_system(updated.booking_id, &updated.provider)
+                .await;
         }
 
         Ok(UpdatePaymentStatusResponse {
@@ -888,7 +890,10 @@ impl PaymentService {
         // Confirm the booking outside the txn — `booking.confirm()` runs its
         // own transaction; running it nested would require passing the txn
         // handle down, which we explicitly avoid (see CompositeStore::db() docs).
-        let _ = self.booking.confirm_as_system(booking_id_str, &provider).await;
+        let _ = self
+            .booking
+            .confirm_as_system(booking_id_str, &provider)
+            .await;
         Ok(())
     }
 

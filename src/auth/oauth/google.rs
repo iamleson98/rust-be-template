@@ -85,11 +85,7 @@ impl OAuthProvider for GoogleProvider {
         )
     }
 
-    async fn exchange_code(
-        &self,
-        code: &str,
-        redirect_uri: &str,
-    ) -> Result<String, AppError> {
+    async fn exchange_code(&self, code: &str, redirect_uri: &str) -> Result<String, AppError> {
         let resp = self
             .http
             .post(TOKEN_URL)
@@ -155,9 +151,7 @@ impl OAuthProvider for GoogleProvider {
 
         // Reject unverified emails — see module docs.
         if p.email_verified == Some(false) {
-            return Err(AppError::BadRequest(
-                "Google email is not verified".into(),
-            ));
+            return Err(AppError::BadRequest("Google email is not verified".into()));
         }
 
         Ok(OAuthProfile {

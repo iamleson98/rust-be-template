@@ -37,7 +37,7 @@ use uuid::Uuid;
 use crate::auth::SessionUser;
 use crate::entity::{chat_channel, chat_message, zero_claw_exchange};
 use crate::error::{AppError, AppResult};
-use crate::store::chat::{NewChatMessage, NewChannelMember};
+use crate::store::chat::{NewChannelMember, NewChatMessage};
 use crate::store::CompositeStore;
 use crate::zeroclaw::ZEROCLAW_BOT_EMAIL;
 
@@ -155,15 +155,13 @@ impl ChatService {
     ) -> AppResult<Vec<chat_channel::Model>> {
         let limit = limit.min(200);
         if is_employee {
-            self
-                .store
+            self.store
                 .chat_store()
                 .list_open_channels(brand_id, limit)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))
         } else {
-            self
-                .store
+            self.store
                 .chat_store()
                 .list_channels(user_id, limit)
                 .await
@@ -219,9 +217,7 @@ impl ChatService {
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?;
             if brand.is_none() {
-                return Err(AppError::Validation(format!(
-                    "brand not found: {brand_id}"
-                )));
+                return Err(AppError::Validation(format!("brand not found: {brand_id}")));
             }
         }
 
@@ -248,7 +244,11 @@ impl ChatService {
         let channel = self
             .store
             .chat_store()
-            .create_channel(user_id, brand_id, topic.or_else(|| Some("Hỗ trợ".to_string())))
+            .create_channel(
+                user_id,
+                brand_id,
+                topic.or_else(|| Some("Hỗ trợ".to_string())),
+            )
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -342,8 +342,7 @@ impl ChatService {
 
     /// Check whether a channel exists (used by the WS `join` handler).
     pub async fn channel_exists(&self, channel_id: &str) -> AppResult<bool> {
-        self
-            .store
+        self.store
             .chat_store()
             .channel_exists(channel_id)
             .await
@@ -352,12 +351,8 @@ impl ChatService {
 
     /// Fetch a channel by id (used by the ZeroClaw hook to get the
     /// `brand_id` for fallback-threshold counting).
-    pub async fn get_channel(
-        &self,
-        channel_id: &str,
-    ) -> AppResult<Option<chat_channel::Model>> {
-        self
-            .store
+    pub async fn get_channel(&self, channel_id: &str) -> AppResult<Option<chat_channel::Model>> {
+        self.store
             .chat_store()
             .get_channel(channel_id)
             .await
@@ -373,8 +368,7 @@ impl ChatService {
         limit: u64,
         offset: u64,
     ) -> AppResult<Vec<chat_message::Model>> {
-        self
-            .store
+        self.store
             .chat_store()
             .list_messages(channel_id, limit.min(200), offset)
             .await
@@ -388,10 +382,7 @@ impl ChatService {
     /// fallback. Idempotent via `client_msg_id` — if a message with the
     /// same `client_msg_id` already exists, it's returned without
     /// re-inserting.
-    pub async fn insert_message(
-        &self,
-        msg: NewChatMessage,
-    ) -> AppResult<chat_message::Model> {
+    pub async fn insert_message(&self, msg: NewChatMessage) -> AppResult<chat_message::Model> {
         let stored = self
             .store
             .chat_store()
@@ -424,8 +415,7 @@ impl ChatService {
         channel_id: &str,
         client_msg_id: &str,
     ) -> AppResult<Option<chat_message::Model>> {
-        self
-            .store
+        self.store
             .chat_store()
             .find_message_by_client_id(channel_id, client_msg_id)
             .await
@@ -508,8 +498,7 @@ impl ChatService {
         limit: u64,
         offset: u64,
     ) -> AppResult<Vec<zero_claw_exchange::Model>> {
-        self
-            .store
+        self.store
             .chat_store()
             .list_zeroclaw_exchanges(limit.min(200), offset)
             .await
