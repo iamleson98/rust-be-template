@@ -391,7 +391,10 @@ impl PaymentService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         // Confirm the booking (flips seats from held → booked).
-        let _ = self.booking.confirm(updated.booking_id, providers::COD).await?;
+        // `confirm_as_system` because this is a server-side call (no
+        // user in context) — payment has been verified, so bypass
+        // the per-row ownership check.
+        let _ = self.booking.confirm_as_system(updated.booking_id, providers::COD).await?;
 
         Ok(MarkCodCollectedResponse {
             payment_id: updated.id,
@@ -777,7 +780,7 @@ impl PaymentService {
 
         // If admin marks a payment as `completed`, also confirm the booking.
         if status == statuses::COMPLETED {
-            let _ = self.booking.confirm(updated.booking_id, &updated.provider).await;
+            let _ = self.booking.confirm_as_system(updated.booking_id, &updated.provider).await;
         }
 
         Ok(UpdatePaymentStatusResponse {
@@ -885,7 +888,7 @@ impl PaymentService {
         // Confirm the booking outside the txn — `booking.confirm()` runs its
         // own transaction; running it nested would require passing the txn
         // handle down, which we explicitly avoid (see CompositeStore::db() docs).
-        let _ = self.booking.confirm(booking_id_str, &provider).await;
+        let _ = self.booking.confirm_as_system(booking_id_str, &provider).await;
         Ok(())
     }
 

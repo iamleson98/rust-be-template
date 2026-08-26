@@ -6,6 +6,7 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         ConnectInfo, Query, State,
     },
+    http::HeaderMap,
     response::IntoResponse,
     routing::get,
     Router,
@@ -21,6 +22,56 @@ use crate::state::AppState;
 use crate::store::chat::NewChatMessage;
 
 use super::hub::hub;
+
+/// Extract the browser-origin `https://host` or `http://host` from the
+/// `Origin` header. Returns `None` if the header is missing or malformed.
+/// We don't trust `X-Forwarded-Host` here — that's a transport-level
+/// concern handled by the reverse proxy (Caddy/Nginx); the WS upgrade
+/// already happens after TLS termination so the `Host`/`Origin` we see
+/// is whatever the browser sent.
+fn parse_origin(headers: &HeaderMap) -> Option<String> {
+    let origin = headers.get("origin")?.to_str().ok()?;
+    let origin = origin.trim();
+    if origin.is_empty() {
+        return None;
+    }
+    // Sanity check: only allow http(s) schemes. This rejects `file://`,
+    // `data:`, and other origin forms that have no business opening a WS.
+    if !(origin.starts_with("https://") || origin.starts_with("http://")) {
+        return None;
+    }
+    Some(origin.to_string())
+}
+
+/// Cross-Site WebSocket Hijacking (CSWSH) defense: reject WS upgrades
+/// whose `Origin` header is not in the CORS allowlist. Without this,
+/// a malicious page on `attacker.com` can `new WebSocket('wss://app/ws?token=...')`
+/// using a cookie the browser auto-sends → the attacker's page reads every
+/// chat message the user receives (CSWSH / OWASP API6:2023).
+///
+/// Returns `Ok(())` if the origin is allowed (or if no allowlist is
+/// configured, which is the dev case). Returns `Err` with a 403 if
+/// the origin is rejected.
+fn check_ws_origin(headers: &HeaderMap, allowed_origins: &[String]) -> Result<(), AppError> {
+    // Empty allowlist = dev mode, allow all. In prod this MUST be set.
+    if allowed_origins.is_empty() {
+        return Ok(());
+    }
+    let Some(origin) = parse_origin(headers) else {
+        // No Origin header = non-browser client (curl, server-to-server).
+        // WS is intended for browsers; reject non-browser upgrades
+        // unless explicitly allowed. (Auth via ?token= still applies,
+        // so a missing origin here means a programmatic client — those
+        // should use the REST API, not WS.)
+        tracing::debug!("ws upgrade rejected: missing Origin header");
+        return Err(AppError::Forbidden("missing Origin header".into()));
+    };
+    if allowed_origins.iter().any(|allowed| allowed == &origin) {
+        return Ok(());
+    }
+    tracing::warn!(origin = %origin, "ws upgrade rejected: origin not allowed");
+    Err(AppError::Forbidden("origin not allowed".into()))
+}
 
 /// Build the `/ws` WebSocket router.
 pub fn router() -> Router<AppState> {
@@ -63,8 +114,15 @@ pub async fn ws_upgrade(
     Query(q): Query<WsQ>,
     jar: axum_extra::extract::CookieJar,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
+    // ── Origin check FIRST — cheapest rejection, no DB/auth work ────────
+    // CSWSH defense: see `check_ws_origin` doc. Parse the CORS allowlist
+    // once per upgrade (cheap — it's a small comma-split string).
+    let allowed_origins = st.config.cors.origin_list();
+    check_ws_origin(&headers, &allowed_origins)?;
+
     // Resolve the session user via the auth service (verifies JWT + loads user).
     // Try query param first, then fall back to cookie (same as REST endpoints).
     let token = q

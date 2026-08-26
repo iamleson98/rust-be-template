@@ -586,6 +586,37 @@ impl ChatService {
             .map_err(|e| AppError::Internal(format!("failed to load user roles: {e}")))?;
         Ok(perms.role_names.iter().any(|r| r != "user"))
     }
+
+    /// BOLA defense for chat: verify that `user_id` is authorized to
+    /// access `channel_id`. Access is granted if the user is the channel
+    /// owner (`channel.user_id == user_id`) OR the user is an employee
+    /// (any non-`"user"` role — employees see the entire support queue).
+    /// Returns the channel model on success so callers can also use it
+    /// without an extra round-trip. Returns 404 (not 403) when the
+    /// channel doesn't exist — this avoids leaking the existence of a
+    /// channel the caller has no business knowing about (OWASP API1:2023).
+    pub async fn assert_channel_access(
+        &self,
+        user_id: Uuid,
+        channel_id: &str,
+    ) -> AppResult<chat_channel::Model> {
+        let channel = self
+            .store
+            .chat_store()
+            .get_channel(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("chat channel not found".into()))?;
+
+        if channel.user_id == user_id {
+            return Ok(channel);
+        }
+        if self.is_employee(user_id).await? {
+            return Ok(channel);
+        }
+        // Don't reveal existence — return 404 to attackers.
+        Err(AppError::NotFound("chat channel not found".into()))
+    }
 }
 
 // `NewChatMessage` re-export so route handlers don't need to import

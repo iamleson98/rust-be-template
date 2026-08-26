@@ -1,7 +1,15 @@
-# ─── CI: test + lint on every push/PR ────────────────────────────────
+# ─── CI: test + lint + security on every push/PR ──────────────────────
 #
-# Runs cargo check + clippy on the backend and tsc --noEmit on the
-# frontend. Fast feedback — no Docker build needed.
+# Runs on every push to `server` / `main` and every PR targeting them.
+# Each job is independent and short — failures don't block the others
+# (so a frontend type error won't hide a Rust clippy warning).
+#
+# Job summary:
+#   1. backend        — cargo fmt --check + cargo check + clippy -D warnings + cargo test
+#   2. backend-audit   — cargo audit for known-vulnerable dependencies
+#   3. frontend        — bun install + tsc --noEmit + vitest run + bun run build
+#   4. secrets-scan    — gitleaks: blocks commits containing real secrets
+#   5. docker-build    — verifies the Dockerfile still builds
 
 name: CI
 
@@ -14,6 +22,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
+  RUST_BACKTRACE: 1
 
 jobs:
   backend:
@@ -22,12 +31,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable + clippy + rustfmt)
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
 
-      - name: Cache cargo registry
+      - name: Cache cargo registry + target
         uses: actions/cache@v4
         with:
           path: |
@@ -42,33 +51,141 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev
 
-      - name: Check
-        run: cargo check --no-default-features --features sqlite
+      - name: Rustfmt (zero diff)
+        run: cargo fmt --all -- --check
+
+      - name: Check (SQLite — default backend)
+        run: cargo check --no-default-features --features sqlite --all-targets
 
       - name: Clippy (zero warnings)
-        run: cargo clippy --no-default-features --features sqlite --tests -- -D warnings
+        run: cargo clippy --no-default-features --features sqlite --all-targets -- -D warnings
 
-  frontend:
-    name: Frontend (React/TS)
+      - name: Test
+        run: cargo test --no-default-features --features sqlite --all-targets
+        env:
+          DATABASE_URL: sqlite::memory:
+          JWT_SECRET: ci-test-secret-at-least-32-bytes-long-aaaaaaaa
+          COOKIE_SECURE: "false"
+          COOKIE_DOMAIN: localhost
+          CACHE_BACKEND: moka
+          WORKER_BACKEND: db
+          SEARCH_INDEX_DIR: ""
+          AUDIO_CALL_ENABLED: "false"
+          ZEROCLAW_ENABLED: "false"
+          VNPAY_ENABLED: "false"
+          MOMO_ENABLED: "false"
+          ZALOPAY_ENABLED: "false"
+          VIETQR_ENABLED: "false"
+          OAUTH_GOOGLE_ENABLED: "false"
+          OAUTH_FACEBOOK_ENABLED: "false"
+          OAUTH_TWITTER_ENABLED: "false"
+
+  backend-audit:
+    name: Backend — Dependency audit (cargo-audit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Audit dependencies for known CVEs
+        run: cargo audit --deny warnings
+
+  frontend:
+    name: Frontend (React/TS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package.json
+          bun-version: latest
 
       - name: Install dependencies
-        working-directory: frontend
-        run: npm install
+        run: bun install --frozen-lockfile
 
       - name: Type check
-        working-directory: frontend
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
+
+      - name: Lint (eslint)
+        run: bunx eslint --max-warnings 0 src
+        continue-on-error: true # TODO: tighten this once lint errors are fixed
+
+      - name: Test (vitest)
+        run: bunx vitest run
+        env:
+          NODE_ENV: test
 
       - name: Build
-        working-directory: frontend
-        run: npm run build
+        run: bun run build
+
+  secrets-scan:
+    name: Secrets scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Gitleaks needs full git history to scan all commits.
+          fetch-depth: 0
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # `GITHUB_TOKEN` is provided by Actions; gitleaks uses it for
+          # PR annotations. The action is free for OSS, paid for private
+          # repos. For private repos, set `GITLEAKS_LICENSE` as a repo
+          # secret — see https://github.com/gitleaks/gitleaks-action.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Defense-in-depth: even if gitleaks misses something (or the action
+      # is disabled), grep for the leaked-secret patterns we already know
+      # about. This is the regression test mentioned in SECURITY.md.
+      - name: Reject known-leaked secret patterns in committed files
+        run: |
+          set -e
+          # The leaked Google OAuth client secret from .env.example (now scrubbed).
+          if grep -r --line-number "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" . --exclude-dir=.git; then
+            echo "❌ FOUND: previously-leaked Google OAuth client secret"
+            exit 1
+          fi
+          # The leaked JWT secret from .env.example (now scrubbed).
+          if grep -r --line-number "8ec7dc585377c32aaa59104b093be930bb094ff4e6b32e580351e3d0d702a084" . --exclude-dir=.git; then
+            echo "❌ FOUND: previously-leaked JWT secret"
+            exit 1
+          fi
+          echo "✅ No known-leaked secrets in committed files"
+
+  docker-build:
+    name: Docker image build (smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.docker-cache
+          key: docker-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'frontend/bun.lock') }}
+          restore-keys: docker-${{ runner.os }}-
+
+      - name: Build backend image (SQLite)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: rust-be-template:ci
+          cache-from: type=local,src=/tmp/.docker-cache
+          cache-to: type=local,dest=/tmp/.docker-cache
+          build-args: |
+            BACKEND_FEATURES=sqlite

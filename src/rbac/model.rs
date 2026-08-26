@@ -43,4 +43,5 @@ pub mod consts {
     pub const ADMIN_PAYMENTS_WRITE: &str = "admin:payments:write";
     pub const ADMIN_STATS_READ: &str = "admin:stats:read";
     pub const ADMIN_EXPORT: &str = "admin:export";
+    pub const ADMIN_ZEROCLAW_READ: &str = "admin:zeroclaw:read";
 }
