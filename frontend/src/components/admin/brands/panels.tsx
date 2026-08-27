@@ -39,7 +39,7 @@ import {
 import { formatVND } from '@/lib/types'
 import type { AdminRouteOut, AdminScheduleOut, AdminPickupPointOut, AdminBrandOut } from '@/lib/api/types.gen'
 import { AMENITY_OPTIONS, PICKUP_TYPE_LABELS } from '@/components/admin/types'
-import { formatDurationShort, daysLabel } from './helpers'
+import { daysLabel } from './helpers'
 
 export function BrandListPanel({
   brandsLoading,
@@ -322,10 +322,6 @@ export function RouteListPanel({
                     {r.startLocation?.name ?? '—'} → {r.endLocation?.name ?? '—'}
                   </div>
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
-                    <span>{r.distanceKm} km</span>
-                    <span className="flex items-center gap-0.5">
-                      <Clock className="h-3 w-3" /> {formatDurationShort(r.durationMin ?? 0)}
-                    </span>
                     <span className="flex items-center gap-0.5">
                       <MapPin className="h-3 w-3" /> {r.pickupPointCount}
                     </span>

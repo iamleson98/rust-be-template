@@ -28,7 +28,6 @@ import {
   Timer,
   ArrowRightLeft,
   Ban,
-  TimerReset,
   Landmark,
   MapPin,
   Eye,
@@ -166,12 +165,6 @@ function BookingCardImpl({
                           <span className="font-medium text-foreground/80">{b.trip.brandName}</span>
                           <span className="text-muted-foreground/60">•</span>
                           <span>{VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType}</span>
-                          {b.trip.distanceKm > 0 && (
-                            <>
-                              <span className="text-muted-foreground/60">•</span>
-                              <span>{b.trip.distanceKm} km</span>
-                            </>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -215,12 +208,6 @@ function BookingCardImpl({
                             })}
                           </span>
                         </div>
-                        {b.trip.durationMin > 0 && (
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <TimerReset className="h-3 w-3" />
-                            {Math.floor(b.trip.durationMin / 60)}h {b.trip.durationMin % 60}m
-                          </div>
-                        )}
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <User className="h-3 w-3" />
                           {b.contactName}

@@ -13,8 +13,8 @@
 # The backend runs migrations on startup, so the first `up` will create
 # all tables. Swagger UI at http://localhost:8080/swagger-ui.
 #
-# ZeroClaw is configured via env vars pointing at the zeroclaw service.
-# If you don't have a ZeroClaw instance, set ZEROCLAW_ENABLED=false
+# NullClaw is configured via env vars pointing at the nullclaw service.
+# If you don't have a NullClaw instance, set NULLCLAW_ENABLED=false
 # (the default) — the chat will work without AI replies; admin will
 # handle all messages manually.
 
@@ -107,16 +107,16 @@ services:
       WS_HEARTBEAT_SEC: "30"
       WS_IDLE_TIMEOUT_SEC: "90"
 
-      # ── ZeroClaw AI ────────────────────────────────────────────
-      # Disabled by default. Set ZEROCLAW_API_URL + ZEROCLAW_API_KEY
+      # ── NullClaw AI ────────────────────────────────────────────
+      # Disabled by default. Set NULLCLAW_API_URL + NULLCLAW_API_KEY
       # to enable AI replies when no admin is online.
-      ZEROCLAW_ENABLED: "${ZEROCLAW_ENABLED:-false}"
-      ZEROCLAW_API_URL: "${ZEROCLAW_API_URL:-}"
-      ZEROCLAW_API_KEY: "${ZEROCLAW_API_KEY:-}"
-      ZEROCLAW_MODEL: "${ZEROCLAW_MODEL:-zeroclaw-default}"
-      ZEROCLAW_TIMEOUT_MS: "15000"
-      ZEROCLAW_MAX_HISTORY: "12"
-      ZEROCLAW_FALLBACK_ONLINE_EMPLOYEES: "1"
+      NULLCLAW_ENABLED: "${NULLCLAW_ENABLED:-false}"
+      NULLCLAW_API_URL: "${NULLCLAW_API_URL:-}"
+      NULLCLAW_API_KEY: "${NULLCLAW_API_KEY:-}"
+      NULLCLAW_MODEL: "${NULLCLAW_MODEL:-nullclaw-default}"
+      NULLCLAW_TIMEOUT_MS: "15000"
+      NULLCLAW_MAX_HISTORY: "12"
+      NULLCLAW_FALLBACK_ONLINE_EMPLOYEES: "1"
 
       # ── Audio call (WebRTC) ────────────────────────────────────
       AUDIO_CALL_ENABLED: "false"

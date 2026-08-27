@@ -1,14 +1,3 @@
-const AUTH_ENDPOINTS = new Set([
-  '/api/auth/employee-login',
-  '/api/auth/login',
-  '/api/auth/logout',
-  '/api/auth/refresh',
-  '/api/auth/register',
-]);
-
-const isAuthEndpoint = (request: Request): boolean =>
-  AUTH_ENDPOINTS.has(new URL(request.url).pathname);
-
 /**
  * Refresh the cookie session once after an access-token 401, then retry the
  * original request. A shared promise prevents concurrent requests from
@@ -28,6 +17,18 @@ const isAuthEndpoint = (request: Request): boolean =>
  * localize error messages in the future. The backend currently
  * ignores this header, but adding it now is forward-compatible.
  */
+
+const AUTH_ENDPOINTS = new Set([
+  '/api/auth/employee-login',
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/refresh',
+  '/api/auth/register',
+]);
+
+const isAuthEndpoint = (request: Request): boolean =>
+  AUTH_ENDPOINTS.has(new URL(request.url).pathname);
+
 export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typeof fetch => {
   let refreshPromise: Promise<boolean> | undefined;
 
@@ -39,10 +40,27 @@ export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typ
     return localStorage.getItem('bus_lang') === 'en' ? 'en' : 'vi';
   };
 
-  /** Inject `Accept-Language` into the request headers. */
-  const withAcceptLanguage = (init?: RequestInit): RequestInit => {
+  /**
+   * Inject `Accept-Language` into the request headers WITHOUT losing
+   * existing headers.
+   *
+   * CRITICAL: the SDK (@hey-api/client) passes a `Request` object as
+   * `input` (with `init = undefined`). If we do `new Request(input, { headers: ... })`,
+   * the second argument's `headers` REPLACES all headers from `input` —
+   * including `Content-Type: application/json`. This caused 415 Unsupported
+   * Media Type on all POST endpoints.
+   *
+   * The fix: when `input` is a Request, copy its existing headers into the
+   * new Headers object BEFORE adding Accept-Language. This preserves
+   * Content-Type, Authorization, etc.
+   */
+  const injectAcceptLanguage = (input: RequestInfo | URL, init?: RequestInit): RequestInit => {
     const lang = getLang();
-    const headers = new Headers(init?.headers);
+    // Extract existing headers from either:
+    // 1. The Request object (when the SDK passes one as `input`)
+    // 2. The init.headers (for direct fetch calls)
+    const baseHeaders = input instanceof Request ? input.headers : init?.headers;
+    const headers = new Headers(baseHeaders);
     // Don't override an explicitly-set Accept-Language.
     if (!headers.has('Accept-Language')) {
       headers.set('Accept-Language', lang === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9');
@@ -54,7 +72,7 @@ export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typ
     if (!refreshPromise) {
       refreshPromise = fetchImpl('/api/auth/refresh', {
         method: 'POST',
-        headers: withAcceptLanguage({ headers: { 'Content-Type': 'application/json' } }).headers,
+        headers: { 'Content-Type': 'application/json', 'Accept-Language': getLang() === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9' },
         body: '{}',
         credentials: 'include',
       })
@@ -69,7 +87,8 @@ export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typ
   };
 
   return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const request = new Request(input, withAcceptLanguage(init));
+    // Build the request with Accept-Language injected, preserving existing headers.
+    const request = new Request(input, injectAcceptLanguage(input, init));
     const retryRequest = request.clone();
     const response = await fetchImpl(request);
 

@@ -8,7 +8,12 @@
 //! - When a Tantivy [`PlaceSearcher`](crate::osm::searcher::PlaceSearcher)
 //!   is available (built via `import-osm`), fulltext search + reverse
 //!   geocoding use it for Vietnamese-aware, diacritic-insensitive matching.
-//! - Falls back to store `LIKE` queries when no index is configured.
+//! - When no Tantivy index is configured, search + reverse geocode return
+//!   empty results (no SQL LIKE fallback) — this avoids full-table scans
+//!   on SQLite which would be slow and lock the DB. The Tantivy index is
+//!   the only supported search backend for production.
+//! - The SQL `place` table is only used for listing pickup points + route
+//!   endpoints (a small dataset, not user-searchable).
 //! - Returns typed DTOs from [`crate::dto::place`] (no `serde_json::Value`).
 
 use std::sync::Arc;
@@ -135,64 +140,22 @@ impl PlaceService {
             });
         }
 
-        // ── SQL LIKE fallback ─────────────────────────────────────────────
-        let pattern = format!("%{q_trim}%");
-        let mut places = self
-            .store
-            .place_store()
-            .search_places_by_name(&pattern, limit * 5)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Also search by name_no_tones for Vietnamese accent-insensitive matching
-        let pattern_no_tones = format!("%{}%", remove_vietnamese_tones(q_trim));
-        let places_no_tones = self
-            .store
-            .place_store()
-            .search_places_by_name_no_tones(&pattern_no_tones, limit * 5)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Merge and deduplicate
-        let mut seen = std::collections::HashSet::new();
-        for p in &places_no_tones {
-            if seen.insert(p.id) {
-                places.push(p.clone());
-            }
-        }
-
-        // Geo-bias re-ranking if lat/lon provided
-        if let (Some(src_lat), Some(src_lon)) = (lat, lon) {
-            places.sort_by(|a, b| {
-                let da = haversine_km(src_lat, src_lon, a.lat, a.lon);
-                let db = haversine_km(src_lat, src_lon, b.lat, b.lon);
-                da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
-            });
-        }
-
-        let items = places
-            .into_iter()
-            .take(limit as usize)
-            .map(|p| PlaceSearchHit {
-                id: Some(p.id),
-                osm_id: p.osm_id.into(),
-                name: p.name,
-                place_kind: None,
-                kind: Some(p.r#type),
-                house_number: None,
-                ward: p.ward,
-                district: p.district,
-                city: None,
-                province: p.province,
-                lat: Some(p.lat),
-                lon: Some(p.lon),
-                score: None,
-                distance_km: None,
-            })
-            .collect();
+        // ── No Tantivy index configured ──────────────────────────────────
+        //
+        // Previously this fell back to SQL `LIKE '%query%'` queries on the
+        // `place` table. That's a full-table scan on SQLite — slow + can
+        // lock the DB under concurrent requests. The Tantivy index is the
+        // ONLY supported search backend. If it's not configured, return
+        // empty results + a `engine: "tantivy-unavailable"` flag so the
+        // frontend can show "Place search not available — run
+        // `backend import-osm` to build the index."
+        tracing::warn!(
+            query = q_trim,
+            "place search requested but no Tantivy index is configured — returning empty results. Run `backend import-osm` to build the index."
+        );
         Ok(PlaceSearchResponse {
-            items,
-            engine: None,
+            items: Vec::new(),
+            engine: Some("tantivy-unavailable".to_string()),
         })
     }
 
@@ -236,44 +199,16 @@ impl PlaceService {
             return Ok(items);
         }
 
-        // ── SQL bounding-box fallback ─────────────────────────────────────
-        let places = self
-            .store
-            .place_store()
-            .search_places_in_bbox(lat, lon, 200)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut with_dist: Vec<(_, _)> = places
-            .into_iter()
-            .map(|p| {
-                let d = haversine_km(lat, lon, p.lat, p.lon);
-                (p, d)
-            })
-            .collect();
-        with_dist.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-
-        let items = with_dist
-            .into_iter()
-            .take(limit as usize)
-            .map(|(p, dist)| PlaceSearchHit {
-                id: Some(p.id),
-                osm_id: p.osm_id.into(),
-                name: p.name,
-                place_kind: None,
-                kind: Some(p.r#type),
-                house_number: None,
-                ward: p.ward,
-                district: p.district,
-                city: None,
-                province: p.province,
-                lat: Some(p.lat),
-                lon: Some(p.lon),
-                score: None,
-                distance_km: Some((dist * 10.0).round() / 10.0), // 1 decimal
-            })
-            .collect();
-        Ok(items)
+        // ── No Tantivy index configured ──────────────────────────────────
+        //
+        // Previously fell back to SQL bounding-box queries on the `place`
+        // table. Same rationale as `search()` — returns empty results
+        // instead of doing a full-table scan on SQLite.
+        tracing::warn!(
+            lat, lon,
+            "reverse geocode requested but no Tantivy index is configured — returning empty results. Run `backend import-osm` to build the index."
+        );
+        Ok(Vec::new())
     }
 }
 
@@ -282,7 +217,7 @@ impl PlaceService {
 // ────────────────────────────────────────────────────────────────
 
 /// Haversine distance in kilometers between two lat/lon points.
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+pub fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let r = 6371.0; // Earth radius in km
     let d_lat = (lat2 - lat1).to_radians();
     let d_lon = (lon2 - lon1).to_radians();

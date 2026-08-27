@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, Statement,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -17,6 +17,27 @@ use crate::entity::{pickup_point, route};
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
+
+// ────────────────────────────────────────────────────────────────
+//  DTO for geo search
+// ────────────────────────────────────────────────────────────────
+
+/// Pickup point data joined with route info — returned by
+/// `find_pickup_points_in_bbox`. Used by the geospatial trip search
+/// to compute haversine distances + sort by combined pickup+drop distance.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PickupPointWithRoute {
+    pub pickup_id: Uuid,
+    pub route_id: Uuid,
+    pub route_name: String,
+    pub brand_id: Option<Uuid>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
+    pub stop_order: i64,
+    pub kind: Option<String>,
+    pub name: Option<String>,
+    pub route_status: String,
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -82,6 +103,22 @@ pub trait RouteStore: Send + Sync {
     async fn delete_pickup_point(&self, id: Uuid) -> StoreResult<()>;
     async fn list_routes_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<route::Model>>;
     async fn count_active_routes(&self) -> StoreResult<u64>;
+
+    /// Find pickup points within a bounding box (lat/lon range).
+    /// Returns route_id + pickup_point data for all points inside the box.
+    /// Used by the geospatial trip search — the caller then computes
+    /// haversine distances in Rust + sorts by combined pickup+drop distance.
+    ///
+    /// Two bounding boxes are passed: one for the pickup location, one for
+    /// the drop location. The query returns ALL pickup_points in EITHER
+    /// box — the Rust caller filters by direction (stop_order) + distance.
+    async fn find_pickup_points_in_bbox(
+        &self,
+        from_lat_min: f64, from_lat_max: f64,
+        from_lon_min: f64, from_lon_max: f64,
+        to_lat_min: f64, to_lat_max: f64,
+        to_lon_min: f64, to_lon_max: f64,
+    ) -> StoreResult<Vec<PickupPointWithRoute>>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -311,5 +348,104 @@ impl RouteStore for DbRouteStore {
             .filter(route::Column::Status.eq("active"))
             .count(self.db.as_ref())
             .await?)
+    }
+
+    /// Find pickup points within two bounding boxes (pickup area + drop area).
+    /// Returns all pickup_points that fall within EITHER box, joined with
+    /// their parent route. The caller then:
+    /// 1. Computes haversine distance from each point to the user's desired
+    ///    pickup/drop coordinates.
+    /// 2. Groups by route_id.
+    /// 3. For each route, finds the closest "pickup" point (near `from`)
+    ///    and the closest "drop" point (near `to`).
+    /// 4. Checks direction: pickup.stop_order < drop.stop_order.
+    /// 5. Sorts by combined distance + returns paginated results.
+    ///
+    /// Uses raw SQL via `FromQueryResult` — the same pattern as
+    /// `count_channels_by_status` in `src/store/chat.rs`.
+    #[allow(clippy::too_many_arguments)]
+    async fn find_pickup_points_in_bbox(
+        &self,
+        from_lat_min: f64, from_lat_max: f64,
+        from_lon_min: f64, from_lon_max: f64,
+        to_lat_min: f64, to_lat_max: f64,
+        to_lon_min: f64, to_lon_max: f64,
+    ) -> StoreResult<Vec<PickupPointWithRoute>> {
+        use sea_orm::FromQueryResult;
+        use sea_orm::Value;
+
+        #[derive(FromQueryResult)]
+        struct Row {
+            id: Uuid,
+            route_id: Uuid,
+            route_name: String,
+            brand_id: Option<Uuid>,
+            lat: Option<f64>,
+            lon: Option<f64>,
+            stop_order: i64,
+            kind: Option<String>,
+            name: Option<String>,
+            route_status: String,
+        }
+
+        // Single query with OR between two bounding boxes. This fetches
+        // all pickup_points that could be either a pickup candidate or a
+        // drop candidate for the user's desired locations.
+        //
+        // We also JOIN with the route table to get route_name + brand_id +
+        // route_status in a single round-trip, and filter to active routes
+        // only (inactive routes don't have trips).
+        let sql = r#"SELECT
+            pp.id,
+            pp.route_id,
+            r.name as route_name,
+            r.brand_id,
+            pp.lat,
+            pp.lon,
+            pp.stop_order,
+            pp.kind,
+            pp.name,
+            r.status as route_status
+        FROM pickup_point pp
+        INNER JOIN route r ON pp.route_id = r.id
+        WHERE r.status = 'active'
+          AND pp.lat IS NOT NULL
+          AND pp.lon IS NOT NULL
+          AND (
+            (pp.lat BETWEEN ? AND ? AND pp.lon BETWEEN ? AND ?)
+            OR
+            (pp.lat BETWEEN ? AND ? AND pp.lon BETWEEN ? AND ?)
+          )"#;
+
+        let values: Vec<Value> = vec![
+            from_lat_min.into(), from_lat_max.into(),
+            from_lon_min.into(), from_lon_max.into(),
+            to_lat_min.into(), to_lat_max.into(),
+            to_lon_min.into(), to_lon_max.into(),
+        ];
+
+        let stmt = Statement::from_sql_and_values(
+            self.db.as_ref().get_database_backend(),
+            sql,
+            values,
+        );
+
+        let rows = Row::find_by_statement(stmt).all(self.db.as_ref()).await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|r| PickupPointWithRoute {
+                pickup_id: r.id,
+                route_id: r.route_id,
+                route_name: r.route_name,
+                brand_id: r.brand_id,
+                lat: r.lat,
+                lon: r.lon,
+                stop_order: r.stop_order,
+                kind: r.kind,
+                name: r.name,
+                route_status: r.route_status,
+            })
+            .collect())
     }
 }

@@ -146,10 +146,6 @@ pub struct BookingRoutePreview {
     pub from: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distance_km: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_min: Option<i16>,
     pub brand: BookingBrandPreview,
 }
 

@@ -12,8 +12,8 @@
  *   GET  /api/chat/channels/{id}/messages  — list messages (DESC, paginated)
  *   POST /api/chat/channels/{id}/messages   — send a message (REST fallback for WS)
  *   POST /api/chat/channels/{id}/read       — mark the channel as read
- *   GET  /api/zeroclaw/status               — AI bot status
- *   GET  /api/zeroclaw/exchanges            — AI audit log
+ *   GET  /api/nullclaw/status               — AI bot status
+ *   GET  /api/nullclaw/exchanges            — AI audit log
  *
  * ## Realtime note
  *
@@ -185,23 +185,23 @@ export function markRead(channelId) {
 }
 
 /**
- * Fetch the ZeroClaw AI bot status.
+ * Fetch the NullClaw AI bot status.
  *
  * Returns `{ enabled: bool, provider: 'noop' | 'http' }`. No auth
  * required — useful as a cheap unauthenticated probe.
  *
  * @returns {object} the k6 response
  */
-export function zeroclawStatus() {
-  const res = http.get(`${BASE_URL}/api/zeroclaw/status`, withAuth());
+export function nullclawStatus() {
+  const res = http.get(`${BASE_URL}/api/nullclaw/status`, withAuth());
   check(res, {
-    'zeroclawStatus status 200': (r) => r.status === 200,
+    'nullclawStatus status 200': (r) => r.status === 200,
   });
   return res;
 }
 
 /**
- * List ZeroClaw audit exchanges (admin dashboard).
+ * List NullClaw audit exchanges (admin dashboard).
  *
  * Returns the AI reply audit log. No auth required by the endpoint
  * (it's a public read), but in production you'd gate it behind RBAC.
@@ -210,13 +210,13 @@ export function zeroclawStatus() {
  * @param {number} [offset=0]
  * @returns {object} the k6 response
  */
-export function listZeroclawExchanges(limit = 50, offset = 0) {
+export function listNullclawExchanges(limit = 50, offset = 0) {
   const res = http.get(
-    `${BASE_URL}/api/zeroclaw/exchanges?limit=${limit}&offset=${offset}`,
+    `${BASE_URL}/api/nullclaw/exchanges?limit=${limit}&offset=${offset}`,
     withAuth(),
   );
   check(res, {
-    'listZeroclawExchanges status 200': (r) => r.status === 200,
+    'listNullclawExchanges status 200': (r) => r.status === 200,
   });
   return res;
 }

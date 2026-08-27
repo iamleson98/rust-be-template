@@ -10,8 +10,7 @@ import {
   Crosshair,
   Search,
   X,
-  Clock,
-  Route as RouteIcon,
+  Wallet,
   Locate,
   Loader2,
   Bus,
@@ -20,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { formatVND, formatDuration, noTones } from '@/lib/types'
+import { formatVND, noTones } from '@/lib/types'
 import { buildSearchInput } from '@/lib/search-params'
 
 // Real OSM map (loaded client-side only — leaflet touches `window`).
@@ -47,8 +46,6 @@ type RouteItem = {
   slug: string
   name: string
   code: string
-  distanceKm: number
-  durationMin: number
   brand: { name: string; slug: string; accentColor: string; logoUrl: string | null; rating: number }
   from: { name: string; lat: number; lon: number }
   to: { name: string; lat: number; lon: number }
@@ -395,35 +392,28 @@ export function MapView() {
                     <X className="h-3.5 w-3.5 text-slate-500" />
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                  <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
-                    <Clock className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-                    <div className="text-[10px] text-muted-foreground">Thời gian</div>
-                    <div className="text-[11px] font-semibold">{formatDuration(selectedRoute.durationMin)}</div>
-                  </div>
-                  <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
-                    <RouteIcon className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-                    <div className="text-[10px] text-muted-foreground">Quãng đường</div>
-                    <div className="text-[11px] font-semibold">{Math.round(selectedRoute.distanceKm)} km</div>
-                  </div>
+                <div className="grid grid-cols-2 gap-1.5 mb-3">
                   <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
                     <Navigation className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
                     <div className="text-[10px] text-muted-foreground">Chuyến/ngày</div>
                     <div className="text-[11px] font-semibold">{selectedRoute.scheduleCount}</div>
                   </div>
+                  {selectedRoute.minPrice > 0 ? (
+                    <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
+                      <Wallet className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
+                      <div className="text-[10px] text-muted-foreground">
+                        Giá{selectedRoute.maxPrice > selectedRoute.minPrice ? ' từ' : ''}
+                      </div>
+                      <div className="text-[11px] font-semibold">{formatVND(selectedRoute.minPrice)}</div>
+                    </div>
+                  ) : (
+                    <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center opacity-60">
+                      <Wallet className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
+                      <div className="text-[10px] text-muted-foreground">Giá</div>
+                      <div className="text-[11px] font-semibold">—</div>
+                    </div>
+                  )}
                 </div>
-                {selectedRoute.minPrice > 0 && (
-                  <div className="text-xs text-muted-foreground mb-2.5 text-center">
-                    Giá từ{' '}
-                    <span className="font-bold text-blue-700 text-sm">{formatVND(selectedRoute.minPrice)}</span>
-                    {selectedRoute.maxPrice > selectedRoute.minPrice && (
-                      <>
-                        {' '}
-                        đến <span className="font-semibold">{formatVND(selectedRoute.maxPrice)}</span>
-                      </>
-                    )}
-                  </div>
-                )}
                 <Button
                   size="sm"
                   className="w-full text-white gap-1.5"

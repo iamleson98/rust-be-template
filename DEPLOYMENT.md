@@ -1,410 +1,965 @@
-# Deployment Guide — VeXeVN (Rust + React)
+# Deployment & Configuration Guide — VeXeVN
 
-This guide covers deploying the full stack (Rust backend + React frontend) to a **Kamatera** VM in **Asia-Singapore** with full CI/CD via GitHub Actions.
+Complete guide for deploying the full stack (Rust backend + React frontend + Postgres + Redis + Caddy + NullClaw AI) to a Kamatera VM using Docker Swarm.
 
-## Architecture
+---
+
+## Table of Contents
+
+1. [Architecture Overview](#1-architecture-overview)
+2. [Prerequisites](#2-prerequisites)
+3. [Quick Start: Deploy to Kamatera](#3-quick-start-deploy-to-kamatera)
+4. [Environment Variables Reference](#4-environment-variables-reference)
+5. [Database (SQLite vs Postgres)](#5-database-sqlite-vs-postgres)
+6. [NullClaw AI Chat Assistant](#6-nullclaw-ai-chat-assistant)
+7. [Payment Gateways](#7-payment-gateways)
+8. [OAuth 2.0 (Google / Facebook / Twitter)](#8-oauth-20-google--facebook--twitter)
+9. [Place Search (OSM / Tantivy)](#9-place-search-osm--tantivy)
+10. [Caddy Reverse Proxy & TLS](#10-caddy-reverse-proxy--tls)
+11. [Audio Calls (WebRTC)](#11-audio-calls-webrtc)
+12. [PWA & SEO](#12-pwa--seo)
+13. [Docker Swarm Operations](#13-docker-swarm-operations)
+14. [Backup & Recovery](#14-backup--recovery)
+15. [CI/CD Pipeline](#15-cicd-pipeline)
+16. [Troubleshooting](#16-troubleshooting)
+17. [Local Development](#17-local-development)
+
+---
+
+## 1. Architecture Overview
 
 ```
                     ┌─────────────────────────────────┐
-                    │  GitHub Actions (CI/CD)        │
-                    │                                 │
-  git push ────────►│  1. cargo check + clippy       │
-                    │  2. tsc --noEmit + vite build   │
-                    │  3. docker build + push to GHCR │
-                    │  4. SSH deploy to VM            │
-                    └──────────┬──────────────────────┘
+                    │  Internet                        │
+                    └──────────┬───────────────────────┘
                                │
-                    ┌──────────▼──────────────────────┐
-                    │  Kamatera VM (Singapore)        │
-                    │  Ubuntu 22.04                    │
-                    │                                 │
-                    │  ┌───────────────────────────┐  │
-                    │  │  Docker Container         │  │
-                    │  │                           │  │
-                    │  │  Caddy (:80/:443)        │  │
-                    │  │    └── TLS (Let's Encrypt)│  │
-                    │  │    └── reverse_proxy      │  │
-                    │  │         └── :8080          │  │
-                    │  │                           │  │
-                    │  │  Backend (Rust/Axum :8080) │  │
-                    │  │    ├── REST API (/api/*)  │  │
-                    │  │    ├── WebSocket (/ws)    │  │
-                    │  │    ├── Static (frontend)   │  │
-                    │  │    └── SQLite (app.db)    │  │
-                    │  │                           │  │
-                    │  └───────────────────────────┘  │
-                    └─────────────────────────────────┘
+                    ┌──────────▼───────────────────────┐
+                    │  Caddy (TLS, :80/:443)           │
+                    │  - Let's Encrypt auto-cert       │
+                    │  - Reverse proxy → backend:8080   │
+                    │  - Security headers (CSP, HSTS)   │
+                    │  - WebSocket upgrade (automatic)  │
+                    └──────────┬───────────────────────┘
+                               │  Docker network: vexevn-net
+                    ┌──────────▼───────────────────────┐
+                    │  Backend (Rust/Axum :8080)       │
+                    │  - REST API (/api/*)              │
+                    │  - WebSocket (/ws, /ws-call)      │
+                    │  - Static files (frontend/dist)    │
+                    │  - Auto-migrations on startup      │
+                    └────┬─────────┬──────────┬─────────┘
+                         │         │          │
+              ┌──────────▼──┐ ┌───▼────┐ ┌───▼──────────┐
+              │  Postgres   │ │ Redis  │ │  NullClaw    │
+              │  (:5432)    │ │(:6379) │ │  (:42617)    │
+              │  - 23 tables│ │ - cache│ │  - Gemini AI │
+              │  - pg-data  │ │ - jobs │ │  - Optional   │
+              └─────────────┘ └────────┘ └──────────────┘
 ```
 
-## CI/CD Pipeline
+**Single binary**: The Rust backend serves the API, WebSocket hub, and static frontend files from a single process. No separate frontend server needed in production.
 
-### Continuous Integration (`.github/workflows/ci.yml`)
+**Docker Swarm**: All services run as Swarm services on a single VM. Caddy handles TLS termination. Postgres + Redis are internal-only (no public ports). NullClaw is optional (profile-gated).
 
-Runs on every push/PR to `server` or `main`:
+---
 
-1. **Backend (Rust)**: `cargo check` + `cargo clippy --tests` (zero warnings enforced via `-D warnings`)
-2. **Frontend (React)**: `npm install` + `tsc --noEmit` + `vite build`
+## 2. Prerequisites
 
-Both run in parallel on separate runners. Cargo cache is shared across runs.
+### Kamatera VM
+- **Size**: A-4GB (4 GB RAM, 2 vCPU) minimum. A-8GB recommended for production.
+- **OS**: Ubuntu 22.04 LTS
+- **Region**: Asia-Singapore (closest to Vietnam)
+- **Disk**: 50 GB SSD minimum (Postgres + Redis + app storage + Docker images)
 
-### Continuous Deployment (`.github/workflows/deploy.yml`)
+### Domain
+- A domain name (e.g. `vexevn.vn`) with DNS A record pointing to the VM's public IP.
+- Caddy auto-provisions Let's Encrypt TLS certificates — just point the DNS.
 
-Triggers on push to `server` branch (after CI passes):
+### Software on the VM
+```bash
+# Install Docker + Swarm
+curl -fsSL https://get.docker.com | sh
+docker swarm init --advertise-addr <VM_PRIVATE_IP>
 
-1. **Build** — multi-stage Docker image (frontend + backend) pushed to GitHub Container Registry (`ghcr.io/iamleson98/vexevn:latest`)
-2. **Deploy** — SSH into Kamatera VM, `docker compose pull` + `docker compose up -d`, health check
+# Verify
+docker info | grep "Swarm: active"
+```
 
-**Required GitHub repository secrets** (Settings → Secrets and variables → Actions):
+### GitHub (for CI/CD — optional)
+- Repository with push access to the `server` branch.
+- GitHub Container Registry (GHCR) — auto-provided via `GITHUB_TOKEN`.
+- GitHub Secrets: `VM_HOST`, `VM_SSH_KEY`, `VM_USER` (for auto-deploy).
 
-| Secret | Description |
+---
+
+## 3. Quick Start: Deploy to Kamatera
+
+### Step 1: SSH into the VM
+
+```bash
+ssh root@<VM_PUBLIC_IP>
+```
+
+### Step 2: Create the project directory
+
+```bash
+mkdir -p /opt/vexevn
+cd /opt/vexevn
+```
+
+### Step 3: Create `.env` from the example
+
+```bash
+# Copy the example (or create from scratch)
+cat > .env << 'ENVEOF'
+# ── Server ──────────────────────────────────────────
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8080
+RUST_LOG=info,backend=info,tower_http=warn
+
+# ── Database (Postgres) ─────────────────────────────
+DATABASE_URL=postgres://app:CHANGE_ME@db:5432/vexevn
+DATABASE_MAX_CONNECTIONS=20
+DATABASE_MIN_CONNECTIONS=5
+
+# ── Postgres credentials (used by docker-compose) ───
+POSTGRES_USER=app
+POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+POSTGRES_DB=vexevn
+
+# ── Redis ───────────────────────────────────────────
+REDIS_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+
+# ── JWT (generate with: openssl rand -hex 32) ───────
+JWT_SECRET=CHANGE_ME_TO_64_HEX_CHARS
+
+# ── Cookies ─────────────────────────────────────────
+COOKIE_DOMAIN=
+COOKIE_SECURE=true
+COOKIE_SAMESITE=lax
+
+# ── Cache + Worker ──────────────────────────────────
+CACHE_BACKEND=redis
+CACHE_REDIS_URL=redis://redis:6379/0
+WORKER_BACKEND=redis
+WORKER_REDIS_URL=redis://redis:6379/1
+
+# ── CORS (your domain) ──────────────────────────────
+CORS_ORIGINS=https://yourdomain.com
+
+# ── Static files ────────────────────────────────────
+STATIC_FILES_DIR=./frontend/dist
+
+# ── Rate limiting ───────────────────────────────────
+RATE_LIMIT_RPM=600
+RATE_LIMIT_BURST=100
+
+# ── WebSocket ───────────────────────────────────────
+WS_MAX_CONNECTIONS=50000
+WS_HEARTBEAT_SEC=30
+WS_IDLE_TIMEOUT_SEC=90
+
+# ── NullClaw (disabled by default) ──────────────────
+NULLCLAW_ENABLED=false
+NULLCLAW_API_URL=http://nullclaw:42617
+NULLCLAW_API_KEY=
+NULLCLAW_MODEL=gemini-2.0-flash
+
+# ── Audio calls (disabled by default) ───────────────
+AUDIO_CALL_ENABLED=false
+
+# ── Contact info ────────────────────────────────────
+CONTACT_PHONE=+8419006067
+CONTACT_EMAIL=hotro@vexevn.vn
+CONTACT_ADDRESS=123 Lê Lợi, Q.1, TP.HCM
+
+# ── OAuth (disabled by default) ──────────────────────
+OAUTH_REDIRECT_BASE_URL=https://yourdomain.com
+OAUTH_FRONTEND_URL=https://yourdomain.com
+OAUTH_GOOGLE_ENABLED=false
+OAUTH_FACEBOOK_ENABLED=false
+OAUTH_TWITTER_ENABLED=false
+
+# ── Payments (disabled by default) ──────────────────
+PAYMENT_COD_ENABLED=true
+VNPAY_ENABLED=false
+MOMO_ENABLED=false
+ZALOPAY_ENABLED=false
+VIETQR_ENABLED=false
+ENVEOF
+```
+
+**Generate a strong JWT secret**:
+```bash
+openssl rand -hex 32
+# Paste the output into JWT_SECRET above
+```
+
+**Generate strong passwords**:
+```bash
+openssl rand -hex 16  # For POSTGRES_PASSWORD
+openssl rand -hex 16  # For REDIS_PASSWORD
+```
+
+### Step 4: Create the Caddyfile
+
+```bash
+cat > Caddyfile << 'CADDYEOF'
+yourdomain.com {
+    encode zstd gzip
+
+    reverse_proxy backend:8080 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        flush_interval -1
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    log {
+        output file /data/access.log {
+            roll_size 100mb
+            roll_keep 10
+        }
+        format json
+    }
+}
+CADDYEOF
+```
+
+**Replace `yourdomain.com` with your actual domain.**
+
+### Step 5: Download docker-compose.prod.yml
+
+Either copy from the repo or create it:
+
+```bash
+# If you cloned the repo:
+cp /path/to/repo/docker-compose.prod.yml .
+
+# Or download from GitHub:
+curl -O https://raw.githubusercontent.com/iamleson98/rust-be-template/server/docker-compose.prod.yml
+```
+
+### Step 6: Deploy
+
+```bash
+# Log in to GHCR (if using a private image):
+echo $GITHUB_TOKEN | docker login ghcr.io -u iamleson98 --password-stdin
+
+# Deploy the stack:
+docker stack deploy -c docker-compose.prod.yml --with-registry-auth vexevn
+
+# Check status:
+docker service ls
+# NAME             MODE     REPLICAS  IMAGE
+# vexevn_backend   replicated 1/1     ghcr.io/iamleson98/vexevn:latest
+# vexevn_db        replicated 1/1     postgres:16-alpine
+# vexevn_redis     replicated 1/1     redis:7-alpine
+# vexevn_caddy     replicated 1/1     caddy:2-alpine
+
+# Check health:
+curl -sf http://localhost:8080/health
+# {"status":"ok","version":"0.1.0"}
+
+# Check Caddy (should redirect to HTTPS):
+curl -I http://localhost
+# HTTP/1.1 301 Moved Permanently
+# Location: https://yourdomain.com/
+```
+
+### Step 7: Deploy WITH NullClaw AI (optional)
+
+```bash
+# Add NullClaw-specific env vars to .env:
+echo 'NULLCLAW_ENABLED=true' >> .env
+echo 'NULLCLAW_API_KEY=your-shared-secret-key' >> .env
+echo 'GEMINI_API_KEY=your-gemini-api-key' >> .env
+echo 'LLM_PROVIDER=openai' >> .env
+
+# Re-deploy with the nullclaw profile:
+docker stack deploy -c docker-compose.prod.yml --with-registry-auth --profile nullclaw vexevn
+
+# Verify NullClaw is running:
+docker service ls | grep nullclaw
+# vexevn_nullclaw  replicated 1/1  ghcr.io/nullclaw-labs/nullclaw:latest
+
+# Check NullClaw status via the backend:
+curl -sf http://localhost:8080/api/nullclaw/status
+# {"enabled":true,"provider":"http"}
+```
+
+### Step 8: Verify the deployment
+
+```bash
+# HTTPS should work:
+curl -sf https://yourdomain.com/health
+# {"status":"ok","version":"0.1.0"}
+
+# API docs (Swagger UI):
+open https://yourdomain.com/swagger-ui
+
+# Frontend loads:
+curl -sf https://yourdomain.com/ | head -5
+# <!DOCTYPE html><html lang="vi">...
+```
+
+---
+
+## 4. Environment Variables Reference
+
+All variables are documented in `.env.example`. Here's a summary by section:
+
+### Server
+| Variable | Default | Description |
+|---|---|---|
+| `SERVER_HOST` | `0.0.0.0` | Bind address |
+| `SERVER_PORT` | `8080` | Listen port |
+| `RUST_LOG` | `info,backend=info` | Log level (RUST_LOG syntax) |
+| `SERVER_REQUEST_TIMEOUT_SECS` | `30` | Per-request timeout |
+| `SERVER_MAX_REQUEST_BODY_BYTES` | `2097152` | Max body size (2 MiB) |
+| `SERVER_VALHALLA_URL` | (empty) | Valhalla routing proxy URL |
+
+### Database
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | SQLite or Postgres connection string |
+| `DATABASE_MAX_CONNECTIONS` | `20` | Pool max |
+| `DATABASE_MIN_CONNECTIONS` | `5` | Pool min |
+
+### JWT
+| Variable | Default | Description |
+|---|---|---|
+| `JWT_SECRET` | (must set) | HS256 signing key — **≥32 bytes**. Generate with `openssl rand -hex 32` |
+| `JWT_ACCESS_TTL_SECS` | `900` | Access token TTL (15 min) |
+| `JWT_REFRESH_TTL_SECS` | `604800` | Refresh token TTL (7 days) |
+
+### Cookie
+| Variable | Default | Description |
+|---|---|---|
+| `COOKIE_DOMAIN` | (empty) | Empty = same-origin. Set for cross-subdomain |
+| `COOKIE_SECURE` | `false` | **Set `true` in production** (HTTPS only) |
+| `COOKIE_SAMESITE` | `lax` | `lax` | `strict` | `none` |
+
+### Cache + Worker
+| Variable | Default | Description |
+|---|---|---|
+| `CACHE_BACKEND` | `moka` | `moka` (in-process) or `redis` (shared) |
+| `CACHE_REDIS_URL` | `redis://127.0.0.1:6379/0` | Redis URL (when `CACHE_BACKEND=redis`) |
+| `WORKER_BACKEND` | `redis` | `redis` | `db` | `kafka` |
+| `WORKER_REDIS_URL` | `redis://127.0.0.1:6379/1` | Redis URL for job queue |
+
+### CORS
+| Variable | Default | Description |
+|---|---|---|
+| `CORS_ORIGINS` | `http://localhost:3000,...` | Comma-separated allowed origins. **Set to your domain in production** |
+
+### WebSocket
+| Variable | Default | Description |
+|---|---|---|
+| `WS_MAX_CONNECTIONS` | `50000` | Max concurrent WS connections |
+| `WS_MAX_PER_IP` | `10` | Max connections per IP |
+| `WS_HEARTBEAT_SEC` | `30` | Ping interval |
+| `WS_IDLE_TIMEOUT_SEC` | `90` | Disconnect after N seconds of inactivity |
+
+### NullClaw AI
+| Variable | Default | Description |
+|---|---|---|
+| `NULLCLAW_ENABLED` | `false` | Enable AI chat replies |
+| `NULLCLAW_API_URL` | (empty) | NullClaw container URL (e.g. `http://nullclaw:42617`) |
+| `NULLCLAW_API_KEY` | (empty) | Shared secret between backend and NullClaw |
+| `NULLCLAW_MODEL` | `nullclaw-default` | LLM model name (e.g. `gemini-2.0-flash`) |
+| `NULLCLAW_TIMEOUT_MS` | `15000` | Request timeout |
+| `NULLCLAW_MAX_HISTORY` | `12` | Conversation history sliding window |
+| `NULLCLAW_FALLBACK_ONLINE_EMPLOYEES` | `1` | AI replies only when <N employees online |
+
+### Postgres (docker-compose only)
+| Variable | Description |
 |---|---|
-| `VM_HOST` | Kamatera VM public IP or domain |
-| `VM_SSH_KEY` | SSH private key for root access (PEM format) |
-| `VM_USER` | SSH username (usually `root`) |
+| `POSTGRES_USER` | Postgres username (used by the `db` service) |
+| `POSTGRES_PASSWORD` | Postgres password (**must set**) |
+| `POSTGRES_DB` | Database name |
 
-The `GITHUB_TOKEN` is auto-provided for GHCR authentication — no secret needed.
+### Redis (docker-compose only)
+| Variable | Description |
+|---|---|
+| `REDIS_PASSWORD` | Redis password (**must set**) |
 
-The Docker image is multi-stage:
-1. **Stage 1** — builds the React frontend (`vite build` → `dist/`)
-2. **Stage 2** — compiles the Rust backend (`cargo build --release`)
-3. **Stage 3** — slim runtime with the binary + frontend dist
+### NullClaw LLM Provider
+| Variable | Default | Description |
+|---|---|---|
+| `LLM_PROVIDER` | `openai` | LLM provider for the NullClaw container |
+| `GEMINI_API_KEY` | (empty) | Google Gemini API key (via OpenAI-compatible endpoint) |
 
-The backend serves both the API (`/api/*`, `/ws`) and the frontend static files via `tower-http::ServeDir`.
+### Payment Gateways
+See [section 7](#7-payment-gateways) below.
 
----
-
-## Prerequisites
-
-### 1. Kamatera account
-
-Sign up at [kamatera.com](https://www.kamatera.com). Get your API credentials from the console:
-- **API Token** — Settings → API → API Key
-- **API Secret** — shown once when you generate the key
-
-### 2. SSH key pair
-
-```bash
-# Generate if you don't have one:
-ssh-keygen -t ed25519 -C "your-email@example.com"
-# Your public key will be at ~/.ssh/id_ed25519.pub
-```
-
-### 3. Install Terraform + rsync
-
-```bash
-# macOS:
-brew install terraform rsync
-
-# Ubuntu/Debian:
-wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update && sudo apt-get install terraform rsync
-```
-
-### 4. Kamatera Terraform provider
-
-The Kamatera provider is available on the Terraform Registry:
-```bash
-cd terraform/
-terraform init
-```
+### OAuth
+See [section 8](#8-oauth-20-google--facebook--twitter) below.
 
 ---
 
-## Step-by-Step Deployment
+## 5. Database (SQLite vs Postgres)
 
-### Step 1: Configure Terraform
+### When to use which
+
+| | SQLite | Postgres |
+|---|---|---|
+| **Dev / CI** | ✅ Default. Zero config. | ❌ Overkill |
+| **Production** | ⚠️ Works for small traffic | ✅ Recommended |
+| **Multi-worker** | ❌ Single writer | ✅ Multiple writers |
+| **Concurrent bookings** | ⚠️ May lock under load | ✅ MVCC handles it |
+
+### Switching to Postgres
+
+1. **Build with Postgres feature**:
+```bash
+# Local build:
+cargo build --release --no-default-features --features postgres
+
+# Docker build:
+docker build --build-arg BACKEND_FEATURES=postgres -t vexevn:latest .
+```
+
+2. **Set `DATABASE_URL`**:
+```bash
+DATABASE_URL=postgres://app:password@db:5432/vexevn
+```
+
+3. **Migrations auto-run** on `backend serve` startup (23 migrations). No manual step needed.
+
+### Running migrations manually
 
 ```bash
-cd terraform/
+# Standalone migrator binary:
+./migrator up
 
-# Create your terraform.tfvars (from the example):
-cp terraform.tfvars.example terraform.tfvars
+# Or via the backend CLI:
+./backend serve --no-migrate  # skip auto-migrate
+./backend migrate up          # run migrations only, then exit
 
-# Edit and fill in your Kamatera API credentials:
-nano terraform.tfvars
-```
-
-Contents of `terraform.tfvars`:
-```hcl
-kamatera_api_token  = "your-api-token-here"
-kamatera_api_secret = "your-api-secret-here"
-```
-
-### Step 2: Provision the VM
-
-```bash
-cd terraform/
-
-# Review the plan:
-terraform plan
-
-# Create the VM:
-terraform apply
-```
-
-This provisions an Ubuntu 22.04 VM in Kamatera's Singapore datacenter with:
-- **2 vCPU, 2GB RAM** (AMD — ~$12/month, configurable in `main.tf`)
-- **30GB SSD**
-- Your SSH public key installed for root access
-
-The output will show the VM's public IP:
-```
-vm_public_ip = "xx.xx.xx.xx"
-ssh_command  = "ssh root@xx.xx.xx.xx"
-app_url      = "http://xx.xx.xx.xx:8080"
-```
-
-### Step 3: Deploy the application
-
-From the repo root (NOT the terraform/ directory):
-
-```bash
-# Make the deploy script executable:
-chmod +x terraform/deploy.sh
-
-# Run it with the VM's IP:
-./terraform/deploy.sh $(terraform -chdir=terraform output -raw vm_public_ip)
-```
-
-The deploy script will:
-1. **SSH into the VM** and install Docker + Docker Compose
-2. **rsync** the repo to `/opt/vexevn/` on the VM
-3. **Generate a production `.env`** with a random JWT secret
-4. **Build the Docker image** (multi-stage: frontend + backend — takes ~10-20 minutes)
-5. **Start the container** via `docker compose -f docker-compose.prod.yml up -d`
-6. **Wait for the health check** to confirm the app is running
-
-### Step 4: Verify
-
-```bash
-# Check the health endpoint:
-curl http://<VM_IP>:8080/health
-
-# Open the app in your browser:
-open http://<VM_IP>:8080
-
-# View Swagger UI:
-open http://<VM_IP>:8080/swagger-ui
+# Check migration status:
+./migrator list
 ```
 
 ---
 
-## Set up CI/CD (automatic deploys)
+## 6. NullClaw AI Chat Assistant
 
-After the first manual deploy, set up GitHub Actions for automatic deploys:
+NullClaw is the AI-powered customer support bot. When no human agent is online, it answers customer questions about bookings, payments, routes, and more.
 
-### 1. Add repository secrets
+### Architecture
 
-Go to GitHub → Settings → Secrets and variables → Actions → New repository secret:
+```
+Customer sends message → WebSocket hub → Check: are employees online?
+  ├─ YES → Just notify employees (notification badge + sound)
+  └─ NO  → Send typing indicator → Call NullClaw API → Broadcast AI reply
+```
+
+### Enable NullClaw
+
+1. **Get a Gemini API key** (free tier available):
+   - Go to [Google AI Studio](https://aistudio.google.com/)
+   - Create an API key
+   - Set it as `GEMINI_API_KEY` in your `.env`
+
+2. **Configure `.env`**:
+```bash
+NULLCLAW_ENABLED=true
+NULLCLAW_API_URL=http://nullclaw:42617
+NULLCLAW_API_KEY=your-shared-secret
+NULLCLAW_MODEL=gemini-2.0-flash
+GEMINI_API_KEY=your-gemini-api-key
+LLM_PROVIDER=openai
+```
+
+3. **Deploy with the nullclaw profile**:
+```bash
+docker stack deploy -c docker-compose.prod.yml --with-registry-auth \
+  --profile nullclaw vexevn
+```
+
+4. **Verify**:
+```bash
+curl -sf http://localhost:8080/api/nullclaw/status
+# {"enabled":true,"provider":"http"}
+```
+
+### NullClaw behavior configuration (`nullclaw.config.json`)
+
+The `nullclaw.config.json` file (mounted into the NullClaw container) configures:
+- **System prompt**: Vietnamese-language VeXeVN support assistant persona
+- **Safety**: blocks prompt injection (`ignore previous instructions`, `jailbreak`, etc.)
+- **Domain keywords**: only triggers AI for booking-related queries
+- **Rate limit**: 20 req/min, 200 req/hour per user
+- **Conversation**: 12-message sliding window
+- **Fallback**: hands off to human when question is complex
+
+### How the bot user works
+
+- On **first user signup**, `AuthService::register` auto-creates a bot user (`nullclaw_agent@example.com`, role=`employee`).
+- The bot's UUID is looked up by email and cached in a `OnceCell` (looked up once per boot).
+- On **channel creation**, the bot is auto-added as a channel member (`role='bot'`).
+- AI replies are stored as `ChatMessage` rows with `senderType='assistant'` and `senderId=<bot UUID>`.
+- Audit log: every AI reply is also written to the `null_claw_exchange` table (prompt, completion, model, latency, confidence).
+
+---
+
+## 7. Payment Gateways
+
+### Supported providers
+
+| Provider | Type | Env prefix | Status |
+|---|---|---|---|
+| **VNPay** | Redirect payment | `VNPAY_*` | Implemented |
+| **MoMo** | API payment | `MOMO_*` | Implemented |
+| **ZaloPay** | API payment | `ZALOPAY_*` | Implemented |
+| **VietQR** | Static QR (EMV) | `VIETQR_*` | Implemented |
+| **COD** | Cash on delivery | `PAYMENT_COD_ENABLED` | Enabled by default |
+
+### Configuration
+
+Each provider has its own env block. Example for VNPay:
+
+```bash
+# VNPay
+VNPAY_ENABLED=true
+VNPAY_ENV=sandbox          # or 'production'
+VNPAY_TMN_CODE=YOUR_CODE
+VNPAY_HASH_SECRET=YOUR_SECRET
+```
+
+**Common settings**:
+```bash
+PAYMENT_PUBLIC_BASE_URL=https://yourdomain.com  # For return URLs
+PAYMENT_DEFAULT_EXPIRY_MINUTES=10              # Hold expires after 10 min
+PAYMENT_COD_ENABLED=true                       # Cash on delivery
+```
+
+### Testing in sandbox
+
+Each provider has a sandbox environment. Set `<PROVIDER>_ENV=sandbox` and use the sandbox credentials from the provider's developer portal.
+
+### IPN webhooks
+
+Payment gateway callbacks (IPN) are handled at:
+- `GET /api/payments/ipn/vnpay` (VNPay)
+- `POST /api/payments/ipn/momo` (MoMo)
+- `POST /api/payments/ipn/zalopay` (ZaloPay)
+
+These are HMAC-verified — forged callbacks are rejected. The `/ipn/` path is exempt from the anti-scraping Origin check.
+
+---
+
+## 8. OAuth 2.0 (Google / Facebook / Twitter)
+
+### Setup
+
+1. **Create OAuth app** at each provider:
+   - **Google**: [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   - **Facebook**: [Facebook Developers](https://developers.facebook.com/)
+   - **Twitter/X**: [Twitter Developer Portal](https://developer.twitter.com/)
+
+2. **Set redirect URI** to:
+   ```
+   https://yourdomain.com/api/auth/oauth/google/callback
+   https://yourdomain.com/api/auth/oauth/facebook/callback
+   https://yourdomain.com/api/auth/oauth/twitter/callback
+   ```
+
+3. **Configure `.env`**:
+```bash
+OAUTH_REDIRECT_BASE_URL=https://yourdomain.com
+OAUTH_FRONTEND_URL=https://yourdomain.com
+
+# Google
+OAUTH_GOOGLE_ENABLED=true
+OAUTH_GOOGLE_CLIENT_ID=your-client-id
+OAUTH_GOOGLE_CLIENT_SECRET=your-client-secret
+OAUTH_GOOGLE_SCOPES=openid,profile,email
+
+# Facebook
+OAUTH_FACEBOOK_ENABLED=true
+OAUTH_FACEBOOK_CLIENT_ID=your-client-id
+OAUTH_FACEBOOK_CLIENT_SECRET=your-client-secret
+
+# Twitter/X
+OAUTH_TWITTER_ENABLED=true
+OAUTH_TWITTER_CLIENT_ID=your-client-id
+OAUTH_TWITTER_CLIENT_SECRET=your-client-secret
+```
+
+### Flow
+
+1. Frontend redirects to `GET /api/auth/oauth/{provider}/start`
+2. Backend sets a state cookie + redirects to the provider
+3. Provider redirects back to `GET /api/auth/oauth/{provider}/callback?code=...&state=...`
+4. Backend verifies state, exchanges code for user info, creates/links user
+5. Backend sets auth cookies + redirects to frontend
+
+---
+
+## 9. Place Search (OSM / Tantivy)
+
+The place search uses a **Tantivy fulltext index** built from OpenStreetMap PBF data. This powers the autocomplete in the search bar.
+
+### Building the index (optional but recommended)
+
+```bash
+# 1. Download Vietnam OSM data (~500 MB):
+./scripts/download-vietnam-osm.sh
+
+# 2. Build the Tantivy index:
+./backend import-osm ./data/vietnam-latest.osm.pbf --index-dir ./osm-index
+
+# 3. Mount the index in the container:
+# The docker-compose.prod.yml already mounts app-osm:/app/osm-index
+# Copy the built index into the volume:
+docker cp ./osm-index $(docker ps -qf name=vexevn_backend):/app/osm-index
+```
+
+### Without the index
+
+If the Tantivy index is missing, the backend falls back to SQL `LIKE` queries on the `places` table. This is slower but still works. The `places` table is seeded with major Vietnamese cities during migration.
+
+---
+
+## 10. Caddy Reverse Proxy & TLS
+
+### What Caddy does
+
+- **TLS**: Auto-provisions + renews Let's Encrypt certificates
+- **Reverse proxy**: Forwards all traffic to the backend on `:8080`
+- **WebSocket**: Automatic upgrade (no special config)
+- **Security headers**: HSTS, CSP, X-Frame-Options, etc.
+- **Compression**: zstd + gzip auto-negotiated
+- **Static caching**: Immutable assets cached for 1 year
+- **HTTP→HTTPS redirect**: Automatic
+- **Access logs**: JSON-formatted with rotation
+
+### Caddyfile setup
+
+Before deploying, **replace `yourdomain.com`** in the `Caddyfile`:
+
+```bash
+sed -i 's/yourdomain.com/vexevn.vn/g' Caddyfile
+```
+
+The `Caddyfile` is mounted into the Caddy container at `/etc/caddy/Caddyfile:ro`.
+
+### Firewall
+
+```bash
+# Allow HTTP + HTTPS
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 443/udp  # HTTP/3 (QUIC)
+
+# Block direct access to backend (only Caddy should reach it)
+ufw deny 8080/tcp
+```
+
+---
+
+## 11. Audio Calls (WebRTC)
+
+Audio calls use a WebRTC signaling relay at `/ws-call`. Disabled by default.
+
+### Enable
+
+```bash
+AUDIO_CALL_ENABLED=true
+
+# STUN/TURN servers (required for NAT traversal):
+AUDIO_CALL_ICE_SERVERS=[{"urls":"stun:stun.l.google.com:19302"}]
+
+# For production behind NAT, use a TURN server:
+AUDIO_CALL_ICE_SERVERS=[{"urls":"turn:turn.yourdomain.com:3478","username":"user","credential":"pass"}]
+```
+
+### Requirements
+
+- A TURN server (e.g. [coturn](https://github.com/coturn/coturn)) if either party is behind a symmetric NAT.
+- UDP ports 49152-65535 open on the firewall for TURN relay traffic.
+
+---
+
+## 12. PWA & SEO
+
+### PWA
+
+- **Manifest**: `frontend/public/manifest.webmanifest` — Vietnamese language, blue theme, standalone display.
+- **Service worker**: `/sw.js` — served with `Service-Worker-Allowed: /` header.
+- **Icons**: Generated by `frontend/scripts/gen-icons.mjs` from `logo.svg` during Docker build.
+- **Offline page**: `offline.html` fallback when network is down.
+
+### SEO
+
+- **Prerendering**: `frontend/prerender.mjs` runs during Docker build — `index.html` is pre-rendered with GA4 + Google Search Console tags injected.
+- **Sitemap**: `GET /sitemap.xml` — lists all static routes.
+- **Robots.txt**: `GET /robots.txt` — allows search engines, blocks `/api/`, `/admin/`.
+- **JSON-LD**: Structured data (FAQ, Organization, WebSite) embedded in prerendered HTML.
+
+### Analytics (build-time)
+
+Pass these as Docker build args:
+```bash
+docker build \
+  --build-arg VITE_GA4_ID=G-XXXXXXXXXX \
+  --build-arg VITE_GSC_VERIFICATION=your-token \
+  -t vexevn:latest .
+```
+
+---
+
+## 13. Docker Swarm Operations
+
+### Useful commands
+
+```bash
+# List services:
+docker service ls
+
+# View logs:
+docker service logs vexevn_backend --tail 100 -f
+docker service logs vexevn_caddy --tail 50 -f
+
+# Restart a service:
+docker service update --force vexevn_backend
+
+# Scale a service (e.g. 2 backend replicas):
+docker service scale vexevn_backend=2
+
+# Rollback to previous version:
+docker service rollback vexevn_backend
+
+# Update image:
+docker service update --image ghcr.io/iamleson98/vexevn:latest vexevn_backend
+
+# Remove the entire stack:
+docker stack rm vexevn
+```
+
+### Zero-downtime updates
+
+The `deploy.update_config` in `docker-compose.prod.yml` is set to:
+```yaml
+update_config:
+  parallelism: 1
+  delay: 10s
+  failure_action: rollback
+  order: start-first    # New task starts BEFORE old one stops
+```
+
+This means: when you update the image, Swarm starts the new container first, waits for it to pass the health check, then stops the old container. No downtime.
+
+### Adding the NullClaw profile
+
+```bash
+# Deploy WITHOUT NullClaw (default):
+docker stack deploy -c docker-compose.prod.yml --with-registry-auth vexevn
+
+# Deploy WITH NullClaw:
+docker stack deploy -c docker-compose.prod.yml --with-registry-auth --profile nullclaw vexevn
+```
+
+---
+
+## 14. Backup & Recovery
+
+### Postgres backup
+
+```bash
+# Manual backup:
+docker exec $(docker ps -qf name=vexevn_db) pg_dump -U app vexevn > backup_$(date +%Y%m%d).sql
+
+# Restore:
+cat backup_20260826.sql | docker exec -i $(docker ps -qf name=vexevn_db) psql -U app vexevn
+```
+
+### Automated daily backup (cron)
+
+```bash
+# Add to crontab:
+0 3 * * * docker exec $(docker ps -qf name=vexevn_db) pg_dump -U app vexevn | gzip > /opt/vexevn/backups/db_$(date +\%Y\%m\%d).sql.gz && find /opt/vexevn/backups -mtime +7 -delete
+```
+
+### Volume backup
+
+```bash
+# List volumes:
+docker volume ls | grep vexevn
+
+# Backup app-storage (uploaded files):
+docker run --rm -v vexevn_app-storage:/data -v /opt/vexevn/backups:/backup alpine tar czf /backup/storage.tar.gz /data
+```
+
+---
+
+## 15. CI/CD Pipeline
+
+### GitHub Actions workflow
+
+The CI pipeline (`.github/workflows/ci.yml`) runs on every push/PR:
+
+| Job | What it does |
+|---|---|
+| `backend` | `cargo fmt --check` → `cargo check` → `cargo clippy` → `cargo test` |
+| `backend-audit` | `cargo audit` (CVE scan) |
+| `frontend` | `bun install` → `tsc --noEmit` → `vitest run` → `vite build` |
+| `secrets-scan` | gitleaks (full git history scan) |
+| `docker-build` | Docker build smoke test (no push) |
+
+### Auto-deploy (`.github/workflows/deploy.yml`)
+
+On push to the `server` branch:
+1. Builds the Docker image with `BACKEND_FEATURES=postgres` (or `sqlite`)
+2. Pushes to GHCR (`ghcr.io/iamleson98/vexevn:latest`)
+3. SCPs `docker-compose.prod.yml` + `.env.example` to the VM
+4. SSHes in + runs `docker stack deploy`
+
+### Required GitHub secrets
 
 | Secret | Value |
 |---|---|
-| `VM_HOST` | Your VM's public IP (e.g. `139.180.123.45`) |
-| `VM_SSH_KEY` | Contents of your SSH private key file (e.g. `~/.ssh/id_ed25519`) |
-| `VM_USER` | `root` (or whatever user you created on the VM) |
-
-### 2. Push to `server` branch
-
-Every push to `server` now triggers:
-1. CI: `cargo check` + `clippy` + `tsc --noEmit` + `vite build` (parallel)
-2. CD: Docker build → push to GHCR → SSH deploy to VM → health check
-
-You'll see deploy status in the GitHub Actions tab. The deploy job takes ~15-20 minutes (mostly the Rust build inside Docker).
-
-### 3. Auto-deploy on push
-
-From now on, just:
-```bash
-git push origin server
-```
-The CI/CD pipeline handles everything. You can monitor progress at:
-```
-https://github.com/iamleson98/rust-be-template/actions
-```
+| `VM_HOST` | VM public IP or domain |
+| `VM_SSH_KEY` | SSH private key (PEM) |
+| `VM_USER` | SSH user (usually `root`) |
 
 ---
 
-## Post-Deployment Configuration
+## 16. Troubleshooting
 
-### Change the JWT secret
-
-The deploy script auto-generates a random JWT secret. To change it:
+### Backend won't start
 
 ```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
-# Generate a new secret:
-NEW_SECRET=$(openssl rand -hex 32)
-sed -i "s|^JWT__SECRET=.*|JWT__SECRET=${NEW_SECRET}|g" .env
+# Check logs:
+docker service logs vexevn_backend --tail 100
+
+# Common issues:
+# 1. "JWT_SECRET not set" → generate one: openssl rand -hex 32
+# 2. "Postgres connection refused" → db not ready yet, check: docker service ls
+# 3. "migration failed" → check logs for the specific migration error
+```
+
+### 415 Unsupported Media Type
+
+This was a bug in `auth-fetch.ts` where headers were lost. **Fixed in commit `e4f6a74`**. If you still see it, pull the latest code.
+
+### 429 Too Many Requests
+
+The rate limiter (`tower_governor`) allows 600 RPM per IP with 100 burst. To increase:
+
+```bash
+# In .env:
+RATE_LIMIT_RPM=6000
+RATE_LIMIT_BURST=1000
+
 # Restart:
-docker compose -f docker-compose.prod.yml restart
+docker service update --force vexevn_backend
 ```
 
-### Configure for a custom domain
+### WebSocket not connecting
 
-1. Point your domain's A record to the VM's public IP.
-2. Update `.env` on the VM:
+- Check Caddy is running: `docker service ls | grep caddy`
+- Check Caddyfile has the correct domain
+- Check backend is healthy: `curl -sf http://localhost:8080/health`
+- WS endpoint: `wss://yourdomain.com/ws?token=<JWT>`
+
+### NullClaw not replying
 
 ```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
-nano .env
+# Check status:
+curl -sf http://localhost:8080/api/nullclaw/status
+# Should return {"enabled":true,"provider":"http"}
+
+# Check NullClaw container:
+docker service logs vexevn_nullclaw --tail 50
+
+# Common issues:
+# 1. NULLCLAW_ENABLED=false → set to true
+# 2. NULLCLAW_API_URL wrong → should be http://nullclaw:42617
+# 3. GEMINI_API_KEY missing → get one from Google AI Studio
+# 4. No human agent offline → AI only replies when 0 employees are online
 ```
 
-Change:
-```env
-COOKIE__DOMAIN=yourdomain.com
-COOKIE__SECURE=true
-CORS__ORIGINS=https://yourdomain.com
-```
+### Database locked (SQLite only)
 
-3. For HTTPS, add a reverse proxy (Caddy or Nginx):
-
-```bash
-# Install Caddy:
-apt install -y caddy
-
-# Configure /etc/caddy/Caddyfile:
-cat > /etc/caddy/Caddyfile << 'EOF'
-yourdomain.com {
-    reverse_proxy localhost:8080
-}
-EOF
-
-systemctl restart caddy
-```
-
-Caddy will automatically provision a Let's Encrypt TLS certificate.
-
-### Update the app after code changes
-
-```bash
-# From your local machine:
-./terraform/deploy.sh <VM_IP>
-
-# Or manually:
-rsync -avz --delete \
-    --exclude='.git' --exclude='target/' --exclude='frontend/node_modules/' \
-    --exclude='osm-index/' --exclude='*.db' --exclude='storage/' \
-    -e ssh ./ root@<VM_IP>:/opt/vexevn/
-
-ssh root@<VM_IP> 'cd /opt/vexevn && docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d'
-```
+SQLite only allows one writer at a time. Under high concurrency you may see "database is locked" errors. **Switch to Postgres** for production.
 
 ---
 
-## Managing the deployment
+## 17. Local Development
 
-All commands run via SSH on the VM:
+### Prerequisites
+
+- Rust 1.97+ (`rustup install stable`)
+- Bun 1.2+ (`curl -fsSL https://bun.sh/install | bash`)
+- SQLite3 (for dev database) or Postgres
+
+### Start the backend
 
 ```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
+# Terminal 1: backend
+cd /home/z/my-project/server_worktree
+cp .env.example .env  # Edit as needed
+cargo run -- serve
+# Backend on http://localhost:8080
 ```
 
-| Action | Command |
-|---|---|
-| View logs | `docker compose -f docker-compose.prod.yml logs -f` |
-| Restart | `docker compose -f docker-compose.prod.yml restart` |
-| Stop | `docker compose -f docker-compose.prod.yml down` |
-| Start | `docker compose -f docker-compose.prod.yml up -d` |
-| Rebuild | `docker compose -f docker-compose.prod.yml build && docker compose -f docker-compose.prod.yml up -d` |
-| Check health | `curl localhost:8080/health` |
-| Check DB size | `ls -lh app.db` |
-| Check disk space | `df -h` |
-| Check container status | `docker ps` |
-
----
-
-## Backup
-
-### SQLite database backup
+### Start the frontend
 
 ```bash
-ssh root@<VM_IP> 'cd /opt/vexevn && cp app.db app.db.bak.$(date +%Y%m%d)'
+# Terminal 2: frontend (Vite dev server with proxy)
+cd /home/z/my-project/server_worktree/frontend
+bun install
+bun run dev
+# Frontend on http://localhost:3000
+# API requests proxied to http://localhost:8080
 ```
 
-Or download locally:
+### Verify
+
 ```bash
-scp root@<VM_IP>:/opt/vexevn/app.db ./backup-$(date +%Y%m%d).db
+# Health check:
+curl -sf http://localhost:8080/health
+
+# Swagger UI:
+open http://localhost:8080/swagger-ui
+
+# Frontend:
+open http://localhost:3000
 ```
 
----
-
-## Destroy (tear down)
+### CLI commands
 
 ```bash
-cd terraform/
-terraform destroy
-```
+# Generate JWT secret:
+cargo run -- key generate
 
-This deletes the VM and all data on it. Make sure you have a backup of `app.db` first.
+# Hash a password:
+cargo run -- key hash "mypassword"
 
----
+# Show resolved config:
+cargo run -- config-show
 
-## Cost estimate
+# List all routes:
+cargo run -- routes-list
 
-| Component | Cost |
-|---|---|
-| Kamatera VM (2 vCPU, 2GB RAM, 30GB SSD, Singapore) | ~$12/month |
-| Bandwidth (1TB included) | $0 (included) |
-| **Total** | **~$12/month** |
+# Show DB backend:
+cargo run -- db-backend
 
-For higher traffic, upgrade the VM size in `terraform/main.tf`:
-- `A4aa` (4 vCPU, 4GB) — ~$24/month
-- `B2aa` (2 vCPU, 4GB Intel) — ~$20/month
+# Import OSM data:
+cargo run -- import-osm ./data/vietnam-latest.osm.pbf
 
----
-
-## Troubleshooting
-
-### Container won't start
-
-```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
-docker compose -f docker-compose.prod.yml logs
-```
-
-Common issues:
-- **Port 8080 in use**: `lsof -i :8080` — kill the conflicting process
-- **Database locked**: `rm app.db && docker compose -f docker-compose.prod.yml restart` (destroys data!)
-- **Out of memory**: Upgrade VM size or reduce `DATABASE__MAX_CONNECTIONS`
-
-### Build fails
-
-The Docker build compiles Rust from source — this needs ~2GB RAM. On a 1GB VM:
-```bash
-# Use swap:
-ssh root@<VM_IP> 'fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile'
-```
-
-### OSM place search not working
-
-The Tantivy index is not included in the Docker image (too large). To enable place search:
-
-```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
-# Download OSM PBF:
-mkdir -p data && cd data
-wget https://download.geofabrik.de/asia/vietnam-latest.osm.pbf
-# Build the index:
-cd /opt/vexevn
-docker compose -f docker-compose.prod.yml exec backend import-osm --pbf data/vietnam-latest.osm.pbf --index-dir osm-index
-# Restart to pick up the index:
-docker compose -f docker-compose.prod.yml restart
-```
-
-### Rate limit (429)
-
-Default is 600 RPM (10 req/sec) with burst 100. To increase:
-
-```bash
-ssh root@<VM_IP>
-cd /opt/vexevn
-sed -i 's/^RATE_LIMIT__RPM=.*/RATE_LIMIT__RPM=1200/' .env
-sed -i 's/^RATE_LIMIT__BURST=.*/RATE_LIMIT__BURST=200/' .env
-docker compose -f docker-compose.prod.yml restart
+# Run migrations manually:
+./migrator up
+./migrator list
 ```

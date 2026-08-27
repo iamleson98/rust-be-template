@@ -17,7 +17,7 @@ import {
     Sparkles,
     Loader2,
 } from 'lucide-react'
-import { formatVND, formatDuration, VEHICLE_TYPE_LABELS, formatTimeVN } from '@/lib/types'
+import { formatVND, VEHICLE_TYPE_LABELS, formatTimeVN } from '@/lib/types'
 
 type CompareRow = {
     label: string
@@ -50,12 +50,6 @@ const COMPARE_ROWS: CompareRow[] = [
                 <div className="text-[10px] text-muted-foreground">{t.toName}</div>
             </div>
         ),
-    },
-    {
-        label: 'Thời gian',
-        icon: <Clock className="h-3.5 w-3.5" />,
-        render: (t) => <span className="font-medium">{formatDuration(t.durationMin)}</span>,
-        sortValue: (t) => t.durationMin,
     },
     {
         label: 'Loại xe',

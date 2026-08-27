@@ -164,7 +164,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // The chat hub (`ws::hub::hub()`) and audio-call hub
     // (`audio_call::hub::call_hub()`) are lazily-initialised process
     // singletons — no per-instance state on AppState.
-    crate::zeroclaw::init(&config.zeroclaw);
+    crate::nullclaw::init(&config.nullclaw);
 
     // Record the process start time so `/api/admin/system` can report
     // uptime from boot (not from first request). Set BEFORE any
@@ -243,7 +243,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         cod_provider,
     ));
 
-    // ---- Chat service (chat channels + ZeroClaw AI hook) ───────────
+    // ---- Chat service (chat channels + NullClaw AI hook) ───────────
     // Encapsulates all chat_store access so route handlers + the WS
     // hub never touch the store directly (clean-architecture rule).
     let chat_service = Arc::new(ChatService::new(store.clone()));

@@ -23,5 +23,6 @@ mod seo;
 pub mod system;
 mod users;
 mod vitals;
+mod webhooks;
 mod wishlist;
-mod zeroclaw;
+mod nullclaw;

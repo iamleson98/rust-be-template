@@ -3,12 +3,23 @@
 /**
  * RouteFormDialog — create/edit a Route under a given Brand.
  *
- * Migrated from manual `fetch` POST/PUT to the `useUpsertAdminRoute()`
- * TanStack Query mutation. The mutation auto-invalidates the routes list
- * query (both admin and public) on success.
+ * The start/end location fields use a fixed list of Vietnamese cities
+ * (5 municipalities + 58 provinces = 63 total). Brands define pickup/drop
+ * at the city level; specific pickup points (bus stations, curbside stops)
+ * are defined at the schedule level.
+ *
+ * The city id is a slug (e.g. "ha-noi", "da-nang") stored as the
+ * `startLocationId` / `endLocationId` on the route. It's NOT a UUID —
+ * the backend stores it as a TEXT reference.
+ *
+ * NOTE: Route distance (km) and duration (min) used to be admin-editable
+ * fields, but they have been removed from the entity — the platform now
+ * derives ETA from the schedule's `departure_time` + Valhalla routing on
+ * the public map page. The form below only collects the route's identity
+ * (name, brand, start/end city, status).
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,7 +36,9 @@ import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -37,28 +50,24 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { Route as RouteIcon, MapPin, Loader2, Plus } from 'lucide-react'
+import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { requiredText, positiveInt } from '@/lib/forms'
+import { requiredText } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
-import { QuickPickupPointDialog } from '@/components/admin/pickup-points/quick-pickup-dialog'
-import type { PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
+import {
+  VIETNAMESE_CITIES,
+  type VietnameseCity,
+} from '@/lib/vietnamese-cities'
+import type { AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
 
 const routeSchema = z
   .object({
-    code: requiredText('Mã tuyến')
-      .min(2, 'Mã tuyến cần ít nhất 2 ký tự')
-      .max(32, 'Mã tuyến tối đa 32 ký tự'),
     name: requiredText('Tên tuyến')
       .min(2, 'Tên tuyến cần ít nhất 2 ký tự')
-      .max(120, 'Tên tuyến tối đa 120 ký tự'),
+      .max(255, 'Tên tuyến tối đa 255 ký tự'),
     startLocationId: requiredText('Điểm đi'),
     endLocationId: requiredText('Điểm đến'),
-    distanceKm: z.coerce
-      .number({ message: 'Khoảng cách phải là số' })
-      .min(1, 'Khoảng cách phải lớn hơn 0'),
-    durationMin: positiveInt(1),
   })
   .refine((d) => d.startLocationId !== d.endLocationId, {
     message: 'Điểm đi và điểm đến phải khác nhau',
@@ -66,62 +75,100 @@ const routeSchema = z
   })
 type RouteFormValues = z.infer<typeof routeSchema>
 
+// Group cities by region for the Select dropdown.
+const NORTH = VIETNAMESE_CITIES.filter((c) => c.region === 'north')
+const CENTRAL = VIETNAMESE_CITIES.filter((c) => c.region === 'central')
+const SOUTH = VIETNAMESE_CITIES.filter((c) => c.region === 'south')
+
+// Map city id (slug) → display name. Used by the SelectValue render-prop
+// so the trigger shows "Hà Nội" instead of the raw slug "ha-noi" — Base
+// UI unmounts SelectContent (and thus the SelectItems) when the popover
+// closes, so it can no longer look up the label by matching the value.
+// The slug is the only stable identifier we have, so we look it up in
+// this side table instead.
+const CITY_NAME_BY_ID = new Map<string, string>(
+  VIETNAMESE_CITIES.map((c) => [c.id, c.name]),
+)
+
+function cityLabel(value: string | null | undefined): string | null {
+  if (!value) return null
+  return CITY_NAME_BY_ID.get(value) ?? null
+}
+
+function CitySelectContent() {
+  return (
+    <SelectContent className="max-h-80">
+      <SelectGroup>
+        <SelectLabel className="text-xs font-semibold uppercase text-blue-600">
+          Miền Bắc
+        </SelectLabel>
+        {NORTH.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+      <SelectGroup>
+        <SelectLabel className="text-xs font-semibold uppercase text-amber-600">
+          Miền Trung
+        </SelectLabel>
+        {CENTRAL.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+      <SelectGroup>
+        <SelectLabel className="text-xs font-semibold uppercase text-emerald-600">
+          Miền Nam
+        </SelectLabel>
+        {SOUTH.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+    </SelectContent>
+  )
+}
+
 export function RouteFormDialog({
   open,
   route,
   brand,
-  places,
   onOpenChange,
   onSaved,
 }: {
   open: boolean
   route: AdminRouteOut | null
   brand: AdminBrandOut | null
-  places: PlaceOut[]
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
   const isEdit = !!route
   const upsertMutation = useUpsertAdminRoute()
   const saving = upsertMutation.isPending
-  const [pickupDialogOpen, setPickupDialogOpen] = useState(false)
-  const [pickupDialogTarget, setPickupDialogTarget] = useState<'start' | 'end'>('start')
-  // Local cache of newly-created places (merged with the `places` prop
-  // so the Select dropdown shows them immediately without a refetch).
-  const [extraPlaces, setExtraPlaces] = useState<PlaceOut[]>([])
 
   const form = useForm<z.input<typeof routeSchema>, unknown, z.output<typeof routeSchema>>({
     resolver: zodResolver(routeSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: {
-      code: '',
       name: '',
       startLocationId: '',
       endLocationId: '',
-      distanceKm: 0,
-      durationMin: 0,
     },
   })
 
   useEffect(() => {
     if (open) {
       form.reset({
-        code: route?.id.slice(0, 8) ?? '',
         name: route?.name ?? '',
         startLocationId: route?.startLocationId ?? '',
         endLocationId: route?.endLocationId ?? '',
-        distanceKm: route?.distanceKm ?? 0,
-        durationMin: route?.durationMin ?? 0,
       })
     }
   }, [open, route, form])
-
-  // Merge prop places with locally-created ones.
-  const allPlaces = useMemo(() => [...places, ...extraPlaces], [places, extraPlaces])
-  const sortedPlaces = useMemo(() => {
-    return [...allPlaces].sort((a, b) => a.name.localeCompare(b.name, 'vi'))
-  }, [allPlaces])
 
   const onSubmit = async (values: RouteFormValues) => {
     if (!brand) {
@@ -131,17 +178,18 @@ export function RouteFormDialog({
     try {
       const payload: Record<string, unknown> = {
         brandId: brand.id,
-        code: values.code.trim(),
         name: values.name.trim(),
         startLocationId: values.startLocationId,
         endLocationId: values.endLocationId,
-        distanceKm: values.distanceKm,
-        durationMin: values.durationMin,
       }
       if (isEdit) {
         payload.id = route!.id
       }
-      await upsertMutation.mutateAsync(payload as any)
+      // SDK mutation hooks require { body: <payload> } — passing the raw
+      // payload makes `opts.body === undefined`, which causes the openapi-ts
+      // client to delete `Content-Type: application/json` before sending,
+      // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
+      await upsertMutation.mutateAsync({ body: payload } as any)
       toast.success(isEdit ? 'Đã cập nhật tuyến' : 'Đã thêm tuyến mới')
       onSaved()
     } catch (e: any) {
@@ -160,189 +208,87 @@ export function RouteFormDialog({
           <DialogDescription>
             {brand ? (
               <>
-                Thuộc hãng: <span className="font-medium" style={{ color: brand.accentColor as any }}>{brand.name}</span>
+                Thuộc hãng:{' '}
+                <span className="font-medium" style={{ color: brand.accentColor as any }}>
+                  {brand.name}
+                </span>
               </>
             ) : null}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3 max-w-xl"
-          >
-            <div className="grid grid-cols-2 gap-3 items-start">
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Mã tuyến <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="HN-SGN-01" className="font-mono text-xs" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Tên tuyến <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Hà Nội → Sài Gòn" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3 max-w-xl">
+            {/* Route name */}
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem className="grid gap-1.5">
+                  <FormLabel>
+                    Tên tuyến <span className="text-destructive">*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input {...field} placeholder="Hà Nội → Đà Nẵng" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
+            {/* Start location — city dropdown */}
             <FormField
               control={form.control}
               name="startLocationId"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Điểm đi <span className="text-destructive">*</span>
+                    Điểm đi (thành phố) <span className="text-destructive">*</span>
                   </FormLabel>
-                  <div className="flex gap-1.5">
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Chọn điểm đi..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-70">
-                        {sortedPlaces.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            <span className="flex items-center gap-1.5">
-                              <MapPin className="h-3 w-3 text-primary" />
-                              <span>{p.name}</span>
-                              {p.province && (
-                                <span className="text-[10px] text-muted-foreground">· {p.province}</span>
-                              )}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {/* Quick-create button */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0 h-9 w-9"
-                      onClick={() => { setPickupDialogTarget('start'); setPickupDialogOpen(true) }}
-                      title="Tạo điểm đón mới"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Select
+                    value={field.value || undefined}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Chọn thành phố đi...">
+                          {(value: string | null | undefined) => cityLabel(value)}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <CitySelectContent />
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
+            {/* End location — city dropdown */}
             <FormField
               control={form.control}
               name="endLocationId"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Điểm đến <span className="text-destructive">*</span>
+                    Điểm đến (thành phố) <span className="text-destructive">*</span>
                   </FormLabel>
-                  <div className="flex gap-1.5">
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Chọn điểm đến..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="max-h-70">
-                        {sortedPlaces.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            <span className="flex items-center gap-1.5">
-                              <MapPin className="h-3 w-3 text-rose-500" />
-                              <span>{p.name}</span>
-                              {p.province && (
-                                <span className="text-[10px] text-muted-foreground">· {p.province}</span>
-                              )}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="shrink-0 h-9 w-9"
-                      onClick={() => { setPickupDialogTarget('end'); setPickupDialogOpen(true) }}
-                      title="Tạo điểm đến mới"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Select
+                    value={field.value || undefined}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Chọn thành phố đến...">
+                          {(value: string | null | undefined) => cityLabel(value)}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <CitySelectContent />
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-2 gap-3 items-start">
-              <FormField
-                control={form.control}
-                name="distanceKm"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Khoảng cách (km) <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={field.value === 0 || field.value == null ? '' : String(field.value)}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        onBlur={field.onBlur}
-                        placeholder="650"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="durationMin"
-                render={({ field }) => (
-                  <FormItem className="grid gap-1.5">
-                    <FormLabel>
-                      Thời lượng (phút) <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={field.value === 0 || field.value == null ? '' : String(field.value)}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        onBlur={field.onBlur}
-                        placeholder="720"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
@@ -361,32 +307,6 @@ export function RouteFormDialog({
           </form>
         </Form>
       </DialogContent>
-
-      {/* Inline pickup-point creation dialog */}
-      <QuickPickupPointDialog
-        open={pickupDialogOpen}
-        onOpenChange={setPickupDialogOpen}
-        onCreated={(point) => {
-          // Add the newly-created point to the local list
-          const newPlace: PlaceOut = {
-            id: point.id,
-            name: point.name,
-            province: null,
-            lat: point.lat ?? 0,
-            lon: point.lon ?? 0,
-            population: 0,
-            type: 'pickup_point',
-          }
-          setExtraPlaces((prev) => [...prev, newPlace])
-          // Auto-select the new point in the right field
-          if (pickupDialogTarget === 'start') {
-            form.setValue('startLocationId', point.id)
-          } else {
-            form.setValue('endLocationId', point.id)
-          }
-          toast.success(`Đã thêm "${point.name}" vào danh sách`)
-        }}
-      />
     </Dialog>
   )
 }

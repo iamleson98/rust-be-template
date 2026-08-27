@@ -488,18 +488,40 @@ const mapRoute = createRoute({
   ),
 })
 
-// Admin route — employee guard. We check the cached user; if not an
-// employee, redirect to /login. The server-side check happens on the
-// API call (returns 403), so this is just UX hardening.
+// ── Route guards ────────────────────────────────────────────────
+//
+// Two guard helpers:
+//
+//   requireAuth()      — must be logged in (any user type). If not,
+//                         redirect to /login.
+//   requireEmployee()   — must be logged in as an employee. If not
+//                         logged in OR not an employee, redirect to /login.
+//
+// CRITICAL: the previous guards checked `if (user && user.type !== 'employee')`
+// which is FALSE when `user` is null (unauthenticated). This allowed
+// unauthenticated visitors to access admin pages — the bug we're fixing.
+// The new checks use `!user || user.type !== 'employee'` which correctly
+// blocks both cases: no user at all, or a non-employee user.
+
+function requireAuth() {
+  const { user } = useApp.getState()
+  if (!user) {
+    throw redirect({ to: '/login' })
+  }
+}
+
+function requireEmployee() {
+  const { user } = useApp.getState()
+  if (!user || user.type !== 'employee') {
+    throw redirect({ to: '/login' })
+  }
+}
+
+// Admin route — employee guard.
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminPage />
@@ -511,12 +533,7 @@ const adminRoute = createRoute({
 const adminBrandsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/brands',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminBrandsPage />
@@ -527,12 +544,7 @@ const adminBrandsRoute = createRoute({
 const adminRoutesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/routes',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminRoutesPage />
@@ -543,12 +555,7 @@ const adminRoutesRoute = createRoute({
 const adminSchedulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/schedules',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminSchedulesPage />
@@ -559,12 +566,7 @@ const adminSchedulesRoute = createRoute({
 const adminTicketsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/tickets',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminTicketsPage />
@@ -575,12 +577,7 @@ const adminTicketsRoute = createRoute({
 const adminChatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/chat',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminChatPage />
@@ -591,12 +588,7 @@ const adminChatRoute = createRoute({
 const adminReviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/reviews',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminReviewsPage />
@@ -607,12 +599,7 @@ const adminReviewsRoute = createRoute({
 const adminFeedbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/feedback',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminFeedbackPage />
@@ -623,12 +610,7 @@ const adminFeedbackRoute = createRoute({
 const adminBusLayoutsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/bus-layouts',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminBusLayoutsPage />
@@ -639,12 +621,7 @@ const adminBusLayoutsRoute = createRoute({
 const adminSystemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/system',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== "employee") {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminSystemPage />
@@ -655,16 +632,7 @@ const adminSystemRoute = createRoute({
 const adminPaymentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/payments',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    // If the store has a cached user, check the role.
-    // If the store is empty (shouldn't happen after the sync hydration
-    // fix above, but defensive), don't redirect — let AuthBootstrap
-    // reconcile and redirect if needed.
-    if (user && user.type !== 'employee') {
-      throw redirect({ to: '/login' })
-    }
-  },
+  beforeLoad: requireEmployee,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminPaymentsPage />
@@ -682,17 +650,11 @@ const loginRoute = createRoute({
   ),
 })
 
-// ── Account routes (sidebar layout) ────────────────────────────
+// ── Account routes (require login, any user type) ───────────────
 const accountRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account',
-  beforeLoad: () => {
-    const { user } = useApp.getState()
-    if (user && user.type !== 'employee') {
-      // Allow regular users — only block non-employees if they're somehow
-      // trying to access admin routes (handled by admin beforeLoad).
-    }
-  },
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountPage />
@@ -703,6 +665,7 @@ const accountRoute = createRoute({
 const accountWishlistRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account/wishlist',
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountWishlistPage />
@@ -713,6 +676,7 @@ const accountWishlistRoute = createRoute({
 const accountLoyaltyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account/loyalty',
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountLoyaltyPage />
@@ -723,6 +687,7 @@ const accountLoyaltyRoute = createRoute({
 const accountNotificationsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account/notifications',
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountNotificationsPage />
@@ -733,6 +698,7 @@ const accountNotificationsRoute = createRoute({
 const accountSecurityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account/security',
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountSecurityPage />
@@ -743,6 +709,7 @@ const accountSecurityRoute = createRoute({
 const accountTripsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account/trips',
+  beforeLoad: requireAuth,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AccountTripsPage />

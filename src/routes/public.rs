@@ -232,10 +232,76 @@ pub fn trips_router() -> axum::Router<crate::state::AppState> {
     axum::Router::new().route("/{id}", get(trip_detail))
 }
 
-/// `/api/search`.
+/// `/api/search` + `/api/search/geo`.
 pub fn search_router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
-    axum::Router::new().route("/", get(search_trips))
+    axum::Router::new()
+        .route("/", get(search_trips))
+        .route("/geo", get(search_trips_geo))
+}
+
+/// `GET /api/search/geo` — geospatial trip search.
+///
+/// Finds routes where pickup points are closest to the user's desired
+/// pickup coordinates AND drop points are closest to the desired drop
+/// coordinates. Results are sorted by combined distance (closest first).
+///
+/// Uses bounding-box SQL + Rust haversine — works on SQLite without
+/// PostGIS or SQLite math functions.
+#[derive(Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+pub struct GeoSearchQuery {
+    pub from_lat: f64,
+    pub from_lon: f64,
+    pub to_lat: f64,
+    pub to_lon: f64,
+    pub date: String,
+    pub limit: Option<u64>,
+    pub offset: Option<u64>,
+    pub min_seats: Option<i64>,
+    pub vehicle_types: Option<String>,
+    pub max_distance_km: Option<f64>,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/search/geo",
+    tag = "public",
+    params(GeoSearchQuery),
+    responses(
+        (status = 200, description = "Geo search results", body = TripSearchResponse),
+    )
+)]
+pub async fn search_trips_geo(
+    State(st): State<AppState>,
+    Query(q): Query<GeoSearchQuery>,
+) -> Result<Json<TripSearchResponse>, AppError> {
+    let vehicle_types: Vec<String> = q
+        .vehicle_types
+        .as_deref()
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_string())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(Json(
+        st.public
+            .search_trips_geo(
+                q.from_lat,
+                q.from_lon,
+                q.to_lat,
+                q.to_lon,
+                &q.date,
+                q.limit.unwrap_or(20).min(100),
+                q.offset.unwrap_or(0),
+                q.min_seats.unwrap_or(0),
+                vehicle_types,
+                q.max_distance_km.unwrap_or(50.0),
+            )
+            .await?,
+    ))
 }
 
 /// `/api/recommendations`.

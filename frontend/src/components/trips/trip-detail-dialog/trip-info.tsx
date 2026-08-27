@@ -20,13 +20,10 @@ import {
   Navigation,
   Calendar,
   Clock,
-  Timer,
-  MapPin,
   AlertTriangle,
   Share2,
 } from 'lucide-react'
 import {
-  formatDuration,
   formatTimeVN,
   formatDateVN,
 } from '@/lib/types'
@@ -79,14 +76,6 @@ export function TripInfo({
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
               Khởi hành {formatTimeVN(detail.trip.departureAt)}
-            </span>
-            <span className="flex items-center gap-1">
-              <Timer className="h-3 w-3" />
-              {formatDuration(detail.route.durationMin)}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {Math.round(detail.route.distanceKm)} km
             </span>
           </DialogDescription>
         </div>

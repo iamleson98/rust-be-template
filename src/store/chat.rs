@@ -1,6 +1,6 @@
 //! Chat store — read/write access to chat channels, messages, and
-//! ZeroClaw audit exchanges. Used by the WebSocket chat hub and the
-//! ZeroClaw AI assistant.
+//! NullClaw audit exchanges. Used by the WebSocket chat hub and the
+//! NullClaw AI assistant.
 //!
 //! Follows the template's store pattern: `ChatStore` trait +
 //! `DbChatStore` (`#[retry]`) + `CacheChatStore<S>` wrapper.
@@ -17,7 +17,7 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::{chat_channel, chat_channel_member, chat_message, zero_claw_exchange};
+use crate::entity::{chat_channel, chat_channel_member, chat_message, null_claw_exchange};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -38,7 +38,7 @@ pub struct NewChatMessage {
 }
 
 #[derive(Debug, Clone)]
-pub struct NewZeroClawExchange {
+pub struct NewNullClawExchange {
     pub channel_id: Option<Uuid>,
     pub user_message_id: Option<Uuid>,
     pub assistant_message_id: Option<Uuid>,
@@ -133,12 +133,12 @@ pub trait ChatStore: Send + Sync {
         channel_id: &str,
         client_msg_id: &str,
     ) -> StoreResult<Option<chat_message::Model>>;
-    async fn insert_zeroclaw_exchange(&self, ex: NewZeroClawExchange) -> StoreResult<()>;
-    async fn list_zeroclaw_exchanges(
+    async fn insert_nullclaw_exchange(&self, ex: NewNullClawExchange) -> StoreResult<()>;
+    async fn list_nullclaw_exchanges(
         &self,
         limit: u64,
         offset: u64,
-    ) -> StoreResult<Vec<zero_claw_exchange::Model>>;
+    ) -> StoreResult<Vec<null_claw_exchange::Model>>;
     /// Clear the unread counter for one side of a channel (`"user"` or
     /// `"employee"`). Best-effort — returns `Ok(())` if the channel is gone.
     async fn clear_unread(&self, channel_id: &str, side: &str) -> StoreResult<()>;
@@ -155,7 +155,7 @@ pub trait ChatStore: Send + Sync {
     //
     // Membership rows are written when a channel is created:
     //   - the customer (role="user")
-    //   - the ZeroClaw bot (role="bot")
+    //   - the NullClaw bot (role="bot")
     //
     // Employees don't get explicit member rows — they see all open
     // channels in their brand via `list_open_channels`. This avoids
@@ -506,10 +506,10 @@ impl ChatStore for DbChatStore {
     }
 
     #[store_macros::no_retry]
-    async fn insert_zeroclaw_exchange(&self, ex: NewZeroClawExchange) -> StoreResult<()> {
+    async fn insert_nullclaw_exchange(&self, ex: NewNullClawExchange) -> StoreResult<()> {
         let id = Uuid::new_v4();
         let now = chrono::Utc::now().to_rfc3339();
-        let model = zero_claw_exchange::ActiveModel {
+        let model = null_claw_exchange::ActiveModel {
             id: Set(id),
             channel_id: Set(ex.channel_id),
             user_message_id: Set(ex.user_message_id),
@@ -521,19 +521,19 @@ impl ChatStore for DbChatStore {
             handoff_to_human: Set(ex.handoff_to_human),
             created_at: Set(now),
         };
-        zero_claw_exchange::Entity::insert(model)
+        null_claw_exchange::Entity::insert(model)
             .exec_without_returning(self.db.as_ref())
             .await?;
         Ok(())
     }
 
-    async fn list_zeroclaw_exchanges(
+    async fn list_nullclaw_exchanges(
         &self,
         limit: u64,
         offset: u64,
-    ) -> StoreResult<Vec<zero_claw_exchange::Model>> {
-        Ok(zero_claw_exchange::Entity::find()
-            .order_by_desc(zero_claw_exchange::Column::CreatedAt)
+    ) -> StoreResult<Vec<null_claw_exchange::Model>> {
+        Ok(null_claw_exchange::Entity::find()
+            .order_by_desc(null_claw_exchange::Column::CreatedAt)
             .offset(offset)
             .limit(limit)
             .all(self.db.as_ref())
@@ -785,16 +785,16 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
             .await
     }
 
-    async fn insert_zeroclaw_exchange(&self, ex: NewZeroClawExchange) -> StoreResult<()> {
-        self.inner.insert_zeroclaw_exchange(ex).await
+    async fn insert_nullclaw_exchange(&self, ex: NewNullClawExchange) -> StoreResult<()> {
+        self.inner.insert_nullclaw_exchange(ex).await
     }
 
-    async fn list_zeroclaw_exchanges(
+    async fn list_nullclaw_exchanges(
         &self,
         limit: u64,
         offset: u64,
-    ) -> StoreResult<Vec<zero_claw_exchange::Model>> {
-        self.inner.list_zeroclaw_exchanges(limit, offset).await
+    ) -> StoreResult<Vec<null_claw_exchange::Model>> {
+        self.inner.list_nullclaw_exchanges(limit, offset).await
     }
 
     async fn clear_unread(&self, channel_id: &str, side: &str) -> StoreResult<()> {

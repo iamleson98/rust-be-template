@@ -418,6 +418,12 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
             }
         }
         "answer" => {
+            // Agent accepting the call → mark as in-call so other customers
+            // see "employees are busy" + their call buttons disable.
+            if role == CallRole::Agent {
+                call_hub().set_in_call(&user.id.to_string(), true);
+                call_hub().broadcast_presence();
+            }
             if to.is_empty() {
                 return Err("Missing `to` field".into());
             }
@@ -467,6 +473,14 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
         .and_then(|v| v.as_str())
         .filter(|r| matches!(*r, "busy" | "declined" | "timeout"))
         .unwrap_or("remote");
+
+    // Agent hanging up → clear in-call status + broadcast presence so
+    // other customers see "employees available" again.
+    if role == CallRole::Agent {
+        call_hub().set_in_call(&user.id.to_string(), false);
+        call_hub().broadcast_presence();
+    }
+
     let target_id: Option<String> = match role {
         CallRole::Customer => call_hub().any_online_agent_id(),
         CallRole::Agent => {

@@ -683,7 +683,6 @@ function SearchStep({
                       <Clock className="h-3 w-3" />
                       {t.departureTime}
                     </span>
-                    <span>· {Math.floor(t.durationMin / 60)}h{t.durationMin % 60}m</span>
                     <span>· {t.availableSeats} ghế trống</span>
                   </div>
                 </div>

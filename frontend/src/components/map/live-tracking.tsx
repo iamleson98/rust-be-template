@@ -34,8 +34,6 @@ type TripDetail = {
   route: {
     id: string
     name: string
-    durationMin: number
-    distanceKm: number
     geometry: [number, number][]
   }
   brand: {

@@ -57,3 +57,5 @@ dev.log
 /osm-index/
 /data/
 /storage/
+
+/frontend/dist

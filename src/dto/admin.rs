@@ -100,7 +100,9 @@ pub struct AdminMutationResponse {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminPlacePreview {
-    pub id: Uuid,
+    /// City slug (e.g. `"ha-noi"`). NOT a UUID — matches the
+    /// `start_location_id` / `end_location_id` column type on `route`.
+    pub id: String,
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub province: Option<String>,
@@ -115,14 +117,11 @@ pub struct AdminRouteOut {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_id: Option<Uuid>,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub start_location_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub end_location_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub distance_km: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub duration_min: Option<i16>,
+    /// City slug (e.g. `"ha-noi"`). Required — every route has both a
+    /// start and an end city. Resolved to `start_location` via
+    /// `crate::cities::find_by_slug`.
+    pub start_location_id: String,
+    pub end_location_id: String,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -148,12 +147,16 @@ pub struct UpsertRouteRequest {
     #[validate(length(min = 1, max = 255))]
     pub name: Option<String>,
     pub brand_id: Option<Uuid>,
-    pub start_location_id: Option<Uuid>,
-    pub end_location_id: Option<Uuid>,
-    #[validate(range(min = 0.0, max = 50000.0))]
-    pub distance_km: Option<f64>,
-    #[validate(range(min = 0, max = 60000))]
-    pub duration_min: Option<i64>,
+    /// City slug (e.g. `"ha-noi"`). Max 20 chars — matches the DB
+    /// column `VARCHAR(20) NOT NULL`. The slug MUST be one of the
+    /// values in `crate::cities::CITIES`; we don't enforce that here
+    /// (validator doesn't have access to the static list) but the
+    /// frontend dropdown only sends known slugs. Required — a route
+    /// without start/end cities is meaningless.
+    #[validate(length(min = 1, max = 20))]
+    pub start_location_id: Option<String>,
+    #[validate(length(min = 1, max = 20))]
+    pub end_location_id: Option<String>,
     #[validate(length(max = 30))]
     pub status: Option<String>,
 }

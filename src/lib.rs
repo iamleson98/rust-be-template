@@ -12,7 +12,7 @@
 //! - `ws`: in-process WebSocket chat hub (extensible to Redis fan-out)
 //! - `audio_call`: WebRTC signaling relay (`/ws-call`)
 //! - `osm`: Tantivy place-search index (Vietnamese-aware, OSM PBF ingestion)
-//! - `zeroclaw`: pluggable AI customer-support assistant
+//! - `nullclaw`: pluggable AI customer-support assistant
 //! - `rbac`: cached role + permission checker
 //! - `auth`: password, JWT, refresh, cookies, SessionUser
 //! - `middleware`: rate limit, auth extractors, request id
@@ -23,6 +23,7 @@
 pub mod audio_call;
 pub mod auth;
 pub mod cache;
+pub mod cities;
 pub mod cli;
 pub mod config;
 pub mod dto;
@@ -42,7 +43,7 @@ pub mod store;
 pub mod validation;
 pub mod worker;
 pub mod ws;
-pub mod zeroclaw;
+pub mod nullclaw;
 
 // Re-export the Migrator from the standalone migrator crate.
 pub use migrator::Migrator;

@@ -21,9 +21,11 @@ use crate::dto::public::{
     TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
     TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
-use crate::entity::{brand, bus_layout, place, route, schedule, seat_inventory};
+use crate::entity::{brand, bus_layout, route, schedule, seat_inventory};
 use crate::error::{AppError, AppResult};
+use crate::store::PickupPointWithRoute;
 use crate::store::CompositeStore;
+use crate::service::place_service::haversine_km;
 
 // ────────────────────────────────────────────────────────────────
 //  Pure helpers
@@ -58,11 +60,15 @@ fn parse_amenities(raw: &Option<String>) -> Vec<String> {
     }
 }
 
-/// Compute full ISO departure/arrival timestamps from date + time + duration.
+/// Compute the ISO departure timestamp from date + time.
+///
+/// Returns `(Some(dep_iso), None)` — arrival is no longer computed here
+/// since the route entity no longer carries a `duration_min`. Callers
+/// that need an arrival estimate should derive it from a Valhalla
+/// directions request between the route's start/end points.
 fn compute_iso_timestamps(
     departure_date: &Option<String>,
     departure_time: &Option<String>,
-    duration_min: &Option<i64>,
 ) -> (Option<String>, Option<String>) {
     let date = match departure_date {
         Some(d) if !d.is_empty() => d.clone(),
@@ -81,84 +87,7 @@ fn compute_iso_timestamps(
         return (None, None);
     }
     let dep_iso = format!("{}T{}:00", date_only, dep_time);
-    let dep_min = match parse_hhmm_to_minutes(dep_time) {
-        Some(m) => m,
-        None => return (Some(dep_iso), None),
-    };
-    let dur = duration_min.unwrap_or(0).max(0);
-    let mut total = dep_min + dur;
-    let extra_days = total / (24 * 60);
-    total %= 24 * 60;
-    let hh = total / 60;
-    let mm = total % 60;
-    let arr_iso = if extra_days > 0 {
-        match add_days_to_ymd(&date_only, extra_days) {
-            Some(new_date) => format!("{}T{:02}:{:02}:00", new_date, hh, mm),
-            None => dep_iso.clone(),
-        }
-    } else {
-        format!("{}T{:02}:{:02}:00", date_only, hh, mm)
-    };
-    (Some(dep_iso), Some(arr_iso))
-}
-
-/// Parse "HH:MM" or "HH:MM:SS" into total minutes since midnight.
-fn parse_hhmm_to_minutes(s: &str) -> Option<i64> {
-    let parts: Vec<&str> = s.split(':').collect();
-    if parts.len() < 2 {
-        return None;
-    }
-    let h: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    if !(0..24).contains(&h) || !(0..60).contains(&m) {
-        return None;
-    }
-    Some(h * 60 + m)
-}
-
-/// Add `days` to a "YYYY-MM-DD" string.
-fn add_days_to_ymd(ymd: &str, days: i64) -> Option<String> {
-    let parts: Vec<&str> = ymd.split('-').collect();
-    if parts.len() != 3 {
-        return None;
-    }
-    let y: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    let d: i64 = parts[2].parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
-        return None;
-    }
-    let jd = ymd_to_julian(y, m, d)?;
-    let new_jd = jd + days;
-    let (ny, nm, nd) = julian_to_ymd(new_jd)?;
-    Some(format!("{:04}-{:02}-{:02}", ny, nm, nd))
-}
-
-/// Convert a proleptic-Gregorian date to a Julian day number.
-fn ymd_to_julian(y: i64, m: i64, d: i64) -> Option<i64> {
-    let a = (14 - m) / 12;
-    let y = y + 4800 - a;
-    let m = m + 12 * a - 3;
-    Some(d + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045)
-}
-
-/// Convert a Julian day number back to a proleptic-Gregorian date.
-fn julian_to_ymd(jd: i64) -> Option<(i64, i64, i64)> {
-    let jd = jd + 32044;
-    let g = jd / 146097;
-    let dg = jd % 146097;
-    let c = (dg / 36524 + 1) * 3 / 4;
-    let dc = dg - c * 36524;
-    let b = dc / 1461;
-    let db = dc % 1461;
-    let a = (db / 365 + 1) * 3 / 4;
-    let da = db - a * 365;
-    let y = 400 * g + 100 * c + 4 * b + a;
-    let m = (da * 5 + 308) / 153 - 2;
-    let d = da - (153 * m + 2) / 5 + 1;
-    let year = y - 4800 + (m + 2) / 12;
-    let month = (m + 2) % 12 + 1;
-    Some((year, month, d))
+    (Some(dep_iso), None)
 }
 
 /// Amenity key → Vietnamese label.
@@ -313,8 +242,6 @@ impl PublicService {
                     id: r.id,
                     brand_id: r.brand_id,
                     name: r.name.clone(),
-                    distance_km: r.distance_km,
-                    duration_min: r.duration_min,
                     brand: RouteBrandPreview {
                         name: brand.map(|b| b.name.clone()),
                         slug: brand.map(|b| b.slug.clone()),
@@ -472,20 +399,19 @@ impl PublicService {
             m
         };
 
-        // Fetch start/end places for routes
-        let place_uuids: Vec<Uuid> = route_map
+        // Resolve start/end location slugs to city records via the
+        // hardcoded city table (no DB round-trip). Replaces the previous
+        // batched `place_store().find_places_by_ids(place_uuids)` lookup
+        // — `route.start_location_id` is now a slug string, not a UUID
+        // FK to `place`. We collect into a HashMap so the per-trip
+        // closure can do `O(1)` lookups by slug. Both columns are NOT
+        // NULL, so we always have a slug to look up — `find_by_slug`
+        // returns `None` only if the slug doesn't match any hardcoded
+        // city (data corruption case).
+        let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
             .values()
-            .flat_map(|r| [r.start_location_id, r.end_location_id])
-            .flatten()
-            .collect();
-        let place_map: std::collections::HashMap<String, place::Model> = self
-            .store
-            .place_store()
-            .find_places_by_ids(place_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|p| (p.id.to_string(), p))
+            .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
+            .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
             .collect();
 
         // Build trip results
@@ -512,22 +438,13 @@ impl PublicService {
                     return None;
                 }
 
-                let from_place = route
-                    .start_location_id
-                    .map(|id| id.to_string())
-                    .as_deref()
-                    .and_then(|pid| place_map.get(pid));
-                let to_place = route
-                    .end_location_id
-                    .map(|id| id.to_string())
-                    .as_deref()
-                    .and_then(|pid| place_map.get(pid));
+                let from_place = place_map.get(route.start_location_id.as_str());
+                let to_place = place_map.get(route.end_location_id.as_str());
 
                 let amenities = parse_amenities(&sched.amenities);
                 let (dep_iso, arr_iso) = compute_iso_timestamps(
                     &Some(t.departure_date.clone()),
                     &Some(sched.departure_time.clone()),
-                    &route.duration_min.map(|d| d as i64),
                 );
                 let vt_label = vehicle_type_label(&vehicle_type);
 
@@ -540,8 +457,6 @@ impl PublicService {
                     total_seats: t.total_seats,
                     route_id: route.id,
                     route_name: route.name.clone(),
-                    distance_km: route.distance_km.unwrap_or(0.0),
-                    duration_min: route.duration_min.unwrap_or(0),
                     brand_id: route.brand_id,
                     brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
@@ -550,10 +465,10 @@ impl PublicService {
                     brand_accent: brand
                         .and_then(|b| b.accent_color.clone())
                         .unwrap_or_else(|| "#0d9488".into()),
-                    from_name: from_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    from_name: from_place.map(|p| p.name.to_string()).unwrap_or_default(),
                     from_lat: from_place.map(|p| p.lat).unwrap_or(0.0),
                     from_lon: from_place.map(|p| p.lon).unwrap_or(0.0),
-                    to_name: to_place.map(|p| p.name.clone()).unwrap_or_default(),
+                    to_name: to_place.map(|p| p.name.to_string()).unwrap_or_default(),
                     to_lat: to_place.map(|p| p.lat).unwrap_or(0.0),
                     to_lon: to_place.map(|p| p.lon).unwrap_or(0.0),
                     departure_time: Some(sched.departure_time.clone()),
@@ -571,6 +486,279 @@ impl PublicService {
                 })
             })
             .collect();
+
+        Ok(TripSearchResponse { items })
+    }
+
+    /// Geospatial trip search — find routes where pickup points are closest
+    /// to the user's desired pickup location AND drop points are closest to
+    /// the desired drop location.
+    ///
+    /// Uses a bounding-box SQL query to find candidate pickup_points,
+    /// then computes haversine distances in Rust + sorts by combined
+    /// distance. This avoids needing PostGIS or SQLite math functions.
+    ///
+    /// Parameters:
+    /// - `from_lat, from_lon` — desired pickup coordinates
+    /// - `to_lat, to_lon` — desired drop coordinates
+    /// - `date` — departure date "YYYY-MM-DD"
+    /// - `limit, offset` — pagination
+    /// - `min_seats` — minimum available seats (default 1)
+    /// - `vehicle_types` — filter by vehicle type (empty = all)
+    /// - `max_distance_km` — max distance from desired pickup/drop to
+    ///   nearest route stop (default 50 km). Routes with no stop within
+    ///   this radius are excluded.
+    pub async fn search_trips_geo(
+        &self,
+        from_lat: f64,
+        from_lon: f64,
+        to_lat: f64,
+        to_lon: f64,
+        date: &str,
+        limit: u64,
+        offset: u64,
+        min_seats: i64,
+        vehicle_types: Vec<String>,
+        max_distance_km: f64,
+    ) -> AppResult<TripSearchResponse> {
+        let limit = limit.clamp(1, 100);
+        let min_seats = min_seats.max(1);
+        let max_dist = max_distance_km.max(1.0);
+
+        // ── Bounding box ──────────────────────────────────────────
+        //
+        // Convert km to degrees: ~1° latitude ≈ 111 km.
+        // For longitude, divide by cos(lat) to account for Earth's curvature.
+        // We use a generous box (max_dist * 1.2) to catch edge cases.
+        let lat_delta = (max_dist / 111.0) * 1.2;
+        let lon_delta = (max_dist / (111.0 * from_lat.to_radians().cos().abs().max(0.01))) * 1.2;
+        let to_lon_delta = (max_dist / (111.0 * to_lat.to_radians().cos().abs().max(0.01))) * 1.2;
+
+        let candidates = self
+            .store
+            .route_store()
+            .find_pickup_points_in_bbox(
+                from_lat - lat_delta, from_lat + lat_delta,
+                from_lon - lon_delta, from_lon + lon_delta,
+                to_lat - lat_delta, to_lat + lat_delta,
+                to_lon - to_lon_delta, to_lon + to_lon_delta,
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if candidates.is_empty() {
+            return Ok(TripSearchResponse { items: Vec::new() });
+        }
+
+        // ── Group by route_id + find closest pickup/drop per route ──────
+        use std::collections::HashMap;
+        let mut route_map: HashMap<Uuid, Vec<&PickupPointWithRoute>> = HashMap::new();
+        for c in &candidates {
+            route_map.entry(c.route_id).or_default().push(c);
+        }
+
+        // For each route, find:
+        // - The pickup_point closest to (from_lat, from_lon)
+        // - The pickup_point closest to (to_lat, to_lon)
+        // - Check direction: pickup.stop_order < drop.stop_order
+        // - Combined distance = pickup_dist + drop_dist
+        #[derive(Clone)]
+        struct RouteMatch {
+            route_id: Uuid,
+            route_name: String,
+            brand_id: Option<Uuid>,
+            pickup_point_id: Uuid,
+            drop_point_id: Uuid,
+            pickup_distance_km: f64,
+            drop_distance_km: f64,
+            combined_distance_km: f64,
+        }
+
+        let mut matches: Vec<RouteMatch> = Vec::new();
+        for (route_id, points) in &route_map {
+            // Find closest pickup (near `from`)
+            let mut best_pickup: Option<(&PickupPointWithRoute, f64)> = None;
+            for p in points {
+                if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
+                    let dist = haversine_km(from_lat, from_lon, p_lat, p_lon);
+                    if dist <= max_dist {
+                        if best_pickup.is_none() || dist < best_pickup.unwrap().1 {
+                            best_pickup = Some((p, dist));
+                        }
+                    }
+                }
+            }
+            let pickup = match best_pickup {
+                Some((p, d)) => (p, d),
+                None => continue, // No pickup point within range
+            };
+
+            // Find closest drop (near `to`) with stop_order > pickup's stop_order
+            let mut best_drop: Option<(&PickupPointWithRoute, f64)> = None;
+            for p in points {
+                if p.stop_order <= pickup.0.stop_order {
+                    continue; // Must be AFTER the pickup in route order
+                }
+                if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
+                    let dist = haversine_km(to_lat, to_lon, p_lat, p_lon);
+                    if dist <= max_dist {
+                        if best_drop.is_none() || dist < best_drop.unwrap().1 {
+                            best_drop = Some((p, dist));
+                        }
+                    }
+                }
+            }
+            let drop = match best_drop {
+                Some((p, d)) => (p, d),
+                None => continue, // No drop point within range or in the right direction
+            };
+
+            matches.push(RouteMatch {
+                route_id: *route_id,
+                route_name: pickup.0.route_name.clone(),
+                brand_id: pickup.0.brand_id,
+                pickup_point_id: pickup.0.pickup_id,
+                drop_point_id: drop.0.pickup_id,
+                pickup_distance_km: pickup.1,
+                drop_distance_km: drop.1,
+                combined_distance_km: pickup.1 + drop.1,
+            });
+        }
+
+        if matches.is_empty() {
+            return Ok(TripSearchResponse { items: Vec::new() });
+        }
+
+        // Sort by combined distance (closest first)
+        matches.sort_by(|a, b| a.combined_distance_km.partial_cmp(&b.combined_distance_km).unwrap_or(std::cmp::Ordering::Equal));
+
+        // Paginate
+        let total = matches.len();
+        let paged: Vec<&RouteMatch> = matches.iter().skip(offset as usize).take(limit as usize).collect();
+        if paged.is_empty() {
+            return Ok(TripSearchResponse { items: Vec::new() });
+        }
+
+        // Load schedules + trips for the matched routes
+        let route_uuids: Vec<Uuid> = paged.iter().map(|m| m.route_id).collect();
+        let schedules = self
+            .store
+            .schedule_store()
+            .list_schedules_by_routes(route_uuids.clone())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if schedules.is_empty() {
+            return Ok(TripSearchResponse { items: Vec::new() });
+        }
+
+        let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
+        let trips = self
+            .store
+            .trip_store()
+            .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, 1000)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if trips.is_empty() {
+            return Ok(TripSearchResponse { items: Vec::new() });
+        }
+
+        // Build schedule lookup: schedule_id → schedule
+        let schedule_map: HashMap<Uuid, &crate::entity::schedule::Model> = schedules.iter().map(|s| (s.id, s)).collect();
+
+        // Build route match lookup: route_id → RouteMatch
+        let match_map: HashMap<Uuid, &RouteMatch> = paged.iter().map(|m| (m.route_id, *m)).collect();
+        let _ = total; // total count for potential future pagination metadata
+
+        // Build route lookup — the PickupPointWithRoute already has route_name
+        // + brand_id, so we don't need to re-fetch routes. Use the candidate data.
+        use std::collections::HashSet;
+        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> =
+            paged.iter().map(|m| (m.route_id, {
+                // Find the first candidate that matches this route
+                candidates.iter().find(|c| c.route_id == m.route_id).unwrap()
+            })).collect();
+
+        // Build brand lookup — fetch by IDs using raw SQL
+        let brand_ids: Vec<Uuid> = paged.iter().filter_map(|m| m.brand_id).collect::<HashSet<_>>().into_iter().collect();
+        let brands = if !brand_ids.is_empty() {
+            use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+            brand::Entity::find()
+                .filter(brand::Column::Id.is_in(brand_ids.clone()))
+                .all(self.store.db())
+                .await
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let brand_map: HashMap<Uuid, &brand::Model> = brands.iter().map(|b| (b.id, b)).collect();
+
+        // Build items — sorted by combined_distance_km (already sorted)
+        let mut items: Vec<TripResult> = Vec::new();
+        for trip in &trips {
+            let schedule = match schedule_map.get(&trip.schedule_id) {
+                Some(s) => *s,
+                None => continue,
+            };
+            let m = match match_map.get(&schedule.route_id) {
+                Some(m) => *m,
+                None => continue,
+            };
+            let route_info = match route_info_map.get(&schedule.route_id) {
+                Some(r) => *r,
+                None => continue,
+            };
+
+            // Vehicle type filter
+            let vehicle_type = schedule.bus_layout_id.as_deref().unwrap_or("standard");
+            if !vehicle_types.is_empty() && !vehicle_types.iter().any(|vt| vt == vehicle_type) {
+                continue;
+            }
+
+            let brand = m.brand_id.and_then(|bid| brand_map.get(&bid)).cloned();
+
+            let amenities: Vec<String> = schedule
+                .amenities
+                .as_ref()
+                .map(|a| a.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .unwrap_or_default();
+
+            items.push(TripResult {
+                trip_id: trip.id,
+                schedule_id: trip.schedule_id,
+                route_id: schedule.route_id,
+                departure_date: trip.departure_date.clone(),
+                status: trip.status.clone(),
+                available_seats: trip.available_seats,
+                total_seats: trip.total_seats,
+                route_name: route_info.route_name.clone(),
+                brand_id: brand.map(|b| b.id),
+                brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
+                brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
+                brand_logo: brand.and_then(|b| b.logo_url.clone()).unwrap_or_default().into(),
+                brand_rating: brand.and_then(|b| b.rating).unwrap_or_default(),
+                brand_accent: brand.and_then(|b| b.accent_color.clone()).unwrap_or_default(),
+                from_name: format!("{:.4}, {:.4}", from_lat, from_lon),
+                to_name: format!("{:.4}, {:.4}", to_lat, to_lon),
+                from_lat,
+                from_lon,
+                to_lat,
+                to_lon,
+                departure_time: Some(schedule.departure_time.clone()),
+                departure_at: trip.actual_departure_at.clone(),
+                arrival_at: None,
+                bus_layout_id: schedule.bus_layout_id.clone(),
+                min_price: schedule.base_price_adult,
+                max_price: schedule.base_price_adult,
+                price_adult: schedule.base_price_adult,
+                price_child: schedule.base_price_child.unwrap_or(0),
+                vehicle_type: vehicle_type.to_string(),
+                vehicle_type_label: vehicle_type.to_string(),
+                capacity: None,
+                amenities,
+            });
+        }
 
         Ok(TripSearchResponse { items })
     }
@@ -602,13 +790,20 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
 
-        // The five lookups below depend only on `route` + `schedule`
+        // The lookups below depend only on `route` + `schedule`
         // (already loaded above) — they're independent of each other.
-        // Running them concurrently with `tokio::try_join!` cuts 5
+        // Running them concurrently with `tokio::try_join!` cuts 3
         // sequential DB round-trips down to 1 (the slowest one).
+        //
+        // Note: `route.start_location_id` / `route.end_location_id`
+        // are now slug strings (NOT NULL), not UUID FKs to `place`.
+        // The slug → city resolution is synchronous (no DB hit), so
+        // we wrap it in an async block to keep the `tokio::try_join!`
+        // shape uniform with the brand + bus_layout + pickup_points
+        // futures.
         let brand_id_uid = route.brand_id;
-        let start_location_uid = route.start_location_id;
-        let end_location_uid = route.end_location_id;
+        let start_location_slug = route.start_location_id.clone();
+        let end_location_slug = route.end_location_id.clone();
         let bus_layout_uid = schedule
             .bus_layout_id
             .as_deref()
@@ -622,18 +817,10 @@ impl PublicService {
             }
         };
         let start_place_fut = async {
-            if let Some(uid) = start_location_uid {
-                self.store.place_store().find_place_by_id(uid).await
-            } else {
-                Ok(None)
-            }
+            Ok::<_, crate::store::StoreError>(crate::cities::find_by_slug(&start_location_slug))
         };
         let end_place_fut = async {
-            if let Some(uid) = end_location_uid {
-                self.store.place_store().find_place_by_id(uid).await
-            } else {
-                Ok(None)
-            }
+            Ok::<_, crate::store::StoreError>(crate::cities::find_by_slug(&end_location_slug))
         };
         let bus_layout_fut = async {
             if let Some(uid) = bus_layout_uid {
@@ -774,7 +961,6 @@ impl PublicService {
         let (dep_iso, arr_iso) = compute_iso_timestamps(
             &Some(trip.departure_date.clone()),
             &Some(schedule.departure_time.clone()),
-            &route.duration_min.map(|d| d as i64),
         );
         let vehicle_type = bus_layout
             .as_ref()
@@ -797,8 +983,6 @@ impl PublicService {
             route: TripRouteDetail {
                 id: route.id,
                 name: route.name,
-                distance_km: route.distance_km.unwrap_or(0.0),
-                duration_min: route.duration_min,
             },
             brand: TripBrandDetail {
                 id: route.brand_id.map(|id| id.to_string()),
@@ -809,14 +993,14 @@ impl PublicService {
                 accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
             from: TripEndpoint {
-                name: start_place.as_ref().map(|p| p.name.clone()),
-                lat: start_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                lon: start_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+                name: start_place.map(|c| c.name.to_string()),
+                lat: start_place.map(|c| c.lat).unwrap_or(0.0),
+                lon: start_place.map(|c| c.lon).unwrap_or(0.0),
             },
             to: TripEndpoint {
-                name: end_place.as_ref().map(|p| p.name.clone()),
-                lat: end_place.as_ref().map(|p| p.lat).unwrap_or(0.0),
-                lon: end_place.as_ref().map(|p| p.lon).unwrap_or(0.0),
+                name: end_place.map(|c| c.name.to_string()),
+                lat: end_place.map(|c| c.lat).unwrap_or(0.0),
+                lon: end_place.map(|c| c.lon).unwrap_or(0.0),
             },
             bus_layout: TripBusLayout {
                 id: schedule.bus_layout_id,
@@ -896,7 +1080,6 @@ impl PublicService {
                     let (dep_iso, arr_iso) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
                         &Some(sched.departure_time.clone()),
-                        &route.duration_min.map(|d| d as i64),
                     );
                     let vehicle_type = "standard".to_string();
                     let vt_label = vehicle_type_label(&vehicle_type);
@@ -910,8 +1093,6 @@ impl PublicService {
                         total_seats: t.total_seats,
                         route_id: route.id,
                         route_name: route.name.clone(),
-                        distance_km: route.distance_km.unwrap_or(0.0),
-                        duration_min: route.duration_min.unwrap_or(0),
                         brand_id: route.brand_id,
                         brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
@@ -1076,47 +1257,27 @@ mod tests {
     }
 
     #[test]
-    fn parse_hhmm_to_minutes_works() {
-        assert_eq!(parse_hhmm_to_minutes("00:00"), Some(0));
-        assert_eq!(parse_hhmm_to_minutes("08:30"), Some(510));
-        assert_eq!(parse_hhmm_to_minutes("23:59"), Some(1439));
-        assert_eq!(parse_hhmm_to_minutes("24:00"), None);
-        assert_eq!(parse_hhmm_to_minutes("abc"), None);
-    }
-
-    #[test]
-    fn compute_iso_timestamps_same_day() {
+    fn compute_iso_timestamps_returns_departure_only() {
+        // Arrival is no longer computed from a route-level duration —
+        // callers that need an ETA must derive it from a Valhalla
+        // directions request between the route's endpoints.
         let (dep, arr) = compute_iso_timestamps(
             &Some("2026-08-05".into()),
             &Some("08:30".into()),
-            &Some(180),
         );
         assert_eq!(dep.as_deref(), Some("2026-08-05T08:30:00"));
-        assert_eq!(arr.as_deref(), Some("2026-08-05T11:30:00"));
+        assert_eq!(arr, None);
     }
 
     #[test]
-    fn compute_iso_timestamps_crosses_midnight() {
+    fn compute_iso_timestamps_handles_missing_time() {
         let (dep, arr) = compute_iso_timestamps(
             &Some("2026-08-05".into()),
-            &Some("23:00".into()),
-            &Some(180),
+            &None,
         );
-        assert_eq!(dep.as_deref(), Some("2026-08-05T23:00:00"));
-        assert_eq!(arr.as_deref(), Some("2026-08-06T02:00:00"));
-    }
-
-    #[test]
-    fn add_days_to_ymd_handles_month_boundary() {
-        assert_eq!(add_days_to_ymd("2026-01-31", 1), Some("2026-02-01".into()));
-        assert_eq!(add_days_to_ymd("2026-12-31", 1), Some("2027-01-01".into()));
-        assert_eq!(add_days_to_ymd("2024-02-28", 1), Some("2024-02-29".into()));
-        assert_eq!(add_days_to_ymd("2026-02-28", 1), Some("2026-03-01".into()));
-    }
-
-    #[test]
-    fn add_days_to_ymd_rejects_malformed() {
-        assert_eq!(add_days_to_ymd("not-a-date", 1), None);
-        assert_eq!(add_days_to_ymd("2026-13-01", 1), None);
+        // Falls back to the time part embedded in the date string.
+        // Since "2026-08-05" has no time part, both are None.
+        assert_eq!(dep, None);
+        assert_eq!(arr, None);
     }
 }

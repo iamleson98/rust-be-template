@@ -6,7 +6,7 @@
 //! the `SessionUser` is loaded from the user store after JWT verification.
 //!
 //! This mirrors the `SessionUser` shape used by `booking-rs` so the ported
-//! WS / audio-call / zeroclaw modules can consume it unchanged.
+//! WS / audio-call / nullclaw modules can consume it unchanged.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,7 +17,7 @@ use crate::entity::user;
 ///
 /// `actor_type` is `"user"` for customers and `"employee"` for staff. The
 /// distinction matters for the chat / call hubs (only employees may register
-/// as agents) and for zeroclaw (human-fallback threshold counts online
+/// as agents) and for nullclaw (human-fallback threshold counts online
 /// employees).
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]

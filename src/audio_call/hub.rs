@@ -22,6 +22,14 @@
 //! site owner). If a second agent connects, the first is force-closed
 //! with reason `"replaced"`. Customers can register freely; they're
 //! keyed by their user id.
+//!
+//! ## In-call tracking
+//!
+//! When an agent accepts a call (`answer` kind), they're marked as
+//! `in_call=true`. The presence broadcast now includes `agentInCall`
+//! so customers can see "employees are busy" and their call buttons
+//! are disabled. When the call ends (hangup), `in_call` is cleared +
+//! a new presence update is broadcast.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
@@ -66,6 +74,11 @@ pub struct Peer {
     /// delete the hub entry of the same user's newer socket (e.g. after a
     /// mobile network switch or a multi-tab "replaced" boot).
     pub sid: u64,
+    /// Whether this peer is currently in an active audio call.
+    /// For agents: when `true`, customers see "employees are busy" +
+    /// their call buttons are disabled. Set to `true` when the agent
+    /// sends an `answer` (accepting the call), `false` on `hangup`.
+    pub in_call: bool,
 }
 
 impl Peer {
@@ -131,6 +144,13 @@ impl CallHub {
             .count()
     }
 
+    /// Whether any agent is currently in an active call.
+    pub fn is_agent_in_call(&self) -> bool {
+        self.peers
+            .iter()
+            .any(|p| p.role == CallRole::Agent && p.in_call)
+    }
+
     /// Total connections accepted since boot (for metrics).
     pub fn total_accepted(&self) -> u64 {
         self.total_accepted.load(Ordering::Relaxed)
@@ -192,6 +212,7 @@ impl CallHub {
                 tx,
                 connected_at: Instant::now(),
                 sid,
+                in_call: false,
             },
         );
 
@@ -215,6 +236,20 @@ impl CallHub {
             .map(|(_, p)| p.role)
     }
 
+    /// Mark a peer as in-call (or not). Used when an agent accepts a call
+    /// (`answer` kind → `in_call=true`) or hangs up (`hangup` → `in_call=false`).
+    ///
+    /// Returns `true` if the peer was found and updated. After updating,
+    /// the caller should broadcast presence so all customers see the new state.
+    pub fn set_in_call(&self, user_id: &str, in_call: bool) -> bool {
+        if let Some(mut p) = self.peers.get_mut(user_id) {
+            p.in_call = in_call;
+            true
+        } else {
+            false
+        }
+    }
+
     /// Send a pre-serialised JSON string to a specific peer by user id.
     /// Returns `false` if the peer isn't online or their queue is full.
     pub fn send_raw_to(&self, user_id: &str, payload: &str) -> bool {
@@ -230,11 +265,22 @@ impl CallHub {
         self.send_raw_to(user_id, &msg.to_string())
     }
 
-    /// Broadcast a presence update (`{ onlineAgents: N }`) to every
-    /// connected peer. Called whenever an agent registers/unregisters.
+    /// Broadcast a presence update to every connected peer. Called whenever
+    /// an agent registers/unregisters or their in-call status changes.
+    ///
+    /// The payload includes:
+    /// - `onlineAgents`: number of agents currently online
+    /// - `agentInCall`: whether any agent is in an active call (customers
+    ///   use this to show "employees are busy" + disable their call buttons)
     pub fn broadcast_presence(&self) {
         let n = self.online_agent_count();
-        let payload = serde_json::json!({ "type": "presence", "onlineAgents": n }).to_string();
+        let in_call = self.is_agent_in_call();
+        let payload = serde_json::json!({
+            "type": "presence",
+            "onlineAgents": n,
+            "agentInCall": in_call,
+        })
+        .to_string();
         for entry in self.peers.iter() {
             let _ = entry.value().send_raw(&payload);
         }
@@ -425,5 +471,35 @@ mod tests {
         let h = hub();
         let ok = h.send_to("does-not-exist", &serde_json::json!({ "type": "ping" }));
         assert!(!ok);
+    }
+
+    #[tokio::test]
+    async fn in_call_tracking() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let id = format!("test-incall-{}", uuid::Uuid::new_v4());
+        let (tx, _rx) = mpsc::channel::<bytes::Bytes>(8);
+        let h = hub();
+        let sid = h.next_socket_id();
+        h.register(
+            fake_user(&id, "employee"),
+            CallRole::Agent,
+            None,
+            tx,
+            sid,
+        );
+
+        // Initially not in call.
+        assert!(!h.is_agent_in_call());
+
+        // Mark as in call.
+        assert!(h.set_in_call(&id, true));
+        assert!(h.is_agent_in_call());
+
+        // Mark as not in call.
+        assert!(h.set_in_call(&id, false));
+        assert!(!h.is_agent_in_call());
+
+        // Clean up.
+        h.unregister(&id, sid);
     }
 }

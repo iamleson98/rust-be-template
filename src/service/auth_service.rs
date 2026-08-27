@@ -105,14 +105,14 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // If this is first time setup, then also create zeroclaw agent
+        // If this is first time setup, then also create nullclaw agent
         if is_first_user {
             let _ = self
                 .store
                 .user_store()
                 .create_user(
-                    "zeroclaw_agent@example.com".into(),
-                    "zeroclaw_agent".into(),
+                    "nullclaw_agent@example.com".into(),
+                    "nullclaw_agent".into(),
                     "hashed_password".into(),
                     role_name.to_string(),
                 )
@@ -287,6 +287,37 @@ impl AuthService {
             .await
             .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
         Ok(perms.role_names.iter().any(|role| role != "user"))
+    }
+
+    /// Find a user by email. Used by webhook handlers to find/create
+    /// platform users (Zalo, Messenger, Telegram, Discord).
+    pub async fn get_user_by_email(&self, email: String) -> AppResult<Option<user::Model>> {
+        self.store
+            .user_store()
+            .get_user_by_email(email)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Create a platform user — a lightweight `user` row for an external
+    /// platform user (Zalo/Messenger/Telegram/Discord). The password is
+    /// random (never used — these users are identified by webhook events,
+    /// not by password login).
+    pub async fn create_platform_user(
+        &self,
+        email: String,
+        name: String,
+    ) -> AppResult<user::Model> {
+        self.store
+            .user_store()
+            .create_user(
+                email,
+                name,
+                uuid::Uuid::new_v4().to_string(),
+                "user".into(),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
     }
 
     /// Quick DB-health ping — used by the `/health` readiness check.

@@ -1,5 +1,5 @@
-//! DTOs for the ZeroClaw AI assistant endpoints
-//! (`GET /api/zeroclaw/status`, `GET /api/zeroclaw/exchanges`).
+//! DTOs for the NullClaw AI assistant endpoints
+//! (`GET /api/nullclaw/status`, `GET /api/nullclaw/exchanges`).
 //!
 //! Replaces the previous opaque `serde_json::Value` responses — the
 //! OpenAPI spec now has real schemas and the frontend's generated client
@@ -9,20 +9,20 @@ use serde::Serialize;
 use utoipa::ToSchema;
 use uuid::Uuid;
 
-/// Response of `GET /api/zeroclaw/status`.
+/// Response of `GET /api/nullclaw/status`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ZeroclawStatusResponse {
+pub struct NullclawStatusResponse {
     pub enabled: bool,
     /// Provider name (e.g. "http" or "stub").
     pub provider: &'static str,
 }
 
-/// A single ZeroClaw exchange row — the prompt + completion pair, with
+/// A single NullClaw exchange row — the prompt + completion pair, with
 /// metadata (model used, latency, handoff flag).
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ZeroclawExchangeOut {
+pub struct NullclawExchangeOut {
     pub id: Uuid,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub channel_id: Option<String>,
@@ -42,15 +42,15 @@ pub struct ZeroclawExchangeOut {
     pub created_at: String,
 }
 
-/// Response of `GET /api/zeroclaw/exchanges`.
+/// Response of `GET /api/nullclaw/exchanges`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct ZeroclawExchangeListResponse {
-    pub items: Vec<ZeroclawExchangeOut>,
+pub struct NullclawExchangeListResponse {
+    pub items: Vec<NullclawExchangeOut>,
 }
 
-impl From<crate::entity::zero_claw_exchange::Model> for ZeroclawExchangeOut {
-    fn from(m: crate::entity::zero_claw_exchange::Model) -> Self {
+impl From<crate::entity::null_claw_exchange::Model> for NullclawExchangeOut {
+    fn from(m: crate::entity::null_claw_exchange::Model) -> Self {
         Self {
             id: m.id,
             channel_id: m.channel_id.map(|u| u.to_string()),

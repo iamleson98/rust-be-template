@@ -237,11 +237,9 @@ export function AdminBrandManagement() {
         open={routeDialog.open}
         route={routeDialog.route}
         brand={selectedBrand}
-        places={places}
         onOpenChange={(open) => setRouteDialog({ open, route: open ? routeDialog.route : null })}
         onSaved={() => {
           setRouteDialog({ open: false, route: null })
-          // useUpsertAdminRoute invalidates ['admin', 'routes'] → routesQuery refetches.
         }}
       />
       <ScheduleFormDialog

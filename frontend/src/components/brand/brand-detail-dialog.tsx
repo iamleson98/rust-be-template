@@ -21,7 +21,6 @@ import {
   Bus,
   Route as RouteIcon,
   Clock,
-  MapPin,
   MessageSquareQuote,
   Calendar,
   Navigation,
@@ -42,7 +41,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
-  formatDuration,
   formatDateTimeVN,
 } from '@/lib/types'
 import { buildSearchInput } from '@/lib/search-params'
@@ -405,14 +403,6 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                 <span className="truncate">{r.to.name}</span>
                               </div>
                               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {formatDuration(r.durationMin ?? 0)}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3" />
-                                  {Math.round(r.distanceKm ?? 0)} km
-                                </span>
                                 <span className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
                                   {r.scheduleCount} chuyến/ngày

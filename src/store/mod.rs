@@ -15,7 +15,7 @@
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{BookingStore, DbBookingStore};
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
-pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewZeroClawExchange};
+pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
 pub use self::notification::{DbNotificationStore, NotificationStore};
@@ -27,7 +27,7 @@ pub use self::rbac::UserPermissions;
 pub use self::rbac::{CacheRbacStore, DbRbacStore, RbacStore};
 pub use self::refresh_tokens::{CacheRefreshTokenStore, DbRefreshTokenStore, RefreshTokenStore};
 pub use self::review::{DbReviewStore, ReviewStore};
-pub use self::route::{DbRouteStore, RouteStore};
+pub use self::route::{DbRouteStore, PickupPointWithRoute, RouteStore};
 pub use self::schedule::{DbScheduleStore, ScheduleStore};
 pub use self::trip::{DbTripStore, TripStore};
 pub use self::users::{CacheUserStore, DbUserStore, UserStore};

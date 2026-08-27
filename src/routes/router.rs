@@ -94,7 +94,8 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/admin/payments", crate::routes::payments::admin_router())
         .nest("/admin/system", crate::routes::system::router())
         .nest("/vitals", crate::routes::vitals::router())
-        .nest("/zeroclaw", crate::routes::zeroclaw::router())
+        .nest("/nullclaw", crate::routes::nullclaw::router())
+        .nest("/webhooks", crate::routes::webhooks::router())
         .layer(governor_layer);
 
     // ---- Static files (NO rate limit, browser-cache headers) -----------

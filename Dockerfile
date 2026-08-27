@@ -23,16 +23,31 @@ FROM oven/bun:1.2-alpine AS frontend-builder
 
 WORKDIR /frontend
 
+# Build-time ARGs for SEO/analytics — passed to Vite via ENV.
+# VITE_GA4_ID: Google Analytics 4 Measurement ID (e.g. G-XXXXXXXXXX)
+# VITE_GSC_VERIFICATION: Google Search Console verification token
+ARG VITE_GA4_ID=""
+ARG VITE_GSC_VERIFICATION=""
+ENV VITE_GA4_ID=$VITE_GA4_ID
+ENV VITE_GSC_VERIFICATION=$VITE_GSC_VERIFICATION
+
 # Copy lockfile first for layer caching
 COPY frontend/package.json frontend/bun.lock* ./
 RUN bun install --frozen-lockfile || bun install
 
-# Copy source + build
+# Copy source
 COPY frontend/ ./
-RUN bun run build:client
 
-# Generate PWA icons if sharp is installed (no-op fallback otherwise).
+# Generate PWA icons BEFORE the build so they're included in dist/.
+# The script writes to public/icons/ → Vite copies public/ → dist/
+# during build. Previously this ran AFTER build, so icons never
+# reached dist/.
 RUN bun run scripts/gen-icons.mjs 2>/dev/null || true
+
+# Run the FULL build: build:client (Vite) + build:prerender (SEO).
+# Previously only build:client ran, so index.html was NOT prerendered
+# — GA4/GSC tags stayed as HTML comments.
+RUN bun run build
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: cargo-chef planner
@@ -55,7 +70,7 @@ ARG BACKEND_FEATURES=sqlite
 
 # Install build deps. pkg-config + libssl-dev for openssl/rustls.
 # ca-certificates for cargo to fetch crates. curl for healthchecks.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-removes \
     pkg-config libssl-dev ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -78,11 +93,12 @@ FROM debian:bookworm-slim AS runtime
 # Install runtime deps:
 # - libssl3: for TLS (reqwest, rustls)
 # - ca-certificates: for HTTPS cert validation
-# - libsqlite3-0: for SQLite backend (no-op if using Postgres)
 # - curl: for healthcheck
 # - tini: PID 1 init (proper signal handling)
+# NOTE: libsqlite3-0 is only needed for SQLite backend.
+# For Postgres deployments, it's harmless (~1MB) but unnecessary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates libsqlite3-0 curl tini \
+    libssl3 ca-certificates curl tini \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -u 1000 app
 
@@ -110,5 +126,11 @@ USER app
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/backend", "serve"]
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+# start-period=60s gives the backend time to:
+# 1. Open the Postgres pool (may need retries if DB isn't ready yet)
+# 2. Run all 23 migrations
+# 3. Start the Axum server
+# On a 2GB Kamatera VM this can exceed 15s, causing Swarm to mark
+# the task unhealthy and restart-loop it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD curl -sf http://localhost:8080/health || exit 1

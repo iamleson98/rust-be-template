@@ -104,7 +104,7 @@ your shell before running `run.sh`.
 
 #### 01-smoke.js
 1 VU, 1 iteration. Hits `/health`, `/ready`, `/api/stats`, `/api/brands`,
-`/api/zeroclaw/status`. No auth. Use this to verify the server is
+`/api/nullclaw/status`. No auth. Use this to verify the server is
 alive before running the heavier scenarios.
 
 #### 02-auth.js

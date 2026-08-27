@@ -87,4 +87,88 @@ describe('createAuthFetch', () => {
     // 5 calls: 2 originals + 1 refresh + 2 retries
     expect(mockFetch).toHaveBeenCalledTimes(5)
   })
+
+  // ── Header preservation regression tests ───────────────────────
+  //
+  // The openapi-ts generated client (`@hey-api/client-fetch`) sometimes
+  // passes a `Request` object as `input` with `init = undefined` (the
+  // path used after `beforeRequest` builds a `new Request(url, requestInit)`).
+  // Earlier versions of `injectAcceptLanguage` constructed a fresh
+  // `Headers` from `init?.headers` only — which silently dropped
+  // `Content-Type: application/json` from the input `Request`, causing
+  // axum's `Json<T>` extractor to return **415 Unsupported Media Type**
+  // on every POST/PUT/PATCH in the app.
+  //
+  // These tests lock the current behavior: whatever headers the input
+  // `Request` already has must survive the `Accept-Language` injection.
+
+  it('preserves Content-Type when input is a Request and init is undefined', async () => {
+    mockFetch.mockResolvedValue(new Response('ok', { status: 200 }))
+    const authFetch = createAuthFetch(mockFetch as any)
+
+    // Mirrors what the SDK sends for a POST with a JSON body:
+    //   new Request(url, { method, headers: { 'Content-Type': 'application/json' }, body })
+    const request = new Request('https://example.com/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"tripId":"abc"}',
+    })
+    await authFetch(request)
+
+    const sent = mockFetch.mock.calls[0][0] as Request
+    expect(sent.headers.get('content-type')).toBe('application/json')
+    // Accept-Language is always injected (defaults to vi-VN when no
+    // bus_lang cookie / localStorage is set).
+    expect(sent.headers.get('accept-language')).toMatch(/vi-VN|en-US/)
+  })
+
+  it('does not overwrite an explicitly set Accept-Language', async () => {
+    mockFetch.mockResolvedValue(new Response('ok', { status: 200 }))
+    const authFetch = createAuthFetch(mockFetch as any)
+
+    const request = new Request('https://example.com/api/bookings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Language': 'zh-CN,zh;q=0.9',
+      },
+      body: '{"x":1}',
+    })
+    await authFetch(request)
+
+    const sent = mockFetch.mock.calls[0][0] as Request
+    expect(sent.headers.get('content-type')).toBe('application/json')
+    expect(sent.headers.get('accept-language')).toBe('zh-CN,zh;q=0.9')
+  })
+
+  it('preserves Content-Type + body through the 401 retry path', async () => {
+    // First call: 401. Refresh: 200. Retry: 200.
+    // The retried request must STILL carry Content-Type + the original
+    // body bytes — otherwise the retried POST would also 415.
+    mockFetch
+      .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
+      .mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 })) // refresh
+      .mockResolvedValueOnce(new Response('created', { status: 201 })) // retry
+
+    const authFetch = createAuthFetch(mockFetch as any)
+
+    const request = new Request('https://example.com/api/bookings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"tripId":"abc"}',
+    })
+    const response = await authFetch(request)
+    expect(response.status).toBe(201)
+
+    // Original attempt
+    const firstSent = mockFetch.mock.calls[0][0] as Request
+    expect(firstSent.headers.get('content-type')).toBe('application/json')
+    expect(await firstSent.clone().text()).toBe('{"tripId":"abc"}')
+
+    // Retried attempt — must have the same Content-Type + body
+    const retrySent = mockFetch.mock.calls[2][0] as Request
+    expect(retrySent.headers.get('content-type')).toBe('application/json')
+    expect(retrySent.headers.get('accept-language')).toMatch(/vi-VN|en-US/)
+    expect(await retrySent.clone().text()).toBe('{"tripId":"abc"}')
+  })
 })

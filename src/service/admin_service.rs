@@ -261,58 +261,40 @@ impl AdminService {
             .await
             .unwrap_or_default();
 
-        // Batched place lookups — replaces the N+1 of per-route
-        // find_place_by_id(start) + find_place_by_id(end).
-        let mut place_ids: Vec<Uuid> = Vec::new();
-        for r in &routes {
-            if let Some(id) = r.start_location_id {
-                place_ids.push(id);
-            }
-            if let Some(id) = r.end_location_id {
-                place_ids.push(id);
-            }
-        }
-        place_ids.dedup();
-        let places = self
-            .store
-            .place_store()
-            .find_places_by_ids(place_ids)
-            .await
-            .unwrap_or_default();
-        let place_map: std::collections::HashMap<Uuid, _> =
-            places.into_iter().map(|p| (p.id, p)).collect();
-
+        // Resolve start/end location slugs to city previews via the
+        // hardcoded city table (no DB round-trip). Replaces the previous
+        // batched `place_store().find_places_by_ids(place_uuids)` lookup
+        // — `route.start_location_id` is now a slug string, not a UUID
+        // FK to `place`. Both columns are NOT NULL, so we always have
+        // a slug — `find_by_slug` returns `None` only if the slug
+        // doesn't match any hardcoded city (data corruption case).
         let mut items = Vec::with_capacity(routes.len());
         for r in &routes {
             let route_id_str = r.id.to_string();
             let schedule_count = *schedule_count_map.get(&route_id_str).unwrap_or(&0);
             let pickup_count = *pickup_count_map.get(&route_id_str).unwrap_or(&0);
 
-            let start_place = r
-                .start_location_id
-                .and_then(|uid| place_map.get(&uid))
-                .map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name.clone(),
-                    province: p.province.clone(),
-                });
-            let end_place = r
-                .end_location_id
-                .and_then(|uid| place_map.get(&uid))
-                .map(|p| AdminPlacePreview {
-                    id: p.id,
-                    name: p.name.clone(),
-                    province: p.province.clone(),
-                });
+            let start_place = crate::cities::find_by_slug(&r.start_location_id).map(|c| {
+                AdminPlacePreview {
+                    id: c.slug.to_string(),
+                    name: c.name.to_string(),
+                    province: Some(c.name.to_string()),
+                }
+            });
+            let end_place = crate::cities::find_by_slug(&r.end_location_id).map(|c| {
+                AdminPlacePreview {
+                    id: c.slug.to_string(),
+                    name: c.name.to_string(),
+                    province: Some(c.name.to_string()),
+                }
+            });
 
             items.push(AdminRouteOut {
                 id: r.id,
                 brand_id: r.brand_id,
                 name: r.name.clone(),
-                start_location_id: r.start_location_id,
-                end_location_id: r.end_location_id,
-                distance_km: r.distance_km,
-                duration_min: r.duration_min,
+                start_location_id: r.start_location_id.clone(),
+                end_location_id: r.end_location_id.clone(),
                 status: r.status.clone(),
                 created_at: r.created_at.clone(),
                 updated_at: r.updated_at.clone(),
@@ -338,8 +320,21 @@ impl AdminService {
             .ok_or_else(|| AppError::BadRequest("name is required".into()))?
             .to_string();
         let brand_id = body.brand_id;
-        let start_location_id = body.start_location_id;
-        let end_location_id = body.end_location_id;
+        // Both location slugs are required — the DB columns are NOT NULL.
+        let start_location_id = body
+            .start_location_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("start_location_id is required".into()))?
+            .to_string();
+        let end_location_id = body
+            .end_location_id
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("end_location_id is required".into()))?
+            .to_string();
 
         let id = Uuid::new_v4();
         let now = now_iso();
@@ -349,8 +344,6 @@ impl AdminService {
             name: Set(name),
             start_location_id: Set(start_location_id),
             end_location_id: Set(end_location_id),
-            distance_km: Set(body.distance_km),
-            duration_min: Set(body.duration_min.map(|n| n as i16)),
             status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
             created_at: Set(now.clone()),
             updated_at: Set(now),
@@ -387,17 +380,25 @@ impl AdminService {
         if let Some(v) = body.brand_id {
             active.brand_id = Set(Some(v));
         }
-        if let Some(v) = body.start_location_id {
-            active.start_location_id = Set(Some(v));
+        // Allow callers to update just one side — but if the field is
+        // present, it must be non-empty (DB column is NOT NULL).
+        if let Some(ref v) = body.start_location_id {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "start_location_id cannot be empty".into(),
+                ));
+            }
+            active.start_location_id = Set(trimmed.to_string());
         }
-        if let Some(v) = body.end_location_id {
-            active.end_location_id = Set(Some(v));
-        }
-        if let Some(v) = body.distance_km {
-            active.distance_km = Set(Some(v));
-        }
-        if let Some(v) = body.duration_min {
-            active.duration_min = Set(Some(v as i16));
+        if let Some(ref v) = body.end_location_id {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::BadRequest(
+                    "end_location_id cannot be empty".into(),
+                ));
+            }
+            active.end_location_id = Set(trimmed.to_string());
         }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());

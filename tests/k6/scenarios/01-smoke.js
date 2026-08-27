@@ -57,10 +57,10 @@ export default function () {
     'brands 200': (r) => r.status === 200,
   });
 
-  // ZeroClaw status — no auth, instant.
-  const zc = http.get(`${BASE_URL}/api/zeroclaw/status`, { headers: commonHeaders });
+  // NullClaw status — no auth, instant.
+  const zc = http.get(`${BASE_URL}/api/nullclaw/status`, { headers: commonHeaders });
   check(zc, {
-    'zeroclaw status 200': (r) => r.status === 200,
+    'nullclaw status 200': (r) => r.status === 200,
   });
 
   sleep(0.5);

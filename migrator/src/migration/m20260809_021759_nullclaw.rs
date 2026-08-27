@@ -6,7 +6,7 @@ use crate::migration::m20260809_021323_chat::{ChatChannel, ChatMessage};
 pub struct Migration;
 
 #[derive(DeriveIden)]
-pub enum ZeroClawExchange {
+pub enum NullClawExchange {
     Table,
     Id,
     ChannelId,
@@ -26,40 +26,40 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(ZeroClawExchange::Table)
+                    .table(NullClawExchange::Table)
                     .if_not_exists()
-                    .col(pk_uuid(ZeroClawExchange::Id))
-                    .col(uuid_null(ZeroClawExchange::ChannelId))
-                    .col(uuid_null(ZeroClawExchange::UserMessageId))
-                    .col(uuid_null(ZeroClawExchange::AssistantMessageId))
-                    .col(text_null(ZeroClawExchange::Prompt))
-                    .col(text_null(ZeroClawExchange::Completion))
-                    .col(string_len_null(ZeroClawExchange::Model, 50))
-                    .col(big_integer_null(ZeroClawExchange::LatencyMs))
-                    .col(boolean(ZeroClawExchange::HandoffToHuman).default(false))
-                    .col(text(ZeroClawExchange::CreatedAt))
+                    .col(pk_uuid(NullClawExchange::Id))
+                    .col(uuid_null(NullClawExchange::ChannelId))
+                    .col(uuid_null(NullClawExchange::UserMessageId))
+                    .col(uuid_null(NullClawExchange::AssistantMessageId))
+                    .col(text_null(NullClawExchange::Prompt))
+                    .col(text_null(NullClawExchange::Completion))
+                    .col(string_len_null(NullClawExchange::Model, 50))
+                    .col(big_integer_null(NullClawExchange::LatencyMs))
+                    .col(boolean(NullClawExchange::HandoffToHuman).default(false))
+                    .col(text(NullClawExchange::CreatedAt))
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_zeroclaw_channel")
-                            .from(ZeroClawExchange::Table, ZeroClawExchange::ChannelId)
+                            .name("fk_nullclaw_channel")
+                            .from(NullClawExchange::Table, NullClawExchange::ChannelId)
                             .to(ChatChannel::Table, ChatChannel::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_zeroclaw_user_msg")
-                            .from(ZeroClawExchange::Table, ZeroClawExchange::UserMessageId)
+                            .name("fk_nullclaw_user_msg")
+                            .from(NullClawExchange::Table, NullClawExchange::UserMessageId)
                             .to(ChatMessage::Table, ChatMessage::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk_zeroclaw_assistant_msg")
+                            .name("fk_nullclaw_assistant_msg")
                             .from(
-                                ZeroClawExchange::Table,
-                                ZeroClawExchange::AssistantMessageId,
+                                NullClawExchange::Table,
+                                NullClawExchange::AssistantMessageId,
                             )
                             .to(ChatMessage::Table, ChatMessage::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -73,9 +73,9 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .if_not_exists()
-                    .name("ZeroClawExchange_channel_idx")
-                    .table(ZeroClawExchange::Table)
-                    .col(ZeroClawExchange::ChannelId)
+                    .name("NullClawExchange_channel_idx")
+                    .table(NullClawExchange::Table)
+                    .col(NullClawExchange::ChannelId)
                     .to_owned(),
             )
             .await?;
@@ -87,7 +87,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_table(
                 Table::drop()
-                    .table(ZeroClawExchange::Table)
+                    .table(NullClawExchange::Table)
                     .cascade()
                     .to_owned(),
             )

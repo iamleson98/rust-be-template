@@ -6,13 +6,11 @@ import { useRecommendations, type RecommendationItem } from '@/lib/queries'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/empty-states'
-import { formatDuration } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import {
   Sparkles,
   ArrowRight,
   Bus,
-  Clock,
   TrendingUp,
   Heart,
   History,
@@ -211,10 +209,6 @@ export function Recommendations() {
 
                       {/* Meta */}
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDuration(rec.durationMin)}
-                        </span>
                         <span className="font-medium text-blue-700">{rec.departureTime}</span>
                       </div>
 

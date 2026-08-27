@@ -122,9 +122,9 @@ use utoipa::OpenApi;
         crate::routes::admin::bookings::update_status,
         crate::routes::admin::bookings::stats,
         crate::routes::admin::bookings::export,
-        // zeroclaw
-        crate::routes::zeroclaw::status,
-        crate::routes::zeroclaw::list_exchanges,
+        // nullclaw
+        crate::routes::nullclaw::status,
+        crate::routes::nullclaw::list_exchanges,
         // system monitoring
         crate::routes::system::system_status,
         crate::routes::system::chat_stats,
@@ -305,7 +305,7 @@ use utoipa::OpenApi;
         (name = "public", description = "Public catalog (brands, routes, trips, campaigns)"),
         (name = "routing", description = "Routing & directions (Valhalla proxy)"),
         (name = "admin", description = "Admin CRUD + moderation (requires employee role)"),
-        (name = "zeroclaw", description = "ZeroClaw AI provider"),
+        (name = "nullclaw", description = "NullClaw AI provider"),
     )
 )]
 pub struct ApiDoc;
