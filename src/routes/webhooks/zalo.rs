@@ -17,7 +17,7 @@
 
 use axum::extract::State;
 use axum::Json;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 use tracing;
 
 use crate::error::AppError;

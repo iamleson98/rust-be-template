@@ -26,7 +26,6 @@ mod m20260818_000002_seed_payment_perms;
 mod m20260820_000001_user_oauth;
 mod m20260824_000001_chat_channel_member_and_bot;
 mod m20260826_000001_audit_indexes;
-mod m20260827_000001_route_location_slug;
 
 pub struct Migrator;
 
@@ -56,7 +55,6 @@ impl MigratorTrait for Migrator {
             Box::new(m20260820_000001_user_oauth::Migration),
             Box::new(m20260824_000001_chat_channel_member_and_bot::Migration),
             Box::new(m20260826_000001_audit_indexes::Migration),
-            Box::new(m20260827_000001_route_location_slug::Migration),
         ]
     }
 }

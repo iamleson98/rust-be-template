@@ -14,8 +14,6 @@
 //! 5. Returns the AI reply (if any) so the platform handler can send
 //!    it back to the user via the platform's REST API.
 
-use uuid::Uuid;
-
 use crate::auth::SessionUser;
 use crate::error::{AppError, AppResult};
 use crate::state::AppState;
