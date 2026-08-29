@@ -31,22 +31,6 @@ pub enum Relation {
     Brand,
     #[sea_orm(has_many = "super::pickup_point::Entity")]
     PickupPoint,
-    #[sea_orm(
-        belongs_to = "super::place::Entity",
-        from = "Column::EndLocationId",
-        to = "super::place::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Restrict"
-    )]
-    Place2,
-    #[sea_orm(
-        belongs_to = "super::place::Entity",
-        from = "Column::StartLocationId",
-        to = "super::place::Column::Id",
-        on_update = "Cascade",
-        on_delete = "Restrict"
-    )]
-    Place1,
     #[sea_orm(has_many = "super::price_alert::Entity")]
     PriceAlert,
     #[sea_orm(has_many = "super::review::Entity")]

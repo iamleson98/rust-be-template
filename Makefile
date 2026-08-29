@@ -32,9 +32,15 @@ migrate-reset: install-sea-orm-cli
 
 ## --- Entity Generation ---
 
-# Install sea-orm-cli with specific version if version does not match
+# Smart guard: Check if sea-orm-cli exists AND matches the specific version. 
+# If not, install it.
 install-sea-orm-cli:
-	@sea-orm-cli --version 2>NUL | findstr "$(SEA_ORM_VERSION)" >NUL && echo sea-orm-cli $(SEA_ORM_VERSION) is ready. || cargo install sea-orm-cli --version $(SEA_ORM_VERSION) --force
+	@if ! command -v $(SEA_ORM_CLI) > /dev/null || ! $(SEA_ORM_CLI) --version | grep -q "$(SEA_ORM_VERSION)"; then \
+		echo "sea-orm-cli v$(SEA_ORM_VERSION) is missing or incorrect version. Installing..."; \
+		cargo install sea-orm-cli --version $(SEA_ORM_VERSION) --force; \
+	else \
+		echo "sea-orm-cli v$(SEA_ORM_VERSION) is ready."; \
+	fi
 
 # Generate entities from the database into src/entity
 # NOTE: This overwrites mod.rs — if you have extra entity files not yet in the DB,
