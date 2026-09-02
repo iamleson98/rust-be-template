@@ -258,7 +258,7 @@ export function AdminPaymentsPanel() {
             Lọc:
           </div>
           <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(0) }}>
-            <SelectTrigger className="w-[180px] h-8 text-xs">
+            <SelectTrigger className="w-45 h-8 text-xs">
               <SelectValue placeholder="Trạng thái" />
             </SelectTrigger>
             <SelectContent>
@@ -270,7 +270,7 @@ export function AdminPaymentsPanel() {
             </SelectContent>
           </Select>
           <Select value={providerFilter} onValueChange={(v) => { setProviderFilter(v); setPage(0) }}>
-            <SelectTrigger className="w-[160px] h-8 text-xs">
+            <SelectTrigger className="w-40 h-8 text-xs">
               <SelectValue placeholder="Phương thức" />
             </SelectTrigger>
             <SelectContent>
