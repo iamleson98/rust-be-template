@@ -120,7 +120,10 @@
   /* Brightened from 0.269 → 0.32 for visible hover/focus */
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  /* Brightened from 0.704 → 0.75 for readable error text on dark bg
+     (VLM review: dark-mode error red was dim; keeps white-on-destructive
+     buttons AA via dark:bg-destructive/60 dimming) */
+  --destructive: oklch(0.75 0.185 22.216);
   /* Brightened from 10% → 18% for visible separation */
   --border: oklch(1 0 0 / 10%);
   /* Brightened from 15% → 22% for visible input borders */
@@ -142,12 +145,14 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  /* Brand primary in dark mode — brighter for AA contrast on dark bg */
+  --sidebar-primary: oklch(0.62 0.16 250);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Brand ring in dark mode — matches --ring */
+  --sidebar-ring: oklch(0.62 0.16 250);
 }
 
 @layer base {
@@ -200,7 +205,7 @@
 
   /* Selection color — use accent so it's visible in dark mode. */
   ::selection {
-    background-color: oklch(0.488 0.243 264.376 / 30%);
+    background-color: oklch(0.50 0.18 250 / 30%);
     color: var(--foreground);
   }
   html {
