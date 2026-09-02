@@ -34,7 +34,7 @@ import {
 import { Plus, MapPin, Loader2, Crosshair } from 'lucide-react'
 import { toast } from 'sonner'
 import { LeafletMap, type PickedPlace } from '@/components/map/leaflet-map'
-import { reverse as sdkReverse, create2 as createPickupPoint } from '@/lib/api/sdk.gen'
+import { reverse as sdkReverse, create3 as createPickupPoint } from '@/lib/api/sdk.gen'
 import type { PlaceSearchHit } from '@/lib/api/types.gen'
 
 type Props = {

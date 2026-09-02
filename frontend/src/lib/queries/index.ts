@@ -46,64 +46,71 @@ import {
   // campaigns
   campaignsOptions,
   validateCampaignOptions,
-  // places (list10 = /api/places, search = /api/places/search)
+  // places (list11 = /api/places, search = /api/places/search)
   searchOptions as placeSearchOptions,
-  list10Options as placeListOptions,
-  // reviews (list12 = /api/reviews, tags = /api/reviews/tags)
-  list12Options as reviewsListOptions,
-  list12QueryKey as reviewsListQueryKey,
+  list11Options as placeListOptions,
+  // reviews (list13 = /api/reviews, tags = /api/reviews/tags)
+  list13Options as reviewsListOptions,
+  list13QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
-  update5Mutation as reviewUpdateMutation,
-  create6Mutation as reviewCreateMutation,
-  // bookings
-  listOptions as bookingsListOptions,
+  update6Mutation as reviewUpdateMutation,
+  create7Mutation as reviewCreateMutation,
+  // bookings (list9 = GET /api/bookings — the user's own bookings)
+  list9Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
   lookupOptions as bookingLookupOptions,
   holdMutation,
   confirmMutation,
   cancelMutation,
-  // price alerts (list11 = /api/price-alerts, create5 = POST /api/price-alerts)
-  list11Options as priceAlertsListOptions,
-  list11QueryKey as priceAlertsListQueryKey,
-  create5Mutation as priceAlertCreateMutation,
+  // price alerts (list12 = /api/price-alerts, create6 = POST /api/price-alerts)
+  list12Options as priceAlertsListOptions,
+  list12QueryKey as priceAlertsListQueryKey,
+  create6Mutation as priceAlertCreateMutation,
   removeMutation as priceAlertRemoveMutation,
-  // notifications
-  list9Options as notificationsListOptions,
-  list9QueryKey as notificationsListQueryKey,
+  // notifications (list10 = /api/notifications)
+  list10Options as notificationsListOptions,
+  list10QueryKey as notificationsListQueryKey,
   markRead2Mutation as notificationsMarkReadMutation,
-  // wishlist (list13 = /api/wishlist)
-  list13Options as wishlistListOptions,
-  list13QueryKey as wishlistListQueryKey,
+  // wishlist (list14 = /api/wishlist)
+  list14Options as wishlistListOptions,
+  list14QueryKey as wishlistListQueryKey,
   toggleMutation as wishlistToggleMutation,
   remove3Mutation as wishlistRemoveMutation,
   // stats (stats2 = /api/stats — public, stats = /api/admin/bookings/stats)
   stats2Options,
-  // admin — brands
-  list2Options as adminBrandsListOptions,
-  list2QueryKey as adminBrandsListQueryKey,
-  createMutation as createBrandMutation,
-  deleteMutation as deleteBrandMutation,
-  // admin — routes
-  list6Options as adminRoutesListOptions,
-  list6QueryKey as adminRoutesListQueryKey,
-  create3Mutation as createRouteMutation,
-  delete4Mutation as deleteRouteMutation,
-  // admin — schedules
-  list7Options as adminSchedulesListOptions,
-  create4Mutation as createScheduleMutation,
-  delete5Mutation as deleteScheduleMutation,
-  // admin — pickup points
-  list4Options as adminPickupPointsListOptions,
-  create2Mutation as createPickupPointMutation,
-  delete2Mutation as deletePickupPointMutation,
-  // admin — bus layouts
-  list3Options as adminBusLayoutsListOptions,
-  // admin — reviews
-  list5Options as adminReviewsListOptions,
-  list5QueryKey as adminReviewsListQueryKey,
+  // admin — brands (list3/create2/delete2/update2)
+  list3Options as adminBrandsListOptions,
+  list3QueryKey as adminBrandsListQueryKey,
+  create2Mutation as createBrandMutation,
+  delete2Mutation as deleteBrandMutation,
+  // admin — routes (list7/create4/delete5/update4)
+  list7Options as adminRoutesListOptions,
+  list7QueryKey as adminRoutesListQueryKey,
+  create4Mutation as createRouteMutation,
+  delete5Mutation as deleteRouteMutation,
+  // admin — schedules (list8/create5/delete6/update5)
+  list8Options as adminSchedulesListOptions,
+  list8QueryKey as adminSchedulesListQueryKey,
+  create5Mutation as createScheduleMutation,
+  delete6Mutation as deleteScheduleMutation,
+  // admin — pickup points (list5/create3/delete3)
+  list5Options as adminPickupPointsListOptions,
+  create3Mutation as createPickupPointMutation,
+  delete3Mutation as deletePickupPointMutation,
+  // admin — bus layouts (list4)
+  list4Options as adminBusLayoutsListOptions,
+  // admin — reviews (list6)
+  list6Options as adminReviewsListOptions,
+  list6QueryKey as adminReviewsListQueryKey,
   moderateMutation,
-  // admin — bookings
-  listOptions as adminBookingsListOptions,
+  // admin — addresses (list/create/delete_/update — unnumbered, first alphabetically)
+  listOptions as adminAddressesListOptions,
+  listQueryKey as adminAddressesListQueryKey,
+  createMutation as createAddressMutation,
+  updateMutation as updateAddressMutation,
+  deleteMutation as deleteAddressMutation,
+  // admin — bookings (list2)
+  list2Options as adminBookingsListOptions,
   getOptions as adminGetBookingOptions,
   statsOptions as adminBookingStatsOptions,
   exportOptions as adminBookingExportOptions,
@@ -1082,6 +1089,60 @@ export function useDeleteAdminRoute() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Admin — Addresses (brand-owned points for schedule sequences)
+// ─────────────────────────────────────────────────────────────
+
+/** List a brand's addresses — options for the schedule point selects. */
+export function useAdminAddresses(brandId?: string) {
+  return useQuery({
+    ...adminAddressesListOptions({ query: { brandId } }),
+    enabled: !!brandId,
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Create an address (usually from the map picker modal inside the
+ * schedule form). Returns the created id so the caller can immediately
+ * select it in the point select.
+ */
+export function useCreateAdminAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...createAddressMutation(),
+    onSuccess: (_data, vars: any) => {
+      // Invalidate the whole admin-addresses key family — the brandId
+      // filter may differ between consumers.
+      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
+      void vars;
+    },
+  });
+}
+
+export function useUpdateAdminAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...updateAddressMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
+    },
+  });
+}
+
+export function useDeleteAdminAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...deleteAddressMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Admin — Schedules
 // ─────────────────────────────────────────────────────────────
 
@@ -1097,7 +1158,12 @@ export function useUpsertAdminSchedule() {
   const qc = useQueryClient();
   return useMutation({
     ...createScheduleMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "schedules"] }),
+    onSuccess: () => {
+      // Invalidate the GENERATED key (["list8", {...}]) — the previous
+      // literal ["admin", "schedules"] never matched it, so schedule
+      // lists did not refresh after create/update.
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+    },
   });
 }
 
@@ -1105,7 +1171,9 @@ export function useDeleteAdminSchedule() {
   const qc = useQueryClient();
   return useMutation({
     ...deleteScheduleMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "schedules"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+    },
   });
 }
 

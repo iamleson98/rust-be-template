@@ -14,7 +14,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "openapi": "openapi-ts"
+    "openapi": "openapi-ts",
+    "test:e2e:admin": "playwright test -c playwright.admin.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

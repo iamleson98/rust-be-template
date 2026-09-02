@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Responses, List11Data, List11Errors, List11Responses, List12Data, List12Responses, List13Data, List13Errors, List13Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
+import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, Create7Data, Create7Errors, Create7Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, Delete6Data, Delete6Errors, Delete6Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Errors, List10Responses, List11Data, List11Responses, List12Data, List12Errors, List12Responses, List13Data, List13Responses, List14Data, List14Errors, List14Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, Update6Data, Update6Errors, Update6Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,9 +19,43 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
+ * `GET /api/admin/addresses?brandId=` — list a brand's addresses.
+ */
+export const list = <ThrowOnError extends boolean = false>(options?: Options<ListData, ThrowOnError>): RequestResult<ListResponses, ListErrors, ThrowOnError> => (options?.client ?? client).get<ListResponses, ListErrors, ThrowOnError>({ url: '/api/admin/addresses', ...options });
+
+/**
+ * `POST /api/admin/addresses` — create an address.
+ */
+export const create = <ThrowOnError extends boolean = false>(options: Options<CreateData, ThrowOnError>): RequestResult<CreateResponses, CreateErrors, ThrowOnError> => (options.client ?? client).post<CreateResponses, CreateErrors, ThrowOnError>({
+    url: '/api/admin/addresses',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * `DELETE /api/admin/addresses/{id}` — delete an address.
+ */
+export const delete_ = <ThrowOnError extends boolean = false>(options: Options<DeleteData, ThrowOnError>): RequestResult<DeleteResponses, DeleteErrors, ThrowOnError> => (options.client ?? client).delete<DeleteResponses, DeleteErrors, ThrowOnError>({ url: '/api/admin/addresses/{id}', ...options });
+
+/**
+ * `PUT /api/admin/addresses/{id}` — update an address.
+ */
+export const update = <ThrowOnError extends boolean = false>(options: Options<UpdateData, ThrowOnError>): RequestResult<UpdateResponses, UpdateErrors, ThrowOnError> => (options.client ?? client).put<UpdateResponses, UpdateErrors, ThrowOnError>({
+    url: '/api/admin/addresses/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * `GET /api/admin/bookings` — list bookings with admin filters.
  */
-export const list = <ThrowOnError extends boolean = false>(options?: Options<ListData, ThrowOnError>): RequestResult<ListResponses, ListErrors, ThrowOnError> => (options?.client ?? client).get<ListResponses, ListErrors, ThrowOnError>({ url: '/api/admin/bookings', ...options });
+export const list2 = <ThrowOnError extends boolean = false>(options?: Options<List2Data, ThrowOnError>): RequestResult<List2Responses, List2Errors, ThrowOnError> => (options?.client ?? client).get<List2Responses, List2Errors, ThrowOnError>({ url: '/api/admin/bookings', ...options });
 
 /**
  * `GET /api/admin/bookings/export` — CSV export.
@@ -53,12 +87,12 @@ export const updateStatus = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * `GET /api/admin/brands` — list all brands (admin).
  */
-export const list2 = <ThrowOnError extends boolean = false>(options?: Options<List2Data, ThrowOnError>): RequestResult<List2Responses, List2Errors, ThrowOnError> => (options?.client ?? client).get<List2Responses, List2Errors, ThrowOnError>({ url: '/api/admin/brands', ...options });
+export const list3 = <ThrowOnError extends boolean = false>(options?: Options<List3Data, ThrowOnError>): RequestResult<List3Responses, List3Errors, ThrowOnError> => (options?.client ?? client).get<List3Responses, List3Errors, ThrowOnError>({ url: '/api/admin/brands', ...options });
 
 /**
  * `POST /api/admin/brands` — create a brand.
  */
-export const create = <ThrowOnError extends boolean = false>(options: Options<CreateData, ThrowOnError>): RequestResult<CreateResponses, CreateErrors, ThrowOnError> => (options.client ?? client).post<CreateResponses, CreateErrors, ThrowOnError>({
+export const create2 = <ThrowOnError extends boolean = false>(options: Options<Create2Data, ThrowOnError>): RequestResult<Create2Responses, Create2Errors, ThrowOnError> => (options.client ?? client).post<Create2Responses, Create2Errors, ThrowOnError>({
     url: '/api/admin/brands',
     ...options,
     headers: {
@@ -70,12 +104,12 @@ export const create = <ThrowOnError extends boolean = false>(options: Options<Cr
 /**
  * `DELETE /api/admin/brands/{id}` — delete a brand.
  */
-export const delete_ = <ThrowOnError extends boolean = false>(options: Options<DeleteData, ThrowOnError>): RequestResult<DeleteResponses, DeleteErrors, ThrowOnError> => (options.client ?? client).delete<DeleteResponses, DeleteErrors, ThrowOnError>({ url: '/api/admin/brands/{id}', ...options });
+export const delete2 = <ThrowOnError extends boolean = false>(options: Options<Delete2Data, ThrowOnError>): RequestResult<Delete2Responses, Delete2Errors, ThrowOnError> => (options.client ?? client).delete<Delete2Responses, Delete2Errors, ThrowOnError>({ url: '/api/admin/brands/{id}', ...options });
 
 /**
  * `PUT /api/admin/brands/{id}` — update a brand.
  */
-export const update = <ThrowOnError extends boolean = false>(options: Options<UpdateData, ThrowOnError>): RequestResult<UpdateResponses, UpdateErrors, ThrowOnError> => (options.client ?? client).put<UpdateResponses, UpdateErrors, ThrowOnError>({
+export const update2 = <ThrowOnError extends boolean = false>(options: Options<Update2Data, ThrowOnError>): RequestResult<Update2Responses, Update2Errors, ThrowOnError> => (options.client ?? client).put<Update2Responses, Update2Errors, ThrowOnError>({
     url: '/api/admin/brands/{id}',
     ...options,
     headers: {
@@ -87,7 +121,7 @@ export const update = <ThrowOnError extends boolean = false>(options: Options<Up
 /**
  * `GET /api/admin/bus-layouts` — list all bus layouts.
  */
-export const list3 = <ThrowOnError extends boolean = false>(options?: Options<List3Data, ThrowOnError>): RequestResult<List3Responses, List3Errors, ThrowOnError> => (options?.client ?? client).get<List3Responses, List3Errors, ThrowOnError>({ url: '/api/admin/bus-layouts', ...options });
+export const list4 = <ThrowOnError extends boolean = false>(options?: Options<List4Data, ThrowOnError>): RequestResult<List4Responses, List4Errors, ThrowOnError> => (options?.client ?? client).get<List4Responses, List4Errors, ThrowOnError>({ url: '/api/admin/bus-layouts', ...options });
 
 /**
  * `GET /api/admin/chat/stats` — aggregate chat stats for the admin
@@ -125,12 +159,12 @@ export const updatePaymentStatus = <ThrowOnError extends boolean = false>(option
 /**
  * `GET /api/admin/pickup-points?routeId=` — list pickup points for a route.
  */
-export const list4 = <ThrowOnError extends boolean = false>(options?: Options<List4Data, ThrowOnError>): RequestResult<List4Responses, List4Errors, ThrowOnError> => (options?.client ?? client).get<List4Responses, List4Errors, ThrowOnError>({ url: '/api/admin/pickup-points', ...options });
+export const list5 = <ThrowOnError extends boolean = false>(options?: Options<List5Data, ThrowOnError>): RequestResult<List5Responses, List5Errors, ThrowOnError> => (options?.client ?? client).get<List5Responses, List5Errors, ThrowOnError>({ url: '/api/admin/pickup-points', ...options });
 
 /**
  * `POST /api/admin/pickup-points` — create a pickup point.
  */
-export const create2 = <ThrowOnError extends boolean = false>(options: Options<Create2Data, ThrowOnError>): RequestResult<Create2Responses, Create2Errors, ThrowOnError> => (options.client ?? client).post<Create2Responses, Create2Errors, ThrowOnError>({
+export const create3 = <ThrowOnError extends boolean = false>(options: Options<Create3Data, ThrowOnError>): RequestResult<Create3Responses, Create3Errors, ThrowOnError> => (options.client ?? client).post<Create3Responses, Create3Errors, ThrowOnError>({
     url: '/api/admin/pickup-points',
     ...options,
     headers: {
@@ -142,12 +176,12 @@ export const create2 = <ThrowOnError extends boolean = false>(options: Options<C
 /**
  * `DELETE /api/admin/pickup-points/{id}` — delete a pickup point.
  */
-export const delete2 = <ThrowOnError extends boolean = false>(options: Options<Delete2Data, ThrowOnError>): RequestResult<Delete2Responses, Delete2Errors, ThrowOnError> => (options.client ?? client).delete<Delete2Responses, Delete2Errors, ThrowOnError>({ url: '/api/admin/pickup-points/{id}', ...options });
+export const delete3 = <ThrowOnError extends boolean = false>(options: Options<Delete3Data, ThrowOnError>): RequestResult<Delete3Responses, Delete3Errors, ThrowOnError> => (options.client ?? client).delete<Delete3Responses, Delete3Errors, ThrowOnError>({ url: '/api/admin/pickup-points/{id}', ...options });
 
 /**
  * `PUT /api/admin/pickup-points/{id}` — update a pickup point.
  */
-export const update2 = <ThrowOnError extends boolean = false>(options: Options<Update2Data, ThrowOnError>): RequestResult<Update2Responses, Update2Errors, ThrowOnError> => (options.client ?? client).put<Update2Responses, Update2Errors, ThrowOnError>({
+export const update3 = <ThrowOnError extends boolean = false>(options: Options<Update3Data, ThrowOnError>): RequestResult<Update3Responses, Update3Errors, ThrowOnError> => (options.client ?? client).put<Update3Responses, Update3Errors, ThrowOnError>({
     url: '/api/admin/pickup-points/{id}',
     ...options,
     headers: {
@@ -159,12 +193,12 @@ export const update2 = <ThrowOnError extends boolean = false>(options: Options<U
 /**
  * `GET /api/admin/reviews` — list reviews with admin filters.
  */
-export const list5 = <ThrowOnError extends boolean = false>(options?: Options<List5Data, ThrowOnError>): RequestResult<List5Responses, List5Errors, ThrowOnError> => (options?.client ?? client).get<List5Responses, List5Errors, ThrowOnError>({ url: '/api/admin/reviews', ...options });
+export const list6 = <ThrowOnError extends boolean = false>(options?: Options<List6Data, ThrowOnError>): RequestResult<List6Responses, List6Errors, ThrowOnError> => (options?.client ?? client).get<List6Responses, List6Errors, ThrowOnError>({ url: '/api/admin/reviews', ...options });
 
 /**
  * `DELETE /api/admin/reviews/{id}` — delete a review (admin override).
  */
-export const delete3 = <ThrowOnError extends boolean = false>(options: Options<Delete3Data, ThrowOnError>): RequestResult<Delete3Responses, Delete3Errors, ThrowOnError> => (options.client ?? client).delete<Delete3Responses, Delete3Errors, ThrowOnError>({ url: '/api/admin/reviews/{id}', ...options });
+export const delete4 = <ThrowOnError extends boolean = false>(options: Options<Delete4Data, ThrowOnError>): RequestResult<Delete4Responses, Delete4Errors, ThrowOnError> => (options.client ?? client).delete<Delete4Responses, Delete4Errors, ThrowOnError>({ url: '/api/admin/reviews/{id}', ...options });
 
 /**
  * `PATCH /api/admin/reviews/{id}` — moderate a review (status + reply).
@@ -181,12 +215,12 @@ export const moderate = <ThrowOnError extends boolean = false>(options: Options<
 /**
  * `GET /api/admin/routes` — list all routes (admin).
  */
-export const list6 = <ThrowOnError extends boolean = false>(options?: Options<List6Data, ThrowOnError>): RequestResult<List6Responses, List6Errors, ThrowOnError> => (options?.client ?? client).get<List6Responses, List6Errors, ThrowOnError>({ url: '/api/admin/routes', ...options });
+export const list7 = <ThrowOnError extends boolean = false>(options?: Options<List7Data, ThrowOnError>): RequestResult<List7Responses, List7Errors, ThrowOnError> => (options?.client ?? client).get<List7Responses, List7Errors, ThrowOnError>({ url: '/api/admin/routes', ...options });
 
 /**
  * `POST /api/admin/routes` — create a route.
  */
-export const create3 = <ThrowOnError extends boolean = false>(options: Options<Create3Data, ThrowOnError>): RequestResult<Create3Responses, Create3Errors, ThrowOnError> => (options.client ?? client).post<Create3Responses, Create3Errors, ThrowOnError>({
+export const create4 = <ThrowOnError extends boolean = false>(options: Options<Create4Data, ThrowOnError>): RequestResult<Create4Responses, Create4Errors, ThrowOnError> => (options.client ?? client).post<Create4Responses, Create4Errors, ThrowOnError>({
     url: '/api/admin/routes',
     ...options,
     headers: {
@@ -198,12 +232,12 @@ export const create3 = <ThrowOnError extends boolean = false>(options: Options<C
 /**
  * `DELETE /api/admin/routes/{id}` — delete a route.
  */
-export const delete4 = <ThrowOnError extends boolean = false>(options: Options<Delete4Data, ThrowOnError>): RequestResult<Delete4Responses, Delete4Errors, ThrowOnError> => (options.client ?? client).delete<Delete4Responses, Delete4Errors, ThrowOnError>({ url: '/api/admin/routes/{id}', ...options });
+export const delete5 = <ThrowOnError extends boolean = false>(options: Options<Delete5Data, ThrowOnError>): RequestResult<Delete5Responses, Delete5Errors, ThrowOnError> => (options.client ?? client).delete<Delete5Responses, Delete5Errors, ThrowOnError>({ url: '/api/admin/routes/{id}', ...options });
 
 /**
  * `PUT /api/admin/routes/{id}` — update a route.
  */
-export const update3 = <ThrowOnError extends boolean = false>(options: Options<Update3Data, ThrowOnError>): RequestResult<Update3Responses, Update3Errors, ThrowOnError> => (options.client ?? client).put<Update3Responses, Update3Errors, ThrowOnError>({
+export const update4 = <ThrowOnError extends boolean = false>(options: Options<Update4Data, ThrowOnError>): RequestResult<Update4Responses, Update4Errors, ThrowOnError> => (options.client ?? client).put<Update4Responses, Update4Errors, ThrowOnError>({
     url: '/api/admin/routes/{id}',
     ...options,
     headers: {
@@ -215,12 +249,12 @@ export const update3 = <ThrowOnError extends boolean = false>(options: Options<U
 /**
  * `GET /api/admin/schedules?routeId=` — list schedules for a route.
  */
-export const list7 = <ThrowOnError extends boolean = false>(options?: Options<List7Data, ThrowOnError>): RequestResult<List7Responses, List7Errors, ThrowOnError> => (options?.client ?? client).get<List7Responses, List7Errors, ThrowOnError>({ url: '/api/admin/schedules', ...options });
+export const list8 = <ThrowOnError extends boolean = false>(options?: Options<List8Data, ThrowOnError>): RequestResult<List8Responses, List8Errors, ThrowOnError> => (options?.client ?? client).get<List8Responses, List8Errors, ThrowOnError>({ url: '/api/admin/schedules', ...options });
 
 /**
  * `POST /api/admin/schedules` — create a schedule.
  */
-export const create4 = <ThrowOnError extends boolean = false>(options: Options<Create4Data, ThrowOnError>): RequestResult<Create4Responses, Create4Errors, ThrowOnError> => (options.client ?? client).post<Create4Responses, Create4Errors, ThrowOnError>({
+export const create5 = <ThrowOnError extends boolean = false>(options: Options<Create5Data, ThrowOnError>): RequestResult<Create5Responses, Create5Errors, ThrowOnError> => (options.client ?? client).post<Create5Responses, Create5Errors, ThrowOnError>({
     url: '/api/admin/schedules',
     ...options,
     headers: {
@@ -232,12 +266,12 @@ export const create4 = <ThrowOnError extends boolean = false>(options: Options<C
 /**
  * `DELETE /api/admin/schedules/{id}` — delete a schedule.
  */
-export const delete5 = <ThrowOnError extends boolean = false>(options: Options<Delete5Data, ThrowOnError>): RequestResult<Delete5Responses, Delete5Errors, ThrowOnError> => (options.client ?? client).delete<Delete5Responses, Delete5Errors, ThrowOnError>({ url: '/api/admin/schedules/{id}', ...options });
+export const delete6 = <ThrowOnError extends boolean = false>(options: Options<Delete6Data, ThrowOnError>): RequestResult<Delete6Responses, Delete6Errors, ThrowOnError> => (options.client ?? client).delete<Delete6Responses, Delete6Errors, ThrowOnError>({ url: '/api/admin/schedules/{id}', ...options });
 
 /**
  * `PUT /api/admin/schedules/{id}` — update a schedule.
  */
-export const update4 = <ThrowOnError extends boolean = false>(options: Options<Update4Data, ThrowOnError>): RequestResult<Update4Responses, Update4Errors, ThrowOnError> => (options.client ?? client).put<Update4Responses, Update4Errors, ThrowOnError>({
+export const update5 = <ThrowOnError extends boolean = false>(options: Options<Update5Data, ThrowOnError>): RequestResult<Update5Responses, Update5Errors, ThrowOnError> => (options.client ?? client).put<Update5Responses, Update5Errors, ThrowOnError>({
     url: '/api/admin/schedules/{id}',
     ...options,
     headers: {
@@ -335,7 +369,7 @@ export const register = <ThrowOnError extends boolean = false>(options: Options<
 /**
  * `GET /api/bookings` — list the authenticated user's bookings.
  */
-export const list8 = <ThrowOnError extends boolean = false>(options?: Options<List8Data, ThrowOnError>): RequestResult<List8Responses, List8Errors, ThrowOnError> => (options?.client ?? client).get<List8Responses, List8Errors, ThrowOnError>({ url: '/api/bookings', ...options });
+export const list9 = <ThrowOnError extends boolean = false>(options?: Options<List9Data, ThrowOnError>): RequestResult<List9Responses, List9Errors, ThrowOnError> => (options?.client ?? client).get<List9Responses, List9Errors, ThrowOnError>({ url: '/api/bookings', ...options });
 
 /**
  * `POST /api/bookings` and `POST /api/bookings/hold` — hold seats for a booking.
@@ -479,7 +513,7 @@ export const markRead = <ThrowOnError extends boolean = false>(options: Options<
 /**
  * `GET /api/notifications` — list the authenticated user's notifications.
  */
-export const list9 = <ThrowOnError extends boolean = false>(options?: Options<List9Data, ThrowOnError>): RequestResult<List9Responses, List9Errors, ThrowOnError> => (options?.client ?? client).get<List9Responses, List9Errors, ThrowOnError>({ url: '/api/notifications', ...options });
+export const list10 = <ThrowOnError extends boolean = false>(options?: Options<List10Data, ThrowOnError>): RequestResult<List10Responses, List10Errors, ThrowOnError> => (options?.client ?? client).get<List10Responses, List10Errors, ThrowOnError>({ url: '/api/notifications', ...options });
 
 /**
  * `POST /api/notifications/read` — mark notifications as read.
@@ -496,6 +530,23 @@ export const markRead2 = <ThrowOnError extends boolean = false>(options: Options
         ...options.headers
     }
 });
+
+/**
+ * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
+ *
+ * **Authorization**: requires the `ADMIN_NULLCLAW_READ` permission
+ * (any employee/support role). The exchanges contain the customer's
+ * original prompt + the AI's completion, which may include PII such
+ * as phone numbers, booking codes, and travel plans. Exposing them
+ * publicly would be a data-leak (OWASP API1:2023 BOLA / API2:2023
+ * Excessive Data Exposure).
+ */
+export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, ListExchangesErrors, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, ListExchangesErrors, ThrowOnError>({ url: '/api/nullclaw/exchanges', ...options });
+
+/**
+ * `GET /api/nullclaw/status` — get NullClaw provider status.
+ */
+export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/status', ...options });
 
 /**
  * `POST /api/payments` — initiate a payment for a booking.
@@ -598,7 +649,7 @@ export const markCodCollected = <ThrowOnError extends boolean = false>(options: 
 /**
  * `GET /api/places` — list places.
  */
-export const list10 = <ThrowOnError extends boolean = false>(options?: Options<List10Data, ThrowOnError>): RequestResult<List10Responses, unknown, ThrowOnError> => (options?.client ?? client).get<List10Responses, unknown, ThrowOnError>({ url: '/api/places', ...options });
+export const list11 = <ThrowOnError extends boolean = false>(options?: Options<List11Data, ThrowOnError>): RequestResult<List11Responses, unknown, ThrowOnError> => (options?.client ?? client).get<List11Responses, unknown, ThrowOnError>({ url: '/api/places', ...options });
 
 /**
  * `GET /api/places/reverse` — reverse geocode coordinates.
@@ -655,7 +706,7 @@ export const updatePost = <ThrowOnError extends boolean = false>(options: Option
  * - If `phone` is provided: guest lookup (public, no auth required).
  * - Otherwise: returns the authenticated user's alerts.
  */
-export const list11 = <ThrowOnError extends boolean = false>(options?: Options<List11Data, ThrowOnError>): RequestResult<List11Responses, List11Errors, ThrowOnError> => (options?.client ?? client).get<List11Responses, List11Errors, ThrowOnError>({ url: '/api/price-alerts', ...options });
+export const list12 = <ThrowOnError extends boolean = false>(options?: Options<List12Data, ThrowOnError>): RequestResult<List12Responses, List12Errors, ThrowOnError> => (options?.client ?? client).get<List12Responses, List12Errors, ThrowOnError>({ url: '/api/price-alerts', ...options });
 
 /**
  * `POST /api/price-alerts` — create a price alert.
@@ -664,7 +715,7 @@ export const list11 = <ThrowOnError extends boolean = false>(options?: Options<L
  * owner. The `phone` field is still required (for notification
  * delivery) and must match a valid Vietnamese mobile number.
  */
-export const create5 = <ThrowOnError extends boolean = false>(options: Options<Create5Data, ThrowOnError>): RequestResult<Create5Responses, Create5Errors, ThrowOnError> => (options.client ?? client).post<Create5Responses, Create5Errors, ThrowOnError>({
+export const create6 = <ThrowOnError extends boolean = false>(options: Options<Create6Data, ThrowOnError>): RequestResult<Create6Responses, Create6Errors, ThrowOnError> => (options.client ?? client).post<Create6Responses, Create6Errors, ThrowOnError>({
     url: '/api/price-alerts',
     ...options,
     headers: {
@@ -688,12 +739,12 @@ export const recommendations = <ThrowOnError extends boolean = false>(options?: 
 /**
  * `GET /api/reviews` — list reviews with optional filters.
  */
-export const list12 = <ThrowOnError extends boolean = false>(options?: Options<List12Data, ThrowOnError>): RequestResult<List12Responses, unknown, ThrowOnError> => (options?.client ?? client).get<List12Responses, unknown, ThrowOnError>({ url: '/api/reviews', ...options });
+export const list13 = <ThrowOnError extends boolean = false>(options?: Options<List13Data, ThrowOnError>): RequestResult<List13Responses, unknown, ThrowOnError> => (options?.client ?? client).get<List13Responses, unknown, ThrowOnError>({ url: '/api/reviews', ...options });
 
 /**
  * `POST /api/reviews` — create a review. Requires authentication.
  */
-export const create6 = <ThrowOnError extends boolean = false>(options: Options<Create6Data, ThrowOnError>): RequestResult<Create6Responses, Create6Errors, ThrowOnError> => (options.client ?? client).post<Create6Responses, Create6Errors, ThrowOnError>({
+export const create7 = <ThrowOnError extends boolean = false>(options: Options<Create7Data, ThrowOnError>): RequestResult<Create7Responses, Create7Errors, ThrowOnError> => (options.client ?? client).post<Create7Responses, Create7Errors, ThrowOnError>({
     url: '/api/reviews',
     ...options,
     headers: {
@@ -720,7 +771,7 @@ export const get2 = <ThrowOnError extends boolean = false>(options: Options<Get2
 /**
  * `PATCH /api/reviews/{id}` — update a review. Requires authentication.
  */
-export const update5 = <ThrowOnError extends boolean = false>(options: Options<Update5Data, ThrowOnError>): RequestResult<Update5Responses, Update5Errors, ThrowOnError> => (options.client ?? client).patch<Update5Responses, Update5Errors, ThrowOnError>({
+export const update6 = <ThrowOnError extends boolean = false>(options: Options<Update6Data, ThrowOnError>): RequestResult<Update6Responses, Update6Errors, ThrowOnError> => (options.client ?? client).patch<Update6Responses, Update6Errors, ThrowOnError>({
     url: '/api/reviews/{id}',
     ...options,
     headers: {
@@ -794,7 +845,7 @@ export const reportVitals = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * `GET /api/wishlist` — list the authenticated user's wishlist items.
  */
-export const list13 = <ThrowOnError extends boolean = false>(options?: Options<List13Data, ThrowOnError>): RequestResult<List13Responses, List13Errors, ThrowOnError> => (options?.client ?? client).get<List13Responses, List13Errors, ThrowOnError>({ url: '/api/wishlist', ...options });
+export const list14 = <ThrowOnError extends boolean = false>(options?: Options<List14Data, ThrowOnError>): RequestResult<List14Responses, List14Errors, ThrowOnError> => (options?.client ?? client).get<List14Responses, List14Errors, ThrowOnError>({ url: '/api/wishlist', ...options });
 
 /**
  * `POST /api/wishlist` — toggle a route in the wishlist.
@@ -815,16 +866,6 @@ export const toggle = <ThrowOnError extends boolean = false>(options: Options<To
  * `DELETE /api/wishlist/{id}` — remove a single wishlist item by id.
  */
 export const remove3 = <ThrowOnError extends boolean = false>(options: Options<Remove3Data, ThrowOnError>): RequestResult<Remove3Responses, Remove3Errors, ThrowOnError> => (options.client ?? client).delete<Remove3Responses, Remove3Errors, ThrowOnError>({ url: '/api/wishlist/{id}', ...options });
-
-/**
- * `GET /api/nullclaw/exchanges` — list NullClaw exchanges.
- */
-export const listExchanges = <ThrowOnError extends boolean = false>(options?: Options<ListExchangesData, ThrowOnError>): RequestResult<ListExchangesResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListExchangesResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/exchanges', ...options });
-
-/**
- * `GET /api/nullclaw/status` — get NullClaw provider status.
- */
-export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/nullclaw/status', ...options });
 
 /**
  * `GET /health` — liveness probe. Always returns 200 (process is up).

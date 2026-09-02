@@ -246,7 +246,7 @@ export function RouteFormDialog({
                     Điểm đi (thành phố) <span className="text-destructive">*</span>
                   </FormLabel>
                   <Select
-                    value={field.value || undefined}
+                    value={field.value ?? ''}
                     onValueChange={field.onChange}
                   >
                     <FormControl>
@@ -273,7 +273,7 @@ export function RouteFormDialog({
                     Điểm đến (thành phố) <span className="text-destructive">*</span>
                   </FormLabel>
                   <Select
-                    value={field.value || undefined}
+                    value={field.value ?? ''}
                     onValueChange={field.onChange}
                   >
                     <FormControl>
