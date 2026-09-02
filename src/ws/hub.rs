@@ -841,6 +841,14 @@ mod tests {
         assert_eq!(h.channel_of(id).as_deref(), Some("ch2"));
     }
 
+    /// The hub compares `sess.user.id.to_string()` (UUID) against the
+    /// `user_id` argument, so tests must pass the UUID string the
+    /// registered user actually carries — not the display name the
+    /// sample user was built from.
+    fn sample_user_id(name: &str) -> String {
+        sample_user(name, "user").id.to_string()
+    }
+
     #[test]
     fn set_channel_leaves_old_room() {
         let h = fresh_hub();
@@ -852,7 +860,7 @@ mod tests {
         h.set_channel(id, "ch2".into());
         // Now ch1 should have no member `id`.
         // Use `user_still_in_room` to confirm `id` left ch1.
-        assert!(!h.user_still_in_room("ch1", "u1", id));
+        assert!(!h.user_still_in_room("ch1", &sample_user_id("u1"), id));
     }
 
     #[test]
@@ -867,14 +875,15 @@ mod tests {
         let (tx2, _rx2) = make_tx();
         let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
         h.join_room("room-a", id2);
+        let u1_id = sample_user_id("u1");
         // id is in the room; checking from id2's perspective (except=id2) sees id.
         assert!(
-            h.user_still_in_room("room-a", "u1", id2),
+            h.user_still_in_room("room-a", &u1_id, id2),
             "u1 must be in room (visible from u2's perspective)"
         );
         h.leave_room("room-a", id);
         assert!(
-            !h.user_still_in_room("room-a", "u1", id2),
+            !h.user_still_in_room("room-a", &u1_id, id2),
             "u1 must be gone after leave_room"
         );
     }
@@ -945,12 +954,13 @@ mod tests {
         let id2 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx2);
         h.join_room("room", id1);
         h.join_room("room", id2);
+        let ua_id = sample_user_id("uA");
         // Even when excluding id1, id2 (same user) keeps the user "in room".
-        assert!(h.user_still_in_room("room", "uA", id1));
+        assert!(h.user_still_in_room("room", &ua_id, id1));
         h.leave_room("room", id1);
-        assert!(h.user_still_in_room("room", "uA", id1), "id2 still in room");
+        assert!(h.user_still_in_room("room", &ua_id, id1), "id2 still in room");
         h.leave_room("room", id2);
-        assert!(!h.user_still_in_room("room", "uA", id1));
+        assert!(!h.user_still_in_room("room", &ua_id, id1));
     }
 
     // ── online employees ────────────────────────────────────────

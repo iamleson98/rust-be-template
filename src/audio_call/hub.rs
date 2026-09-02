@@ -345,7 +345,11 @@ mod tests {
 
     fn fake_user(id: &str, actor: &str) -> SessionUser {
         SessionUser {
-            id: Uuid::parse_str(id).unwrap_or_else(|_| uuid::Uuid::new_v4()),
+            // The hub keys peers by `user.id.to_string()`, so a test id
+            // MUST be a valid UUID string — parse strictly (a silent
+            // random-uuid fallback would decouple the hub key from the
+            // id the test later looks up).
+            id: Uuid::parse_str(id).expect("test user id must be a UUID string"),
             actor_type: actor.into(),
             role: "customer".into(),
             name: id.into(),
@@ -368,7 +372,7 @@ mod tests {
     #[tokio::test]
     async fn register_and_unregister() {
         let _guard = TEST_LOCK.lock().unwrap();
-        let id = format!("test-reg-{}", uuid::Uuid::new_v4());
+        let id = uuid::Uuid::new_v4().to_string();
         let (tx, _rx) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
         let sid = h.next_socket_id();
@@ -389,8 +393,8 @@ mod tests {
     #[tokio::test]
     async fn single_agent_rule_boots_previous() {
         let _guard = TEST_LOCK.lock().unwrap();
-        let id1 = format!("test-agent1-{}", uuid::Uuid::new_v4());
-        let id2 = format!("test-agent2-{}", uuid::Uuid::new_v4());
+        let id1 = uuid::Uuid::new_v4().to_string();
+        let id2 = uuid::Uuid::new_v4().to_string();
         let (tx1, _rx1) = mpsc::channel::<bytes::Bytes>(8);
         let (tx2, _rx2) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
@@ -429,7 +433,7 @@ mod tests {
     #[tokio::test]
     async fn stale_unregister_does_not_evict_newer_socket() {
         let _guard = TEST_LOCK.lock().unwrap();
-        let id = format!("test-zombie-{}", uuid::Uuid::new_v4());
+        let id = uuid::Uuid::new_v4().to_string();
         let h = hub();
 
         // Old socket registers.
@@ -476,7 +480,7 @@ mod tests {
     #[tokio::test]
     async fn in_call_tracking() {
         let _guard = TEST_LOCK.lock().unwrap();
-        let id = format!("test-incall-{}", uuid::Uuid::new_v4());
+        let id = uuid::Uuid::new_v4().to_string();
         let (tx, _rx) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
         let sid = h.next_socket_id();
