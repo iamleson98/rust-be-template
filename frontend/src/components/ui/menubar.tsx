@@ -108,8 +108,11 @@ function MenubarTrigger({
   return (
     <MenuPrimitive.Trigger
       data-slot="menubar-trigger"
-      render={(state: any) => (
-        <button data-state={state.open ? "open" : "closed"} />
+      render={(componentProps: any, state: any) => (
+        <button
+          {...componentProps}
+          data-state={state.open ? "open" : "closed"}
+        />
       )}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex items-center rounded-sm px-2 py-1 text-sm font-medium outline-hidden select-none",
@@ -127,10 +130,11 @@ function MenubarContent({
   sideOffset = 8,
   side,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Positioner>, "render"> &
-  Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> & {
-    className?: string
-  }) {
+}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> &
+  Pick<
+    ComponentProps<typeof MenuPrimitive.Positioner>,
+    "side" | "align" | "sideOffset" | "alignOffset"
+  >) {
   return (
     <MenubarPortal>
       <MenuPrimitive.Positioner
@@ -138,12 +142,12 @@ function MenubarContent({
         alignOffset={alignOffset}
         sideOffset={sideOffset}
         side={side}
-        {...props}
       >
         <MenuPrimitive.Popup
           data-slot="menubar-content"
-          render={(state: any) => (
+          render={(componentProps: any, state: any) => (
             <div
+              {...componentProps}
               data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
@@ -153,6 +157,7 @@ function MenubarContent({
             "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[12rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className
           )}
+          {...props}
         />
       </MenuPrimitive.Positioner>
     </MenubarPortal>
@@ -340,8 +345,11 @@ function MenubarSubTrigger({
     <MenuPrimitive.SubmenuTrigger
       data-slot="menubar-sub-trigger"
       data-inset={inset}
-      render={(state: any) => (
-        <div data-state={state.open ? "open" : "closed"} />
+      render={(componentProps: any, state: any) => (
+        <div
+          {...componentProps}
+          data-state={state.open ? "open" : "closed"}
+        />
       )}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[inset]:pl-8",
@@ -357,18 +365,29 @@ function MenubarSubTrigger({
 
 function MenubarSubContent({
   className,
+  side = "bottom",
+  sideOffset = 0,
+  align = "start",
+  alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof MenuPrimitive.Positioner>, "render"> &
-  Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> & {
-    className?: string
-  }) {
+}: Omit<ComponentProps<typeof MenuPrimitive.Popup>, "render"> &
+  Pick<
+    ComponentProps<typeof MenuPrimitive.Positioner>,
+    "side" | "align" | "sideOffset" | "alignOffset"
+  >) {
   return (
     <MenuPrimitive.Portal>
-      <MenuPrimitive.Positioner {...props}>
+      <MenuPrimitive.Positioner
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        alignOffset={alignOffset}
+      >
         <MenuPrimitive.Popup
           data-slot="menubar-sub-content"
-          render={(state: any) => (
+          render={(componentProps: any, state: any) => (
             <div
+              {...componentProps}
               data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
@@ -378,6 +397,7 @@ function MenubarSubContent({
             "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className
           )}
+          {...props}
         />
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>

@@ -128,8 +128,11 @@ function ContextMenuSubTrigger({
     <ContextMenuPrimitive.SubmenuTrigger
       data-slot="context-menu-sub-trigger"
       data-inset={inset}
-      render={(state: any) => (
-        <div data-state={state.open ? "open" : "closed"} />
+      render={(componentProps: any, state: any) => (
+        <div
+          {...componentProps}
+          data-state={state.open ? "open" : "closed"}
+        />
       )}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -145,21 +148,29 @@ function ContextMenuSubTrigger({
 
 function ContextMenuSubContent({
   className,
+  side = "bottom",
+  sideOffset = 0,
+  align = "start",
+  alignOffset = 0,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-  "render"
-> &
-  Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> & {
-    className?: string
-  }) {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
+  Pick<
+    ComponentProps<typeof ContextMenuPrimitive.Positioner>,
+    "side" | "align" | "sideOffset" | "alignOffset"
+  >) {
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Positioner {...props}>
+      <ContextMenuPrimitive.Positioner
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        alignOffset={alignOffset}
+      >
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-sub-content"
-          render={(state: any) => (
+          render={(componentProps: any, state: any) => (
             <div
+              {...componentProps}
               data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
@@ -169,6 +180,7 @@ function ContextMenuSubContent({
             "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
             className
           )}
+          {...props}
         />
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
@@ -177,21 +189,29 @@ function ContextMenuSubContent({
 
 function ContextMenuContent({
   className,
+  side = "bottom",
+  sideOffset = 0,
+  align = "start",
+  alignOffset = 0,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-  "render"
-> &
-  Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> & {
-    className?: string
-  }) {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
+  Pick<
+    ComponentProps<typeof ContextMenuPrimitive.Positioner>,
+    "side" | "align" | "sideOffset" | "alignOffset"
+  >) {
   return (
     <ContextMenuPrimitive.Portal>
-      <ContextMenuPrimitive.Positioner {...props}>
+      <ContextMenuPrimitive.Positioner
+        side={side}
+        sideOffset={sideOffset}
+        align={align}
+        alignOffset={alignOffset}
+      >
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-content"
-          render={(state: any) => (
+          render={(componentProps: any, state: any) => (
             <div
+              {...componentProps}
               data-state={state.open ? "open" : "closed"}
               data-side={state.side}
               data-align={state.align}
@@ -201,6 +221,7 @@ function ContextMenuContent({
             "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 ",
             className
           )}
+          {...props}
         />
       </ContextMenuPrimitive.Positioner>
     </ContextMenuPrimitive.Portal>
