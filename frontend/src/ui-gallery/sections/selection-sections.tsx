@@ -241,11 +241,11 @@ export function SelectionSections() {
       <Section
         id="time-picker"
         title="TimePicker"
-        description="Popover + hour/minute selects, HH:MM value."
+        description="Native input type=time per shadcn docs, HH:MM value."
       >
         <div className="flex flex-wrap items-center gap-3">
           <div className="w-40" data-testid="time-picker-demo">
-            <TimePicker value={time} onChange={setTime} />
+            <TimePicker value={time} onChange={setTime} aria-label="Giờ" />
           </div>
           <span className="text-sm">
             Time: <Mirror testId="time-picker-mirror">{time ?? 'null'}</Mirror>

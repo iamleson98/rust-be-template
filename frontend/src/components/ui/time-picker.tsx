@@ -1,120 +1,85 @@
 'use client'
 
 /**
- * TimePicker — a shadcn-style `HH:MM` picker.
+ * TimePicker — the shadcn-documented time-picker pattern
+ * (ui.shadcn.com/docs/components/base/date-picker#time-picker):
+ * the shared `Input` rendered as a native `<input type="time">` with the
+ * browser's built-in masked time entry (typing, arrows, mobile OS pickers)
+ * and exactly the styling shadcn prescribes — `appearance-none` with the
+ * webkit calendar-picker indicator hidden.
  *
- * `Popover` + two existing `Select`s (hour 00–23, minute 00–59) with a
- * `Clock` trigger button. Chosen over a native `<input type="time">`
- * for consistent styling/keyboard behaviour across browsers and over a
- * clock-face widget for mobile-friendly scroll lists.
- *
- * Value model: `string | null` in `HH:MM` — exactly what the backend's
- * `departure_time` / per-point `arrival_time` fields accept.
+ * Kept from the house pattern: the controlled `string | null` value model
+ * in `HH:MM` (what the backend's `departure_time` / per-point
+ * `arrival_time` accept — so no `step` is set, keeping minute precision),
+ * the leading Clock glyph (pairs with DatePicker's CalendarIcon) and the
+ * clear (X) affordance for optional fields.
  */
 
 import { Clock, X } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
-const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
-const MINUTES = Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0'))
+const HHMM_RE = /^([01]?\d|2[0-3]):([0-5]?\d)(?::([0-5]?\d))?$/
 
-const HHMM_RE = /^([01]?\d|2[0-3]):([0-5]?\d)$/
-
-/** Split an `HH:MM` value leniently → [hour, minute] (zero-padded). */
-function splitTime(value: string | null | undefined): [string, string] | null {
-  if (!value) return null
+/** Normalize any stored time (`H:MM`, `HH:MM`, `HH:MM:SS`) to `HH:MM`. */
+function toInputValue(value: string | null | undefined): string {
+  if (!value) return ''
   const m = HHMM_RE.exec(value.trim())
-  if (!m) return null
-  return [m[1].padStart(2, '0'), m[2].padStart(2, '0')]
+  if (!m) return ''
+  return `${m[1].padStart(2, '0')}:${m[2].padStart(2, '0')}`
 }
 
 type TimePickerProps = {
   /** Selected time, `HH:MM`. `null`/`''` = none. */
   value: string | null | undefined
   onChange: (value: string | null) => void
+  /** Native time inputs ignore `placeholder` (the browser shows its own
+   *  mask). Accepted for API compatibility with earlier usages. */
   placeholder?: string
   disabled?: boolean
   className?: string
   /** Show the clear (X) button when a time is set. Default true. */
   clearable?: boolean
+  /** Accessible name when rendered standalone (forms label via FormControl). */
+  'aria-label'?: string
   id?: string
 }
 
 export function TimePicker({
   value,
   onChange,
-  placeholder = '--:--',
   disabled,
   className,
   clearable = true,
+  'aria-label': ariaLabel,
   id,
 }: TimePickerProps) {
-  const time = splitTime(value)
-  const hour = time?.[0] ?? ''
-  const minute = time?.[1] ?? ''
-
-  const setPart = (h: string, m: string) => {
-    if (h && m) onChange(`${h}:${m}`)
-    else if (h && !m) onChange(null) // half-picked — keep null until complete
-  }
+  const time = toInputValue(value)
 
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
-      <Popover>
-        <PopoverTrigger asChild disabled={disabled}>
-          <Button
-            id={id}
-            type="button"
-            variant="outline"
-            className={cn(
-              'w-full justify-start text-left font-normal h-9 tabular-nums',
-              !time && 'text-muted-foreground',
-            )}
-          >
-            <Clock className="h-4 w-4 shrink-0 opacity-70" />
-            {time ? `${hour}:${minute}` : placeholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-3" align="start">
-          <div className="flex items-center gap-2">
-            <Select
-              value={hour}
-              onValueChange={(h) => setPart(h, minute)}
-            >
-              <SelectTrigger size="sm" className="w-16 tabular-nums" aria-label="Giờ">
-                <SelectValue placeholder="HH" />
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {HOURS.map((h) => (
-                  <SelectItem key={h} value={h} className="tabular-nums">
-                    {h}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-muted-foreground">:</span>
-            <Select
-              value={minute}
-              onValueChange={(m) => setPart(hour, m)}
-            >
-              <SelectTrigger size="sm" className="w-16 tabular-nums" aria-label="Phút">
-                <SelectValue placeholder="MM" />
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {MINUTES.map((m) => (
-                  <SelectItem key={m} value={m} className="tabular-nums">
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <div className="relative w-full">
+        <Clock className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+        {/* The docs' time picker: a styled native `<input type="time">`
+            (appearance-none, hidden webkit indicator). Omitting `step`
+            keeps the browser at minute precision — `HH:MM` on the wire. */}
+        <Input
+          type="time"
+          id={id}
+          disabled={disabled}
+          aria-label={ariaLabel}
+          value={time}
+          onChange={(e) => {
+            const v = e.target.value
+            onChange(v ? v.slice(0, 5) : null)
+          }}
+          className={cn(
+            'h-9 pl-9 tabular-nums appearance-none bg-background',
+            '[&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none',
+          )}
+        />
+      </div>
       {clearable && time ? (
         <button
           type="button"

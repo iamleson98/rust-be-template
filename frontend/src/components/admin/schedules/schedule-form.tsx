@@ -23,8 +23,9 @@
  *     AddressMapDialog (map + full-text search) and the freshly created
  *     address is immediately selected.
  *
- * Time fields use the shared shadcn-style `TimePicker`; dates use
- * `DatePicker` (Popover + Calendar, Vietnamese locale).
+ * Time fields use the shared `TimePicker` (shadcn docs pattern: native
+ * `<input type="time">`, HH:MM value); dates use `DatePicker`
+ * (Popover + Calendar, Vietnamese locale).
  *
  * Migrated from manual `fetch` POST/PUT to the `useUpsertAdminSchedule()`
  * TanStack Query mutation. The mutation auto-invalidates the schedules list
