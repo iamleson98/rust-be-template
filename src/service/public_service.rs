@@ -379,14 +379,12 @@ impl PublicService {
             .map(|b| (b.id.to_string(), b))
             .collect();
 
-        // Fetch bus layouts for vehicle type filtering
-        let bus_layout_ids: Vec<String> = sched_map
+        // Fetch bus layouts for vehicle type filtering. `bus_layout_id`
+        // is `Uuid` on the schedule entity — collect directly (the old
+        // String→Uuid parse workaround is gone with the type fix).
+        let bus_layout_uuids: Vec<Uuid> = sched_map
             .values()
-            .filter_map(|s| s.bus_layout_id.clone())
-            .collect();
-        let bus_layout_uuids: Vec<Uuid> = bus_layout_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
+            .filter_map(|s| s.bus_layout_id)
             .collect();
         let layout_map: std::collections::HashMap<String, bus_layout::Model> = {
             // No batch method on ScheduleStore for IDs; fetch one-by-one (small N)
@@ -427,8 +425,7 @@ impl PublicService {
                     .and_then(|bid| brand_map.get(bid));
                 let layout = sched
                     .bus_layout_id
-                    .as_deref()
-                    .and_then(|lid| layout_map.get(lid));
+                    .and_then(|lid| layout_map.get(&lid.to_string()));
 
                 // Vehicle type filter
                 let vehicle_type = layout
@@ -474,7 +471,7 @@ impl PublicService {
                     departure_time: Some(sched.departure_time.clone()),
                     departure_at: dep_iso,
                     arrival_at: arr_iso,
-                    bus_layout_id: sched.bus_layout_id.clone(),
+                    bus_layout_id: sched.bus_layout_id.map(|u| u.to_string()),
                     min_price: sched.base_price_adult,
                     max_price: sched.base_price_adult,
                     price_adult: sched.base_price_adult,
@@ -711,8 +708,13 @@ impl PublicService {
             };
 
             // Vehicle type filter
-            let vehicle_type = schedule.bus_layout_id.as_deref().unwrap_or("standard");
-            if !vehicle_types.is_empty() && !vehicle_types.iter().any(|vt| vt == vehicle_type) {
+            let vehicle_type = schedule
+                .bus_layout_id
+                .map(|u| u.to_string())
+                .unwrap_or_else(|| "standard".to_string());
+            if !vehicle_types.is_empty()
+                && !vehicle_types.iter().any(|vt| *vt == vehicle_type)
+            {
                 continue;
             }
 
@@ -748,7 +750,7 @@ impl PublicService {
                 departure_time: Some(schedule.departure_time.clone()),
                 departure_at: trip.actual_departure_at.clone(),
                 arrival_at: None,
-                bus_layout_id: schedule.bus_layout_id.clone(),
+                bus_layout_id: schedule.bus_layout_id.map(|u| u.to_string()),
                 min_price: schedule.base_price_adult,
                 max_price: schedule.base_price_adult,
                 price_adult: schedule.base_price_adult,
@@ -804,10 +806,7 @@ impl PublicService {
         let brand_id_uid = route.brand_id;
         let start_location_slug = route.start_location_id.clone();
         let end_location_slug = route.end_location_id.clone();
-        let bus_layout_uid = schedule
-            .bus_layout_id
-            .as_deref()
-            .and_then(|s| Uuid::parse_str(s).ok());
+        let bus_layout_uid = schedule.bus_layout_id;
 
         let brand_fut = async {
             if let Some(uid) = brand_id_uid {
@@ -858,10 +857,10 @@ impl PublicService {
             .collect();
 
         // Seat map — fetch all seats for the bus layout + their inventory
-        let seat_rows = if let Some(ref blid) = schedule.bus_layout_id {
+        let seat_rows = if let Some(blid) = schedule.bus_layout_id {
             self.store
                 .trip_store()
-                .list_seats_by_bus_layout_id(blid)
+                .list_seats_by_bus_layout_id(&blid.to_string())
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
         } else {
@@ -1003,7 +1002,7 @@ impl PublicService {
                 lon: end_place.map(|c| c.lon).unwrap_or(0.0),
             },
             bus_layout: TripBusLayout {
-                id: schedule.bus_layout_id,
+                id: schedule.bus_layout_id.map(|u| u.to_string()),
                 name: bus_layout.as_ref().and_then(|l| l.name.clone()),
                 capacity: bus_layout.as_ref().and_then(|l| l.total_seats),
                 vehicle_type,
@@ -1110,7 +1109,7 @@ impl PublicService {
                         departure_time: Some(sched.departure_time.clone()),
                         departure_at: dep_iso,
                         arrival_at: arr_iso,
-                        bus_layout_id: sched.bus_layout_id.clone(),
+                        bus_layout_id: sched.bus_layout_id.map(|u| u.to_string()),
                         min_price: sched.base_price_adult,
                         max_price: sched.base_price_adult,
                         price_adult: sched.base_price_adult,

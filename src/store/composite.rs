@@ -3,8 +3,8 @@ use std::sync::Arc;
 use sea_orm::DatabaseConnection;
 
 use super::{
-    AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore, PlaceStore,
-    PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
+    AddressStore, AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore,
+    PlaceStore, PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
     ScheduleStore, TripStore, UserStore, WishlistStore,
 };
 
@@ -28,6 +28,7 @@ pub struct CompositeStore {
     notifications: Arc<dyn NotificationStore>,
     wishlist: Arc<dyn WishlistStore>,
     payments: Arc<dyn PaymentStore>,
+    addresses: Arc<dyn AddressStore>,
 }
 
 impl CompositeStore {
@@ -51,6 +52,7 @@ impl CompositeStore {
         notifications: Arc<dyn NotificationStore>,
         wishlist: Arc<dyn WishlistStore>,
         payments: Arc<dyn PaymentStore>,
+        addresses: Arc<dyn AddressStore>,
     ) -> Self {
         Self {
             db,
@@ -71,6 +73,7 @@ impl CompositeStore {
             notifications,
             wishlist,
             payments,
+            addresses,
         }
     }
 
@@ -150,5 +153,9 @@ impl CompositeStore {
 
     pub fn payment_store(&self) -> Arc<dyn PaymentStore> {
         self.payments.clone()
+    }
+
+    pub fn address_store(&self) -> Arc<dyn AddressStore> {
+        self.addresses.clone()
     }
 }

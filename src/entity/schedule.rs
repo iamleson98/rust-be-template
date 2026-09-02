@@ -17,8 +17,16 @@ pub struct Model {
     pub effective_to: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub days_of_week: Option<String>,
+    /// Bus layout reference — `Uuid`, matching `bus_layout.id`.
+    ///
+    /// Was `Option<String>` (TEXT) from an early migration, which never
+    /// matched the BLOB-stored `bus_layout.id` on SQLite — the FK
+    /// `fk_schedule_buslayout` rejected every insert on the default
+    /// SQLite database. `Option<Uuid>` binds as a BLOB on SQLite (FK
+    /// now matches) and as `uuid` on Postgres (m20260902_000002 alters
+    /// the column type). JSON wire format is unchanged (string).
     #[sea_orm(column_type = "Text", nullable)]
-    pub bus_layout_id: Option<String>,
+    pub bus_layout_id: Option<Uuid>,
     pub base_price_adult: i64,
     pub base_price_child: Option<i64>,
     #[sea_orm(column_type = "Text", nullable)]

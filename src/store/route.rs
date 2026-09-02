@@ -161,8 +161,10 @@ impl RouteStore for DbRouteStore {
     }
 
     async fn list_routes_by_brand(&self, brand_id: &str) -> StoreResult<Vec<route::Model>> {
+        // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
+        let brand_uuid = super::parse_uuid(brand_id)?;
         Ok(route::Entity::find()
-            .filter(route::Column::BrandId.eq(brand_id.to_string()))
+            .filter(route::Column::BrandId.eq(brand_uuid))
             .all(self.db.as_ref())
             .await?)
     }
@@ -223,8 +225,9 @@ impl RouteStore for DbRouteStore {
         // Use `count()` (SELECT COUNT(*)) instead of the previous
         // `.all().len()` pattern that materialised every matching row
         // in memory just to count them.
+        let brand_uuid = super::parse_uuid(brand_id)?;
         Ok(route::Entity::find()
-            .filter(route::Column::BrandId.eq(brand_id.to_string()))
+            .filter(route::Column::BrandId.eq(brand_uuid))
             .count(self.db.as_ref())
             .await? as usize)
     }
@@ -237,14 +240,19 @@ impl RouteStore for DbRouteStore {
             return Ok(std::collections::HashMap::new());
         }
         // `SELECT brand_id, COUNT(*) FROM route WHERE brand_id IN (?) GROUP BY brand_id`
+        // GROUP BY key decodes as `Uuid` (BLOB on SQLite — see `parse_uuid`).
         use sea_orm::sea_query::Expr;
-        let rows: Vec<(String, i64)> = route::Entity::find()
-            .filter(route::Column::BrandId.is_in(brand_ids.clone()))
+        let brand_uuids: Vec<Uuid> = brand_ids
+            .iter()
+            .map(|id| super::parse_uuid(id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let rows: Vec<(Uuid, i64)> = route::Entity::find()
+            .filter(route::Column::BrandId.is_in(brand_uuids))
             .select_only()
             .column(route::Column::BrandId)
             .column_as(Expr::col(route::Column::Id).count(), "count")
             .group_by(route::Column::BrandId)
-            .into_tuple::<(String, i64)>()
+            .into_tuple::<(Uuid, i64)>()
             .all(self.db.as_ref())
             .await?;
         let mut map: std::collections::HashMap<String, usize> =
@@ -253,7 +261,7 @@ impl RouteStore for DbRouteStore {
             map.insert(id, 0);
         }
         for (id, count) in rows {
-            map.insert(id, count as usize);
+            map.insert(id.to_string(), count as usize);
         }
         Ok(map)
     }
@@ -264,16 +272,20 @@ impl RouteStore for DbRouteStore {
         &self,
         route_id: &str,
     ) -> StoreResult<Vec<pickup_point::Model>> {
+        // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
+        let route_uuid = super::parse_uuid(route_id)?;
         Ok(pickup_point::Entity::find()
-            .filter(pickup_point::Column::RouteId.eq(route_id.to_string()))
+            .filter(pickup_point::Column::RouteId.eq(route_uuid))
+            .order_by_asc(pickup_point::Column::StopOrder)
             .all(self.db.as_ref())
             .await?)
     }
 
     async fn count_pickup_points_by_route(&self, route_id: &str) -> StoreResult<usize> {
         // Same fix as count_routes_by_brand — `count()` instead of `all().len()`.
+        let route_uuid = super::parse_uuid(route_id)?;
         Ok(pickup_point::Entity::find()
-            .filter(pickup_point::Column::RouteId.eq(route_id.to_string()))
+            .filter(pickup_point::Column::RouteId.eq(route_uuid))
             .count(self.db.as_ref())
             .await? as usize)
     }
@@ -286,13 +298,18 @@ impl RouteStore for DbRouteStore {
             return Ok(std::collections::HashMap::new());
         }
         use sea_orm::sea_query::Expr;
-        let rows: Vec<(String, i64)> = pickup_point::Entity::find()
-            .filter(pickup_point::Column::RouteId.is_in(route_ids.clone()))
+        // GROUP BY key decodes as `Uuid` (BLOB on SQLite — see `parse_uuid`).
+        let route_uuids: Vec<Uuid> = route_ids
+            .iter()
+            .map(|id| super::parse_uuid(id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let rows: Vec<(Uuid, i64)> = pickup_point::Entity::find()
+            .filter(pickup_point::Column::RouteId.is_in(route_uuids))
             .select_only()
             .column(pickup_point::Column::RouteId)
             .column_as(Expr::col(pickup_point::Column::Id).count(), "count")
             .group_by(pickup_point::Column::RouteId)
-            .into_tuple::<(String, i64)>()
+            .into_tuple::<(Uuid, i64)>()
             .all(self.db.as_ref())
             .await?;
         let mut map: std::collections::HashMap<String, usize> =
@@ -301,7 +318,7 @@ impl RouteStore for DbRouteStore {
             map.insert(id, 0);
         }
         for (id, count) in rows {
-            map.insert(id, count as usize);
+            map.insert(id.to_string(), count as usize);
         }
         Ok(map)
     }

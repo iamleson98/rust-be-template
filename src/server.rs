@@ -27,11 +27,11 @@ use crate::service::{
 use crate::state::AppState;
 use crate::store::{
     BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
-    CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAuditStore,
-    DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPaymentStore, DbPlaceStore,
-    DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore,
-    DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore, PostStore, RbacStore,
-    RefreshTokenStore, UserStore,
+    CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
+    DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPaymentStore,
+    DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
+    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore, PostStore,
+    RbacStore, RefreshTokenStore, UserStore,
 };
 use crate::ws;
 
@@ -127,6 +127,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let notification_store = Arc::new(DbNotificationStore::new(db.clone()));
     let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
     let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
+    let address_store = Arc::new(DbAddressStore::new(db.clone()));
 
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         db.clone(),
@@ -147,6 +148,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         notification_store,
         wishlist_store,
         payment_store,
+        address_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------

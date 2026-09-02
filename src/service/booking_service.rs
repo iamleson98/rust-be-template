@@ -218,7 +218,9 @@ impl BookingService {
         let brand_id = route_model.brand_id;
         let start_location_slug = route_model.start_location_id.clone();
         let end_location_slug = route_model.end_location_id.clone();
-        let bus_layout_id = schedule.bus_layout_id.clone();
+        // `Uuid` since the schedule entity fix (was a String that never
+        // matched the BLOB-stored layout ids on SQLite).
+        let bus_layout_id = schedule.bus_layout_id;
         let route_id_str = route_model.id.to_string();
 
         let (brand_model, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
@@ -243,10 +245,7 @@ impl BookingService {
             },
             async {
                 // Bus layout
-                match bus_layout_id
-                    .as_ref()
-                    .and_then(|blid| Uuid::parse_str(blid).ok())
-                {
+                match bus_layout_id {
                     Some(uid) => store
                         .schedule_store()
                         .find_bus_layout_by_id(uid)
@@ -1130,7 +1129,7 @@ impl BookingService {
                         .and_then(|b| b.accent_color.clone())
                         .or_else(|| Some("#0d9488".into())),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    vehicle_type: s.bus_layout_id.clone(),
+                    vehicle_type: s.bus_layout_id.map(|u| u.to_string()),
                     route: None,
                     bus_layout: None,
                     pickup_points: Vec::new(),

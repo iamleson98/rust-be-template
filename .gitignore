@@ -59,3 +59,7 @@ dev.log
 /storage/
 
 /frontend/dist
+
+# Local dev artifacts — seeded Tantivy place-search index (build with
+# `cargo run --bin seed-search-index -- ./search-index`)
+/search-index/

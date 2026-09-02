@@ -122,6 +122,15 @@ use utoipa::OpenApi;
         crate::routes::admin::bookings::update_status,
         crate::routes::admin::bookings::stats,
         crate::routes::admin::bookings::export,
+        // admin — addresses (brand-owned points for schedule sequences).
+        // Registered LAST on purpose: utoipa numbers the generated SDK
+        // functions by declaration order (list2, list3, …), so appending
+        // keeps the existing numbers stable and the frontend's aliased
+        // imports (`list2Options as adminBrandsListOptions`, …) valid.
+        crate::routes::admin::addresses::list,
+        crate::routes::admin::addresses::create,
+        crate::routes::admin::addresses::update,
+        crate::routes::admin::addresses::delete,
         // nullclaw
         crate::routes::nullclaw::status,
         crate::routes::nullclaw::list_exchanges,
@@ -260,6 +269,11 @@ use utoipa::OpenApi;
         crate::dto::admin::AdminScheduleOut,
         crate::dto::admin::AdminScheduleListResponse,
         crate::dto::admin::UpsertScheduleRequest,
+        crate::dto::admin::AdminSchedulePointOut,
+        crate::dto::admin::UpsertSchedulePointItem,
+        crate::dto::admin::AdminAddressOut,
+        crate::dto::admin::AdminAddressListResponse,
+        crate::dto::admin::UpsertAddressRequest,
         crate::dto::admin::AdminPickupPointOut,
         crate::dto::admin::AdminPickupPointListResponse,
         crate::dto::admin::UpsertPickupPointRequest,

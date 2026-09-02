@@ -1,0 +1,62 @@
+//! `SeaORM` Entity — brand-owned address points used by schedules.
+//!
+//! An address is a named geographic point (bus station, curb-side stop,
+//! landmark…) that belongs to exactly one transport brand. Schedules
+//! reference addresses via the `schedule_point` join table to describe
+//! their pickup / drop sequence.
+
+use sea_orm::entity::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
+#[sea_orm(table_name = "address")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub id: Uuid,
+    pub brand_id: Uuid,
+    pub name: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub address: Option<String>,
+    #[sea_orm(column_type = "Double")]
+    pub lat: f64,
+    #[sea_orm(column_type = "Double")]
+    pub lon: f64,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub province: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub district: Option<String>,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub ward: Option<String>,
+    #[sea_orm(column_type = "Text")]
+    pub created_at: String,
+    #[sea_orm(column_type = "Text")]
+    pub updated_at: String,
+}
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+    #[sea_orm(
+        belongs_to = "super::brand::Entity",
+        from = "Column::BrandId",
+        to = "super::brand::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    Brand,
+    #[sea_orm(has_many = "super::schedule_point::Entity")]
+    SchedulePoint,
+}
+
+impl Related<super::brand::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Brand.def()
+    }
+}
+
+impl Related<super::schedule_point::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::SchedulePoint.def()
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {}

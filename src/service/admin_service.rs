@@ -20,17 +20,18 @@ use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::dto::admin::{
-    AdminBookingDayBucket, AdminBookingDetail, AdminBookingDetailResponse,
-    AdminBookingExportResponse, AdminBookingListResponse, AdminBookingOut, AdminBookingSeatOut,
-    AdminBookingStatsResponse, AdminBookingStatusUpdate, AdminBookingTotals,
-    AdminBrandListResponse, AdminBrandOut, AdminBusLayoutListResponse, AdminBusLayoutOut,
-    AdminMutationResponse, AdminPickupPointListResponse, AdminPickupPointOut, AdminPlacePreview,
-    AdminReviewListResponse, AdminRouteListResponse, AdminRouteOut, AdminScheduleListResponse,
-    AdminScheduleOut, ModerateReviewRequest, ModerateReviewResponse, UpdateBookingStatusRequest,
-    UpdateBookingStatusResponse, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
-    UpsertScheduleRequest,
+    AdminAddressListResponse, AdminAddressOut, AdminBookingDayBucket, AdminBookingDetail,
+    AdminBookingDetailResponse, AdminBookingExportResponse, AdminBookingListResponse,
+    AdminBookingOut, AdminBookingSeatOut, AdminBookingStatsResponse, AdminBookingStatusUpdate,
+    AdminBookingTotals, AdminBrandListResponse, AdminBrandOut, AdminBusLayoutListResponse,
+    AdminBusLayoutOut, AdminMutationResponse, AdminPickupPointListResponse, AdminPickupPointOut,
+    AdminPlacePreview, AdminReviewListResponse, AdminRouteListResponse, AdminRouteOut,
+    AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut, ModerateReviewRequest,
+    ModerateReviewResponse, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
+    UpsertAddressRequest, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
+    UpsertSchedulePointItem, UpsertScheduleRequest,
 };
-use crate::entity::{audit_log, booking, brand, pickup_point, review, route, schedule};
+use crate::entity::{audit_log, booking, brand, address, pickup_point, review, route, schedule, schedule_point};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
@@ -425,9 +426,193 @@ impl AdminService {
         Ok(AdminMutationResponse { id })
     }
 
+    // ── Addresses ───────────────────────────────────────────────
+
+    /// List addresses owned by a brand (ordered by name).
+    pub async fn list_addresses(&self, brand_id: &str) -> AppResult<AdminAddressListResponse> {
+        let items: Vec<AdminAddressOut> = self
+            .store
+            .address_store()
+            .list_addresses_by_brand(brand_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .iter()
+            .map(address_out)
+            .collect();
+        Ok(AdminAddressListResponse { items })
+    }
+
+    /// Create a new address for a brand.
+    pub async fn create_address(
+        &self,
+        body: &UpsertAddressRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let brand_id = body
+            .brand_id
+            .ok_or_else(|| AppError::BadRequest("brandId is required".into()))?;
+        let name = body
+            .name
+            .as_deref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("name is required".into()))?
+            .to_string();
+        let lat = body
+            .lat
+            .ok_or_else(|| AppError::BadRequest("lat is required".into()))?;
+        let lon = body
+            .lon
+            .ok_or_else(|| AppError::BadRequest("lon is required".into()))?;
+
+        if !(-90.0..=90.0).contains(&lat) {
+            return Err(AppError::Validation("lat must be within -90..90".into()));
+        }
+        if !(-180.0..=180.0).contains(&lon) {
+            return Err(AppError::Validation("lon must be within -180..180".into()));
+        }
+
+        // The owning brand must exist.
+        let _brand = self
+            .store
+            .brand_store()
+            .get_by_id(brand_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("brand not found".into()))?;
+
+        let id = Uuid::new_v4();
+        let now = now_iso();
+        let model = address::ActiveModel {
+            id: Set(id),
+            brand_id: Set(brand_id),
+            name: Set(name),
+            address: Set(optional_trimmed(body.address.as_deref())),
+            lat: Set(lat),
+            lon: Set(lon),
+            province: Set(optional_trimmed(body.province.as_deref())),
+            district: Set(optional_trimmed(body.district.as_deref())),
+            ward: Set(optional_trimmed(body.ward.as_deref())),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        };
+
+        self.store
+            .address_store()
+            .insert_address(model)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Update an address by id (set-only-present-fields semantics).
+    pub async fn update_address(
+        &self,
+        id: Uuid,
+        body: &UpsertAddressRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self
+            .store
+            .address_store()
+            .find_address_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("address not found".into()))?;
+
+        if let Some(brand_id) = body.brand_id {
+            if brand_id != existing.brand_id {
+                return Err(AppError::Validation(
+                    "address cannot move to a different brand".into(),
+                ));
+            }
+        }
+
+        if let Some(ref v) = body.name {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                return Err(AppError::Validation("name cannot be empty".into()));
+            }
+        }
+
+        if let Some(v) = body.lat {
+            if !(-90.0..=90.0).contains(&v) {
+                return Err(AppError::Validation("lat must be within -90..90".into()));
+            }
+        }
+        if let Some(v) = body.lon {
+            if !(-180.0..=180.0).contains(&v) {
+                return Err(AppError::Validation("lon must be within -180..180".into()));
+            }
+        }
+
+        let mut active: address::ActiveModel = existing.into();
+        if let Some(ref v) = body.name {
+            active.name = Set(v.trim().to_string());
+        }
+        if body.address.is_some() {
+            active.address = Set(optional_trimmed(body.address.as_deref()));
+        }
+        if let Some(v) = body.lat {
+            active.lat = Set(v);
+        }
+        if let Some(v) = body.lon {
+            active.lon = Set(v);
+        }
+        if body.province.is_some() {
+            active.province = Set(optional_trimmed(body.province.as_deref()));
+        }
+        if body.district.is_some() {
+            active.district = Set(optional_trimmed(body.district.as_deref()));
+        }
+        if body.ward.is_some() {
+            active.ward = Set(optional_trimmed(body.ward.as_deref()));
+        }
+        active.updated_at = Set(now_iso());
+
+        self.store
+            .address_store()
+            .update_address(active)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Delete an address by id. Refused while any schedule still references it.
+    pub async fn delete_address(&self, id: Uuid) -> AppResult<()> {
+        let _existing = self
+            .store
+            .address_store()
+            .find_address_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("address not found".into()))?;
+
+        let refs = self
+            .store
+            .address_store()
+            .count_schedule_points_by_address(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if refs > 0 {
+            return Err(AppError::Conflict(
+                "address is used by one or more schedules — remove it from those schedules first"
+                    .into(),
+            ));
+        }
+
+        self.store
+            .address_store()
+            .delete_address(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
     // ── Schedules ───────────────────────────────────────────────
 
-    /// List schedules for a route.
+    /// List schedules for a route, including each schedule's ordered
+    /// address points (batch-loaded — two extra queries total, no N+1).
     pub async fn list_schedules(&self, route_id: &str) -> AppResult<AdminScheduleListResponse> {
         let schedules = self
             .store
@@ -436,20 +621,60 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        if schedules.is_empty() {
+            return Ok(AdminScheduleListResponse { items: Vec::new() });
+        }
+
+        let schedule_ids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
+        let points = self
+            .store
+            .address_store()
+            .list_points_by_schedules(schedule_ids)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let address_ids: Vec<Uuid> = points.iter().map(|p| p.address_id).collect();
+        let addresses = self
+            .store
+            .address_store()
+            .list_addresses_by_ids(address_ids)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let address_map: std::collections::HashMap<Uuid, address::Model> =
+            addresses.into_iter().map(|a| (a.id, a)).collect();
+
         let items: Vec<AdminScheduleOut> = schedules
             .iter()
-            .map(|s| AdminScheduleOut {
-                id: s.id,
-                route_id: s.route_id,
-                departure_time: s.departure_time.clone(),
-                effective_from: s.effective_from.clone(),
-                effective_to: s.effective_to.clone(),
-                days_of_week: s.days_of_week.clone(),
-                bus_layout_id: s.bus_layout_id.clone(),
-                base_price_adult: s.base_price_adult,
-                base_price_child: s.base_price_child,
-                amenities: s.amenities.clone(),
-                created_at: s.created_at.clone(),
+            .map(|s| {
+                // `list_points_by_schedules` orders by stop_order; the
+                // per-schedule filter keeps that ordering stable.
+                let schedule_points: Vec<AdminSchedulePointOut> = points
+                    .iter()
+                    .filter(|p| p.schedule_id == s.id)
+                    .filter_map(|p| {
+                        address_map.get(&p.address_id).map(|a| AdminSchedulePointOut {
+                            id: p.id,
+                            schedule_id: p.schedule_id,
+                            address_id: p.address_id,
+                            stop_order: p.stop_order,
+                            kind: p.kind.clone(),
+                            address: address_out(a),
+                        })
+                    })
+                    .collect();
+                AdminScheduleOut {
+                    id: s.id,
+                    route_id: s.route_id,
+                    departure_time: s.departure_time.clone(),
+                    effective_from: s.effective_from.clone(),
+                    effective_to: s.effective_to.clone(),
+                    days_of_week: s.days_of_week.clone(),
+                    bus_layout_id: s.bus_layout_id.clone(),
+                    base_price_adult: s.base_price_adult,
+                    base_price_child: s.base_price_child,
+                    amenities: s.amenities.clone(),
+                    points: schedule_points,
+                    created_at: s.created_at.clone(),
+                }
             })
             .collect();
         Ok(AdminScheduleListResponse { items })
@@ -487,6 +712,13 @@ impl AdminService {
         }
 
         let id = Uuid::new_v4();
+        // Validate the point sequence BEFORE inserting the schedule so a
+        // rejected payload can't leave a half-configured schedule behind.
+        let point_models = match &body.points {
+            Some(items) => Some(self.build_schedule_points(route_id, id, items).await?),
+            None => None,
+        };
+
         let now = now_iso();
         let model = schedule::ActiveModel {
             id: Set(id),
@@ -508,6 +740,10 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        if let Some(models) = point_models {
+            self.insert_points(models).await?;
+        }
+
         Ok(AdminMutationResponse { id })
     }
 
@@ -525,7 +761,17 @@ impl AdminService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
 
+        let original_route_id = existing.route_id;
         let mut active: schedule::ActiveModel = existing.into();
+
+        // The (possibly updated) route scopes point validation — resolve it
+        // before applying field updates.
+        let final_route_id = body.route_id.unwrap_or(original_route_id);
+        // Validate the new point sequence BEFORE mutating the schedule row.
+        let point_models = match &body.points {
+            Some(items) => Some(self.build_schedule_points(final_route_id, id, items).await?),
+            None => None,
+        };
 
         if let Some(v) = body.route_id {
             active.route_id = Set(v);
@@ -545,8 +791,8 @@ impl AdminService {
         if let Some(ref v) = body.days_of_week {
             active.days_of_week = Set(Some(v.clone()));
         }
-        if let Some(ref v) = body.bus_layout_id {
-            active.bus_layout_id = Set(Some(v.clone()));
+        if let Some(v) = body.bus_layout_id {
+            active.bus_layout_id = Set(Some(v));
         }
         if let Some(v) = body.base_price_adult {
             active.base_price_adult = Set(v);
@@ -563,6 +809,10 @@ impl AdminService {
             .update_schedule(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if let Some(models) = point_models {
+            self.replace_points(id, models).await?;
+        }
 
         Ok(AdminMutationResponse { id })
     }
@@ -1309,6 +1559,183 @@ pub fn is_ymd(s: &str) -> bool {
 /// 7-char `0`/`1` days-of-week bitmask validator.
 pub fn is_days_of_week(s: &str) -> bool {
     s.len() == 7 && s.bytes().all(|c| c == b'0' || c == b'1')
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Schedule-point helpers
+// ────────────────────────────────────────────────────────────────
+
+impl AdminService {
+    /// Validate + build the ordered `schedule_point` rows for a schedule.
+    ///
+    /// Rules:
+    /// - at least 2 entries (departure + destination),
+    /// - every entry references an existing address,
+    /// - every address belongs to the route's brand (points are
+    ///   brand-scoped so one brand can never build a route out of
+    ///   another brand's stops),
+    /// - `kind` derives from position (first `pickup`, last `drop`,
+    ///   otherwise `middle`) and `stop_order` equals the array index.
+    async fn build_schedule_points(
+        &self,
+        route_id: Uuid,
+        schedule_id: Uuid,
+        items: &[UpsertSchedulePointItem],
+    ) -> AppResult<Vec<schedule_point::ActiveModel>> {
+        if items.len() < 2 {
+            return Err(AppError::Validation(
+                "points must contain at least the departure and destination addresses (2 items)"
+                    .into(),
+            ));
+        }
+
+        // The route's brand scopes which addresses may be used.
+        let route_model = self
+            .store
+            .route_store()
+            .find_route_by_id(route_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("route not found".into()))?;
+        let brand_id = route_model
+            .brand_id
+            .ok_or_else(|| AppError::Validation(
+                "route has no brand — assign a brand to the route before configuring points"
+                    .into(),
+            ))?;
+
+        let address_ids: Option<Vec<Uuid>> =
+            items.iter().map(|p| p.address_id).collect();
+        let address_ids = address_ids
+            .ok_or_else(|| AppError::Validation("every point must reference an address".into()))?;
+
+        let addresses = self
+            .store
+            .address_store()
+            .list_addresses_by_ids(address_ids.clone())
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        // Dedupe before the existence check — `IN (...)` returns one row
+        // per address, so a repeated address in the sequence (legal,
+        // e.g. circular routes) must not look like a missing one.
+        let distinct_ids: std::collections::HashSet<Uuid> =
+            address_ids.iter().copied().collect();
+        if addresses.len() != distinct_ids.len() {
+            return Err(AppError::Validation(
+                "one or more point addresses do not exist".into(),
+            ));
+        }
+        for a in &addresses {
+            if a.brand_id != brand_id {
+                return Err(AppError::Validation(
+                    "point addresses must belong to the route's brand".into(),
+                ));
+            }
+        }
+
+        let now = now_iso();
+        let total = items.len();
+        Ok(items
+            .iter()
+            .enumerate()
+            .map(|(index, p)| schedule_point::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                schedule_id: Set(schedule_id),
+                address_id: Set(p.address_id.expect("checked above")),
+                stop_order: Set(index as i64),
+                kind: Set(point_kind(index, total).to_string()),
+                created_at: Set(now.clone()),
+            })
+            .collect())
+    }
+
+    /// Insert freshly built points inside a single transaction.
+    async fn insert_points(&self, models: Vec<schedule_point::ActiveModel>) -> AppResult<()> {
+        if models.is_empty() {
+            return Ok(());
+        }
+        use sea_orm::{DatabaseTransaction, EntityTrait, TransactionTrait};
+        let txn: DatabaseTransaction = self
+            .store
+            .db()
+            .begin()
+            .await
+            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
+        schedule_point::Entity::insert_many(models)
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
+        Ok(())
+    }
+
+    /// Atomically replace a schedule's whole point sequence
+    /// (delete-then-insert in one transaction).
+    async fn replace_points(
+        &self,
+        schedule_id: Uuid,
+        models: Vec<schedule_point::ActiveModel>,
+    ) -> AppResult<()> {
+        use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, TransactionTrait};
+        let txn: DatabaseTransaction = self
+            .store
+            .db()
+            .begin()
+            .await
+            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
+        schedule_point::Entity::delete_many()
+            .filter(schedule_point::Column::ScheduleId.eq(schedule_id))
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("delete points: {e}")))?;
+        if !models.is_empty() {
+            schedule_point::Entity::insert_many(models)
+                .exec(&txn)
+                .await
+                .map_err(|e| AppError::Internal(format!("insert points: {e}")))?;
+        }
+        txn.commit()
+            .await
+            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
+        Ok(())
+    }
+}
+
+/// Point kind derived from its position in the sequence.
+fn point_kind(index: usize, total: usize) -> &'static str {
+    if index == 0 {
+        "pickup"
+    } else if index + 1 == total {
+        "drop"
+    } else {
+        "middle"
+    }
+}
+
+/// Map an `address::Model` to its wire DTO.
+fn address_out(a: &address::Model) -> AdminAddressOut {
+    AdminAddressOut {
+        id: a.id,
+        brand_id: a.brand_id,
+        name: a.name.clone(),
+        address: a.address.clone(),
+        lat: a.lat,
+        lon: a.lon,
+        province: a.province.clone(),
+        district: a.district.clone(),
+        ward: a.ward.clone(),
+        created_at: a.created_at.clone(),
+        updated_at: a.updated_at.clone(),
+    }
+}
+
+/// Trim + drop empty optional strings (`""` → `None`).
+fn optional_trimmed(v: Option<&str>) -> Option<String> {
+    v.map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
 }
 
 /// Current UTC time as ISO 8601 string.

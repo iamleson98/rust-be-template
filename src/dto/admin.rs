@@ -162,6 +162,83 @@ pub struct UpsertRouteRequest {
 }
 
 // ────────────────────────────────────────────────────────────────
+//  Addresses (brand-owned geographic points)
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminAddressOut {
+    pub id: Uuid,
+    pub brand_id: Uuid,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    pub lat: f64,
+    pub lon: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub province: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub district: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ward: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Response of `GET /api/admin/addresses`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminAddressListResponse {
+    pub items: Vec<AdminAddressOut>,
+}
+
+/// Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertAddressRequest {
+    pub brand_id: Option<Uuid>,
+    #[validate(length(min = 1, max = 255))]
+    pub name: Option<String>,
+    #[validate(length(max = 1000))]
+    pub address: Option<String>,
+    #[validate(range(min = -90.0, max = 90.0))]
+    pub lat: Option<f64>,
+    #[validate(range(min = -180.0, max = 180.0))]
+    pub lon: Option<f64>,
+    #[validate(length(max = 100))]
+    pub province: Option<String>,
+    #[validate(length(max = 100))]
+    pub district: Option<String>,
+    #[validate(length(max = 100))]
+    pub ward: Option<String>,
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Schedule points (ordered address sequence)
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminSchedulePointOut {
+    pub id: Uuid,
+    pub schedule_id: Uuid,
+    pub address_id: Uuid,
+    pub stop_order: i64,
+    /// `pickup` (first) / `middle` / `drop` (last).
+    pub kind: String,
+    pub address: AdminAddressOut,
+}
+
+/// One entry of the ordered `points` array on schedule create/update.
+/// The array position defines `stopOrder`; `kind` is derived
+/// (first = `pickup`, last = `drop`, else `middle`).
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertSchedulePointItem {
+    pub address_id: Option<Uuid>,
+}
+
+// ────────────────────────────────────────────────────────────────
 //  Schedules
 // ────────────────────────────────────────────────────────────────
 
@@ -177,13 +254,18 @@ pub struct AdminScheduleOut {
     pub effective_to: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub days_of_week: Option<String>,
+    /// Bus layout id (string on the wire, `Uuid` in Rust — see the
+    /// entity field comment about the old String/TEXT drift).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub bus_layout_id: Option<String>,
+    pub bus_layout_id: Option<Uuid>,
     pub base_price_adult: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_price_child: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub amenities: Option<String>,
+    /// Ordered address points (departure → midway stops → destination).
+    /// Empty when the schedule has no point sequence yet.
+    pub points: Vec<AdminSchedulePointOut>,
     pub created_at: String,
 }
 
@@ -205,13 +287,18 @@ pub struct UpsertScheduleRequest {
     pub effective_to: Option<String>,
     #[validate(length(max = 20))]
     pub days_of_week: Option<String>,
-    pub bus_layout_id: Option<String>,
+    /// Bus layout id (string on the wire, `Uuid` in Rust).
+    pub bus_layout_id: Option<Uuid>,
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_adult: Option<i64>,
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_child: Option<i64>,
     #[validate(length(max = 5000))]
     pub amenities: Option<String>,
+    /// When present, replaces the schedule's whole point sequence.
+    /// Requires ≥ 2 items (departure + destination); `kind` and
+    /// `stopOrder` are derived from the array position.
+    pub points: Option<Vec<UpsertSchedulePointItem>>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -546,6 +633,13 @@ pub struct AdminRoutesQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminSchedulesQuery {
     pub route_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct AdminAddressesQuery {
+    pub brand_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]

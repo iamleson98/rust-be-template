@@ -89,8 +89,11 @@ impl ScheduleStore for DbScheduleStore {
     }
 
     async fn list_schedules_by_route(&self, route_id: &str) -> StoreResult<Vec<schedule::Model>> {
+        // Parse to Uuid — see `parse_uuid` (a TEXT parameter never
+        // matches the BLOB-stored uuid column on SQLite).
+        let route_uuid = super::parse_uuid(route_id)?;
         Ok(schedule::Entity::find()
-            .filter(schedule::Column::RouteId.eq(route_id.to_string()))
+            .filter(schedule::Column::RouteId.eq(route_uuid))
             .all(self.db.as_ref())
             .await?)
     }
@@ -100,8 +103,9 @@ impl ScheduleStore for DbScheduleStore {
         // materialisation. Used by admin_service::list_routes which previously
         // called list_schedules_by_route(...).len() and loaded every schedule
         // row just to count them (N routes × M schedules = N*M row fetches).
+        let route_uuid = super::parse_uuid(route_id)?;
         Ok(schedule::Entity::find()
-            .filter(schedule::Column::RouteId.eq(route_id.to_string()))
+            .filter(schedule::Column::RouteId.eq(route_uuid))
             .count(self.db.as_ref())
             .await? as usize)
     }
@@ -114,13 +118,20 @@ impl ScheduleStore for DbScheduleStore {
             return Ok(std::collections::HashMap::new());
         }
         use sea_orm::sea_query::Expr;
-        let rows: Vec<(String, i64)> = schedule::Entity::find()
-            .filter(schedule::Column::RouteId.is_in(route_ids.clone()))
+        // GROUP BY key decodes as `Uuid` — on SQLite the column is a 16-byte
+        // BLOB (decoding as `String` fails); on Postgres both work. See
+        // `parse_uuid`. Map back to the caller's string keys afterwards.
+        let route_uuids: Vec<Uuid> = route_ids
+            .iter()
+            .map(|id| super::parse_uuid(id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let rows: Vec<(Uuid, i64)> = schedule::Entity::find()
+            .filter(schedule::Column::RouteId.is_in(route_uuids))
             .select_only()
             .column(schedule::Column::RouteId)
             .column_as(Expr::col(schedule::Column::Id).count(), "count")
             .group_by(schedule::Column::RouteId)
-            .into_tuple::<(String, i64)>()
+            .into_tuple::<(Uuid, i64)>()
             .all(self.db.as_ref())
             .await?;
         let mut map: std::collections::HashMap<String, usize> =
@@ -129,7 +140,7 @@ impl ScheduleStore for DbScheduleStore {
             map.insert(id, 0);
         }
         for (id, count) in rows {
-            map.insert(id, count as usize);
+            map.insert(id.to_string(), count as usize);
         }
         Ok(map)
     }
@@ -179,8 +190,9 @@ impl ScheduleStore for DbScheduleStore {
 
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize> {
         // Use `count()` instead of the previous `.all().len()` pattern.
+        let brand_uuid = super::parse_uuid(brand_id)?;
         Ok(bus_layout::Entity::find()
-            .filter(bus_layout::Column::BrandId.eq(brand_id.to_string()))
+            .filter(bus_layout::Column::BrandId.eq(brand_uuid))
             .count(self.db.as_ref())
             .await? as usize)
     }
@@ -193,13 +205,18 @@ impl ScheduleStore for DbScheduleStore {
             return Ok(std::collections::HashMap::new());
         }
         use sea_orm::sea_query::Expr;
-        let rows: Vec<(String, i64)> = bus_layout::Entity::find()
-            .filter(bus_layout::Column::BrandId.is_in(brand_ids.clone()))
+        // GROUP BY key decodes as `Uuid` (BLOB on SQLite — see `parse_uuid`).
+        let brand_uuids: Vec<Uuid> = brand_ids
+            .iter()
+            .map(|id| super::parse_uuid(id))
+            .collect::<StoreResult<Vec<_>>>()?;
+        let rows: Vec<(Uuid, i64)> = bus_layout::Entity::find()
+            .filter(bus_layout::Column::BrandId.is_in(brand_uuids))
             .select_only()
             .column(bus_layout::Column::BrandId)
             .column_as(Expr::col(bus_layout::Column::Id).count(), "count")
             .group_by(bus_layout::Column::BrandId)
-            .into_tuple::<(String, i64)>()
+            .into_tuple::<(Uuid, i64)>()
             .all(self.db.as_ref())
             .await?;
         let mut map: std::collections::HashMap<String, usize> =
@@ -208,7 +225,7 @@ impl ScheduleStore for DbScheduleStore {
             map.insert(id, 0);
         }
         for (id, count) in rows {
-            map.insert(id, count as usize);
+            map.insert(id.to_string(), count as usize);
         }
         Ok(map)
     }

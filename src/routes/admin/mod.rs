@@ -6,6 +6,8 @@
 //!
 //! Each sub-module owns its own routes + utoipa path annotations:
 //!
+//! - `addresses` — `/api/admin/addresses` (brand-owned points used by
+//!   schedule point sequences)
 //! - `brands` — `/api/admin/brands`
 //! - `routes` — `/api/admin/routes` (bus routes, not HTTP routes)
 //! - `schedules` — `/api/admin/schedules`
@@ -24,6 +26,7 @@
 //! domain makes each file ~80–140 LOC, easier to navigate + test, and
 //! aligns with how the `service/admin_service.rs` is organised.
 
+pub mod addresses;
 pub mod bookings;
 pub mod brands;
 pub mod bus_layouts;
@@ -43,6 +46,7 @@ use crate::state::AppState;
 /// mounts at `/` which becomes `/api/admin/brands` after `nest`).
 pub fn router() -> Router<AppState> {
     Router::new()
+        .nest("/addresses", addresses::router())
         .nest("/brands", brands::router())
         .nest("/routes", routes::router())
         .nest("/schedules", schedules::router())
