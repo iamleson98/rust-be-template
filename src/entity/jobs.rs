@@ -4,22 +4,17 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "vehicle_type")]
+#[sea_orm(table_name = "jobs")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub id: Uuid,
-    #[sea_orm(unique)]
-    pub code: String,
-    pub label: String,
-    #[sea_orm(column_type = "Text", nullable)]
-    pub description: Option<String>,
-    pub total_seats: Option<i16>,
-    pub sort_order: i16,
-    pub status: String,
+    #[sea_orm(primary_key, auto_increment = false, column_type = "Text")]
+    pub id: String,
     #[sea_orm(column_type = "Text")]
-    pub created_at: String,
+    pub job_type: String,
     #[sea_orm(column_type = "Text")]
-    pub updated_at: String,
+    pub payload: String,
+    pub attempts: i64,
+    pub available_at: DateTimeUtc,
+    pub created_at: DateTimeUtc,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

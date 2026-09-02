@@ -12,12 +12,10 @@ pub struct Model {
     pub address_id: Uuid,
     pub stop_order: i64,
     pub kind: String,
-    /// Optional `HH:MM` arrival time at this stop — lets an operator
-    /// publish when the vehicle reaches each pickup/drop point.
-    #[sea_orm(column_type = "Text", nullable)]
-    pub arrival_time: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub arrival_time: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

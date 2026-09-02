@@ -171,7 +171,9 @@ impl VehicleTypeStore for DbVehicleTypeStore {
     }
 
     async fn insert_vehicle_type(&self, model: vehicle_type::ActiveModel) -> StoreResult<()> {
-        vehicle_type::Entity::insert(model).exec(self.db.as_ref()).await?;
+        vehicle_type::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 

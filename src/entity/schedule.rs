@@ -18,16 +18,13 @@ pub struct Model {
     #[sea_orm(column_type = "Text", nullable)]
     pub days_of_week: Option<String>,
     pub bus_layout_id: Option<Uuid>,
-    /// Explicit vehicle class ("Loại xe") for this schedule — the
-    /// admin-managed `vehicle_type` row. `None` = resolve through the
-    /// bus layout (legacy behaviour).
-    pub vehicle_type_id: Option<Uuid>,
     pub base_price_adult: i64,
     pub base_price_child: Option<i64>,
     #[sea_orm(column_type = "Text", nullable)]
     pub amenities: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
+    pub vehicle_type_id: Option<Uuid>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -40,14 +37,6 @@ pub enum Relation {
         on_delete = "Restrict"
     )]
     BusLayout,
-    #[sea_orm(
-        belongs_to = "super::vehicle_type::Entity",
-        from = "Column::VehicleTypeId",
-        to = "super::vehicle_type::Column::Id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
-    )]
-    VehicleType,
     #[sea_orm(
         belongs_to = "super::route::Entity",
         from = "Column::RouteId",
@@ -65,12 +54,6 @@ pub enum Relation {
 impl Related<super::bus_layout::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::BusLayout.def()
-    }
-}
-
-impl Related<super::vehicle_type::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::VehicleType.def()
     }
 }
 

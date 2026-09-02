@@ -116,20 +116,17 @@ impl AddressStore for DbAddressStore {
         let brand_uuid = super::parse_uuid(brand_id)?;
         // LOWER(name) LIKE — portable case-insensitive contains across
         // SQLite + Postgres (same trick as the route store).
-        let needle = q.map(str::trim).filter(|s| !s.is_empty()).map(|s| {
-            format!("%{}%", s.to_lowercase())
-        });
+        let needle = q
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| format!("%{}%", s.to_lowercase()));
         let base = address::Entity::find().filter(address::Column::BrandId.eq(brand_uuid));
         let base = match needle {
-            Some(n) => base.filter(
-                Expr::cust_with_values("LOWER(name) LIKE ?", [n]),
-            ),
+            Some(n) => base.filter(Expr::cust_with_values("LOWER(name) LIKE ?", [n])),
             None => base,
         };
         let total = base.clone().count(self.db.as_ref()).await?;
-        let mut query = base
-            .order_by_asc(address::Column::Name)
-            .offset(offset);
+        let mut query = base.order_by_asc(address::Column::Name).offset(offset);
         if let Some(limit) = limit {
             query = query.limit(limit);
         }

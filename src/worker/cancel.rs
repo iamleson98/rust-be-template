@@ -112,7 +112,10 @@ mod tests {
 
         rc.cancel(id); // killed while queued
         let token = rc.register(id, &parent);
-        assert!(token.is_cancelled(), "dispatch must start already cancelled");
+        assert!(
+            token.is_cancelled(),
+            "dispatch must start already cancelled"
+        );
 
         rc.release(id);
         rc.cancel(id); // released — records as pending again, no panic

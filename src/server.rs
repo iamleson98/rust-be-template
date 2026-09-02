@@ -380,9 +380,7 @@ pub async fn run(state: AppState) -> anyhow::Result<()> {
         //    exit — the runtime's drop would otherwise block on that
         //    blocking thread forever and Ctrl+C would appear to hang.
         if !crate::worker::await_worker_shutdown(std::time::Duration::from_secs(25)).await {
-            tracing::warn!(
-                "background jobs still busy after the 25s grace period — forcing exit"
-            );
+            tracing::warn!("background jobs still busy after the 25s grace period — forcing exit");
             std::process::exit(0);
         }
     })

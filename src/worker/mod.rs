@@ -95,10 +95,7 @@ pub fn notify_shutdown() {
 
 /// Stash the runner supervisor's `JoinHandle` (awaited during shutdown).
 pub fn set_supervisor(handle: JoinHandle<()>) {
-    if let Ok(mut slot) = SUPERVISOR
-        .get_or_init(|| Mutex::new(None))
-        .lock()
-    {
+    if let Ok(mut slot) = SUPERVISOR.get_or_init(|| Mutex::new(None)).lock() {
         slot.replace(handle);
     }
 }
@@ -110,7 +107,9 @@ pub fn set_supervisor(handle: JoinHandle<()>) {
 /// otherwise block the tokio runtime's drop indefinitely (the runtime
 /// waits for blocking tasks on `main`'s return).
 pub async fn await_worker_shutdown(timeout: Duration) -> bool {
-    let handle = SUPERVISOR.get().and_then(|m| m.lock().ok().and_then(|mut g| g.take()));
+    let handle = SUPERVISOR
+        .get()
+        .and_then(|m| m.lock().ok().and_then(|mut g| g.take()));
     match handle {
         // No runner started in this process — nothing to wait for.
         None => true,

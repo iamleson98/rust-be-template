@@ -351,7 +351,13 @@ mod tests {
     fn seed_codes_cover_the_legacy_label_map() {
         // The five codes `public_service::vehicle_type_label` knows must be
         // present so pre-existing bus_layout.vehicle_type strings resolve.
-        for legacy in ["limousine", "sleeper", "semi_sleeper", "minivan", "standard"] {
+        for legacy in [
+            "limousine",
+            "sleeper",
+            "semi_sleeper",
+            "minivan",
+            "standard",
+        ] {
             assert!(
                 SEED_TYPES.iter().any(|(code, ..)| *code == legacy),
                 "legacy vehicle type {legacy:?} missing from the seed catalog"

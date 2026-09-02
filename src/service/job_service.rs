@@ -309,13 +309,11 @@ impl JobService {
     /// phase boundaries (download select / indexer stop checks) and
     /// finalizes its own row. The runner ACKs a cancelled run — no retry.
     pub async fn cancel(&self, job_type: &str) -> AppResult<CronJobRunOut> {
-        let run = self
-            .store
-            .find_active_run(job_type)
-            .await?
-            .ok_or_else(|| {
-                AppError::NotFound(format!("job {job_type:?} has no queued/running run to cancel"))
-            })?;
+        let run = self.store.find_active_run(job_type).await?.ok_or_else(|| {
+            AppError::NotFound(format!(
+                "job {job_type:?} has no queued/running run to cancel"
+            ))
+        })?;
 
         let mut am: job_run::ActiveModel = run.clone().into();
         am.status = Set(status::CANCELLED.into());

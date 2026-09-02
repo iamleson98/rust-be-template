@@ -650,10 +650,8 @@ impl AdminService {
 
         // Batch-resolve the schedules' explicit vehicle classes (one
         // query for the whole page).
-        let vehicle_type_ids: Vec<Uuid> = schedules
-            .iter()
-            .filter_map(|s| s.vehicle_type_id)
-            .collect();
+        let vehicle_type_ids: Vec<Uuid> =
+            schedules.iter().filter_map(|s| s.vehicle_type_id).collect();
         let vehicle_type_map: std::collections::HashMap<Uuid, vehicle_type::Model> =
             if vehicle_type_ids.is_empty() {
                 std::collections::HashMap::new()
@@ -1017,8 +1015,9 @@ impl AdminService {
             active.sort_order = Set(sort);
         }
         if let Some(ref status) = body.status {
-            let status = valid_vehicle_type_status(Some(status))
-                .ok_or_else(|| AppError::Validation("status must be `active` or `disabled`".into()))?;
+            let status = valid_vehicle_type_status(Some(status)).ok_or_else(|| {
+                AppError::Validation("status must be `active` or `disabled`".into())
+            })?;
             active.status = Set(status.to_string());
         }
         active.updated_at = Set(now_iso());

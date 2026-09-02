@@ -424,8 +424,10 @@ impl PublicService {
         // admin-managed catalog) — `resolve_vehicle_type` prefers them
         // over the bus-layout fallback.
         let vt_map: HashMap<Uuid, vehicle_type::Model> = {
-            let ids: Vec<Uuid> =
-                sched_map.values().filter_map(|s| s.vehicle_type_id).collect();
+            let ids: Vec<Uuid> = sched_map
+                .values()
+                .filter_map(|s| s.vehicle_type_id)
+                .collect();
             if ids.is_empty() {
                 HashMap::new()
             } else {
@@ -472,8 +474,7 @@ impl PublicService {
 
                 // Vehicle type: schedule catalog row first, bus-layout
                 // fallback, "standard" default — then the filter.
-                let (vehicle_type, vt_label) =
-                    resolve_vehicle_type(sched, layout, &vt_map);
+                let (vehicle_type, vt_label) = resolve_vehicle_type(sched, layout, &vt_map);
                 if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
                     return None;
                 }
