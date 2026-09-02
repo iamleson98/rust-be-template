@@ -22,6 +22,12 @@
 //! returns `Err`, so the runner retries once (`max_attempts = 2`).
 //! The retry re-downloads from scratch — acceptable for a biweekly
 //! night job.
+//!
+//! Cancellation (the admin kill button / Ctrl+C shutdown) is
+//! cooperative: every phase observes the run's `CancellationToken` —
+//! the download via `select!`, the blocking indexer via `IndexOptions::
+//! stop` — and a cancelled run terminates with status `cancelled` and
+//! is ACKed (never retried). Cleanup runs on the cancelled path too.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +36,7 @@ use std::time::Duration;
 
 use sea_orm::Set;
 use serde_json::json;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -77,6 +84,21 @@ impl Drop for ImportGuard {
         IMPORT_IN_FLIGHT.store(false, Ordering::Release);
     }
 }
+
+/// Marker error: the run was cancelled (operator kill or process
+/// shutdown). Distinguished from real failures so the terminal-state
+/// writer marks the row `cancelled` (not `failed`) and returns `Ok(())`
+/// — the runner must not retry an intentional stop.
+#[derive(Debug)]
+struct Cancelled;
+
+impl std::fmt::Display for Cancelled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("cancelled")
+    }
+}
+
+impl std::error::Error for Cancelled {}
 
 /// Register the handler + policy on the worker registry. Referenced by
 /// the `jobs::catalog` entry (a plain `fn` pointer — all state arrives
@@ -163,6 +185,23 @@ async fn run(
         None => insert_run(job_store, JOB_TYPE).await?,
     };
 
+    // A row that is already terminal (e.g. cancelled while queued, or
+    // swept as stale between enqueue and dispatch) must not be
+    // resurrected — exit without work.
+    if matches!(
+        run_row.status.as_str(),
+        status::SUCCEEDED | status::FAILED | status::CANCELLED
+    ) {
+        tracing::info!(
+            run_id = %run_row.id,
+            status = %run_row.status,
+            "run row already terminal — skipping dispatch"
+        );
+        return Ok(());
+    }
+
+    let cancel = env.cancel.clone();
+
     // queued → running
     {
         let mut am: job_run::ActiveModel = run_row.clone().into();
@@ -196,7 +235,7 @@ async fn run(
         }
     });
 
-    let result = execute(&paths, places, &tx).await;
+    let result = execute(&paths, places, &tx, &cancel).await;
 
     // Stop the progress writer BEFORE the final lifecycle write so a
     // late progress update can't clobber the terminal status/detail.
@@ -227,6 +266,20 @@ async fn run(
             tracing::info!(run_id = %run_id, "osm.import succeeded");
             Ok(())
         }
+        Err(e) if e.downcast_ref::<Cancelled>().is_some() => {
+            // An intentional stop (admin kill / Ctrl+C): terminal
+            // `cancelled` status + `Ok` so the runner acks without retry.
+            // The service already wrote `cancelled` in the common path;
+            // this write is idempotent reconciliation for the race where
+            // the token fired between two DB writes.
+            let mut am: job_run::ActiveModel = run_row.into();
+            am.status = Set(status::CANCELLED.into());
+            am.error = Set(None);
+            am.finished_at = Set(Some(now_iso()));
+            let _ = job_store.update_run(am).await;
+            tracing::info!(run_id = %run_id, "osm.import cancelled");
+            Ok(())
+        }
         Err(e) => {
             let message = e.to_string();
             let mut am: job_run::ActiveModel = run_row.into();
@@ -247,8 +300,9 @@ async fn execute(
     paths: &ImportPaths,
     places: &Arc<PlaceService>,
     tx: &tokio::sync::mpsc::UnboundedSender<serde_json::Value>,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<IndexStats> {
-    let outcome = execute_inner(paths, places, tx).await;
+    let outcome = execute_inner(paths, places, tx, cancel).await;
     // Cleanup happens on success AND failure: the PBF is a transient
     // artifact of the import, and staging/.part leftovers would only
     // confuse the next run. The LIVE index is never cleaned here —
@@ -261,30 +315,34 @@ async fn execute_inner(
     paths: &ImportPaths,
     places: &Arc<PlaceService>,
     tx: &tokio::sync::mpsc::UnboundedSender<serde_json::Value>,
+    cancel: &CancellationToken,
 ) -> anyhow::Result<IndexStats> {
-    // ── 1. Download ──────────────────────────────────────────────
+    // ── 1. Download (cancellable: dropping the future aborts the
+    //        reqwest stream and the .part file is cleaned up below) ──
     let client = download::client()?;
     let tx_dl = tx.clone();
     let last_reported = std::sync::atomic::AtomicU64::new(0);
-    download::download_file(
-        &client,
-        &paths.download_url,
-        &paths.pbf_path,
-        &move |bytes| {
-            // Throttle: a progress row every 64 MiB (the callback itself
-            // fires per ~8-64 KiB chunk).
-            let last = last_reported.load(Ordering::Relaxed);
-            if bytes.saturating_sub(last) >= 64 * 1024 * 1024 {
-                last_reported.store(bytes, Ordering::Relaxed);
-                let _ = tx_dl.send(json!({
-                    "phase": "downloading",
-                    "message": format!("{:.0} MiB downloaded", bytes as f64 / 1_048_576.0),
-                    "bytes": bytes,
-                }));
-            }
-        },
-    )
-    .await?;
+    // Bind the closure before building the future — the future borrows
+    // it, so it must outlive the `select!` that holds the future.
+    let on_progress = move |bytes: u64| {
+        // Throttle: a progress row every 64 MiB (the callback itself
+        // fires per ~8-64 KiB chunk).
+        let last = last_reported.load(Ordering::Relaxed);
+        if bytes.saturating_sub(last) >= 64 * 1024 * 1024 {
+            last_reported.store(bytes, Ordering::Relaxed);
+            let _ = tx_dl.send(json!({
+                "phase": "downloading",
+                "message": format!("{:.0} MiB downloaded", bytes as f64 / 1_048_576.0),
+                "bytes": bytes,
+            }));
+        }
+    };
+    let download =
+        download::download_file(&client, &paths.download_url, &paths.pbf_path, &on_progress);
+    tokio::select! {
+        _ = cancel.cancelled() => return Err(anyhow::Error::new(Cancelled)),
+        result = download => result?,
+    };
 
     // ── 2+3. Index into staging, then swap (single-flight) ───────
     let _ = tx.send(json!({
@@ -302,6 +360,10 @@ async fn execute_inner(
             "message": msg,
         }));
     });
+    // Cooperative stop flag for the blocking indexer: the token is
+    // pollable from sync code (`is_cancelled`), so the closure clones it.
+    let stop_token = cancel.clone();
+    let stop: indexer::StopFn = Arc::new(move || stop_token.is_cancelled());
 
     let stats = {
         // Index + swap are plain fs work — keep them off the async
@@ -316,24 +378,35 @@ async fn execute_inner(
                 )
             }
         };
-        let result = tokio::task::spawn_blocking(move || {
+        let join = tokio::task::spawn_blocking(move || {
             let _guard = guard; // lives for the whole closure
                                 // Stale staging from a crashed run would corrupt a rebuild.
             let _ = std::fs::remove_dir_all(&staging);
             let opts = IndexOptions {
                 progress: Some(progress),
+                stop: Some(stop),
                 ..IndexOptions::default()
             };
             let stats = indexer::run_index(&pbf, &staging, &opts)?;
             swap_index_dirs(&live, &staging)?;
             Ok::<_, anyhow::Error>(stats)
-        })
-        .await
-        .map_err(|e| anyhow::anyhow!("indexing task join error: {e}"))??;
-        result
+        });
+        // The async side exits immediately on cancel; the blocking body
+        // notices the same token at its stop checks and winds down on
+        // its own (its guard keeps single-flight honest until then).
+        tokio::select! {
+            _ = cancel.cancelled() => return Err(anyhow::Error::new(Cancelled)),
+            result = join => result
+                .map_err(|e| anyhow::anyhow!("indexing task join error: {e}"))??,
+        }
     };
 
     // ── 4. Activate the new index on the running server ─────────
+    if cancel.is_cancelled() {
+        // The index was built and published — activating it is fast, but
+        // a cancellation that raced the swap should still win.
+        return Err(anyhow::Error::new(Cancelled));
+    }
     let _ = tx.send(json!({
         "phase": "activating",
         "message": "activating the new index on the running server",

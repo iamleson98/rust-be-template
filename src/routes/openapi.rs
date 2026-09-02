@@ -142,6 +142,15 @@ use utoipa::OpenApi;
         // system monitoring
         crate::routes::system::system_status,
         crate::routes::system::chat_stats,
+        // admin — vehicle types (schedule form's "Loại xe" catalog).
+        // Registered LAST on purpose (see the addresses comment above):
+        // appending keeps the existing SDK function numbers stable.
+        crate::routes::admin::vehicle_types::list,
+        crate::routes::admin::vehicle_types::create,
+        crate::routes::admin::vehicle_types::update,
+        crate::routes::admin::vehicle_types::delete,
+        // admin — cron job run cancellation (the admin "kill" button).
+        crate::routes::admin::jobs::cancel,
     ),
     components(schemas(
         // auth
@@ -310,6 +319,10 @@ use utoipa::OpenApi;
         crate::routes::system::WebsocketStats,
         crate::routes::system::DatabaseStats,
         crate::routes::system::ProcessStats,
+        // admin — vehicle types (appended last, same ordering rule)
+        crate::dto::admin::AdminVehicleTypeOut,
+        crate::dto::admin::AdminVehicleTypeListResponse,
+        crate::dto::admin::UpsertVehicleTypeRequest,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

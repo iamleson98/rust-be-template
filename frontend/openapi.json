@@ -15,7 +15,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`GET /api/admin/addresses?brandId=` — list a brand's addresses.",
+        "summary": "`GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a\nbrand's addresses. `q`/`limit`/`offset` feed the searchable,\ninfinite-scroll schedule point picker; omitting `limit` returns all.",
         "operationId": "list",
         "parameters": [
           {
@@ -26,11 +26,42 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Name filter (case-insensitive contains). Feeds the searchable,\ninfinite-scroll schedule point picker.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size. `None` = return every row (legacy full-list consumers).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Page offset (0-based) — combined with `limit`.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Address list",
+            "description": "Address list (items + total)",
             "content": {
               "application/json": {
                 "schema": {
@@ -946,6 +977,47 @@
         }
       }
     },
+    "/api/admin/cron-jobs/{jobType}/cancel": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or\nrunning run of a job (the admin \"Dừng\" button). Cancellation is\ncooperative: the handler observes the token at its phase boundaries\nand finalizes its own history row; the runner ACKs (no retry).",
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "name": "jobType",
+            "in": "path",
+            "description": "Job type (e.g. `osm.import`)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run cancelled (or already cancelled)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CronJobRunOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "No queued/running run for that job type"
+          }
+        }
+      }
+    },
     "/api/admin/cron-jobs/{jobType}/trigger": {
       "post": {
         "tags": [
@@ -1786,6 +1858,205 @@
           },
           "403": {
             "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/vehicle-types": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/vehicle-types?q=&limit=&offset=` — list the catalog\n(label/code filter + offset pagination for the infinite picker).",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Label/code filter (case-insensitive contains).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size (default 50, clamped 1-200). `None` = all rows.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Page offset (0-based).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vehicle type list (items + total)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVehicleTypeListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/vehicle-types` — create a vehicle type.",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertVehicleTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — code/label missing"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "409": {
+            "description": "Conflict — code already exists"
+          }
+        }
+      }
+    },
+    "/api/admin/vehicle-types/{id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PUT /api/admin/vehicle-types/{id}` — update (patch semantics).",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Vehicle type id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertVehicleTypeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — invalid code/label/status"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Vehicle type not found"
+          },
+          "409": {
+            "description": "Conflict — code already exists"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`DELETE /api/admin/vehicle-types/{id}` — delete. Schedules\nreferencing the type fall back to their bus layout\n(`ON DELETE SET NULL` semantics).",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Vehicle type id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Vehicle type not found"
           }
         }
       }
@@ -4766,7 +5037,8 @@
         "type": "object",
         "description": "Response of `GET /api/admin/addresses`.",
         "required": [
-          "items"
+          "items",
+          "total"
         ],
         "properties": {
           "items": {
@@ -4774,6 +5046,12 @@
             "items": {
               "$ref": "#/components/schemas/AdminAddressOut"
             }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total rows matching the brand + `q` filter (for pagination).",
+            "minimum": 0
           }
         }
       },
@@ -5887,6 +6165,25 @@
           "routeId": {
             "type": "string",
             "format": "uuid"
+          },
+          "vehicleType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AdminVehicleTypeOut",
+                "description": "The resolved vehicle class row (schedule's explicit type; the\nbus-layout fallback is NOT resolved here — the admin UI shows\nthe catalog type it configured)."
+              }
+            ]
+          },
+          "vehicleTypeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Explicit vehicle class (`vehicle_type` row). `None` = resolved\nthrough the bus layout (legacy behaviour)."
           }
         }
       },
@@ -5908,6 +6205,13 @@
             "type": "string",
             "format": "uuid"
           },
+          "arrivalTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional `HH:MM` — when the vehicle reaches this stop."
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -5923,6 +6227,83 @@
           "stopOrder": {
             "type": "integer",
             "format": "int64"
+          }
+        }
+      },
+      "AdminVehicleTypeListResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/vehicle-types`.",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminVehicleTypeOut"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total rows matching the filter (for pagination).",
+            "minimum": 0
+          }
+        }
+      },
+      "AdminVehicleTypeOut": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "label",
+          "sortOrder",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Stable slug (unique, lowercase — matches the legacy\n`bus_layout.vehicle_type` codes and the public search filter)."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display name (Vietnamese)."
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Display order in pickers (ascending)."
+          },
+          "status": {
+            "type": "string",
+            "description": "`active` | `disabled`."
+          },
+          "totalSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Typical seat count — informational."
+          },
+          "updatedAt": {
+            "type": "string"
           }
         }
       },
@@ -7364,7 +7745,7 @@
           },
           "status": {
             "type": "string",
-            "description": "`queued | running | succeeded | failed`."
+            "description": "`queued | running | succeeded | failed | cancelled`."
           }
         }
       },
@@ -10137,6 +10518,13 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "arrivalTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional `HH:MM` arrival time at this stop. Validated in the\nservice (00:00–23:59); `null`/omitted clears it."
           }
         }
       },
@@ -10212,6 +10600,60 @@
               "null"
             ],
             "format": "uuid"
+          },
+          "vehicleTypeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Vehicle class from the admin-managed `vehicle_type` catalog.\nValidated in the service (404-style validation error when unknown)."
+          }
+        }
+      },
+      "UpsertVehicleTypeRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/admin/vehicle-types` +\n`PUT /api/admin/vehicle-types/{id}`. All fields optional on update\n(patch semantics); `code`+`label` required on create.",
+        "properties": {
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required on create, immutable-style identity (must stay a slug)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sortOrder": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`active` | `disabled` (defaults to `active` on create)."
+          },
+          "totalSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
           }
         }
       },

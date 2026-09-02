@@ -1,6 +1,9 @@
 import { useState } from 'react'
 
 import { Calendar } from '@/components/ui/calendar'
+import { DatePicker } from '@/components/ui/date-picker'
+import { TimePicker } from '@/components/ui/time-picker'
+import { InfiniteSelect } from '@/components/ui/infinite-select'
 import {
   Combobox,
   ComboboxContent,
@@ -40,6 +43,24 @@ const CITIES = [
 ]
 
 /**
+ * Mock paginated backend for the InfiniteSelect demo: 120 synthetic
+ * rows, 10 per page, case-insensitive label filter.
+ */
+async function galleryFetchPage(page: number, search: string) {
+  const all = Array.from({ length: 120 }, (_, i) => ({
+    value: `city-${i + 1}`,
+    label: `City ${i + 1}`,
+  }))
+  const needle = search.trim().toLowerCase()
+  const filtered = needle
+    ? all.filter((c) => c.label.toLowerCase().includes(needle))
+    : all
+  const pageSize = 10
+  const items = filtered.slice(page * pageSize, (page + 1) * pageSize)
+  return { items, total: filtered.length, hasMore: (page + 1) * pageSize < filtered.length }
+}
+
+/**
  * Selection base components: Select, Combobox, Toggle, ToggleGroup,
  * Calendar.
  */
@@ -49,6 +70,9 @@ export function SelectionSections() {
   const [pinned, setPinned] = useState(false)
   const [view, setView] = useState('list')
   const [date, setDate] = useState<Date | undefined>(new Date())
+  const [isoDate, setIsoDate] = useState<string | null>(null)
+  const [time, setTime] = useState<string | null>('08:30')
+  const [pagedCity, setPagedCity] = useState<string | null>(null)
 
   return (
     <>
@@ -195,6 +219,60 @@ export function SelectionSections() {
             <Mirror testId="calendar-mirror">
               {date ? date.toLocaleDateString('en-GB') : 'none'}
             </Mirror>
+          </span>
+        </div>
+      </Section>
+
+      <Section
+        id="date-picker"
+        title="DatePicker"
+        description="Popover + Calendar single-date picker (yyyy-MM-dd value)."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-64" data-testid="date-picker-demo">
+            <DatePicker value={isoDate} onChange={setIsoDate} placeholder="Pick a date…" />
+          </div>
+          <span className="text-sm">
+            ISO: <Mirror testId="date-picker-mirror">{isoDate ?? 'null'}</Mirror>
+          </span>
+        </div>
+      </Section>
+
+      <Section
+        id="time-picker"
+        title="TimePicker"
+        description="Popover + hour/minute selects, HH:MM value."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-40" data-testid="time-picker-demo">
+            <TimePicker value={time} onChange={setTime} />
+          </div>
+          <span className="text-sm">
+            Time: <Mirror testId="time-picker-mirror">{time ?? 'null'}</Mirror>
+          </span>
+        </div>
+      </Section>
+
+      <Section
+        id="infinite-select"
+        title="InfiniteSelect"
+        description="Searchable select that pages data as you scroll (mock backend)."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-64" data-testid="infinite-select-demo">
+            <InfiniteSelect
+              scope="gallery-cities"
+              fetchPage={galleryFetchPage}
+              value={pagedCity}
+              onValueChange={setPagedCity}
+              itemValue={(c) => c.value}
+              itemLabel={(c) => c.label}
+              placeholder="Scroll to load more…"
+              searchPlaceholder="Search cities…"
+            />
+          </div>
+          <span className="text-sm">
+            City: <Mirror testId="infinite-select-mirror">{pagedCity ?? 'null'}</Mirror>
           </span>
         </div>
       </Section>

@@ -119,10 +119,38 @@ pub async fn trigger(
     Ok(Json(st.jobs.trigger(&job_type).await?))
 }
 
+/// `POST /api/admin/cron-jobs/{jobType}/cancel` — kill the queued or
+/// running run of a job (the admin "Dừng" button). Cancellation is
+/// cooperative: the handler observes the token at its phase boundaries
+/// and finalizes its own history row; the runner ACKs (no retry).
+#[utoipa::path(
+    post,
+    path = "/api/admin/cron-jobs/{jobType}/cancel",
+    tag = "admin",
+    params(("jobType" = String, Path, description = "Job type (e.g. `osm.import`)")),
+    responses(
+        (status = 200, description = "Run cancelled (or already cancelled)", body = CronJobRunOut),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+        (status = 404, description = "No queued/running run for that job type"),
+    )
+)]
+pub async fn cancel(
+    State(st): State<AppState>,
+    admin: AdminUser,
+    Path(job_type): Path<String>,
+) -> Result<Json<CronJobRunOut>, AppError> {
+    st.rbac
+        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
+        .await?;
+    Ok(Json(st.jobs.cancel(&job_type).await?))
+}
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list))
         .route("/runs", get(list_runs))
         .route("/{job_type}", patch(update))
         .route("/{job_type}/trigger", post(trigger))
+        .route("/{job_type}/cancel", post(cancel))
 }

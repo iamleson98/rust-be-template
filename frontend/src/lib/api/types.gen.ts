@@ -9,6 +9,10 @@ export type ClientOptions = {
  */
 export type AdminAddressListResponse = {
     items: Array<AdminAddressOut>;
+    /**
+     * Total rows matching the brand + `q` filter (for pagination).
+     */
+    total: number;
 };
 
 export type AdminAddressOut = {
@@ -339,11 +343,21 @@ export type AdminScheduleOut = {
      */
     points: Array<AdminSchedulePointOut>;
     routeId: string;
+    vehicleType?: null | AdminVehicleTypeOut;
+    /**
+     * Explicit vehicle class (`vehicle_type` row). `None` = resolved
+     * through the bus layout (legacy behaviour).
+     */
+    vehicleTypeId?: string | null;
 };
 
 export type AdminSchedulePointOut = {
     address: AdminAddressOut;
     addressId: string;
+    /**
+     * Optional `HH:MM` — when the vehicle reaches this stop.
+     */
+    arrivalTime?: string | null;
     id: string;
     /**
      * `pickup` (first) / `middle` / `drop` (last).
@@ -351,6 +365,45 @@ export type AdminSchedulePointOut = {
     kind: string;
     scheduleId: string;
     stopOrder: number;
+};
+
+/**
+ * Response of `GET /api/admin/vehicle-types`.
+ */
+export type AdminVehicleTypeListResponse = {
+    items: Array<AdminVehicleTypeOut>;
+    /**
+     * Total rows matching the filter (for pagination).
+     */
+    total: number;
+};
+
+export type AdminVehicleTypeOut = {
+    /**
+     * Stable slug (unique, lowercase — matches the legacy
+     * `bus_layout.vehicle_type` codes and the public search filter).
+     */
+    code: string;
+    createdAt: string;
+    description?: string | null;
+    id: string;
+    /**
+     * Display name (Vietnamese).
+     */
+    label: string;
+    /**
+     * Display order in pickers (ascending).
+     */
+    sortOrder: number;
+    /**
+     * `active` | `disabled`.
+     */
+    status: string;
+    /**
+     * Typical seat count — informational.
+     */
+    totalSeats?: number | null;
+    updatedAt: string;
 };
 
 export type AuthResponse = {
@@ -908,7 +961,7 @@ export type CronJobRunOut = {
     jobType: string;
     startedAt?: string | null;
     /**
-     * `queued | running | succeeded | failed`.
+     * `queued | running | succeeded | failed | cancelled`.
      */
     status: string;
 };
@@ -1967,6 +2020,11 @@ export type UpsertRouteRequest = {
  */
 export type UpsertSchedulePointItem = {
     addressId?: string | null;
+    /**
+     * Optional `HH:MM` arrival time at this stop. Validated in the
+     * service (00:00–23:59); `null`/omitted clears it.
+     */
+    arrivalTime?: string | null;
 };
 
 /**
@@ -1991,6 +2049,31 @@ export type UpsertScheduleRequest = {
      */
     points?: Array<UpsertSchedulePointItem> | null;
     routeId?: string | null;
+    /**
+     * Vehicle class from the admin-managed `vehicle_type` catalog.
+     * Validated in the service (404-style validation error when unknown).
+     */
+    vehicleTypeId?: string | null;
+};
+
+/**
+ * Request body for `POST /api/admin/vehicle-types` +
+ * `PUT /api/admin/vehicle-types/{id}`. All fields optional on update
+ * (patch semantics); `code`+`label` required on create.
+ */
+export type UpsertVehicleTypeRequest = {
+    /**
+     * Required on create, immutable-style identity (must stay a slug).
+     */
+    code?: string | null;
+    description?: string | null;
+    label?: string | null;
+    sortOrder?: number | null;
+    /**
+     * `active` | `disabled` (defaults to `active` on create).
+     */
+    status?: string | null;
+    totalSeats?: number | null;
 };
 
 export type UserOut = {
@@ -2080,6 +2163,19 @@ export type ListData = {
     path?: never;
     query?: {
         brandId?: string;
+        /**
+         * Name filter (case-insensitive contains). Feeds the searchable,
+         * infinite-scroll schedule point picker.
+         */
+        q?: string;
+        /**
+         * Page size. `None` = return every row (legacy full-list consumers).
+         */
+        limit?: number;
+        /**
+         * Page offset (0-based) — combined with `limit`.
+         */
+        offset?: number;
     };
     url: '/api/admin/addresses';
 };
@@ -2101,7 +2197,7 @@ export type ListErrors = {
 
 export type ListResponses = {
     /**
-     * Address list
+     * Address list (items + total)
      */
     200: AdminAddressListResponse;
 };
@@ -2690,6 +2786,42 @@ export type Update3Responses = {
 };
 
 export type Update3Response = Update3Responses[keyof Update3Responses];
+
+export type CancelData = {
+    body?: never;
+    path: {
+        /**
+         * Job type (e.g. `osm.import`)
+         */
+        jobType: string;
+    };
+    query?: never;
+    url: '/api/admin/cron-jobs/{jobType}/cancel';
+};
+
+export type CancelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * No queued/running run for that job type
+     */
+    404: unknown;
+};
+
+export type CancelResponses = {
+    /**
+     * Run cancelled (or already cancelled)
+     */
+    200: CronJobRunOut;
+};
+
+export type CancelResponse = CancelResponses[keyof CancelResponses];
 
 export type TriggerData = {
     body?: never;
@@ -3324,6 +3456,161 @@ export type SystemStatusResponses = {
 
 export type SystemStatusResponse2 = SystemStatusResponses[keyof SystemStatusResponses];
 
+export type List10Data = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Label/code filter (case-insensitive contains).
+         */
+        q?: string;
+        /**
+         * Page size (default 50, clamped 1-200). `None` = all rows.
+         */
+        limit?: number;
+        /**
+         * Page offset (0-based).
+         */
+        offset?: number;
+    };
+    url: '/api/admin/vehicle-types';
+};
+
+export type List10Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type List10Responses = {
+    /**
+     * Vehicle type list (items + total)
+     */
+    200: AdminVehicleTypeListResponse;
+};
+
+export type List10Response = List10Responses[keyof List10Responses];
+
+export type Create6Data = {
+    body: UpsertVehicleTypeRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/vehicle-types';
+};
+
+export type Create6Errors = {
+    /**
+     * Bad request — code/label missing
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Conflict — code already exists
+     */
+    409: unknown;
+};
+
+export type Create6Responses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type Create6Response = Create6Responses[keyof Create6Responses];
+
+export type Delete7Data = {
+    body?: never;
+    path: {
+        /**
+         * Vehicle type id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/vehicle-types/{id}';
+};
+
+export type Delete7Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Vehicle type not found
+     */
+    404: unknown;
+};
+
+export type Delete7Responses = {
+    /**
+     * Deleted
+     */
+    200: AdminMutationResponse;
+};
+
+export type Delete7Response = Delete7Responses[keyof Delete7Responses];
+
+export type Update7Data = {
+    body: UpsertVehicleTypeRequest;
+    path: {
+        /**
+         * Vehicle type id
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/vehicle-types/{id}';
+};
+
+export type Update7Errors = {
+    /**
+     * Bad request — invalid code/label/status
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Vehicle type not found
+     */
+    404: unknown;
+    /**
+     * Conflict — code already exists
+     */
+    409: unknown;
+};
+
+export type Update7Responses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type Update7Response = Update7Responses[keyof Update7Responses];
+
 export type EmployeeLoginData = {
     body: LoginRequest;
     path?: never;
@@ -3497,7 +3784,7 @@ export type RegisterResponses = {
 
 export type RegisterResponse = RegisterResponses[keyof RegisterResponses];
 
-export type List10Data = {
+export type List11Data = {
     body?: never;
     path?: never;
     query?: {
@@ -3508,21 +3795,21 @@ export type List10Data = {
     url: '/api/bookings';
 };
 
-export type List10Errors = {
+export type List11Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type List10Responses = {
+export type List11Responses = {
     /**
      * Booking list
      */
     200: BookingListResponse;
 };
 
-export type List10Response = List10Responses[keyof List10Responses];
+export type List11Response = List11Responses[keyof List11Responses];
 
 export type HoldData = {
     body: HoldReq;
@@ -3605,7 +3892,7 @@ export type DetailResponses = {
 
 export type DetailResponse = DetailResponses[keyof DetailResponses];
 
-export type CancelData = {
+export type Cancel2Data = {
     body: CancelReq;
     path: {
         /**
@@ -3617,7 +3904,7 @@ export type CancelData = {
     url: '/api/bookings/{id}/cancel';
 };
 
-export type CancelErrors = {
+export type Cancel2Errors = {
     /**
      * Unauthorized
      */
@@ -3628,14 +3915,14 @@ export type CancelErrors = {
     403: unknown;
 };
 
-export type CancelResponses = {
+export type Cancel2Responses = {
     /**
      * Booking cancelled
      */
     200: BookingCancelResponse;
 };
 
-export type CancelResponse = CancelResponses[keyof CancelResponses];
+export type Cancel2Response = Cancel2Responses[keyof Cancel2Responses];
 
 export type ConfirmData = {
     body: ConfirmReq;
@@ -3900,7 +4187,7 @@ export type MarkReadResponses = {
 
 export type MarkReadResponse = MarkReadResponses[keyof MarkReadResponses];
 
-export type List11Data = {
+export type List12Data = {
     body?: never;
     path?: never;
     query?: {
@@ -3910,21 +4197,21 @@ export type List11Data = {
     url: '/api/notifications';
 };
 
-export type List11Errors = {
+export type List12Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type List11Responses = {
+export type List12Responses = {
     /**
      * Notification list
      */
     200: NotificationListResponse;
 };
 
-export type List11Response = List11Responses[keyof List11Responses];
+export type List12Response = List12Responses[keyof List12Responses];
 
 export type MarkRead2Data = {
     body: MarkNotificationsReadRequest;
@@ -4287,7 +4574,7 @@ export type MarkCodCollectedResponses = {
 
 export type MarkCodCollectedResponse2 = MarkCodCollectedResponses[keyof MarkCodCollectedResponses];
 
-export type List12Data = {
+export type List13Data = {
     body?: never;
     path?: never;
     query?: {
@@ -4297,14 +4584,14 @@ export type List12Data = {
     url: '/api/places';
 };
 
-export type List12Responses = {
+export type List13Responses = {
     /**
      * Place list
      */
     200: PlaceListResponse;
 };
 
-export type List12Response = List12Responses[keyof List12Responses];
+export type List13Response = List13Responses[keyof List13Responses];
 
 export type ReverseData = {
     body?: never;
@@ -4466,7 +4753,7 @@ export type UpdatePostResponses = {
 
 export type UpdatePostResponse = UpdatePostResponses[keyof UpdatePostResponses];
 
-export type List13Data = {
+export type List14Data = {
     body?: never;
     path?: never;
     query?: {
@@ -4496,30 +4783,30 @@ export type List13Data = {
     url: '/api/price-alerts';
 };
 
-export type List13Errors = {
+export type List14Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type List13Responses = {
+export type List14Responses = {
     /**
      * Price alert list
      */
     200: PriceAlertListEnvelope;
 };
 
-export type List13Response = List13Responses[keyof List13Responses];
+export type List14Response = List14Responses[keyof List14Responses];
 
-export type Create6Data = {
+export type Create7Data = {
     body: CreatePriceAlertRequest;
     path?: never;
     query?: never;
     url: '/api/price-alerts';
 };
 
-export type Create6Errors = {
+export type Create7Errors = {
     /**
      * Validation error
      */
@@ -4530,14 +4817,14 @@ export type Create6Errors = {
     401: unknown;
 };
 
-export type Create6Responses = {
+export type Create7Responses = {
     /**
      * Created (or existing duplicate returned)
      */
     201: CreatePriceAlertResponse;
 };
 
-export type Create6Response = Create6Responses[keyof Create6Responses];
+export type Create7Response = Create7Responses[keyof Create7Responses];
 
 export type RemoveData = {
     body?: never;
@@ -4591,7 +4878,7 @@ export type RecommendationsResponses = {
 
 export type RecommendationsResponse = RecommendationsResponses[keyof RecommendationsResponses];
 
-export type List14Data = {
+export type List15Data = {
     body?: never;
     path?: never;
     query?: {
@@ -4605,37 +4892,37 @@ export type List14Data = {
     url: '/api/reviews';
 };
 
-export type List14Responses = {
+export type List15Responses = {
     /**
      * Review list
      */
     200: ReviewListResponse;
 };
 
-export type List14Response = List14Responses[keyof List14Responses];
+export type List15Response = List15Responses[keyof List15Responses];
 
-export type Create7Data = {
+export type Create8Data = {
     body: CreateReviewInput;
     path?: never;
     query?: never;
     url: '/api/reviews';
 };
 
-export type Create7Errors = {
+export type Create8Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type Create7Responses = {
+export type Create8Responses = {
     /**
      * Created review
      */
     201: ReviewMutationResponse;
 };
 
-export type Create7Response = Create7Responses[keyof Create7Responses];
+export type Create8Response = Create8Responses[keyof Create8Responses];
 
 export type TagsData = {
     body?: never;
@@ -4713,7 +5000,7 @@ export type Get2Responses = {
 
 export type Get2Response = Get2Responses[keyof Get2Responses];
 
-export type Update7Data = {
+export type Update8Data = {
     body: UpdateReviewInput;
     path: {
         /**
@@ -4725,7 +5012,7 @@ export type Update7Data = {
     url: '/api/reviews/{id}';
 };
 
-export type Update7Errors = {
+export type Update8Errors = {
     /**
      * Unauthorized
      */
@@ -4736,14 +5023,14 @@ export type Update7Errors = {
     403: unknown;
 };
 
-export type Update7Responses = {
+export type Update8Responses = {
     /**
      * Updated review
      */
     200: ReviewMutationResponse;
 };
 
-export type Update7Response = Update7Responses[keyof Update7Responses];
+export type Update8Response = Update8Responses[keyof Update8Responses];
 
 export type RoutesData = {
     body?: never;
@@ -5041,7 +5328,7 @@ export type ReportVitalsResponses = {
 
 export type ReportVitalsResponse = ReportVitalsResponses[keyof ReportVitalsResponses];
 
-export type List15Data = {
+export type List16Data = {
     body?: never;
     path?: never;
     query?: {
@@ -5051,21 +5338,21 @@ export type List15Data = {
     url: '/api/wishlist';
 };
 
-export type List15Errors = {
+export type List16Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type List15Responses = {
+export type List16Responses = {
     /**
      * Wishlist items
      */
     200: WishlistListResponse;
 };
 
-export type List15Response = List15Responses[keyof List15Responses];
+export type List16Response = List16Responses[keyof List16Responses];
 
 export type ToggleData = {
     body: ToggleWishlistRequest;

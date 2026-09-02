@@ -75,6 +75,7 @@ const NAV_GROUPS = [
       { title: 'Tuyến đường', icon: RouteIcon, url: '/admin/routes' },
       { title: 'Lịch trình', icon: CalendarDays, url: '/admin/schedules' },
       { title: 'Sơ đồ ghế', icon: Armchair, url: '/admin/bus-layouts' },
+      { title: 'Loại xe', icon: Bus, url: '/admin/vehicle-types' },
     ],
   },
   {

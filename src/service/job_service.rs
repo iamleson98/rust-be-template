@@ -25,6 +25,7 @@ use std::time::Duration;
 use chrono::Utc;
 use sea_orm::Set;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -37,7 +38,7 @@ use crate::error::{AppError, AppResult};
 use crate::jobs::{self, RunPayload};
 use crate::scheduler::{self, next_occurrence};
 use crate::store::{now_iso, parse_iso, JobStore};
-use crate::worker::WorkerBroker;
+use crate::worker::{RunCancels, WorkerBroker};
 
 /// A run that has been `queued` for this long without a worker picking
 /// it up is considered lost (the worker is down or the queue row was
@@ -57,6 +58,9 @@ pub struct JobService {
     /// makes [`Self::trigger`] return 503 instead of enqueueing into
     /// a queue nobody consumes.
     broker: Option<Arc<dyn WorkerBroker>>,
+    /// Run-level cancellation registry shared with the worker runner —
+    /// [`Self::cancel`] cancels a queued/running run through it.
+    cancels: Arc<RunCancels>,
     config: Arc<Config>,
 }
 
@@ -65,8 +69,15 @@ impl JobService {
         Self {
             store,
             broker: None,
+            cancels: Arc::new(RunCancels::new()),
             config,
         }
+    }
+
+    /// The run-cancellation registry the bootstrap hands to the worker
+    /// runner so both sides talk to the same tokens.
+    pub fn run_cancels(&self) -> Arc<RunCancels> {
+        self.cancels.clone()
     }
 
     /// Attach the worker broker (called by bootstrap once the runner is
@@ -288,11 +299,44 @@ impl JobService {
         Ok(run_out(run))
     }
 
+    /// Cancel the active (queued or running) run of a job type — the
+    /// admin "kill" button. Marks the `job_run` row `cancelled` so the
+    /// history shows the stop, then fires the run's cancellation token
+    /// (or pre-marks it if no worker picked the envelope up yet, in
+    /// which case the handler exits immediately on dispatch).
+    ///
+    /// Cancellation is cooperative: the handler observes the token at
+    /// phase boundaries (download select / indexer stop checks) and
+    /// finalizes its own row. The runner ACKs a cancelled run — no retry.
+    pub async fn cancel(&self, job_type: &str) -> AppResult<CronJobRunOut> {
+        let run = self
+            .store
+            .find_active_run(job_type)
+            .await?
+            .ok_or_else(|| {
+                AppError::NotFound(format!("job {job_type:?} has no queued/running run to cancel"))
+            })?;
+
+        let mut am: job_run::ActiveModel = run.clone().into();
+        am.status = Set(status::CANCELLED.into());
+        am.error = Set(Some("cancelled by operator".to_string()));
+        am.finished_at = Set(Some(now_iso()));
+        let updated = self.store.update_run(am).await?;
+
+        // Fire the token (live) or pre-mark (still queued) so the
+        // handler / next dispatch sees the cancellation.
+        self.cancels.cancel(run.id);
+
+        tracing::info!(job_type, run_id = %run.id, "job run cancelled by operator");
+        Ok(run_out(updated))
+    }
+
     // ── Scheduler tick ─────────────────────────────────────────────
 
-    /// Spawn the tick loop. Runs until the process exits — the loop is
-    /// cheap (one indexed query per tick) and harmless during shutdown.
-    pub fn spawn_scheduler(self: &Arc<Self>) -> JoinHandle<()> {
+    /// Spawn the tick loop. Exits promptly when `shutdown` is cancelled
+    /// (the worker runner's token — Ctrl+C / SIGTERM) so the process
+    /// can drain cleanly instead of ticking forever.
+    pub fn spawn_scheduler(self: &Arc<Self>, shutdown: CancellationToken) -> JoinHandle<()> {
         let svc = Arc::clone(self);
         let interval = Duration::from_secs(svc.config.scheduler.tick_interval_secs.max(1));
         tokio::spawn(async move {
@@ -300,8 +344,15 @@ impl JobService {
             // previous process lifetime right at boot.
             svc.tick_once().await;
             loop {
-                tokio::time::sleep(interval).await;
-                svc.tick_once().await;
+                tokio::select! {
+                    _ = shutdown.cancelled() => {
+                        tracing::info!("scheduler tick loop stopped (shutdown)");
+                        break;
+                    }
+                    _ = tokio::time::sleep(interval) => {
+                        svc.tick_once().await;
+                    }
+                }
             }
         })
     }

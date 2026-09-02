@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use super::{
     AddressStore, AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore,
     PlaceStore, PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
-    ScheduleStore, TripStore, UserStore, WishlistStore,
+    ScheduleStore, TripStore, UserStore, VehicleTypeStore, WishlistStore,
 };
 
 #[derive(Clone)]
@@ -29,6 +29,7 @@ pub struct CompositeStore {
     wishlist: Arc<dyn WishlistStore>,
     payments: Arc<dyn PaymentStore>,
     addresses: Arc<dyn AddressStore>,
+    vehicle_types: Arc<dyn VehicleTypeStore>,
 }
 
 impl CompositeStore {
@@ -53,6 +54,7 @@ impl CompositeStore {
         wishlist: Arc<dyn WishlistStore>,
         payments: Arc<dyn PaymentStore>,
         addresses: Arc<dyn AddressStore>,
+        vehicle_types: Arc<dyn VehicleTypeStore>,
     ) -> Self {
         Self {
             db,
@@ -74,6 +76,7 @@ impl CompositeStore {
             wishlist,
             payments,
             addresses,
+            vehicle_types,
         }
     }
 
@@ -158,6 +161,10 @@ impl CompositeStore {
     pub fn address_store(&self) -> Arc<dyn AddressStore> {
         self.addresses.clone()
     }
+
+    pub fn vehicle_type_store(&self) -> Arc<dyn VehicleTypeStore> {
+        self.vehicle_types.clone()
+    }
 }
 
 #[cfg(test)]
@@ -172,7 +179,7 @@ impl CompositeStore {
             DbAddressStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
             DbNotificationStore, DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore,
             DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore,
-            DbTripStore, DbUserStore, DbWishlistStore,
+            DbTripStore, DbUserStore, DbVehicleTypeStore, DbWishlistStore,
         };
         Arc::new(Self::new(
             db.clone(),
@@ -194,6 +201,7 @@ impl CompositeStore {
             Arc::new(DbWishlistStore::new(db.clone())),
             Arc::new(DbPaymentStore::new(db.clone())),
             Arc::new(DbAddressStore::new(db.clone())),
+            Arc::new(DbVehicleTypeStore::new(db.clone())),
         ))
     }
 }

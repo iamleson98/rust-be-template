@@ -5,7 +5,7 @@
  * (see `__tests__/cron-jobs-helpers.test.ts`).
  */
 
-export type CronJobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+export type CronJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 /** Human label for a run status (Vietnamese, matching the admin UI). */
 export function runStatusLabel(status: string): string {
@@ -18,6 +18,8 @@ export function runStatusLabel(status: string): string {
       return 'Thành công'
     case 'failed':
       return 'Thất bại'
+    case 'cancelled':
+      return 'Đã dừng'
     default:
       return status
   }
@@ -34,6 +36,8 @@ export function runStatusClass(status: string): string {
       return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
     case 'failed':
       return 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+    case 'cancelled':
+      return 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-600'
     default:
       return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
   }

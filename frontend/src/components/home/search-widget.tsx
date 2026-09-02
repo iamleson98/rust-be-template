@@ -9,7 +9,7 @@ import { useNavigate } from '@/router'
 import { useT } from '@/lib/i18n'
 import { PlaceAutocomplete } from '@/components/search/place-autocomplete'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import {
@@ -23,11 +23,8 @@ import {
 import { requiredText } from '@/lib/forms'
 import { cn } from '@/lib/utils'
 import { buildSearchInput } from '@/lib/search-params'
-import { format } from 'date-fns'
-import { vi } from 'date-fns/locale'
 import {
   MapPin,
-  CalendarDays,
   Search,
   ArrowLeftRight,
   ArrowRight,
@@ -82,8 +79,6 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   } = useApp()
   const navigate = useNavigate()
   const t = useT()
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [returnPickerOpen, setReturnPickerOpen] = useState(false)
   const [paxOpen, setPaxOpen] = useState(false)
   // Local "submitting" flag — we briefly disable the submit button while
   // the router is navigating to /search so the user gets visual feedback.
@@ -166,23 +161,10 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
 
   // Form submission can also be triggered programmatically (the search
   // button lives inside the <form> so this is mostly a convenience for
-  // tests / future keyboard shortcuts).
-  const onSubmit = form.handleSubmit(onValid, () => {
-    // On invalid, focus the return-date picker if the round-trip rule
-    // failed — preserves the previous UX where a toast + open picker
-    // hinted at the problem.
-    const returnDateErr = form.formState.errors.returnDate
-    if (returnDateErr && searchParams.roundTrip) {
-      setReturnPickerOpen(true)
-    }
-  })
+  // tests / future keyboard shortcuts). The shared DatePicker surfaces
+  // its own validation message, so no manual "open the picker" hint.
+  const onSubmit = form.handleSubmit(onValid)
 
-  const selectedDate = searchParams.date
-    ? new Date(searchParams.date + 'T00:00:00')
-    : undefined
-  const selectedReturnDate = searchParams.returnDate
-    ? new Date(searchParams.returnDate + 'T00:00:00')
-    : undefined
   const departDateForReturnDisabled = searchParams.date
     ? new Date(searchParams.date + 'T00:00:00')
     : new Date(new Date().setHours(0, 0, 0, 0))
@@ -324,45 +306,25 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                     {searchParams.roundTrip ? 'Ngày đi' : t('search.date')}{' '}
                     <span className="text-destructive" aria-hidden="true">*</span>
                   </FormLabel>
-                  <div className="relative group/date">
-                    <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10 text-muted-foreground group-hover/date:text-blue-600 transition-colors" />
-                    <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal bg-white/95 h-10 pl-10"
-                        >
-                          {selectedDate
-                            ? format(selectedDate, 'EEEE, dd/MM', { locale: vi })
-                            : 'Chọn ngày'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={(d) => {
-                            if (d) {
-                              const newDate = format(d, 'yyyy-MM-dd')
-                              field.onChange(newDate)
-                              // If return date is before new depart date, clear it.
-                              if (searchParams.returnDate && searchParams.returnDate < newDate) {
-                                setSearchParams({ date: newDate, returnDate: '' })
-                                form.setValue('returnDate', '', { shouldValidate: false })
-                              } else {
-                                setSearchParams({ date: newDate })
-                              }
-                              setPickerOpen(false)
-                            }
-                          }}
-                          disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-                          locale={vi}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  <DatePicker
+                    value={field.value || null}
+                    onChange={(v) => {
+                      const newDate = v ?? ''
+                      field.onChange(newDate)
+                      // If return date is before new depart date, clear it.
+                      if (searchParams.returnDate && newDate && searchParams.returnDate < newDate) {
+                        setSearchParams({ date: newDate, returnDate: '' })
+                        form.setValue('returnDate', '', { shouldValidate: false })
+                      } else {
+                        setSearchParams({ date: newDate })
+                      }
+                    }}
+                    minDate={new Date()}
+                    placeholder="Chọn ngày"
+                    displayFormat="EEEE, dd/MM"
+                    clearable={false}
+                    triggerClassName="h-10 bg-white/95"
+                  />
                   <FormMessage />
                 </FormItem>
               )}
@@ -379,42 +341,19 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                       Ngày về{' '}
                       <span className="text-destructive" aria-hidden="true">*</span>
                     </FormLabel>
-                    <div className="relative group/return">
-                      <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10 text-muted-foreground group-hover/return:text-blue-600 transition-colors" />
-                      <Popover open={returnPickerOpen} onOpenChange={setReturnPickerOpen}>
-                        <PopoverTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className={cn(
-                              'w-full justify-start text-left font-normal bg-white/95 h-10 pl-10',
-                              !selectedReturnDate && 'text-muted-foreground',
-                            )}
-                          >
-                            {selectedReturnDate
-                              ? format(selectedReturnDate, 'EEEE, dd/MM', { locale: vi })
-                              : 'Chọn ngày về'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={selectedReturnDate}
-                            onSelect={(d) => {
-                              if (d) {
-                                const newReturn = format(d, 'yyyy-MM-dd')
-                                field.onChange(newReturn)
-                                setSearchParams({ returnDate: newReturn })
-                                setReturnPickerOpen(false)
-                              }
-                            }}
-                            disabled={(d) => d < departDateForReturnDisabled}
-                            locale={vi}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                    <DatePicker
+                      value={field.value || null}
+                      onChange={(v) => {
+                        const newReturn = v ?? ''
+                        field.onChange(newReturn)
+                        setSearchParams({ returnDate: newReturn })
+                      }}
+                      minDate={departDateForReturnDisabled}
+                      placeholder="Chọn ngày về"
+                      displayFormat="EEEE, dd/MM"
+                      clearable={false}
+                      triggerClassName="h-10 bg-white/95"
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

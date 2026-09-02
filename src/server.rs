@@ -31,8 +31,8 @@ use crate::store::{
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
     DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
     DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
-    DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore,
-    JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
+    DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbVehicleTypeStore,
+    DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
 };
 use crate::worker::WorkerRunner;
 use crate::ws;
@@ -130,6 +130,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
     let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
     let address_store = Arc::new(DbAddressStore::new(db.clone()));
+    let vehicle_type_store = Arc::new(DbVehicleTypeStore::new(db.clone()));
 
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         db.clone(),
@@ -151,6 +152,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         wishlist_store,
         payment_store,
         address_store,
+        vehicle_type_store,
     ));
 
     // ---- RBAC ---------------------------------------------------------
@@ -281,10 +283,18 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
                     places: place_service.clone(),
                     config: config_arc.clone(),
                 });
-                let runner = WorkerRunner::new(broker, registry, config.worker.concurrency);
-                crate::worker::set_shutdown_handle(runner.shutdown_handle());
-                runner.spawn();
-                job_service.spawn_scheduler();
+                let runner = WorkerRunner::new(
+                    broker,
+                    registry,
+                    config.worker.concurrency,
+                    job_service.run_cancels(),
+                );
+                let shutdown_token = runner.shutdown_handle();
+                crate::worker::set_shutdown_handle(shutdown_token.clone());
+                crate::worker::set_supervisor(runner.spawn());
+                // The tick loop exits when the runner's shutdown token
+                // fires (Ctrl+C / SIGTERM), same as the workers.
+                job_service.spawn_scheduler(shutdown_token);
                 tracing::info!(
                     backend = ?config.worker.backend,
                     concurrency = config.worker.concurrency,
@@ -358,10 +368,23 @@ pub async fn run(state: AppState) -> anyhow::Result<()> {
     )
     .with_graceful_shutdown(async {
         shutdown_signal().await;
-        // Stop accepting new background jobs and drain workers.
+        // 1. Cancel the worker shutdown token — stops the scheduler tick
+        //    loop, wakes the worker consumers AND cancels every in-flight
+        //    job handler (each run's token is a child of this one).
         crate::worker::notify_shutdown();
-        // Drain live WS connections before exiting.
+        // 2. Drain live WS connections before exiting.
         crate::ws::drain_all_connections(800).await;
+        // 3. Wait (bounded) for the worker supervisor to finish so the
+        //    process can't exit while a job is mid-drain. A refused stop
+        //    (e.g. an orphaned `spawn_blocking` indexer body) forces an
+        //    exit — the runtime's drop would otherwise block on that
+        //    blocking thread forever and Ctrl+C would appear to hang.
+        if !crate::worker::await_worker_shutdown(std::time::Duration::from_secs(25)).await {
+            tracing::warn!(
+                "background jobs still busy after the 25s grace period — forcing exit"
+            );
+            std::process::exit(0);
+        }
     })
     .await
     .context("server runtime")?;

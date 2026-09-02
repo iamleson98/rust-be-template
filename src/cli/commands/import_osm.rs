@@ -31,6 +31,7 @@ pub async fn run(
         max_threads: threads.unwrap_or_else(num_cpus::get),
         centroid_mode: CentroidMode::Full,
         progress: None,
+        stop: None,
     };
 
     tracing::info!(

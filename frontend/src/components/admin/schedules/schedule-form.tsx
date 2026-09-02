@@ -4,18 +4,27 @@
  * ScheduleFormDialog — create/edit a Schedule under a given Route.
  *
  * Besides the classic fields (departure time, effective window, days of
- * week, bus layout, prices, amenities), the form manages the schedule's
- * ordered address sequence:
- *   - điểm khởi hành (first pickup) — required
- *   - điểm trung gian (midway pickup/drop stops) — ordered, add/remove/
- *     reorder with buttons
- *   - điểm kết thúc (final drop) — required
+ * week, prices, amenities), the form manages:
  *
- * Every point is an AddressPointSelect: display = address name, value =
- * address id, options scoped to the route's brand (each address belongs
- * to exactly one brand). When the wanted address does not exist yet, the
- * "＋" button opens AddressMapDialog (map + full-text search) and the
- * freshly created address is immediately selected for that point.
+ *   - **Vehicle type** ("Loại xe") — required, picked from the
+ *     admin-managed `vehicle_type` catalog through the searchable,
+ *     infinite-scroll `InfiniteSelect` (`fetchVehicleTypesPage`).
+ *   - **Seat layout** ("Sơ đồ ghế") — optional refinement, the brand's
+ *     bus layouts.
+ *   - **Ordered address sequence** with an optional arrival time per
+ *     point (`arrivalTime`, HH:MM) so the operator can publish when the
+ *     vehicle reaches each pickup/drop stop:
+ *       - điểm khởi hành (first pickup) — required
+ *       - điểm trung gian (midway stops) — ordered, add/remove/reorder
+ *       - điểm kết thúc (final drop) — required
+ *     Each point is an AddressPointSelect — an infinite-scroll,
+ *     server-side-searched picker scoped to the route's brand. When the
+ *     wanted address does not exist yet, the "＋" button opens
+ *     AddressMapDialog (map + full-text search) and the freshly created
+ *     address is immediately selected.
+ *
+ * Time fields use the shared shadcn-style `TimePicker`; dates use
+ * `DatePicker` (Popover + Calendar, Vietnamese locale).
  *
  * Migrated from manual `fetch` POST/PUT to the `useUpsertAdminSchedule()`
  * TanStack Query mutation. The mutation auto-invalidates the schedules list
@@ -51,10 +60,12 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
+import { DatePicker } from '@/components/ui/date-picker'
+import { InfiniteSelect } from '@/components/ui/infinite-select'
+import { TimePicker } from '@/components/ui/time-picker'
 import {
   ArrowDown,
   ArrowUp,
-  Bus,
   CircleDot,
   Clock,
   Flag,
@@ -66,26 +77,46 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText } from '@/lib/forms'
-import { useUpsertAdminSchedule } from '@/lib/queries'
+import { fetchVehicleTypesPage, useUpsertAdminSchedule } from '@/lib/queries'
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
   AdminRouteOut,
   AdminScheduleOut,
+  AdminVehicleTypeOut,
 } from '@/lib/api/types.gen'
 import { DAY_FULL, AMENITY_OPTIONS } from '@/components/admin/types'
-import { VEHICLE_TYPE_LABELS as VEHICLE_LABELS } from '@/lib/types'
 import { AddressMapDialog } from '@/components/admin/addresses/address-map-dialog'
 import { AddressPointSelect } from '@/components/admin/addresses/address-point-select'
 
+const HHMM = /^\d{2}:\d{2}$/
+
+/** Sentinel value for "no seat layout" — Base UI treats '' as
+ * "no selection", so the explicit empty option needs a real value. */
+const NO_LAYOUT = '__none__'
+
+/** Optional `HH:MM` — `null` when unset (what TimePicker emits). */
+const optionalTime = z
+  .string()
+  .regex(HHMM, 'Giờ không hợp lệ (định dạng HH:MM)')
+  .nullish()
+
+/** One midway stop: the address plus its optional arrival time. */
+const middlePoint = z.object({
+  id: z.string(),
+  time: optionalTime,
+})
+
 const scheduleSchema = z
   .object({
-    departureTime: requiredText('Giờ khởi hành')
-      .regex(/^\d{2}:\d{2}$/, 'Giờ không hợp lệ (định dạng HH:MM)'),
+    departureTime: requiredText('Giờ khởi hành').regex(HHMM, 'Giờ không hợp lệ (định dạng HH:MM)'),
     effectiveFrom: requiredText('Ngày bắt đầu'),
     effectiveTo: requiredText('Ngày kết thúc'),
     days: z.array(z.boolean()).length(7),
-    busLayoutId: requiredText('Loại xe'),
+    /** Vehicle class from the admin-managed catalog — required. */
+    vehicleTypeId: requiredText('Loại xe'),
+    /** Optional brand seat layout refinement. */
+    busLayoutId: z.string(),
     basePriceAdult: z.coerce
       .number({ message: 'Giá phải là số' })
       .min(0, 'Giá phải ≥ 0')
@@ -102,8 +133,10 @@ const scheduleSchema = z
     amenities: z.array(z.string()).max(20, 'Tối đa 20 tiện ích'),
     // ── Address point sequence (display = name, value = address id) ──
     startPointId: requiredText('Điểm khởi hành'),
+    startPointTime: optionalTime,
     endPointId: requiredText('Điểm kết thúc'),
-    middlePoints: z.array(z.string()),
+    endPointTime: optionalTime,
+    middlePoints: z.array(middlePoint),
   })
   .refine(
     (d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveFrom <= d.effectiveTo,
@@ -119,8 +152,6 @@ export function ScheduleFormDialog({
   schedule,
   route,
   busLayouts,
-  addresses,
-  addressesLoading,
   brandId,
   brandName,
   onOpenChange,
@@ -130,9 +161,6 @@ export function ScheduleFormDialog({
   schedule: AdminScheduleOut | null
   route: AdminRouteOut | null
   busLayouts: AdminBusLayoutOut[]
-  /** The route brand's addresses — options for the point selects. */
-  addresses: AdminAddressOut[]
-  addressesLoading?: boolean
   brandId?: string
   brandName?: string
   onOpenChange: (open: boolean) => void
@@ -142,18 +170,22 @@ export function ScheduleFormDialog({
   const upsertMutation = useUpsertAdminSchedule()
   const saving = upsertMutation.isPending
 
-  // Addresses created inside this dialog session — merged with the prop
-  // list so the new option appears instantly (the query invalidation
-  // refreshes the canonical list in the background).
+  // Addresses created inside this dialog session — merged as extras so
+  // the new option appears instantly (the query invalidation refreshes
+  // the canonical list in the background).
   const [extraAddresses, setExtraAddresses] = useState<AdminAddressOut[]>([])
   // Which point slot triggered the "create address" modal.
   const [createFor, setCreateFor] = useState<'start' | 'end' | number | null>(null)
   const [addressDialogOpen, setAddressDialogOpen] = useState(false)
 
-  const allAddresses = useMemo(() => {
-    const seen = new Set(addresses.map((a) => a.id))
-    return [...addresses, ...extraAddresses.filter((a) => !seen.has(a.id))]
-  }, [addresses, extraAddresses])
+  // Addresses the picker must always be able to resolve: the schedule's
+  // existing points (edit mode — they embed the full address) plus ones
+  // created during this dialog session.
+  const knownAddresses = useMemo(() => {
+    const base = schedule?.points?.map((p) => p.address as AdminAddressOut) ?? []
+    const seen = new Set(base.map((a) => a.id))
+    return [...base, ...extraAddresses.filter((a) => !seen.has(a.id))]
+  }, [schedule, extraAddresses])
 
   const form = useForm<z.input<typeof scheduleSchema>, unknown, z.output<typeof scheduleSchema>>({
     resolver: zodResolver(scheduleSchema),
@@ -164,12 +196,15 @@ export function ScheduleFormDialog({
       effectiveFrom: new Date().toISOString().slice(0, 10),
       effectiveTo: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
       days: [true, true, true, true, true, true, true],
+      vehicleTypeId: '',
       busLayoutId: '',
       basePriceAdult: 0,
       basePriceChild: 0,
       amenities: [],
       startPointId: '',
+      startPointTime: null,
       endPointId: '',
+      endPointTime: null,
       middlePoints: [],
     },
   })
@@ -188,20 +223,24 @@ export function ScheduleFormDialog({
         effectiveTo:
           schedule?.effectiveTo ?? new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
         days: [0, 1, 2, 3, 4, 5, 6].map((i) => ds[i] === '1'),
-        busLayoutId: schedule?.busLayoutId ?? busLayouts[0]?.id ?? '',
+        vehicleTypeId: schedule?.vehicleTypeId ?? '',
+        busLayoutId: schedule?.busLayoutId ?? '',
         basePriceAdult: schedule ? schedule.basePriceAdult : 0,
         basePriceChild: schedule ? schedule.basePriceChild : 0,
         amenities: schedule?.amenities ? schedule.amenities.split(',').filter(Boolean) : [],
         startPointId: startPoint?.addressId ?? '',
+        startPointTime: startPoint?.arrivalTime ?? null,
         endPointId: endPoint?.addressId ?? '',
-        middlePoints: middles.map((p) => p.addressId),
+        endPointTime: endPoint?.arrivalTime ?? null,
+        middlePoints: middles.map((p) => ({ id: p.addressId, time: p.arrivalTime ?? null })),
       })
       setExtraAddresses([])
       setCreateFor(null)
     }
-  }, [open, schedule, busLayouts, form])
+  }, [open, schedule, form])
 
   const days = form.watch('days')
+  const effectiveFrom = form.watch('effectiveFrom')
   const amenitiesValue = form.watch('amenities')
   const startPointId = form.watch('startPointId')
   const endPointId = form.watch('endPointId')
@@ -228,7 +267,7 @@ export function ScheduleFormDialog({
 
   // ── Middle point list operations ─────────────────────────────────
   const addMiddle = () => {
-    form.setValue('middlePoints', [...middlePoints, ''], { shouldDirty: true })
+    form.setValue('middlePoints', [...middlePoints, { id: '', time: null }], { shouldDirty: true })
   }
   const removeMiddle = (index: number) => {
     form.setValue(
@@ -240,8 +279,15 @@ export function ScheduleFormDialog({
   const setMiddle = (index: number, value: string | undefined) => {
     form.setValue(
       'middlePoints',
-      middlePoints.map((v, i) => (i === index ? (value ?? '') : v)),
+      middlePoints.map((m, i) => (i === index ? { ...m, id: value ?? '' } : m)),
       { shouldValidate: true, shouldDirty: true },
+    )
+  }
+  const setMiddleTime = (index: number, time: string | null) => {
+    form.setValue(
+      'middlePoints',
+      middlePoints.map((m, i) => (i === index ? { ...m, time } : m)),
+      { shouldDirty: true },
     )
   }
   const moveMiddle = (index: number, delta: -1 | 1) => {
@@ -279,11 +325,14 @@ export function ScheduleFormDialog({
     try {
       const daysStr = values.days.map((v) => (v ? '1' : '0')).join('')
       // Ordered point sequence: start → middles → end. The backend
-      // derives kind (pickup/middle/drop) from array position.
-      const pointIds = [
-        values.startPointId,
-        ...values.middlePoints.filter((id) => !!id),
-        values.endPointId,
+      // derives kind (pickup/middle/drop) from array position; each
+      // point carries its optional arrivalTime.
+      const points = [
+        { addressId: values.startPointId, arrivalTime: values.startPointTime ?? null },
+        ...values.middlePoints
+          .filter((m) => !!m.id)
+          .map((m) => ({ addressId: m.id, arrivalTime: m.time ?? null })),
+        { addressId: values.endPointId, arrivalTime: values.endPointTime ?? null },
       ]
       const payload: Record<string, unknown> = {
         routeId: route.id,
@@ -291,14 +340,16 @@ export function ScheduleFormDialog({
         effectiveFrom: values.effectiveFrom,
         effectiveTo: values.effectiveTo,
         daysOfWeek: daysStr,
-        busLayoutId: values.busLayoutId,
+        vehicleTypeId: values.vehicleTypeId,
+        // Optional seat layout — empty string means "none".
+        busLayoutId: values.busLayoutId || null,
         basePriceAdult: values.basePriceAdult,
         basePriceChild: values.basePriceChild,
         // Backend stores `amenities` as `Option<String>` (comma-separated).
         // The form edits them as an array — join before sending. The
         // previous version sent the array directly → serde 422.
         amenities: values.amenities.join(','),
-        points: pointIds.map((addressId) => ({ addressId })),
+        points,
       }
       if (isEdit) {
         payload.id = schedule!.id
@@ -315,8 +366,12 @@ export function ScheduleFormDialog({
     }
   }
 
-  const startName = allAddresses.find((a) => a.id === startPointId)?.name
-  const endName = allAddresses.find((a) => a.id === endPointId)?.name
+  const startName = knownAddresses.find((a) => a.id === startPointId)?.name
+  const endName = knownAddresses.find((a) => a.id === endPointId)?.name
+
+  // The schedule's configured vehicle type (edit mode) resolves the
+  // select's trigger label even before the first page lands.
+  const scheduleVehicleType = schedule?.vehicleType ?? undefined
 
   return (
     <>
@@ -341,7 +396,7 @@ export function ScheduleFormDialog({
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
-              {/* ── Điểm đón / trả (address sequence) ──────────────── */}
+              {/* ── Điểm đón / trả (address sequence + arrival times) ── */}
               <div className="rounded-lg border bg-slate-50/60 p-4 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-semibold">
@@ -354,7 +409,7 @@ export function ScheduleFormDialog({
                       <span className="truncate">{startName}</span>
                       <span className="shrink-0">→</span>
                       <span className="text-muted-foreground/70 shrink-0">
-                        +{middlePoints.filter(Boolean).length}
+                        +{middlePoints.filter((m) => !!m.id).length}
                       </span>
                       <span className="shrink-0">→</span>
                       <Flag className="h-3 w-3 text-rose-600 shrink-0" />
@@ -363,34 +418,49 @@ export function ScheduleFormDialog({
                   ) : null}
                 </div>
 
-                {/* Start point */}
-                <FormField
-                  control={form.control}
-                  name="startPointId"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-1.5">
-                      <FormLabel>
-                        <span className="flex items-center gap-1.5">
-                          <CircleDot className="h-3.5 w-3.5 text-blue-600" />
-                          Điểm khởi hành <span className="text-destructive">*</span>
-                        </span>
-                      </FormLabel>
-                      <FormControl>
-                        <AddressPointSelect
-                          kind="pickup"
-                          value={field.value}
-                          onChange={field.onChange}
-                          addresses={allAddresses}
-                          loading={addressesLoading}
-                          onCreateNew={() => openCreateFor('start')}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* Start point + arrival time */}
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+                  <FormField
+                    control={form.control}
+                    name="startPointId"
+                    render={({ field }) => (
+                      <FormItem className="grid gap-1.5">
+                        <FormLabel>
+                          <span className="flex items-center gap-1.5">
+                            <CircleDot className="h-3.5 w-3.5 text-blue-600" />
+                            Điểm khởi hành <span className="text-destructive">*</span>
+                          </span>
+                        </FormLabel>
+                        <FormControl>
+                          <AddressPointSelect
+                            kind="pickup"
+                            value={field.value}
+                            onChange={field.onChange}
+                            brandId={brandId}
+                            extraAddresses={knownAddresses}
+                            onCreateNew={() => openCreateFor('start')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="startPointTime"
+                    render={({ field }) => (
+                      <FormItem className="grid gap-1.5 w-[7.5rem]">
+                        <FormLabel className="text-muted-foreground">Giờ đến</FormLabel>
+                        <FormControl>
+                          <TimePicker value={field.value} onChange={field.onChange} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                {/* Middle points (ordered) */}
+                {/* Middle points (ordered) + arrival times */}
                 <FormField
                   control={form.control}
                   name="middlePoints"
@@ -401,20 +471,26 @@ export function ScheduleFormDialog({
                         Điểm trung gian (đón / trả giữa đường)
                       </FormLabel>
                       <div className="space-y-2">
-                        {field.value.map((midId: string, i: number) => (
-                          <div key={i} className="flex items-center gap-1.5">
+                        {field.value.map((mid, i: number) => (
+                          <div key={i} className="grid grid-cols-[auto_1fr_auto_auto] gap-1.5 items-center">
                             <span className="h-6 w-6 shrink-0 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold flex items-center justify-center border border-amber-200">
                               {i + 1}
                             </span>
                             <AddressPointSelect
                               kind="middle"
-                              className="flex-1"
-                              value={midId || undefined}
+                              value={mid.id || undefined}
                               onChange={(v) => setMiddle(i, v)}
-                              addresses={allAddresses}
-                              loading={addressesLoading}
+                              brandId={brandId}
+                              extraAddresses={knownAddresses}
                               onCreateNew={() => openCreateFor(i)}
                             />
+                            <div className="w-[7rem]">
+                              <TimePicker
+                                value={mid.time ?? null}
+                                onChange={(t) => setMiddleTime(i, t)}
+                                placeholder="--:--"
+                              />
+                            </div>
                             <div className="flex flex-col gap-0.5">
                               <button
                                 type="button"
@@ -439,7 +515,7 @@ export function ScheduleFormDialog({
                               type="button"
                               aria-label="Xoá điểm trung gian"
                               onClick={() => removeMiddle(i)}
-                              className="h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
+                              className="col-start-4 justify-self-center h-9 w-9 shrink-0 rounded-md text-muted-foreground hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -459,40 +535,51 @@ export function ScheduleFormDialog({
                   )}
                 />
 
-                {/* End point */}
-                <FormField
-                  control={form.control}
-                  name="endPointId"
-                  render={({ field }) => (
-                    <FormItem className="grid gap-1.5">
-                      <FormLabel>
-                        <span className="flex items-center gap-1.5">
-                          <Flag className="h-3.5 w-3.5 text-rose-600" />
-                          Điểm kết thúc <span className="text-destructive">*</span>
-                        </span>
-                      </FormLabel>
-                      <FormControl>
-                        <AddressPointSelect
-                          kind="drop"
-                          value={field.value}
-                          onChange={field.onChange}
-                          addresses={allAddresses}
-                          loading={addressesLoading}
-                          onCreateNew={() => openCreateFor('end')}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {/* End point + arrival time */}
+                <div className="grid grid-cols-[1fr_auto] gap-2 items-start">
+                  <FormField
+                    control={form.control}
+                    name="endPointId"
+                    render={({ field }) => (
+                      <FormItem className="grid gap-1.5">
+                        <FormLabel>
+                          <span className="flex items-center gap-1.5">
+                            <Flag className="h-3.5 w-3.5 text-rose-600" />
+                            Điểm kết thúc <span className="text-destructive">*</span>
+                          </span>
+                        </FormLabel>
+                        <FormControl>
+                          <AddressPointSelect
+                            kind="drop"
+                            value={field.value}
+                            onChange={field.onChange}
+                            brandId={brandId}
+                            extraAddresses={knownAddresses}
+                            onCreateNew={() => openCreateFor('end')}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="endPointTime"
+                    render={({ field }) => (
+                      <FormItem className="grid gap-1.5 w-[7.5rem]">
+                        <FormLabel className="text-muted-foreground">Giờ đến</FormLabel>
+                        <FormControl>
+                          <TimePicker value={field.value} onChange={field.onChange} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                {allAddresses.length === 0 && !addressesLoading ? (
-                  <p className="text-xs text-muted-foreground">
-                    Hãng chưa có địa điểm nào. Bấm nút{' '}
-                    <Plus className="inline h-3 w-3 -mt-0.5" /> bên cạnh mỗi điểm để
-                    tạo địa điểm mới trên bản đồ.
-                  </p>
-                ) : null}
+                <p className="text-[11px] text-muted-foreground">
+                  Cột “Giờ đến” là thời gian xe dự kiến tới mỗi điểm (không bắt buộc).
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-start">
@@ -505,7 +592,7 @@ export function ScheduleFormDialog({
                         Giờ khởi hành <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <TimePicker value={field.value} onChange={(v) => field.onChange(v ?? '')} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -513,38 +600,25 @@ export function ScheduleFormDialog({
                 />
                 <FormField
                   control={form.control}
-                  name="busLayoutId"
+                  name="vehicleTypeId"
                   render={({ field }) => (
                     <FormItem className="grid gap-1.5">
                       <FormLabel>
                         Loại xe <span className="text-destructive">*</span>
                       </FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn loại xe..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {busLayouts.length === 0 ? (
-                            <div className="p-2 text-xs text-muted-foreground text-center">
-                              Hãng chưa có loại xe nào
-                            </div>
-                          ) : (
-                            busLayouts.map((l) => (
-                              <SelectItem key={l.id} value={l.id}>
-                                <span className="flex items-center gap-1.5">
-                                  <Bus className="h-3 w-3" />
-                                  <span>{l.name}</span>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    ({VEHICLE_LABELS[l.vehicleType ?? ''] ?? l.vehicleType} · {l.totalSeats} chỗ)
-                                  </span>
-                                </span>
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <InfiniteSelect<AdminVehicleTypeOut>
+                          scope="vehicle-types"
+                          fetchPage={fetchVehicleTypesPage}
+                          value={field.value || null}
+                          onValueChange={(v) => field.onChange(v ?? '')}
+                          itemValue={(vt) => vt.id}
+                          itemLabel={(vt) => vt.label}
+                          extraItems={scheduleVehicleType ? [scheduleVehicleType] : []}
+                          placeholder="Chọn loại xe…"
+                          searchPlaceholder="Tìm loại xe…"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -561,7 +635,12 @@ export function ScheduleFormDialog({
                         Hiệu lực từ <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                          placeholder="Chọn ngày bắt đầu…"
+                          clearable={false}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -576,13 +655,63 @@ export function ScheduleFormDialog({
                         Hiệu lực đến <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePicker
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                          placeholder="Chọn ngày kết thúc…"
+                          minDate={effectiveFrom || undefined}
+                          clearable={false}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="busLayoutId"
+                render={({ field }) => (
+                  <FormItem className="grid gap-1.5">
+                    <FormLabel>Sơ đồ ghế (tùy chọn)</FormLabel>
+                    <Select
+                      value={field.value || NO_LAYOUT}
+                      onValueChange={(v) => field.onChange(v === NO_LAYOUT ? '' : v)}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn sơ đồ ghế (nếu có)…" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_LAYOUT}>
+                          <span className="text-muted-foreground">— Không chọn —</span>
+                        </SelectItem>
+                        {busLayouts.length === 0 ? (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            Hãng chưa có sơ đồ ghế nào
+                          </div>
+                        ) : (
+                          busLayouts.map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                              <span className="flex items-center gap-1.5">
+                                <span>{l.name}</span>
+                                {l.totalSeats ? (
+                                  <span className="text-[10px] text-muted-foreground">
+                                    · {l.totalSeats} chỗ
+                                  </span>
+                                ) : null}
+                              </span>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}

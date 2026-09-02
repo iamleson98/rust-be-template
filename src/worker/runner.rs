@@ -1,10 +1,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::Notify;
 use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
 
 use super::backend::WorkerBroker;
+use super::cancel::RunCancels;
 use super::registry::JobRegistry;
 
 /// Runs `concurrency` consumer tasks against the configured broker.
@@ -24,13 +25,22 @@ use super::registry::JobRegistry;
 ///   (sub-task spawn). The job is nacked; the worker continues.
 /// - **Exponential backoff on dequeue error**: starts at 500 ms, doubles up
 ///   to 60 s. Prevents CPU-spinning when the broker is down.
-/// - **Graceful shutdown**: call `notify()` on the returned `Arc<Notify>`
-///   to signal all workers to drain and exit after their current job.
+/// - **Graceful shutdown**: cancel the token from
+///   [`shutdown_handle`](Self::shutdown_handle) (the runner's own token —
+///   also linked to [`crate::worker::notify_shutdown`]) to signal all
+///   workers to drain and exit after their current job. In-flight job
+///   handlers observe it through `JobEnvelope::cancel` and stop
+///   cooperatively.
+/// - **Run cancellation**: each dispatched run's token is registered in
+///   the shared [`RunCancels`] so `JobService::cancel` (the admin kill
+///   button) can cancel it; a cancelled run is always acked (never
+///   retried) — cancellation is intentional, not a failure.
 pub struct WorkerRunner {
     broker: Arc<dyn WorkerBroker>,
     registry: Arc<JobRegistry>,
     concurrency: usize,
-    shutdown: Arc<Notify>,
+    shutdown: CancellationToken,
+    cancels: Arc<RunCancels>,
 }
 
 impl WorkerRunner {
@@ -38,28 +48,34 @@ impl WorkerRunner {
         broker: Arc<dyn WorkerBroker>,
         registry: Arc<JobRegistry>,
         concurrency: usize,
+        cancels: Arc<RunCancels>,
     ) -> Self {
         Self {
             broker,
             registry,
             concurrency: concurrency.max(1),
-            shutdown: Arc::new(Notify::new()),
+            shutdown: CancellationToken::new(),
+            cancels,
         }
     }
 
     /// Returns a handle that can be used to signal graceful shutdown.
-    pub fn shutdown_handle(&self) -> Arc<Notify> {
+    /// Cancelling it stops the worker loops AND every in-flight job
+    /// handler (each run's token is a child of this one).
+    pub fn shutdown_handle(&self) -> CancellationToken {
         self.shutdown.clone()
     }
 
     /// Spawn worker tasks. Returns a `JoinHandle` for the supervisor task
-    /// that awaits all workers. Call `shutdown_handle().notify_waiters()`
-    /// to gracefully stop all workers.
+    /// that awaits all workers — `server::run`'s graceful-shutdown future
+    /// awaits it (bounded) so a multi-hour import can't wedge the
+    /// process. Cancel `shutdown_handle()` to stop all workers.
     pub fn spawn(self) -> JoinHandle<()> {
         let broker = self.broker;
         let registry = self.registry;
         let concurrency = self.concurrency;
         let shutdown = self.shutdown;
+        let cancels = self.cancels;
 
         tokio::spawn(async move {
             let mut handles = Vec::with_capacity(concurrency);
@@ -67,12 +83,13 @@ impl WorkerRunner {
                 let b = broker.clone();
                 let r = registry.clone();
                 let s = shutdown.clone();
+                let c = cancels.clone();
                 handles.push(tokio::spawn(async move {
                     let mut backoff_ms: u64 = 500;
                     loop {
                         // Check for shutdown signal before each dequeue.
                         tokio::select! {
-                            _ = s.notified() => {
+                            _ = s.cancelled() => {
                                 tracing::info!(worker = i, "worker shutting down (graceful)");
                                 break;
                             }
@@ -107,6 +124,17 @@ impl WorkerRunner {
                                             }
                                         };
 
+                                        // Link the run into the cancellation
+                                        // registry: the token is a child of the
+                                        // shutdown token (Ctrl+C cancels it) and
+                                        // is registered so the admin kill button
+                                        // (`JobService::cancel`) can cancel it.
+                                        let run_id = env.run_id();
+                                        let mut env = env;
+                                        if let Some(run_id) = run_id {
+                                            env.cancel = c.register(run_id, &s);
+                                        }
+
                                         let env_for_panic = env.clone();
                                         let handler_for_panic = handler.clone();
 
@@ -120,15 +148,29 @@ impl WorkerRunner {
                                                 let _ = b.ack(&env).await;
                                             }
                                             Ok(Ok(Err(e))) => {
-                                                tracing::warn!(
-                                                    job_id = %env.id,
-                                                    job_type = %env.job_type,
-                                                    error = %e,
-                                                    "job failed (attempt {}/{})",
-                                                    env.attempts + 1,
-                                                    policy.max_attempts
-                                                );
-                                                let _ = b.nack(&env, &e.to_string()).await;
+                                                // A cancelled run is a SUCCESSFUL
+                                                // stop, not a failure: ack (no
+                                                // retry) so the operator's kill
+                                                // isn't undone by the retry loop.
+                                                if env.cancel.is_cancelled() {
+                                                    tracing::info!(
+                                                        job_id = %env.id,
+                                                        job_type = %env.job_type,
+                                                        error = %e,
+                                                        "job cancelled — acking (no retry)"
+                                                    );
+                                                    let _ = b.ack(&env).await;
+                                                } else {
+                                                    tracing::warn!(
+                                                        job_id = %env.id,
+                                                        job_type = %env.job_type,
+                                                        error = %e,
+                                                        "job failed (attempt {}/{})",
+                                                        env.attempts + 1,
+                                                        policy.max_attempts
+                                                    );
+                                                    let _ = b.nack(&env, &e.to_string()).await;
+                                                }
                                             }
                                             Ok(Err(join_err)) => {
                                                 let msg = if join_err.is_panic() {
@@ -161,12 +203,18 @@ impl WorkerRunner {
                                                 let _ = b.nack(&env, "timeout").await;
                                             }
                                         }
+
+                                        // Forget the run on every exit path —
+                                        // including timeout and panic.
+                                        if let Some(run_id) = run_id {
+                                            c.release(run_id);
+                                        }
                                     }
                                     Ok(None) => {
                                         // Broker signaled shutdown (e.g. Redis
                                         // returned None on BRPOP). Sleep and retry.
                                         tokio::select! {
-                                            _ = s.notified() => break,
+                                            _ = s.cancelled() => break,
                                             _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {}
                                         }
                                     }
@@ -179,7 +227,7 @@ impl WorkerRunner {
                                         );
                                         // Exponential backoff: 500ms → 1s → 2s → ... → 60s max.
                                         tokio::select! {
-                                            _ = s.notified() => break,
+                                            _ = s.cancelled() => break,
                                             _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {}
                                         }
                                         backoff_ms = (backoff_ms * 2).min(60_000);

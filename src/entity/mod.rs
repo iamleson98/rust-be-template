@@ -35,4 +35,5 @@ pub mod trip_session;
 pub mod user;
 pub mod user_roles;
 pub mod user_verification;
+pub mod vehicle_type;
 pub mod wishlist_item;

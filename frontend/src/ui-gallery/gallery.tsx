@@ -53,6 +53,9 @@ const SECTIONS = [
   'toggle',
   'toggle-group',
   'calendar',
+  'date-picker',
+  'time-picker',
+  'infinite-select',
   'toast',
 ]
 

@@ -31,6 +31,11 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DatePicker } from '@/components/ui/date-picker'
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10)
+}
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
@@ -639,11 +644,11 @@ function SearchStep({
 
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase">Ngày đi</Label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-9"
+          <DatePicker
+            value={date || null}
+            onChange={(v) => setDate(v ?? '')}
+            minDate={todayIso()}
+            displayFormat="dd/MM/yyyy"
           />
         </div>
       </div>

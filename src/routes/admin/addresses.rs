@@ -17,14 +17,16 @@ use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
-/// `GET /api/admin/addresses?brandId=` — list a brand's addresses.
+/// `GET /api/admin/addresses?brandId=&q=&limit=&offset=` — list a
+/// brand's addresses. `q`/`limit`/`offset` feed the searchable,
+/// infinite-scroll schedule point picker; omitting `limit` returns all.
 #[utoipa::path(
     get,
     path = "/api/admin/addresses",
     tag = "admin",
     params(AdminAddressesQuery),
     responses(
-        (status = 200, description = "Address list", body = AdminAddressListResponse),
+        (status = 200, description = "Address list (items + total)", body = AdminAddressListResponse),
         (status = 400, description = "Bad request — brandId is required"),
         (status = 401, description = "Unauthorized"),
         (status = 403, description = "Forbidden"),
@@ -41,7 +43,16 @@ pub async fn list(
     let brand_id = q
         .brand_id
         .ok_or_else(|| AppError::BadRequest("brandId is required".into()))?;
-    Ok(Json(st.admin.list_addresses(&brand_id.to_string()).await?))
+    Ok(Json(
+        st.admin
+            .list_addresses(
+                &brand_id.to_string(),
+                q.q.as_deref().map(str::trim).filter(|s| !s.is_empty()),
+                q.limit,
+                q.offset.unwrap_or(0),
+            )
+            .await?,
+    ))
 }
 
 /// `POST /api/admin/addresses` — create an address.

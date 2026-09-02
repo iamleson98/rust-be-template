@@ -28,6 +28,7 @@ mod m20260824_000001_chat_channel_member_and_bot;
 mod m20260826_000001_audit_indexes;
 mod m20260902_000001_addresses_schedule_points;
 mod m20260903_000001_scheduled_jobs;
+mod m20260904_000001_vehicle_types_schedule_times;
 
 pub struct Migrator;
 
@@ -59,6 +60,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260826_000001_audit_indexes::Migration),
             Box::new(m20260902_000001_addresses_schedule_points::Migration),
             Box::new(m20260903_000001_scheduled_jobs::Migration),
+            Box::new(m20260904_000001_vehicle_types_schedule_times::Migration),
         ]
     }
 }

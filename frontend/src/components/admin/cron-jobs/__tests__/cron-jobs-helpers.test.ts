@@ -22,6 +22,7 @@ describe('cron-jobs helpers', () => {
       expect(runStatusLabel('running')).toBe('Đang chạy')
       expect(runStatusLabel('succeeded')).toBe('Thành công')
       expect(runStatusLabel('failed')).toBe('Thất bại')
+      expect(runStatusLabel('cancelled')).toBe('Đã dừng')
     })
 
     it('passes unknown statuses through', () => {
@@ -30,12 +31,12 @@ describe('cron-jobs helpers', () => {
     })
 
     it('gives each status a distinct colour class', () => {
-      const classes = ['queued', 'running', 'succeeded', 'failed'].map(runStatusClass)
-      expect(new Set(classes).size).toBe(4)
+      const classes = ['queued', 'running', 'succeeded', 'failed', 'cancelled'].map(runStatusClass)
+      expect(new Set(classes).size).toBe(5)
     })
 
     it('includes dark-mode variants', () => {
-      for (const status of ['queued', 'running', 'succeeded', 'failed']) {
+      for (const status of ['queued', 'running', 'succeeded', 'failed', 'cancelled']) {
         expect(runStatusClass(status)).toContain('dark:')
       }
     })
@@ -123,6 +124,8 @@ describe('cron-jobs helpers', () => {
       expect(isActiveRun('running')).toBe(true)
       expect(isActiveRun('succeeded')).toBe(false)
       expect(isActiveRun('failed')).toBe(false)
+      // Cancelled is terminal — the job can be triggered again.
+      expect(isActiveRun('cancelled')).toBe(false)
     })
 
     it('labels the OSM import job in Vietnamese', () => {

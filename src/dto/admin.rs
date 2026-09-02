@@ -190,6 +190,8 @@ pub struct AdminAddressOut {
 #[serde(rename_all = "camelCase")]
 pub struct AdminAddressListResponse {
     pub items: Vec<AdminAddressOut>,
+    /// Total rows matching the brand + `q` filter (for pagination).
+    pub total: u64,
 }
 
 /// Request body for `POST /api/admin/addresses` + `PUT /api/admin/addresses/{id}`.
@@ -226,6 +228,9 @@ pub struct AdminSchedulePointOut {
     pub stop_order: i64,
     /// `pickup` (first) / `middle` / `drop` (last).
     pub kind: String,
+    /// Optional `HH:MM` — when the vehicle reaches this stop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arrival_time: Option<String>,
     pub address: AdminAddressOut,
 }
 
@@ -236,6 +241,11 @@ pub struct AdminSchedulePointOut {
 #[serde(rename_all = "camelCase")]
 pub struct UpsertSchedulePointItem {
     pub address_id: Option<Uuid>,
+    /// Optional `HH:MM` arrival time at this stop. Validated in the
+    /// service (00:00–23:59); `null`/omitted clears it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[validate(length(max = 10))]
+    pub arrival_time: Option<String>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -258,6 +268,15 @@ pub struct AdminScheduleOut {
     /// entity field comment about the old String/TEXT drift).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bus_layout_id: Option<Uuid>,
+    /// Explicit vehicle class (`vehicle_type` row). `None` = resolved
+    /// through the bus layout (legacy behaviour).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vehicle_type_id: Option<Uuid>,
+    /// The resolved vehicle class row (schedule's explicit type; the
+    /// bus-layout fallback is NOT resolved here — the admin UI shows
+    /// the catalog type it configured).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vehicle_type: Option<AdminVehicleTypeOut>,
     pub base_price_adult: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_price_child: Option<i64>,
@@ -289,6 +308,9 @@ pub struct UpsertScheduleRequest {
     pub days_of_week: Option<String>,
     /// Bus layout id (string on the wire, `Uuid` in Rust).
     pub bus_layout_id: Option<Uuid>,
+    /// Vehicle class from the admin-managed `vehicle_type` catalog.
+    /// Validated in the service (404-style validation error when unknown).
+    pub vehicle_type_id: Option<Uuid>,
     #[validate(range(min = 0, max = 1_000_000_000))]
     pub base_price_adult: Option<i64>,
     #[validate(range(min = 0, max = 1_000_000_000))]
@@ -375,6 +397,69 @@ pub struct AdminBusLayoutOut {
 #[serde(rename_all = "camelCase")]
 pub struct AdminBusLayoutListResponse {
     pub items: Vec<AdminBusLayoutOut>,
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Vehicle types (admin-managed catalog)
+// ────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminVehicleTypeOut {
+    pub id: Uuid,
+    /// Stable slug (unique, lowercase — matches the legacy
+    /// `bus_layout.vehicle_type` codes and the public search filter).
+    pub code: String,
+    /// Display name (Vietnamese).
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Typical seat count — informational.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_seats: Option<i16>,
+    /// Display order in pickers (ascending).
+    pub sort_order: i16,
+    /// `active` | `disabled`.
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Response of `GET /api/admin/vehicle-types`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminVehicleTypeListResponse {
+    pub items: Vec<AdminVehicleTypeOut>,
+    /// Total rows matching the filter (for pagination).
+    pub total: u64,
+}
+
+/// Request body for `POST /api/admin/vehicle-types` +
+/// `PUT /api/admin/vehicle-types/{id}`. All fields optional on update
+/// (patch semantics); `code`+`label` required on create.
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertVehicleTypeRequest {
+    /// Required on create, immutable-style identity (must stay a slug).
+    #[validate(length(min = 1, max = 60))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[validate(length(min = 1, max = 120))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[validate(length(max = 1000))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[validate(range(min = 1, max = 200))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub total_seats: Option<i16>,
+    #[validate(range(min = 0, max = 1000))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort_order: Option<i16>,
+    /// `active` | `disabled` (defaults to `active` on create).
+    #[validate(length(min = 1, max = 20))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -640,6 +725,13 @@ pub struct AdminSchedulesQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminAddressesQuery {
     pub brand_id: Option<Uuid>,
+    /// Name filter (case-insensitive contains). Feeds the searchable,
+    /// infinite-scroll schedule point picker.
+    pub q: Option<String>,
+    /// Page size. `None` = return every row (legacy full-list consumers).
+    pub limit: Option<u64>,
+    /// Page offset (0-based) — combined with `limit`.
+    pub offset: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
@@ -656,6 +748,18 @@ pub struct AdminBusLayoutsQuery {
     pub brand_id: Option<Uuid>,
 }
 
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct AdminVehicleTypesQuery {
+    /// Label/code filter (case-insensitive contains).
+    pub q: Option<String>,
+    /// Page size (default 50, clamped 1-200). `None` = all rows.
+    pub limit: Option<u64>,
+    /// Page offset (0-based).
+    pub offset: Option<u64>,
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Cron jobs (scheduled background jobs)
 // ────────────────────────────────────────────────────────────────
@@ -666,7 +770,7 @@ pub struct AdminBusLayoutsQuery {
 pub struct CronJobRunOut {
     pub id: Uuid,
     pub job_type: String,
-    /// `queued | running | succeeded | failed`.
+    /// `queued | running | succeeded | failed | cancelled`.
     pub status: String,
     /// Progress / stats JSON (phase, message, bytes, indexed counts…).
     #[serde(skip_serializing_if = "Option::is_none")]

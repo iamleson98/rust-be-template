@@ -19,7 +19,6 @@ import {
   useAdminSchedules,
   useAdminPickupPoints,
   useAdminBusLayouts,
-  useAdminAddresses,
   useDeleteAdminBrand,
   useDeleteAdminRoute,
   useDeleteAdminSchedule,
@@ -28,7 +27,6 @@ import {
 } from '@/lib/queries'
 import type { DeleteTarget } from '@/components/admin/types'
 import type {
-  AdminAddressOut,
   AdminBrandOut,
   AdminBusLayoutOut,
   AdminPickupPointOut,
@@ -69,8 +67,6 @@ export function AdminBrandManagement() {
   const pickupPointsQuery = useAdminPickupPoints(selectedRoute?.id)
   const pickupPoints: AdminPickupPointOut[] = (pickupPointsQuery.data?.items ?? []) as unknown as AdminPickupPointOut[]
   /* --- query: addresses of the selected brand (schedule point selects) --- */
-  const addressesQuery = useAdminAddresses(selectedBrand?.id)
-  const addresses: AdminAddressOut[] = (addressesQuery.data?.items ?? []) as unknown as AdminAddressOut[]
   /* --- selection handlers --- */
   const selectBrand = useCallback((brand: AdminBrandOut | null) => {
     setSelectedBrand(brand)
@@ -252,8 +248,6 @@ export function AdminBrandManagement() {
         schedule={scheduleDialog.schedule}
         route={selectedRoute}
         busLayouts={busLayouts}
-        addresses={addresses}
-        addressesLoading={addressesQuery.isLoading}
         brandId={selectedBrand?.id}
         brandName={selectedBrand?.name}
         onOpenChange={(open) =>

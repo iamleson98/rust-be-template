@@ -51,7 +51,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  useAdminAddresses,
   useAdminBrands,
   useAdminBusLayouts,
   useAdminRoutes,
@@ -59,7 +58,6 @@ import {
   useDeleteAdminSchedule,
 } from '@/lib/queries'
 import type {
-  AdminAddressOut,
   AdminBrandOut,
   AdminBusLayoutOut,
   AdminRouteOut,
@@ -118,8 +116,17 @@ function PointsTimeline({ points }: { points: AdminScheduleOut['points'] }) {
               <span className="h-1.5 w-1.5 rounded-full bg-white/90" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium truncate leading-5">
-                {p.address.name}
+              <p className="flex items-center gap-1.5 text-sm font-medium truncate leading-5">
+                <span className="truncate">{p.address.name}</span>
+                {p.arrivalTime ? (
+                  <span
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal tabular-nums text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                    title="Giờ xe dự kiến tới"
+                  >
+                    <Clock className="h-2.5 w-2.5" />
+                    {p.arrivalTime}
+                  </span>
+                ) : null}
               </p>
               <p className="text-[11px] text-muted-foreground truncate">
                 {KIND_LABEL[(p.kind as keyof typeof KIND_LABEL) ?? 'middle']}
@@ -201,10 +208,6 @@ export function AdminSchedulesPage() {
   const busLayoutsQuery = useAdminBusLayouts(selectedRoute?.brandId ?? undefined)
   const busLayouts: AdminBusLayoutOut[] =
     (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
-
-  const addressesQuery = useAdminAddresses(selectedRoute?.brandId ?? undefined)
-  const addresses: AdminAddressOut[] =
-    (addressesQuery.data?.items ?? []) as unknown as AdminAddressOut[]
 
   const layoutById = useMemo(
     () => new Map(busLayouts.map((l) => [l.id, l])),
@@ -482,8 +485,6 @@ export function AdminSchedulesPage() {
         schedule={editSchedule}
         route={selectedRoute}
         busLayouts={busLayouts}
-        addresses={addresses}
-        addressesLoading={addressesQuery.isLoading}
         brandId={selectedRoute?.brandId ?? undefined}
         brandName={selectedBrand?.name ?? brands.find((b) => b.id === selectedRoute?.brandId)?.name}
         onOpenChange={(open) => setDialogOpen(open)}

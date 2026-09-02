@@ -69,6 +69,7 @@ const AdminChatPage = lazy(() => import('./routes/admin/chat').then((m) => ({ de
 const AdminReviewsPage = lazy(() => import('./routes/admin/reviews').then((m) => ({ default: m.AdminReviewsPage })))
 const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) => ({ default: m.AdminFeedbackPage })))
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
+const AdminVehicleTypesPage = lazy(() => import('./routes/admin/vehicle-types').then((m) => ({ default: m.AdminVehicleTypesPage })))
 const AdminSystemPage = lazy(() => import('./routes/admin/system').then((m) => ({ default: m.AdminSystemPage })))
 const AdminPaymentsPage = lazy(() => import('./routes/admin/payments').then((m) => ({ default: m.AdminPaymentsPage })))
 // Account pages
@@ -125,6 +126,7 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/admin/reviews': { title: 'Đánh giá — Quản trị VeXeVN', description: 'Kiểm duyệt đánh giá.' },
   '/admin/feedback': { title: 'Phản hồi — Quản trị VeXeVN', description: 'Quản lý phản hồi khách hàng.' },
   '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
+  '/admin/vehicle-types': { title: 'Loại xe — Quản trị VeXeVN', description: 'Quản lý danh mục loại xe.' },
   '/admin/system': { title: 'Hệ thống — Quản trị VeXeVN', description: 'Theo dõi hệ thống.' },
   '/admin/payments': { title: 'Thanh toán — Quản trị VeXeVN', description: 'Quản lý giao dịch thanh toán.' },
   '/account': { title: 'Tài khoản — VeXeVN', description: 'Quản lý tài khoản và cài đặt.' },
@@ -565,6 +567,18 @@ const adminSchedulesRoute = createRoute({
   ),
 })
 
+// Admin route — vehicle type catalog (schedule form's "Loại xe" picker).
+const adminVehicleTypesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/vehicle-types',
+  beforeLoad: requireEmployee,
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminVehicleTypesPage />
+    </Suspense>
+  ),
+})
+
 // Admin route — cron jobs (recurring background jobs, e.g. the OSM import).
 const adminCronJobsRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -744,6 +758,7 @@ const routeTree = rootRoute.addChildren([
   adminBrandsRoute,
   adminRoutesRoute,
   adminSchedulesRoute,
+  adminVehicleTypesRoute,
   adminCronJobsRoute,
   adminTicketsRoute,
   adminChatRoute,

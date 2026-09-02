@@ -13,6 +13,7 @@
 //! - `schedules` — `/api/admin/schedules`
 //! - `pickup_points` — `/api/admin/pickup-points`
 //! - `bus_layouts` — `/api/admin/bus-layouts`
+//! - `vehicle_types` — `/api/admin/vehicle-types` (vehicle-class catalog)
 //! - `reviews` — `/api/admin/reviews` (moderation)
 //! - `bookings` — `/api/admin/bookings` (status + stats + export)
 //! - `jobs` — `/api/admin/cron-jobs` (recurring background jobs)
@@ -36,6 +37,7 @@ pub mod pickup_points;
 pub mod reviews;
 pub mod routes;
 pub mod schedules;
+pub mod vehicle_types;
 
 use axum::Router;
 
@@ -54,6 +56,7 @@ pub fn router() -> Router<AppState> {
         .nest("/schedules", schedules::router())
         .nest("/pickup-points", pickup_points::router())
         .nest("/bus-layouts", bus_layouts::router())
+        .nest("/vehicle-types", vehicle_types::router())
         .nest("/reviews", reviews::router())
         .nest("/bookings", bookings::router())
         .nest("/cron-jobs", jobs::router())

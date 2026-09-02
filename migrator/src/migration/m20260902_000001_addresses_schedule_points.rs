@@ -36,7 +36,7 @@ enum Address {
 }
 
 #[derive(DeriveIden)]
-enum SchedulePoint {
+pub enum SchedulePoint {
     Table,
     Id,
     ScheduleId,

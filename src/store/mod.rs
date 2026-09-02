@@ -38,6 +38,7 @@ pub use self::route::{DbRouteStore, PickupPointWithRoute, RouteStore};
 pub use self::schedule::{DbScheduleStore, ScheduleStore};
 pub use self::trip::{DbTripStore, TripStore};
 pub use self::users::{CacheUserStore, DbUserStore, UserStore};
+pub use self::vehicle_types::{DbVehicleTypeStore, VehicleTypePage, VehicleTypeStore};
 pub use self::wishlist::{DbWishlistStore, WishlistStore};
 
 /// Parse a `&str` UUID into a [`uuid::Uuid`], mapping failures to
@@ -76,4 +77,5 @@ mod route;
 mod schedule;
 mod trip;
 mod users;
+mod vehicle_types;
 mod wishlist;

@@ -22,8 +22,12 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 
-// NOTE: No bare SDK imports — all hooks use generated TanStack
-// Options/Mutation helpers from @tanstack/react-query.gen.
+// NOTE: no bare SDK imports for hooks — all use generated TanStack
+// Options/Mutation helpers from @tanstack/react-query.gen. The two
+// `fetch*Page` helpers below (consumed by the infinite-scroll picker's
+// own useInfiniteQuery) are the exception: they call the raw SDK list
+// functions directly.
+import { list as listAddresses, list10 as listVehicleTypes } from "@/lib/api/sdk.gen";
 
 // Generated TanStack Query options + keys + mutations
 import {
@@ -46,34 +50,34 @@ import {
   // campaigns
   campaignsOptions,
   validateCampaignOptions,
-  // places (list11 = /api/places, search = /api/places/search)
+  // places (list13 = /api/places, search = /api/places/search)
   searchOptions as placeSearchOptions,
-  list12Options as placeListOptions,
-  // reviews (list13 = /api/reviews, tags = /api/reviews/tags)
-  list14Options as reviewsListOptions,
-  list14QueryKey as reviewsListQueryKey,
+  list13Options as placeListOptions,
+  // reviews (list15 = /api/reviews, tags = /api/reviews/tags)
+  list15Options as reviewsListOptions,
+  list15QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
-  update7Mutation as reviewUpdateMutation,
-  create7Mutation as reviewCreateMutation,
-  // bookings (list9 = GET /api/bookings — the user's own bookings)
-  list10Options as bookingsListOptions,
+  update8Mutation as reviewUpdateMutation,
+  create8Mutation as reviewCreateMutation,
+  // bookings (list11 = GET /api/bookings — the user's own bookings)
+  list11Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
   lookupOptions as bookingLookupOptions,
   holdMutation,
   confirmMutation,
-  cancelMutation,
-  // price alerts (list12 = /api/price-alerts, create6 = POST /api/price-alerts)
-  list13Options as priceAlertsListOptions,
-  list13QueryKey as priceAlertsListQueryKey,
-  create6Mutation as priceAlertCreateMutation,
+  cancel2Mutation,
+  // price alerts (list14 = /api/price-alerts, create7 = POST /api/price-alerts)
+  list14Options as priceAlertsListOptions,
+  list14QueryKey as priceAlertsListQueryKey,
+  create7Mutation as priceAlertCreateMutation,
   removeMutation as priceAlertRemoveMutation,
-  // notifications (list10 = /api/notifications)
-  list11Options as notificationsListOptions,
-  list11QueryKey as notificationsListQueryKey,
+  // notifications (list12 = /api/notifications)
+  list12Options as notificationsListOptions,
+  list12QueryKey as notificationsListQueryKey,
   markRead2Mutation as notificationsMarkReadMutation,
-  // wishlist (list14 = /api/wishlist)
-  list15Options as wishlistListOptions,
-  list15QueryKey as wishlistListQueryKey,
+  // wishlist (list16 = /api/wishlist)
+  list16Options as wishlistListOptions,
+  list16QueryKey as wishlistListQueryKey,
   toggleMutation as wishlistToggleMutation,
   remove3Mutation as wishlistRemoveMutation,
   // stats (stats2 = /api/stats — public, stats = /api/admin/bookings/stats)
@@ -100,6 +104,13 @@ import {
   listRunsQueryKey as cronJobRunsListQueryKey,
   update3Mutation as updateCronJobMutation,
   triggerMutation as triggerCronJobMutation,
+  cancelMutation as cancelCronJobMutation,
+  // admin — vehicle types (list10 = /api/admin/vehicle-types)
+  list10Options as adminVehicleTypesListOptions,
+  list10QueryKey as adminVehicleTypesListQueryKey,
+  create6Mutation as createVehicleTypeMutation,
+  update7Mutation as updateVehicleTypeMutation,
+  delete7Mutation as deleteVehicleTypeMutation,
   // admin — pickup points (list5/create3/delete3)
   list6Options as adminPickupPointsListOptions,
   create3Mutation as createPickupPointMutation,
@@ -156,6 +167,11 @@ import type {
   AdminReviewListResponse,
   AdminRouteOut,
   AdminScheduleOut,
+  AdminVehicleTypeOut,
+  AdminVehicleTypeListResponse,
+  AdminAddressOut,
+  AdminAddressListResponse,
+  CronJobRunOut,
 } from "@/lib/api/types.gen";
 
 // ─────────────────────────────────────────────────────────────
@@ -187,6 +203,9 @@ export type {
   AdminBookingStatsResponse as AdminBookingStats,
   AdminBookingExportResponse,
   AdminMutationResponse,
+  AdminVehicleTypeOut as AdminVehicleType,
+  AdminAddressOut as AdminAddress,
+  CronJobRunOut as CronJobRun,
 };
 
 // Convenience types used by components
@@ -435,7 +454,7 @@ export function useCancelBooking<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(cancelMutation() as any),
+    ...(cancel2Mutation() as any),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -1109,6 +1128,34 @@ export function useAdminAddresses(brandId?: string) {
 }
 
 /**
+ * Fetch one page of a brand's addresses for the searchable,
+ * infinite-scroll schedule point picker. Mirrors the vehicle-types
+ * page fetcher: (page, search) → { items, total, hasMore }.
+ */
+export async function fetchAdminAddressesPage(
+  brandId: string,
+  page: number,
+  search: string,
+  pageSize = 25,
+): Promise<{ items: AdminAddressOut[]; total: number; hasMore: boolean }> {
+  const { data } = await listAddresses({
+    query: {
+      brandId,
+      q: search.trim() || undefined,
+      limit: pageSize,
+      offset: page * pageSize,
+    },
+  });
+  const body = (data ?? { items: [], total: 0 }) as AdminAddressListResponse;
+  const offset = page * pageSize;
+  return {
+    items: body.items ?? [],
+    total: body.total ?? 0,
+    hasMore: offset + (body.items?.length ?? 0) < (body.total ?? 0),
+  };
+}
+
+/**
  * Create an address (usually from the map picker modal inside the
  * schedule form). Returns the created id so the caller can immediately
  * select it in the point select.
@@ -1262,6 +1309,78 @@ export function useAdminBusLayouts(brandId?: string) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Admin — Vehicle types (schedule form's "Loại xe" catalog)
+// ─────────────────────────────────────────────────────────────
+
+/** List the vehicle-type catalog with filter + offset pagination. */
+export function useAdminVehicleTypes(query?: {
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
+  return useQuery({
+    ...adminVehicleTypesListOptions({ query }),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** Fetch one page of vehicle types for the infinite-scroll picker. */
+export async function fetchVehicleTypesPage(
+  page: number,
+  search: string,
+  pageSize = 25,
+): Promise<{ items: AdminVehicleTypeOut[]; total: number; hasMore: boolean }> {
+  const { data } = await listVehicleTypes({
+    query: {
+      q: search.trim() || undefined,
+      limit: pageSize,
+      offset: page * pageSize,
+    },
+  });
+  const body = (data ?? { items: [], total: 0 }) as AdminVehicleTypeListResponse;
+  const offset = page * pageSize;
+  return {
+    items: body.items ?? [],
+    total: body.total ?? 0,
+    hasMore: offset + (body.items?.length ?? 0) < (body.total ?? 0),
+  };
+}
+
+export function useCreateAdminVehicleType() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...createVehicleTypeMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+    },
+  });
+}
+
+export function useUpdateAdminVehicleType() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...updateVehicleTypeMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+    },
+  });
+}
+
+export function useDeleteAdminVehicleType() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...deleteVehicleTypeMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Admin — Bookings
 // ─────────────────────────────────────────────────────────────
 
@@ -1396,6 +1515,18 @@ export function useTriggerCronJob() {
   const qc = useQueryClient();
   return useMutation({
     ...triggerCronJobMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
+      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });
+    },
+  });
+}
+
+/** Cancel (kill) the queued/running run of a job — the admin stop button. */
+export function useCancelCronJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...cancelCronJobMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
       qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });

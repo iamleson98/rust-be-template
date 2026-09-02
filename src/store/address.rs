@@ -16,6 +16,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use store_macros::retry;
@@ -36,6 +37,16 @@ pub trait AddressStore: Send + Sync {
 
     async fn find_address_by_id(&self, id: Uuid) -> StoreResult<Option<address::Model>>;
     async fn list_addresses_by_brand(&self, brand_id: &str) -> StoreResult<Vec<address::Model>>;
+    /// Paginated + name-filtered list for a brand — the searchable,
+    /// infinite-scroll schedule-point picker. Returns (page items, total
+    /// matching rows). `limit=None` returns every matching row.
+    async fn list_addresses_by_brand_page(
+        &self,
+        brand_id: &str,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<(Vec<address::Model>, u64)>;
     async fn list_addresses_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<address::Model>>;
     #[store_macros::no_retry]
     async fn insert_address(&self, model: address::ActiveModel) -> StoreResult<()>;
@@ -90,6 +101,40 @@ impl AddressStore for DbAddressStore {
             .order_by_asc(address::Column::Name)
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn list_addresses_by_brand_page(
+        &self,
+        brand_id: &str,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<(Vec<address::Model>, u64)> {
+        use sea_orm::sea_query::Expr;
+        // Parse to Uuid — see `parse_uuid` (a TEXT parameter never
+        // matches the BLOB-stored uuid column on SQLite).
+        let brand_uuid = super::parse_uuid(brand_id)?;
+        // LOWER(name) LIKE — portable case-insensitive contains across
+        // SQLite + Postgres (same trick as the route store).
+        let needle = q.map(str::trim).filter(|s| !s.is_empty()).map(|s| {
+            format!("%{}%", s.to_lowercase())
+        });
+        let base = address::Entity::find().filter(address::Column::BrandId.eq(brand_uuid));
+        let base = match needle {
+            Some(n) => base.filter(
+                Expr::cust_with_values("LOWER(name) LIKE ?", [n]),
+            ),
+            None => base,
+        };
+        let total = base.clone().count(self.db.as_ref()).await?;
+        let mut query = base
+            .order_by_asc(address::Column::Name)
+            .offset(offset);
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        }
+        let items = query.all(self.db.as_ref()).await?;
+        Ok((items, total))
     }
 
     async fn list_addresses_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<address::Model>> {

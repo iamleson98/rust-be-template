@@ -9,7 +9,7 @@
 //! - Returns typed DTOs from [`crate::dto::public`] (no `serde_json::Value`).
 //! - Pure helpers (vehicle_type_label, parse_amenities, etc.) are ported as-is.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -21,7 +21,7 @@ use crate::dto::public::{
     TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
     TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
-use crate::entity::{brand, bus_layout, route, schedule, seat_inventory};
+use crate::entity::{brand, bus_layout, route, schedule, seat_inventory, vehicle_type};
 use crate::error::{AppError, AppResult};
 use crate::service::place_service::haversine_km;
 use crate::store::CompositeStore;
@@ -41,6 +41,31 @@ fn vehicle_type_label(vt: &str) -> &'static str {
         "standard" => "Ghế ngồi",
         _ => "Ghế ngồi",
     }
+}
+
+/// Resolve a schedule's vehicle class into `(code, label)`:
+/// 1. the schedule's explicit `vehicle_type_id` (admin-managed catalog),
+/// 2. the bus layout's legacy `vehicle_type` string,
+/// 3. `standard` as the default.
+/// Legacy codes get their label from the catalog when one matches
+/// (e.g. a bus layout still saying `limousine`), else the static map.
+fn resolve_vehicle_type(
+    sched: &schedule::Model,
+    layout: Option<&bus_layout::Model>,
+    vt_map: &HashMap<Uuid, vehicle_type::Model>,
+) -> (String, String) {
+    if let Some(vt) = sched.vehicle_type_id.and_then(|id| vt_map.get(&id)) {
+        return (vt.code.clone(), vt.label.clone());
+    }
+    let code = layout
+        .and_then(|l| l.vehicle_type.clone())
+        .unwrap_or_else(|| "standard".into());
+    let label = vt_map
+        .values()
+        .find(|v| v.code.eq_ignore_ascii_case(&code))
+        .map(|v| v.label.clone())
+        .unwrap_or_else(|| vehicle_type_label(&code).to_string());
+    (code, label)
 }
 
 /// Parse a Schedule.amenities JSON string into a `Vec<String>`.
@@ -395,6 +420,26 @@ impl PublicService {
             m
         };
 
+        // Batch-load the schedules' explicit vehicle types (the
+        // admin-managed catalog) — `resolve_vehicle_type` prefers them
+        // over the bus-layout fallback.
+        let vt_map: HashMap<Uuid, vehicle_type::Model> = {
+            let ids: Vec<Uuid> =
+                sched_map.values().filter_map(|s| s.vehicle_type_id).collect();
+            if ids.is_empty() {
+                HashMap::new()
+            } else {
+                self.store
+                    .vehicle_type_store()
+                    .find_vehicle_types_by_ids(ids)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|v| (v.id, v))
+                    .collect()
+            }
+        };
+
         // Resolve start/end location slugs to city records via the
         // hardcoded city table (no DB round-trip). Replaces the previous
         // batched `place_store().find_places_by_ids(place_uuids)` lookup
@@ -425,10 +470,10 @@ impl PublicService {
                     .bus_layout_id
                     .and_then(|lid| layout_map.get(&lid.to_string()));
 
-                // Vehicle type filter
-                let vehicle_type = layout
-                    .and_then(|l| l.vehicle_type.clone())
-                    .unwrap_or_else(|| "standard".into());
+                // Vehicle type: schedule catalog row first, bus-layout
+                // fallback, "standard" default — then the filter.
+                let (vehicle_type, vt_label) =
+                    resolve_vehicle_type(sched, layout, &vt_map);
                 if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
                     return None;
                 }
@@ -441,7 +486,6 @@ impl PublicService {
                     &Some(t.departure_date.clone()),
                     &Some(sched.departure_time.clone()),
                 );
-                let vt_label = vehicle_type_label(&vehicle_type);
 
                 Some(TripResult {
                     trip_id: t.id,
@@ -475,7 +519,7 @@ impl PublicService {
                     price_adult: sched.base_price_adult,
                     price_child: sched.base_price_child.unwrap_or(0),
                     vehicle_type,
-                    vehicle_type_label: vt_label.to_string(),
+                    vehicle_type_label: vt_label,
                     capacity: layout.and_then(|l| l.total_seats),
                     amenities,
                 })
@@ -715,6 +759,28 @@ impl PublicService {
         };
         let brand_map: HashMap<Uuid, &brand::Model> = brands.iter().map(|b| (b.id, b)).collect();
 
+        // Batch-load the schedules' explicit vehicle types (see
+        // `resolve_vehicle_type` — the catalog row wins over the
+        // bus-layout fallback).
+        let vt_map: HashMap<Uuid, vehicle_type::Model> = {
+            let ids: Vec<Uuid> = schedule_map
+                .values()
+                .filter_map(|s| s.vehicle_type_id)
+                .collect();
+            if ids.is_empty() {
+                HashMap::new()
+            } else {
+                self.store
+                    .vehicle_type_store()
+                    .find_vehicle_types_by_ids(ids)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|v| (v.id, v))
+                    .collect()
+            }
+        };
+
         // Build items — sorted by combined_distance_km (already sorted)
         let mut items: Vec<TripResult> = Vec::new();
         for trip in &trips {
@@ -731,11 +797,9 @@ impl PublicService {
                 None => continue,
             };
 
-            // Vehicle type filter
-            let vehicle_type = schedule
-                .bus_layout_id
-                .map(|u| u.to_string())
-                .unwrap_or_else(|| "standard".to_string());
+            // Vehicle type filter (schedule catalog row first, bus-layout
+            // fallback, "standard" default — same as the text search).
+            let (vehicle_type, vt_label) = resolve_vehicle_type(schedule, None, &vt_map);
             if !vehicle_types.is_empty() && !vehicle_types.iter().any(|vt| *vt == vehicle_type) {
                 continue;
             }
@@ -787,8 +851,8 @@ impl PublicService {
                 max_price: schedule.base_price_adult,
                 price_adult: schedule.base_price_adult,
                 price_child: schedule.base_price_child.unwrap_or(0),
-                vehicle_type: vehicle_type.to_string(),
-                vehicle_type_label: vehicle_type.to_string(),
+                vehicle_type,
+                vehicle_type_label: vt_label,
                 capacity: None,
                 amenities,
             });
@@ -993,11 +1057,23 @@ impl PublicService {
             &Some(trip.departure_date.clone()),
             &Some(schedule.departure_time.clone()),
         );
-        let vehicle_type = bus_layout
-            .as_ref()
-            .and_then(|l| l.vehicle_type.clone())
-            .unwrap_or_else(|| "standard".into());
-        let vt_label = vehicle_type_label(&vehicle_type);
+        let vt_map: HashMap<Uuid, vehicle_type::Model> = {
+            let ids: Vec<Uuid> = schedule.vehicle_type_id.into_iter().collect();
+            if ids.is_empty() {
+                HashMap::new()
+            } else {
+                self.store
+                    .vehicle_type_store()
+                    .find_vehicle_types_by_ids(ids)
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|v| (v.id, v))
+                    .collect()
+            }
+        };
+        let (vehicle_type, vt_label) =
+            resolve_vehicle_type(&schedule, bus_layout.as_ref(), &vt_map);
 
         Ok(TripDetail {
             trip: TripCore {
@@ -1038,7 +1114,7 @@ impl PublicService {
                 name: bus_layout.as_ref().and_then(|l| l.name.clone()),
                 capacity: bus_layout.as_ref().and_then(|l| l.total_seats),
                 vehicle_type,
-                vehicle_type_label: vt_label.to_string(),
+                vehicle_type_label: vt_label,
             },
             pricing: TripPricing {
                 base_price_adult: schedule.base_price_adult,

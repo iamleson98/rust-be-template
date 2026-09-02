@@ -34,6 +34,12 @@ const COMMIT_BATCH: u64 = 500_000;
 /// Sync — send / store from inside, don't await.
 pub type ProgressFn = std::sync::Arc<dyn Fn(&str) + Send + Sync>;
 
+/// Cooperative stop check — polled at phase boundaries and periodically
+/// inside the indexing loops. The scheduled import passes the run's
+/// `CancellationToken` (wrapped) so an admin kill or a Ctrl+C stops the
+/// multi-hour build within seconds instead of running to completion.
+pub type StopFn = std::sync::Arc<dyn Fn() -> bool + Send + Sync>;
+
 /// Controls indexing behavior — RAM/CPU/accuracy tradeoffs.
 /// (No `Debug` derive: [`IndexOptions::progress`] is a trait object.)
 #[derive(Clone)]
@@ -51,6 +57,8 @@ pub struct IndexOptions {
     /// Optional progress callback (phase messages + commit counts).
     /// `None` for the CLI path.
     pub progress: Option<ProgressFn>,
+    /// Optional cooperative stop check. `None` = never stop.
+    pub stop: Option<StopFn>,
 }
 
 impl Default for IndexOptions {
@@ -72,6 +80,7 @@ impl Default for IndexOptions {
             // routing data.
             centroid_mode: CentroidMode::FirstNode,
             progress: None,
+            stop: None,
         }
     }
 }
@@ -81,6 +90,20 @@ fn emit(opts: &IndexOptions, msg: &str) {
     if let Some(p) = &opts.progress {
         p(msg);
     }
+}
+
+/// Cooperative stop check — `Err` when the caller requested a stop.
+/// Checked at phase boundaries and every `STOP_CHECK_EVERY` records
+/// inside the indexing loops (cheap: one atomic-ish flag read).
+const STOP_CHECK_EVERY: u64 = 10_000;
+
+fn check_stop(opts: &IndexOptions, phase: &str) -> Result<()> {
+    if let Some(stop) = &opts.stop {
+        if stop() {
+            anyhow::bail!("cancelled during {phase}");
+        }
+    }
+    Ok(())
 }
 
 /// Open an existing Tantivy index, or create one if `index_dir` is empty.
@@ -353,11 +376,14 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     let start = Instant::now();
 
     // Pass 1: discover admin relations
+    check_stop(opts, "pass 1 (admin discovery)")?;
     emit(opts, "pass 1/3: discovering administrative boundaries");
     info!("pass 1: discovering admin relations...");
     let pass1 = osm_reader::pass1_discover_admin(osm_path)?;
+    check_stop(opts, "pass 1 (admin discovery)")?;
 
     // Pass 2: collect named nodes/ways + admin ways
+    check_stop(opts, "pass 2 (node/way collection)")?;
     emit(
         opts,
         "pass 2/3: collecting named nodes and ways (first pass over PBF)",
@@ -367,16 +393,20 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
         opts.centroid_mode
     );
     let pass2 = osm_reader::pass2_collect_data(osm_path, &pass1, &temp_dir, opts.centroid_mode)?;
+    check_stop(opts, "pass 2 (node/way collection)")?;
 
     // Pass 3: cache needed node coords
+    check_stop(opts, "pass 3 (node coordinate caching)")?;
     emit(
         opts,
         "pass 3/3: caching node coordinates (second pass over PBF)",
     );
     info!("pass 3: caching node coordinates...");
     let node_coords = osm_reader::pass3_collect_node_coords(osm_path, &pass2.needed_node_ids)?;
+    check_stop(opts, "pass 3 (node coordinate caching)")?;
 
     // Build spatial index
+    check_stop(opts, "spatial index build")?;
     emit(opts, "building spatial index (admin polygons + R-trees)");
     info!("building spatial index (R-trees with stitched polygons)...");
     let spatial_index =
@@ -399,10 +429,12 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     let mut admins_indexed: u64 = 0;
 
     // Index nodes from temp file
+    check_stop(opts, "node indexing")?;
     emit(opts, "indexing named nodes from temp file");
     info!("indexing named nodes from temp file...");
     let nodes_file = std::fs::File::open(&pass2.nodes_file_path)?;
     let nodes_reader = BufReader::new(nodes_file);
+    let mut since_check: u64 = 0;
     for line in nodes_reader.lines() {
         let line = line?;
         if line.is_empty() {
@@ -415,6 +447,11 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
                 continue;
             }
         };
+        since_check += 1;
+        if since_check >= STOP_CHECK_EVERY {
+            since_check = 0;
+            check_stop(opts, "node indexing")?;
+        }
         if index_node(&writer, &rec, &spatial_index)? {
             total += 1;
             nodes_indexed += 1;
@@ -433,10 +470,12 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     }
 
     // Index ways from temp file
+    check_stop(opts, "way indexing")?;
     emit(opts, "indexing named ways from temp file");
     info!("indexing named ways from temp file...");
     let ways_file = std::fs::File::open(&pass2.ways_file_path)?;
     let ways_reader = BufReader::new(ways_file);
+    let mut since_check = 0;
     for line in ways_reader.lines() {
         let line = line?;
         if line.is_empty() {
@@ -449,6 +488,11 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
                 continue;
             }
         };
+        since_check += 1;
+        if since_check >= STOP_CHECK_EVERY {
+            since_check = 0;
+            check_stop(opts, "way indexing")?;
+        }
         if index_way(&writer, &rec, &node_coords, &spatial_index)? {
             total += 1;
             ways_indexed += 1;
@@ -467,9 +511,11 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     }
 
     // Index admin relations
+    check_stop(opts, "admin relation indexing")?;
     emit(opts, "indexing admin relations");
     info!("indexing admin relations...");
     for rel in &pass1.admin_relations {
+        check_stop(opts, "admin relation indexing")?;
         if index_admin_relation(&writer, rel, &spatial_index)? {
             total += 1;
             admins_indexed += 1;

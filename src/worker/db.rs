@@ -184,6 +184,9 @@ impl WorkerBroker for DbBroker {
                     job_type,
                     payload,
                     attempts: attempts as u32,
+                    // Runtime-only: the runner swaps in the run's real
+                    // token at dispatch time.
+                    cancel: tokio_util::sync::CancellationToken::new(),
                 }))
             }
             None => {

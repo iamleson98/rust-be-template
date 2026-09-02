@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CalendarClock, Clock, Loader2, Play, RefreshCw, Settings2 } from 'lucide-react'
+import { AlertTriangle, CalendarClock, Clock, Loader2, Play, RefreshCw, Settings2, Square } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -30,6 +30,7 @@ import {
 import {
   useAdminCronJobRuns,
   useAdminCronJobs,
+  useCancelCronJob,
   useTriggerCronJob,
   useUpdateCronJob,
 } from '@/lib/queries'
@@ -61,6 +62,8 @@ function StatusBadge({ status }: { status: string }) {
         <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
       ) : status === 'failed' ? (
         <AlertTriangle className="h-3 w-3" aria-hidden />
+      ) : status === 'cancelled' ? (
+        <Square className="h-3 w-3 fill-current" aria-hidden />
       ) : (
         <Clock className="h-3 w-3" aria-hidden />
       )}
@@ -107,12 +110,14 @@ function LastRunCell({ job }: { job: CronJobOut }) {
 function JobCard({
   job,
   onTrigger,
+  onCancel,
   onEdit,
   onToggle,
   busy,
 }: {
   job: CronJobOut
   onTrigger: (job: CronJobOut) => void
+  onCancel: (job: CronJobOut) => void
   onEdit: (job: CronJobOut) => void
   onToggle: (job: CronJobOut, enabled: boolean) => void
   busy: boolean
@@ -161,6 +166,20 @@ function JobCard({
               <Play className="h-4 w-4 mr-1.5" />
               Chạy ngay
             </Button>
+            {active ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onCancel(job)}
+                disabled={busy}
+                title="Dừng lượt chạy đang chờ / đang chạy"
+                data-testid="cron-job-cancel"
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+              >
+                <Square className="h-3.5 w-3.5 mr-1.5 fill-current" />
+                Dừng
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" onClick={() => onEdit(job)} disabled={busy}>
               <Settings2 className="h-4 w-4 mr-1.5" />
               Sửa lịch
@@ -220,6 +239,7 @@ export function CronJobsPanel() {
   const runsQuery = useAdminCronJobRuns()
   const triggerMutation = useTriggerCronJob()
   const updateMutation = useUpdateCronJob()
+  const cancelMutation = useCancelCronJob()
 
   const [editJob, setEditJob] = useState<CronJobOut | null>(null)
   const [editOpen, setEditOpen] = useState(false)
@@ -227,7 +247,7 @@ export function CronJobsPanel() {
   const jobs = useMemo(() => jobsQuery.data?.items ?? [], [jobsQuery.data])
   const runs = useMemo(() => runsQuery.data?.items ?? [], [runsQuery.data])
   const schedulerEnabled = jobsQuery.data?.schedulerEnabled ?? false
-  const busy = triggerMutation.isPending || updateMutation.isPending
+  const busy = triggerMutation.isPending || updateMutation.isPending || cancelMutation.isPending
 
   const trigger = async (job: CronJobOut) => {
     try {
@@ -237,6 +257,16 @@ export function CronJobsPanel() {
       // 409 = already running; 503 = worker disabled — the API messages
       // are already human-readable Vietnamese/English strings.
       toast.error(e?.error?.message ?? e?.message ?? 'Không thể chạy tác vụ')
+    }
+  }
+
+  const cancel = async (job: CronJobOut) => {
+    try {
+      await cancelMutation.mutateAsync({ path: { jobType: job.jobType } })
+      toast.success(`Đã gửi yêu cầu dừng «${job.jobType}»`)
+    } catch (e: any) {
+      // 404 = nothing queued/running to stop.
+      toast.error(e?.error?.message ?? e?.message ?? 'Không thể dừng tác vụ')
     }
   }
 
@@ -326,6 +356,7 @@ export function CronJobsPanel() {
               key={job.jobType}
               job={job}
               onTrigger={trigger}
+              onCancel={cancel}
               onEdit={(j) => {
                 setEditJob(j)
                 setEditOpen(true)

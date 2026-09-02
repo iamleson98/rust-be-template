@@ -26,13 +26,15 @@ use crate::dto::admin::{
     AdminBookingTotals, AdminBrandListResponse, AdminBrandOut, AdminBusLayoutListResponse,
     AdminBusLayoutOut, AdminMutationResponse, AdminPickupPointListResponse, AdminPickupPointOut,
     AdminPlacePreview, AdminReviewListResponse, AdminRouteListResponse, AdminRouteOut,
-    AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut, ModerateReviewRequest,
+    AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut,
+    AdminVehicleTypeListResponse, AdminVehicleTypeOut, ModerateReviewRequest,
     ModerateReviewResponse, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
     UpsertAddressRequest, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
-    UpsertSchedulePointItem, UpsertScheduleRequest,
+    UpsertSchedulePointItem, UpsertScheduleRequest, UpsertVehicleTypeRequest,
 };
 use crate::entity::{
     address, audit_log, booking, brand, pickup_point, review, route, schedule, schedule_point,
+    vehicle_type,
 };
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
@@ -429,17 +431,21 @@ impl AdminService {
     // ── Addresses ───────────────────────────────────────────────
 
     /// List addresses owned by a brand (ordered by name).
-    pub async fn list_addresses(&self, brand_id: &str) -> AppResult<AdminAddressListResponse> {
-        let items: Vec<AdminAddressOut> = self
+    pub async fn list_addresses(
+        &self,
+        brand_id: &str,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> AppResult<AdminAddressListResponse> {
+        let (models, total) = self
             .store
             .address_store()
-            .list_addresses_by_brand(brand_id)
+            .list_addresses_by_brand_page(brand_id, q, limit, offset)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .iter()
-            .map(address_out)
-            .collect();
-        Ok(AdminAddressListResponse { items })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let items: Vec<AdminAddressOut> = models.iter().map(address_out).collect();
+        Ok(AdminAddressListResponse { items, total })
     }
 
     /// Create a new address for a brand.
@@ -642,6 +648,26 @@ impl AdminService {
         let address_map: std::collections::HashMap<Uuid, address::Model> =
             addresses.into_iter().map(|a| (a.id, a)).collect();
 
+        // Batch-resolve the schedules' explicit vehicle classes (one
+        // query for the whole page).
+        let vehicle_type_ids: Vec<Uuid> = schedules
+            .iter()
+            .filter_map(|s| s.vehicle_type_id)
+            .collect();
+        let vehicle_type_map: std::collections::HashMap<Uuid, vehicle_type::Model> =
+            if vehicle_type_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                self.store
+                    .vehicle_type_store()
+                    .find_vehicle_types_by_ids(vehicle_type_ids)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?
+                    .into_iter()
+                    .map(|v| (v.id, v))
+                    .collect()
+            };
+
         let items: Vec<AdminScheduleOut> = schedules
             .iter()
             .map(|s| {
@@ -659,6 +685,7 @@ impl AdminService {
                                 address_id: p.address_id,
                                 stop_order: p.stop_order,
                                 kind: p.kind.clone(),
+                                arrival_time: p.arrival_time.clone(),
                                 address: address_out(a),
                             })
                     })
@@ -671,6 +698,12 @@ impl AdminService {
                     effective_to: s.effective_to.clone(),
                     days_of_week: s.days_of_week.clone(),
                     bus_layout_id: s.bus_layout_id.clone(),
+                    vehicle_type_id: s.vehicle_type_id.clone(),
+                    vehicle_type: s
+                        .vehicle_type_id
+                        .as_ref()
+                        .and_then(|id| vehicle_type_map.get(id))
+                        .map(vehicle_type_out),
                     base_price_adult: s.base_price_adult,
                     base_price_child: s.base_price_child,
                     amenities: s.amenities.clone(),
@@ -713,6 +746,12 @@ impl AdminService {
             }
         }
 
+        // Validate the vehicle type reference BEFORE inserting so a bad
+        // id can't wedge the FK (and reads as a friendly 4xx, not 500).
+        if let Some(vt_id) = body.vehicle_type_id {
+            self.ensure_vehicle_type_exists(vt_id).await?;
+        }
+
         let id = Uuid::new_v4();
         // Validate the point sequence BEFORE inserting the schedule so a
         // rejected payload can't leave a half-configured schedule behind.
@@ -730,6 +769,7 @@ impl AdminService {
             effective_to: Set(body.effective_to.clone()),
             days_of_week: Set(days_of_week),
             bus_layout_id: Set(body.bus_layout_id.clone()),
+            vehicle_type_id: Set(body.vehicle_type_id),
             base_price_adult: Set(body.base_price_adult.unwrap_or(0)),
             base_price_child: Set(body.base_price_child),
             amenities: Set(body.amenities.clone()),
@@ -799,6 +839,10 @@ impl AdminService {
         if let Some(v) = body.bus_layout_id {
             active.bus_layout_id = Set(Some(v));
         }
+        if let Some(v) = body.vehicle_type_id {
+            self.ensure_vehicle_type_exists(v).await?;
+            active.vehicle_type_id = Set(Some(v));
+        }
         if let Some(v) = body.base_price_adult {
             active.base_price_adult = Set(v);
         }
@@ -829,6 +873,193 @@ impl AdminService {
             .delete_schedule(id)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(())
+    }
+
+    // ── Vehicle types ───────────────────────────────────────────
+
+    /// List the vehicle-type catalog with optional label/code filter +
+    /// offset pagination (the admin page + the schedule form's
+    /// infinite-scroll picker).
+    pub async fn list_vehicle_types(
+        &self,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> AppResult<AdminVehicleTypeListResponse> {
+        let limit = limit.map(|l| l.clamp(1, 200));
+        let page = self
+            .store
+            .vehicle_type_store()
+            .list_vehicle_types(q, limit, offset)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminVehicleTypeListResponse {
+            items: page.items.iter().map(vehicle_type_out).collect(),
+            total: page.total,
+        })
+    }
+
+    /// Create a vehicle type. `code` is slugified (Vietnamese-aware) and
+    /// must stay unique — the public search filter depends on it.
+    pub async fn create_vehicle_type(
+        &self,
+        body: &UpsertVehicleTypeRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let label = optional_trimmed(body.label.as_deref())
+            .ok_or_else(|| AppError::BadRequest("label is required".into()))?;
+        let code = body
+            .code
+            .as_deref()
+            .map(|s| slugify(s))
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| AppError::BadRequest("code is required".into()))?;
+        if !valid_slug(&code) {
+            return Err(AppError::Validation(
+                "code must be lowercase letters, digits and dashes".into(),
+            ));
+        }
+        let status = valid_vehicle_type_status(body.status.as_deref())
+            .ok_or_else(|| AppError::Validation("status must be `active` or `disabled`".into()))?;
+
+        // Duplicate guard (unique index also enforces it, but this gives
+        // a 409 with a human message instead of a 500).
+        if self
+            .store
+            .vehicle_type_store()
+            .find_vehicle_type_by_code(&code)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .is_some()
+        {
+            return Err(AppError::Conflict(format!(
+                "vehicle type code {code:?} already exists"
+            )));
+        }
+
+        let id = Uuid::new_v4();
+        let now = now_iso();
+        self.store
+            .vehicle_type_store()
+            .insert_vehicle_type(vehicle_type::ActiveModel {
+                id: Set(id),
+                code: Set(code),
+                label: Set(label),
+                description: Set(optional_trimmed(body.description.as_deref())),
+                total_seats: Set(body.total_seats),
+                sort_order: Set(body.sort_order.unwrap_or(0)),
+                status: Set(status.to_string()),
+                created_at: Set(now.clone()),
+                updated_at: Set(now),
+            })
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Update a vehicle type (patch semantics — only provided fields).
+    pub async fn update_vehicle_type(
+        &self,
+        id: Uuid,
+        body: &UpsertVehicleTypeRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self
+            .store
+            .vehicle_type_store()
+            .find_vehicle_type_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("vehicle type not found".into()))?;
+
+        let original_code = existing.code.clone();
+        let mut active: vehicle_type::ActiveModel = existing.into();
+
+        if let Some(ref code) = body.code {
+            let code = slugify(code);
+            if !valid_slug(&code) {
+                return Err(AppError::Validation(
+                    "code must be lowercase letters, digits and dashes".into(),
+                ));
+            }
+            // Uniqueness when the code actually changes.
+            if !code.eq_ignore_ascii_case(&original_code) {
+                if let Some(dup) = self
+                    .store
+                    .vehicle_type_store()
+                    .find_vehicle_type_by_code(&code)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?
+                {
+                    if dup.id != id {
+                        return Err(AppError::Conflict(format!(
+                            "vehicle type code {code:?} already exists"
+                        )));
+                    }
+                }
+            }
+            active.code = Set(code);
+        }
+        if let Some(ref label) = body.label {
+            let label = label.trim().to_string();
+            if label.is_empty() {
+                return Err(AppError::Validation("label cannot be empty".into()));
+            }
+            active.label = Set(label);
+        }
+        if let Some(ref desc) = body.description {
+            // Patch semantics: `""` clears, non-empty sets the trimmed text.
+            active.description = Set(optional_trimmed(Some(desc.as_str())));
+        }
+        if let Some(seats) = body.total_seats {
+            active.total_seats = Set(Some(seats));
+        }
+        if let Some(sort) = body.sort_order {
+            active.sort_order = Set(sort);
+        }
+        if let Some(ref status) = body.status {
+            let status = valid_vehicle_type_status(Some(status))
+                .ok_or_else(|| AppError::Validation("status must be `active` or `disabled`".into()))?;
+            active.status = Set(status.to_string());
+        }
+        active.updated_at = Set(now_iso());
+
+        self.store
+            .vehicle_type_store()
+            .update_vehicle_type(active)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Delete a vehicle type. Referencing schedules fall back to their
+    /// bus layout (`ON DELETE SET NULL` semantics) — the reference is
+    /// cleared explicitly in one transaction so SQLite (no FK on the
+    /// added column) behaves exactly like Postgres.
+    pub async fn delete_vehicle_type(&self, id: Uuid) -> AppResult<()> {
+        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
+
+        let txn = self
+            .store
+            .db()
+            .begin()
+            .await
+            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
+        schedule::Entity::update_many()
+            .col_expr(
+                schedule::Column::VehicleTypeId,
+                sea_orm::sea_query::Expr::value(Option::<Uuid>::None),
+            )
+            .filter(schedule::Column::VehicleTypeId.eq(id))
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("clear schedule references: {e}")))?;
+        vehicle_type::Entity::delete_by_id(id)
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("delete vehicle type: {e}")))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
         Ok(())
     }
 
@@ -1571,6 +1802,26 @@ pub fn is_days_of_week(s: &str) -> bool {
 // ────────────────────────────────────────────────────────────────
 
 impl AdminService {
+    /// A schedule's `vehicleType` reference must point at a real catalog
+    /// row. Validated on create/update so a bad id reads as a friendly
+    /// 4xx instead of an FK 500 (and to keep SQLite — no FK on the added
+    /// column — consistent with Postgres).
+    async fn ensure_vehicle_type_exists(&self, id: Uuid) -> AppResult<()> {
+        if self
+            .store
+            .vehicle_type_store()
+            .find_vehicle_type_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .is_none()
+        {
+            return Err(AppError::NotFound(format!(
+                "vehicle type {id} does not exist"
+            )));
+        }
+        Ok(())
+    }
+
     /// Validate + build the ordered `schedule_point` rows for a schedule.
     ///
     /// Rules:
@@ -1635,6 +1886,19 @@ impl AdminService {
             }
         }
 
+        // Arrival times are optional but must be `HH:MM` when present
+        // (same vocabulary as `departure_time`).
+        for (i, p) in items.iter().enumerate() {
+            if let Some(t) = p.arrival_time.as_deref() {
+                let t = t.trim();
+                if !t.is_empty() && !regex_like_hhmm(t) {
+                    return Err(AppError::Validation(format!(
+                        "points[{i}].arrivalTime must be HH:MM (00:00-23:59)"
+                    )));
+                }
+            }
+        }
+
         let now = now_iso();
         let total = items.len();
         Ok(items
@@ -1646,6 +1910,7 @@ impl AdminService {
                 address_id: Set(p.address_id.expect("checked above")),
                 stop_order: Set(index as i64),
                 kind: Set(point_kind(index, total).to_string()),
+                arrival_time: Set(optional_trimmed(p.arrival_time.as_deref())),
                 created_at: Set(now.clone()),
             })
             .collect())
@@ -1704,6 +1969,30 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
         Ok(())
+    }
+}
+
+/// Map a `vehicle_type` row to its admin DTO.
+fn vehicle_type_out(v: &vehicle_type::Model) -> AdminVehicleTypeOut {
+    AdminVehicleTypeOut {
+        id: v.id,
+        code: v.code.clone(),
+        label: v.label.clone(),
+        description: v.description.clone(),
+        total_seats: v.total_seats,
+        sort_order: v.sort_order,
+        status: v.status.clone(),
+        created_at: v.created_at.clone(),
+        updated_at: v.updated_at.clone(),
+    }
+}
+
+/// `active` | `disabled` (catalog status vocabulary).
+fn valid_vehicle_type_status(s: Option<&str>) -> Option<&'static str> {
+    match s.unwrap_or("active") {
+        "active" => Some("active"),
+        "disabled" => Some("disabled"),
+        _ => None,
     }
 }
 
