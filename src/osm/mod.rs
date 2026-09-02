@@ -1,3 +1,4 @@
+pub mod download;
 pub mod indexer;
 pub mod osm_reader;
 pub mod schema;

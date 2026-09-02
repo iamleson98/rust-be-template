@@ -7,21 +7,19 @@ use tokio::task::JoinHandle;
 use super::backend::WorkerBroker;
 use super::registry::JobRegistry;
 
-/// Maximum retry attempts before a job is considered poison and dropped.
-const MAX_ATTEMPTS: u32 = 10;
-
-/// Per-job timeout — prevents a hung handler from blocking a worker forever.
-const JOB_TIMEOUT: Duration = Duration::from_secs(300); // 5 minutes
-
 /// Runs `concurrency` consumer tasks against the configured broker.
 /// Each task loops: `dequeue -> dispatch (with timeout) -> ack/nack (with backoff)`.
 ///
 /// ## Fault tolerance
 ///
-/// - **Max attempts**: a job that fails `MAX_ATTEMPTS` times (10) is acked
-///   (removed from the queue) and logged as a poison message. No infinite retry.
-/// - **Per-job timeout**: each handler runs inside a `tokio::time::timeout`
-///   (5 min). If it exceeds the timeout, the job is nacked.
+/// - **Per-job policy**: timeout and max attempts come from the
+///   [`JobRegistry`](super::registry::JobRegistry) policy registered for
+///   the job type (default: 5-minute timeout, 10 attempts). Long-running
+///   jobs like the OSM import register their own policy.
+/// - **Per-job timeout**: each handler runs inside a `tokio::time::timeout`.
+///   If it exceeds the timeout, the job is nacked. NOTE: dropping the
+///   future does not stop a `spawn_blocking` body — long jobs must be
+///   internally idempotent / single-flighted.
 /// - **Panic isolation**: a panicking handler is caught via `catch_unwind`
 ///   (sub-task spawn). The job is nacked; the worker continues.
 /// - **Exponential backoff on dequeue error**: starts at 500 ms, doubles up
@@ -85,7 +83,11 @@ impl WorkerRunner {
                                         backoff_ms = 500;
 
                                         // Check max attempts — drop poison messages.
-                                        if env.attempts >= MAX_ATTEMPTS {
+                                        // The policy comes from the registry so
+                                        // long-running jobs can opt out of the
+                                        // 10-attempt default.
+                                        let policy = r.policy(&env.job_type);
+                                        if env.attempts >= policy.max_attempts {
                                             tracing::error!(
                                                 job_id = %env.id,
                                                 job_type = %env.job_type,
@@ -108,12 +110,12 @@ impl WorkerRunner {
                                         let env_for_panic = env.clone();
                                         let handler_for_panic = handler.clone();
 
-                                        // Run handler with a timeout.
+                                        // Run handler with the job's policy timeout.
                                         let join = tokio::spawn(async move {
                                             handler_for_panic(env_for_panic).await
                                         });
 
-                                        match tokio::time::timeout(JOB_TIMEOUT, join).await {
+                                        match tokio::time::timeout(policy.timeout, join).await {
                                             Ok(Ok(Ok(()))) => {
                                                 let _ = b.ack(&env).await;
                                             }
@@ -124,7 +126,7 @@ impl WorkerRunner {
                                                     error = %e,
                                                     "job failed (attempt {}/{})",
                                                     env.attempts + 1,
-                                                    MAX_ATTEMPTS
+                                                    policy.max_attempts
                                                 );
                                                 let _ = b.nack(&env, &e.to_string()).await;
                                             }
@@ -154,7 +156,7 @@ impl WorkerRunner {
                                                     job_id = %env.id,
                                                     job_type = %env.job_type,
                                                     "job timed out after {}s — nacking",
-                                                    JOB_TIMEOUT.as_secs()
+                                                    policy.timeout.as_secs()
                                                 );
                                                 let _ = b.nack(&env, "timeout").await;
                                             }

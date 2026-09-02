@@ -19,6 +19,7 @@ pub struct Config {
     pub storage: StorageConfig,
     pub worker: WorkerConfig,
     pub rate_limit: RateLimitConfig,
+    pub scheduler: SchedulerConfig,
     pub static_files: StaticFilesConfig,
     pub cors: CorsConfig,
     pub nullclaw: NullClawConfig,
@@ -306,10 +307,13 @@ pub struct WorkerConfig {
 
 impl Default for WorkerConfig {
     fn default() -> Self {
+        // Default `db`: the queue lives in the SQLite/Postgres DB the
+        // app already uses — zero new infrastructure for a single-binary
+        // deployment. Set `redis`/`kafka` to scale workers out instead.
         let backend = match env_var("WORKER_BACKEND").as_deref() {
-            Some("db") => WorkerBackend::Db,
+            Some("redis") => WorkerBackend::Redis,
             Some("kafka") => WorkerBackend::Kafka,
-            _ => WorkerBackend::Redis,
+            _ => WorkerBackend::Db,
         };
 
         Self {
@@ -328,6 +332,34 @@ impl Default for WorkerConfig {
 impl WorkerConfig {
     pub fn poll_interval(&self) -> Duration {
         Duration::from_millis(self.poll_interval_ms)
+    }
+}
+
+/// Background-job scheduler settings (recurring jobs such as the
+/// biweekly OSM import). Gates the whole background-jobs subsystem —
+/// the worker runner AND the scheduler tick start only when `enabled`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SchedulerConfig {
+    /// Master switch (`SCHEDULER_ENABLED`). `false` runs a pure-API
+    /// instance: no worker consumers, no recurring firing. The admin
+    /// cron-jobs page still lists schedules and history (triggering
+    /// returns 503).
+    pub enabled: bool,
+    /// Fixed UTC offset (minutes) used to interpret "run at HH:MM"
+    /// wall-clock times. Default 420 = UTC+7 (Vietnam — no DST, so a
+    /// fixed offset is exact). Negative for west-of-UTC deployments.
+    pub tz_offset_minutes: i32,
+    /// Scheduler tick cadence — how often due schedules are checked.
+    pub tick_interval_secs: u64,
+}
+
+impl Default for SchedulerConfig {
+    fn default() -> Self {
+        Self {
+            enabled: env_parse("SCHEDULER_ENABLED").unwrap_or(true),
+            tz_offset_minutes: env_parse("SCHEDULER_TZ_OFFSET_MINUTES").unwrap_or(420),
+            tick_interval_secs: env_parse("SCHEDULER_TICK_INTERVAL_SECS").unwrap_or(60),
+        }
     }
 }
 
@@ -456,6 +488,9 @@ impl AudioCallConfig {
 pub struct SearchConfig {
     pub index_dir: Option<PathBuf>,
     pub osm_pbf_path: Option<PathBuf>,
+    /// Override for the Vietnam OSM extract download URL (default:
+    /// Geofabrik). Useful for mirrors or tests.
+    pub osm_download_url: Option<String>,
 }
 
 impl SearchConfig {
@@ -463,6 +498,7 @@ impl SearchConfig {
         Self {
             index_dir: env_var("SEARCH_INDEX_DIR").map(PathBuf::from),
             osm_pbf_path: env_var("SEARCH_OSM_PBF_PATH").map(PathBuf::from),
+            osm_download_url: env_var("SEARCH_OSM_DOWNLOAD_URL"),
         }
     }
 }
@@ -738,6 +774,7 @@ impl Config {
             storage: StorageConfig::default(),
             worker: WorkerConfig::default(),
             rate_limit: RateLimitConfig::default(),
+            scheduler: SchedulerConfig::default(),
             static_files: StaticFilesConfig::default(),
             cors: CorsConfig::default(),
             nullclaw: NullClawConfig::default(),
@@ -765,6 +802,13 @@ impl Config {
         }
         if self.worker.concurrency == 0 {
             anyhow::bail!("WORKER_CONCURRENCY must be > 0");
+        }
+        if self.scheduler.tick_interval_secs == 0 {
+            anyhow::bail!("SCHEDULER_TICK_INTERVAL_SECS must be > 0");
+        }
+        let tz = self.scheduler.tz_offset_minutes;
+        if !(-1439..=1439).contains(&tz) {
+            anyhow::bail!("SCHEDULER_TZ_OFFSET_MINUTES must be within ±23:59 (got {tz})");
         }
         if !self.cookie.secure {
             tracing::warn!(
@@ -815,6 +859,11 @@ impl Config {
         );
         tracing::info!("  storage backend: {:?}", self.storage.backend);
         tracing::info!("  worker backend: {:?}", self.worker.backend);
+        tracing::info!(
+            "  scheduler enabled: {}, tz_offset_minutes: {}",
+            self.scheduler.enabled,
+            self.scheduler.tz_offset_minutes
+        );
         tracing::info!("  payment cod_enabled: {}", self.payment.cod_enabled);
     }
 }

@@ -32,3 +32,5 @@ pub use super::user::Entity as User;
 pub use super::user_roles::Entity as UserRoles;
 pub use super::user_verification::Entity as UserVerification;
 pub use super::wishlist_item::Entity as WishlistItem;
+pub use super::job_run::Entity as JobRun;
+pub use super::scheduled_job::Entity as ScheduledJob;

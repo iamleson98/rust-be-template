@@ -19,6 +19,12 @@ pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
 pub use self::composite::CompositeStore;
 pub use self::error::{StoreError, StoreResult};
+pub use self::jobs::{DbJobStore, JobStore};
+
+// Timestamp helpers shared by the job scheduler pieces (store rows,
+// services, job handlers). Fixed-width ISO-8601 UTC strings — see
+// `store::jobs` module docs for the lexicographic-ordering contract.
+pub(crate) use self::jobs::{now_iso, parse_iso};
 pub use self::notification::{DbNotificationStore, NotificationStore};
 pub use self::payment::{DbPaymentStore, PaymentStore};
 pub use self::place::{DbPlaceStore, PlaceStore};
@@ -57,6 +63,7 @@ mod brands;
 pub mod chat;
 mod composite;
 mod error;
+mod jobs;
 mod notification;
 mod payment;
 mod place;

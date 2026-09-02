@@ -22,7 +22,13 @@ pub struct RedisBroker {
 
 impl RedisBroker {
     pub async fn connect(cfg: &WorkerConfig) -> anyhow::Result<Self> {
-        let url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379/0".into());
+        // `WORKER_REDIS_URL` is what docker-compose / DEPLOYMENT.md set;
+        // fall back to the app-wide `REDIS_URL` (cache backend) for
+        // single-Redis setups. (Previously only `REDIS_URL` was read,
+        // so containers pointing at the `redis` service never connected.)
+        let url = std::env::var("WORKER_REDIS_URL")
+            .or_else(|_| std::env::var("REDIS_URL"))
+            .unwrap_or_else(|_| "redis://localhost:6379/0".into());
         let client = redis::Client::open(url)?;
         let conn = ConnectionManager::new(client).await?;
         Ok(Self {

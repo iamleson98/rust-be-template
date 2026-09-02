@@ -12,6 +12,7 @@ use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::RefreshTokenManager;
 use crate::cache::{self, CacheBackend};
 use crate::config::Config;
+use crate::jobs;
 use crate::payment::cod::CodProvider;
 use crate::payment::momo::MomoProvider;
 use crate::payment::vietqr::VietQrProvider;
@@ -20,20 +21,21 @@ use crate::payment::zalopay::ZalopayProvider;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, ChatService, NotificationService, PaymentService,
-    PlaceService, PostService, PriceAlertService, PublicService, ReviewService, RoutingService,
-    UserService, WishlistService,
+    AdminService, AuthService, BookingService, ChatService, JobService, NotificationService,
+    PaymentService, PlaceService, PostService, PriceAlertService, PublicService, ReviewService,
+    RoutingService, UserService, WishlistService,
 };
 use crate::state::AppState;
 use crate::store::{
     BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
-    DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbNotificationStore, DbPaymentStore,
-    DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore, DbReviewStore,
-    DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore, PostStore,
-    RbacStore, RefreshTokenStore, UserStore,
+    DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
+    DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore,
+    DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore,
+    DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
 };
 use crate::ws;
+use crate::worker::WorkerRunner;
 
 pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- Config -------------------------------------------------------
@@ -250,6 +252,60 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // hub never touch the store directly (clean-architecture rule).
     let chat_service = Arc::new(ChatService::new(store.clone()));
 
+    // ---- Background jobs: worker runner + recurring scheduler ──────
+    // The admin cron-jobs page reads schedule rows through
+    // `job_service` regardless; the runner + tick loop only start when
+    // the subsystem is enabled AND the broker connects (Redis/Kafka
+    // deployments whose broker is down keep serving the API).
+    let job_store: Arc<dyn JobStore> = Arc::new(DbJobStore::new(db.clone()));
+    let mut job_service = Arc::new(JobService::new(job_store.clone(), config_arc.clone()));
+    if config.scheduler.enabled {
+        match crate::worker::build_shared(&config.worker, db.clone()).await {
+            Ok(broker) => {
+                Arc::get_mut(&mut job_service)
+                    .expect("job service is uniquely owned at bootstrap")
+                    .attach_broker(broker.clone());
+
+                // Seed default schedules (idempotent; needs the migration
+                // to have run — a failure here degrades to a warning so
+                // an unmigrated DB still boots the API).
+                if let Err(e) = job_service.ensure_default_jobs().await {
+                    tracing::warn!(
+                        error = %e,
+                        "could not seed default job schedules — scheduler will retry on next boot"
+                    );
+                }
+
+                let registry = jobs::register_all(jobs::JobDeps {
+                    job_store: job_store.clone(),
+                    places: place_service.clone(),
+                    config: config_arc.clone(),
+                });
+                let runner = WorkerRunner::new(
+                    broker,
+                    registry,
+                    config.worker.concurrency,
+                );
+                crate::worker::set_shutdown_handle(runner.shutdown_handle());
+                runner.spawn();
+                job_service.spawn_scheduler();
+                tracing::info!(
+                    backend = ?config.worker.backend,
+                    concurrency = config.worker.concurrency,
+                    "background worker + scheduler started"
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    "background jobs disabled: worker broker unavailable"
+                );
+            }
+        }
+    } else {
+        tracing::info!("background jobs disabled (SCHEDULER_ENABLED=false)");
+    }
+
     let state = AppState::new(
         config_arc,
         rbac.clone(),
@@ -267,6 +323,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         wishlist_service,
         payment_service,
         chat_service,
+        job_service,
     );
 
     Ok(state)
@@ -305,6 +362,8 @@ pub async fn run(state: AppState) -> anyhow::Result<()> {
     )
     .with_graceful_shutdown(async {
         shutdown_signal().await;
+        // Stop accepting new background jobs and drain workers.
+        crate::worker::notify_shutdown();
         // Drain live WS connections before exiting.
         crate::ws::drain_all_connections(800).await;
     })

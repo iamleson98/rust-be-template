@@ -656,6 +656,106 @@ pub struct AdminBusLayoutsQuery {
     pub brand_id: Option<Uuid>,
 }
 
+// ────────────────────────────────────────────────────────────────
+//  Cron jobs (scheduled background jobs)
+// ────────────────────────────────────────────────────────────────
+
+/// One execution of a background job — history / live status row.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CronJobRunOut {
+    pub id: Uuid,
+    pub job_type: String,
+    /// `queued | running | succeeded | failed`.
+    pub status: String,
+    /// Progress / stats JSON (phase, message, bytes, indexed counts…).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<String>,
+    pub created_at: String,
+}
+
+/// A scheduled (recurring) job, with its latest run attached.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CronJobOut {
+    pub job_type: String,
+    /// Human-readable description from the job catalog (absent for
+    /// operator-inserted custom rows).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub enabled: bool,
+    /// Days between runs.
+    pub interval_days: i32,
+    /// Local wall-clock hour (0-23) of the fire time.
+    pub at_hour: i32,
+    /// Local wall-clock minute (0-59) of the fire time.
+    pub at_minute: i32,
+    /// Next fire time (ISO-8601 UTC). `None` when never armed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_run_at: Option<String>,
+    /// Latest run, any status — doubles as the live status of an
+    /// in-flight run (started + not finished).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run: Option<CronJobRunOut>,
+    pub updated_at: String,
+}
+
+/// Response of `GET /api/admin/cron-jobs`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CronJobListResponse {
+    pub items: Vec<CronJobOut>,
+    /// Whether the background-jobs subsystem (worker runner + scheduler
+    /// tick) is running in this process. `false` (SCHEDULER_ENABLED=false)
+    /// → schedules won't fire and triggering returns 503.
+    pub scheduler_enabled: bool,
+}
+
+/// Response of `GET /api/admin/cron-jobs/runs`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CronJobRunListResponse {
+    pub items: Vec<CronJobRunOut>,
+}
+
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[serde(rename_all = "camelCase")]
+#[into_params(parameter_in = Query)]
+pub struct CronJobRunsQuery {
+    /// Filter by job type (omit for all jobs).
+    pub job_type: Option<String>,
+    /// Max rows to return (default 20).
+    pub limit: Option<u64>,
+}
+
+/// Body of `PATCH /api/admin/cron-jobs/{jobType}` — all fields optional;
+/// omitted fields keep their current values.
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCronJobRequest {
+    /// Enable (or disable) the schedule.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[validate(range(min = 1, max = 365))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interval_days: Option<i32>,
+    #[validate(range(min = 0, max = 23))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at_hour: Option<i32>,
+    #[validate(range(min = 0, max = 59))]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub at_minute: Option<i32>,
+    /// Re-arm the next run from now (uses the schedule's time-of-day).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reset_next_run: Option<bool>,
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

@@ -159,3 +159,41 @@ impl CompositeStore {
         self.addresses.clone()
     }
 }
+
+#[cfg(test)]
+impl CompositeStore {
+    /// Test fixture: every store over one shared in-memory SQLite DB
+    /// (no schema — tests create only the tables they touch). Used by
+    /// job-handler tests that need a `PlaceService` and by the jobs
+    /// catalog contract test.
+    pub async fn in_memory() -> Arc<Self> {
+        let db = Arc::new(sea_orm::Database::connect("sqlite::memory:").await.unwrap());
+        use super::{
+            DbAddressStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
+            DbNotificationStore, DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore,
+            DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore,
+            DbTripStore, DbUserStore, DbWishlistStore,
+        };
+        Arc::new(Self::new(
+            db.clone(),
+            Arc::new(DbUserStore::new(db.clone())),
+            Arc::new(DbPostStore::new(db.clone())),
+            Arc::new(DbRbacStore::new(db.clone())),
+            Arc::new(DbRefreshTokenStore::new(db.clone())),
+            Arc::new(DbBrandStore::new(db.clone())),
+            Arc::new(DbChatStore::new(db.clone())),
+            Arc::new(DbBookingStore::new(db.clone())),
+            Arc::new(DbReviewStore::new(db.clone())),
+            Arc::new(DbRouteStore::new(db.clone())),
+            Arc::new(DbScheduleStore::new(db.clone())),
+            Arc::new(DbTripStore::new(db.clone())),
+            Arc::new(DbPlaceStore::new(db.clone())),
+            Arc::new(DbPriceAlertStore::new(db.clone())),
+            Arc::new(DbAuditStore::new(db.clone())),
+            Arc::new(DbNotificationStore::new(db.clone())),
+            Arc::new(DbWishlistStore::new(db.clone())),
+            Arc::new(DbPaymentStore::new(db.clone())),
+            Arc::new(DbAddressStore::new(db.clone())),
+        ))
+    }
+}

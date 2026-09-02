@@ -54,14 +54,18 @@ impl DbBroker {
         })
     }
 
-    /// Construct from an existing shared DB pool (PERF-004 recommendation).
-    /// Avoids opening a separate 8-connection pool just for the worker.
-    pub fn with_db(db: Arc<DatabaseConnection>) -> Self {
-        Self {
+    /// Construct from an existing shared DB pool (PERF-004
+    /// recommendation — the path the server bootstrap uses). Avoids
+    /// opening a separate 8-connection pool just for the worker, and
+    /// makes the queue live in the same DB the scheduler's
+    /// `scheduled_job` / `job_run` rows live in.
+    pub async fn with_db(db: Arc<DatabaseConnection>) -> anyhow::Result<Self> {
+        Self::ensure_schema(db.as_ref()).await?;
+        Ok(Self {
             db,
             poll_interval: Duration::from_secs(1),
             wake: Arc::new(Notify::new()),
-        }
+        })
     }
 
     async fn ensure_schema(db: &DatabaseConnection) -> anyhow::Result<()> {

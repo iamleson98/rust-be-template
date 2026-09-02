@@ -35,6 +35,8 @@ pub mod consts {
     pub const ADMIN_SCHEDULES_WRITE: &str = "admin:schedules:write";
     pub const ADMIN_ADDRESSES_READ: &str = "admin:addresses:read";
     pub const ADMIN_ADDRESSES_WRITE: &str = "admin:addresses:write";
+    pub const ADMIN_CRON_JOBS_READ: &str = "admin:cron-jobs:read";
+    pub const ADMIN_CRON_JOBS_WRITE: &str = "admin:cron-jobs:write";
     pub const ADMIN_PICKUP_POINTS_READ: &str = "admin:pickup_points:read";
     pub const ADMIN_PICKUP_POINTS_WRITE: &str = "admin:pickup_points:write";
     pub const ADMIN_BUS_LAYOUTS_READ: &str = "admin:bus_layouts:read";

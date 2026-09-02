@@ -15,6 +15,7 @@
 //! - `bus_layouts` — `/api/admin/bus-layouts`
 //! - `reviews` — `/api/admin/reviews` (moderation)
 //! - `bookings` — `/api/admin/bookings` (status + stats + export)
+//! - `jobs` — `/api/admin/cron-jobs` (recurring background jobs)
 //!
 //! `payments` lives at `crate::routes::payments` (also handles user-facing
 //! payment routes + IPN webhooks), not here — it's mounted directly by
@@ -29,6 +30,7 @@
 pub mod addresses;
 pub mod bookings;
 pub mod brands;
+pub mod jobs;
 pub mod bus_layouts;
 pub mod pickup_points;
 pub mod reviews;
@@ -54,4 +56,5 @@ pub fn router() -> Router<AppState> {
         .nest("/bus-layouts", bus_layouts::router())
         .nest("/reviews", reviews::router())
         .nest("/bookings", bookings::router())
+        .nest("/cron-jobs", jobs::router())
 }

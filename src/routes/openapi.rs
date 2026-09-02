@@ -122,6 +122,11 @@ use utoipa::OpenApi;
         crate::routes::admin::bookings::update_status,
         crate::routes::admin::bookings::stats,
         crate::routes::admin::bookings::export,
+        // admin — cron jobs (recurring background jobs)
+        crate::routes::admin::jobs::list,
+        crate::routes::admin::jobs::list_runs,
+        crate::routes::admin::jobs::update,
+        crate::routes::admin::jobs::trigger,
         // admin — addresses (brand-owned points for schedule sequences).
         // Registered LAST on purpose: utoipa numbers the generated SDK
         // functions by declaration order (list2, list3, …), so appending
@@ -274,6 +279,11 @@ use utoipa::OpenApi;
         crate::dto::admin::AdminAddressOut,
         crate::dto::admin::AdminAddressListResponse,
         crate::dto::admin::UpsertAddressRequest,
+        crate::dto::admin::CronJobOut,
+        crate::dto::admin::CronJobListResponse,
+        crate::dto::admin::CronJobRunOut,
+        crate::dto::admin::CronJobRunListResponse,
+        crate::dto::admin::UpdateCronJobRequest,
         crate::dto::admin::AdminPickupPointOut,
         crate::dto::admin::AdminPickupPointListResponse,
         crate::dto::admin::UpsertPickupPointRequest,
@@ -323,3 +333,44 @@ use utoipa::OpenApi;
     )
 )]
 pub struct ApiDoc;
+
+#[cfg(test)]
+mod tests {
+    use super::ApiDoc;
+    use utoipa::OpenApi;
+
+    /// Serialize the spec (catches derive/registration mistakes at test
+    /// time) and dump it to `frontend/openapi.json` so the TS SDK can
+    /// be regenerated offline:
+    ///
+    /// ```sh
+    /// cargo test --lib dump_openapi_spec_for_the_frontend_sdk
+    /// cd frontend && bun run openapi-ts
+    /// ```
+    ///
+    /// (The config used to point at a live server; a checked-in spec
+    /// file makes regeneration reproducible without one.)
+    #[test]
+    fn dump_openapi_spec_for_the_frontend_sdk() {
+        let spec = ApiDoc::openapi();
+        let json = serde_json::to_string_pretty(&spec).expect("serialize openapi spec");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/frontend/openapi.json");
+        std::fs::write(path, &json).expect("write frontend/openapi.json");
+        // The cron-jobs admin surface must stay registered.
+        assert!(json.contains("/api/admin/cron-jobs"));
+        // Every registered path must have an operationId (openapi-ts
+        // generates SDK functions from them).
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        for (path, item) in v["paths"].as_object().expect("paths object") {
+            let ops = item.as_object().expect("path item object");
+            for (method, op) in ops {
+                if ["get", "post", "patch", "put", "delete"].contains(&method.as_str()) {
+                    assert!(
+                        op.get("operationId").is_some(),
+                        "{method} {path} is missing an operationId"
+                    );
+                }
+            }
+        }
+    }
+}

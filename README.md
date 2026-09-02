@@ -281,7 +281,53 @@ Switch via `STORAGE_BACKEND=local|s3|minio`.
 
 Switch via `WORKER_BACKEND=redis|db|kafka`. The runner consumes jobs from
 whichever broker is selected and dispatches to handlers registered in
-`JobRegistry`.
+`JobRegistry`. Per-job policies (`JobPolicy`: timeout, max attempts) are
+registered with each handler, so a multi-hour job like the OSM import
+gets its own budget instead of the 5-minute default.
+
+## Architecture: scheduled (cron) background jobs
+
+Recurring jobs — e.g. the **biweekly Vietnam OSM → Tantivy place-index
+refresh** — run on the worker through a small scheduler:
+
+- `scheduled_job` / `job_run` tables (migration `m20260903_000001`) —
+  one row per schedule ("every N days at HH:MM" local wall-clock) and
+  one row per execution (queued → running → succeeded/failed, with
+  progress JSON, error, timing). `JobService` ticks (default 60 s),
+  sweeps interrupted runs, enqueues due schedules onto the worker
+  queue and advances the next slot (missed slots are skipped, not
+  replayed — a server down for three weeks fires once on boot).
+- The OSM import job (`src/jobs/osm_import.rs`) downloads the Geofabrik
+  Vietnam extract, indexes into a **staging** directory with the
+  low-resource profile (256 MB heap, 1 thread — slow but gentle on
+  RAM/CPU), atomically swaps it into the live index, hot-reloads the
+  running server's searcher (`PlaceService::activate` — no restart),
+  and cleans up the ~500 MB PBF and leftovers on every exit path.
+- Admin page `/admin/cron-jobs`: status, next run, work time, live
+  progress, run history, "run now", enable/disable and cadence editing
+  (`GET/PATCH /api/admin/cron-jobs`, RBAC `admin:cron-jobs:read|write`).
+
+### Adding a new background job (the whole checklist)
+
+The `jobs::catalog()` in `src/jobs/mod.rs` is the single registration
+point — everything else picks a job up from it:
+
+1. Write `src/jobs/<name>.rs`: a `JOB_TYPE` const, an async handler
+   (decode `RunPayload` for the `job_run` row it reports into), and a
+   `register(registry, deps)` fn installing it with a `JobPolicy`.
+2. Add one `JobDefinition` entry to `catalog()` — job type, human
+   description (shown on the admin page), default schedule (or `None`
+   for trigger-only jobs).
+
+The worker runner, boot-time schedule seeding, scheduler tick, admin
+page and trigger API all consume the catalog; no other wiring. A
+contract test (`every_catalog_entry_registers_a_handler_and_policy`)
+keeps entries honest.
+
+Config: `SCHEDULER_ENABLED` (default true; `false` = pure-API instance,
+triggering returns 503), `SCHEDULER_TZ_OFFSET_MINUTES` (default 420 =
+UTC+7, fixed offset — no DST in Vietnam), `SCHEDULER_TICK_INTERVAL_SECS`,
+`SEARCH_OSM_DOWNLOAD_URL` (mirror override for the import's source).
 
 ## Architecture: WebSocket hub
 

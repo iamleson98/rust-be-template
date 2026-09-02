@@ -18,6 +18,8 @@
 
 use std::sync::Arc;
 
+use parking_lot::RwLock;
+
 use crate::dto::place::{
     PlaceListResponse, PlaceOut, PlaceReverseResponse, PlaceSearchHit, PlaceSearchResponse,
 };
@@ -31,27 +33,59 @@ use crate::store::CompositeStore;
 
 pub struct PlaceService {
     store: Arc<CompositeStore>,
-    /// Optional Tantivy place-search index. `None` when no index directory
-    /// is configured (place search falls back to SQL `LIKE`).
-    searcher: Option<Arc<PlaceSearcher>>,
+    /// Optional Tantivy place-search index. `None` when no index is
+    /// available yet. Behind a `RwLock` so the scheduled OSM import job
+    /// can activate / refresh it after a rebuild (see [`Self::activate`])
+    /// without restarting the server — including the None → Some
+    /// transition when the first import lands.
+    searcher: RwLock<Option<Arc<PlaceSearcher>>>,
 }
 
 impl PlaceService {
     pub fn new(store: Arc<CompositeStore>) -> Self {
         Self {
             store,
-            searcher: None,
+            searcher: RwLock::new(None),
         }
     }
 
     /// Construct with an optional Tantivy place-search index.
     pub fn with_searcher(store: Arc<CompositeStore>, searcher: Option<Arc<PlaceSearcher>>) -> Self {
-        Self { store, searcher }
+        Self {
+            store,
+            searcher: RwLock::new(searcher),
+        }
     }
 
     /// True when the Tantivy fulltext index is available.
     pub fn has_search_index(&self) -> bool {
-        self.searcher.is_some()
+        self.searcher.read().is_some()
+    }
+
+    /// Activate (or refresh) the Tantivy index at `index_dir` for the
+    /// RUNNING server — called by the scheduled OSM import job after it
+    /// publishes a rebuilt index.
+    ///
+    /// - When a searcher is already live, it is reloaded in place (same
+    ///   `Arc` — every request path picks up the new index automatically).
+    /// - When none exists yet (server booted before the first import),
+    ///   a new one is opened and installed.
+    ///
+    /// Errors propagate to the caller (the import job surfaces them in
+    /// the run history); search keeps serving the old index either way.
+    pub fn activate(&self, index_dir: &std::path::Path) -> AppResult<()> {
+        let current = self.searcher.read().clone();
+        match current {
+            Some(existing) => existing
+                .reload(index_dir)
+                .map_err(|e| AppError::Internal(format!("place index reload: {e}"))),
+            None => {
+                let s = PlaceSearcher::open(index_dir)
+                    .map_err(|e| AppError::Internal(format!("place index open: {e}")))?;
+                *self.searcher.write() = Some(Arc::new(s));
+                Ok(())
+            }
+        }
     }
 
     // ── List ────────────────────────────────────────────────────
@@ -105,7 +139,11 @@ impl PlaceService {
         let limit = limit.clamp(1, 50);
 
         // ── Tantivy fulltext path (preferred when an index is configured) ──
-        if let Some(searcher) = &self.searcher {
+        // NOTE: bind the read-guard clone to a variable first — the
+        // `if let` scrutinee would otherwise keep the (non-Send-aware)
+        // guard alive across the awaits below.
+        let searcher = self.searcher.read().clone();
+        if let Some(searcher) = searcher {
             // Tantivy search is CPU-bound (10-200ms on a 1M+ doc index).
             // Run on the blocking-pool thread so we don't stall the tokio
             // worker. Cloning `Arc<PlaceSearcher>` is a refcount bump.
@@ -169,8 +207,9 @@ impl PlaceService {
         let limit = limit.clamp(1, 50);
 
         // ── Tantivy reverse-geocode path (preferred) ──────────────────────
-        if let Some(searcher) = &self.searcher {
-            let searcher = searcher.clone();
+        // Same guard-across-await note as `search()` above.
+        let searcher = self.searcher.read().clone();
+        if let Some(searcher) = searcher {
             let results = tokio::task::spawn_blocking(move || {
                 searcher.reverse_geocode(lat, lon, limit as usize)
             })

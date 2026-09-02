@@ -46,6 +46,8 @@ async fn boot_test_app() -> anyhow::Result<axum::Router> {
         std::env::set_var("COOKIE_DOMAIN", "localhost");
         std::env::set_var("CACHE_BACKEND", "moka");
         std::env::set_var("WORKER_BACKEND", "db");
+        // No background job runner / scheduler in the one-shot test harness.
+        std::env::set_var("SCHEDULER_ENABLED", "false");
         std::env::set_var("SEARCH_INDEX_DIR", "");
         std::env::set_var("AUDIO_CALL_ENABLED", "false");
         std::env::set_var("NULLCLAW_ENABLED", "false");
@@ -69,7 +71,10 @@ async fn health_endpoint_returns_200() -> anyhow::Result<()> {
     let app = boot_test_app().await?;
 
     let response = app
-        .oneshot(Request::builder().uri("/health").body(Body::empty())?)
+        .oneshot(Request::builder()
+            .uri("/health")
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+            .body(Body::empty())?)
         .await?;
 
     assert_eq!(response.status(), StatusCode::OK);
@@ -81,7 +86,10 @@ async fn ready_endpoint_returns_2xx() -> anyhow::Result<()> {
     let app = boot_test_app().await?;
 
     let response = app
-        .oneshot(Request::builder().uri("/ready").body(Body::empty())?)
+        .oneshot(Request::builder()
+            .uri("/ready")
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+            .body(Body::empty())?)
         .await?;
 
     // `/ready` returns 200 on a healthy DB, 503 on a failed ping.
@@ -98,7 +106,10 @@ async fn sitemap_xml_returns_xml() -> anyhow::Result<()> {
     let app = boot_test_app().await?;
 
     let response = app
-        .oneshot(Request::builder().uri("/sitemap.xml").body(Body::empty())?)
+        .oneshot(Request::builder()
+            .uri("/sitemap.xml")
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+            .body(Body::empty())?)
         .await?;
 
     assert_eq!(response.status(), StatusCode::OK);
@@ -119,7 +130,10 @@ async fn robots_txt_returns_text() -> anyhow::Result<()> {
     let app = boot_test_app().await?;
 
     let response = app
-        .oneshot(Request::builder().uri("/robots.txt").body(Body::empty())?)
+        .oneshot(Request::builder()
+            .uri("/robots.txt")
+            .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+            .body(Body::empty())?)
         .await?;
 
     assert_eq!(response.status(), StatusCode::OK);

@@ -32,6 +32,7 @@
 use crate::osm::schema::SCHEMA;
 use crate::osm::{indexer, vn_text};
 use anyhow::{anyhow, Context, Result};
+use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tantivy::collector::TopDocs;
@@ -158,15 +159,29 @@ impl std::fmt::Display for SearchResult {
 
 // ── PlaceSearcher (long-lived request-path handle) ──────────────
 
+/// The swappable internals of [`PlaceSearcher`].
+struct SearchCore {
+    index: Index,
+    reader: IndexReader,
+}
+
 /// Long-lived place search handle: an open Tantivy [`Index`] plus an
 /// [`IndexReader`] that auto-reloads on commit.
 ///
 /// Open once at boot and share via `Arc<PlaceSearcher>` in
 /// [`AppState`](crate::auth::AppState). All query methods are synchronous
 /// and read-only — they can be called from any thread.
+///
+/// ## Live reload
+///
+/// The core sits behind a [`RwLock`] so the scheduled OSM import job can
+/// call [`PlaceSearcher::reload`] after rebuilding the index on disk:
+/// queries clone the (cheap, `Arc`-backed) index + reader handles out of
+/// a read guard and run lock-free, while a reload swaps the core under
+/// the write guard. Without this, a rebuilt index would only be picked
+/// up after a server restart.
 pub struct PlaceSearcher {
-    index: Index,
-    reader: IndexReader,
+    core: RwLock<SearchCore>,
 }
 
 impl PlaceSearcher {
@@ -175,6 +190,13 @@ impl PlaceSearcher {
     /// schema) — in that case the operator must re-run
     /// `vexevn-backend import-osm`.
     pub fn open(index_dir: &Path) -> Result<Self> {
+        Ok(Self {
+            core: RwLock::new(Self::open_core(index_dir)?),
+        })
+    }
+
+    /// Build a fresh core from `index_dir` — shared by `open` + `reload`.
+    fn open_core(index_dir: &Path) -> Result<SearchCore> {
         let index = indexer::open_or_create_index(index_dir)
             .with_context(|| format!("open place index at {}", index_dir.display()))?;
 
@@ -198,7 +220,30 @@ impl PlaceSearcher {
             .try_into()
             .context("build tantivy IndexReader")?;
 
-        Ok(Self { index, reader })
+        Ok(SearchCore { index, reader })
+    }
+
+    /// Swap in a freshly opened index after a rebuild, without restarting
+    /// the server. On failure the OLD core stays live (a failed reload
+    /// must never take search down).
+    pub fn reload(&self, index_dir: &Path) -> Result<()> {
+        let new_core = Self::open_core(index_dir)?;
+        *self.core.write() = new_core;
+        info!(index_dir = %index_dir.display(), "place search index reloaded");
+        Ok(())
+    }
+
+    /// Clone the current handles out of the read guard. Both `Index` and
+    /// `IndexReader` are `Arc`-backed and cheap to clone, so queries never
+    /// hold the lock while searching.
+    fn current(&self) -> (Index, IndexReader) {
+        let core = self.core.read();
+        (core.index.clone(), core.reader.clone())
+    }
+
+    /// Reader handle only (reverse-geocode path).
+    fn reader(&self) -> IndexReader {
+        self.core.read().reader.clone()
     }
 
     /// Fulltext search. See the module docs for the matching strategy.
@@ -213,13 +258,14 @@ impl PlaceSearcher {
             return Err(anyhow!("empty query after normalization"));
         }
 
-        let query_boxed = build_query(&self.index, &normalized)?;
+        let (index, reader) = self.current();
+        let query_boxed = build_query(&index, &normalized)?;
 
         // Custom collector: top-K by raw score, then re-rank by `kind_boost`.
         // Tantivy doesn't let us inject a custom scoring function into the
         // inverted index easily, so we over-fetch (5x) and re-sort in memory.
         let over_fetch = (limit * 5).max(limit + 20);
-        let searcher = self.reader.searcher();
+        let searcher = reader.searcher();
         let top_docs: Vec<(Score, tantivy::DocAddress)> =
             searcher.search(&query_boxed, &TopDocs::with_limit(over_fetch))?;
 
@@ -285,7 +331,7 @@ impl PlaceSearcher {
             (Occur::Must, Box::new(lon_q)),
         ]);
 
-        let searcher = self.reader.searcher();
+        let searcher = self.reader().searcher();
         // Fetch a generous candidate pool, then sort in Rust.
         let candidate_cap = (limit * 10).clamp(50, 500);
         let hits: Vec<(Score, tantivy::DocAddress)> =
@@ -504,5 +550,69 @@ mod tests {
         let s = PlaceSearcher::open(dir.path()).unwrap();
         assert!(s.search("", 10).is_err());
         assert!(s.search("   ", 10).is_err());
+    }
+
+    #[test]
+    fn reload_picks_up_a_rebuilt_index_without_reopening() {
+        // Simulate exactly what the scheduled OSM import does: build a
+        // fresh index in a staging dir, swap it into the live path, then
+        // `reload` the searcher.
+        let live = tempdir().unwrap();
+        let staging = tempdir().unwrap();
+        seed_hanoi(staging.path());
+        std::fs::remove_dir_all(live.path()).unwrap();
+        std::fs::rename(staging.path(), live.path()).unwrap();
+
+        let s = PlaceSearcher::open(live.path()).unwrap();
+        assert_eq!(s.search("hanoi", 10).unwrap().len(), 1);
+        assert!(s.search("saigon", 10).unwrap().is_empty());
+
+        // Rebuild with an extra doc, swap, reload.
+        let staging2 = tempdir().unwrap();
+        seed_hanoi(staging2.path());
+        seed_saigon(staging2.path());
+        std::fs::remove_dir_all(live.path()).unwrap();
+        std::fs::rename(staging2.path(), live.path()).unwrap();
+        s.reload(live.path()).unwrap();
+
+        assert_eq!(s.search("hanoi", 10).unwrap().len(), 1);
+        assert_eq!(s.search("saigon", 10).unwrap().len(), 1);
+        assert_eq!(s.reverse_geocode(10.78, 106.70, 5).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn failed_reload_keeps_the_old_index_live() {
+        let dir = tempdir().unwrap();
+        seed_hanoi(dir.path());
+        let s = PlaceSearcher::open(dir.path()).unwrap();
+
+        // A directory with a "meta.json" but no real index → open fails.
+        let bad = tempdir().unwrap();
+        std::fs::write(bad.path().join("meta.json"), "not a tantivy meta file").unwrap();
+        assert!(s.reload(bad.path()).is_err());
+
+        // Old core still serves.
+        assert_eq!(s.search("hanoi", 10).unwrap().len(), 1);
+    }
+
+    /// Seed a second city next to an existing index (opens + appends).
+    fn seed_saigon(dir: &Path) {
+        let index = indexer::open_or_create_index(dir).unwrap();
+        let mut writer = index.writer_with_num_threads(1, 15_000_000).unwrap();
+        let name_ascii = vn_text::normalize("Sài Gòn");
+        let mut d = TantivyDocument::default();
+        d.add_i64(SCHEMA.id, 2);
+        d.add_text(SCHEMA.osm_type, "node");
+        d.add_text(SCHEMA.place_kind, "city");
+        d.add_i64(SCHEMA.admin_level, 4);
+        d.add_text(SCHEMA.name, "Sài Gòn");
+        d.add_text(SCHEMA.name_ascii, &name_ascii);
+        d.add_text(SCHEMA.name_ascii_ngram, &name_ascii);
+        d.add_text(SCHEMA.name_compact, vn_text::compact("Sài Gòn"));
+        d.add_f64(SCHEMA.lat, 10.7769);
+        d.add_f64(SCHEMA.lon, 106.7009);
+        writer.add_document(d).unwrap();
+        writer.commit().unwrap();
+        writer.wait_merging_threads().unwrap();
     }
 }

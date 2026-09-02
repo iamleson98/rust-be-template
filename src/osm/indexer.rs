@@ -29,8 +29,14 @@ use tracing::info;
 
 const COMMIT_BATCH: u64 = 500_000;
 
+/// Callback invoked at pipeline milestones and each commit batch so
+/// callers (the scheduled OSM import job) can surface progress.
+/// Sync — send / store from inside, don't await.
+pub type ProgressFn = std::sync::Arc<dyn Fn(&str) + Send + Sync>;
+
 /// Controls indexing behavior — RAM/CPU/accuracy tradeoffs.
-#[derive(Debug, Clone)]
+/// (No `Debug` derive: [`IndexOptions::progress`] is a trait object.)
+#[derive(Clone)]
 pub struct IndexOptions {
     /// Tantivy indexer heap in bytes.
     pub heap_bytes: usize,
@@ -42,6 +48,9 @@ pub struct IndexOptions {
     /// only the first node (~300 MB RAM) but may mis-assign hierarchy for
     /// long streets crossing district boundaries.
     pub centroid_mode: CentroidMode,
+    /// Optional progress callback (phase messages + commit counts).
+    /// `None` for the CLI path.
+    pub progress: Option<ProgressFn>,
 }
 
 impl Default for IndexOptions {
@@ -62,7 +71,15 @@ impl Default for IndexOptions {
             // ticketing app — the hierarchy is display metadata, not
             // routing data.
             centroid_mode: CentroidMode::FirstNode,
+            progress: None,
         }
+    }
+}
+
+/// Emit a progress message when a callback is configured.
+fn emit(opts: &IndexOptions, msg: &str) {
+    if let Some(p) = &opts.progress {
+        p(msg);
     }
 }
 
@@ -336,10 +353,15 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     let start = Instant::now();
 
     // Pass 1: discover admin relations
+    emit(opts, "pass 1/3: discovering administrative boundaries");
     info!("pass 1: discovering admin relations...");
     let pass1 = osm_reader::pass1_discover_admin(osm_path)?;
 
     // Pass 2: collect named nodes/ways + admin ways
+    emit(
+        opts,
+        "pass 2/3: collecting named nodes and ways (first pass over PBF)",
+    );
     info!(
         "pass 2: collecting nodes and ways (centroid={:?})...",
         opts.centroid_mode
@@ -347,10 +369,15 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     let pass2 = osm_reader::pass2_collect_data(osm_path, &pass1, &temp_dir, opts.centroid_mode)?;
 
     // Pass 3: cache needed node coords
+    emit(
+        opts,
+        "pass 3/3: caching node coordinates (second pass over PBF)",
+    );
     info!("pass 3: caching node coordinates...");
     let node_coords = osm_reader::pass3_collect_node_coords(osm_path, &pass2.needed_node_ids)?;
 
     // Build spatial index
+    emit(opts, "building spatial index (admin polygons + R-trees)");
     info!("building spatial index (R-trees with stitched polygons)...");
     let spatial_index =
         spatial::build_spatial_index(&pass1.admin_relations, &pass2.admin_ways, &node_coords)?;
@@ -372,6 +399,7 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     let mut admins_indexed: u64 = 0;
 
     // Index nodes from temp file
+    emit(opts, "indexing named nodes from temp file");
     info!("indexing named nodes from temp file...");
     let nodes_file = std::fs::File::open(&pass2.nodes_file_path)?;
     let nodes_reader = BufReader::new(nodes_file);
@@ -393,6 +421,8 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
             if total - last_commit >= COMMIT_BATCH {
                 writer.commit()?;
                 last_commit = total;
+                let msg = format!("indexed {total} documents");
+                emit(opts, &msg);
                 info!(
                     "indexed {} docs in {:.1}s",
                     total,
@@ -403,6 +433,7 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     }
 
     // Index ways from temp file
+    emit(opts, "indexing named ways from temp file");
     info!("indexing named ways from temp file...");
     let ways_file = std::fs::File::open(&pass2.ways_file_path)?;
     let ways_reader = BufReader::new(ways_file);
@@ -424,6 +455,8 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
             if total - last_commit >= COMMIT_BATCH {
                 writer.commit()?;
                 last_commit = total;
+                let msg = format!("indexed {total} documents");
+                emit(opts, &msg);
                 info!(
                     "indexed {} docs in {:.1}s",
                     total,
@@ -434,6 +467,7 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
     }
 
     // Index admin relations
+    emit(opts, "indexing admin relations");
     info!("indexing admin relations...");
     for rel in &pass1.admin_relations {
         if index_admin_relation(&writer, rel, &spatial_index)? {
@@ -442,6 +476,8 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
             if total - last_commit >= COMMIT_BATCH {
                 writer.commit()?;
                 last_commit = total;
+                let msg = format!("indexed {total} documents");
+                emit(opts, &msg);
                 info!(
                     "indexed {} docs in {:.1}s",
                     total,
@@ -453,6 +489,7 @@ pub fn run_index(osm_path: &Path, index_dir: &Path, opts: &IndexOptions) -> Resu
 
     writer.commit()?;
     writer.wait_merging_threads()?;
+    emit(opts, "merging index segments");
 
     // Cleanup temp files
     let _ = std::fs::remove_dir_all(&temp_dir);
