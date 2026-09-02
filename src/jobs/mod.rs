@@ -79,9 +79,9 @@ impl RunPayload {
 /// for how "local" is resolved — a fixed UTC offset, UTC+7 default).
 #[derive(Debug, Clone, Copy)]
 pub struct JobSchedule {
-    pub interval_days: i32,
-    pub at_hour: u32,
-    pub at_minute: u32,
+    pub interval_days: i16,
+    pub at_hour: i16,
+    pub at_minute: i16,
 }
 
 /// Static registration record for one built-in background job.
@@ -101,22 +101,20 @@ pub struct JobDefinition {
 /// The catalog — every built-in background job, in one place.
 /// See the module docs for how to extend it.
 pub fn catalog() -> &'static [JobDefinition] {
-    &[
-        JobDefinition {
-            job_type: osm_import::JOB_TYPE,
-            description: "Vietnam OSM extract → Tantivy place-index refresh \
+    &[JobDefinition {
+        job_type: osm_import::JOB_TYPE,
+        description: "Vietnam OSM extract → Tantivy place-index refresh \
                           (download, staged low-resource rebuild, atomic swap, \
                           hot reload, cleanup).",
-            schedule: Some(JobSchedule {
-                // Biweekly at 02:00 local (UTC+7 default): night hours,
-                // the site's quiet window, per the requirements.
-                interval_days: 14,
-                at_hour: 2,
-                at_minute: 0,
-            }),
-            register: osm_import::register,
-        },
-    ]
+        schedule: Some(JobSchedule {
+            // Biweekly at 02:00 local (UTC+7 default): night hours,
+            // the site's quiet window, per the requirements.
+            interval_days: 14,
+            at_hour: 2,
+            at_minute: 0,
+        }),
+        register: osm_import::register,
+    }]
 }
 
 /// Look up a catalog definition by job type (admin labels, validation).
@@ -174,8 +172,7 @@ mod tests {
     #[tokio::test]
     async fn every_catalog_entry_registers_a_handler_and_policy() {
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let job_store: Arc<dyn JobStore> =
-            Arc::new(crate::store::DbJobStore::new(Arc::new(db)));
+        let job_store: Arc<dyn JobStore> = Arc::new(crate::store::DbJobStore::new(Arc::new(db)));
         let deps = JobDeps {
             job_store,
             places: Arc::new(crate::service::PlaceService::new(

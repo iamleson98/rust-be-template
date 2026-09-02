@@ -23,9 +23,9 @@ use crate::dto::public::{
 };
 use crate::entity::{brand, bus_layout, route, schedule, seat_inventory};
 use crate::error::{AppError, AppResult};
-use crate::store::PickupPointWithRoute;
-use crate::store::CompositeStore;
 use crate::service::place_service::haversine_km;
+use crate::store::CompositeStore;
+use crate::store::PickupPointWithRoute;
 
 // ────────────────────────────────────────────────────────────────
 //  Pure helpers
@@ -382,10 +382,8 @@ impl PublicService {
         // Fetch bus layouts for vehicle type filtering. `bus_layout_id`
         // is `Uuid` on the schedule entity — collect directly (the old
         // String→Uuid parse workaround is gone with the type fix).
-        let bus_layout_uuids: Vec<Uuid> = sched_map
-            .values()
-            .filter_map(|s| s.bus_layout_id)
-            .collect();
+        let bus_layout_uuids: Vec<Uuid> =
+            sched_map.values().filter_map(|s| s.bus_layout_id).collect();
         let layout_map: std::collections::HashMap<String, bus_layout::Model> = {
             // No batch method on ScheduleStore for IDs; fetch one-by-one (small N)
             let mut m = std::collections::HashMap::new();
@@ -535,10 +533,14 @@ impl PublicService {
             .store
             .route_store()
             .find_pickup_points_in_bbox(
-                from_lat - lat_delta, from_lat + lat_delta,
-                from_lon - lon_delta, from_lon + lon_delta,
-                to_lat - lat_delta, to_lat + lat_delta,
-                to_lon - to_lon_delta, to_lon + to_lon_delta,
+                from_lat - lat_delta,
+                from_lat + lat_delta,
+                from_lon - lon_delta,
+                from_lon + lon_delta,
+                to_lat - lat_delta,
+                to_lat + lat_delta,
+                to_lon - to_lon_delta,
+                to_lon + to_lon_delta,
             )
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
@@ -627,11 +629,19 @@ impl PublicService {
         }
 
         // Sort by combined distance (closest first)
-        matches.sort_by(|a, b| a.combined_distance_km.partial_cmp(&b.combined_distance_km).unwrap_or(std::cmp::Ordering::Equal));
+        matches.sort_by(|a, b| {
+            a.combined_distance_km
+                .partial_cmp(&b.combined_distance_km)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Paginate
         let total = matches.len();
-        let paged: Vec<&RouteMatch> = matches.iter().skip(offset as usize).take(limit as usize).collect();
+        let paged: Vec<&RouteMatch> = matches
+            .iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
         if paged.is_empty() {
             return Ok(TripSearchResponse { items: Vec::new() });
         }
@@ -662,23 +672,37 @@ impl PublicService {
         }
 
         // Build schedule lookup: schedule_id → schedule
-        let schedule_map: HashMap<Uuid, &crate::entity::schedule::Model> = schedules.iter().map(|s| (s.id, s)).collect();
+        let schedule_map: HashMap<Uuid, &crate::entity::schedule::Model> =
+            schedules.iter().map(|s| (s.id, s)).collect();
 
         // Build route match lookup: route_id → RouteMatch
-        let match_map: HashMap<Uuid, &RouteMatch> = paged.iter().map(|m| (m.route_id, *m)).collect();
+        let match_map: HashMap<Uuid, &RouteMatch> =
+            paged.iter().map(|m| (m.route_id, *m)).collect();
         let _ = total; // total count for potential future pagination metadata
 
         // Build route lookup — the PickupPointWithRoute already has route_name
         // + brand_id, so we don't need to re-fetch routes. Use the candidate data.
         use std::collections::HashSet;
-        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> =
-            paged.iter().map(|m| (m.route_id, {
-                // Find the first candidate that matches this route
-                candidates.iter().find(|c| c.route_id == m.route_id).unwrap()
-            })).collect();
+        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> = paged
+            .iter()
+            .map(|m| {
+                (m.route_id, {
+                    // Find the first candidate that matches this route
+                    candidates
+                        .iter()
+                        .find(|c| c.route_id == m.route_id)
+                        .unwrap()
+                })
+            })
+            .collect();
 
         // Build brand lookup — fetch by IDs using raw SQL
-        let brand_ids: Vec<Uuid> = paged.iter().filter_map(|m| m.brand_id).collect::<HashSet<_>>().into_iter().collect();
+        let brand_ids: Vec<Uuid> = paged
+            .iter()
+            .filter_map(|m| m.brand_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
         let brands = if !brand_ids.is_empty() {
             use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
             brand::Entity::find()
@@ -712,9 +736,7 @@ impl PublicService {
                 .bus_layout_id
                 .map(|u| u.to_string())
                 .unwrap_or_else(|| "standard".to_string());
-            if !vehicle_types.is_empty()
-                && !vehicle_types.iter().any(|vt| *vt == vehicle_type)
-            {
+            if !vehicle_types.is_empty() && !vehicle_types.iter().any(|vt| *vt == vehicle_type) {
                 continue;
             }
 
@@ -723,7 +745,12 @@ impl PublicService {
             let amenities: Vec<String> = schedule
                 .amenities
                 .as_ref()
-                .map(|a| a.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .map(|a| {
+                    a.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
                 .unwrap_or_default();
 
             items.push(TripResult {
@@ -738,9 +765,14 @@ impl PublicService {
                 brand_id: brand.map(|b| b.id),
                 brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                 brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
-                brand_logo: brand.and_then(|b| b.logo_url.clone()).unwrap_or_default().into(),
+                brand_logo: brand
+                    .and_then(|b| b.logo_url.clone())
+                    .unwrap_or_default()
+                    .into(),
                 brand_rating: brand.and_then(|b| b.rating).unwrap_or_default(),
-                brand_accent: brand.and_then(|b| b.accent_color.clone()).unwrap_or_default(),
+                brand_accent: brand
+                    .and_then(|b| b.accent_color.clone())
+                    .unwrap_or_default(),
                 from_name: format!("{:.4}, {:.4}", from_lat, from_lon),
                 to_name: format!("{:.4}, {:.4}", to_lat, to_lon),
                 from_lat,
@@ -1260,20 +1292,14 @@ mod tests {
         // Arrival is no longer computed from a route-level duration —
         // callers that need an ETA must derive it from a Valhalla
         // directions request between the route's endpoints.
-        let (dep, arr) = compute_iso_timestamps(
-            &Some("2026-08-05".into()),
-            &Some("08:30".into()),
-        );
+        let (dep, arr) = compute_iso_timestamps(&Some("2026-08-05".into()), &Some("08:30".into()));
         assert_eq!(dep.as_deref(), Some("2026-08-05T08:30:00"));
         assert_eq!(arr, None);
     }
 
     #[test]
     fn compute_iso_timestamps_handles_missing_time() {
-        let (dep, arr) = compute_iso_timestamps(
-            &Some("2026-08-05".into()),
-            &None,
-        );
+        let (dep, arr) = compute_iso_timestamps(&Some("2026-08-05".into()), &None);
         // Falls back to the time part embedded in the date string.
         // Since "2026-08-05" has no time part, both are None.
         assert_eq!(dep, None);

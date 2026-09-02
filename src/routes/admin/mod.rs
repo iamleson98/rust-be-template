@@ -30,8 +30,8 @@
 pub mod addresses;
 pub mod bookings;
 pub mod brands;
-pub mod jobs;
 pub mod bus_layouts;
+pub mod jobs;
 pub mod pickup_points;
 pub mod reviews;
 pub mod routes;

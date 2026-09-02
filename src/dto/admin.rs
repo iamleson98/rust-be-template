@@ -691,11 +691,11 @@ pub struct CronJobOut {
     pub description: Option<String>,
     pub enabled: bool,
     /// Days between runs.
-    pub interval_days: i32,
+    pub interval_days: i16,
     /// Local wall-clock hour (0-23) of the fire time.
-    pub at_hour: i32,
+    pub at_hour: i16,
     /// Local wall-clock minute (0-59) of the fire time.
-    pub at_minute: i32,
+    pub at_minute: i16,
     /// Next fire time (ISO-8601 UTC). `None` when never armed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_run_at: Option<String>,
@@ -744,13 +744,13 @@ pub struct UpdateCronJobRequest {
     pub enabled: Option<bool>,
     #[validate(range(min = 1, max = 365))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub interval_days: Option<i32>,
+    pub interval_days: Option<i16>,
     #[validate(range(min = 0, max = 23))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub at_hour: Option<i32>,
+    pub at_hour: Option<i16>,
     #[validate(range(min = 0, max = 59))]
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub at_minute: Option<i32>,
+    pub at_minute: Option<i16>,
     /// Re-arm the next run from now (uses the schedule's time-of-day).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reset_next_run: Option<bool>,

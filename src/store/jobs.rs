@@ -22,6 +22,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
+use crate::dto::job::status;
 use crate::entity::{job_run, scheduled_job};
 
 use super::error::StoreResult;
@@ -54,8 +55,10 @@ pub trait JobStore: Send + Sync {
     async fn find_due_schedules(&self, now: &str) -> StoreResult<Vec<scheduled_job::Model>>;
     #[store_macros::no_retry]
     async fn insert_schedule(&self, model: scheduled_job::ActiveModel) -> StoreResult<()>;
-    async fn update_schedule(&self, model: scheduled_job::ActiveModel)
-        -> StoreResult<scheduled_job::Model>;
+    async fn update_schedule(
+        &self,
+        model: scheduled_job::ActiveModel,
+    ) -> StoreResult<scheduled_job::Model>;
 
     // ── job_run ────────────────────────────────────────────────────
 
@@ -189,10 +192,7 @@ impl JobStore for DbJobStore {
     async fn find_active_run(&self, job_type: &str) -> StoreResult<Option<job_run::Model>> {
         Ok(job_run::Entity::find()
             .filter(job_run::Column::JobType.eq(job_type))
-            .filter(
-                job_run::Column::Status
-                    .is_in([job_run::status::QUEUED, job_run::status::RUNNING]),
-            )
+            .filter(job_run::Column::Status.is_in([status::QUEUED, status::RUNNING]))
             .order_by_desc(job_run::Column::CreatedAt)
             .one(self.db.as_ref())
             .await?)
@@ -222,9 +222,20 @@ impl JobStore for DbJobStore {
     async fn sweep_stale_runs(&self, statuses: &[&str], older_than: &str) -> StoreResult<u64> {
         let older_than = parse_iso(older_than)?;
         Ok(job_run::Entity::update_many()
-            .col_expr(job_run::Column::Status, sea_orm::sea_query::Expr::value("failed"))
-            .col_expr(job_run::Column::Error, sea_orm::sea_query::Expr::value("interrupted — no longer progressing (server restart or stale run)"))
-            .col_expr(job_run::Column::FinishedAt, sea_orm::sea_query::Expr::value(now_iso()))
+            .col_expr(
+                job_run::Column::Status,
+                sea_orm::sea_query::Expr::value("failed"),
+            )
+            .col_expr(
+                job_run::Column::Error,
+                sea_orm::sea_query::Expr::value(
+                    "interrupted — no longer progressing (server restart or stale run)",
+                ),
+            )
+            .col_expr(
+                job_run::Column::FinishedAt,
+                sea_orm::sea_query::Expr::value(now_iso()),
+            )
             .filter(job_run::Column::Status.is_in(statuses.to_vec()))
             // Queued runs die on created_at; running runs die on started_at.
             // Coalescing is awkward cross-backend, so the OR covers both.
@@ -304,15 +315,27 @@ mod tests {
     async fn due_schedule_query_matches_lexicographic_iso() {
         let store = mem_store().await;
         store
-            .insert_schedule(schedule("due.job", true, Some("2026-09-01T18:00:00Z".into())))
+            .insert_schedule(schedule(
+                "due.job",
+                true,
+                Some("2026-09-01T18:00:00Z".into()),
+            ))
             .await
             .unwrap();
         store
-            .insert_schedule(schedule("future.job", true, Some("2026-12-01T18:00:00Z".into())))
+            .insert_schedule(schedule(
+                "future.job",
+                true,
+                Some("2026-12-01T18:00:00Z".into()),
+            ))
             .await
             .unwrap();
         store
-            .insert_schedule(schedule("disabled.job", false, Some("2026-09-01T18:00:00Z".into())))
+            .insert_schedule(schedule(
+                "disabled.job",
+                false,
+                Some("2026-09-01T18:00:00Z".into()),
+            ))
             .await
             .unwrap();
         store
@@ -335,7 +358,7 @@ mod tests {
         let old = job_run::ActiveModel {
             id: Set(Uuid::new_v4()),
             job_type: Set("osm.import".into()),
-            status: Set(job_run::status::SUCCEEDED.into()),
+            status: Set(status::SUCCEEDED.into()),
             detail: Set(None),
             error: Set(None),
             started_at: Set(Some("2026-08-01T18:00:00Z".into())),
@@ -351,7 +374,7 @@ mod tests {
         let queued = job_run::ActiveModel {
             id: Set(Uuid::new_v4()),
             job_type: Set("osm.import".into()),
-            status: Set(job_run::status::QUEUED.into()),
+            status: Set(status::QUEUED.into()),
             detail: Set(None),
             error: Set(None),
             started_at: Set(None),
@@ -360,10 +383,18 @@ mod tests {
         };
         let queued = store.insert_run(queued).await.unwrap();
         assert_eq!(
-            store.find_active_run("osm.import").await.unwrap().unwrap().id,
+            store
+                .find_active_run("osm.import")
+                .await
+                .unwrap()
+                .unwrap()
+                .id,
             queued.id
         );
-        assert_eq!(store.latest_run("osm.import").await.unwrap().unwrap().id, queued.id);
+        assert_eq!(
+            store.latest_run("osm.import").await.unwrap().unwrap().id,
+            queued.id
+        );
         assert_eq!(store.count_runs("osm.import").await.unwrap(), 2);
     }
 
@@ -373,7 +404,7 @@ mod tests {
         let stale = job_run::ActiveModel {
             id: Set(Uuid::new_v4()),
             job_type: Set("osm.import".into()),
-            status: Set(job_run::status::RUNNING.into()),
+            status: Set(status::RUNNING.into()),
             detail: Set(None),
             error: Set(None),
             started_at: Set(Some("2026-08-01T18:00:00Z".into())),
@@ -383,10 +414,7 @@ mod tests {
         let stale = store.insert_run(stale).await.unwrap();
 
         let swept = store
-            .sweep_stale_runs(
-                &[job_run::status::RUNNING, job_run::status::QUEUED],
-                "2026-09-01T00:00:00Z",
-            )
+            .sweep_stale_runs(&[status::RUNNING, status::QUEUED], "2026-09-01T00:00:00Z")
             .await
             .unwrap();
         assert_eq!(swept, 1);
@@ -399,6 +427,11 @@ mod tests {
     #[tokio::test]
     async fn iso_roundtrip_is_exact() {
         let s = now_iso();
-        assert_eq!(parse_iso(&s).unwrap().to_rfc3339_opts(SecondsFormat::Secs, true), s);
+        assert_eq!(
+            parse_iso(&s)
+                .unwrap()
+                .to_rfc3339_opts(SecondsFormat::Secs, true),
+            s
+        );
     }
 }

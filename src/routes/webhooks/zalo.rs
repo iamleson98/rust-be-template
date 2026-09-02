@@ -17,7 +17,7 @@
 
 use axum::extract::State;
 use axum::Json;
-use serde::{Deserialize};
+use serde::Deserialize;
 use tracing;
 
 use crate::error::AppError;
@@ -65,7 +65,11 @@ pub async fn webhook(
                     let platform_msg = PlatformMessage {
                         platform: "zalo".into(),
                         platform_user_id: event.sender.id.clone(),
-                        user_name: event.sender.name.clone().unwrap_or_else(|| "Khách Zalo".into()),
+                        user_name: event
+                            .sender
+                            .name
+                            .clone()
+                            .unwrap_or_else(|| "Khách Zalo".into()),
                         text: text.clone(),
                         platform_msg_id: msg.msg_id.clone(),
                     };
@@ -74,12 +78,7 @@ pub async fn webhook(
 
                     // Send AI reply back to Zalo if generated.
                     if let Some(reply_text) = result.reply_text {
-                        send_zalo_reply(
-                            &st,
-                            &event.sender.id,
-                            &reply_text,
-                        )
-                        .await;
+                        send_zalo_reply(&st, &event.sender.id, &reply_text).await;
                     }
                 }
             }

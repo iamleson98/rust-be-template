@@ -87,12 +87,11 @@ pub async fn webhook(
         });
 
         if let Some(text) = text {
-            let user = interaction
-                .member
-                .as_ref()
-                .and_then(|m| m.user.as_ref());
+            let user = interaction.member.as_ref().and_then(|m| m.user.as_ref());
 
-            let user_id = user.map(|u| u.id.clone()).unwrap_or_else(|| "unknown".into());
+            let user_id = user
+                .map(|u| u.id.clone())
+                .unwrap_or_else(|| "unknown".into());
             let user_name = user
                 .and_then(|u| u.global_name.clone().or_else(|| u.username.clone()))
                 .unwrap_or_else(|| "Discord User".into());

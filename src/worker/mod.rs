@@ -91,9 +91,7 @@ mod tests {
     /// (shared-pool DbBroker + registry + runner) actually executes jobs.
     #[tokio::test]
     async fn runner_executes_an_enqueued_job_end_to_end() {
-        let db = sea_orm::Database::connect("sqlite::memory:")
-            .await
-            .unwrap();
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let db = Arc::new(db);
         let broker: Arc<dyn WorkerBroker> = Arc::new(DbBroker::with_db(db).await.unwrap());
 
@@ -136,9 +134,7 @@ mod tests {
     /// and the poison-drop threshold comes from the registered policy.
     #[tokio::test]
     async fn failing_job_is_retried_then_dropped_per_policy() {
-        let db = sea_orm::Database::connect("sqlite::memory:")
-            .await
-            .unwrap();
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
         let db = Arc::new(db);
         let broker: Arc<dyn WorkerBroker> = Arc::new(DbBroker::with_db(db).await.unwrap());
 

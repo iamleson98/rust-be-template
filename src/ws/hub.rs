@@ -958,7 +958,10 @@ mod tests {
         // Even when excluding id1, id2 (same user) keeps the user "in room".
         assert!(h.user_still_in_room("room", &ua_id, id1));
         h.leave_room("room", id1);
-        assert!(h.user_still_in_room("room", &ua_id, id1), "id2 still in room");
+        assert!(
+            h.user_still_in_room("room", &ua_id, id1),
+            "id2 still in room"
+        );
         h.leave_room("room", id2);
         assert!(!h.user_still_in_room("room", &ua_id, id1));
     }

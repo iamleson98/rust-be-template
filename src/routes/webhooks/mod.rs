@@ -57,7 +57,10 @@ pub fn router() -> Router<AppState> {
     use axum::routing::{get, post};
     Router::new()
         .route("/zalo", post(zalo::webhook))
-        .route("/messenger", get(messenger::verify).post(messenger::webhook))
+        .route(
+            "/messenger",
+            get(messenger::verify).post(messenger::webhook),
+        )
         .route("/telegram", post(telegram::webhook))
         .route("/discord", post(discord::webhook))
 }

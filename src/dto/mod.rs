@@ -26,14 +26,15 @@
 pub mod admin;
 pub mod booking;
 pub mod chat;
+pub mod job;
 pub mod notification;
+pub mod nullclaw;
 pub mod payment;
 pub mod place;
 pub mod public;
 pub mod review;
 pub mod routing;
 pub mod wishlist;
-pub mod nullclaw;
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};

@@ -31,6 +31,7 @@ use crate::config::Config;
 use crate::dto::admin::{
     CronJobListResponse, CronJobOut, CronJobRunListResponse, CronJobRunOut, UpdateCronJobRequest,
 };
+use crate::dto::job::status;
 use crate::entity::{job_run, scheduled_job};
 use crate::error::{AppError, AppResult};
 use crate::jobs::{self, RunPayload};
@@ -106,9 +107,11 @@ impl JobService {
                 job_type: Set(def.job_type.to_string()),
                 enabled: Set(true),
                 interval_days: Set(schedule.interval_days),
-                at_hour: Set(schedule.at_hour as i32),
-                at_minute: Set(schedule.at_minute as i32),
-                next_run_at: Set(Some(next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))),
+                at_hour: Set(schedule.at_hour),
+                at_minute: Set(schedule.at_minute),
+                next_run_at: Set(Some(
+                    next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                )),
                 created_at: Set(now.clone()),
                 updated_at: Set(now),
             };
@@ -185,9 +188,8 @@ impl JobService {
         if let Some(enabled) = req.enabled {
             am.enabled = Set(enabled);
         }
-        let cadence_changed = req.interval_days.is_some()
-            || req.at_hour.is_some()
-            || req.at_minute.is_some();
+        let cadence_changed =
+            req.interval_days.is_some() || req.at_hour.is_some() || req.at_minute.is_some();
         if let Some(days) = req.interval_days {
             am.interval_days = Set(days);
         }
@@ -200,17 +202,20 @@ impl JobService {
         if req.reset_next_run.unwrap_or(false) || cadence_changed {
             let next = next_occurrence(
                 Utc::now(),
-                req.at_hour.unwrap_or(model.at_hour).max(0) as u32,
-                req.at_minute.unwrap_or(model.at_minute).max(0) as u32,
+                req.at_hour.unwrap_or(model.at_hour).max(0),
+                req.at_minute.unwrap_or(model.at_minute).max(0),
                 self.tz_offset(),
             );
-            am.next_run_at = Set(Some(next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)));
+            am.next_run_at = Set(Some(
+                next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            ));
         }
         am.updated_at = Set(now_iso());
 
         let updated = self.store.update_schedule(am).await?;
         let last_run = self.store.latest_run(&updated.job_type).await?;
-        let description = jobs::find_definition(&updated.job_type).map(|d| d.description.to_string());
+        let description =
+            jobs::find_definition(&updated.job_type).map(|d| d.description.to_string());
         Ok(CronJobOut {
             job_type: updated.job_type,
             description,
@@ -261,7 +266,7 @@ impl JobService {
             .insert_run(job_run::ActiveModel {
                 id: Set(Uuid::new_v4()),
                 job_type: Set(job_type.to_string()),
-                status: Set(job_run::status::QUEUED.into()),
+                status: Set(status::QUEUED.into()),
                 detail: Set(None),
                 error: Set(None),
                 started_at: Set(None),
@@ -324,16 +329,16 @@ impl JobService {
                     scheduler::catch_up(
                         slot,
                         schedule.interval_days.max(1),
-                        schedule.at_hour.max(0) as u32,
-                        schedule.at_minute.max(0) as u32,
+                        schedule.at_hour.max(0),
+                        schedule.at_minute.max(0),
                         self.tz_offset(),
                         now,
                     )
                 }
                 None => next_occurrence(
                     now,
-                    schedule.at_hour.max(0) as u32,
-                    schedule.at_minute.max(0) as u32,
+                    schedule.at_hour.max(0),
+                    schedule.at_minute.max(0),
                     self.tz_offset(),
                 ),
             };
@@ -362,7 +367,9 @@ impl JobService {
             // slot must never fire twice, and missed slots are skipped,
             // not replayed.
             let mut am: scheduled_job::ActiveModel = schedule.into();
-            am.next_run_at = Set(Some(next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)));
+            am.next_run_at = Set(Some(
+                next.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            ));
             am.updated_at = Set(now_iso.clone());
             if let Err(e) = self.store.update_schedule(am).await {
                 tracing::warn!(error = %e, "scheduler failed to advance next_run_at");
@@ -376,15 +383,12 @@ impl JobService {
     ///   generous threshold so multi-hour imports aren't false-positived),
     /// - `queued` rows no worker ever picked up.
     async fn sweep_dead_runs(&self) {
-        let statuses = [job_run::status::RUNNING, job_run::status::QUEUED];
-        let running_cutoff =
-            (Utc::now() - chrono::Duration::from_std(STALE_RUNNING_AFTER).unwrap()).to_rfc3339_opts(
-                chrono::SecondsFormat::Secs,
-                true,
-            );
-        let queued_cutoff = (Utc::now()
-            - chrono::Duration::from_std(LOST_QUEUED_AFTER).unwrap())
+        let statuses = [status::RUNNING, status::QUEUED];
+        let running_cutoff = (Utc::now()
+            - chrono::Duration::from_std(STALE_RUNNING_AFTER).unwrap())
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let queued_cutoff = (Utc::now() - chrono::Duration::from_std(LOST_QUEUED_AFTER).unwrap())
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
         // Two sweeps: the running one uses a long cutoff, the queued one
         // a short one; both share the same "mark failed" semantics.
@@ -516,7 +520,10 @@ mod tests {
 
         // No broker attached → 503.
         let err = svc.trigger(jobs::osm_import::JOB_TYPE).await.unwrap_err();
-        assert!(matches!(err, AppError::ServiceUnavailable(_)), "got {err:?}");
+        assert!(
+            matches!(err, AppError::ServiceUnavailable(_)),
+            "got {err:?}"
+        );
 
         // Simulate an in-flight run → 409 even with a broker… but the
         // broker-less path is checked first, so drive the 409 through
@@ -583,20 +590,31 @@ mod tests {
     async fn tick_fires_due_schedules_and_advances_the_slot() {
         let store = mem_store().await;
         let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
-        let broker: Arc<dyn crate::worker::WorkerBroker> =
-            Arc::new(crate::worker::DbBroker::with_db(Arc::new(db)).await.unwrap());
+        let broker: Arc<dyn crate::worker::WorkerBroker> = Arc::new(
+            crate::worker::DbBroker::with_db(Arc::new(db))
+                .await
+                .unwrap(),
+        );
         let mut svc = JobService::new(store.clone(), test_config());
         svc.attach_broker(broker.clone());
 
         // A schedule that is due RIGHT NOW (armed in the past).
-        insert_schedule(&store, jobs::osm_import::JOB_TYPE, true, Some("2020-01-01T00:00:00Z".into()))
-            .await;
+        insert_schedule(
+            &store,
+            jobs::osm_import::JOB_TYPE,
+            true,
+            Some("2020-01-01T00:00:00Z".into()),
+        )
+        .await;
 
         svc.tick_once().await;
 
         // 1. A queued run row exists…
-        let active = store.find_active_run(jobs::osm_import::JOB_TYPE).await.unwrap();
-        assert_eq!(active.unwrap().status, job_run::status::QUEUED);
+        let active = store
+            .find_active_run(jobs::osm_import::JOB_TYPE)
+            .await
+            .unwrap();
+        assert_eq!(active.unwrap().status, status::QUEUED);
         // …and the envelope is on the worker queue. Peek at the queue
         // directly through the jobs table (the broker deletes on
         // dequeue, and nobody is consuming yet).

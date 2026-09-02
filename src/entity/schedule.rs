@@ -17,15 +17,6 @@ pub struct Model {
     pub effective_to: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub days_of_week: Option<String>,
-    /// Bus layout reference — `Uuid`, matching `bus_layout.id`.
-    ///
-    /// Was `Option<String>` (TEXT) from an early migration, which never
-    /// matched the BLOB-stored `bus_layout.id` on SQLite — the FK
-    /// `fk_schedule_buslayout` rejected every insert on the default
-    /// SQLite database. `Option<Uuid>` binds as a BLOB on SQLite (FK
-    /// now matches) and as `uuid` on Postgres (m20260902_000002 alters
-    /// the column type). JSON wire format is unchanged (string).
-    #[sea_orm(column_type = "Text", nullable)]
     pub bus_layout_id: Option<Uuid>,
     pub base_price_adult: i64,
     pub base_price_child: Option<i64>,
@@ -53,6 +44,8 @@ pub enum Relation {
         on_delete = "Cascade"
     )]
     Route,
+    #[sea_orm(has_many = "super::schedule_point::Entity")]
+    SchedulePoint,
     #[sea_orm(has_many = "super::trip_session::Entity")]
     TripSession,
 }
@@ -66,6 +59,12 @@ impl Related<super::bus_layout::Entity> for Entity {
 impl Related<super::route::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Route.def()
+    }
+}
+
+impl Related<super::schedule_point::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::SchedulePoint.def()
     }
 }
 

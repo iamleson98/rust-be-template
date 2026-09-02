@@ -33,6 +33,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::config::Config;
+use crate::dto::job::status;
 use crate::entity::job_run;
 use crate::osm::download;
 use crate::osm::indexer::{self, IndexOptions, IndexStats};
@@ -149,9 +150,7 @@ async fn run(
     places: &Arc<PlaceService>,
     config: &Arc<Config>,
 ) -> anyhow::Result<()> {
-    let payload: RunPayload = env
-        .decode_payload()
-        .unwrap_or(RunPayload { run_id: None });
+    let payload: RunPayload = env.decode_payload().unwrap_or(RunPayload { run_id: None });
     let paths = ImportPaths::resolve(config)?;
 
     // Resolve (or create) the history row this execution reports into.
@@ -167,7 +166,7 @@ async fn run(
     // queued → running
     {
         let mut am: job_run::ActiveModel = run_row.clone().into();
-        am.status = Set(job_run::status::RUNNING.into());
+        am.status = Set(status::RUNNING.into());
         am.started_at = Set(Some(now_iso()));
         am.error = Set(None);
         am.detail = Set(Some(
@@ -220,7 +219,7 @@ async fn run(
                 },
             });
             let mut am: job_run::ActiveModel = run_row.into();
-            am.status = Set(job_run::status::SUCCEEDED.into());
+            am.status = Set(status::SUCCEEDED.into());
             am.detail = Set(Some(detail.to_string()));
             am.finished_at = Set(Some(now_iso()));
             am.error = Set(None);
@@ -231,7 +230,7 @@ async fn run(
         Err(e) => {
             let message = e.to_string();
             let mut am: job_run::ActiveModel = run_row.into();
-            am.status = Set(job_run::status::FAILED.into());
+            am.status = Set(status::FAILED.into());
             am.error = Set(Some(message.clone()));
             am.finished_at = Set(Some(now_iso()));
             let _ = job_store.update_run(am).await;
@@ -267,19 +266,24 @@ async fn execute_inner(
     let client = download::client()?;
     let tx_dl = tx.clone();
     let last_reported = std::sync::atomic::AtomicU64::new(0);
-    download::download_file(&client, &paths.download_url, &paths.pbf_path, &move |bytes| {
-        // Throttle: a progress row every 64 MiB (the callback itself
-        // fires per ~8-64 KiB chunk).
-        let last = last_reported.load(Ordering::Relaxed);
-        if bytes.saturating_sub(last) >= 64 * 1024 * 1024 {
-            last_reported.store(bytes, Ordering::Relaxed);
-            let _ = tx_dl.send(json!({
-                "phase": "downloading",
-                "message": format!("{:.0} MiB downloaded", bytes as f64 / 1_048_576.0),
-                "bytes": bytes,
-            }));
-        }
-    })
+    download::download_file(
+        &client,
+        &paths.download_url,
+        &paths.pbf_path,
+        &move |bytes| {
+            // Throttle: a progress row every 64 MiB (the callback itself
+            // fires per ~8-64 KiB chunk).
+            let last = last_reported.load(Ordering::Relaxed);
+            if bytes.saturating_sub(last) >= 64 * 1024 * 1024 {
+                last_reported.store(bytes, Ordering::Relaxed);
+                let _ = tx_dl.send(json!({
+                    "phase": "downloading",
+                    "message": format!("{:.0} MiB downloaded", bytes as f64 / 1_048_576.0),
+                    "bytes": bytes,
+                }));
+            }
+        },
+    )
     .await?;
 
     // ── 2+3. Index into staging, then swap (single-flight) ───────
@@ -314,7 +318,7 @@ async fn execute_inner(
         };
         let result = tokio::task::spawn_blocking(move || {
             let _guard = guard; // lives for the whole closure
-            // Stale staging from a crashed run would corrupt a rebuild.
+                                // Stale staging from a crashed run would corrupt a rebuild.
             let _ = std::fs::remove_dir_all(&staging);
             let opts = IndexOptions {
                 progress: Some(progress),
@@ -395,7 +399,7 @@ async fn insert_run(
     let am = job_run::ActiveModel {
         id: Set(Uuid::new_v4()),
         job_type: Set(job_type.to_string()),
-        status: Set(job_run::status::QUEUED.into()),
+        status: Set(status::QUEUED.into()),
         detail: Set(None),
         error: Set(None),
         started_at: Set(None),
@@ -430,7 +434,10 @@ mod tests {
         assert!(g1.is_some());
         assert!(ImportGuard::acquire().is_none(), "second acquire must fail");
         drop(g1);
-        assert!(ImportGuard::acquire().is_some(), "guard must be reusable after drop");
+        assert!(
+            ImportGuard::acquire().is_some(),
+            "guard must be reusable after drop"
+        );
     }
 
     #[test]
@@ -482,8 +489,8 @@ mod tests {
 mod integration {
     use super::*;
     use crate::service::place_service::PlaceService;
-    use crate::store::DbJobStore;
     use crate::store::CompositeStore;
+    use crate::store::DbJobStore;
     use sea_orm::{ConnectionTrait, Database, Set};
 
     /// Full handler failure path: unreachable download URL → run row
@@ -491,8 +498,7 @@ mod integration {
     #[tokio::test]
     async fn failed_download_marks_run_failed_and_cleans_up() {
         let db = Database::connect("sqlite::memory:").await.unwrap();
-        for stmt in [
-            r#"CREATE TABLE job_run (
+        for stmt in [r#"CREATE TABLE job_run (
                 id TEXT PRIMARY KEY,
                 job_type TEXT NOT NULL,
                 status TEXT NOT NULL,
@@ -501,8 +507,8 @@ mod integration {
                 started_at TEXT,
                 finished_at TEXT,
                 created_at TEXT NOT NULL
-            )"#,
-        ] {
+            )"#]
+        {
             db.execute_unprepared(stmt).await.unwrap();
         }
         let db = Arc::new(db);
@@ -529,7 +535,7 @@ mod integration {
             .insert_run(job_run::ActiveModel {
                 id: Set(Uuid::new_v4()),
                 job_type: Set(JOB_TYPE.into()),
-                status: Set(job_run::status::QUEUED.into()),
+                status: Set(status::QUEUED.into()),
                 detail: Set(None),
                 error: Set(None),
                 started_at: Set(None),
@@ -549,7 +555,7 @@ mod integration {
         );
 
         let row = job_store.find_run(queued_run.id).await.unwrap().unwrap();
-        assert_eq!(row.status, job_run::status::FAILED);
+        assert_eq!(row.status, status::FAILED);
         assert!(row.error.is_some());
         assert!(row.started_at.is_some());
         assert!(row.finished_at.is_some());

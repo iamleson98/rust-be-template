@@ -8,9 +8,9 @@ use crate::dto::nullclaw::{
 };
 use crate::error::AppError;
 use crate::middleware::AdminUser;
+use crate::nullclaw;
 use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
-use crate::nullclaw;
 
 /// `GET /api/nullclaw/status` — get NullClaw provider status.
 #[utoipa::path(

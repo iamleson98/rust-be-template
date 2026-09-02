@@ -61,17 +61,21 @@ pub async fn webhook(
 ) -> Result<Json<serde_json::Value>, AppError> {
     if let Some(msg) = &update.message {
         if let Some(text) = &msg.text {
-            let user_name = msg.from.as_ref().map(|u| {
-                let parts: Vec<&str> = [u.first_name.as_deref(), u.last_name.as_deref()]
-                    .iter()
-                    .filter_map(|p| *p)
-                    .collect();
-                if parts.is_empty() {
-                    u.username.clone().unwrap_or_else(|| "TG User".into())
-                } else {
-                    parts.join(" ")
-                }
-            }).unwrap_or_else(|| "TG User".into());
+            let user_name = msg
+                .from
+                .as_ref()
+                .map(|u| {
+                    let parts: Vec<&str> = [u.first_name.as_deref(), u.last_name.as_deref()]
+                        .iter()
+                        .filter_map(|p| *p)
+                        .collect();
+                    if parts.is_empty() {
+                        u.username.clone().unwrap_or_else(|| "TG User".into())
+                    } else {
+                        parts.join(" ")
+                    }
+                })
+                .unwrap_or_else(|| "TG User".into());
 
             tracing::info!(
                 chat_id = msg.chat.id,
@@ -90,12 +94,7 @@ pub async fn webhook(
             let result = handle_platform_message(&st, &platform_msg).await?;
 
             if let Some(reply_text) = result.reply_text {
-                send_telegram_reply(
-                    &st,
-                    msg.chat.id,
-                    &reply_text,
-                )
-                .await;
+                send_telegram_reply(&st, msg.chat.id, &reply_text).await;
             }
         }
     }

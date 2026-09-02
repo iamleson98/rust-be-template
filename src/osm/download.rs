@@ -26,8 +26,11 @@ use tokio::io::AsyncWriteExt;
 pub const VIETNAM_PBF_URL: &str = "https://download.geofabrik.de/asia/vietnam-latest.osm.pbf";
 
 /// Identify ourselves to bulk-download endpoints.
-pub const USER_AGENT: &str =
-    concat!("VeXeVN-place-index/", env!("CARGO_PKG_VERSION"), " (+https://github.com/iamleson98/rust-be-template)");
+pub const USER_AGENT: &str = concat!(
+    "VeXeVN-place-index/",
+    env!("CARGO_PKG_VERSION"),
+    " (+https://github.com/iamleson98/rust-be-template)"
+);
 
 /// Minimum believable extract size. Real Vietnam extract ≈ 450-500 MB.
 pub const MIN_PBF_BYTES: u64 = 100 * 1024 * 1024;
@@ -170,7 +173,9 @@ mod tests {
         let url = format!("http://{addr}/vn.osm.pbf");
         let client = client().unwrap();
 
-        let err = download_file(&client, &url, &dest, &|_| {}).await.unwrap_err();
+        let err = download_file(&client, &url, &dest, &|_| {})
+            .await
+            .unwrap_err();
         assert!(err.to_string().contains("too small"), "got: {err}");
         assert!(!dest.exists(), "dest must not exist on failure");
         handle.join().unwrap();

@@ -114,10 +114,14 @@ pub trait RouteStore: Send + Sync {
     /// box — the Rust caller filters by direction (stop_order) + distance.
     async fn find_pickup_points_in_bbox(
         &self,
-        from_lat_min: f64, from_lat_max: f64,
-        from_lon_min: f64, from_lon_max: f64,
-        to_lat_min: f64, to_lat_max: f64,
-        to_lon_min: f64, to_lon_max: f64,
+        from_lat_min: f64,
+        from_lat_max: f64,
+        from_lon_min: f64,
+        from_lon_max: f64,
+        to_lat_min: f64,
+        to_lat_max: f64,
+        to_lon_min: f64,
+        to_lon_max: f64,
     ) -> StoreResult<Vec<PickupPointWithRoute>>;
 }
 
@@ -383,10 +387,14 @@ impl RouteStore for DbRouteStore {
     #[allow(clippy::too_many_arguments)]
     async fn find_pickup_points_in_bbox(
         &self,
-        from_lat_min: f64, from_lat_max: f64,
-        from_lon_min: f64, from_lon_max: f64,
-        to_lat_min: f64, to_lat_max: f64,
-        to_lon_min: f64, to_lon_max: f64,
+        from_lat_min: f64,
+        from_lat_max: f64,
+        from_lon_min: f64,
+        from_lon_max: f64,
+        to_lat_min: f64,
+        to_lat_max: f64,
+        to_lon_min: f64,
+        to_lon_max: f64,
     ) -> StoreResult<Vec<PickupPointWithRoute>> {
         use sea_orm::FromQueryResult;
         use sea_orm::Value;
@@ -435,17 +443,18 @@ impl RouteStore for DbRouteStore {
           )"#;
 
         let values: Vec<Value> = vec![
-            from_lat_min.into(), from_lat_max.into(),
-            from_lon_min.into(), from_lon_max.into(),
-            to_lat_min.into(), to_lat_max.into(),
-            to_lon_min.into(), to_lon_max.into(),
+            from_lat_min.into(),
+            from_lat_max.into(),
+            from_lon_min.into(),
+            from_lon_max.into(),
+            to_lat_min.into(),
+            to_lat_max.into(),
+            to_lon_min.into(),
+            to_lon_max.into(),
         ];
 
-        let stmt = Statement::from_sql_and_values(
-            self.db.as_ref().get_database_backend(),
-            sql,
-            values,
-        );
+        let stmt =
+            Statement::from_sql_and_values(self.db.as_ref().get_database_backend(), sql, values);
 
         let rows = Row::find_by_statement(stmt).all(self.db.as_ref()).await?;
 

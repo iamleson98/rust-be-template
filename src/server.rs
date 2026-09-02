@@ -30,12 +30,12 @@ use crate::store::{
     BrandStore, CacheBrandStore, CacheChatStore, CachePostStore, CacheRbacStore,
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
     DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
-    DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore,
-    DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore,
-    DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
+    DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
+    DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbWishlistStore,
+    JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
 };
-use crate::ws;
 use crate::worker::WorkerRunner;
+use crate::ws;
 
 pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- Config -------------------------------------------------------
@@ -281,11 +281,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
                     places: place_service.clone(),
                     config: config_arc.clone(),
                 });
-                let runner = WorkerRunner::new(
-                    broker,
-                    registry,
-                    config.worker.concurrency,
-                );
+                let runner = WorkerRunner::new(broker, registry, config.worker.concurrency);
                 crate::worker::set_shutdown_handle(runner.shutdown_handle());
                 runner.spawn();
                 job_service.spawn_scheduler();

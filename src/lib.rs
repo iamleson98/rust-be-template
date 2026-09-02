@@ -32,6 +32,7 @@ pub mod error;
 pub mod guard;
 pub mod jobs;
 pub mod middleware;
+pub mod nullclaw;
 pub mod osm;
 pub mod payment;
 pub mod rbac;
@@ -45,7 +46,6 @@ pub mod store;
 pub mod validation;
 pub mod worker;
 pub mod ws;
-pub mod nullclaw;
 
 // Re-export the Migrator from the standalone migrator crate.
 pub use migrator::Migrator;

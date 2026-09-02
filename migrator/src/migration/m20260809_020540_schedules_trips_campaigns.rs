@@ -72,7 +72,7 @@ impl MigrationTrait for Migration {
                     .col(text_null(Schedule::EffectiveFrom))
                     .col(text_null(Schedule::EffectiveTo))
                     .col(text_null(Schedule::DaysOfWeek))
-                    .col(text_null(Schedule::BusLayoutId))
+                    .col(uuid_null(Schedule::BusLayoutId))
                     .col(big_integer(Schedule::BasePriceAdult).default(0))
                     .col(big_integer_null(Schedule::BasePriceChild))
                     .col(text_null(Schedule::Amenities))

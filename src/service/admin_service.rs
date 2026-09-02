@@ -31,7 +31,9 @@ use crate::dto::admin::{
     UpsertAddressRequest, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
     UpsertSchedulePointItem, UpsertScheduleRequest,
 };
-use crate::entity::{audit_log, booking, brand, address, pickup_point, review, route, schedule, schedule_point};
+use crate::entity::{
+    address, audit_log, booking, brand, pickup_point, review, route, schedule, schedule_point,
+};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
@@ -275,20 +277,18 @@ impl AdminService {
             let schedule_count = *schedule_count_map.get(&route_id_str).unwrap_or(&0);
             let pickup_count = *pickup_count_map.get(&route_id_str).unwrap_or(&0);
 
-            let start_place = crate::cities::find_by_slug(&r.start_location_id).map(|c| {
-                AdminPlacePreview {
+            let start_place =
+                crate::cities::find_by_slug(&r.start_location_id).map(|c| AdminPlacePreview {
                     id: c.slug.to_string(),
                     name: c.name.to_string(),
                     province: Some(c.name.to_string()),
-                }
-            });
-            let end_place = crate::cities::find_by_slug(&r.end_location_id).map(|c| {
-                AdminPlacePreview {
+                });
+            let end_place =
+                crate::cities::find_by_slug(&r.end_location_id).map(|c| AdminPlacePreview {
                     id: c.slug.to_string(),
                     name: c.name.to_string(),
                     province: Some(c.name.to_string()),
-                }
-            });
+                });
 
             items.push(AdminRouteOut {
                 id: r.id,
@@ -651,14 +651,16 @@ impl AdminService {
                     .iter()
                     .filter(|p| p.schedule_id == s.id)
                     .filter_map(|p| {
-                        address_map.get(&p.address_id).map(|a| AdminSchedulePointOut {
-                            id: p.id,
-                            schedule_id: p.schedule_id,
-                            address_id: p.address_id,
-                            stop_order: p.stop_order,
-                            kind: p.kind.clone(),
-                            address: address_out(a),
-                        })
+                        address_map
+                            .get(&p.address_id)
+                            .map(|a| AdminSchedulePointOut {
+                                id: p.id,
+                                schedule_id: p.schedule_id,
+                                address_id: p.address_id,
+                                stop_order: p.stop_order,
+                                kind: p.kind.clone(),
+                                address: address_out(a),
+                            })
                     })
                     .collect();
                 AdminScheduleOut {
@@ -769,7 +771,10 @@ impl AdminService {
         let final_route_id = body.route_id.unwrap_or(original_route_id);
         // Validate the new point sequence BEFORE mutating the schedule row.
         let point_models = match &body.points {
-            Some(items) => Some(self.build_schedule_points(final_route_id, id, items).await?),
+            Some(items) => Some(
+                self.build_schedule_points(final_route_id, id, items)
+                    .await?,
+            ),
             None => None,
         };
 
@@ -1597,15 +1602,13 @@ impl AdminService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("route not found".into()))?;
-        let brand_id = route_model
-            .brand_id
-            .ok_or_else(|| AppError::Validation(
-                "route has no brand — assign a brand to the route before configuring points"
-                    .into(),
-            ))?;
+        let brand_id = route_model.brand_id.ok_or_else(|| {
+            AppError::Validation(
+                "route has no brand — assign a brand to the route before configuring points".into(),
+            )
+        })?;
 
-        let address_ids: Option<Vec<Uuid>> =
-            items.iter().map(|p| p.address_id).collect();
+        let address_ids: Option<Vec<Uuid>> = items.iter().map(|p| p.address_id).collect();
         let address_ids = address_ids
             .ok_or_else(|| AppError::Validation("every point must reference an address".into()))?;
 
@@ -1618,8 +1621,7 @@ impl AdminService {
         // Dedupe before the existence check — `IN (...)` returns one row
         // per address, so a repeated address in the sequence (legal,
         // e.g. circular routes) must not look like a missing one.
-        let distinct_ids: std::collections::HashSet<Uuid> =
-            address_ids.iter().copied().collect();
+        let distinct_ids: std::collections::HashSet<Uuid> = address_ids.iter().copied().collect();
         if addresses.len() != distinct_ids.len() {
             return Err(AppError::Validation(
                 "one or more point addresses do not exist".into(),
@@ -1678,7 +1680,9 @@ impl AdminService {
         schedule_id: Uuid,
         models: Vec<schedule_point::ActiveModel>,
     ) -> AppResult<()> {
-        use sea_orm::{ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, TransactionTrait};
+        use sea_orm::{
+            ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, TransactionTrait,
+        };
         let txn: DatabaseTransaction = self
             .store
             .db()

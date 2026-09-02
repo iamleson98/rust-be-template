@@ -33,9 +33,9 @@ fn to_local(t: DateTime<Utc>, offset_minutes: i32) -> (NaiveDate, NaiveTime) {
 }
 
 /// The UTC instant of `at_hour:at_minute` on local date `day`.
-fn from_local(day: NaiveDate, at_hour: u32, at_minute: u32, offset_minutes: i32) -> DateTime<Utc> {
+fn from_local(day: NaiveDate, at_hour: i16, at_minute: i16, offset_minutes: i32) -> DateTime<Utc> {
     let naive = day
-        .and_hms_opt(at_hour, at_minute, 0)
+        .and_hms_opt(at_hour as u32, at_minute as u32, 0)
         .expect("at_hour / at_minute are validated to the 0-23 / 0-59 range");
     // Interpret the naive wall-clock as if it were UTC, then remove the
     // offset: local = utc + offset → utc = local - offset.
@@ -49,14 +49,19 @@ fn from_local(day: NaiveDate, at_hour: u32, at_minute: u32, offset_minutes: i32)
 /// tomorrow's. Never returns a value `<= after`.
 pub fn next_occurrence(
     after: DateTime<Utc>,
-    at_hour: u32,
-    at_minute: u32,
+    at_hour: i16,
+    at_minute: i16,
     offset_minutes: i32,
 ) -> DateTime<Utc> {
     let (day, _) = to_local(after, offset_minutes);
     let mut slot = from_local(day, at_hour, at_minute, offset_minutes);
     if slot <= after {
-        slot = from_local(day.succ_opt().expect("date arithmetic overflow"), at_hour, at_minute, offset_minutes);
+        slot = from_local(
+            day.succ_opt().expect("date arithmetic overflow"),
+            at_hour,
+            at_minute,
+            offset_minutes,
+        );
     }
     slot
 }
@@ -65,14 +70,14 @@ pub fn next_occurrence(
 /// time, `interval_days` days later).
 pub fn advance_slot(
     previous_slot: DateTime<Utc>,
-    interval_days: i32,
-    at_hour: u32,
-    at_minute: u32,
+    interval_days: i16,
+    at_hour: i16,
+    at_minute: i16,
     offset_minutes: i32,
 ) -> DateTime<Utc> {
     let (day, _) = to_local(previous_slot, offset_minutes);
     let next_day = day
-        .checked_add_signed(Duration::days(i64::from(interval_days)))
+        .checked_add_signed(Duration::days(i64::from(interval_days as i64)))
         .expect("date arithmetic overflow");
     from_local(next_day, at_hour, at_minute, offset_minutes)
 }
@@ -85,9 +90,9 @@ pub fn advance_slot(
 /// downtime / interval iterations (cheap date arithmetic).
 pub fn catch_up(
     mut slot: DateTime<Utc>,
-    interval_days: i32,
-    at_hour: u32,
-    at_minute: u32,
+    interval_days: i16,
+    at_hour: i16,
+    at_minute: i16,
     offset_minutes: i32,
     now: DateTime<Utc>,
 ) -> DateTime<Utc> {
@@ -185,10 +190,7 @@ mod tests {
     fn catch_up_noop_when_slot_in_future() {
         let slot = utc(2026, 9, 15, 19, 0);
         let now = utc(2026, 9, 1, 0, 0);
-        assert_eq!(
-            catch_up(slot, 14, 2, 0, VN, now),
-            utc(2026, 9, 15, 19, 0)
-        );
+        assert_eq!(catch_up(slot, 14, 2, 0, VN, now), utc(2026, 9, 15, 19, 0));
     }
 
     #[test]

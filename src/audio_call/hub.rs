@@ -484,13 +484,7 @@ mod tests {
         let (tx, _rx) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
         let sid = h.next_socket_id();
-        h.register(
-            fake_user(&id, "employee"),
-            CallRole::Agent,
-            None,
-            tx,
-            sid,
-        );
+        h.register(fake_user(&id, "employee"), CallRole::Agent, None, tx, sid);
 
         // Initially not in call.
         assert!(!h.is_agent_in_call());

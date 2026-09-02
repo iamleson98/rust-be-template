@@ -37,9 +37,9 @@ use uuid::Uuid;
 use crate::auth::SessionUser;
 use crate::entity::{chat_channel, chat_message, null_claw_exchange};
 use crate::error::{AppError, AppResult};
+use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 use crate::store::chat::{NewChannelMember, NewChatMessage};
 use crate::store::CompositeStore;
-use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 
 /// Chat service. Constructed once at startup with a shared
 /// `Arc<CompositeStore>` and stored as `Arc<ChatService>` on

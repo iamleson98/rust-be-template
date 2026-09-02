@@ -438,7 +438,9 @@ impl Default for NullClawConfig {
             // for backward compat with existing .env files.
             api_url: env_var("LLM_BASE_URL")
                 .or_else(|| env_var("NULLCLAW_API_URL"))
-                .unwrap_or_else(|| "https://generativelanguage.googleapis.com/v1beta/openai".into()),
+                .unwrap_or_else(|| {
+                    "https://generativelanguage.googleapis.com/v1beta/openai".into()
+                }),
             // LLM_API_KEY takes priority, fall back to NULLCLAW_API_KEY.
             api_key: env_var("LLM_API_KEY")
                 .or_else(|| env_var("NULLCLAW_API_KEY"))

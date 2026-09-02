@@ -50,37 +50,28 @@ pub async fn handle_platform_message(
     // ── 1. Find or create a platform user ──────────────────────────
     let platform_email = format!("{}:{}", msg.platform, msg.platform_user_id);
     let platform_email_for_session = platform_email.clone();
-    let user = match st
-        .auth
-        .get_user_by_email(platform_email.clone())
-        .await
-    {
+    let user = match st.auth.get_user_by_email(platform_email.clone()).await {
         Ok(Some(existing)) => existing,
         Ok(None) => {
             st.auth
-                .create_platform_user(
-                    platform_email,
-                    msg.user_name.clone(),
-                )
+                .create_platform_user(platform_email, msg.user_name.clone())
                 .await?
         }
         Err(e) => return Err(AppError::Internal(e.to_string())),
     };
 
     // ── 2. Find or create an OPEN chat channel ─────────────────────
-    let existing_channels = st
-        .chats
-        .list_channels(user.id, false, None, 50)
-        .await?;
+    let existing_channels = st.chats.list_channels(user.id, false, None, 50).await?;
 
-    let channel = if let Some(open) = existing_channels
-        .into_iter()
-        .find(|c| c.status == "open")
-    {
+    let channel = if let Some(open) = existing_channels.into_iter().find(|c| c.status == "open") {
         open
     } else {
         st.chats
-            .create_channel(user.id, None, Some(format!("{} - {}", msg.platform, msg.user_name)))
+            .create_channel(
+                user.id,
+                None,
+                Some(format!("{} - {}", msg.platform, msg.user_name)),
+            )
             .await?
     };
 
@@ -100,7 +91,10 @@ pub async fn handle_platform_message(
 
     // Update the channel preview.
     // Increment unread for employee side.
-    let _ = st.chats.increment_unread(&channel.id.to_string(), "employee").await;
+    let _ = st
+        .chats
+        .increment_unread(&channel.id.to_string(), "employee")
+        .await;
 
     // Broadcast to WS room.
     let channel_id_str = channel.id.to_string();

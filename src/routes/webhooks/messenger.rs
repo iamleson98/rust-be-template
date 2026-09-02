@@ -97,7 +97,10 @@ pub async fn webhook(
                     let platform_msg = PlatformMessage {
                         platform: "messenger".into(),
                         platform_user_id: msg.sender.id.clone(),
-                        user_name: format!("FB User {}", &msg.sender.id[..8.min(msg.sender.id.len())]),
+                        user_name: format!(
+                            "FB User {}",
+                            &msg.sender.id[..8.min(msg.sender.id.len())]
+                        ),
                         text: text.clone(),
                         platform_msg_id: message.mid.clone(),
                     };
@@ -105,12 +108,7 @@ pub async fn webhook(
                     let result = handle_platform_message(&st, &platform_msg).await?;
 
                     if let Some(reply_text) = result.reply_text {
-                        send_messenger_reply(
-                            &st,
-                            &msg.sender.id,
-                            &reply_text,
-                        )
-                        .await;
+                        send_messenger_reply(&st, &msg.sender.id, &reply_text).await;
                     }
                 }
             }

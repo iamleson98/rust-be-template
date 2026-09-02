@@ -310,12 +310,7 @@ impl AuthService {
     ) -> AppResult<user::Model> {
         self.store
             .user_store()
-            .create_user(
-                email,
-                name,
-                uuid::Uuid::new_v4().to_string(),
-                "user".into(),
-            )
+            .create_user(email, name, uuid::Uuid::new_v4().to_string(), "user".into())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))
     }

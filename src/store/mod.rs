@@ -12,8 +12,8 @@
 //! - `CompositeStore`: combines per-entity stores into one object used by
 //!   services as `Arc<dyn Store>`.
 
-pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::address::{AddressStore, DbAddressStore};
+pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{BookingStore, DbBookingStore};
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
 pub use self::chat::{CacheChatStore, ChatStore, DbChatStore, NewChatMessage, NewNullClawExchange};
@@ -50,14 +50,13 @@ pub use self::wishlist::{DbWishlistStore, WishlistStore};
 /// parsed [`uuid::Uuid`] (a BLOB parameter) matches correctly, and on
 /// Postgres both forms work. Every `&str`-id filter must go through this.
 pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
-    uuid::Uuid::parse_str(s)
-        .map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))
 }
 
 #[macro_use]
 mod macros;
-mod audit;
 mod address;
+mod audit;
 mod booking;
 mod brands;
 pub mod chat;
