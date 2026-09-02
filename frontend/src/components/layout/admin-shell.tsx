@@ -41,6 +41,7 @@ import {
   Armchair,
   CreditCard,
   Activity,
+  CalendarClock,
   Eye,
   LogOut,
   Bus,
@@ -86,6 +87,7 @@ const NAV_GROUPS = [
     label: 'Hệ thống',
     items: [
       { title: 'Theo dõi hệ thống', icon: Activity, url: '/admin/system' },
+      { title: 'Cron jobs', icon: CalendarClock, url: '/admin/cron-jobs' },
     ],
   },
 ]

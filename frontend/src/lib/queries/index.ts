@@ -48,32 +48,32 @@ import {
   validateCampaignOptions,
   // places (list11 = /api/places, search = /api/places/search)
   searchOptions as placeSearchOptions,
-  list11Options as placeListOptions,
+  list12Options as placeListOptions,
   // reviews (list13 = /api/reviews, tags = /api/reviews/tags)
-  list13Options as reviewsListOptions,
-  list13QueryKey as reviewsListQueryKey,
+  list14Options as reviewsListOptions,
+  list14QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
-  update6Mutation as reviewUpdateMutation,
+  update7Mutation as reviewUpdateMutation,
   create7Mutation as reviewCreateMutation,
   // bookings (list9 = GET /api/bookings — the user's own bookings)
-  list9Options as bookingsListOptions,
+  list10Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
   lookupOptions as bookingLookupOptions,
   holdMutation,
   confirmMutation,
   cancelMutation,
   // price alerts (list12 = /api/price-alerts, create6 = POST /api/price-alerts)
-  list12Options as priceAlertsListOptions,
-  list12QueryKey as priceAlertsListQueryKey,
+  list13Options as priceAlertsListOptions,
+  list13QueryKey as priceAlertsListQueryKey,
   create6Mutation as priceAlertCreateMutation,
   removeMutation as priceAlertRemoveMutation,
   // notifications (list10 = /api/notifications)
-  list10Options as notificationsListOptions,
-  list10QueryKey as notificationsListQueryKey,
+  list11Options as notificationsListOptions,
+  list11QueryKey as notificationsListQueryKey,
   markRead2Mutation as notificationsMarkReadMutation,
   // wishlist (list14 = /api/wishlist)
-  list14Options as wishlistListOptions,
-  list14QueryKey as wishlistListQueryKey,
+  list15Options as wishlistListOptions,
+  list15QueryKey as wishlistListQueryKey,
   toggleMutation as wishlistToggleMutation,
   remove3Mutation as wishlistRemoveMutation,
   // stats (stats2 = /api/stats — public, stats = /api/admin/bookings/stats)
@@ -84,24 +84,31 @@ import {
   create2Mutation as createBrandMutation,
   delete2Mutation as deleteBrandMutation,
   // admin — routes (list7/create4/delete5/update4)
-  list7Options as adminRoutesListOptions,
-  list7QueryKey as adminRoutesListQueryKey,
+  list8Options as adminRoutesListOptions,
+  list8QueryKey as adminRoutesListQueryKey,
   create4Mutation as createRouteMutation,
   delete5Mutation as deleteRouteMutation,
   // admin — schedules (list8/create5/delete6/update5)
-  list8Options as adminSchedulesListOptions,
-  list8QueryKey as adminSchedulesListQueryKey,
+  list9Options as adminSchedulesListOptions,
+  list9QueryKey as adminSchedulesListQueryKey,
   create5Mutation as createScheduleMutation,
   delete6Mutation as deleteScheduleMutation,
+  // cron jobs (recurring background jobs)
+  list5Options as cronJobsListOptions,
+  list5QueryKey as cronJobsListQueryKey,
+  listRunsOptions as cronJobRunsListOptions,
+  listRunsQueryKey as cronJobRunsListQueryKey,
+  update3Mutation as updateCronJobMutation,
+  triggerMutation as triggerCronJobMutation,
   // admin — pickup points (list5/create3/delete3)
-  list5Options as adminPickupPointsListOptions,
+  list6Options as adminPickupPointsListOptions,
   create3Mutation as createPickupPointMutation,
   delete3Mutation as deletePickupPointMutation,
   // admin — bus layouts (list4)
   list4Options as adminBusLayoutsListOptions,
   // admin — reviews (list6)
-  list6Options as adminReviewsListOptions,
-  list6QueryKey as adminReviewsListQueryKey,
+  list7Options as adminReviewsListOptions,
+  list7QueryKey as adminReviewsListQueryKey,
   moderateMutation,
   // admin — addresses (list/create/delete_/update — unnumbered, first alphabetically)
   listOptions as adminAddressesListOptions,
@@ -1348,5 +1355,50 @@ export function useAdminBookingExport(filter: AdminBookingFilter) {
   return useQuery({
     ...adminBookingExportOptions({ query } as any),
     enabled: false, // only fetch on demand via refetch
+  });
+}
+
+
+// ─── Cron jobs (recurring background jobs) ────────────────────────────
+
+/**
+ * Scheduled jobs with next run + latest run. Auto-refreshes so a
+ * running job's live status / progress shows up without manual reload.
+ */
+export function useAdminCronJobs() {
+  return useQuery({
+    ...cronJobsListOptions(),
+    refetchInterval: 10 * 1000,
+  });
+}
+
+/** Run history, most recent first (optionally filtered by job type). */
+export function useAdminCronJobRuns(jobType?: string) {
+  return useQuery({
+    ...cronJobRunsListOptions({ query: { jobType } }),
+    refetchInterval: 10 * 1000,
+  });
+}
+
+/** PATCH a schedule: enable/disable, cadence, fire time, re-arm. */
+export function useUpdateCronJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...updateCronJobMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
+    },
+  });
+}
+
+/** Trigger ("run now") a job — 409 when one is already in flight. */
+export function useTriggerCronJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...triggerCronJobMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
+      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });
+    },
   });
 }
