@@ -1,0 +1,7 @@
+{
+  "db_url": "sqlite:./app.db",
+  "out_dir": "src/entity",
+  "with_serde": "both",
+  "with_prelude": "none",
+  "uuid_type": "uuid"
+}
