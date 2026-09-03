@@ -44,9 +44,11 @@ const CITIES = [
 
 /**
  * Mock paginated backend for the InfiniteSelect demo: 120 synthetic
- * rows, 10 per page, case-insensitive label filter.
+ * rows, 10 per page, case-insensitive label filter. Honors the
+ * AbortSignal like a real fetch would (instantly, since it's sync).
  */
-async function galleryFetchPage(page: number, search: string) {
+async function galleryFetchPage(page: number, search: string, signal?: AbortSignal) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const all = Array.from({ length: 120 }, (_, i) => ({
     value: `city-${i + 1}`,
     label: `City ${i + 1}`,

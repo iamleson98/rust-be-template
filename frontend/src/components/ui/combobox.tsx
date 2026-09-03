@@ -92,7 +92,7 @@ function ComboboxInput({
     <ComboboxPrimitive.Input
       data-slot="combobox-input"
       className={cn(
-        "border-input placeholder:text-muted-foreground h-9 w-full border-b bg-transparent px-3 py-2 text-sm outline-none",
+        "border-input placeholder:text-muted-foreground h-9 w-full cursor-text border-b bg-transparent px-3 py-2 text-sm outline-none",
         className,
       )}
       {...props}
@@ -160,7 +160,7 @@ function ComboboxItem({
       data-slot="combobox-item"
       className={cn(
         "focus:bg-accent focus:text-accent-foreground",
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}
       {...props}

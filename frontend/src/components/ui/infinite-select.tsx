@@ -25,8 +25,12 @@
  *
  * ## Notes
  *
- * - **Search is server-side**: keystrokes are debounced (250 ms) into
- *   the query key; the list re-fetches page 0 for the new term.
+ * - **Search is server-side and throttled**: keystrokes are debounced
+ *   (250 ms) into the query key and each request is wired to TanStack
+ *   Query's `AbortSignal` — when the user keeps typing, the previous
+ *   in-flight request is aborted instead of racing the new one, so the
+ *   list never flickers with stale results and the API only sees one
+ *   call per settled term.
  * - **`extraItems`** are merged (deduped by `itemValue`) in front of
  *   the fetched pages — pass items the picker must always show, e.g.
  *   the selected address on an edit form or one just created in a
@@ -61,8 +65,18 @@ export interface InfinitePage<T> {
   hasMore: boolean
 }
 
-/** (page, search) → one page of items. `page` is 0-based. */
-export type InfiniteFetchPage<T> = (page: number, search: string) => Promise<InfinitePage<T>>
+/**
+ * (page, search, signal?) → one page of items. `page` is 0-based.
+ *
+ * `signal` is the TanStack Query abort signal — forward it to the HTTP
+ * layer so a superseded search (user kept typing) cancels its request
+ * instead of wasting bandwidth and racing the fresh result.
+ */
+export type InfiniteFetchPage<T> = (
+  page: number,
+  search: string,
+  signal?: AbortSignal,
+) => Promise<InfinitePage<T>>
 
 /** Distance (px) before the list bottom that pre-triggers a page load. */
 const LOAD_MORE_MARGIN = 200
@@ -81,7 +95,9 @@ function useInfiniteOptions<T>(
 ) {
   return useInfiniteQuery({
     queryKey: ['infinite-select', scope, search],
-    queryFn: ({ pageParam }) => fetchPage(pageParam as number, search),
+    // Forward TanStack Query's signal so superseded searches are
+    // aborted at the HTTP level (see InfiniteFetchPage).
+    queryFn: ({ pageParam, signal }) => fetchPage(pageParam as number, search, signal),
     initialPageParam: 0 as number,
     getNextPageParam: (lastPage: InfinitePage<T>, allPages: Array<InfinitePage<T>>) =>
       lastPage.hasMore ? allPages.length : undefined,
@@ -146,12 +162,10 @@ const listSurface = (className?: string) =>
 function ListFooter({
   isLoading,
   isFetchingNextPage,
-  hasNextPage,
   hasItems,
 }: {
   isLoading: boolean
   isFetchingNextPage: boolean
-  hasNextPage: boolean
   hasItems: boolean
 }) {
   if (isLoading) {
@@ -171,13 +185,8 @@ function ListFooter({
   if (!hasItems) {
     return <div className="py-6 text-center text-sm text-muted-foreground">Không tìm thấy kết quả</div>
   }
-  if (!hasNextPage) {
-    return (
-      <div className="border-t border-border/60 py-1.5 text-center text-[11px] text-muted-foreground">
-        Đã hiển thị tất cả
-      </div>
-    )
-  }
+  // All loaded — no footer; the list simply ends, matching the plain
+  // Select / Combobox behaviour.
   return null
 }
 
@@ -297,7 +306,6 @@ export function InfiniteSelect<T>({
           <ListFooter
             isLoading={query.isLoading}
             isFetchingNextPage={query.isFetchingNextPage}
-            hasNextPage={!!query.hasNextPage}
             hasItems={items.length > 0}
           />
           {/* Scroll sentinel — observed from within the list. */}
@@ -429,7 +437,6 @@ export function InfiniteMultiSelect<T>({
           <ListFooter
             isLoading={query.isLoading}
             isFetchingNextPage={query.isFetchingNextPage}
-            hasNextPage={!!query.hasNextPage}
             hasItems={items.length > 0}
           />
           <div ref={sentinelRef} aria-hidden className="h-px" />

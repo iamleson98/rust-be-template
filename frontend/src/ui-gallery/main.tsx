@@ -11,11 +11,20 @@
  */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Gallery } from './gallery'
 import '../styles.css'
 
+// The InfiniteSelect demo needs a QueryClient context — same setup the
+// real app provides, kept permissive for a demo page (no retries).
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, staleTime: 5_000 } },
+})
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Gallery />
+    <QueryClientProvider client={queryClient}>
+      <Gallery />
+    </QueryClientProvider>
   </StrictMode>,
 )

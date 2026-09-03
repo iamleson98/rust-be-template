@@ -1130,13 +1130,15 @@ export function useAdminAddresses(brandId?: string) {
 /**
  * Fetch one page of a brand's addresses for the searchable,
  * infinite-scroll schedule point picker. Mirrors the vehicle-types
- * page fetcher: (page, search) → { items, total, hasMore }.
+ * page fetcher: (page, search, signal) → { items, total, hasMore }.
+ * `signal` aborts superseded searches at the HTTP level.
  */
 export async function fetchAdminAddressesPage(
   brandId: string,
   page: number,
   search: string,
   pageSize = 25,
+  signal?: AbortSignal,
 ): Promise<{ items: AdminAddressOut[]; total: number; hasMore: boolean }> {
   const { data } = await listAddresses({
     query: {
@@ -1145,6 +1147,7 @@ export async function fetchAdminAddressesPage(
       limit: pageSize,
       offset: page * pageSize,
     },
+    signal,
   });
   const body = (data ?? { items: [], total: 0 }) as AdminAddressListResponse;
   const offset = page * pageSize;
@@ -1325,10 +1328,15 @@ export function useAdminVehicleTypes(query?: {
   });
 }
 
-/** Fetch one page of vehicle types for the infinite-scroll picker. */
+/**
+ * Fetch one page of vehicle types for the infinite-scroll picker.
+ * Signature matches `InfiniteFetchPage`; `signal` aborts superseded
+ * searches at the HTTP level.
+ */
 export async function fetchVehicleTypesPage(
   page: number,
   search: string,
+  signal?: AbortSignal,
   pageSize = 25,
 ): Promise<{ items: AdminVehicleTypeOut[]; total: number; hasMore: boolean }> {
   const { data } = await listVehicleTypes({
@@ -1337,6 +1345,7 @@ export async function fetchVehicleTypesPage(
       limit: pageSize,
       offset: page * pageSize,
     },
+    signal,
   });
   const body = (data ?? { items: [], total: 0 }) as AdminVehicleTypeListResponse;
   const offset = page * pageSize;

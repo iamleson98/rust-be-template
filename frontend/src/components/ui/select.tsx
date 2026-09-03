@@ -203,7 +203,7 @@ function SelectItem({
       label={textValue}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground",
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
@@ -244,7 +244,7 @@ function SelectScrollUpButton({
     <SelectPrimitive.ScrollUpArrow
       data-slot="select-scroll-up-button"
       className={cn(
-        "top-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1",
+        "top-0 z-10 flex w-full cursor-pointer items-center justify-center bg-popover py-1",
         className,
       )}
       {...props}
@@ -262,7 +262,7 @@ function SelectScrollDownButton({
     <SelectPrimitive.ScrollDownArrow
       data-slot="select-scroll-down-button"
       className={cn(
-        "bottom-0 z-10 flex w-full cursor-default items-center justify-center bg-popover py-1",
+        "bottom-0 z-10 flex w-full cursor-pointer items-center justify-center bg-popover py-1",
         className,
       )}
       {...props}

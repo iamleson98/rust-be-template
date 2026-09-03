@@ -3,7 +3,6 @@
 import { useEffect, useMemo } from 'react'
 import {
   MapContainer,
-  TileLayer,
   Polyline,
   CircleMarker,
   Tooltip as LeafletTooltip,
@@ -15,6 +14,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin, Bus, ArrowRight, Search } from 'lucide-react'
 import { formatVND } from '@/lib/types'
+import { OpenFreeMapLayer } from '@/components/map/openfreemap-layer'
 
 // Fix default icon paths (safety net; we mostly use CircleMarker / divIcon)
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -138,11 +138,7 @@ export function RouteMapInner({
       className="h-full w-full"
       style={{ background: '#aadaff' }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        maxZoom={20}
-      />
+      <OpenFreeMapLayer />
       <ZoomControl position="bottomright" />
       <FixSize />
       <FlyToController flyTo={flyTo} />

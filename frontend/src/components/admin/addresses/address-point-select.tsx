@@ -90,7 +90,9 @@ export function AddressPointSelect({
       ) : (
         <InfiniteSelect<AdminAddressOut>
           scope={`brand-addresses-${brandId}`}
-          fetchPage={(page, search) => fetchAdminAddressesPage(brandId, page, search)}
+          fetchPage={(page, search, signal) =>
+            fetchAdminAddressesPage(brandId, page, search, 25, signal)
+          }
           value={value ?? null}
           onValueChange={(v) => onChange(v ?? undefined)}
           itemValue={(a) => a.id}

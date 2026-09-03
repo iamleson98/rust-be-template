@@ -15,7 +15,6 @@
 import { useEffect, useMemo } from 'react'
 import {
   MapContainer,
-  TileLayer,
   Marker,
   Popup,
   Polyline,
@@ -26,6 +25,7 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { OpenFreeMapLayer } from '@/components/map/openfreemap-layer'
 
 // Fix leaflet's default marker icon paths (broken under bundlers).
 // We use custom divIcons below, but this is a safety net.
@@ -148,11 +148,7 @@ export default function RouteNavigationMap({
       className="h-full w-full"
       style={{ background: '#aadaff' }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        maxZoom={20}
-      />
+      <OpenFreeMapLayer />
       <ZoomControl position="bottomright" />
       <FixSize />
       <FitBounds
