@@ -1,4 +1,12 @@
 import { InfoIcon, TriangleAlertIcon } from 'lucide-react'
+import { createColumnHelper } from '@tanstack/react-table'
+
+import {
+  DataTable,
+  DataTableColumnHeader,
+  DataTableViewOptions,
+  type DataTableFeatures,
+} from '@/components/data-table'
 
 import {
   Alert,
@@ -32,14 +40,6 @@ import {
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Pagination,
   PaginationContent,
@@ -177,36 +177,17 @@ export function StaticSections() {
 
       <Section id="table" title="Table" description="Data tables for admin views.">
         <div className="rounded-md border" data-testid="table-demo">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Route</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Departure</TableHead>
-                <TableHead className="text-right">Price</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow>
-                <TableCell>Hà Nội → Huế</TableCell>
-                <TableCell>Thanh Bình</TableCell>
-                <TableCell>06:00</TableCell>
-                <TableCell className="text-right">350,000₫</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Sài Gòn → Đà Lạt</TableCell>
-                <TableCell>Phương Trang</TableCell>
-                <TableCell>08:30</TableCell>
-                <TableCell className="text-right">380,000₫</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell>Đà Nẵng → Hà Nội</TableCell>
-                <TableCell>Hoàng Long</TableCell>
-                <TableCell>21:00</TableCell>
-                <TableCell className="text-right">420,000₫</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+          <GalleryTripsTable />
+        </div>
+      </Section>
+
+      <Section
+        id="data-table"
+        title="Data Table"
+        description="TanStack Table v9 data tables (shadcn data-table pattern): sortable headers, column visibility and pagination."
+      >
+        <div className="rounded-md border">
+          <GalleryDataTableDemo />
         </div>
       </Section>
 
@@ -262,5 +243,121 @@ export function StaticSections() {
         </Pagination>
       </Section>
     </>
+  )
+}
+
+// ── Data Table demos (shadcn data-table / TanStack Table v9) ──────────
+
+interface GalleryTrip {
+  id: string
+  route: string
+  brand: string
+  departure: string
+  price: number
+}
+
+const GALLERY_TRIPS: GalleryTrip[] = [
+  { id: 't1', route: 'Hà Nội → Huế', brand: 'Thanh Bình', departure: '06:00', price: 350000 },
+  { id: 't2', route: 'Sài Gòn → Đà Lạt', brand: 'Phương Trang', departure: '08:30', price: 380000 },
+  { id: 't3', route: 'Đà Nẵng → Hà Nội', brand: 'Hoàng Long', departure: '21:00', price: 420000 },
+]
+
+const galleryTripHelper = createColumnHelper<DataTableFeatures, GalleryTrip>()
+
+/** The classic three-row trips demo, now on the shared DataTable. */
+function GalleryTripsTable() {
+  return (
+    <DataTable
+      columns={galleryTripHelper.columns([
+        galleryTripHelper.accessor('route', {
+          header: 'Route',
+          cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+          sortFn: 'text',
+          meta: { label: 'Route' },
+        }),
+        galleryTripHelper.accessor('brand', {
+          header: 'Brand',
+          sortFn: 'text',
+          meta: { label: 'Brand' },
+        }),
+        galleryTripHelper.accessor('departure', {
+          header: 'Departure',
+          sortFn: 'text',
+          meta: { label: 'Departure' },
+        }),
+        galleryTripHelper.accessor('price', {
+          header: 'Price',
+          cell: ({ getValue }) => (
+            <span className="tabular-nums">
+              {getValue().toLocaleString('vi-VN')}₫
+            </span>
+          ),
+          sortFn: 'basic',
+          meta: { label: 'Price', align: 'right' },
+        }),
+      ])}
+      data={GALLERY_TRIPS}
+      defaultSorting={[{ id: 'departure', desc: false }]}
+      hidePagination
+    />
+  )
+}
+
+const GALLERY_PAYMENTS: GalleryTrip[] = [
+  ...GALLERY_TRIPS,
+  { id: 't4', route: 'Hà Nội → Sài Gòn', brand: 'Mai Linh', departure: '07:15', price: 650000 },
+  { id: 't5', route: 'Huế → Đà Nẵng', brand: 'Thành Bưởi', departure: '09:45', price: 180000 },
+  { id: 't6', route: 'Nha Trang → Sài Gòn', brand: 'Hoàng Long', departure: '18:30', price: 310000 },
+]
+
+/** Full-featured demo: sorting + column visibility + pagination. */
+function GalleryDataTableDemo() {
+  return (
+    <DataTable
+      columns={galleryTripHelper.columns([
+        galleryTripHelper.accessor('route', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Route" />
+          ),
+          cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
+          sortFn: 'text',
+          meta: { label: 'Route' },
+        }),
+        galleryTripHelper.accessor('brand', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Brand" />
+          ),
+          sortFn: 'text',
+          meta: { label: 'Brand' },
+        }),
+        galleryTripHelper.accessor('departure', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Departure" />
+          ),
+          sortFn: 'text',
+          meta: { label: 'Departure', align: 'right' },
+        }),
+        galleryTripHelper.accessor('price', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Price" />
+          ),
+          cell: ({ getValue }) => (
+            <span className="tabular-nums">{getValue().toLocaleString('vi-VN')}₫</span>
+          ),
+          sortFn: 'basic',
+          meta: { label: 'Price', align: 'right' },
+        }),
+      ])}
+      data={GALLERY_PAYMENTS}
+      rowNoun="chuyến"
+      defaultPageSize={4}
+      showPageSize
+      pageSizeOptions={[2, 4, 6]}
+      toolbar={(table) => (
+        <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+          <DataTableViewOptions table={table} className="ml-auto h-8" />
+        </div>
+      )}
+    />
   )
 }

@@ -163,7 +163,7 @@ export const TripCompare = memo(function TripCompare() {
                         onClick={() => setCompareOpen(false)}
                     />
                     <div
-                        className="fixed inset-0 sm:inset-x-4 sm:top-8 sm:bottom-8 sm:m-auto z-50 sm:max-w-5xl bg-white sm:rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden"
+                        className="fixed inset-0 sm:inset-x-4 sm:top-8 sm:bottom-8 sm:m-auto z-50 sm:max-w-5xl bg-background sm:rounded-2xl ring-1 ring-black/10 dark:ring-white/10 shadow-2xl flex flex-col overflow-hidden"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-linear-to-r from-violet-600 to-fuchsia-600 text-white">
@@ -195,8 +195,8 @@ export const TripCompare = memo(function TripCompare() {
                                 </div>
                             ) : compareList.length === 0 ? (
                                 <div className="p-12 text-center">
-                                    <div className="inline-flex h-14 w-14 rounded-full bg-slate-100 items-center justify-center mb-3">
-                                        <GitCompare className="h-7 w-7 text-slate-400" />
+                                    <div className="inline-flex h-14 w-14 rounded-full bg-muted items-center justify-center mb-3">
+                                        <GitCompare className="h-7 w-7 text-muted-foreground" />
                                     </div>
                                     <h3 className="font-semibold mb-1">Chưa có chuyến để so sánh</h3>
                                     <p className="text-sm text-muted-foreground max-w-sm mx-auto">
@@ -207,8 +207,8 @@ export const TripCompare = memo(function TripCompare() {
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm">
                                         <thead>
-                                            <tr className="border-b">
-                                                <th className="sticky left-0 z-10 bg-white px-4 sm:px-6 py-3 text-left w-32 sm:w-40">
+                                            <tr className="border-b bg-muted/50">
+                                                <th className="sticky left-0 z-10 bg-muted/50 px-4 sm:px-6 py-3 text-left w-32 sm:w-40">
                                                     <span className="text-xs font-semibold uppercase text-muted-foreground">Tiêu chí</span>
                                                 </th>
                                                 {trips.map((t) => (
@@ -243,8 +243,8 @@ export const TripCompare = memo(function TripCompare() {
                                             {COMPARE_ROWS.map((row, idx) => {
                                                 const bestId = getBest(idx)
                                                 return (
-                                                    <tr key={idx} className="border-b last:border-b-0 hover:bg-slate-50/50">
-                                                        <td className="sticky left-0 z-10 bg-white px-4 sm:px-6 py-3 text-xs text-muted-foreground">
+                                                    <tr key={idx} className="border-b last:border-b-0 hover:bg-muted/40 transition-colors">
+                                                        <td className="sticky left-0 z-10 bg-background px-4 sm:px-6 py-3 text-xs text-muted-foreground">
                                                             <div className="flex items-center gap-1.5">
                                                                 {row.icon}
                                                                 {row.label}
@@ -255,7 +255,7 @@ export const TripCompare = memo(function TripCompare() {
                                                             return (
                                                                 <td
                                                                     key={t.tripId}
-                                                                    className={`px-3 sm:px-4 py-3 text-center ${isBest ? 'bg-blue-50/60' : ''
+                                                                    className={`px-3 sm:px-4 py-3 text-center ${isBest ? 'bg-blue-50/60 dark:bg-blue-950/30' : ''
                                                                         }`}
                                                                 >
                                                                     <div className="relative inline-flex flex-col items-center">

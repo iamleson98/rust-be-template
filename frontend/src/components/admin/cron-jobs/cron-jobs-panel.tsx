@@ -10,6 +10,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
 import { AlertTriangle, CalendarClock, Clock, Loader2, Play, RefreshCw, Settings2, Square } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,14 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 
 import {
   useAdminCronJobRuns,
@@ -34,7 +28,7 @@ import {
   useTriggerCronJob,
   useUpdateCronJob,
 } from '@/lib/queries'
-import type { CronJobOut } from '@/lib/api/types.gen'
+import type { CronJobOut, CronJobRunOut } from '@/lib/api/types.gen'
 
 import {
   dateTimeLabel,
@@ -234,6 +228,76 @@ function JobCard({
   )
 }
 
+// ── Run-history table (shared DataTable) ─────────────────────
+
+const runColumnHelper = createColumnHelper<DataTableFeatures, CronJobRunOut>()
+
+const runHistoryColumns = runColumnHelper.columns([
+  runColumnHelper.accessor('jobType', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Tác vụ" />,
+    cell: ({ getValue }) => <code className="text-xs">{getValue()}</code>,
+    sortFn: 'text',
+    meta: { label: 'Tác vụ' },
+  }),
+  runColumnHelper.accessor('status', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+    cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+    sortFn: 'text',
+    meta: { label: 'Trạng thái' },
+  }),
+  runColumnHelper.accessor((run) => run.startedAt ?? run.createdAt, {
+    id: 'startedAt',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Bắt đầu" />,
+    cell: ({ row }) => (
+      <span className="text-sm tabular-nums">
+        {dateTimeLabel(row.original.startedAt ?? row.original.createdAt)}
+      </span>
+    ),
+    sortFn: 'datetime',
+    meta: { label: 'Bắt đầu' },
+  }),
+  runColumnHelper.accessor((run) => run.finishedAt ?? run.startedAt ?? run.createdAt, {
+    id: 'duration',
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Thời lượng" />,
+    cell: ({ row }) => {
+      const run = row.original
+      return (
+        <span className="text-sm tabular-nums">
+          {run.status === 'running' || run.status === 'queued'
+            ? elapsedLabel(run.startedAt) ?? '—'
+            : durationLabel(run.startedAt, run.finishedAt) ?? '—'}
+        </span>
+      )
+    },
+    sortFn: 'datetime',
+    meta: { label: 'Thời lượng' },
+  }),
+  runColumnHelper.display({
+    id: 'detail',
+    header: 'Chi tiết / lỗi',
+    cell: ({ row }) => {
+      const run = row.original
+      return run.error ? (
+        <span
+          className="block max-w-[320px] truncate text-xs text-rose-600 dark:text-rose-400"
+          title={run.error}
+        >
+          {run.error}
+        </span>
+      ) : (
+        <span
+          className="block max-w-[320px] truncate text-xs text-muted-foreground"
+          title={progressMessage(run.detail) ?? undefined}
+        >
+          {progressMessage(run.detail) ?? '—'}
+        </span>
+      )
+    },
+    enableSorting: false,
+    meta: { label: 'Chi tiết / lỗi' },
+  }),
+])
+
 export function CronJobsPanel() {
   const jobsQuery = useAdminCronJobs()
   const runsQuery = useAdminCronJobRuns()
@@ -380,59 +444,16 @@ export function CronJobsPanel() {
             <div className="p-4">
               <Skeleton className="h-40 w-full" />
             </div>
-          ) : runs.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-              Chưa có lượt chạy nào được ghi lại.
-            </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/80">
-                  <TableHead>Tác vụ</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Bắt đầu</TableHead>
-                  <TableHead>Thời lượng</TableHead>
-                  <TableHead className="min-w-[240px]">Chi tiết / lỗi</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {runs.map((run) => (
-                  <TableRow key={run.id} className="hover:bg-slate-50/60">
-                    <TableCell>
-                      <code className="text-xs">{run.jobType}</code>
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={run.status} />
-                    </TableCell>
-                    <TableCell className="tabular-nums text-sm">
-                      {dateTimeLabel(run.startedAt ?? run.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-sm tabular-nums">
-                      {run.status === 'running' || run.status === 'queued'
-                        ? elapsedLabel(run.startedAt) ?? '—'
-                        : durationLabel(run.startedAt, run.finishedAt) ?? '—'}
-                    </TableCell>
-                    <TableCell className="max-w-[320px]">
-                      {run.error ? (
-                        <span
-                          className="block truncate text-xs text-rose-600 dark:text-rose-400"
-                          title={run.error}
-                        >
-                          {run.error}
-                        </span>
-                      ) : (
-                        <span
-                          className="block truncate text-xs text-muted-foreground"
-                          title={progressMessage(run.detail) ?? undefined}
-                        >
-                          {progressMessage(run.detail) ?? '—'}
-                        </span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable
+              columns={runHistoryColumns}
+              data={runs}
+              rowNoun="lượt chạy"
+              hidePagination
+              emptyTitle="Chưa có lượt chạy nào được ghi lại"
+              emptyDescription="Lịch sử sẽ xuất hiện sau lần chạy đầu tiên."
+              emptyIcon={<CalendarClock className="h-5 w-5" aria-hidden />}
+            />
           )}
         </CardContent>
       </Card>

@@ -23,6 +23,13 @@
  */
 
 import { useMemo, useState, useCallback, useEffect } from 'react'
+import { createColumnHelper, type SortingState } from '@tanstack/react-table'
+import {
+  DataTable,
+  DataTableColumnHeader,
+  DataTableViewOptions,
+  type DataTableFeatures,
+} from '@/components/data-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -54,8 +61,6 @@ import {
   Download,
   Filter,
   X,
-  ChevronLeft,
-  ChevronRight,
   CalendarRange,
   DollarSign,
   CheckCircle2,
@@ -70,7 +75,6 @@ import {
   RotateCcw,
   AlertCircle,
   RefreshCw,
-  ChevronsUpDown,
 } from 'lucide-react'
 import { format, parseISO, isValid, differenceInCalendarDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -85,6 +89,7 @@ import {
 import type {
   AdminBookingFilter,
 } from '@/lib/queries'
+import type { AdminBookingOut } from '@/lib/api/types.gen'
 
 import { BookingStatusBadge, KpiCard } from '@/components/admin/dashboard/badges'
 import { downloadCSV } from '@/components/admin/dashboard/helpers'
@@ -112,14 +117,22 @@ const RANGE_OPTIONS: { value: string; label: string }[] = [
   { value: 'custom', label: 'Tùy chỉnh' },
 ]
 
-const SORT_OPTIONS: { value: string; label: string }[] = [
-  { value: 'created_desc', label: 'Mới nhất' },
-  { value: 'created_asc', label: 'Cũ nhất' },
-  { value: 'total_desc', label: 'Giá cao → thấp' },
-  { value: 'total_asc', label: 'Giá thấp → cao' },
-  { value: 'departure_asc', label: 'Ngày đi gần nhất' },
-  { value: 'departure_desc', label: 'Ngày đi xa nhất' },
-]
+// ── Server-side sort mapping ─────────────────────────────────
+// Only these columns are sortable — the API `sort` param drives the order,
+// so column headers map to (and from) the same values as the old select.
+const SORT_COLUMN_BY_API: Record<string, string> = {
+  created: 'createdAt',
+  total: 'total',
+}
+const SORT_API_BY_COLUMN: Record<string, { asc: string; desc: string }> = {
+  createdAt: { asc: 'created_asc', desc: 'created_desc' },
+  total: { asc: 'total_asc', desc: 'total_desc' },
+}
+
+const bookingColumnHelper = createColumnHelper<
+  DataTableFeatures,
+  AdminBookingOut
+>()
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -219,9 +232,91 @@ export function TicketsPanel() {
     setFilter((f) => ({ ...f, range, offset: 0 }))
   }, [])
 
-  const setSortFilter = useCallback((sort: string) => {
-    setFilter((f) => ({ ...f, sort }))
+  // ── Server-side sorting state (driven by the column headers) ──
+  const sorting = useMemo(() => {
+    const [key, dir] = (filter.sort ?? 'created_desc').split('_')
+    return [{ id: SORT_COLUMN_BY_API[key] ?? 'createdAt', desc: dir !== 'asc' }]
+  }, [filter.sort])
+
+  const handleSortingChange = useCallback((next: SortingState) => {
+    const first = next[0]
+    if (!first) {
+      setFilter((f) => ({ ...f, sort: 'created_desc', offset: 0 }))
+      return
+    }
+    const map = SORT_API_BY_COLUMN[first.id]
+    if (!map) return
+    setFilter((f) => ({ ...f, sort: first.desc ? map.desc : map.asc, offset: 0 }))
   }, [])
+
+  // Table columns — only `createdAt`/`total` are sortable (server-backed);
+  // cell closures use stable setters so the defs stay memoised.
+  const columns = useMemo(
+    () =>
+      bookingColumnHelper.columns([
+        bookingColumnHelper.accessor('code', {
+          header: 'Mã vé',
+          cell: ({ getValue }) => (
+            <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
+              {getValue()}
+            </span>
+          ),
+          enableSorting: false,
+          enableHiding: false,
+          meta: { label: 'Mã vé' },
+        }),
+        bookingColumnHelper.accessor('contactName', {
+          header: 'Hành khách',
+          cell: ({ row }) => (
+            <div>
+              <div className="text-xs font-medium">{row.original.contactName ?? '—'}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {row.original.contactPhone ?? ''}
+              </div>
+            </div>
+          ),
+          enableSorting: false,
+          meta: { label: 'Hành khách', cellClassName: 'hidden md:table-cell' },
+        }),
+        bookingColumnHelper.display({
+          id: 'route',
+          header: 'Tuyến',
+          cell: ({ row }) => (
+            <div className="text-xs">
+              {row.original.pickupName ?? '—'} → {row.original.dropoffName ?? '—'}
+            </div>
+          ),
+          meta: { label: 'Tuyến', cellClassName: 'hidden xl:table-cell' },
+        }),
+        bookingColumnHelper.accessor('createdAt', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Ngày đặt" />
+          ),
+          cell: ({ getValue }) => (
+            <span className="text-xs text-muted-foreground" title={getValue()}>
+              {timeAgo(getValue())}
+            </span>
+          ),
+          meta: { label: 'Ngày đặt' },
+        }),
+        bookingColumnHelper.accessor('total', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Tổng tiền" />
+          ),
+          cell: ({ getValue }) => (
+            <div className="text-xs font-semibold tabular-nums">{formatVND(getValue())}</div>
+          ),
+          meta: { label: 'Tổng tiền', align: 'right' },
+        }),
+        bookingColumnHelper.accessor('status', {
+          header: 'Trạng thái',
+          cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
+          enableSorting: false,
+          meta: { label: 'Trạng thái' },
+        }),
+      ]),
+    [],
+  )
 
   const setDateRange = useCallback((from: string, to: string) => {
     setFilter((f) => ({
@@ -231,14 +326,6 @@ export function TicketsPanel() {
       dateTo: to || undefined,
       offset: 0,
     }))
-  }, [])
-
-  const goPrevPage = useCallback(() => {
-    setFilter((f) => ({ ...f, offset: Math.max(0, (f.offset ?? 0) - PAGE_SIZE) }))
-  }, [])
-
-  const goNextPage = useCallback(() => {
-    setFilter((f) => ({ ...f, offset: (f.offset ?? 0) + PAGE_SIZE }))
   }, [])
 
   const resetFilters = useCallback(() => {
@@ -273,9 +360,6 @@ export function TicketsPanel() {
   const totals = statsQuery.data?.totals
   const total = bookingsQuery.data?.total ?? 0
   const offset = filter.offset ?? 0
-  const page = Math.floor(offset / PAGE_SIZE) + 1
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
   const activeFilterCount = useMemo(() => {
     let n = 0
     if (filter.brandId) n++
@@ -364,20 +448,6 @@ export function TicketsPanel() {
                 </SelectTrigger>
                 <SelectContent>
                   {RANGE_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={filter.sort} onValueChange={setSortFilter}>
-                <SelectTrigger className="h-9 w-full sm:w-40">
-                  <ChevronsUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
                       {o.label}
                     </SelectItem>
@@ -585,83 +655,48 @@ export function TicketsPanel() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {bookingsQuery.isLoading ? (
-            <div className="p-4 space-y-2">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : bookingsQuery.data && bookingsQuery.data.items.length > 0 ? (
-            <>
-              {/* Desktop table — hidden on small screens */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-y sticky top-0">
-                    <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                      <th className="py-2.5 px-3 font-semibold">Mã vé</th>
-                      <th className="py-2.5 px-3 font-semibold">Hành khách</th>
-                      <th className="py-2.5 px-3 font-semibold">Tuyến</th>
-                      <th className="py-2.5 px-3 font-semibold">Ngày đi</th>
-                      <th className="py-2.5 px-3 font-semibold text-center">Ghế</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Tổng tiền</th>
-                      <th className="py-2.5 px-3 font-semibold">Trạng thái</th>
-                      <th className="py-2.5 px-3 font-semibold">Tạo lúc</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {bookingsQuery.data.items.map((b) => (
-                      <tr
-                        key={b.id}
-                        onClick={() => setSelectedBookingId(b.id)}
-                        className="cursor-pointer hover:bg-blue-50/40 transition-colors"
-                      >
-                        <td className="py-2.5 px-3">
-                          <div className="font-mono text-xs font-bold text-blue-700">{b.code}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="font-medium text-xs">{b.contactName ?? '—'}</div>
-                          <div className="text-[10px] text-muted-foreground">{b.contactPhone ?? ''}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="text-xs">
-                            {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
-                          </div>
-                        </td>
-                        <td className="py-2.5 px-3 text-xs">
-                          {timeAgo(b.createdAt)}
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <Badge variant="outline" className="text-[10px]">
-                            {b.code}
-                          </Badge>
-                        </td>
-                        <td className="py-2.5 px-3 text-right">
-                          <div className="font-semibold text-xs">{formatVND(b.total)}</div>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <BookingStatusBadge status={b.status} />
-                        </td>
-                        <td className="py-2.5 px-3 text-[10px] text-muted-foreground">
-                          {timeAgo(b.createdAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <DataTable
+            columns={columns}
+            data={bookingsQuery.data?.items ?? []}
+            rowNoun="vé"
+            manualPagination
+            totalRowCount={total}
+            pageIndex={Math.floor(offset / PAGE_SIZE)}
+            onPageIndexChange={(next) =>
+              setFilter((f) => ({ ...f, offset: next * PAGE_SIZE }))
+            }
+            pageSize={PAGE_SIZE}
+            manualSorting
+            sorting={sorting}
+            onSortingChange={handleSortingChange}
+            isLoading={bookingsQuery.isLoading}
+            isError={bookingsQuery.isError}
+            onRetry={() => bookingsQuery.refetch()}
+            onRowClick={(b) => setSelectedBookingId(b.id)}
+            rowAriaLabel={(b) => `Xem chi tiết vé ${b.code}`}
+            rowClassName="card-hover-lift"
+            emptyTitle="Chưa có vé nào"
+            emptyDescription="Thử thay đổi bộ lọc hoặc mở rộng khoảng thời gian."
+            emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
+            toolbar={(table) => (
+              <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+                <DataTableViewOptions table={table} className="ml-auto h-8" />
               </div>
-
-              {/* Mobile card list — shown only on small screens */}
-              <div className="lg:hidden divide-y">
-                {bookingsQuery.data.items.map((b) => (
+            )}
+            mobileList={
+              <div className="divide-y">
+                {(bookingsQuery.data?.items ?? []).map((b) => (
                   <button
                     key={b.id}
                     onClick={() => setSelectedBookingId(b.id)}
-                    className="w-full p-3 text-left hover:bg-slate-50 transition-colors"
+                    className="w-full p-3 text-left hover:bg-slate-50 transition-colors dark:hover:bg-accent/40"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-blue-700">{b.code}</span>
+                          <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
+                            {b.code}
+                          </span>
                           <BookingStatusBadge status={b.status} />
                         </div>
                         <div className="text-xs font-medium mt-1 truncate">
@@ -678,48 +713,8 @@ export function TicketsPanel() {
                   </button>
                 ))}
               </div>
-
-              {/* Pagination */}
-              <div className="flex items-center justify-between gap-2 p-3 border-t bg-slate-50/50">
-                <div className="text-xs text-muted-foreground">
-                  Hiển thị {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} / {total} vé
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={goPrevPage}
-                    disabled={offset === 0}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xs px-2">
-                    Trang {page} / {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0"
-                    onClick={goNextPage}
-                    disabled={offset + PAGE_SIZE >= total}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="p-8 text-center">
-              <div className="inline-flex h-14 w-14 rounded-full bg-slate-100 items-center justify-center mb-3">
-                <TicketIcon className="h-7 w-7 text-slate-400" />
-              </div>
-              <h3 className="font-semibold text-sm">Chưa có vé nào</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Thử thay đổi bộ lọc hoặc mở rộng khoảng thời gian.
-              </p>
-            </div>
-          )}
+            }
+          />
         </CardContent>
       </Card>
 

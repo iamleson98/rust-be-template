@@ -23,8 +23,10 @@
  */
 
 import { useMemo, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import {
   DollarSign,
   Bus,
@@ -58,6 +60,80 @@ function rangeToApi(range: DateRange): string {
   if (range === '30d') return '30d'
   return '90d'
 }
+
+// ── "Recent bookings" table columns (shared DataTable) ────────
+
+const recentColumnHelper = createColumnHelper<DataTableFeatures, AdminBookingOut>()
+
+const recentBookingsColumns = recentColumnHelper.columns([
+  recentColumnHelper.accessor('code', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Mã vé" />,
+    cell: ({ getValue }) => (
+      <code className="font-mono font-bold text-blue-700 text-xs dark:text-blue-400">
+        {getValue()}
+      </code>
+    ),
+    sortFn: 'text',
+    meta: { label: 'Mã vé' },
+  }),
+  recentColumnHelper.accessor('contactName', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Hành khách" />,
+    cell: ({ getValue }) => <span className="font-medium">{getValue() ?? '—'}</span>,
+    sortFn: 'text',
+    meta: { label: 'Hành khách' },
+  }),
+  recentColumnHelper.display({
+    id: 'route',
+    header: 'Tuyến',
+    cell: ({ row }) => {
+      const routeLabel = [row.original.pickupName, row.original.dropoffName]
+        .filter(Boolean)
+        .join(' → ')
+      return routeLabel ? (
+        <span className="flex items-center gap-1 text-muted-foreground">
+          <MapPin className="h-3 w-3 shrink-0 text-blue-500" aria-hidden />
+          {routeLabel}
+        </span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      )
+    },
+    meta: { label: 'Tuyến', cellClassName: 'hidden md:table-cell' },
+  }),
+  recentColumnHelper.accessor('total', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Giá" />,
+    cell: ({ getValue }) => (
+      <span className="font-semibold tabular-nums">{formatVND(getValue())}</span>
+    ),
+    sortFn: 'basic',
+    meta: { label: 'Giá', align: 'right' },
+  }),
+  recentColumnHelper.accessor('status', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+    cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
+    sortFn: 'text',
+    meta: { label: 'Trạng thái', align: 'center' },
+  }),
+  recentColumnHelper.accessor('createdAt', {
+    header: ({ column }) => <DataTableColumnHeader column={column} title="Thời gian" />,
+    cell: ({ getValue }) => (
+      <span className="text-xs tabular-nums text-muted-foreground">
+        {getValue()
+          ? new Date(getValue()).toLocaleString('vi-VN', {
+              dateStyle: 'short',
+              timeStyle: 'short',
+            })
+          : '—'}
+      </span>
+    ),
+    sortFn: 'datetime',
+    meta: {
+      label: 'Thời gian',
+      align: 'right',
+      cellClassName: 'hidden sm:table-cell',
+    },
+  }),
+])
 
 function formatVNDShort(n: number | null | undefined): string {
   if (n == null) return '—'
@@ -564,58 +640,16 @@ export function StatsOverview({
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 border-b">
-                    <tr>
-                      <th className="text-left font-semibold p-3">Mã vé</th>
-                      <th className="text-left font-semibold p-3">Hành khách</th>
-                      <th className="text-left font-semibold p-3 hidden md:table-cell">Tuyến</th>
-                      <th className="text-right font-semibold p-3">Giá</th>
-                      <th className="text-center font-semibold p-3">Trạng thái</th>
-                      <th className="text-right font-semibold p-3 hidden sm:table-cell">Thời gian</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {recentBookings.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="p-6 text-center text-xs text-muted-foreground">
-                          Chưa có vé đặt nào
-                        </td>
-                      </tr>
-                    ) : (
-                      recentBookings.slice(0, 5).map((b) => {
-                        const routeLabel = [b.pickupName, b.dropoffName].filter(Boolean).join(' → ')
-                        return (
-                          <tr key={b.id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="p-3">
-                              <code className="font-mono font-bold text-blue-700 text-xs">{b.code}</code>
-                            </td>
-                            <td className="p-3 font-medium">{b.contactName ?? '—'}</td>
-                            <td className="p-3 text-muted-foreground hidden md:table-cell">
-                              {routeLabel ? (
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="h-3 w-3 text-blue-500 shrink-0" />
-                                  {routeLabel}
-                                </div>
-                              ) : (
-                                '—'
-                              )}
-                            </td>
-                            <td className="p-3 text-right font-semibold">{formatVND(b.total)}</td>
-                            <td className="p-3 text-center">
-                              <BookingStatusBadge status={b.status} />
-                            </td>
-                            <td className="p-3 text-right text-muted-foreground text-xs hidden sm:table-cell">
-                              {b.createdAt ? new Date(b.createdAt).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : '—'}
-                            </td>
-                          </tr>
-                        )
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={recentBookingsColumns}
+                data={recentBookings.slice(0, 5)}
+                rowNoun="vé"
+                hidePagination
+                defaultSorting={[{ id: 'createdAt', desc: true }]}
+                emptyTitle="Chưa có vé đặt nào"
+                emptyDescription="Vé sẽ xuất hiện ở đây khi có khách đặt."
+                emptyIcon={<Ticket className="h-5 w-5" aria-hidden />}
+              />
             </CardContent>
           </Card>
         </div>

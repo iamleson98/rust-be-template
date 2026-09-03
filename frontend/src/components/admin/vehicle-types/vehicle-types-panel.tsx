@@ -6,11 +6,12 @@
  * The managed vehicle-class catalog (limousine, sleeper, 11-seater, …)
  * that feeds the schedule form's "Loại xe" picker and the public trip
  * search filter. Searchable + paginated table (offset paging, same
- * pattern as the tickets panel), create/edit dialog and a delete
- * confirmation.
+ * pattern as the tickets panel) on the shared TanStack Table-based
+ * DataTable, create/edit dialog and a delete confirmation.
  */
 
 import { useMemo, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
 import { Bus, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -28,16 +29,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 
+import {
+  DataTable,
+  DataTableColumnHeader,
+  type DataTableFeatures,
+} from '@/components/data-table'
 import {
   useAdminVehicleTypes,
   useDeleteAdminVehicleType,
@@ -47,6 +44,8 @@ import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
 import { VehicleTypeFormDialog } from './vehicle-type-form'
 
 const PAGE_SIZE = 20
+
+const columnHelper = createColumnHelper<DataTableFeatures, AdminVehicleTypeOut>()
 
 export function VehicleTypesPanel() {
   const [search, setSearch] = useState('')
@@ -64,7 +63,6 @@ export function VehicleTypesPanel() {
 
   const items = (query.data?.items ?? []) as AdminVehicleTypeOut[]
   const total = query.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const onSearchChange = (v: string) => {
     setSearch(v)
@@ -94,6 +92,115 @@ export function VehicleTypesPanel() {
 
   const busy = deleteMutation.isPending
 
+  // Column cells only close over stable setState setters, so the defs
+  // themselves are stable (sorting/visibility state is keyed by column
+  // id and survives data refreshes).
+  const columns = useMemo(
+    () =>
+      columnHelper.columns([
+        columnHelper.accessor('sortOrder', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="#" />,
+          cell: ({ getValue }) => (
+            <span className="text-xs tabular-nums text-muted-foreground">{getValue()}</span>
+          ),
+          sortFn: 'basic',
+          meta: { label: 'Thứ tự', cellClassName: 'w-14' },
+        }),
+        columnHelper.accessor('label', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Tên hiển thị" />
+          ),
+          cell: ({ row }) => (
+            <div className="font-medium">
+              {row.original.label}
+              {row.original.description ? (
+                <p
+                  className="max-w-[16rem] truncate text-[11px] text-muted-foreground"
+                  title={row.original.description}
+                >
+                  {row.original.description}
+                </p>
+              ) : null}
+            </div>
+          ),
+          sortFn: 'text',
+          meta: { label: 'Tên hiển thị' },
+        }),
+        columnHelper.accessor('code', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Mã" />,
+          cell: ({ getValue }) => (
+            <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {getValue()}
+            </code>
+          ),
+          sortFn: 'text',
+          meta: { label: 'Mã' },
+        }),
+        columnHelper.accessor('totalSeats', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Số ghế" />
+          ),
+          cell: ({ getValue }) => (
+            <span className="tabular-nums">{getValue() ? `${getValue()} chỗ` : '—'}</span>
+          ),
+          sortFn: 'basic',
+          meta: { label: 'Số ghế' },
+        }),
+        columnHelper.accessor('status', {
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title="Trạng thái" />
+          ),
+          cell: ({ getValue }) =>
+            getValue() === 'active' ? (
+              <Badge
+                variant="outline"
+                className="text-xs border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+              >
+                Đang dùng
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs">
+                Đã ẩn
+              </Badge>
+            ),
+          sortFn: 'text',
+          meta: { label: 'Trạng thái' },
+        }),
+        columnHelper.display({
+          id: 'actions',
+          header: 'Thao tác',
+          cell: ({ row }) => (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditType(row.original)
+                  setDialogOpen(true)
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span className="sr-only">Sửa loại xe</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                onClick={() => setDeleteTarget(row.original)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="sr-only">Xoá loại xe</span>
+              </Button>
+            </div>
+          ),
+          enableSorting: false,
+          enableHiding: false,
+          meta: { align: 'right', label: 'Thao tác' },
+        }),
+      ]),
+    [setEditType, setDialogOpen, setDeleteTarget],
+  )
+
   return (
     <div className="p-3 md:p-6 space-y-4">
       {/* Header */}
@@ -108,13 +215,28 @@ export function VehicleTypesPanel() {
             (limousine, giường nằm, xe 11 chỗ…).
           </p>
         </div>
-        <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Thêm loại xe
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+            aria-label="Làm mới"
+          >
+            {query.isFetching ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Bus className="h-3.5 w-3.5" />
+            )}
+          </Button>
+          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Thêm loại xe
+          </Button>
+        </div>
       </div>
 
-      {/* Search + pagination bar */}
+      {/* Search bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -125,116 +247,35 @@ export function VehicleTypesPanel() {
             className="pl-9"
           />
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {query.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-          <span className="tabular-nums">
-            {total > 0 ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} / ${total}` : '0 kết quả'}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 0 || query.isFetching}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-          >
-            Trước
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= totalPages || query.isFetching}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Sau
-          </Button>
-        </div>
       </div>
 
       {/* Table */}
-      {query.isLoading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : items.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 flex flex-col items-center text-center gap-2">
-            <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
-              <Bus className="h-5 w-5 text-blue-600" />
-            </div>
-            <p className="font-medium">
-              {search ? 'Không tìm thấy loại xe nào' : 'Chưa có loại xe nào'}
-            </p>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              {search
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <DataTable
+            columns={columns}
+            data={items}
+            testId="vehicle-types-table"
+            rowNoun="loại xe"
+            manualPagination
+            totalRowCount={total}
+            pageIndex={page}
+            onPageIndexChange={setPage}
+            pageSize={PAGE_SIZE}
+            hidePaginationOnSinglePage={false}
+            isLoading={query.isLoading}
+            isError={query.isError}
+            onRetry={() => query.refetch()}
+            emptyTitle={search ? 'Không tìm thấy loại xe nào' : 'Chưa có loại xe nào'}
+            emptyDescription={
+              search
                 ? 'Thử từ khoá khác.'
-                : 'Thêm loại xe đầu tiên để dùng trong form tạo lịch trình.'}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden">
-          <Table data-testid="vehicle-types-table">
-            <TableHeader>
-              <TableRow className="bg-slate-50/80">
-                <TableHead className="w-10">#</TableHead>
-                <TableHead>Tên hiển thị</TableHead>
-                <TableHead>Mã</TableHead>
-                <TableHead>Số ghế</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Thao tác</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((t) => (
-                <TableRow key={t.id} className="hover:bg-slate-50/60">
-                  <TableCell className="text-xs text-muted-foreground tabular-nums">
-                    {t.sortOrder}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {t.label}
-                    {t.description ? (
-                      <p className="text-[11px] text-muted-foreground truncate max-w-[16rem]" title={t.description}>
-                        {t.description}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>
-                    <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                      {t.code}
-                    </code>
-                  </TableCell>
-                  <TableCell className="tabular-nums">
-                    {t.totalSeats ? `${t.totalSeats} chỗ` : '—'}
-                  </TableCell>
-                  <TableCell>
-                    {t.status === 'active' ? (
-                      <Badge variant="outline" className="text-xs border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300">
-                        Đang dùng
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">
-                        Đã ẩn
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(t)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-                        onClick={() => setDeleteTarget(t)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      )}
+                : 'Thêm loại xe đầu tiên để dùng trong form tạo lịch trình.'
+            }
+            emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
+          />
+        </CardContent>
+      </Card>
 
       {/* Create / edit dialog */}
       <VehicleTypeFormDialog

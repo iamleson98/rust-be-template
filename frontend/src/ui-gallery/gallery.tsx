@@ -20,6 +20,7 @@ const SECTIONS = [
   'avatar',
   'separator',
   'table',
+  'data-table',
   'breadcrumb',
   'aspect-ratio',
   'pagination',

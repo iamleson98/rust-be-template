@@ -13,6 +13,13 @@
  */
 
 import { useMemo, useState } from 'react'
+import { createColumnHelper } from '@tanstack/react-table'
+import {
+  DataTable,
+  DataTableColumnHeader,
+  DataTableViewOptions,
+  type DataTableFeatures,
+} from '@/components/data-table'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,20 +40,16 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import {
   CreditCard,
   Filter,
-  ChevronLeft,
-  ChevronRight,
   RefreshCw,
   CheckCircle2,
   XCircle,
   Clock,
   Ban,
   Loader2,
-  AlertCircle,
   TrendingUp,
   Wallet,
   Banknote,
@@ -65,6 +68,8 @@ import type {
 } from '@/lib/queries/payments'
 
 const PAGE_SIZE = 15
+
+const paymentColumnHelper = createColumnHelper<DataTableFeatures, AdminPaymentOut>()
 
 const PROVIDER_OPTIONS: { value: string; label: string; icon: React.ReactNode; color: string }[] = [
   { value: 'all', label: 'Tất cả', icon: <Filter className="h-3.5 w-3.5" />, color: 'text-muted-foreground' },
@@ -140,7 +145,6 @@ export function AdminPaymentsPanel() {
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   // Compute KPIs from current page data
   const kpis = useMemo(() => {
@@ -154,6 +158,125 @@ export function AdminPaymentsPanel() {
       totalCount: total,
     }
   }, [items, total])
+
+  // Table columns — rebuilt when the currency or mutation-pending state
+  // changes; all dialog setters below are stable setState references.
+  const columns = useMemo(
+    () =>
+      paymentColumnHelper.columns([
+        paymentColumnHelper.accessor((p) => p.bookingCode ?? p.bookingId.slice(0, 8), {
+          id: 'code',
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Mã vé" />,
+          cell: ({ getValue }) => (
+            <span className="font-mono text-xs font-semibold">{getValue()}</span>
+          ),
+          sortFn: 'text',
+          meta: { label: 'Mã vé' },
+        }),
+        paymentColumnHelper.accessor('provider', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Phương thức" />,
+          cell: ({ getValue }) => <ProviderBadge provider={getValue()} />,
+          sortFn: 'text',
+          meta: { label: 'Phương thức' },
+        }),
+        paymentColumnHelper.accessor('status', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+          cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+          sortFn: 'text',
+          meta: { label: 'Trạng thái' },
+        }),
+        paymentColumnHelper.accessor('amount', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Số tiền" />,
+          cell: ({ getValue }) => (
+            <span className="font-bold tabular-nums">{formatCurrency(getValue(), currency)}</span>
+          ),
+          sortFn: 'basic',
+          meta: { label: 'Số tiền', align: 'right' },
+        }),
+        paymentColumnHelper.accessor('providerTxnRef', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Tham chiếu" />,
+          cell: ({ getValue }) => (
+            <span className="font-mono text-xs text-muted-foreground">
+              {getValue().slice(0, 14)}
+              {getValue().length > 14 ? '…' : ''}
+            </span>
+          ),
+          sortFn: 'text',
+          meta: { label: 'Tham chiếu' },
+        }),
+        paymentColumnHelper.accessor('createdAt', {
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Thời gian" />,
+          cell: ({ getValue }) => (
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {new Date(getValue()).toLocaleString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          ),
+          sortFn: 'datetime',
+          meta: { label: 'Thời gian' },
+        }),
+        paymentColumnHelper.display({
+          id: 'actions',
+          header: 'Thao tác',
+          cell: ({ row }) => {
+            const p = row.original
+            return (
+              // Keep row-level click-to-open from firing on action buttons.
+              <div
+                className="flex items-center justify-end gap-1"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                {p.status === 'pending' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => setActionDialog({ type: 'cancel', payment: p })}
+                  >
+                    Huỷ
+                  </Button>
+                )}
+                {p.status === 'pending' && p.provider === 'cod' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => {
+                      setActionDialog({ type: 'mark_collected', payment: p })
+                      setActionAmount(String(p.amount))
+                    }}
+                  >
+                    Đã thu
+                  </Button>
+                )}
+                {p.status === 'completed' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                    disabled={updateStatus.isPending}
+                    onClick={() => setActionDialog({ type: 'refund', payment: p })}
+                  >
+                    Hoàn tiền
+                  </Button>
+                )}
+              </div>
+            )
+          },
+          enableSorting: false,
+          enableHiding: false,
+          meta: { align: 'right', label: 'Thao tác' },
+        }),
+      ]),
+    [currency, updateStatus.isPending, setActionDialog, setActionAmount],
+  )
 
   const handleSubmitAction = async () => {
     if (!actionDialog) return
@@ -291,124 +414,37 @@ export function AdminPaymentsPanel() {
       </Card>
 
       {/* ── Table / Cards ─────────────────────────────────── */}
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-4 space-y-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-14 w-full rounded-lg" />
-              ))}
-            </div>
-          ) : isError ? (
-            <div className="p-12 text-center">
-              <AlertCircle className="h-10 w-10 text-rose-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground">Không tải được danh sách giao dịch</p>
-              <p className="text-xs text-muted-foreground mt-1">Vui lòng thử lại sau.</p>
-              <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => refetch()}>
-                <RefreshCw className="h-3.5 w-3.5" /> Thử lại
-              </Button>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="p-12 text-center">
-              <CreditCard className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground">Chưa có giao dịch nào</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {statusFilter !== 'all' || providerFilter !== 'all'
-                  ? 'Thử thay đổi bộ lọc.'
-                  : 'Giao dịch sẽ xuất hiện ở đây khi có khách đặt vé.'}
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Desktop table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-xs text-muted-foreground border-b">
-                    <tr>
-                      <th className="text-left px-4 py-2.5 font-medium">Mã vé</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Phương thức</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Trạng thái</th>
-                      <th className="text-right px-4 py-2.5 font-medium">Số tiền</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Tham chiếu</th>
-                      <th className="text-left px-4 py-2.5 font-medium">Thời gian</th>
-                      <th className="text-right px-4 py-2.5 font-medium">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {items.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="hover:bg-muted/30 cursor-pointer transition-colors card-hover-lift"
-                        onClick={() => setSelectedPayment(p)}
-                      >
-                        <td className="px-4 py-3">
-                          <span className="font-mono font-semibold text-xs">
-                            {p.bookingCode ?? p.bookingId.slice(0, 8)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3"><ProviderBadge provider={p.provider} /></td>
-                        <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                        <td className="px-4 py-3 text-right font-bold tabular-nums">
-                          {formatCurrency(p.amount, currency)}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                          {p.providerTxnRef.slice(0, 14)}
-                          {p.providerTxnRef.length > 14 ? '…' : ''}
-                        </td>
-                        <td className="px-4 py-3 text-xs text-muted-foreground">
-                          {new Date(p.createdAt).toLocaleString('vi-VN', {
-                            day: '2-digit', month: '2-digit',
-                            hour: '2-digit', minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1">
-                            {p.status === 'pending' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                                disabled={updateStatus.isPending}
-                                onClick={() => setActionDialog({ type: 'cancel', payment: p })}
-                              >
-                                Huỷ
-                              </Button>
-                            )}
-                            {p.status === 'pending' && p.provider === 'cod' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                                disabled={updateStatus.isPending}
-                                onClick={() => {
-                                  setActionDialog({ type: 'mark_collected', payment: p })
-                                  setActionAmount(String(p.amount))
-                                }}
-                              >
-                                Đã thu
-                              </Button>
-                            )}
-                            {p.status === 'completed' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-                                disabled={updateStatus.isPending}
-                                onClick={() => setActionDialog({ type: 'refund', payment: p })}
-                              >
-                                Hoàn tiền
-                              </Button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <DataTable
+            columns={columns}
+            data={items}
+            rowNoun="giao dịch"
+            manualPagination
+            totalRowCount={total}
+            pageIndex={page}
+            onPageIndexChange={setPage}
+            pageSize={PAGE_SIZE}
+            isLoading={isLoading}
+            isError={isError}
+            onRetry={() => refetch()}
+            onRowClick={(p) => setSelectedPayment(p)}
+            rowAriaLabel={(p) => `Xem chi tiết giao dịch ${p.bookingCode ?? p.bookingId.slice(0, 8)}`}
+            rowClassName="card-hover-lift"
+            emptyTitle="Chưa có giao dịch nào"
+            emptyDescription={
+              statusFilter !== 'all' || providerFilter !== 'all'
+                ? 'Thử thay đổi bộ lọc.'
+                : 'Giao dịch sẽ xuất hiện ở đây khi có khách đặt vé.'
+            }
+            emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
+            toolbar={(table) => (
+              <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+                <DataTableViewOptions table={table} className="ml-auto h-8" />
               </div>
-
-              {/* Mobile cards */}
-              <div className="md:hidden divide-y divide-border/50">
+            )}
+            mobileList={
+              <div className="divide-y divide-border/50">
                 {items.map((p) => (
                   <div
                     key={p.id}
@@ -429,8 +465,10 @@ export function AdminPaymentsPanel() {
                     </div>
                     <div className="text-xs text-muted-foreground mt-1.5">
                       {new Date(p.createdAt).toLocaleString('vi-VN', {
-                        day: '2-digit', month: '2-digit',
-                        hour: '2-digit', minute: '2-digit',
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
                       })}
                     </div>
                     {(p.status === 'pending' || p.status === 'completed') && (
@@ -476,37 +514,8 @@ export function AdminPaymentsPanel() {
                   </div>
                 ))}
               </div>
-            </>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t px-4 py-2.5 text-xs">
-              <span className="text-muted-foreground">
-                Trang {page + 1} / {totalPages}
-              </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  disabled={page >= totalPages - 1}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          )}
+            }
+          />
         </CardContent>
       </Card>
 
