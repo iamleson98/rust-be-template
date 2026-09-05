@@ -11,6 +11,7 @@ use crate::auth::SessionUser;
 use crate::config::{Config, CookieConfig, JwtConfig};
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
+use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 use crate::store::CompositeStore;
 
 /// Result of a successful login or refresh — what the route handler needs
@@ -73,11 +74,16 @@ impl AuthService {
 
     /// Register a new user account.
     /// - Regular users get the `user` role.
-    /// - The first registered user gets the `admin` role (bootstrapping
-    ///   the system administrator — full permissions). They can then
-    ///   log in via `/api/auth/employee-login` to access the admin
-    ///   dashboard, and can mint `employee` accounts from the Users
-    ///   admin page.
+    /// - The first registered HUMAN user gets the `admin` role
+    ///   (bootstrapping the system administrator — full permissions).
+    ///   The check counts non-bot rows so the NullClaw bot account
+    ///   never suppresses the bootstrap promotion.
+    ///   They can then log in via `/api/auth/employee-login` to access
+    ///   the admin dashboard, and can mint `employee` accounts from
+    ///   the Users admin page.
+    /// - On first signup the NullClaw bot support account is created
+    ///   with the `employee` role + `is_bot = true` (see
+    ///   [`Self::ensure_bot_account`]).
     pub async fn register(
         &self,
         email: String,
@@ -88,9 +94,11 @@ impl AuthService {
         validate_username(&username)?;
         validate_password(&password)?;
 
-        // Check if this is the first user (will become admin)
-        let user_count = self.store.user_store().count_users().await?;
-        let is_first_user = user_count == 0;
+        // Check if this is the first HUMAN user (will become admin).
+        // `count_human_users` excludes the NullClaw bot row so a DB
+        // containing only the bot still promotes the next registrant.
+        let human_count = self.store.user_store().count_human_users().await?;
+        let is_first_user = human_count == 0;
 
         let password_arc = self.password.clone();
         let pwd_for_hash = password.clone();
@@ -107,21 +115,51 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // If this is first time setup, then also create nullclaw agent.
-        // The bot gets the `user` role — it is NOT staff, so presence /
-        // assignment logic must never consider it (its `is_bot = true`
-        // flag is the primary filter, the role is defense-in-depth).
+        // If this is first time setup, then also create the NullClaw
+        // bot support account. The bot carries the `employee` role (it
+        // staffs the support queue and answers chats when no human is
+        // online) with `is_bot = true` — human-only code paths
+        // (first-admin bootstrap, last-admin guard, presence /
+        // chat-assignment routing) filter on that flag.
         if is_first_user {
-            let _ = self
+            match self
                 .store
                 .user_store()
-                .create_user(
-                    "nullclaw_agent@example.com".into(),
+                .create_bot_user(
+                    NULLCLAW_BOT_EMAIL.to_string(),
                     "nullclaw_agent".into(),
                     "hashed_password".into(),
-                    "user".into(),
                 )
-                .await?;
+                .await
+            {
+                Ok(bot) => {
+                    // Grant the employee RBAC role so permission checks
+                    // treat the bot as operational staff.
+                    if let Ok(roles) = self.store.rbac_store().list_roles().await {
+                        if let Some(role) = roles.iter().find(|r| r.name == "employee") {
+                            if let Err(e) = self
+                                .store
+                                .rbac_store()
+                                .assign_role(bot.id, role.id)
+                                .await
+                            {
+                                tracing::warn!(
+                                    error = %e,
+                                    "failed to grant the employee role to the NullClaw bot"
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    // Non-fatal: chat degrades gracefully without the
+                    // bot row (AI replies skip the sender id).
+                    tracing::warn!(
+                        error = %e,
+                        "could not create the NullClaw bot account"
+                    );
+                }
+            }
         }
 
         let roles = self.store.rbac_store().list_roles().await?;
@@ -243,7 +281,7 @@ impl AuthService {
     ///   3. Otherwise, create a new user with `email_verified_at = now`
     ///      (the provider verified the email).
     ///
-    /// Role assignment mirrors `register()`: first user → `employee`,
+    /// Role assignment mirrors `register()`: first HUMAN user → `admin`,
     /// others → `user`.
     pub async fn register_oauth_user(
         &self,
@@ -253,8 +291,8 @@ impl AuthService {
         subject: String,
         avatar_url: Option<String>,
     ) -> AppResult<user::Model> {
-        let user_count = self.store.user_store().count_users().await?;
-        let is_first_user = user_count == 0;
+        let human_count = self.store.user_store().count_human_users().await?;
+        let is_first_user = human_count == 0;
         let role_name = if is_first_user { "admin" } else { "user" };
 
         let model = self
@@ -292,6 +330,64 @@ impl AuthService {
             .await
             .map_err(|e| AppError::Internal(format!("failed to check roles: {e}")))?;
         Ok(perms.role_names.iter().any(|role| role != "user"))
+    }
+
+    /// Ensure the NullClaw bot support account exists in its canonical
+    /// state: `role = "employee"`, `is_bot = true`, employee RBAC
+    /// grant attached.
+    ///
+    /// Called once at server bootstrap so databases set up before the
+    /// three-role split (where the bot was created as a plain `user`
+    /// with `is_bot = false`) self-heal on the next boot — no data
+    /// migration needed. A no-op when the bot row is already
+    /// canonical; a no-op when the bot doesn't exist yet (it is created
+    /// at first-human signup).
+    pub async fn ensure_bot_account(&self) -> AppResult<()> {
+        // 1. Fix the role/is_bot columns on the bot row (if it exists
+        //    and isn't canonical).
+        if let Some(bot) = self
+            .store
+            .user_store()
+            .normalize_bot_account(NULLCLAW_BOT_EMAIL)
+            .await?
+        {
+            tracing::info!(
+                bot_id = %bot.id,
+                "normalized NullClaw bot account to role=employee, is_bot=true"
+            );
+        }
+
+        // 2. Ensure the employee RBAC grant is attached (databases
+        //    where signup ran before the grant logic shipped).
+        let bot = self
+            .store
+            .user_store()
+            .get_user_by_email(NULLCLAW_BOT_EMAIL.to_string())
+            .await?;
+        let Some(bot) = bot else {
+            return Ok(()); // not created yet — first signup will handle it
+        };
+
+        let perms = self
+            .store
+            .rbac_store()
+            .get_user_permissions(bot.id)
+            .await
+            .map_err(|e| AppError::Internal(format!("failed to load bot roles: {e}")))?;
+        if perms.role_names.iter().any(|r| r == "employee") {
+            return Ok(()); // grant already present
+        }
+
+        let roles = self.store.rbac_store().list_roles().await?;
+        if let Some(role) = roles.iter().find(|r| r.name == "employee") {
+            self.store
+                .rbac_store()
+                .assign_role(bot.id, role.id)
+                .await
+                .map_err(|e| AppError::Internal(format!("failed to grant bot role: {e}")))?;
+            tracing::info!(bot_id = %bot.id, "granted the employee role to the NullClaw bot");
+        }
+        Ok(())
     }
 
     /// Find a user by email. Used by webhook handlers to find/create

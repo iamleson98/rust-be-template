@@ -820,7 +820,9 @@ async fn handle_read(
     let now = chrono::Utc::now().to_rfc3339();
 
     // Best-effort: clear unread counter for the appropriate side.
-    let side = if user.is_employee() {
+    // Staff = employee OR admin — an admin reading the channel must
+    // clear the employee-side badge, not the customer side.
+    let side = if user.is_staff() {
         "employee"
     } else {
         "user"

@@ -649,7 +649,7 @@
             "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden — employee role required"
+            "description": "Forbidden — staff (employee or admin) role required"
           }
         }
       },

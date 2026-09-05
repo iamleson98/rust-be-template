@@ -27,6 +27,27 @@ pub trait UserStore: Send + Sync {
         password_hash: String,
         role: String,
     ) -> StoreResult<user::Model>;
+    /// Create the NullClaw bot support account: the `employee` role
+    /// with `is_bot = true`. The bot staffs the support queue (it is a
+    /// channel member and posts AI replies), but every human-only code
+    /// path — first-admin bootstrap, last-admin demotion guard,
+    /// presence / chat-assignment routing — filters on
+    /// `is_bot = false`, so the bot can never masquerade as a human
+    /// staff member.
+    async fn create_bot_user(
+        &self,
+        email: String,
+        username: String,
+        password_hash: String,
+    ) -> StoreResult<user::Model>;
+    /// Normalize an existing NullClaw bot account to the canonical
+    /// state (`role = "employee"`, `is_bot = true`). Returns the
+    /// updated model when a row was changed, `None` when the bot
+    /// doesn't exist yet or is already canonical. Self-heals databases
+    /// created before the three-role refactor without a data
+    /// migration.
+    async fn normalize_bot_account(&self, email: &str)
+        -> StoreResult<Option<user::Model>>;
     /// Look up a user by their OAuth `(provider, subject)` pair.
     /// Returns `None` if no user is linked to this OAuth identity yet.
     async fn get_user_by_oauth(
@@ -55,6 +76,10 @@ pub trait UserStore: Send + Sync {
     ) -> StoreResult<user::Model>;
     async fn delete_user(&self, id: Uuid) -> StoreResult<()>;
     async fn count_users(&self) -> StoreResult<u64>;
+    /// Count non-bot (human) users. The first-HUMAN bootstrap check for
+    /// the admin promotion at signup — the NullClaw bot row must never
+    /// suppress the promotion (e.g. after all humans were deleted).
+    async fn count_human_users(&self) -> StoreResult<u64>;
     /// Paginated list of users, newest first. Used by `UserService::list`.
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>>;
     /// Find the first non-bot staff member (role "admin" or
@@ -79,34 +104,17 @@ impl DbUserStore {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
     }
-}
 
-impl RetryPolicy for DbUserStore {}
-
-#[async_trait]
-#[retry]
-impl UserStore for DbUserStore {
-    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model> {
-        user::Entity::find_by_id(id)
-            .one(self.db.as_ref())
-            .await?
-            .ok_or_else(|| StoreError::NotFound(format!("user {id}")))
-    }
-
-    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>> {
-        Ok(user::Entity::find()
-            .filter(user::Column::Email.eq(email))
-            .one(self.db.as_ref())
-            .await?)
-    }
-
-    #[store_macros::no_retry]
-    async fn create_user(
+    /// Shared INSERT behind [`UserStore::create_user`] (humans) and
+    /// [`UserStore::create_bot_user`] (the NullClaw bot) — identical
+    /// column set, differing only in the `is_bot` flag.
+    async fn insert_user(
         &self,
         email: String,
         full_name: String,
         password_hash: String,
         role: String,
+        is_bot: bool,
     ) -> StoreResult<user::Model> {
         let now = Utc::now();
         let id = Uuid::new_v4();
@@ -126,7 +134,7 @@ impl UserStore for DbUserStore {
             avatar_url: Set(None),
             locale: Set("vi".into()),
             is_guest: Set(false),
-            is_bot: Set(false),
+            is_bot: Set(is_bot),
             role: Set(role.clone()),
             failed_login_attempts: Set(0),
             locked_until: Set(None),
@@ -157,7 +165,7 @@ impl UserStore for DbUserStore {
                 avatar_url: None,
                 locale: "vi".into(),
                 is_guest: false,
-                is_bot: false,
+                is_bot,
                 role,
                 failed_login_attempts: 0,
                 locked_until: None,
@@ -176,6 +184,61 @@ impl UserStore for DbUserStore {
                 }
             }
         }
+    }
+}
+
+impl RetryPolicy for DbUserStore {}
+
+#[async_trait]
+#[retry]
+impl UserStore for DbUserStore {
+    async fn get_user(&self, id: Uuid) -> StoreResult<user::Model> {
+        user::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| StoreError::NotFound(format!("user {id}")))
+    }
+
+    async fn get_user_by_email(&self, email: String) -> StoreResult<Option<user::Model>> {
+        Ok(user::Entity::find()
+            .filter(user::Column::Email.eq(email))
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn create_user(
+        &self,
+        email: String,
+        full_name: String,
+        password_hash: String,
+        role: String,
+    ) -> StoreResult<user::Model> {
+        Self::insert_user(self, email, full_name, password_hash, role, false).await
+    }
+
+    async fn create_bot_user(
+        &self,
+        email: String,
+        username: String,
+        password_hash: String,
+    ) -> StoreResult<user::Model> {
+        Self::insert_user(self, email, username, password_hash, "employee".into(), true).await
+    }
+
+    async fn normalize_bot_account(&self, email: &str)
+        -> StoreResult<Option<user::Model>> {
+        let Some(existing) = self.get_user_by_email(email.to_string()).await? else {
+            return Ok(None);
+        };
+        if existing.is_bot && existing.role == "employee" {
+            return Ok(None);
+        }
+        let mut active: user::ActiveModel = existing.into();
+        active.role = Set("employee".into());
+        active.is_bot = Set(true);
+        active.updated_at = Set(Utc::now());
+        Ok(Some(active.update(self.db.as_ref()).await?))
     }
 
     async fn get_user_by_oauth(
@@ -300,6 +363,13 @@ impl UserStore for DbUserStore {
         Ok(user::Entity::find().count(self.db.as_ref()).await?)
     }
 
+    async fn count_human_users(&self) -> StoreResult<u64> {
+        Ok(user::Entity::find()
+            .filter(user::Column::IsBot.eq(false))
+            .count(self.db.as_ref())
+            .await?)
+    }
+
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>> {
         Ok(user::Entity::find()
             .order_by_desc(user::Column::CreatedAt)
@@ -408,6 +478,28 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
             .await
     }
 
+    async fn create_bot_user(
+        &self,
+        email: String,
+        username: String,
+        password_hash: String,
+    ) -> StoreResult<user::Model> {
+        self.inner
+            .create_bot_user(email, username, password_hash)
+            .await
+    }
+
+    async fn normalize_bot_account(&self, email: &str)
+        -> StoreResult<Option<user::Model>> {
+        let updated = self.inner.normalize_bot_account(email).await?;
+        // The bot's `role` / `is_bot` columns changed — drop the cached
+        // entity so SessionUser::from_model sees the fresh state.
+        if let Some(m) = &updated {
+            let _ = self.cache.delete(&user_key(m.id)).await;
+        }
+        Ok(updated)
+    }
+
     async fn get_user_by_oauth(
         &self,
         provider: &str,
@@ -443,6 +535,10 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         self.inner.count_users().await
     }
 
+    async fn count_human_users(&self) -> StoreResult<u64> {
+        self.inner.count_human_users().await
+    }
+
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>> {
         // List queries aren't cached — they need fresh results every call.
         self.inner.list_users(limit, offset).await
@@ -459,6 +555,14 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
     }
 
     async fn set_user_role(&self, user_id: Uuid, role: &str) -> StoreResult<user::Model> {
-        self.inner.set_user_role(user_id, role).await
+        let updated = self.inner.set_user_role(user_id, role).await?;
+        // The `role` column changed — drop the cached entity row so
+        // SessionUser::from_model (WS hubs, AdminUser extractor) sees
+        // the fresh role instead of the stale cached copy until TTL.
+        // The RBAC grant cache (`rbac:perms:{id}`) is already dropped
+        // by CacheRbacStore on assign/revoke.
+        let _ = self.cache.delete(&user_key(user_id)).await;
+        let _ = self.cache.delete(&perms_key(user_id)).await;
+        Ok(updated)
     }
 }

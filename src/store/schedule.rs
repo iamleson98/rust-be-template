@@ -222,9 +222,14 @@ impl ScheduleStore for DbScheduleStore {
             base = base.filter(bus_layout::Column::BrandId.eq(brand_uuid));
         }
         let total = base.clone().count(self.db.as_ref()).await?;
-        let mut query = base.offset(offset);
-        if let Some(limit) = limit {
-            query = query.limit(limit);
+        // SQLite requires LIMIT before OFFSET. "No limit" (limit = None)
+        // with a non-zero offset is encoded as the maximum page size;
+        // a zero offset skips OFFSET entirely.
+        let mut query = base;
+        match limit {
+            Some(l) => query = query.limit(l).offset(offset),
+            None if offset > 0 => query = query.limit(i64::MAX as u64).offset(offset),
+            None => {}
         }
         let items = query.all(self.db.as_ref()).await?;
         Ok(BusLayoutPage { items, total })

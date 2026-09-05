@@ -62,7 +62,7 @@ pub async fn list_exchanges(
     Query(q): Query<ListExchangesQuery>,
 ) -> Result<Json<NullclawExchangeListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_NULLCLAW_READ)
+        .require(admin.user_id(), rbac::ADMIN_NULLCLAW_READ)
         .await?;
     let rows = st
         .chats

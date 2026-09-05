@@ -202,6 +202,20 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         password.clone(),
         config_arc.clone(),
     ));
+
+    // ---- NullClaw bot account self-heal ─────────────────────────────
+    // Databases set up before the three-role split created the bot as a
+    // plain `user` with `is_bot = false`. Normalize it (role=employee,
+    // is_bot=true, employee RBAC grant) so presence / chat routing and
+    // the admin dashboard behave identically on old and new databases.
+    // Best-effort: a failure here degrades to a warning (chat falls
+    // back gracefully when the bot row is missing).
+    if let Err(e) = auth_service.ensure_bot_account().await {
+        tracing::warn!(
+            error = %e,
+            "could not normalize the NullClaw bot account — it will be created at first signup"
+        );
+    }
     let user_service = Arc::new(UserService::new(store.clone()));
     let post_service = Arc::new(PostService::new(store.clone()));
 

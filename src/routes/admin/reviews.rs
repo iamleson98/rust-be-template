@@ -32,7 +32,7 @@ pub async fn list(
     Query(q): Query<AdminReviewsQuery>,
 ) -> Result<Json<AdminReviewListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
+        .require(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
         .await?;
     Ok(Json(
         st.admin
@@ -69,7 +69,7 @@ pub async fn moderate(
 ) -> Result<Json<ModerateReviewResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
+        .require(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
         .await?;
     Ok(Json(st.admin.update_review_status(id, &body).await?))
 }
@@ -93,7 +93,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
+        .require(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
         .await?;
     // Admin can delete any review — pass None for caller_user_id.
     st.reviews.remove(id, None).await?;

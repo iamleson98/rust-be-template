@@ -33,7 +33,7 @@ pub async fn list(
     Query(q): Query<AdminRoutesQuery>,
 ) -> Result<Json<AdminRouteListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ROUTES_READ)
+        .require(admin.user_id(), rbac::ADMIN_ROUTES_READ)
         .await?;
     Ok(Json(
         st.admin
@@ -66,7 +66,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
     Ok(Json(st.admin.create_route(&body).await?))
 }
@@ -93,7 +93,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
     Ok(Json(st.admin.update_route(id, &body).await?))
 }
@@ -117,7 +117,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
     Ok(Json(st.admin.delete_route(id).await?))
 }

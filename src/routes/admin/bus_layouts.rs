@@ -29,7 +29,7 @@ pub async fn list(
     Query(q): Query<AdminBusLayoutsQuery>,
 ) -> Result<Json<AdminBusLayoutListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BUS_LAYOUTS_READ)
+        .require(admin.user_id(), rbac::ADMIN_BUS_LAYOUTS_READ)
         .await?;
     Ok(Json(
         st.admin

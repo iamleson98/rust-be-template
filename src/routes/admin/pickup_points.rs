@@ -33,7 +33,7 @@ pub async fn list(
     Query(q): Query<AdminPickupPointsQuery>,
 ) -> Result<Json<AdminPickupPointListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_READ)
+        .require(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_READ)
         .await?;
     let route_id = q
         .route_id
@@ -62,7 +62,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
         .await?;
     Ok(Json(st.admin.create_pickup_point(&body).await?))
 }
@@ -89,7 +89,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
         .await?;
     Ok(Json(st.admin.update_pickup_point(id, &body).await?))
 }
@@ -113,7 +113,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_PICKUP_POINTS_WRITE)
         .await?;
     st.admin.delete_pickup_point(id).await?;
     Ok(())

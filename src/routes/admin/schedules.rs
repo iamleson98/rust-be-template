@@ -32,7 +32,7 @@ pub async fn list(
     Query(q): Query<AdminSchedulesQuery>,
 ) -> Result<Json<AdminScheduleListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_SCHEDULES_READ)
+        .require(admin.user_id(), rbac::ADMIN_SCHEDULES_READ)
         .await?;
     let route_id_str = q.route_id.map(|u| u.to_string());
     let route_id = route_id_str
@@ -60,7 +60,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
         .await?;
     Ok(Json(st.admin.create_schedule(&body).await?))
 }
@@ -87,7 +87,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
         .await?;
     Ok(Json(st.admin.update_schedule(id, &body).await?))
 }
@@ -111,7 +111,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_SCHEDULES_WRITE)
         .await?;
     st.admin.delete_schedule(id).await?;
     Ok(())

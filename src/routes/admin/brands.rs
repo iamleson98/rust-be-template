@@ -1,7 +1,7 @@
 //! Admin — Brand routes (`/api/admin/brands`).
 //!
-//! Each handler requires the `AdminUser` extractor (authenticated + employee
-//! role check) + an RBAC permission check at the route layer.
+//! Each handler requires the `AdminUser` extractor (authenticated + staff
+//! (employee OR admin) role check) + an RBAC permission check at the route layer.
 
 use axum::extract::{Path, State};
 use axum::routing::{get, put};
@@ -23,7 +23,7 @@ use crate::state::AppState;
     responses(
         (status = 200, description = "Brand list", body = AdminBrandListResponse),
         (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden — employee role required"),
+        (status = 403, description = "Forbidden — staff (employee or admin) role required"),
     )
 )]
 pub async fn list(
@@ -31,7 +31,7 @@ pub async fn list(
     admin: AdminUser,
 ) -> Result<Json<AdminBrandListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BRANDS_READ)
+        .require(admin.user_id(), rbac::ADMIN_BRANDS_READ)
         .await?;
     Ok(Json(st.admin.list_brands().await?))
 }
@@ -55,7 +55,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
     Ok(Json(st.admin.create_brand(&body).await?))
 }
@@ -82,7 +82,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
     Ok(Json(st.admin.update_brand(id, &body).await?))
 }
@@ -106,7 +106,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_BRANDS_WRITE)
         .await?;
     Ok(Json(st.admin.delete_brand(id).await?))
 }

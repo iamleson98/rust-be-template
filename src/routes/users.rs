@@ -98,7 +98,7 @@ pub async fn list_users(
     AuthUser(user_id): AuthUser,
     Query(q): Query<ListUsersQuery>,
 ) -> AppResult<Json<UserListResponse>> {
-    state.rbac.check(user_id, rbac::USERS_READ).await?;
+    state.rbac.require(user_id, rbac::USERS_READ).await?;
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
     let (users, total) = state.users.list_page(limit, offset).await?;
@@ -124,7 +124,7 @@ pub async fn get_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<UserOut>> {
-    state.rbac.check(user_id, rbac::USERS_READ).await?;
+    state.rbac.require(user_id, rbac::USERS_READ).await?;
     let user = state.users.get(id).await?;
     Ok(Json(UserOut::from(user)))
 }
@@ -150,7 +150,7 @@ pub async fn delete_user(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> AppResult<()> {
-    state.rbac.check(user_id, rbac::USERS_DELETE).await?;
+    state.rbac.require(user_id, rbac::USERS_DELETE).await?;
     state.users.delete(id).await?;
     Ok(())
 }
@@ -190,7 +190,7 @@ pub async fn set_user_role(
     }
     state
         .rbac
-        .check(user_id, rbac::ADMIN_USERS_MANAGE_ROLES)
+        .require(user_id, rbac::ADMIN_USERS_MANAGE_ROLES)
         .await?;
     let updated = state.users.set_role(id, &body.role).await?;
     Ok(Json(SetUserRoleResponse {

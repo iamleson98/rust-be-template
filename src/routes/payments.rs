@@ -174,7 +174,7 @@ pub async fn mark_cod_collected(
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)
         .await?;
     Ok(Json(
         st.payments
@@ -367,7 +367,7 @@ pub async fn list_admin_payments(
     Query(q): Query<AdminPaymentsQuery>,
 ) -> Result<Json<AdminPaymentListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PAYMENTS_READ)
+        .require(admin.user_id(), rbac::ADMIN_PAYMENTS_READ)
         .await?;
     let limit = q.limit.unwrap_or(20).min(200);
     let offset = q.offset.unwrap_or(0);
@@ -407,7 +407,7 @@ pub async fn update_payment_status(
         .map_err(|e| AppError::Validation(e.to_string()))?;
     body.validate_status()?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_PAYMENTS_WRITE)
         .await?;
     Ok(Json(
         st.payments

@@ -1,5 +1,5 @@
 //! Admin routes — all under `/api/admin/*`. Every handler requires the
-//! `AdminUser` extractor (authenticated + employee role check) + an RBAC
+//! `AdminUser` extractor (authenticated + staff (employee OR admin) role check) + an RBAC
 //! permission check at the route layer.
 //!
 //! ## Module layout

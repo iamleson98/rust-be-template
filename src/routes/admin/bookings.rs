@@ -33,7 +33,7 @@ pub async fn list(
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BOOKINGS_READ)
+        .require(admin.user_id(), rbac::ADMIN_BOOKINGS_READ)
         .await?;
     Ok(Json(
         st.admin
@@ -70,7 +70,7 @@ pub async fn get(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminBookingDetailResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BOOKINGS_READ)
+        .require(admin.user_id(), rbac::ADMIN_BOOKINGS_READ)
         .await?;
     Ok(Json(st.admin.get_booking(id).await?))
 }
@@ -97,7 +97,7 @@ pub async fn update_status(
 ) -> Result<Json<UpdateBookingStatusResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_BOOKINGS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_BOOKINGS_WRITE)
         .await?;
     Ok(Json(st.admin.update_booking_status(id, &body).await?))
 }
@@ -120,7 +120,7 @@ pub async fn stats(
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingStatsResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
         .await?;
     Ok(Json(
         st.admin
@@ -150,7 +150,7 @@ pub async fn export(
     admin: AdminUser,
     Query(q): Query<AdminBookingsQuery>,
 ) -> Result<Json<AdminBookingExportResponse>, AppError> {
-    st.rbac.check(admin.user_id(), rbac::ADMIN_EXPORT).await?;
+    st.rbac.require(admin.user_id(), rbac::ADMIN_EXPORT).await?;
     Ok(Json(
         st.admin
             .booking_export(

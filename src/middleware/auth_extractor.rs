@@ -85,12 +85,20 @@ where
     }
 }
 
-/// Admin-only extractor.
+/// Staff-only extractor (employee OR admin).
 ///
 /// Like `AuthUser`, but additionally loads the full [`SessionUser`] and
-/// verifies the caller has an employee (non-`"user"`) role. Returns:
+/// verifies the caller is STAFF — role `employee` OR `admin` (see
+/// [`SessionUser::is_staff`]). Admins are full support/ops users too:
+/// they manage brands, routes, schedules, bookings and monitor every
+/// support queue. Returns:
 /// - `401 Unauthorized` when no token / invalid token.
-/// - `403 Forbidden` when the caller is authenticated but not an employee.
+/// - `403 Forbidden` when the caller is authenticated but not staff
+///   (i.e. a plain `user`).
+///
+/// Fine-grained authorization still happens per-route via
+/// `st.rbac.require(...)` — this extractor is only the coarse
+/// "is this an operational account" gate.
 ///
 /// The wrapped `SessionUser` is the full identity (id, name, role,
 /// brand_id, ...) — useful for handlers that need to scope writes by
@@ -126,8 +134,8 @@ where
                 tracing::debug!(error = ?e, "admin token verify failed");
                 AppError::Unauthorized("invalid or expired token".into())
             })?;
-        if !session.is_employee() {
-            return Err(AppError::Forbidden("admin access required".into()));
+        if !session.is_staff() {
+            return Err(AppError::Forbidden("staff access required".into()));
         }
         Ok(AdminUser(session))
     }

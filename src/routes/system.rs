@@ -131,7 +131,7 @@ pub async fn system_status(
     admin: AdminUser,
 ) -> AppResult<Json<SystemStatusResponse>> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
         .await?;
 
     // ── Uptime ────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ pub async fn chat_stats(
     admin: AdminUser,
 ) -> AppResult<Json<ChatStatsResponse>> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
         .await?;
     let stats = st.chats.chat_stats().await?;
     Ok(Json(stats))

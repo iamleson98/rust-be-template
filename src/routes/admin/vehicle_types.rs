@@ -39,7 +39,7 @@ pub async fn list(
     Query(q): Query<AdminVehicleTypesQuery>,
 ) -> Result<Json<AdminVehicleTypeListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_READ)
+        .require(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_READ)
         .await?;
     Ok(Json(
         st.admin
@@ -73,7 +73,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
         .await?;
     Ok(Json(st.admin.create_vehicle_type(&body).await?))
 }
@@ -102,7 +102,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
         .await?;
     Ok(Json(st.admin.update_vehicle_type(id, &body).await?))
 }
@@ -128,7 +128,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_VEHICLE_TYPES_WRITE)
         .await?;
     st.admin.delete_vehicle_type(id).await?;
     Ok(Json(AdminMutationResponse { id }))

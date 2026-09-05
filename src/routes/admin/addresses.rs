@@ -38,7 +38,7 @@ pub async fn list(
     Query(q): Query<AdminAddressesQuery>,
 ) -> Result<Json<AdminAddressListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ADDRESSES_READ)
+        .require(admin.user_id(), rbac::ADMIN_ADDRESSES_READ)
         .await?;
     let brand_id = q
         .brand_id
@@ -76,7 +76,7 @@ pub async fn create(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
         .await?;
     Ok(Json(st.admin.create_address(&body).await?))
 }
@@ -104,7 +104,7 @@ pub async fn update(
 ) -> Result<Json<AdminMutationResponse>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
         .await?;
     Ok(Json(st.admin.update_address(id, &body).await?))
 }
@@ -129,7 +129,7 @@ pub async fn delete(
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_ADDRESSES_WRITE)
         .await?;
     st.admin.delete_address(id).await?;
     Ok(())

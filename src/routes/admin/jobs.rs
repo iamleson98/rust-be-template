@@ -34,7 +34,7 @@ pub async fn list(
     admin: AdminUser,
 ) -> Result<Json<CronJobListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_READ)
+        .require(admin.user_id(), rbac::ADMIN_CRON_JOBS_READ)
         .await?;
     Ok(Json(st.jobs.list_schedules().await?))
 }
@@ -57,7 +57,7 @@ pub async fn list_runs(
     Query(q): Query<CronJobRunsQuery>,
 ) -> Result<Json<CronJobRunListResponse>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_READ)
+        .require(admin.user_id(), rbac::ADMIN_CRON_JOBS_READ)
         .await?;
     Ok(Json(
         st.jobs.list_runs(q.job_type.as_deref(), q.limit).await?,
@@ -88,7 +88,7 @@ pub async fn update(
 ) -> Result<Json<CronJobOut>, AppError> {
     body.validate().map_err(AppError::from)?;
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
         .await?;
     Ok(Json(st.jobs.update_schedule(&job_type, &body).await?))
 }
@@ -114,7 +114,7 @@ pub async fn trigger(
     Path(job_type): Path<String>,
 ) -> Result<Json<CronJobRunOut>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
         .await?;
     Ok(Json(st.jobs.trigger(&job_type).await?))
 }
@@ -141,7 +141,7 @@ pub async fn cancel(
     Path(job_type): Path<String>,
 ) -> Result<Json<CronJobRunOut>, AppError> {
     st.rbac
-        .check(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
+        .require(admin.user_id(), rbac::ADMIN_CRON_JOBS_WRITE)
         .await?;
     Ok(Json(st.jobs.cancel(&job_type).await?))
 }
