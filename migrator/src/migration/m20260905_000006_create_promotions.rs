@@ -123,7 +123,10 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Reverse dependency order.
-        for table in [DiscountProgram::Table.into_iden(), Campaign::Table.into_iden()] {
+        for table in [
+            DiscountProgram::Table.into_iden(),
+            Campaign::Table.into_iden(),
+        ] {
             manager
                 .drop_table(Table::drop().table(table).if_exists().cascade().to_owned())
                 .await?;

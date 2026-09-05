@@ -27,7 +27,7 @@ pub enum Relation {
         belongs_to = "super::permissions::Entity",
         from = "Column::PermissionId",
         to = "super::permissions::Column::Id",
-        on_update = "NoAction",
+        on_update = "Cascade",
         on_delete = "Cascade"
     )]
     Permissions,
@@ -35,7 +35,7 @@ pub enum Relation {
         belongs_to = "super::roles::Entity",
         from = "Column::RoleId",
         to = "super::roles::Column::Id",
-        on_update = "NoAction",
+        on_update = "Cascade",
         on_delete = "Cascade"
     )]
     Roles,

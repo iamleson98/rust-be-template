@@ -150,10 +150,7 @@ impl MigrationTrait for Migration {
                     .col(pk_uuid(RefreshTokens::Id))
                     .col(uuid(RefreshTokens::UserId))
                     .col(string_len(RefreshTokens::TokenHash, 128))
-                    .col(
-                        timestamp(RefreshTokens::IssuedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(timestamp(RefreshTokens::IssuedAt).default(Expr::current_timestamp()))
                     .col(timestamp(RefreshTokens::ExpiresAt))
                     .col(boolean(RefreshTokens::Revoked).default(false))
                     .col(string_null(RefreshTokens::UserAgent))

@@ -65,7 +65,10 @@ const PERMISSIONS: &[(&str, &str)] = &[
     ("admin:routes:write", "Admin: create/update/delete routes"),
     // Schedules
     ("admin:schedules:read", "Admin: list/view schedules"),
-    ("admin:schedules:write", "Admin: create/update/delete schedules"),
+    (
+        "admin:schedules:write",
+        "Admin: create/update/delete schedules",
+    ),
     // Addresses
     (
         "admin:addresses:read",
@@ -210,14 +213,13 @@ impl MigrationTrait for Migration {
         }
 
         // ── 3. Grants ────────────────────────────────────────────────
-        let grant =
-            |role: &str, perm: &str| -> Option<(Uuid, Uuid)> {
-                let r = role_id(role);
-                perm_ids
-                    .iter()
-                    .find(|(_, n)| *n == perm)
-                    .map(|(p, _)| (r, *p))
-            };
+        let grant = |role: &str, perm: &str| -> Option<(Uuid, Uuid)> {
+            let r = role_id(role);
+            perm_ids
+                .iter()
+                .find(|(_, n)| *n == perm)
+                .map(|(p, _)| (r, *p))
+        };
 
         // admin → every permission.
         for (perm_id, _) in &perm_ids {
@@ -259,10 +261,7 @@ impl MigrationTrait for Migration {
         }
 
         // user → the customer subset.
-        for (role_id_value, perm_id) in USER_PERMS
-            .iter()
-            .filter_map(|p| grant("user", p))
-        {
+        for (role_id_value, perm_id) in USER_PERMS.iter().filter_map(|p| grant("user", p)) {
             let stmt = Query::insert()
                 .into_table(RolePermissions::Table)
                 .columns([
@@ -336,8 +335,7 @@ impl MigrationTrait for Migration {
         let stmt = Query::delete()
             .from_table(Roles::Table)
             .and_where(
-                Expr::col(Roles::Name)
-                    .is_in(ROLES.iter().map(|(n, _)| *n).collect::<Vec<_>>()),
+                Expr::col(Roles::Name).is_in(ROLES.iter().map(|(n, _)| *n).collect::<Vec<_>>()),
             )
             .to_owned();
         manager.exec_stmt(stmt).await?;
@@ -439,7 +437,13 @@ mod tests {
     fn vehicle_type_codes_cover_the_legacy_label_map() {
         // The codes `public_service::vehicle_type_label` knows must be
         // present so bus_layout.vehicle_type strings keep resolving.
-        for legacy in ["limousine", "sleeper", "semi_sleeper", "minivan", "standard"] {
+        for legacy in [
+            "limousine",
+            "sleeper",
+            "semi_sleeper",
+            "minivan",
+            "standard",
+        ] {
             assert!(
                 VEHICLE_TYPES.iter().any(|(code, ..)| *code == legacy),
                 "legacy vehicle type {legacy:?} missing from the seed catalogue"

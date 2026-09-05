@@ -244,7 +244,11 @@ impl MigrationTrait for Migration {
                 vec![SeatInventory::TripSessionId],
                 false,
             ),
-            ("SeatInventory_seatId_idx", vec![SeatInventory::SeatId], false),
+            (
+                "SeatInventory_seatId_idx",
+                vec![SeatInventory::SeatId],
+                false,
+            ),
             (
                 "SeatInventory_tripSessionId_status_idx",
                 vec![SeatInventory::TripSessionId, SeatInventory::Status],

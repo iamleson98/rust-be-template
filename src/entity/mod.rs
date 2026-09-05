@@ -13,7 +13,6 @@ pub mod chat_channel_member;
 pub mod chat_message;
 pub mod discount_program;
 pub mod job_run;
-pub mod jobs;
 pub mod notification;
 pub mod null_claw_exchange;
 pub mod payment;

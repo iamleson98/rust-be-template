@@ -39,10 +39,7 @@ impl MigrationTrait for Migration {
                     .col(pk_uuid(Permissions::Id))
                     .col(string_len_uniq(Permissions::Name, 128))
                     .col(string_null(Permissions::Description))
-                    .col(
-                        timestamp(Permissions::CreatedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(timestamp(Permissions::CreatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
             )
             .await?;
@@ -54,10 +51,7 @@ impl MigrationTrait for Migration {
                     .table(UserRoles::Table)
                     .col(uuid(UserRoles::UserId))
                     .col(uuid(UserRoles::RoleId))
-                    .col(
-                        timestamp(UserRoles::AssignedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(timestamp(UserRoles::AssignedAt).default(Expr::current_timestamp()))
                     .primary_key(
                         Index::create()
                             .col(UserRoles::UserId)
@@ -90,10 +84,7 @@ impl MigrationTrait for Migration {
                     .table(RolePermissions::Table)
                     .col(uuid(RolePermissions::RoleId))
                     .col(uuid(RolePermissions::PermissionId))
-                    .col(
-                        timestamp(RolePermissions::AssignedAt)
-                            .default(Expr::current_timestamp()),
-                    )
+                    .col(timestamp(RolePermissions::AssignedAt).default(Expr::current_timestamp()))
                     .primary_key(
                         Index::create()
                             .col(RolePermissions::RoleId)

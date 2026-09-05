@@ -49,6 +49,14 @@ pub enum Relation {
     SchedulePoint,
     #[sea_orm(has_many = "super::trip_session::Entity")]
     TripSession,
+    #[sea_orm(
+        belongs_to = "super::vehicle_type::Entity",
+        from = "Column::VehicleTypeId",
+        to = "super::vehicle_type::Column::Id",
+        on_update = "Cascade",
+        on_delete = "SetNull"
+    )]
+    VehicleType,
 }
 
 impl Related<super::bus_layout::Entity> for Entity {
@@ -72,6 +80,12 @@ impl Related<super::schedule_point::Entity> for Entity {
 impl Related<super::trip_session::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::TripSession.def()
+    }
+}
+
+impl Related<super::vehicle_type::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::VehicleType.def()
     }
 }
 
