@@ -332,7 +332,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           </div>
 
           {/* ── Map + search overlay ──────────────────────────── */}
-          <div className="relative h-[420px] md:h-auto md:min-h-[480px] bg-slate-100">
+          <div className="relative h-105 md:h-auto md:min-h-120 bg-slate-100">
             <Suspense fallback={MapFallback}>
               <LeafletMap
                 className="h-full w-full"
