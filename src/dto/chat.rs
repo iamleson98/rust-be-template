@@ -68,6 +68,18 @@ pub struct ChatChannelOut {
     /// the channel row, so this is rare).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<ChannelUserOut>,
+    /// The staff member currently assigned to this channel (from the
+    /// active `chat_assignment` row). `None` for unassigned queue
+    /// items. Admins never appear here — they implicitly own every
+    /// channel (member since creation) and no assignment row is
+    /// written for them (three-role spec).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_to: Option<ChannelUserOut>,
+    /// True when the requester IS the assignee (convenience for the
+    /// employee workspace's "my channels" tab). Always `false` for
+    /// customers.
+    #[serde(default)]
+    pub assigned_to_me: bool,
 }
 
 /// Request body for `POST /api/chat/channels/{id}/messages` (REST
@@ -140,6 +152,47 @@ pub struct ChatMessageListResponse {
 #[serde(rename_all = "camelCase")]
 pub struct MarkChannelReadResponse {
     pub ok: bool,
+}
+
+/// Response of the channel assignment actions (`claim` / `release` /
+/// `close`) — the channel state after the action.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChannelAssignmentResponse {
+    pub ok: bool,
+    pub channel: ChatChannelOut,
+}
+
+/// Staff presence entry for `GET /api/presence/staff` + the
+/// `staff_presence` WS broadcast.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StaffPresenceOut {
+    pub user_id: String,
+    pub name: String,
+    /// `"employee"` or `"admin"`.
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_id: Option<String>,
+    pub online: bool,
+    /// Online AND not in a call (i.e. can take new work).
+    pub available: bool,
+    /// Currently handling an audio call.
+    pub busy: bool,
+    pub in_call: bool,
+    /// Channels currently assigned to this staff member.
+    pub active_chats: u64,
+}
+
+/// Response of `GET /api/presence/staff`.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StaffPresenceResponse {
+    pub staff: Vec<StaffPresenceOut>,
+    pub online_count: usize,
+    pub available_count: usize,
+    /// True when NO staff is online — the NullClaw bot owns support.
+    pub bot_active: bool,
 }
 
 /// Response of `GET /api/admin/chat/stats` — aggregate chat stats for

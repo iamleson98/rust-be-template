@@ -71,6 +71,7 @@ import { ChatList } from './chat-list'
 import { ChatConversation } from './chat-conversation'
 import { ChatInput } from './chat-input'
 import { ChatAuthView, ChatLoginRequiredView } from './chat-auth'
+import { isStaffUser } from '@/lib/store'
 
 export function ChatWidget() {
   const { chatOpen, setChatOpen, user: storeUser, setUser: setStoreUser } = useApp()
@@ -99,6 +100,10 @@ export function ChatWidget() {
   const [waitingForAgent, setWaitingForAgent] = useState(false)
   const [employeesOnline, setEmployeesOnline] = useState(0)
   const [agentJoinedName, setAgentJoinedName] = useState<string | null>(null)
+  // Three-role routing: live assignee (from `channel_assigned` events
+  // + channel list refetch) + bot status (no staff online).
+  const [assignee, setAssignee] = useState<{ id: string; name: string; role: string } | null>(null)
+  const [botActive, setBotActive] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const socketRef = useRef<WsClient | null>(null)
@@ -131,7 +136,7 @@ export function ChatWidget() {
   useEffect(() => {
     if (!chatOpen) return
     // Hide the chat button entirely for employees (they have the admin workspace)
-    if (chatUser?.type === 'employee') return
+    if (isStaffUser(chatUser)) return
 
     if (authMe.isLoading) return
     if (authMe.error) {
@@ -148,7 +153,7 @@ export function ChatWidget() {
   }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser])
 
   // Hide the chat button entirely for employees (they have the admin workspace)
-  const isEmployee = storeUser?.type === 'employee' || chatUser?.type === 'employee'
+  const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)
 
   // ─── ESC to close + focus trap (WCAG 2.1.2 + 2.4.3) ───
   useEffect(() => {
@@ -290,11 +295,64 @@ export function ChatWidget() {
     })
 
     ws.on('joined', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; onlineEmployees?: number }
+      const d = data as unknown as {
+        channelId: string
+        onlineEmployees?: number
+        availableEmployees?: number
+        botActive?: boolean
+      }
       if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
         setEmployeesOnline(d.onlineEmployees ?? 0)
+        setBotActive(!!d.botActive)
         setWaitingForAgent(false)
       }
+    })
+
+    // ── Assignment events (three-role routing) ──────────────────
+    //
+    // `channel_assigned` fires when the router picks a staff member
+    // for this channel (first message) or someone claims it. Show
+    // who's handling the conversation in the header.
+    ws.on('channel_assigned', (data: Record<string, unknown>) => {
+      const d = data as unknown as {
+        channelId: string
+        employeeId?: string
+        employeeName?: string
+        role?: string
+      }
+      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
+        if (d.employeeId && d.employeeName) {
+          setAssignee({ id: d.employeeId, name: d.employeeName, role: d.role ?? 'employee' })
+        } else {
+          setAssignee(null)
+        }
+        // A human taking over means the bot isn't the responder.
+        setBotActive(false)
+      }
+    })
+
+    ws.on('channel_released', (data: Record<string, unknown>) => {
+      const d = data as unknown as { channelId: string }
+      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
+        setAssignee(null)
+      }
+    })
+
+    ws.on('channel_closed', (data: Record<string, unknown>) => {
+      const d = data as unknown as { channelId: string }
+      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
+        setAssignee(null)
+      }
+    })
+
+    // Customer-side presence snapshot: the hub only sends
+    // staff_presence to staff sockets, but the per-channel
+    // `joined`/assignment events above cover the customer's needs
+    // (who handles my chat). Keep bot status in sync via
+    // presence events from the room.
+    ws.on('staff_presence', (data: Record<string, unknown>) => {
+      const d = data as unknown as { botActive?: boolean }
+      if (typeof d?.botActive === 'boolean') setBotActive(d.botActive)
     })
 
     ws.on('presence', (data: Record<string, unknown>) => {
@@ -446,6 +504,8 @@ export function ChatWidget() {
     setWaitingForAgent(false)
     setAgentJoinedName(null)
     setEmployeesOnline(0)
+    setAssignee(null)
+    setBotActive(false)
     // Stop the title-flash notification — the user is now viewing the
     // chat, so the attention signal is no longer needed.
     stopTitleNotification()
@@ -645,6 +705,8 @@ export function ChatWidget() {
         activeChannel={activeChannel}
         connected={connected}
         employeesOnline={employeesOnline}
+        assigneeName={assignee?.name ?? null}
+        botActive={botActive}
         onMinimize={() => setChatOpen(false)}
         onClose={() => setChatOpen(false)}
         onBackToList={() => {

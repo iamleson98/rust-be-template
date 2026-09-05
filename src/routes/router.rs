@@ -88,6 +88,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/reviews", crate::routes::reviews::router())
         .nest("/price-alerts", crate::routes::price_alerts::router())
         .nest("/chat", crate::routes::chat::router())
+        .nest("/presence", crate::routes::presence::router())
         .nest("/notifications", crate::routes::notifications::router())
         .nest("/wishlist", crate::routes::wishlist::router())
         .nest("/admin", crate::routes::admin::router())

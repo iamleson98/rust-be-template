@@ -18,6 +18,7 @@ use tracing::Instrument;
 
 use crate::auth::SessionUser;
 use crate::error::AppError;
+use crate::presence::presence;
 use crate::state::AppState;
 use crate::store::chat::NewChatMessage;
 
@@ -192,11 +193,13 @@ pub async fn handle_socket(
 
     let sid = hub().register(user.clone(), ip.clone(), tx);
 
-    // If this is an employee, add to the online-employee index.
-    let user_id = user.id.to_string();
+    // If this is staff (employee OR admin), register their presence
+    // socket and let every staff dashboard know availability changed.
     let brand_id = user.brand_id.map(|id| id.to_string());
-    if user.is_employee() {
-        hub().add_online_employee(&user_id, brand_id.as_deref(), sid);
+    let is_staff = user.is_staff();
+    if is_staff {
+        presence().chat_socket_connected(&user, sid);
+        hub().broadcast_staff_presence(brand_id.as_deref());
     }
 
     tracing::debug!(
@@ -288,8 +291,12 @@ pub async fn handle_socket(
     // ── Teardown ─────────────────────────────────────────────────────────
     let _ = close_tx.send(()).await;
     let _ = write_task.await;
-    // Release global + per-IP slots and remove the session from the hub.
+    // Release global + per-IP slots and remove the session from the hub
+    // (unregister also drops the presence socket for staff).
     hub().unregister(sid);
+    if is_staff {
+        hub().broadcast_staff_presence(brand_id.as_deref());
+    }
     hub().release_ip(&ip);
     hub().release_global();
     tracing::debug!(socket_id = sid, "ws disconnected");
@@ -365,7 +372,11 @@ async fn handle_join(
 
     let brand_id = user.brand_id.map(|id| id.to_string());
 
-    let online_count = hub().count_online_employees(brand_id.as_deref());
+    // Presence snapshot for the newly-joined socket: how many staff are
+    // online / available, and whether the bot currently owns support.
+    let online_count = presence().online_count(brand_id.as_deref());
+    let available_count = presence().available_count(brand_id.as_deref());
+    let bot_active = presence().bot_active(brand_id.as_deref());
     hub().send_to(
         sid,
         &json!({
@@ -373,8 +384,15 @@ async fn handle_join(
             "channelId": channel_id,
             "userId": user.id,
             "onlineEmployees": online_count,
+            "availableEmployees": available_count,
+            "botActive": bot_active,
         }),
     );
+    // Staff joining a room gets the full live staff list immediately
+    // (customers get it via the staff_presence broadcasts instead).
+    if user.is_staff() {
+        hub().send_to(sid, &presence().staff_json(brand_id.as_deref()));
+    }
     Ok(())
 }
 
@@ -550,34 +568,94 @@ async fn handle_message(
     });
     hub().broadcast_to_room(&channel_id, &broadcast);
 
-    // ── Admin attention signal ─────────────────────────────────────
+    // ── Assignment routing + targeted notifications ─────────────
     //
-    // When a customer sends a message, ALSO notify ALL online
-    // employees (regardless of whether they've joined this channel's
-    // room). This is the "new message arrived" notification that
-    // powers the admin dashboard's attention indicator:
+    // When a customer sends a message the service decides (per the
+    // three-role spec) who owns the exchange:
+    //   * assigned + assignee online  → notify THE ASSIGNEE + admins
+    //   * auto-assignment just fired  → notify the new assignee +
+    //     broadcast `channel_assigned` so the customer + dashboards
+    //     see who handles the chat
+    //   * most available person = admin → admins already monitor every
+    //     channel (member since creation) → notify admins only
+    //   * nobody online → the NullClaw bot replies (see below)
     //
-    //   - Admin has no channel open → the channel row in the list
-    //     shows a "new message" badge + the channels query refetches
-    //     (so unread counter + last_message_preview update).
-    //   - Admin has a DIFFERENT channel open → same thing — the
-    //     channel list updates + a toast may fire.
-    //   - Admin has THIS channel open → they already received the
-    //     `message` event via `broadcast_to_room`; this duplicate
-    //     notification is harmless (idempotent invalidation).
-    //
-    // Only fired for `actor_type == "user"` messages — employee
-    // messages (admin replies) don't need to notify other admins.
+    // Employees' own replies never fan out beyond the room — the
+    // customer + anyone watching the channel already got the broadcast.
+    let mut routing: Option<crate::service::chat_service::RoutingOutcome> = None;
     if user.actor_type == "user" {
+        let outcome = match st.chats.route_user_message(&channel_id).await {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::warn!(
+                    channel_id = %channel_id,
+                    error = %e,
+                    "message routing failed — falling back to staff broadcast"
+                );
+                crate::service::chat_service::RoutingOutcome::QueuedForAdmin
+            }
+        };
         let preview: String = text.chars().take(80).collect();
-        hub().broadcast_to_employees(&json!({
+        let notify = json!({
             "type": "channel_message",
             "channelId": channel_id,
             "senderId": user.id,
             "senderName": user.name,
             "preview": preview,
             "createdAt": now,
-        }));
+        });
+        match &outcome {
+            crate::service::chat_service::RoutingOutcome::ToAssignee { employee_id } => {
+                hub().send_to_user(employee_id, &notify);
+                // Admins still monitor the whole queue.
+                hub().broadcast_to_admins(&notify);
+            }
+            crate::service::chat_service::RoutingOutcome::NewlyAssigned { employee_id } => {
+                hub().send_to_user(employee_id, &notify);
+                hub().broadcast_to_admins(&notify);
+                let name = presence()
+                    .get(employee_id)
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| "Nhân viên hỗ trợ".into());
+                hub().broadcast_to_room(
+                    &channel_id,
+                    &json!({
+                        "type": "channel_assigned",
+                        "channelId": channel_id,
+                        "employeeId": employee_id,
+                        "employeeName": name,
+                        "role": "employee",
+                        "status": "assigned",
+                    }),
+                );
+                hub().broadcast_to_staff(&json!({ "type": "channels_changed" }));
+            }
+            crate::service::chat_service::RoutingOutcome::AdminImplicit { admin_id } => {
+                hub().broadcast_to_admins(&notify);
+                let name = presence()
+                    .get(admin_id)
+                    .map(|p| p.name)
+                    .unwrap_or_else(|| "Quản trị viên".into());
+                hub().broadcast_to_room(
+                    &channel_id,
+                    &json!({
+                        "type": "channel_assigned",
+                        "channelId": channel_id,
+                        "employeeId": admin_id,
+                        "employeeName": name,
+                        "role": "admin",
+                        "status": "open",
+                    }),
+                );
+            }
+            crate::service::chat_service::RoutingOutcome::BotFallback
+            | crate::service::chat_service::RoutingOutcome::QueuedForAdmin => {
+                // No specific owner — keep the legacy all-staff signal so
+                // any staff dashboard that reconnects sees the queue.
+                hub().broadcast_to_staff(&notify);
+            }
+        }
+        routing = Some(outcome);
     }
 
     hub().send_to(
@@ -592,8 +670,15 @@ async fn handle_message(
             .await?
             .and_then(|c| c.brand_id);
 
-        let online = hub().count_online_employees(brand_id.map(|id| id.to_string()).as_deref());
+        let online = presence().online_count(brand_id.map(|id| id.to_string()).as_deref());
         let fallback_threshold = st.config.nullclaw.fallback_online_employees;
+        // The bot only answers when the router says no staff is online
+        // (BotFallback). A busy-but-online staff member keeps the bot
+        // off — the message already queued for them.
+        let bot_should_reply = matches!(
+            routing,
+            Some(crate::service::chat_service::RoutingOutcome::BotFallback)
+        );
 
         let chats = st.chats.clone();
         let channel_id2 = channel_id.clone();
@@ -610,19 +695,18 @@ async fn handle_message(
         let span = tracing::Span::current();
         tokio::spawn(
             async move {
-                // Trigger NullClaw only when no admin is online. The user
-                // spec says "if admin is online, system does not trigger
-                // nullclaw, just show chat notification so admin see and
-                // go reply user." — the original message was already
-                // broadcast above (admins see the notification).
+                // Trigger NullClaw only when no staff (employee or
+                // admin) is online — the router already made that
+                // decision (`BotFallback`); the presence re-count here
+                // is a second line of defense against races.
                 //
                 // We also re-check whether the customer is still in the
                 // room right before triggering. If they navigated away,
                 // there's no point in showing the typing indicator (no
                 // one will see it). We still call NullClaw because the
                 // reply is persisted — the user sees it when they return.
-                let admin_online = online >= fallback_threshold;
-                let will_nullclaw_reply = !admin_online;
+                let will_nullclaw_reply =
+                    bot_should_reply && online < fallback_threshold;
 
                 if will_nullclaw_reply {
                     // Only show the typing indicator if the user is still
@@ -802,7 +886,7 @@ pub fn spawn_metrics_logger() {
             tracing::info!(
                 connections = stats.connections,
                 rooms = stats.rooms,
-                online_employee_brands = stats.online_employee_brands,
+                online_employee_brands = stats.online_staff,
                 "ws hub metrics"
             );
         }

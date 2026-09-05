@@ -141,7 +141,13 @@ import {
   postMessageMutation as chatPostMessageMutation,
   createChannelMutation as chatCreateChannelMutation,
   markReadMutation as chatMarkReadMutation,
-} from "@/lib/api/@tanstack/react-query.gen";
+  listUsersOptions,
+  setUserRoleMutation,
+  claimChannelMutation as chatClaimChannelMutation,
+  releaseChannelMutation as chatReleaseChannelMutation,
+  closeChannelMutation as chatCloseChannelMutation,
+  getStaffPresenceOptions,
+} from '@/lib/api/@tanstack/react-query.gen';
 
 // Generated types — re-exported so components can import from here
 import type {
@@ -990,6 +996,60 @@ export function useMarkChatRead<TData = unknown, TVars = unknown>(
 }
 
 // ─────────────────────────────────────────────────────────────
+// Chat assignment actions (three-role routing spec)
+// ─────────────────────────────────────────────────────────────
+
+/** Claim a channel (assign it to the logged-in staff member). */
+export function useClaimChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...chatClaimChannelMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
+      qc.invalidateQueries({ queryKey: ["chatStats"] });
+    },
+  });
+}
+
+/** Release a channel back to the open queue (assignee or admin). */
+export function useReleaseChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...chatReleaseChannelMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
+      qc.invalidateQueries({ queryKey: ["chatStats"] });
+    },
+  });
+}
+
+/** Close a channel (ends any assignment). */
+export function useCloseChannel() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...chatCloseChannelMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
+      qc.invalidateQueries({ queryKey: ["chatStats"] });
+    },
+  });
+}
+
+/**
+ * Staff presence snapshot (REST bootstrap for the admin chat panel's
+ * presence column). The WS `staff_presence` broadcasts keep it live
+ * afterwards — this hook covers first paint + reconnects.
+ */
+export function useStaffPresence() {
+  return useQuery({
+    ...getStaffPresenceOptions(),
+    // WS pushes updates; the REST query is a fallback refresher.
+    refetchInterval: 60 * 1000,
+    staleTime: 15 * 1000,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Campaign validation (for booking dialog)
 // ─────────────────────────────────────────────────────────────
 
@@ -1552,4 +1612,32 @@ export function useCancelCronJob() {
       qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });
     },
   });
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Users (admin role management — three-role model)
+// ─────────────────────────────────────────────────────────────
+
+/** One page of users + total for the admin Users table. */
+export function useUsers(query?: { limit?: number; offset?: number }) {
+  return useQuery({
+    ...listUsersOptions({ query }),
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+  })
+}
+
+/** Change a user's role (admin-only; backend enforces the permission). */
+export function useSetUserRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    ...setUserRoleMutation(),
+    onSuccess: () => {
+      // Refresh the users page (the changed row may reorder).
+      qc.invalidateQueries({ queryKey: ['listUsers'] })
+      // Role changes can flip what this account is allowed to see —
+      // drop the cached /me so guards re-evaluate on next load.
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
 }

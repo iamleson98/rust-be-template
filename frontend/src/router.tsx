@@ -71,6 +71,7 @@ const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) 
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
 const AdminVehicleTypesPage = lazy(() => import('./routes/admin/vehicle-types').then((m) => ({ default: m.AdminVehicleTypesPage })))
 const AdminSystemPage = lazy(() => import('./routes/admin/system').then((m) => ({ default: m.AdminSystemPage })))
+const AdminUsersPage = lazy(() => import('./routes/admin/users').then((m) => ({ default: m.AdminUsersPage })))
 const AdminPaymentsPage = lazy(() => import('./routes/admin/payments').then((m) => ({ default: m.AdminPaymentsPage })))
 // Account pages
 const AccountPage = lazy(() => import('./routes/account').then((m) => ({ default: m.AccountPage })))
@@ -128,6 +129,7 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
   '/admin/vehicle-types': { title: 'Loại xe — Quản trị VeXeVN', description: 'Quản lý danh mục loại xe.' },
   '/admin/system': { title: 'Hệ thống — Quản trị VeXeVN', description: 'Theo dõi hệ thống.' },
+  '/admin/users': { title: 'Người dùng — Quản trị VeXeVN', description: 'Quản lý vai trò người dùng, nhân viên và quản trị viên.' },
   '/admin/payments': { title: 'Thanh toán — Quản trị VeXeVN', description: 'Quản lý giao dịch thanh toán.' },
   '/account': { title: 'Tài khoản — VeXeVN', description: 'Quản lý tài khoản và cài đặt.' },
   '/account/wishlist': { title: 'Yêu thích — VeXeVN', description: 'Danh sách yêu thích.' },
@@ -221,7 +223,7 @@ function ScrollRestoration() {
 // load time (below, before the router is created) so that the
 // `beforeLoad` guard in admin routes can read the user from the store
 // on a page reload. Without this, the store is empty on reload →
-// `user.type !== 'employee'` → redirect to /login.
+// `user.type` is neither 'employee' nor 'admin' → redirect to /login.
 if (typeof window !== 'undefined') {
   hydrateFromStorage()
 }
@@ -498,13 +500,13 @@ const mapRoute = createRoute({
 //
 //   requireAuth()      — must be logged in (any user type). If not,
 //                         redirect to /login.
-//   requireEmployee()   — must be logged in as an employee. If not
-//                         logged in OR not an employee, redirect to /login.
+//   requireStaff()      — must be logged in as staff (employee or
+//                         admin). Otherwise redirect to /login.
 //
 // CRITICAL: the previous guards checked `if (user && user.type !== 'employee')`
 // which is FALSE when `user` is null (unauthenticated). This allowed
 // unauthenticated visitors to access admin pages — the bug we're fixing.
-// The new checks use `!user || user.type !== 'employee'` which correctly
+// The new checks use `!user || !isStaff(user)` which correctly
 // blocks both cases: no user at all, or a non-employee user.
 
 function requireAuth() {
@@ -514,18 +516,29 @@ function requireAuth() {
   }
 }
 
-function requireEmployee() {
+function requireStaff() {
   const { user } = useApp.getState()
-  if (!user || user.type !== 'employee') {
+  // Three-role model: employees AND admins are staff; customers are not.
+  if (!user || (user.type !== 'employee' && user.type !== 'admin')) {
     throw redirect({ to: '/login' })
   }
 }
 
-// Admin route — employee guard.
+/** Admin-only guard — the Users page + other governance screens. */
+function requireAdmin() {
+  const { user } = useApp.getState()
+  if (!user || user.type !== 'admin') {
+    // Staff without admin rights land on the dashboard instead.
+    if (user && user.type === 'employee') throw redirect({ to: '/admin' })
+    throw redirect({ to: '/login' })
+  }
+}
+
+// Admin route — staff guard (employees + admins).
 const adminRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminPage />
@@ -537,7 +550,7 @@ const adminRoute = createRoute({
 const adminBrandsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/brands',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminBrandsPage />
@@ -548,7 +561,7 @@ const adminBrandsRoute = createRoute({
 const adminRoutesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/routes',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminRoutesPage />
@@ -559,7 +572,7 @@ const adminRoutesRoute = createRoute({
 const adminSchedulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/schedules',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminSchedulesPage />
@@ -571,7 +584,7 @@ const adminSchedulesRoute = createRoute({
 const adminVehicleTypesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/vehicle-types',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminVehicleTypesPage />
@@ -583,7 +596,7 @@ const adminVehicleTypesRoute = createRoute({
 const adminCronJobsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/cron-jobs',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminCronJobsPage />
@@ -594,7 +607,7 @@ const adminCronJobsRoute = createRoute({
 const adminTicketsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/tickets',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminTicketsPage />
@@ -605,7 +618,7 @@ const adminTicketsRoute = createRoute({
 const adminChatRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/chat',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminChatPage />
@@ -616,7 +629,7 @@ const adminChatRoute = createRoute({
 const adminReviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/reviews',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminReviewsPage />
@@ -627,7 +640,7 @@ const adminReviewsRoute = createRoute({
 const adminFeedbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/feedback',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminFeedbackPage />
@@ -638,7 +651,7 @@ const adminFeedbackRoute = createRoute({
 const adminBusLayoutsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/bus-layouts',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminBusLayoutsPage />
@@ -649,7 +662,7 @@ const adminBusLayoutsRoute = createRoute({
 const adminSystemRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/system',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminSystemPage />
@@ -657,10 +670,22 @@ const adminSystemRoute = createRoute({
   ),
 })
 
+// Users admin page — ADMIN only (employees redirect to the dashboard).
+const adminUsersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/users',
+  beforeLoad: requireAdmin,
+  component: () => (
+    <Suspense fallback={<IslandFallback minHeight={500} />}>
+      <AdminUsersPage />
+    </Suspense>
+  ),
+})
+
 const adminPaymentsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin/payments',
-  beforeLoad: requireEmployee,
+  beforeLoad: requireStaff,
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <AdminPaymentsPage />
@@ -746,6 +771,7 @@ const accountTripsRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
+  adminUsersRoute,
   indexRoute,
   searchRoute,
   tripDetailRoute,

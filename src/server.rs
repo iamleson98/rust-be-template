@@ -186,6 +186,10 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     ws::spawn_idem_gc();
     ws::spawn_metrics_logger();
 
+    // Staff-presence sweeper — purges leaked entries (missed WS
+    // disconnects) so availability routing never trusts stale state.
+    crate::presence::spawn_sweeper();
+
     // ---- Domain services (pre-built, shared via Arc) -----------------
     // Each service holds its deps directly — no back-reference to
     // AppState, avoiding circular Arc references.

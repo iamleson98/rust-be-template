@@ -111,7 +111,7 @@ pub async fn handle_platform_message(
     hub().broadcast_to_room(&channel_id_str, &broadcast);
 
     // Broadcast to employees for attention signal.
-    hub().broadcast_to_employees(&serde_json::json!({
+    hub().broadcast_to_staff(&serde_json::json!({
         "type": "channel_message",
         "channelId": channel_id_str,
         "senderId": user.id.to_string(),
@@ -121,7 +121,7 @@ pub async fn handle_platform_message(
     }));
 
     // ── 4. Trigger NullClaw AI if no humans online ─────────────────
-    let online = hub().count_online_employees_total();
+    let online = hub().count_online_staff_total();
     let fallback_threshold = st.config.nullclaw.fallback_online_employees;
 
     if online >= fallback_threshold {

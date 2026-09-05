@@ -24,6 +24,8 @@ export function ChatHeader({
   activeChannel,
   connected,
   employeesOnline,
+  assigneeName,
+  botActive,
   onMinimize,
   onClose,
   onBackToList,
@@ -32,6 +34,10 @@ export function ChatHeader({
   activeChannel: Channel | null
   connected: boolean
   employeesOnline: number
+  /** Live assignee name (three-role routing) — null while unassigned. */
+  assigneeName?: string | null
+  /** True when no staff is online — the AI bot owns support. */
+  botActive?: boolean
   onMinimize: () => void
   onClose: () => void
   onBackToList: () => void
@@ -58,13 +64,25 @@ export function ChatHeader({
         </div>
         <div className="min-w-0">
           <div className="font-bold text-sm truncate">{title}</div>
-          <div className="text-[11px] text-rose-100 flex items-center gap-1">
+          <div className="text-[11px] text-rose-100 flex items-center gap-1 truncate">
             {connected ? (
-              <>
-                <CircleCheck className="h-3 w-3 text-emerald-300" />
-                <span>Nhân viên đang trực tuyến</span>
-                {employeesOnline > 0 && <span className="ml-1 opacity-80">• {employeesOnline} NV</span>}
-              </>
+              assigneeName ? (
+                <>
+                  <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
+                  <span className="truncate">{assigneeName} đang hỗ trợ bạn</span>
+                </>
+              ) : botActive ? (
+                <>
+                  <CircleCheck className="h-3 w-3 text-violet-300 shrink-0" />
+                  <span>Trợ lý AI đang hỗ trợ — nhân viên sẽ tiếp nhận sớm</span>
+                </>
+              ) : (
+                <>
+                  <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
+                  <span>Nhân viên đang trực tuyến</span>
+                  {employeesOnline > 0 && <span className="ml-1 opacity-80">• {employeesOnline} NV</span>}
+                </>
+              )
             ) : (
               <>
                 <WifiOff className="h-3 w-3" /> Đang kết nối...

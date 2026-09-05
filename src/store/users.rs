@@ -57,12 +57,17 @@ pub trait UserStore: Send + Sync {
     async fn count_users(&self) -> StoreResult<u64>;
     /// Paginated list of users, newest first. Used by `UserService::list`.
     async fn list_users(&self, limit: u64, offset: u64) -> StoreResult<Vec<user::Model>>;
-    /// Find the first non-bot user with role="employee" — the system
-    /// admin. Used by the chat service to auto-assign an admin to new
-    /// channels. Ordered by `created_at ASC` so we get the FIRST
-    /// registered employee (i.e. the user who signed up first during
-    /// initial setup).
-    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>>;
+    /// Find the first non-bot staff member (role "admin" or
+    /// "employee") — the bootstrap account that owns the support queue
+    /// by default. Ordered by `created_at ASC` so we get the FIRST
+    /// registered staff user. On migrated databases the first account
+    /// was promoted to `admin` (see the three-roles migration).
+    async fn find_first_staff_member(&self) -> StoreResult<Option<user::Model>>;
+    /// Count non-bot users holding a given role ("admin" / "employee").
+    /// Guards the last-admin demotion.
+    async fn count_by_role(&self, role: &str) -> StoreResult<i64>;
+    /// Update a user's role column. RBAC grants are managed separately.
+    async fn set_user_role(&self, user_id: Uuid, role: &str) -> StoreResult<user::Model>;
 }
 
 #[derive(Clone)]
@@ -304,14 +309,33 @@ impl UserStore for DbUserStore {
             .await?)
     }
 
-    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>> {
+    async fn find_first_staff_member(&self) -> StoreResult<Option<user::Model>> {
         Ok(user::Entity::find()
-            .filter(user::Column::Role.eq("employee"))
+            .filter(user::Column::Role.is_in(["admin", "employee"]))
             .filter(user::Column::IsBot.eq(false))
             .order_by_asc(user::Column::CreatedAt)
             .limit(1)
             .one(self.db.as_ref())
             .await?)
+    }
+
+    async fn count_by_role(&self, role: &str) -> StoreResult<i64> {
+        Ok(user::Entity::find()
+            .filter(user::Column::Role.eq(role))
+            .filter(user::Column::IsBot.eq(false))
+            .count(self.db.as_ref())
+            .await? as i64)
+    }
+
+    async fn set_user_role(&self, user_id: Uuid, role: &str) -> StoreResult<user::Model> {
+        let existing = user::Entity::find_by_id(user_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| StoreError::NotFound(format!("user {user_id}")))?;
+        let mut active: user::ActiveModel = existing.into();
+        active.role = Set(role.to_string());
+        active.updated_at = Set(Utc::now());
+        Ok(active.update(self.db.as_ref()).await?)
     }
 }
 
@@ -424,9 +448,17 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         self.inner.list_users(limit, offset).await
     }
 
-    async fn find_first_human_employee(&self) -> StoreResult<Option<user::Model>> {
+    async fn find_first_staff_member(&self) -> StoreResult<Option<user::Model>> {
         // Not cached — the first-employee answer is stable per deployment
         // but we don't want to cache in case an admin is demoted/deleted.
-        self.inner.find_first_human_employee().await
+        self.inner.find_first_staff_member().await
+    }
+
+    async fn count_by_role(&self, role: &str) -> StoreResult<i64> {
+        self.inner.count_by_role(role).await
+    }
+
+    async fn set_user_role(&self, user_id: Uuid, role: &str) -> StoreResult<user::Model> {
+        self.inner.set_user_role(user_id, role).await
     }
 }

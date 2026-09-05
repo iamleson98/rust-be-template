@@ -15,6 +15,7 @@ mod openapi;
 mod payments;
 mod places;
 mod posts;
+mod presence;
 mod price_alerts;
 mod public;
 mod reviews;

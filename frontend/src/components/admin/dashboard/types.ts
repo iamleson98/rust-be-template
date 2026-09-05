@@ -39,6 +39,17 @@ export type AdminChannel = {
     avatarUrl?: string | null
   } | null
   assignments?: { employee: { id: string; name: string } }[]
+  /** The staff member currently assigned (three-role routing). Present
+   *  when the channel has an active `chat_assignment` row; admins own
+   *  every channel implicitly and never appear here. */
+  assignedTo?: {
+    id: string
+    fullName?: string | null
+    email?: string | null
+    avatarUrl?: string | null
+  } | null
+  /** True when the requester IS the assignee (employee workspace). */
+  assignedToMe?: boolean
 }
 
 export type AdminCampaignRow = {

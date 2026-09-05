@@ -17,6 +17,7 @@ use utoipa::OpenApi;
         crate::routes::users::list_users,
         crate::routes::users::get_user,
         crate::routes::users::delete_user,
+        crate::routes::users::set_user_role,
         // posts
         crate::routes::posts::list_posts,
         crate::routes::posts::create_post,
@@ -65,6 +66,10 @@ use utoipa::OpenApi;
         crate::routes::chat::list_messages,
         crate::routes::chat::post_message,
         crate::routes::chat::mark_read,
+        crate::routes::chat::claim_channel,
+        crate::routes::chat::release_channel,
+        crate::routes::chat::close_channel,
+        crate::routes::presence::get_staff_presence,
         // notifications
         crate::routes::notifications::list,
         crate::routes::notifications::mark_read,
@@ -159,6 +164,9 @@ use utoipa::OpenApi;
         crate::routes::auth::AuthResponse,
         // users
         crate::routes::users::UserOut,
+        crate::routes::users::SetUserRoleRequest,
+        crate::routes::users::SetUserRoleResponse,
+        crate::routes::users::UserListResponse,
         // posts
         crate::routes::posts::PostOut,
         crate::routes::posts::CreatePostRequest,
@@ -255,6 +263,9 @@ use utoipa::OpenApi;
         crate::dto::chat::ChatMessageOut,
         crate::dto::chat::ChatMessageListResponse,
         crate::dto::chat::CreateChannelRequest,
+        crate::dto::chat::ChannelAssignmentResponse,
+        crate::dto::chat::StaffPresenceOut,
+        crate::dto::chat::StaffPresenceResponse,
         crate::dto::chat::CreateChannelResponse,
         crate::dto::chat::CreateMessageRequest,
         crate::dto::chat::CreateMessageResponse,

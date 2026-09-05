@@ -144,10 +144,12 @@ type AppState = {
   setPriceAlertContext: (c: AppState['priceAlertContext']) => void
 
   // ── Authenticated user (verified server-side via /api/auth/me). null = guest. ──
+  // Three-role model: `user` (customer) | `employee` (support staff)
+  // | `admin` (first registered account — full permissions + staff duties).
   user: {
     id: string
-    type: 'user' | 'employee'
-    role: 'user' | 'admin' | 'support_agent' | 'support_lead' | 'ops'
+    type: 'user' | 'employee' | 'admin'
+    role: 'user' | 'admin' | 'employee'
     name: string
     phone?: string | null
     email?: string | null
@@ -179,6 +181,18 @@ const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
  *  Call this once in a top-level useEffect (client-only).
  *  NOTE: The `user` field is a fast-cache only — the authoritative source is the
  *  /api/auth/me query (`useAuthMe`), which the router's AuthBootstrap reconciles. */
+/** True when the (fast-cached) user is STAFF — an employee or an admin.
+ *  Admins have full permissions + also act as support agents (chat,
+ *  calls, assignment routing). Use this instead of raw `type === 'employee'`
+ *  checks so the three-role model stays consistent app-wide.
+ *  Accepts the generated SDK `SessionUser` too (its `type` is a loose
+ *  `string`), hence the wide parameter type. */
+export function isStaffUser(
+  user: { type: string } | null | undefined,
+): boolean {
+  return user?.type === 'employee' || user?.type === 'admin'
+}
+
 export function hydrateFromStorage() {
   if (typeof window === 'undefined') return
 
@@ -208,8 +222,9 @@ export function hydrateFromStorage() {
     const raw = localStorage.getItem('bus_user')
     const parsed = raw ? JSON.parse(raw) : null
     if (parsed) {
-      const type = parsed.type === 'employee' ? 'employee' : 'user'
-      const role = parsed.type === 'employee' ? (parsed.employeeRole || 'support_agent') : (parsed.role || 'user')
+      // Three-role model: employees + admins are staff.
+      const type = parsed.type === 'employee' ? 'employee' : parsed.type === 'admin' ? 'admin' : 'user'
+      const role = type === 'user' ? 'user' : type
       user = {
         id: parsed.id,
         type,

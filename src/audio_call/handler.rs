@@ -281,8 +281,12 @@ pub async fn handle_socket(
 
     if let Some(role) = call_hub().unregister(&user_id.to_string(), sid) {
         if role == CallRole::Agent {
-            tracing::info!(user_id = %user_id, "agent went offline — broadcasting to customers");
-            call_hub().broadcast_agent_offline();
+            tracing::info!(user_id = %user_id, "agent went offline");
+            // Multi-agent: only pull customers' calls when the LAST
+            // agent left; otherwise other agents keep serving.
+            if call_hub().online_agent_count() == 0 {
+                call_hub().broadcast_agent_offline();
+            }
         }
         call_hub().broadcast_presence();
     }
@@ -314,11 +318,11 @@ fn do_register(
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
-    // RBAC: only employees may register as agents.
+    // RBAC: only staff (employees OR admins) may register as agents.
     let role = match role_str {
         "agent" => {
-            if !user.is_employee() {
-                return Err("Only employees may register as agents".into());
+            if !user.is_staff() {
+                return Err("Only staff may register as agents".into());
             }
             CallRole::Agent
         }
@@ -360,20 +364,32 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
 
     match kind {
         "offer" => {
+            let customer_id = user.id.to_string();
             let target_id: Option<String> = match role {
                 CallRole::Customer => {
-                    if call_hub().online_agent_count() == 0 {
-                        let _ = call_hub().send_to(
-                            &user.id.to_string(),
-                            &json!({
-                                "type": "error",
-                                "code": "no-agent",
-                                "message": "No agent online right now",
-                            }),
-                        );
-                        return Ok(());
+                    // Redirect to the staff member that is logged in but
+                    // NOT busy (no active call; chat load ranks them).
+                    // Everyone busy → busy signal instead of a random
+                    // agent that would drop the call anyway.
+                    let picked = call_hub().pick_available_agent_id();
+                    match picked {
+                        Some(agent_id) => Some(agent_id),
+                        None => {
+                            let _ = call_hub().send_to(
+                                &customer_id,
+                                &json!({
+                                    "type": "error",
+                                    "code": if call_hub().online_agent_count() == 0 { "no-agent" } else { "agents-busy" },
+                                    "message": if call_hub().online_agent_count() == 0 {
+                                        "No agent online right now"
+                                    } else {
+                                        "All agents are busy right now — please try again shortly"
+                                    },
+                                }),
+                            );
+                            return Ok(());
+                        }
                     }
-                    call_hub().any_online_agent_id()
                 }
                 CallRole::Agent => {
                     if to.is_empty() {
@@ -405,7 +421,12 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                         "kind": "offer",
                     }),
                 );
-                if !sent {
+                if sent {
+                    // Pin the call so ICE + hangup reach the SAME agent.
+                    if role == CallRole::Customer {
+                        call_hub().pin_agent(&customer_id, &tid);
+                    }
+                } else {
                     let _ = call_hub().send_to(
                         &user.id.to_string(),
                         &json!({
@@ -438,7 +459,12 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
         }
         "ice" => {
             let target_id: Option<String> = match role {
-                CallRole::Customer => call_hub().any_online_agent_id(),
+                // ICE MUST reach the agent that received the offer —
+                // re-picking here could relay to a different agent and
+                // break the WebRTC connection mid-negotiation.
+                CallRole::Customer => call_hub()
+                    .pinned_agent(&user.id.to_string())
+                    .or_else(|| call_hub().pick_available_agent_id_or_any()),
                 CallRole::Agent => {
                     if to.is_empty() {
                         return Err("Missing `to` field".into());
@@ -478,11 +504,17 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
     // other customers see "employees available" again.
     if role == CallRole::Agent {
         call_hub().set_in_call(&user.id.to_string(), false);
+        // Customers pinned to this agent end their call too.
+        call_hub().unpin_agents_of(&user.id.to_string());
         call_hub().broadcast_presence();
     }
 
     let target_id: Option<String> = match role {
-        CallRole::Customer => call_hub().any_online_agent_id(),
+        CallRole::Customer => {
+            let agent = call_hub().pinned_agent(&user.id.to_string());
+            call_hub().unpin_agent(&user.id.to_string());
+            agent
+        }
         CallRole::Agent => {
             if to.is_empty() {
                 return Ok(());

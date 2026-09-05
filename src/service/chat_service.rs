@@ -41,6 +41,29 @@ use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 use crate::store::chat::{NewChannelMember, NewChatMessage};
 use crate::store::CompositeStore;
 
+/// How a customer message should be routed after the service decides
+/// assignment. Returned by [`ChatService::route_user_message`] and
+/// consumed by the WS handler to target notifications correctly.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RoutingOutcome {
+    /// The channel already has an assignee who is ONLINE — route the
+    /// notification to them (plus admins).
+    ToAssignee { employee_id: String },
+    /// The channel was just auto-assigned to this employee (first
+    /// message, or the previous assignee went offline).
+    NewlyAssigned { employee_id: String },
+    /// The most available person was the ADMIN. Per the product spec no
+    /// `chat_assignment` row is needed — the admin is a member of every
+    /// channel since creation and monitors the whole queue.
+    AdminImplicit { admin_id: String },
+    /// No staff is online at all — the NullClaw bot owns this exchange
+    /// (and admins see the channel in the queue when they return).
+    BotFallback,
+    /// Staff are online but every one of them is busy (in a call) — the
+    /// message queues for the admin without a bot reply.
+    QueuedForAdmin,
+}
+
 /// Chat service. Constructed once at startup with a shared
 /// `Arc<CompositeStore>` and stored as `Arc<ChatService>` on
 /// `AppState`.
@@ -110,25 +133,27 @@ impl ChatService {
             .await
     }
 
-    /// Look up the system admin's UUID — the first non-bot user with
-    /// role="employee". Cached for the process lifetime. Returns `None`
-    /// if no admin exists (e.g. before first-user signup completes).
+    /// Look up the system admin's UUID — the first non-bot staff
+    /// member (role `admin` or `employee`; on migrated databases the
+    /// bootstrap account was promoted to `admin`). Cached for the
+    /// process lifetime. Returns `None` if no staff exists yet (e.g.
+    /// before first-user signup completes).
     async fn resolve_admin_employee_id(&self) -> Option<Uuid> {
         *self
             .admin_employee_id
             .get_or_init(|| async {
-                match self.store.user_store().find_first_human_employee().await {
+                match self.store.user_store().find_first_staff_member().await {
                     Ok(Some(admin)) => Some(admin.id),
                     Ok(None) => {
                         tracing::warn!(
-                            "no human employee found — admin member row will be skipped. Run signup to create the first admin."
+                            "no staff account found — admin member row will be skipped. Run signup to create the first admin."
                         );
                         None
                     }
                     Err(e) => {
                         tracing::warn!(
                             error = %e,
-                            "failed to look up admin employee — falling back to None"
+                            "failed to look up the staff admin — falling back to None"
                         );
                         None
                     }
@@ -559,6 +584,226 @@ impl ChatService {
     /// for business logic, only for admin/observability queries.
     pub fn db_for_stats(&self) -> &sea_orm::DatabaseConnection {
         self.store.db()
+    }
+
+    // ── Assignment routing (three-role spec) ─────────────────────
+    //
+    // Rules implemented (user spec):
+    //   1. When a user's first message lands in a channel, pick the
+    //      "most available" online, not-busy staff member and assign
+    //      them. If that person is the admin, NO assignment row is
+    //      created (the admin is already a channel member + sees the
+    //      whole queue).
+    //   2. New messages on an assigned channel route to the assignee.
+    //      If the assignee has gone offline, release the assignment and
+    //      re-run the picker (admin + bot are always eligible).
+    //   3. When no staff is online, the NullClaw bot handles the chat.
+    //   4. Busy = in an active audio call. Chat load (active chats)
+    //      only SCORES candidates, it never disqualifies them.
+
+    /// Decide how a customer message in `channel_id` should be routed.
+    /// Called on EVERY customer message (WS + REST) — cheap when the
+    /// channel already has an online assignee (one assignment SELECT).
+    pub async fn route_user_message(&self, channel_id: &str) -> AppResult<RoutingOutcome> {
+        use crate::presence::presence;
+
+        let channel = self
+            .get_channel(channel_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("chat channel not found".into()))?;
+        let brand = channel.brand_id.map(|b| b.to_string());
+        let brand_ref = brand.as_deref();
+
+        // 1. Existing assignment with an ONLINE assignee → done.
+        if let Some(assignment) = self
+            .store
+            .chat_store()
+            .get_active_assignment(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            if let Some(emp_id) = assignment.employee_id.clone() {
+                if presence().is_online(&emp_id) {
+                    return Ok(RoutingOutcome::ToAssignee {
+                        employee_id: emp_id,
+                    });
+                }
+                // Assignee went offline — release so the picker can
+                // find someone live (fall through).
+                self.release_assignment_internal(channel_id, &emp_id).await;
+            }
+        }
+
+        // Closed channels never re-assign.
+        if channel.status == "closed" {
+            return Ok(RoutingOutcome::QueuedForAdmin);
+        }
+
+        // 2. Pick the most available staff member.
+        match presence().pick_best_available(brand_ref) {
+            Some(picked) if picked.role == "admin" => {
+                // Admin implicitly owns it (member since creation).
+                presence().adjust_active_chats(&picked.user_id, 1);
+                presence().mark_assigned(&picked.user_id);
+                Ok(RoutingOutcome::AdminImplicit {
+                    admin_id: picked.user_id,
+                })
+            }
+            Some(picked) => {
+                // Real employee → create the assignment row.
+                self.store
+                    .chat_store()
+                    .upsert_assignment(channel_id, &picked.user_id)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                presence().adjust_active_chats(&picked.user_id, 1);
+                presence().mark_assigned(&picked.user_id);
+                Ok(RoutingOutcome::NewlyAssigned {
+                    employee_id: picked.user_id,
+                })
+            }
+            None => {
+                // Nobody available. Bot only when NOBODY is online.
+                if presence().bot_active(brand_ref) {
+                    Ok(RoutingOutcome::BotFallback)
+                } else {
+                    Ok(RoutingOutcome::QueuedForAdmin)
+                }
+            }
+        }
+    }
+
+    /// Internal: release an assignment + decrement presence load.
+    async fn release_assignment_internal(&self, channel_id: &str, employee_id: &str) {
+        use crate::presence::presence;
+        if let Err(e) = self.store.chat_store().release_assignment(channel_id).await {
+            tracing::warn!(channel_id = %channel_id, error = %e, "release assignment failed");
+        }
+        presence().adjust_active_chats(employee_id, -1);
+    }
+
+    /// The assignee of a channel, if any (for DTO enrichment).
+    pub async fn channel_assignment(
+        &self,
+        channel_id: &str,
+    ) -> AppResult<Option<crate::entity::chat_assignment::Model>> {
+        self.store
+            .chat_store()
+            .get_active_assignment(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Batch-fetch active assignments for the channel list DTO.
+    pub async fn channel_assignments(
+        &self,
+        channel_ids: &[Uuid],
+    ) -> AppResult<Vec<crate::entity::chat_assignment::Model>> {
+        self.store
+            .chat_store()
+            .list_active_assignments(channel_ids)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))
+    }
+
+    /// Manual claim — a staff member takes over a channel (employee
+    /// claiming an unassigned queue item, admin redirecting work, or a
+    /// released channel being re-taken). Returns the assignee id.
+    pub async fn claim_channel(&self, channel_id: &str, staff: &SessionUser) -> AppResult<String> {
+        use crate::presence::presence;
+        if !staff.is_staff() {
+            return Err(AppError::Forbidden("only staff may claim channels".into()));
+        }
+        let staff_id = staff.id.to_string();
+
+        // Release any previous assignee first (load bookkeeping).
+        if let Some(prev) = self
+            .store
+            .chat_store()
+            .get_active_assignment(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+        {
+            if let Some(prev_id) = prev.employee_id.clone() {
+                if prev_id != staff_id {
+                    self.release_assignment_internal(channel_id, &prev_id).await;
+                }
+            } else {
+                // stale row without employee — clear it
+                let _ = self.store.chat_store().release_assignment(channel_id).await;
+            }
+        }
+
+        if staff.is_admin() {
+            // Admins never carry assignment rows — they already own
+            // the queue. Just make sure the channel is open + counted.
+            let _ = self.store.chat_store().release_assignment(channel_id).await;
+            presence().adjust_active_chats(&staff_id, 1);
+            presence().mark_assigned(&staff_id);
+            return Ok(staff_id);
+        }
+
+        self.store
+            .chat_store()
+            .upsert_assignment(channel_id, &staff_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        presence().adjust_active_chats(&staff_id, 1);
+        presence().mark_assigned(&staff_id);
+        Ok(staff_id)
+    }
+
+    /// Release a channel back to the open queue. Allowed for the
+    /// current assignee or any admin.
+    pub async fn release_channel(
+        &self,
+        channel_id: &str,
+        requester: &SessionUser,
+    ) -> AppResult<()> {
+        let assignment = self
+            .store
+            .chat_store()
+            .get_active_assignment(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let assignee = assignment.and_then(|a| a.employee_id.clone());
+        let requester_id = requester.id.to_string();
+        let allowed = requester.is_admin()
+            || assignee.as_deref() == Some(requester_id.as_str())
+            // channels implicitly owned by an admin can be released by
+            // any staff (assignee is None)
+            || assignee.is_none();
+        if !allowed {
+            return Err(AppError::Forbidden(
+                "only the assignee or an admin may release this channel".into(),
+            ));
+        }
+        if let Some(emp) = assignee {
+            self.release_assignment_internal(channel_id, &emp).await;
+        } else {
+            let _ = self.store.chat_store().release_assignment(channel_id).await;
+        }
+        Ok(())
+    }
+
+    /// Close a channel (ends any assignment). Any staff member may close.
+    pub async fn close_channel_as_staff(&self, channel_id: &str) -> AppResult<()> {
+        use crate::presence::presence;
+        let assignment = self
+            .store
+            .chat_store()
+            .get_active_assignment(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        self.store
+            .chat_store()
+            .close_channel(channel_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if let Some(emp) = assignment.and_then(|a| a.employee_id) {
+            presence().adjust_active_chats(&emp, -1);
+        }
+        Ok(())
     }
 
     // ── RBAC helpers (for chat-specific role checks) ────────────

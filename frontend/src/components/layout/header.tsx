@@ -18,6 +18,7 @@ import {
   DropdownMenuGroup,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
+import { isStaffUser } from '@/lib/store'
 
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
@@ -95,7 +96,7 @@ export const Header = memo(function Header() {
             {t('nav.map')}
           </NavBtn>
           {/* Admin nav — only visible to employees */}
-          {user?.type === 'employee' && (
+          {isStaffUser(user) && (
             <NavBtn active={isAdmin} onClick={() => navigate({ to: '/admin' })} icon={<LayoutDashboard className="h-4 w-4" />}>
               {t('nav.admin')}
             </NavBtn>
@@ -206,7 +207,7 @@ export const Header = memo(function Header() {
                           </>
                         )}
                       </div>
-                      {user.type === 'employee' && (
+                      {isStaffUser(user) && (
                         <div className="text-[10px] mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
                           <Briefcase className="h-2.5 w-2.5" />
                           {user.employeeRole === 'admin' ? 'Quản trị' :
@@ -222,12 +223,12 @@ export const Header = memo(function Header() {
                 <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })} className="gap-2">
                   <Ticket className="h-4 w-4" /> Vé của tôi
                 </DropdownMenuItem>
-                {user.type === 'employee' && (
+                {isStaffUser(user) && (
                   <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
                     <LayoutDashboard className="h-4 w-4" /> Quản trị
                   </DropdownMenuItem>
                 )}
-                {user.type === 'employee' && (
+                {isStaffUser(user) && (
                   <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
                     <CreditCard className="h-4 w-4" /> Thanh toán
                   </DropdownMenuItem>
@@ -270,7 +271,7 @@ export const Header = memo(function Header() {
               <DropdownMenuItem onClick={() => navigate({ to: '/map' })}>
                 <MapPinned className="h-4 w-4 mr-2" /> {t('nav.map')}
               </DropdownMenuItem>
-              {user?.type === 'employee' && (
+              {isStaffUser(user) && (
                 <DropdownMenuItem onClick={() => navigate({ to: '/admin' })}>
                   <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.admin')}
                 </DropdownMenuItem>

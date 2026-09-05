@@ -16,6 +16,7 @@ use dashmap::{DashMap, DashSet};
 use tokio::sync::mpsc;
 
 use crate::auth::SessionUser;
+use crate::presence::presence;
 
 /// A connected client's outbound channel. We send **pre-serialised JSON
 /// as `bytes::Bytes`** so a broadcast serialises once and shares the
@@ -38,15 +39,13 @@ pub struct Session {
     pub ip: String,
 }
 
-/// Online-employee index: `brandKey → employeeId → set<socketId>`.
-/// `brandKey` is the brand id or `"global"` for unassigned employees.
-type OnlineEmployees = DashMap<String, DashMap<String, DashSet<u64>>>;
-
 /// The shared chat hub. Cheap to clone (`&'static` via [`hub()`]).
+///
+/// Staff presence (online / busy / load) lives in [`crate::presence`] —
+/// the hub no longer keeps its own employee index.
 pub struct ChatHub {
     sessions: DashMap<u64, Session>,
     rooms: DashMap<String, DashSet<u64>>,
-    online_employees: OnlineEmployees,
     ip_conns: DashMap<String, std::sync::atomic::AtomicUsize>,
     idempotency: DashMap<String, (Instant, Option<String>)>, // (stored_at, value)
     next_id: std::sync::atomic::AtomicU64,
@@ -100,7 +99,6 @@ impl ChatHub {
         Self {
             sessions: DashMap::new(),
             rooms: DashMap::new(),
-            online_employees: DashMap::new(),
             ip_conns: DashMap::new(),
             idempotency: DashMap::new(),
             next_id: std::sync::atomic::AtomicU64::new(1),
@@ -213,8 +211,8 @@ impl ChatHub {
         id
     }
 
-    /// Tear down a connection: leave any joined room, remove from the
-    /// online-employee index, release the IP slot, release the global slot,
+    /// Tear down a connection: leave any joined room, remove the staff
+    /// presence socket, release the IP slot, release the global slot,
     /// and drop the session. Returns the (user, channel_id) pair so the
     /// caller can broadcast the correct presence-offline update.
     pub fn unregister(&self, id: u64) -> Option<(SessionUser, Option<String>)> {
@@ -223,13 +221,10 @@ impl ChatHub {
         if let Some(cid) = &sess.channel_id {
             self.leave_room(cid, id);
         }
-        // Remove from online-employee index.
-        if sess.user.actor_type == "employee" {
-            self.remove_online_employee(
-                &sess.user.id.to_string(),
-                sess.user.brand_id.map(|id| id.to_string()).as_deref(),
-                id,
-            );
+        // Remove the presence socket (whole entry drops when the staff
+        // member's last socket of either family goes away).
+        if sess.user.is_staff() {
+            presence().chat_socket_disconnected(&sess.user.id.to_string(), id);
         }
         self.release_ip(&sess.ip);
         self.release_global();
@@ -334,30 +329,70 @@ impl ChatHub {
         }
     }
 
-    /// Broadcast a JSON message to ALL online employee sockets (across
-    /// every brand). Used for the admin "new message arrived in another
-    /// channel" attention signal — when a customer sends a message in
-    /// a channel the admin hasn't joined, this delivers a lightweight
-    /// notification so the admin's frontend can:
-    ///   - Invalidate the channels list (so unread badges update).
-    ///   - Show a toast / flash the channel row.
+    /// Broadcast a JSON message to ALL online STAFF sockets (employees
+    /// AND admins, across every brand). Used for:
+    ///   - the "new message arrived in another channel" attention signal,
+    ///   - `staff_presence` fan-out when availability changes.
     ///
-    /// Iterates the `online_employees` index: `brandKey → employeeId →
-    /// set<socketId>`. Each socket gets one delivery (even if the same
-    /// employee has multiple sockets open, both receive the event —
-    /// that's intentional so each browser tab updates its UI).
-    pub fn broadcast_to_employees(&self, msg: &serde_json::Value) {
+    /// Iterates the session map and filters `user.is_staff()`. Each
+    /// socket gets one delivery (multiple tabs = multiple deliveries,
+    /// intentional so every tab updates its UI).
+    pub fn broadcast_to_staff(&self, msg: &serde_json::Value) {
         let payload = serde_json::to_string(msg).unwrap_or_default();
+        self.broadcast_to_staff_raw(&payload);
+    }
+
+    /// Raw-payload variant of [`broadcast_to_staff`] (payload is
+    /// pre-serialised by the caller).
+    pub fn broadcast_to_staff_raw(&self, payload: &str) {
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
-        for brand_entry in self.online_employees.iter() {
-            for emp_entry in brand_entry.value().iter() {
-                for sid in emp_entry.value().iter() {
-                    if let Some(sess) = self.sessions.get(&sid) {
-                        let _ = sess.tx.try_send(bytes.clone());
-                    }
-                }
+        for entry in self.sessions.iter() {
+            if entry.value().user.is_staff() {
+                let _ = entry.value().tx.try_send(bytes.clone());
             }
         }
+    }
+
+    /// Send a JSON message to EVERY live socket of one user (all their
+    /// tabs). Used for targeted routing — e.g. a new message in a
+    /// channel assigned to employee X goes to X's sockets, not to all
+    /// staff. Returns the number of sockets it was queued to.
+    pub fn send_to_user(&self, user_id: &str, msg: &serde_json::Value) -> usize {
+        let payload = serde_json::to_string(msg).unwrap_or_default();
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        let mut delivered = 0;
+        for entry in self.sessions.iter() {
+            if entry.value().user.id.to_string() == user_id
+                && entry.value().tx.try_send(bytes.clone()).is_ok()
+            {
+                delivered += 1;
+            }
+        }
+        delivered
+    }
+
+    /// Send a JSON message to every live ADMIN socket (regardless of
+    /// brand). Admins monitor the whole support queue, so they keep
+    /// receiving channel notifications even for channels assigned to
+    /// a specific employee.
+    pub fn broadcast_to_admins(&self, msg: &serde_json::Value) {
+        let payload = serde_json::to_string(msg).unwrap_or_default();
+        let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        for entry in self.sessions.iter() {
+            if entry.value().user.is_admin() {
+                let _ = entry.value().tx.try_send(bytes.clone());
+            }
+        }
+    }
+
+    /// Collect the socket ids of a user's live sessions (used for
+    /// targeted sends from the assignment logic).
+    pub fn sockets_of_user(&self, user_id: &str) -> Vec<u64> {
+        self.sessions
+            .iter()
+            .filter(|e| e.value().user.id.to_string() == user_id)
+            .map(|e| *e.key())
+            .collect()
     }
 
     /// Request every live socket to close. The actual close happens when
@@ -421,83 +456,19 @@ impl ChatHub {
         self.sessions.get(&id).map(|s| s.ip.clone())
     }
 
-    // ── online-employee tracking ──────────────────────────────
+    // ── staff presence (delegates to crate::presence) ─────────
 
-    fn brand_key(brand_id: Option<&str>) -> String {
-        brand_id.unwrap_or("global").to_string()
+    /// Count online staff (employees + admins) for a brand scope.
+    pub fn count_online_staff(&self, brand_id: Option<&str>) -> usize {
+        presence().online_count(brand_id)
     }
 
-    pub fn add_online_employee(&self, employee_id: &str, brand_id: Option<&str>, sid: u64) {
-        let key = Self::brand_key(brand_id);
-        let brand_map = self.online_employees.entry(key).or_default();
-        let sockets = brand_map.entry(employee_id.to_string()).or_default();
-        sockets.insert(sid);
-    }
-
-    pub fn remove_online_employee(&self, employee_id: &str, brand_id: Option<&str>, sid: u64) {
-        let key = Self::brand_key(brand_id);
-        let mut cleanup_brand = false;
-        let mut cleanup_emp = false;
-        if let Some(brand_map) = self.online_employees.get_mut(&key) {
-            if let Some(sockets) = brand_map.get_mut(employee_id) {
-                sockets.remove(&sid);
-                if sockets.is_empty() {
-                    cleanup_emp = true;
-                }
-            }
-            if cleanup_emp {
-                brand_map.remove(employee_id);
-            }
-            if brand_map.is_empty() {
-                cleanup_brand = true;
-            }
-        }
-        if cleanup_brand {
-            self.online_employees.remove(&key);
-        }
-    }
-
-    /// Count online employees for a brand (brand-specific + global pool).
-    pub fn count_online_employees(&self, brand_id: Option<&str>) -> usize {
-        let brand_count = self
-            .online_employees
-            .get(&Self::brand_key(brand_id))
-            .map(|m| m.len())
-            .unwrap_or(0);
-        let global_count = if brand_id.is_some() {
-            self.online_employees
-                .get("global")
-                .map(|m| m.len())
-                .unwrap_or(0)
-        } else {
-            0
-        };
-        brand_count + global_count
-    }
-
-    /// Collect online employee display names for a brand.
-    pub fn online_employee_names(&self, brand_id: Option<&str>) -> Vec<String> {
-        let mut names = Vec::new();
-        let collect = |key: &str, names: &mut Vec<String>| {
-            if let Some(brand_map) = self.online_employees.get(key) {
-                for entry in brand_map.iter() {
-                    for sid in entry.value().iter() {
-                        if let Some(sess) = self.sessions.get(&sid) {
-                            if !sess.user.name.is_empty() {
-                                names.push(sess.user.name.clone());
-                            }
-                        }
-                    }
-                }
-            }
-        };
-        collect(&Self::brand_key(brand_id), &mut names);
-        if brand_id.is_some() {
-            collect("global", &mut names);
-        }
-        names.sort();
-        names.dedup();
-        names
+    /// Broadcast the current staff-presence snapshot to every STAFF
+    /// socket in brand scope. Called whenever availability changes
+    /// (staff connect/disconnect, call start/end, assignment change) so
+    /// dashboards + routing UIs stay live.
+    pub fn broadcast_staff_presence(&self, brand_id: Option<&str>) {
+        self.broadcast_to_staff(&presence().staff_json(brand_id));
     }
 
     // ── idempotency (clientMsgId → stored message id) ─────────
@@ -627,25 +598,17 @@ impl ChatHub {
             max_connections: self.max_global_conns,
             rooms: self.rooms.len(),
             idempotency_entries: self.idempotency.len(),
-            online_employee_brands: self.online_employees.len(),
+            online_staff: presence().len(),
             distinct_ips: self.ip_conns.len(),
         }
     }
 
-    /// Total online employees across all brands — sum of the per-brand
-    /// employee counts. Used by `/api/admin/system` to show "how many
-    /// support staff are online?" on the dashboard.
-    ///
-    /// Iterates the `online_employees` index: `brandKey → employeeId →
-    /// set<socketId>`. Each employee is counted ONCE (even if they
-    /// have multiple sockets open). Returns the sum across all brand
-    /// keys (including the `"global"` pool for unbranded employees).
-    pub fn count_online_employees_total(&self) -> usize {
-        let mut total = 0;
-        for entry in self.online_employees.iter() {
-            total += entry.value().len();
-        }
-        total
+    /// Total online staff (employees + admins) across all brands. Used
+    /// by `/api/admin/system` to show "how many support staff are
+    /// online?" on the dashboard. Each staff member counts ONCE even
+    /// with multiple sockets open (presence aggregates).
+    pub fn count_online_staff_total(&self) -> usize {
+        presence().online_count(None)
     }
 
     // ── graceful shutdown ──────────────────────────────────────
@@ -674,7 +637,7 @@ pub struct HubStats {
     pub max_connections: usize,
     pub rooms: usize,
     pub idempotency_entries: usize,
-    pub online_employee_brands: usize,
+    pub online_staff: usize,
     pub distinct_ips: usize,
 }
 
@@ -966,46 +929,89 @@ mod tests {
         assert!(!h.user_still_in_room("room", &ua_id, id1));
     }
 
-    // ── online employees ────────────────────────────────────────
+    // ── staff broadcasts + targeted sends ───────────────────────
 
     #[test]
-    fn add_online_employee_increments_count() {
+    fn broadcast_to_staff_delivers_to_staff_only() {
         let h = fresh_hub();
-        assert_eq!(h.count_online_employees(Some("brand-1")), 0);
-        h.add_online_employee("e1", Some("brand-1"), 100);
-        assert_eq!(h.count_online_employees(Some("brand-1")), 1);
-        h.add_online_employee("e2", Some("brand-1"), 101);
-        assert_eq!(h.count_online_employees(Some("brand-1")), 2);
+        let (tx_c, mut rx_c) = make_tx();
+        let (tx_e, mut rx_e) = make_tx();
+        let (tx_a, mut rx_a) = make_tx();
+        h.register(sample_user("uc", "user"), "1.1.1.1".into(), tx_c);
+        h.register(sample_user("ue", "employee"), "2.2.2.2".into(), tx_e);
+        h.register(sample_user("ua", "admin"), "3.3.3.3".into(), tx_a);
+
+        h.broadcast_to_staff(&serde_json::json!({ "type": "staff_ping" }));
+
+        assert!(
+            rx_c.try_recv().is_err(),
+            "customers must NOT receive staff broadcasts"
+        );
+        let me = rx_e.try_recv().expect("employee must receive");
+        let ma = rx_a.try_recv().expect("admin must receive");
+        assert!(std::str::from_utf8(&me)
+            .unwrap_or("")
+            .contains("staff_ping"));
+        assert!(std::str::from_utf8(&ma)
+            .unwrap_or("")
+            .contains("staff_ping"));
     }
 
     #[test]
-    fn remove_online_employee_decrements_count() {
+    fn broadcast_to_admins_targets_admins_only() {
         let h = fresh_hub();
-        h.add_online_employee("e1", Some("brand-1"), 100);
-        h.add_online_employee("e1", Some("brand-1"), 101);
-        assert_eq!(
-            h.count_online_employees(Some("brand-1")),
-            1,
-            "same employee, 2 sockets → 1 emp"
+        let (tx_e, mut rx_e) = make_tx();
+        let (tx_a, mut rx_a) = make_tx();
+        h.register(sample_user("ue", "employee"), "1.1.1.1".into(), tx_e);
+        h.register(sample_user("ua", "admin"), "2.2.2.2".into(), tx_a);
+
+        h.broadcast_to_admins(&serde_json::json!({ "type": "admin_ping" }));
+
+        assert!(
+            rx_e.try_recv().is_err(),
+            "employees must NOT receive admin broadcasts"
         );
-        h.remove_online_employee("e1", Some("brand-1"), 100);
-        assert_eq!(h.count_online_employees(Some("brand-1")), 1);
-        h.remove_online_employee("e1", Some("brand-1"), 101);
-        assert_eq!(h.count_online_employees(Some("brand-1")), 0);
+        let ma = rx_a.try_recv().expect("admin must receive");
+        assert!(std::str::from_utf8(&ma)
+            .unwrap_or("")
+            .contains("admin_ping"));
     }
 
     #[test]
-    fn count_online_includes_global_pool_when_brand_given() {
+    fn send_to_user_delivers_to_all_their_sockets() {
         let h = fresh_hub();
-        h.add_online_employee("e1", Some("brand-1"), 1);
-        h.add_online_employee("e2", None, 2); // global pool
-        assert_eq!(
-            h.count_online_employees(Some("brand-1")),
-            2,
-            "brand + global count"
+        let (tx1, mut rx1) = make_tx();
+        let (tx2, mut rx2) = make_tx();
+        let (tx3, mut rx3) = make_tx();
+        // Two sockets for the same user, one for someone else.
+        h.register(sample_user("uT", "employee"), "1.1.1.1".into(), tx1);
+        h.register(sample_user("uT", "employee"), "1.1.1.1".into(), tx2);
+        h.register(sample_user("uX", "employee"), "2.2.2.2".into(), tx3);
+
+        let target_id = sample_user_id("uT").to_string();
+        let delivered = h.send_to_user(&target_id, &serde_json::json!({ "type": "dm" }));
+
+        assert_eq!(delivered, 2, "both tabs of the user receive");
+        assert!(rx1.try_recv().is_ok(), "tab 1 receives");
+        assert!(rx2.try_recv().is_ok(), "tab 2 receives");
+        assert!(rx3.try_recv().is_err(), "other users do not");
+    }
+
+    #[test]
+    fn unregister_removes_staff_presence_socket() {
+        use crate::presence::presence;
+        let h = fresh_hub();
+        let user = sample_user("uP", "employee");
+        let uid = user.id.to_string();
+        let (tx, _rx) = make_tx();
+        let id = h.register(user, "1.1.1.1".into(), tx);
+        presence().chat_socket_connected(&sample_user("uP", "employee"), id);
+        assert!(presence().is_online(&uid));
+        h.unregister(id);
+        assert!(
+            !presence().is_online(&uid),
+            "presence entry must drop with the last socket"
         );
-        // Global-only count.
-        assert_eq!(h.count_online_employees(None), 1);
     }
 
     // ── idempotency ─────────────────────────────────────────────
@@ -1070,52 +1076,7 @@ mod tests {
         // without sleeping for 5 minutes in unit tests.
     }
 
-    // ── online_employee_names ───────────────────────────────────
-
-    #[test]
-    fn online_employee_names_dedupes_and_sorts() {
-        let h = fresh_hub();
-        let (tx1, _rx1) = make_tx();
-        let (tx2, _rx2) = make_tx();
-        let id1 = h.register(
-            SessionUser {
-                id: Uuid::parse_str("e1").unwrap_or_else(|_| Uuid::new_v4()),
-                actor_type: "employee".into(),
-                role: "agent".into(),
-                name: "Bob".into(),
-                email: None,
-                phone: None,
-                avatar_url: None,
-                brand_id: Some(Uuid::parse_str("b1").unwrap_or_else(|_| Uuid::new_v4())),
-                brand_name: None,
-                employee_role: None,
-            },
-            "1.1.1.1".into(),
-            tx1,
-        );
-        let id2 = h.register(
-            SessionUser {
-                id: Uuid::parse_str("e2").unwrap_or_else(|_| Uuid::new_v4()),
-                actor_type: "employee".into(),
-                role: "agent".into(),
-                name: "Alice".into(),
-                email: None,
-                phone: None,
-                avatar_url: None,
-                brand_id: Some(Uuid::parse_str("b1").unwrap_or_else(|_| Uuid::new_v4())),
-                brand_name: None,
-                employee_role: None,
-            },
-            "2.2.2.2".into(),
-            tx2,
-        );
-        h.add_online_employee("e1", Some("b1"), id1);
-        h.add_online_employee("e2", Some("b1"), id2);
-        let names = h.online_employee_names(Some("b1"));
-        assert_eq!(names, vec!["Alice".to_string(), "Bob".to_string()]);
-    }
-
-    // ── user_of / channel_of ────────────────────────────────────
+    // ── user_of / channel_of /    // ── user_of / channel_of ────────────────────────────────────
 
     #[test]
     fn user_of_returns_user_for_known_id() {

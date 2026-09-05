@@ -50,4 +50,8 @@ pub mod consts {
     pub const ADMIN_STATS_READ: &str = "admin:stats:read";
     pub const ADMIN_EXPORT: &str = "admin:export";
     pub const ADMIN_NULLCLAW_READ: &str = "admin:nullclaw:read";
+    /// Role management (grant/revoke the user / employee / admin roles).
+    /// Admin-only — the whole point of the three-role split is that only
+    /// admins can mint new staff accounts.
+    pub const ADMIN_USERS_MANAGE_ROLES: &str = "admin:users:manage-roles";
 }

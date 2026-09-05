@@ -28,6 +28,7 @@ import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
 import { EmployeeLogin } from './employee-login'
+import { isStaffUser } from '@/lib/store'
 
 export function LoginPage() {
   const { user } = useApp()
@@ -38,7 +39,7 @@ export function LoginPage() {
   // The user object comes from /api/auth/me (server-verified) — see store.tsx.
   useEffect(() => {
     if (user) {
-      if (user.type === 'employee') navigate({ to: '/admin' })
+      if (isStaffUser(user)) navigate({ to: '/admin' })
       else navigate({ to: '/bookings' })
     }
   }, [user, navigate])

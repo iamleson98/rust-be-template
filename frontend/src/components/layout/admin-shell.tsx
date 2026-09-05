@@ -47,6 +47,7 @@ import {
   Bus,
   PanelLeftClose,
   PanelLeft,
+  Users,
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useLogout } from '@/lib/queries'
@@ -93,10 +94,32 @@ const NAV_GROUPS = [
   },
 ]
 
+/**
+ * Admin-only navigation entries. Employees never see these — the
+ * backend also enforces the permission (`admin:users:manage-roles` /
+ * cron-jobs perms), so hiding is UX, not security.
+ */
+const ADMIN_ONLY_ITEMS = [
+  { title: 'Người dùng', icon: Users, url: '/admin/users' },
+]
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const { user } = useApp()
   const logoutMut = useLogout()
+
+  // Admin-only entries (Users / governance) merge into the nav for
+  // admins. Employees keep the operational view.
+  const isAdmin = user?.type === 'admin'
+  const navGroups = isAdmin
+    ? [
+        ...NAV_GROUPS.slice(0, 5),
+        {
+          label: 'Quản trị',
+          items: ADMIN_ONLY_ITEMS,
+        },
+      ]
+    : NAV_GROUPS
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -145,7 +168,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
-        {NAV_GROUPS.map((group) => (
+        {navGroups.map((group) => (
           <div key={group.label} className="mb-3">
             {!collapsed && (
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5">

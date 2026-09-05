@@ -30,6 +30,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import { customerZodSchema, type CustomerFormValues, type CustomerStep } from './_shared'
+import { isStaffUser } from '@/lib/store'
 
 export function AuthDialog() {
   const { authOpen, setAuthOpen, user, setUser, setGuestPhone, guestPhone } = useApp()
@@ -90,7 +91,7 @@ export function AuthDialog() {
   const close = () => {
     setAuthOpen(false)
     // After successful login, route the user based on type.
-    const dest = user?.type === 'employee' ? '/admin' : user?.type === 'user' ? '/bookings' : null
+    const dest = isStaffUser(user) ? '/admin' : user?.type === 'user' ? '/bookings' : null
     if (dest) {
       setTimeout(() => navigate({ to: dest }), 0)
     }

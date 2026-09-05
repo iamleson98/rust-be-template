@@ -15,10 +15,14 @@ use crate::entity::user;
 
 /// Identity of an authenticated actor, derived from the `user` row.
 ///
-/// `actor_type` is `"user"` for customers and `"employee"` for staff. The
-/// distinction matters for the chat / call hubs (only employees may register
-/// as agents) and for nullclaw (human-fallback threshold counts online
-/// employees).
+/// `actor_type` mirrors the `user.role` column and is one of:
+///   - `"user"`      — customer (book trips, feedback, ticket status)
+///   - `"employee"`  — support staff (bookings, tickets, chat, calls, promos)
+///   - `"admin"`     — full-access superuser (the first registered account)
+///
+/// The distinction matters for the chat / call hubs (only staff — employees
+/// OR admins — may register as agents) and for nullclaw (the human-fallback
+/// threshold counts online staff).
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionUser {
@@ -41,7 +45,7 @@ impl SessionUser {
     /// `brand_name` is left `None` here — the caller (typically the auth
     /// service) fills it in via a brand lookup when the user has a brand.
     pub fn from_model(m: &user::Model) -> Self {
-        let employee_role = if m.role == "admin" {
+        let employee_role = if m.role == "employee" || m.role == "admin" {
             Some(m.role.clone())
         } else {
             None
@@ -60,8 +64,23 @@ impl SessionUser {
         }
     }
 
-    /// Is this actor an employee (staff)?
+    /// Is this actor a strict-role employee (not an admin)?
     pub fn is_employee(&self) -> bool {
         self.actor_type == "employee"
+    }
+
+    /// Is this actor staff — an employee OR an admin?
+    ///
+    /// This is the check the hubs / chat routing / agent registration
+    /// should use: admins are full support agents too (they see every
+    /// channel, receive chat + call routing, and count toward the
+    /// "human online" presence signal that disables the NullClaw bot).
+    pub fn is_staff(&self) -> bool {
+        self.actor_type == "employee" || self.actor_type == "admin"
+    }
+
+    /// Is this actor an admin (full permissions)?
+    pub fn is_admin(&self) -> bool {
+        self.actor_type == "admin"
     }
 }

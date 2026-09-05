@@ -35,6 +35,7 @@ pub mod middleware;
 pub mod nullclaw;
 pub mod osm;
 pub mod payment;
+pub mod presence;
 pub mod rbac;
 pub mod routes;
 pub mod scheduler;

@@ -146,7 +146,7 @@ pub async fn system_status(
 
     // ── WebSocket hub stats ────────────────────────────────────────
     let ws_stats = crate::ws::hub::hub().stats();
-    let online_employees = crate::ws::hub::hub().count_online_employees_total();
+    let online_employees = crate::ws::hub::hub().count_online_staff_total();
 
     // ── Process info (cross-platform via `sysinfo`) ───────────────
     //
@@ -191,7 +191,7 @@ pub async fn system_status(
             max_connections: ws_stats.max_connections,
             rooms: ws_stats.rooms,
             idempotency_entries: ws_stats.idempotency_entries,
-            online_employee_brands: ws_stats.online_employee_brands,
+            online_employee_brands: ws_stats.online_staff,
             online_employees,
             distinct_ips: ws_stats.distinct_ips,
         },

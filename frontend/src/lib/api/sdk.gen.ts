@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, Cancel2Data, Cancel2Errors, Cancel2Responses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, Create7Data, Create7Errors, Create7Responses, Create8Data, Create8Errors, Create8Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, Delete6Data, Delete6Errors, Delete6Responses, Delete7Data, Delete7Errors, Delete7Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Errors, List10Responses, List11Data, List11Errors, List11Responses, List12Data, List12Errors, List12Responses, List13Data, List13Responses, List14Data, List14Errors, List14Responses, List15Data, List15Responses, List16Data, List16Errors, List16Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TriggerData, TriggerErrors, TriggerResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, Update6Data, Update6Errors, Update6Responses, Update7Data, Update7Errors, Update7Responses, Update8Data, Update8Errors, Update8Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
+import type { BrandDetailData, BrandDetailErrors, BrandDetailResponses, BrandsData, BrandsResponses, CampaignsData, CampaignsResponses, Cancel2Data, Cancel2Errors, Cancel2Responses, CancelData, CancelErrors, CancelPaymentData, CancelPaymentErrors, CancelPaymentResponses, CancelResponses, ChatStatsData, ChatStatsErrors, ChatStatsResponses, ClaimChannelData, ClaimChannelErrors, ClaimChannelResponses, CloseChannelData, CloseChannelErrors, CloseChannelResponses, ConfirmData, ConfirmErrors, ConfirmResponses, Create2Data, Create2Errors, Create2Responses, Create3Data, Create3Errors, Create3Responses, Create4Data, Create4Errors, Create4Responses, Create5Data, Create5Errors, Create5Responses, Create6Data, Create6Errors, Create6Responses, Create7Data, Create7Errors, Create7Responses, Create8Data, Create8Errors, Create8Responses, CreateChannelData, CreateChannelErrors, CreateChannelResponses, CreateData, CreateErrors, CreatePaymentData, CreatePaymentErrors, CreatePaymentResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateResponses, Delete2Data, Delete2Errors, Delete2Responses, Delete3Data, Delete3Errors, Delete3Responses, Delete4Data, Delete4Errors, Delete4Responses, Delete5Data, Delete5Errors, Delete5Responses, Delete6Data, Delete6Errors, Delete6Responses, Delete7Data, Delete7Errors, Delete7Responses, DeleteData, DeleteErrors, DeletePostData, DeletePostErrors, DeletePostResponses, DeleteResponses, DeleteUserData, DeleteUserErrors, DeleteUserResponses, DetailData, DetailErrors, DetailResponses, DirectionsData, DirectionsErrors, DirectionsResponses, EmployeeLoginData, EmployeeLoginErrors, EmployeeLoginResponses, ExportData, ExportErrors, ExportResponses, Get2Data, Get2Errors, Get2Responses, GetData, GetErrors, GetPaymentData, GetPaymentErrors, GetPaymentResponses, GetPostData, GetPostResponses, GetResponses, GetStaffPresenceData, GetStaffPresenceErrors, GetStaffPresenceResponses, GetUserData, GetUserErrors, GetUserResponses, HealthData, HealthResponses, HoldData, HoldErrors, HoldResponses, IsochroneData, IsochroneErrors, IsochroneResponses, List10Data, List10Errors, List10Responses, List11Data, List11Errors, List11Responses, List12Data, List12Errors, List12Responses, List13Data, List13Responses, List14Data, List14Errors, List14Responses, List15Data, List15Responses, List16Data, List16Errors, List16Responses, List2Data, List2Errors, List2Responses, List3Data, List3Errors, List3Responses, List4Data, List4Errors, List4Responses, List5Data, List5Errors, List5Responses, List6Data, List6Errors, List6Responses, List7Data, List7Errors, List7Responses, List8Data, List8Errors, List8Responses, List9Data, List9Errors, List9Responses, ListAdminPaymentsData, ListAdminPaymentsErrors, ListAdminPaymentsResponses, ListBookingPaymentsData, ListBookingPaymentsErrors, ListBookingPaymentsResponses, ListChannelsData, ListChannelsErrors, ListChannelsResponses, ListData, ListErrors, ListExchangesData, ListExchangesErrors, ListExchangesResponses, ListMessagesData, ListMessagesErrors, ListMessagesResponses, ListPostsData, ListPostsResponses, ListResponses, ListRunsData, ListRunsErrors, ListRunsResponses, ListUsersData, ListUsersErrors, ListUsersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, LookupData, LookupErrors, LookupResponses, MarkCodCollectedData, MarkCodCollectedErrors, MarkCodCollectedResponses, MarkRead2Data, MarkRead2Errors, MarkRead2Responses, MarkReadData, MarkReadErrors, MarkReadResponses, MatrixData, MatrixErrors, MatrixResponses, MeData, MeResponses, ModerateData, ModerateErrors, ModerateResponses, MomoIpnData, MomoIpnErrors, MomoIpnResponses, OauthCallbackData, OauthStartData, OauthStartErrors, PostMessageData, PostMessageErrors, PostMessageResponses, ReadyData, ReadyErrors, ReadyResponses, RecommendationsData, RecommendationsResponses, RefreshData, RefreshResponses, RegisterData, RegisterErrors, RegisterResponses, ReleaseChannelData, ReleaseChannelErrors, ReleaseChannelResponses, Remove2Data, Remove2Errors, Remove2Responses, Remove3Data, Remove3Errors, Remove3Responses, RemoveData, RemoveErrors, RemoveResponses, ReportVitalsData, ReportVitalsErrors, ReportVitalsResponses, ReverseData, ReverseResponses, RobotsData, RobotsResponses, RoutesData, RoutesResponses, SearchData, SearchResponses, SearchTripsData, SearchTripsResponses, SetUserRoleData, SetUserRoleErrors, SetUserRoleResponses, SitemapData, SitemapResponses, Stats2Data, Stats2Responses, StatsData, StatsErrors, StatsResponses, StatusData, StatusResponses, SystemStatusData, SystemStatusErrors, SystemStatusResponses, TagsData, TagsResponses, ToggleData, ToggleErrors, ToggleResponses, TriggerData, TriggerErrors, TriggerResponses, TripDetailData, TripDetailErrors, TripDetailResponses, Update2Data, Update2Errors, Update2Responses, Update3Data, Update3Errors, Update3Responses, Update4Data, Update4Errors, Update4Responses, Update5Data, Update5Errors, Update5Responses, Update6Data, Update6Errors, Update6Responses, Update7Data, Update7Errors, Update7Responses, Update8Data, Update8Errors, Update8Responses, UpdateData, UpdateErrors, UpdatePaymentStatusData, UpdatePaymentStatusErrors, UpdatePaymentStatusResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateResponses, UpdateStatusData, UpdateStatusErrors, UpdateStatusResponses, ValidateCampaignData, ValidateCampaignErrors, ValidateCampaignResponses, VnpayIpnData, VnpayIpnErrors, VnpayIpnResponses, ZalopayCallbackData, ZalopayCallbackErrors, ZalopayCallbackResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -541,6 +541,19 @@ export const createChannel = <ThrowOnError extends boolean = false>(options: Opt
 });
 
 /**
+ * `POST /api/chat/channels/{id}/claim` — a staff member takes over the
+ * channel. Employees get a `chat_assignment` row; admins implicitly
+ * own every channel (no row, per the three-role spec).
+ */
+export const claimChannel = <ThrowOnError extends boolean = false>(options: Options<ClaimChannelData, ThrowOnError>): RequestResult<ClaimChannelResponses, ClaimChannelErrors, ThrowOnError> => (options.client ?? client).post<ClaimChannelResponses, ClaimChannelErrors, ThrowOnError>({ url: '/api/chat/channels/{id}/claim', ...options });
+
+/**
+ * `POST /api/chat/channels/{id}/close` — close the channel (ends any
+ * assignment). Any staff member may close.
+ */
+export const closeChannel = <ThrowOnError extends boolean = false>(options: Options<CloseChannelData, ThrowOnError>): RequestResult<CloseChannelResponses, CloseChannelErrors, ThrowOnError> => (options.client ?? client).post<CloseChannelResponses, CloseChannelErrors, ThrowOnError>({ url: '/api/chat/channels/{id}/close', ...options });
+
+/**
  * `GET /api/chat/channels/{id}/messages` — list messages in a channel.
  *
  * Returns messages in **DESC order (newest first)** to support
@@ -586,6 +599,12 @@ export const postMessage = <ThrowOnError extends boolean = false>(options: Optio
  * `POST /api/chat/channels/{id}/read` — mark messages as read.
  */
 export const markRead = <ThrowOnError extends boolean = false>(options: Options<MarkReadData, ThrowOnError>): RequestResult<MarkReadResponses, MarkReadErrors, ThrowOnError> => (options.client ?? client).post<MarkReadResponses, MarkReadErrors, ThrowOnError>({ url: '/api/chat/channels/{id}/read', ...options });
+
+/**
+ * `POST /api/chat/channels/{id}/release` — return the channel to the
+ * open support queue. Allowed for the current assignee or any admin.
+ */
+export const releaseChannel = <ThrowOnError extends boolean = false>(options: Options<ReleaseChannelData, ThrowOnError>): RequestResult<ReleaseChannelResponses, ReleaseChannelErrors, ThrowOnError> => (options.client ?? client).post<ReleaseChannelResponses, ReleaseChannelErrors, ThrowOnError>({ url: '/api/chat/channels/{id}/release', ...options });
 
 /**
  * `GET /api/notifications` — list the authenticated user's notifications.
@@ -778,6 +797,11 @@ export const updatePost = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
+ * `GET /api/presence/staff` — current staff presence.
+ */
+export const getStaffPresence = <ThrowOnError extends boolean = false>(options?: Options<GetStaffPresenceData, ThrowOnError>): RequestResult<GetStaffPresenceResponses, GetStaffPresenceErrors, ThrowOnError> => (options?.client ?? client).get<GetStaffPresenceResponses, GetStaffPresenceErrors, ThrowOnError>({ url: '/api/presence/staff', ...options });
+
+/**
  * `GET /api/price-alerts` — list price alerts.
  *
  * - If `phone` is provided: guest lookup (public, no auth required).
@@ -893,7 +917,7 @@ export const stats2 = <ThrowOnError extends boolean = false>(options?: Options<S
 export const tripDetail = <ThrowOnError extends boolean = false>(options: Options<TripDetailData, ThrowOnError>): RequestResult<TripDetailResponses, TripDetailErrors, ThrowOnError> => (options.client ?? client).get<TripDetailResponses, TripDetailErrors, ThrowOnError>({ url: '/api/trips/{id}', ...options });
 
 /**
- * `GET /api/users` — list users. Requires `users:read`.
+ * `GET /api/users` — list users (paginated). Requires `users:read`.
  */
 export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>): RequestResult<ListUsersResponses, ListUsersErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersResponses, ListUsersErrors, ThrowOnError>({ url: '/api/users', ...options });
 
@@ -906,6 +930,24 @@ export const deleteUser = <ThrowOnError extends boolean = false>(options: Option
  * `GET /api/users/{id}` — get a user. Requires `users:read`.
  */
 export const getUser = <ThrowOnError extends boolean = false>(options: Options<GetUserData, ThrowOnError>): RequestResult<GetUserResponses, GetUserErrors, ThrowOnError> => (options.client ?? client).get<GetUserResponses, GetUserErrors, ThrowOnError>({ url: '/api/users/{id}', ...options });
+
+/**
+ * `PATCH /api/users/{id}/role` — change a user's role. Requires
+ * `admin:users:manage-roles` (admins only by construction — the seed
+ * grants it solely to the admin role).
+ *
+ * Guards (service layer):
+ * - bot accounts can't change roles,
+ * - the last human admin cannot be demoted.
+ */
+export const setUserRole = <ThrowOnError extends boolean = false>(options: Options<SetUserRoleData, ThrowOnError>): RequestResult<SetUserRoleResponses, SetUserRoleErrors, ThrowOnError> => (options.client ?? client).patch<SetUserRoleResponses, SetUserRoleErrors, ThrowOnError>({
+    url: '/api/users/{id}/role',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * `POST /api/vitals` — receive a web-vitals report from the browser.

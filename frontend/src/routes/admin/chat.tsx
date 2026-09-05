@@ -26,6 +26,14 @@ export function AdminChatPage() {
         isFetchingMoreMessages={ws.isFetchingMoreMessages}
         onFetchMoreMessages={ws.fetchMoreMessages as any}
         chatStats={ws.chatStats}
+        staffPresence={ws.staffPresence}
+        mineFilter={ws.mineFilter}
+        onToggleMineFilter={ws.setMineFilter}
+        onClaim={ws.claimActiveChannel}
+        onRelease={ws.releaseActiveChannel}
+        onCloseChannel={ws.closeActiveChannel}
+        assignmentBusy={ws.assignmentBusy}
+        allChannelsCount={ws.allChannelsCount}
       />
     </AdminShell>
   )

@@ -279,7 +279,9 @@ export class AudioCallClient {
       case 'error':
         // Terminal call-setup errors — stop ringing and release the mic.
         if (
-          (msg.code === 'no-agent' || msg.code === 'peer-unavailable') &&
+          (msg.code === 'no-agent' ||
+            msg.code === 'agents-busy' ||
+            msg.code === 'peer-unavailable') &&
           (this.state === 'calling' || this.state === 'connecting')
         ) {
           this.clearCallTimeout()

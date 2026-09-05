@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, sitemap, stats, stats2, status, systemStatus, tags, toggle, trigger, tripDetail, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, setUserRole, sitemap, stats, stats2, status, systemStatus, tags, toggle, trigger, tripDetail, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -1499,6 +1499,43 @@ export const createChannelMutation = (options?: Partial<Options<CreateChannelDat
     return mutationOptions;
 };
 
+/**
+ * `POST /api/chat/channels/{id}/claim` — a staff member takes over the
+ * channel. Employees get a `chat_assignment` row; admins implicitly
+ * own every channel (no row, per the three-role spec).
+ */
+export const claimChannelMutation = (options?: Partial<Options<ClaimChannelData>>): UseMutationOptions<ClaimChannelResponse, DefaultError, Options<ClaimChannelData>> => {
+    const mutationOptions: UseMutationOptions<ClaimChannelResponse, DefaultError, Options<ClaimChannelData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await claimChannel({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `POST /api/chat/channels/{id}/close` — close the channel (ends any
+ * assignment). Any staff member may close.
+ */
+export const closeChannelMutation = (options?: Partial<Options<CloseChannelData>>): UseMutationOptions<CloseChannelResponse, DefaultError, Options<CloseChannelData>> => {
+    const mutationOptions: UseMutationOptions<CloseChannelResponse, DefaultError, Options<CloseChannelData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await closeChannel({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listMessagesQueryKey = (options: Options<ListMessagesData>) => createQueryKey('listMessages', options);
 
 /**
@@ -1611,6 +1648,24 @@ export const markReadMutation = (options?: Partial<Options<MarkReadData>>): UseM
     const mutationOptions: UseMutationOptions<MarkReadResponse, DefaultError, Options<MarkReadData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await markRead({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `POST /api/chat/channels/{id}/release` — return the channel to the
+ * open support queue. Allowed for the current assignee or any admin.
+ */
+export const releaseChannelMutation = (options?: Partial<Options<ReleaseChannelData>>): UseMutationOptions<ReleaseChannelResponse, DefaultError, Options<ReleaseChannelData>> => {
+    const mutationOptions: UseMutationOptions<ReleaseChannelResponse, DefaultError, Options<ReleaseChannelData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await releaseChannel({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2129,6 +2184,24 @@ export const updatePostMutation = (options?: Partial<Options<UpdatePostData>>): 
     return mutationOptions;
 };
 
+export const getStaffPresenceQueryKey = (options?: Options<GetStaffPresenceData>) => createQueryKey('getStaffPresence', options);
+
+/**
+ * `GET /api/presence/staff` — current staff presence.
+ */
+export const getStaffPresenceOptions = (options?: Options<GetStaffPresenceData>) => queryOptions<GetStaffPresenceResponse, DefaultError, GetStaffPresenceResponse, ReturnType<typeof getStaffPresenceQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getStaffPresence({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getStaffPresenceQueryKey(options)
+});
+
 export const list14QueryKey = (options?: Options<List14Data>) => createQueryKey('list14', options);
 
 /**
@@ -2505,7 +2578,7 @@ export const tripDetailOptions = (options: Options<TripDetailData>) => queryOpti
 export const listUsersQueryKey = (options?: Options<ListUsersData>) => createQueryKey('listUsers', options);
 
 /**
- * `GET /api/users` — list users. Requires `users:read`.
+ * `GET /api/users` — list users (paginated). Requires `users:read`.
  */
 export const listUsersOptions = (options?: Options<ListUsersData>) => queryOptions<ListUsersResponse, DefaultError, ListUsersResponse, ReturnType<typeof listUsersQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2523,7 +2596,7 @@ export const listUsersOptions = (options?: Options<ListUsersData>) => queryOptio
 export const listUsersInfiniteQueryKey = (options?: Options<ListUsersData>): QueryKey<Options<ListUsersData>> => createQueryKey('listUsers', options, true);
 
 /**
- * `GET /api/users` — list users. Requires `users:read`.
+ * `GET /api/users` — list users (paginated). Requires `users:read`.
  */
 export const listUsersInfiniteOptions = (options?: Options<ListUsersData>) => {
     const opts = infiniteQueryOptions<ListUsersResponse, DefaultError, InfiniteData<ListUsersResponse>, QueryKey<Options<ListUsersData>>, number | Pick<QueryKey<Options<ListUsersData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2584,6 +2657,29 @@ export const getUserOptions = (options: Options<GetUserData>) => queryOptions<Ge
     },
     queryKey: getUserQueryKey(options)
 });
+
+/**
+ * `PATCH /api/users/{id}/role` — change a user's role. Requires
+ * `admin:users:manage-roles` (admins only by construction — the seed
+ * grants it solely to the admin role).
+ *
+ * Guards (service layer):
+ * - bot accounts can't change roles,
+ * - the last human admin cannot be demoted.
+ */
+export const setUserRoleMutation = (options?: Partial<Options<SetUserRoleData>>): UseMutationOptions<SetUserRoleResponse2, DefaultError, Options<SetUserRoleData>> => {
+    const mutationOptions: UseMutationOptions<SetUserRoleResponse2, DefaultError, Options<SetUserRoleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setUserRole({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 /**
  * `POST /api/vitals` — receive a web-vitals report from the browser.

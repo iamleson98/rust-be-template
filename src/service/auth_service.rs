@@ -73,9 +73,11 @@ impl AuthService {
 
     /// Register a new user account.
     /// - Regular users get the `user` role.
-    /// - The first registered user gets the `employee` role (bootstrapping
-    ///   the admin/support account). They can then log in via
-    ///   `/api/auth/employee-login` to access the admin dashboard.
+    /// - The first registered user gets the `admin` role (bootstrapping
+    ///   the system administrator — full permissions). They can then
+    ///   log in via `/api/auth/employee-login` to access the admin
+    ///   dashboard, and can mint `employee` accounts from the Users
+    ///   admin page.
     pub async fn register(
         &self,
         email: String,
@@ -97,7 +99,7 @@ impl AuthService {
             .map_err(|e| AppError::Internal(format!("hash join: {e}")))?
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let role_name = if is_first_user { "employee" } else { "user" };
+        let role_name = if is_first_user { "admin" } else { "user" };
 
         let model = self
             .store
@@ -105,7 +107,10 @@ impl AuthService {
             .create_user(email, username, hash, role_name.to_string())
             .await?;
 
-        // If this is first time setup, then also create nullclaw agent
+        // If this is first time setup, then also create nullclaw agent.
+        // The bot gets the `user` role — it is NOT staff, so presence /
+        // assignment logic must never consider it (its `is_bot = true`
+        // flag is the primary filter, the role is defense-in-depth).
         if is_first_user {
             let _ = self
                 .store
@@ -114,7 +119,7 @@ impl AuthService {
                     "nullclaw_agent@example.com".into(),
                     "nullclaw_agent".into(),
                     "hashed_password".into(),
-                    role_name.to_string(),
+                    "user".into(),
                 )
                 .await?;
         }
@@ -250,7 +255,7 @@ impl AuthService {
     ) -> AppResult<user::Model> {
         let user_count = self.store.user_store().count_users().await?;
         let is_first_user = user_count == 0;
-        let role_name = if is_first_user { "employee" } else { "user" };
+        let role_name = if is_first_user { "admin" } else { "user" };
 
         let model = self
             .store
@@ -276,9 +281,9 @@ impl AuthService {
         Ok(model)
     }
 
-    /// Determine whether a user is an employee (has any non-`"user"`
-    /// role). Used by the `employee-login` route + the OAuth callback
-    /// to gate employee-only endpoints.
+    /// Determine whether a user is staff — an `employee` OR `admin`
+    /// (has any non-`"user"` role). Used by the `employee-login` route
+    /// + the OAuth callback to gate staff-only endpoints.
     pub async fn is_employee(&self, user_id: Uuid) -> AppResult<bool> {
         let perms = self
             .store
@@ -348,6 +353,21 @@ impl AuthService {
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))
             {
+                session.brand_name = Some(brand.name);
+            }
+        }
+        Ok(session)
+    }
+
+    /// Build a `SessionUser` from a user id (no token verification —
+    /// the caller has ALREADY authenticated the id via `AuthUser`).
+    /// Used by REST routes that need the role/brand for routing
+    /// decisions (chat assignment actions).
+    pub async fn session_user_by_id(&self, user_id: Uuid) -> AppResult<SessionUser> {
+        let user = self.store.user_store().get_user(user_id).await?;
+        let mut session = SessionUser::from_model(&user);
+        if let Some(brand_id) = user.brand_id {
+            if let Ok(Some(brand)) = self.store.brand_store().get_by_id(brand_id).await {
                 session.brand_name = Some(brand.name);
             }
         }

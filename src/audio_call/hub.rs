@@ -16,12 +16,15 @@
 //! * The hub is a process-local singleton (`OnceLock`); for horizontal
 //!   scaling behind multiple instances, swap this for Redis Pub/Sub.
 //!
-//! ## Single-agent rule
+//! ## Multi-agent routing
 //!
-//! For v1 we run a single-operator deployment (one support agent = the
-//! site owner). If a second agent connects, the first is force-closed
-//! with reason `"replaced"`. Customers can register freely; they're
-//! keyed by their user id.
+//! Every staff member (employee OR admin) may register as an agent
+//! simultaneously. Customers' calls are redirected to the agent that
+//! is logged in but NOT busy — availability comes from the shared
+//! presence registry (`crate::presence`) so chat load + call state are
+//! considered together. A customer's call is PINNED to the agent that
+//! received their offer so ICE candidates + hangups can't be relayed
+//! to a different agent mid-call.
 //!
 //! ## In-call tracking
 //!
@@ -36,6 +39,8 @@ use std::sync::OnceLock;
 use std::time::Instant;
 
 use dashmap::DashMap;
+
+use crate::presence::presence;
 use serde_json::json;
 use tokio::sync::mpsc;
 
@@ -107,10 +112,15 @@ pub fn call_hub() -> &'static CallHub {
 
 /// The audio-call presence registry.
 pub struct CallHub {
-    /// `userId → Peer`. For agents the key is the user id (NOT the literal
-    /// `"agent"` — that would let two employees fight over the slot; we
-    /// instead enforce single-agent-per-brand in `register`).
+    /// `userId → Peer`. Agents are keyed by their user id (several
+    /// agents can be online simultaneously — availability routing is
+    /// handled by the presence registry).
     peers: DashMap<String, Peer>,
+    /// `customerUserId → agentUserId` — pins an in-flight call so ICE
+    /// candidates + hangups always reach the agent that got the offer
+    /// (previously a second `any_online_agent_id` lookup could pick a
+    /// DIFFERENT agent and silently misroute mid-call signalling).
+    customer_agent: DashMap<String, String>,
     /// Monotonic socket id (used for logging/tracing only).
     next_sid: AtomicU64,
     /// Total connections accepted (for metrics).
@@ -121,6 +131,7 @@ impl CallHub {
     fn new() -> Self {
         Self {
             peers: DashMap::new(),
+            customer_agent: DashMap::new(),
             next_sid: AtomicU64::new(1),
             total_accepted: AtomicU64::new(0),
         }
@@ -156,15 +167,12 @@ impl CallHub {
         self.total_accepted.load(Ordering::Relaxed)
     }
 
-    /// Register a peer. Returns the previous peer for the same user id
-    /// (if any) so the caller can boot them — multiple tabs from the same
-    /// user are NOT allowed for v1 (it'd race the single-agent rule and
-    /// confuse the relay logic).
+    /// Register a peer. Multi-agent: every staff member may be an agent
+    /// at once. Multiple tabs from the same user are still booted (the
+    /// relay logic is per-user, not per-tab).
     ///
-    /// Also enforces the single-agent rule: if this is an agent
-    /// registration and another agent is already online, that previous
-    /// agent is force-closed with reason `"replaced"` and we return the
-    /// list of booted agent user-ids so the caller can broadcast.
+    /// Agent registrations also feed the shared presence registry so
+    /// chat routing sees the same person as online.
     pub fn register(
         &self,
         user: SessionUser,
@@ -176,24 +184,6 @@ impl CallHub {
         self.total_accepted.fetch_add(1, Ordering::Relaxed);
         let mut booted = Vec::new();
 
-        // Single-agent rule: boot any other agents first.
-        if role == CallRole::Agent {
-            for entry in self.peers.iter_mut() {
-                if entry.value().role == CallRole::Agent && entry.key() != &user.id.to_string() {
-                    let booted_id = entry.key().clone();
-                    let _ = entry.value().send(&json!({
-                        "type": "hangup",
-                        "from": "agent",
-                        "reason": "replaced",
-                    }));
-                    booted.push(booted_id);
-                }
-            }
-            for id in &booted {
-                self.peers.remove(id);
-            }
-        }
-
         // Boot a previous session of the SAME user (multi-tab guard).
         if let Some((_, prev)) = self.peers.remove(&user.id.to_string()) {
             let _ = prev.send(&json!({
@@ -201,6 +191,11 @@ impl CallHub {
                 "from": "system",
                 "reason": "replaced",
             }));
+            booted.push(user.id.to_string());
+        }
+
+        if role == CallRole::Agent {
+            presence().call_socket_connected(&user, sid);
         }
 
         self.peers.insert(
@@ -231,9 +226,15 @@ impl CallHub {
     /// Returning `Some(Agent)` tells the caller to broadcast agent-offline
     /// to all waiting customers.
     pub fn unregister(&self, user_id: &str, sid: u64) -> Option<CallRole> {
-        self.peers
-            .remove_if(user_id, |_, p| p.sid == sid)
-            .map(|(_, p)| p.role)
+        let removed = self.peers.remove_if(user_id, |_, p| p.sid == sid);
+        if let Some((_, p)) = &removed {
+            presence().call_socket_disconnected(user_id, p.sid);
+            // Any customer pinned to this agent is unpinned (their
+            // in-flight signalling can't reach the agent anymore — the
+            // hangup broadcast below tells them the call ended).
+            self.customer_agent.retain(|_, agent| agent != user_id);
+        }
+        removed.map(|(_, p)| p.role)
     }
 
     /// Mark a peer as in-call (or not). Used when an agent accepts a call
@@ -244,6 +245,10 @@ impl CallHub {
     pub fn set_in_call(&self, user_id: &str, in_call: bool) -> bool {
         if let Some(mut p) = self.peers.get_mut(user_id) {
             p.in_call = in_call;
+            drop(p);
+            // Mirror into the shared presence registry (chat routing
+            // must see this agent as busy/unavailable).
+            presence().set_in_call(user_id, in_call);
             true
         } else {
             false
@@ -275,10 +280,14 @@ impl CallHub {
     pub fn broadcast_presence(&self) {
         let n = self.online_agent_count();
         let in_call = self.is_agent_in_call();
+        // Availability from the shared presence registry — customers'
+        // call buttons enable when at least one agent is free.
+        let available = self.pick_available_agent_id().is_some();
         let payload = serde_json::json!({
             "type": "presence",
             "onlineAgents": n,
             "agentInCall": in_call,
+            "agentsAvailable": available,
         })
         .to_string();
         for entry in self.peers.iter() {
@@ -317,9 +326,58 @@ impl CallHub {
         self.peers.get(user_id).map(|p| p.role)
     }
 
-    /// Find any online agent's user id. Used to route customer → "agent"
-    /// offers when the customer doesn't know which specific agent is online
-    /// (single-operator deployment → there's at most one).
+    /// Pin a customer's call to an agent (set when the offer is relayed).
+    pub fn pin_agent(&self, customer_id: &str, agent_id: &str) {
+        self.customer_agent
+            .insert(customer_id.to_string(), agent_id.to_string());
+    }
+
+    /// The agent a customer's in-flight call is pinned to.
+    pub fn pinned_agent(&self, customer_id: &str) -> Option<String> {
+        self.customer_agent
+            .get(customer_id)
+            .map(|a| a.value().clone())
+    }
+
+    /// Unpin a customer (call ended).
+    pub fn unpin_agent(&self, customer_id: &str) {
+        self.customer_agent.remove(customer_id);
+    }
+
+    /// Unpin every customer whose call was routed to `agent_id` (the
+    /// agent left / hung up — their calls are dead).
+    pub fn unpin_agents_of(&self, agent_id: &str) {
+        self.customer_agent.retain(|_, agent| agent != agent_id);
+    }
+
+    /// Pick the best agent for a NEW customer call: the staff member
+    /// the presence registry considers most available (online, not in
+    /// a call, lowest chat load) who is ALSO registered on this call
+    /// hub. Falls back to `None` when every agent is busy.
+    pub fn pick_available_agent_id(&self) -> Option<String> {
+        // Candidate = registered HERE as an agent + available in the
+        // shared presence registry. Ranked with the SAME ordering the
+        // chat router uses (chat load → recency → employees first).
+        let mut candidates: Vec<(String, crate::presence::StaffEntry)> = self
+            .peers
+            .iter()
+            .filter(|p| p.role == CallRole::Agent)
+            .filter_map(|p| presence().get(p.key()).map(|s| (p.key().clone(), s)))
+            .filter(|(_, s)| s.available())
+            .collect();
+        candidates.sort_by(|a, b| crate::presence::StaffEntry::availability_cmp(&a.1, &b.1));
+        candidates.into_iter().next().map(|(id, _)| id)
+    }
+
+    /// Pick with fallback: prefer the most-available agent, but if all
+    /// are busy fall back to any online agent (call waiting) — used by
+    /// callers that prefer a busy agent over a hard "no-agent" error.
+    pub fn pick_available_agent_id_or_any(&self) -> Option<String> {
+        self.pick_available_agent_id()
+            .or_else(|| self.any_online_agent_id())
+    }
+
+    /// Find any online agent's user id (busy or not).
     pub fn any_online_agent_id(&self) -> Option<String> {
         self.peers
             .iter()
@@ -391,7 +449,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn single_agent_rule_boots_previous() {
+    async fn multiple_agents_register_simultaneously() {
         let _guard = TEST_LOCK.lock().unwrap();
         let id1 = uuid::Uuid::new_v4().to_string();
         let id2 = uuid::Uuid::new_v4().to_string();
@@ -418,14 +476,53 @@ mod tests {
             tx2,
             sid2,
         );
-        assert_eq!(booted, vec![id1.clone()]);
-        // The single-agent rule keeps exactly ONE of our two agents alive,
-        // so the count grows by exactly 1 relative to the baseline.
-        assert_eq!(h.online_agent_count(), agents_before + 1);
+        // Multi-agent: the second registration does NOT boot the first.
+        assert!(booted.is_empty(), "no other agent gets replaced");
+        assert_eq!(h.online_agent_count(), agents_before + 2);
 
         // Clean up.
+        h.unregister(&id1, sid1);
         h.unregister(&id2, sid2);
         assert_eq!(h.online_agent_count(), agents_before);
+    }
+
+    #[tokio::test]
+    async fn customer_call_gets_pinned_to_agent() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let agent = uuid::Uuid::new_v4().to_string();
+        let customer = uuid::Uuid::new_v4().to_string();
+        let h = hub();
+        assert!(h.pinned_agent(&customer).is_none());
+        h.pin_agent(&customer, &agent);
+        assert_eq!(h.pinned_agent(&customer).as_deref(), Some(agent.as_str()));
+        // Unpinning a DIFFERENT agent's customers doesn't touch this pin.
+        h.unpin_agents_of(&uuid::Uuid::new_v4().to_string());
+        assert_eq!(h.pinned_agent(&customer).as_deref(), Some(agent.as_str()));
+        h.unpin_agent(&customer);
+        assert!(h.pinned_agent(&customer).is_none());
+    }
+
+    #[tokio::test]
+    async fn unregister_unpins_customers_of_agent() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let agent = uuid::Uuid::new_v4().to_string();
+        let customer = uuid::Uuid::new_v4().to_string();
+        let (tx_a, _rx_a) = mpsc::channel::<bytes::Bytes>(8);
+        let h = hub();
+        let sid = h.next_socket_id();
+        h.register(
+            fake_user(&agent, "employee"),
+            CallRole::Agent,
+            None,
+            tx_a,
+            sid,
+        );
+        h.pin_agent(&customer, &agent);
+        h.unregister(&agent, sid);
+        assert!(
+            h.pinned_agent(&customer).is_none(),
+            "agent leaving unpins its customers"
+        );
     }
 
     /// A stale socket timing out must NOT delete a newer entry for the same

@@ -8,6 +8,9 @@ import {
   useChatStats,
   usePostChatMessage,
   useMarkChatRead,
+  useClaimChannel,
+  useReleaseChannel,
+  useCloseChannel,
 } from "@/lib/queries";
 import type {
   AdminChannel,
@@ -36,6 +39,50 @@ export function useAdminChatWorkspace() {
   // (capped at 200). Refetches every 15s.
   const chatStatsQuery = useChatStats();
 
+  // ── "My channels" filter (employee workspace) ─────────────────
+  //
+  // Employees focus on channels assigned to them + the unassigned
+  // queue. Admins see everything (they own the whole queue). The
+  // toggle lives in the panel's channel-list header.
+  const [mineFilter, setMineFilter] = useState(false);
+  const isEmployee = user?.type === "employee";
+
+  // ── Assignment actions ────────────────────────────────────────
+  const claimMut = useClaimChannel();
+  const releaseMut = useReleaseChannel();
+  const closeMut = useCloseChannel();
+
+  const claimActiveChannel = useCallback(async () => {
+    if (!activeChannel) return;
+    try {
+      await claimMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      toast.success("Đã nhận kênh hỗ trợ");
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? e?.message ?? "Không thể nhận kênh");
+    }
+  }, [activeChannel, claimMut]);
+
+  const releaseActiveChannel = useCallback(async () => {
+    if (!activeChannel) return;
+    try {
+      await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      toast.success("Đã trả kênh về hàng chờ");
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? e?.message ?? "Không thể trả kênh");
+    }
+  }, [activeChannel, releaseMut]);
+
+  const closeActiveChannel = useCallback(async () => {
+    if (!activeChannel) return;
+    try {
+      await closeMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      toast.success("Đã đóng cuộc trò chuyện");
+      setActiveChannel(null);
+    } catch (e: any) {
+      toast.error(e?.error?.message ?? e?.message ?? "Không thể đóng kênh");
+    }
+  }, [activeChannel, closeMut]);
+
   // ── Infinite-scroll messages ──────────────────────────────────
   //
   // `useChatMessagesInfinite` fetches the latest `PAGE_SIZE` messages
@@ -62,6 +109,7 @@ export function useAdminChatWorkspace() {
     sendTyping,
     unreadPulseChannels,
     clearUnreadPulse,
+    staffPresence,
   } = useAdminChatWs(user, activeChannel?.id);
 
   // Reply mutation — clears the input + toasts the result.
@@ -185,9 +233,27 @@ export function useAdminChatWorkspace() {
     [activeChannel, postTicketCardMut],
   );
 
+  // Apply the "mine" filter (employees): assigned-to-me + unassigned
+  // open channels. Closed channels stay visible for context either way.
+  const visibleChannels = mineFilter
+    ? channels.filter(
+        (c) =>
+          c.assignedToMe ||
+          (!c.assignedTo && c.status !== "closed"),
+      )
+    : channels;
+
   return {
     // data
-    channels,
+    channels: visibleChannels,
+    allChannelsCount: channels.length,
+    mineFilter,
+    setMineFilter,
+    claimActiveChannel,
+    releaseActiveChannel,
+    closeActiveChannel,
+    assignmentBusy:
+      claimMut.isPending || releaseMut.isPending || closeMut.isPending,
     channelsLoading: channelsQuery.isLoading,
     channelsError: channelsQuery.error,
     chatMessages,
@@ -206,6 +272,7 @@ export function useAdminChatWorkspace() {
     typingUser,
     userOnline,
     unreadPulseChannels,
+    staffPresence,
     // aggregate stats (from GET /api/admin/chat/stats)
     chatStats: chatStatsQuery.data,
     // actions

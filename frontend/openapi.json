@@ -2885,6 +2885,90 @@
         }
       }
     },
+    "/api/chat/channels/{id}/claim": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "`POST /api/chat/channels/{id}/claim` — a staff member takes over the\nchannel. Employees get a `chat_assignment` row; admins implicitly\nown every channel (no row, per the three-role spec).",
+        "operationId": "claim_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel claimed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAssignmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — customers cannot claim"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        }
+      }
+    },
+    "/api/chat/channels/{id}/close": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "`POST /api/chat/channels/{id}/close` — close the channel (ends any\nassignment). Any staff member may close.",
+        "operationId": "close_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAssignmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — staff only"
+          },
+          "404": {
+            "description": "Channel not found"
+          }
+        }
+      }
+    },
     "/api/chat/channels/{id}/messages": {
       "get": {
         "tags": [
@@ -3025,6 +3109,48 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/chat/channels/{id}/release": {
+      "post": {
+        "tags": [
+          "chat"
+        ],
+        "summary": "`POST /api/chat/channels/{id}/release` — return the channel to the\nopen support queue. Allowed for the current assignee or any admin.",
+        "operationId": "release_channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Channel ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel released",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChannelAssignmentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — not the assignee or an admin"
+          },
+          "404": {
+            "description": "Channel not found"
           }
         }
       }
@@ -3902,6 +4028,33 @@
         }
       }
     },
+    "/api/presence/staff": {
+      "get": {
+        "tags": [
+          "presence"
+        ],
+        "summary": "`GET /api/presence/staff` — current staff presence.",
+        "operationId": "get_staff_presence",
+        "responses": {
+          "200": {
+            "description": "Staff presence snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPresenceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden — staff only"
+          }
+        }
+      }
+    },
     "/api/price-alerts": {
       "get": {
         "tags": [
@@ -4742,7 +4895,7 @@
         "tags": [
           "users"
         ],
-        "summary": "`GET /api/users` — list users. Requires `users:read`.",
+        "summary": "`GET /api/users` — list users (paginated). Requires `users:read`.",
         "operationId": "list_users",
         "parameters": [
           {
@@ -4772,10 +4925,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/UserOut"
-                  }
+                  "$ref": "#/components/schemas/UserListResponse"
                 }
               }
             }
@@ -4848,6 +4998,65 @@
           },
           "403": {
             "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/role": {
+      "patch": {
+        "tags": [
+          "users"
+        ],
+        "summary": "`PATCH /api/users/{id}/role` — change a user's role. Requires\n`admin:users:manage-roles` (admins only by construction — the seed\ngrants it solely to the admin role).",
+        "description": "Guards (service layer):\n  - bot accounts can't change roles,\n  - the last human admin cannot be demoted.",
+        "operationId": "set_user_role",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "User ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetUserRoleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid role or bot account"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          },
+          "409": {
+            "description": "Cannot demote the last admin"
           }
         }
       }
@@ -7174,6 +7383,22 @@
           }
         }
       },
+      "ChannelAssignmentResponse": {
+        "type": "object",
+        "description": "Response of the channel assignment actions (`claim` / `release` /\n`close`) — the channel state after the action.",
+        "required": [
+          "ok",
+          "channel"
+        ],
+        "properties": {
+          "channel": {
+            "$ref": "#/components/schemas/ChatChannelOut"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
       "ChannelUserOut": {
         "type": "object",
         "description": "The customer who started the channel. Embedded in [`ChatChannelOut`]\nso the admin's channel list can display name / email / phone without\na second round-trip per channel.",
@@ -7238,6 +7463,21 @@
           "createdAt"
         ],
         "properties": {
+          "assignedTo": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ChannelUserOut",
+                "description": "The staff member currently assigned to this channel (from the\nactive `chat_assignment` row). `None` for unassigned queue\nitems. Admins never appear here — they implicitly own every\nchannel (member since creation) and no assignment row is\nwritten for them (three-role spec)."
+              }
+            ]
+          },
+          "assignedToMe": {
+            "type": "boolean",
+            "description": "True when the requester IS the assignee (convenience for the\nemployee workspace's \"my channels\" tab). Always `false` for\ncustomers."
+          },
           "brandId": {
             "type": [
               "string",
@@ -9347,7 +9587,7 @@
       },
       "SessionUser": {
         "type": "object",
-        "description": "Identity of an authenticated actor, derived from the `user` row.\n\n`actor_type` is `\"user\"` for customers and `\"employee\"` for staff. The\ndistinction matters for the chat / call hubs (only employees may register\nas agents) and for nullclaw (human-fallback threshold counts online\nemployees).",
+        "description": "Identity of an authenticated actor, derived from the `user` row.\n\n`actor_type` mirrors the `user.role` column and is one of:\n  - `\"user\"`      — customer (book trips, feedback, ticket status)\n  - `\"employee\"`  — support staff (bookings, tickets, chat, calls, promos)\n  - `\"admin\"`     — full-access superuser (the first registered account)\n\nThe distinction matters for the chat / call hubs (only staff — employees\nOR admins — may register as agents) and for nullclaw (the human-fallback\nthreshold counts online staff).",
         "required": [
           "id",
           "type",
@@ -9404,6 +9644,113 @@
           },
           "type": {
             "type": "string"
+          }
+        }
+      },
+      "SetUserRoleRequest": {
+        "type": "object",
+        "description": "Request body for `PATCH /api/users/{id}/role`.",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "The new role: `\"user\"`, `\"employee\"` or `\"admin\"`."
+          }
+        }
+      },
+      "SetUserRoleResponse": {
+        "type": "object",
+        "description": "Response of `PATCH /api/users/{id}/role`.",
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        }
+      },
+      "StaffPresenceOut": {
+        "type": "object",
+        "description": "Staff presence entry for `GET /api/presence/staff` + the\n`staff_presence` WS broadcast.",
+        "required": [
+          "userId",
+          "name",
+          "role",
+          "online",
+          "available",
+          "busy",
+          "inCall",
+          "activeChats"
+        ],
+        "properties": {
+          "activeChats": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channels currently assigned to this staff member.",
+            "minimum": 0
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Online AND not in a call (i.e. can take new work)."
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "busy": {
+            "type": "boolean",
+            "description": "Currently handling an audio call."
+          },
+          "inCall": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "string",
+            "description": "`\"employee\"` or `\"admin\"`."
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffPresenceResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/presence/staff`.",
+        "required": [
+          "staff",
+          "onlineCount",
+          "availableCount",
+          "botActive"
+        ],
+        "properties": {
+          "availableCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "botActive": {
+            "type": "boolean",
+            "description": "True when NO staff is online — the NullClaw bot owns support."
+          },
+          "onlineCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "staff": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPresenceOut"
+            }
           }
         }
       },
@@ -10728,12 +11075,35 @@
           }
         }
       },
+      "UserListResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/users` — one page + the filtered total (server-\nside pagination for the admin Users table).",
+        "required": [
+          "items",
+          "total"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserOut"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "UserOut": {
         "type": "object",
         "required": [
           "id",
           "fullName",
-          "createdAt"
+          "createdAt",
+          "role",
+          "isBot",
+          "status"
         ],
         "properties": {
           "createdAt": {
@@ -10752,6 +11122,18 @@
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "isBot": {
+            "type": "boolean",
+            "description": "True for the NullClaw bot account (role management is refused)."
+          },
+          "role": {
+            "type": "string",
+            "description": "`\"user\"` | `\"employee\"` | `\"admin\"` (three-role model)."
+          },
+          "status": {
+            "type": "string",
+            "description": "Account status (`active` / `blocked`)."
           }
         }
       },

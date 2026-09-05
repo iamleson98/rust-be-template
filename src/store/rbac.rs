@@ -29,6 +29,8 @@ pub struct UserPermissions {
 pub trait RbacStore: Send + Sync {
     async fn get_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions>;
     async fn assign_role(&self, user_id: Uuid, role_id: Uuid) -> StoreResult<()>;
+    /// Remove EVERY role grant for a user (role-management rewrites).
+    async fn revoke_all_roles(&self, user_id: Uuid) -> StoreResult<()>;
     async fn list_roles(&self) -> StoreResult<Vec<roles::Model>>;
     async fn list_permissions(&self) -> StoreResult<Vec<permissions::Model>>;
     async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions>;
@@ -73,6 +75,14 @@ impl RbacStore for DbRbacStore {
             .exec(self.db.as_ref())
             .await?;
 
+        Ok(())
+    }
+
+    async fn revoke_all_roles(&self, user_id: Uuid) -> StoreResult<()> {
+        user_roles::Entity::delete_many()
+            .filter(user_roles::Column::UserId.eq(user_id))
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -190,5 +200,13 @@ impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
 
     async fn fetch_user_permissions(&self, user_id: Uuid) -> StoreResult<UserPermissions> {
         self.inner.fetch_user_permissions(user_id).await
+    }
+
+    async fn revoke_all_roles(&self, user_id: Uuid) -> StoreResult<()> {
+        let result = self.inner.revoke_all_roles(user_id).await;
+        if result.is_ok() {
+            let _ = self.cache.delete(&perms_key(user_id)).await;
+        }
+        result
     }
 }

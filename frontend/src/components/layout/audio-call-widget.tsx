@@ -23,7 +23,7 @@
  *
  *   * Customers: only shown if user has `calls.initiate` RBAC permission.
  *   * Agents: only shown if user has `calls.receive` RBAC permission +
- *     actor_type === 'employee'.
+ *     actor_type is 'employee' or 'admin' (staff).
  *
  * ## Performance
  *
@@ -43,6 +43,7 @@ import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2,
 import type { AudioCallClient } from '@/lib/audio-call-client'
 import { playSound, startRingTone } from '@/lib/sound-effects'
 import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
+import { isStaffUser } from '@/lib/store'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
 
@@ -62,6 +63,8 @@ export function AudioCallWidget() {
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
   const [agentInCall, setAgentInCall] = useState(false)
+  /** At least one agent online AND not in a call (multi-agent). */
+  const [agentsAvailable, setAgentsAvailable] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
@@ -123,7 +126,7 @@ export function AudioCallWidget() {
     if (clientRef.current) return clientRef.current
     if (!user) throw new Error('Not authenticated')
     const { AudioCallClient } = await import('@/lib/audio-call-client')
-    const role = user.type === 'employee' ? 'agent' : 'customer'
+    const role = isStaffUser(user) ? 'agent' : 'customer'
     const client = new AudioCallClient({
       signalingUrl: buildSignalingUrl(),
       token: '',
@@ -174,15 +177,18 @@ export function AudioCallWidget() {
         stopRingRef.current = null
       }
     })
-    client.on('presence', ({ onlineAgents, agentInCall }: { onlineAgents: number; agentInCall?: boolean }) => {
+    client.on('presence', ({ onlineAgents, agentInCall, agentsAvailable }: { onlineAgents: number; agentInCall?: boolean; agentsAvailable?: boolean }) => {
       setOnlineAgents(onlineAgents)
       setAgentInCall(agentInCall ?? false)
+      // Multi-agent availability: agents may be online but all busy.
+      setAgentsAvailable(agentsAvailable ?? onlineAgents > 0)
     })
     // When the signaling WS closes (agent logged out, network drop),
     // reset onlineAgents to 0 so the call button disables immediately.
     client.on('_close', () => {
       setOnlineAgents(0)
       setAgentInCall(false)
+      setAgentsAvailable(false)
     })
     client.on('incoming', ({ from, sdp }: { from: string; sdp: any }) => {
       setIncomingFrom({ from, sdp })
@@ -277,7 +283,7 @@ export function AudioCallWidget() {
   // closed. The panel opens only when the agent clicks the FAB.
   //
   // For customers: we still connect when the panel opens (below).
-  const isAgent = user?.type === 'employee'
+  const isAgent = isStaffUser(user)
 
   // Connect to the signaling WS as soon as the panel opens (for
   // customers) OR as soon as the agent logs in (for agents).
@@ -314,9 +320,9 @@ export function AudioCallWidget() {
         ? 'Đang gọi...'
         : 'Sẵn sàng nhận cuộc gọi'
     : agentsOnline
-      ? agentInCall
-        ? 'Nhân viên đang bận'
-        : 'Nhân viên đang online'
+      ? agentsAvailable
+        ? 'Nhân viên đang online'
+        : 'Nhân viên đang bận'
       : 'Nhân viên đang ngoại tuyến'
 
   return (
@@ -352,10 +358,10 @@ export function AudioCallWidget() {
           {state === 'incoming' && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white animate-ping" />
           )}
-          {onlineAgents > 0 && !isAgent && state !== 'incoming' && !agentInCall && (
+          {onlineAgents > 0 && !isAgent && state !== 'incoming' && agentsAvailable && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse" />
           )}
-          {onlineAgents > 0 && !isAgent && agentInCall && (
+          {onlineAgents > 0 && !isAgent && !agentsAvailable && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white" />
           )}
         </button>
@@ -409,11 +415,11 @@ export function AudioCallWidget() {
               <div className="text-zinc-600 dark:text-zinc-300 text-sm">
                 {isAgent
                   ? 'Bạn sẽ nhận được cuộc gọi khi khách hàng cần hỗ trợ.'
-                  : agentInCall
-                    ? 'Nhân viên đang trong cuộc gọi khác. Vui lòng thử lại sau.'
-                    : onlineAgents > 0
-                    ? 'Nhấn để gọi nhân viên hỗ trợ.'
-                    : 'Hiện không có nhân viên online. Vui lòng thử lại sau.'}
+                  : onlineAgents === 0
+                    ? 'Hiện không có nhân viên online. Vui lòng thử lại sau.'
+                    : agentsAvailable
+                      ? 'Nhấn để gọi nhân viên hỗ trợ.'
+                      : 'Nhân viên đang trong cuộc gọi khác. Vui lòng thử lại sau.'}
               </div>
             )}
             {state === 'calling' && (
@@ -463,7 +469,7 @@ export function AudioCallWidget() {
 
           {/* Actions */}
           <div className="flex items-center justify-center gap-3">
-            {state === 'idle' && !isAgent && agentInCall && (
+            {state === 'idle' && !isAgent && onlineAgents > 0 && !agentsAvailable && (
               <div className="flex flex-col items-center gap-2 py-2">
                 <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
                   Nhân viên đang bận
@@ -473,7 +479,7 @@ export function AudioCallWidget() {
                 </div>
               </div>
             )}
-            {state === 'idle' && !isAgent && !agentInCall && (
+            {state === 'idle' && !isAgent && agentsAvailable && (
               <Button
                 onClick={startCall}
                 disabled={onlineAgents === 0}

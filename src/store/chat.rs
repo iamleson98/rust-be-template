@@ -17,7 +17,9 @@ use store_macros::retry;
 use uuid::Uuid;
 
 use crate::cache::{get_serializable, set_serializable, CacheBackend};
-use crate::entity::{chat_channel, chat_channel_member, chat_message, null_claw_exchange};
+use crate::entity::{
+    chat_assignment, chat_channel, chat_channel_member, chat_message, null_claw_exchange,
+};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
@@ -165,6 +167,30 @@ pub trait ChatStore: Send + Sync {
     /// semantics via the unique(channel_id, user_id) index. Returns
     /// `Ok(())` even if the member already exists.
     async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()>;
+    /// The channel's CURRENT assignment row (unassigned_at IS NULL), if any.
+    async fn get_active_assignment(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Option<chat_assignment::Model>>;
+    /// Assign (or re-assign) a channel to an employee. Also flips the
+    /// channel status to "assigned".
+    async fn upsert_assignment(
+        &self,
+        channel_id: &str,
+        employee_id: &str,
+    ) -> StoreResult<chat_assignment::Model>;
+    /// End the active assignment (channel goes back to "open").
+    async fn release_assignment(&self, channel_id: &str) -> StoreResult<()>;
+    /// Close a channel + end any active assignment.
+    async fn close_channel(&self, channel_id: &str) -> StoreResult<()>;
+    /// Batch-fetch the active assignment rows for a list of channels
+    /// (channel list DTO enrichment — avoids N+1).
+    async fn list_active_assignments(
+        &self,
+        channel_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_assignment::Model>>;
+    /// How many channels are actively assigned to this employee.
+    async fn count_active_assignments(&self, employee_id: &str) -> StoreResult<i64>;
     /// List all members of a channel (active = `left_at IS NULL`).
     async fn list_channel_members(
         &self,
@@ -629,6 +655,157 @@ impl ChatStore for DbChatStore {
             .all(self.db.as_ref())
             .await?)
     }
+
+    // ── chat assignments ─────────────────────────────────────────
+
+    async fn get_active_assignment(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Option<chat_assignment::Model>> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        Ok(chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::ChannelId.eq(uuid))
+            .filter(chat_assignment::Column::UnassignedAt.is_null())
+            .order_by_desc(chat_assignment::Column::AssignedAt)
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    async fn upsert_assignment(
+        &self,
+        channel_id: &str,
+        employee_id: &str,
+    ) -> StoreResult<chat_assignment::Model> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        let now = chrono::Utc::now().to_rfc3339();
+
+        // One assignment row per channel (`channel_id` is UNIQUE) —
+        // re-assignment reuses the row so history stays single-line.
+        let model = match chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::ChannelId.eq(uuid))
+            .one(self.db.as_ref())
+            .await?
+        {
+            Some(existing) => {
+                let mut am: chat_assignment::ActiveModel = existing.into();
+                am.employee_id = Set(Some(employee_id.to_string()));
+                am.assigned_at = Set(now.clone());
+                am.unassigned_at = Set(None);
+                am.update(self.db.as_ref()).await?
+            }
+            None => {
+                let id = Uuid::new_v4();
+                let am = chat_assignment::ActiveModel {
+                    id: Set(id),
+                    channel_id: Set(uuid),
+                    employee_id: Set(Some(employee_id.to_string())),
+                    assigned_at: Set(now.clone()),
+                    unassigned_at: Set(None),
+                };
+                chat_assignment::Entity::insert(am)
+                    .exec_without_returning(self.db.as_ref())
+                    .await?;
+                chat_assignment::Model {
+                    id,
+                    channel_id: uuid,
+                    employee_id: Some(employee_id.to_string()),
+                    assigned_at: now.clone(),
+                    unassigned_at: None,
+                }
+            }
+        };
+
+        // Channel flips to "assigned" while an employee owns it.
+        Self::set_channel_status_tx(self, uuid, "assigned").await?;
+        Ok(model)
+    }
+
+    async fn release_assignment(&self, channel_id: &str) -> StoreResult<()> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        let now = chrono::Utc::now().to_rfc3339();
+        if let Some(existing) = chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::ChannelId.eq(uuid))
+            .filter(chat_assignment::Column::UnassignedAt.is_null())
+            .one(self.db.as_ref())
+            .await?
+        {
+            let mut am: chat_assignment::ActiveModel = existing.into();
+            am.unassigned_at = Set(Some(now));
+            am.update(self.db.as_ref()).await?;
+        }
+        Self::set_channel_status_tx(self, uuid, "open").await?;
+        Ok(())
+    }
+
+    async fn close_channel(&self, channel_id: &str) -> StoreResult<()> {
+        let uuid = Uuid::parse_str(channel_id)
+            .map_err(|_| StoreError::Validation(format!("invalid channel id: {channel_id}")))?;
+        let now = chrono::Utc::now().to_rfc3339();
+        // End any active assignment first (keeps the audit trail).
+        if let Some(existing) = chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::ChannelId.eq(uuid))
+            .filter(chat_assignment::Column::UnassignedAt.is_null())
+            .one(self.db.as_ref())
+            .await?
+        {
+            let mut am: chat_assignment::ActiveModel = existing.into();
+            am.unassigned_at = Set(Some(now.clone()));
+            am.update(self.db.as_ref()).await?;
+        }
+        if let Some(channel) = chat_channel::Entity::find_by_id(uuid)
+            .one(self.db.as_ref())
+            .await?
+        {
+            let mut am: chat_channel::ActiveModel = channel.into();
+            am.status = Set("closed".into());
+            am.closed_at = Set(Some(now));
+            am.update(self.db.as_ref()).await?;
+        }
+        Ok(())
+    }
+
+    async fn list_active_assignments(
+        &self,
+        channel_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_assignment::Model>> {
+        if channel_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::ChannelId.is_in(channel_ids.to_vec()))
+            .filter(chat_assignment::Column::UnassignedAt.is_null())
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn count_active_assignments(&self, employee_id: &str) -> StoreResult<i64> {
+        // Active rows ARE the truth: release + close both stamp
+        // `unassigned_at`, so no join on channel status is needed.
+        use sea_orm::PaginatorTrait;
+        Ok(chat_assignment::Entity::find()
+            .filter(chat_assignment::Column::EmployeeId.eq(employee_id.to_string()))
+            .filter(chat_assignment::Column::UnassignedAt.is_null())
+            .count(self.db.as_ref())
+            .await? as i64)
+    }
+}
+
+impl DbChatStore {
+    /// Internal helper: update a channel's status column.
+    async fn set_channel_status_tx(&self, uuid: Uuid, status: &str) -> StoreResult<()> {
+        if let Some(channel) = chat_channel::Entity::find_by_id(uuid)
+            .one(self.db.as_ref())
+            .await?
+        {
+            let mut am: chat_channel::ActiveModel = channel.into();
+            am.status = Set(status.to_string());
+            am.update(self.db.as_ref()).await?;
+        }
+        Ok(())
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -824,6 +1001,46 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
 
     async fn add_channel_member(&self, member: NewChannelMember) -> StoreResult<()> {
         self.inner.add_channel_member(member).await
+    }
+
+    async fn get_active_assignment(
+        &self,
+        channel_id: &str,
+    ) -> StoreResult<Option<chat_assignment::Model>> {
+        self.inner.get_active_assignment(channel_id).await
+    }
+
+    async fn upsert_assignment(
+        &self,
+        channel_id: &str,
+        employee_id: &str,
+    ) -> StoreResult<chat_assignment::Model> {
+        // Assignments are write-path state — never cached (and any
+        // cached channel rows are dropped so status flips propagate).
+        self.invalidate(Some(channel_id)).await;
+        self.inner.upsert_assignment(channel_id, employee_id).await
+    }
+
+    async fn release_assignment(&self, channel_id: &str) -> StoreResult<()> {
+        self.invalidate(Some(channel_id)).await;
+        self.inner.release_assignment(channel_id).await
+    }
+
+    async fn close_channel(&self, channel_id: &str) -> StoreResult<()> {
+        self.invalidate(Some(channel_id)).await;
+        self.inner.close_channel(channel_id).await
+    }
+
+    async fn list_active_assignments(
+        &self,
+        channel_ids: &[Uuid],
+    ) -> StoreResult<Vec<chat_assignment::Model>> {
+        // Fresh state required — pass straight through.
+        self.inner.list_active_assignments(channel_ids).await
+    }
+
+    async fn count_active_assignments(&self, employee_id: &str) -> StoreResult<i64> {
+        self.inner.count_active_assignments(employee_id).await
     }
 
     async fn list_channel_members(

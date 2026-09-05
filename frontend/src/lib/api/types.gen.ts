@@ -699,6 +699,15 @@ export type CancelReq = {
 };
 
 /**
+ * Response of the channel assignment actions (`claim` / `release` /
+ * `close`) — the channel state after the action.
+ */
+export type ChannelAssignmentResponse = {
+    channel: ChatChannelOut;
+    ok: boolean;
+};
+
+/**
  * The customer who started the channel. Embedded in [`ChatChannelOut`]
  * so the admin's channel list can display name / email / phone without
  * a second round-trip per channel.
@@ -723,6 +732,13 @@ export type ChatChannelListResponse = {
  * create-channel endpoint.
  */
 export type ChatChannelOut = {
+    assignedTo?: null | ChannelUserOut;
+    /**
+     * True when the requester IS the assignee (convenience for the
+     * employee workspace's "my channels" tab). Always `false` for
+     * customers.
+     */
+    assignedToMe?: boolean;
     brandId?: string | null;
     createdAt: string;
     id: string;
@@ -1643,10 +1659,14 @@ export type RouteOut = {
 /**
  * Identity of an authenticated actor, derived from the `user` row.
  *
- * `actor_type` is `"user"` for customers and `"employee"` for staff. The
- * distinction matters for the chat / call hubs (only employees may register
- * as agents) and for nullclaw (human-fallback threshold counts online
- * employees).
+ * `actor_type` mirrors the `user.role` column and is one of:
+ * - `"user"`      — customer (book trips, feedback, ticket status)
+ * - `"employee"`  — support staff (bookings, tickets, chat, calls, promos)
+ * - `"admin"`     — full-access superuser (the first registered account)
+ *
+ * The distinction matters for the chat / call hubs (only staff — employees
+ * OR admins — may register as agents) and for nullclaw (the human-fallback
+ * threshold counts online staff).
  */
 export type SessionUser = {
     avatarUrl?: string | null;
@@ -1659,6 +1679,64 @@ export type SessionUser = {
     phone?: string | null;
     role: string;
     type: string;
+};
+
+/**
+ * Request body for `PATCH /api/users/{id}/role`.
+ */
+export type SetUserRoleRequest = {
+    /**
+     * The new role: `"user"`, `"employee"` or `"admin"`.
+     */
+    role: string;
+};
+
+/**
+ * Response of `PATCH /api/users/{id}/role`.
+ */
+export type SetUserRoleResponse = {
+    user: UserOut;
+};
+
+/**
+ * Staff presence entry for `GET /api/presence/staff` + the
+ * `staff_presence` WS broadcast.
+ */
+export type StaffPresenceOut = {
+    /**
+     * Channels currently assigned to this staff member.
+     */
+    activeChats: number;
+    /**
+     * Online AND not in a call (i.e. can take new work).
+     */
+    available: boolean;
+    brandId?: string | null;
+    /**
+     * Currently handling an audio call.
+     */
+    busy: boolean;
+    inCall: boolean;
+    name: string;
+    online: boolean;
+    /**
+     * `"employee"` or `"admin"`.
+     */
+    role: string;
+    userId: string;
+};
+
+/**
+ * Response of `GET /api/presence/staff`.
+ */
+export type StaffPresenceResponse = {
+    availableCount: number;
+    /**
+     * True when NO staff is online — the NullClaw bot owns support.
+     */
+    botActive: boolean;
+    onlineCount: number;
+    staff: Array<StaffPresenceOut>;
 };
 
 /**
@@ -2086,6 +2164,15 @@ export type UpsertVehicleTypeRequest = {
     totalSeats?: number | null;
 };
 
+/**
+ * Response of `GET /api/users` — one page + the filtered total (server-
+ * side pagination for the admin Users table).
+ */
+export type UserListResponse = {
+    items: Array<UserOut>;
+    total: number;
+};
+
 export type UserOut = {
     createdAt: string;
     /**
@@ -2096,6 +2183,18 @@ export type UserOut = {
     email?: string | null;
     fullName: string;
     id: string;
+    /**
+     * True for the NullClaw bot account (role management is refused).
+     */
+    isBot: boolean;
+    /**
+     * `"user"` | `"employee"` | `"admin"` (three-role model).
+     */
+    role: string;
+    /**
+     * Account status (`active` / `blocked`).
+     */
+    status: string;
 };
 
 export type VitalsReport = {
@@ -4125,6 +4224,78 @@ export type CreateChannelResponses = {
 
 export type CreateChannelResponse2 = CreateChannelResponses[keyof CreateChannelResponses];
 
+export type ClaimChannelData = {
+    body?: never;
+    path: {
+        /**
+         * Channel ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/chat/channels/{id}/claim';
+};
+
+export type ClaimChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — customers cannot claim
+     */
+    403: unknown;
+    /**
+     * Channel not found
+     */
+    404: unknown;
+};
+
+export type ClaimChannelResponses = {
+    /**
+     * Channel claimed
+     */
+    200: ChannelAssignmentResponse;
+};
+
+export type ClaimChannelResponse = ClaimChannelResponses[keyof ClaimChannelResponses];
+
+export type CloseChannelData = {
+    body?: never;
+    path: {
+        /**
+         * Channel ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/chat/channels/{id}/close';
+};
+
+export type CloseChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — staff only
+     */
+    403: unknown;
+    /**
+     * Channel not found
+     */
+    404: unknown;
+};
+
+export type CloseChannelResponses = {
+    /**
+     * Channel closed
+     */
+    200: ChannelAssignmentResponse;
+};
+
+export type CloseChannelResponse = CloseChannelResponses[keyof CloseChannelResponses];
+
 export type ListMessagesData = {
     body?: never;
     path: {
@@ -4219,6 +4390,42 @@ export type MarkReadResponses = {
 };
 
 export type MarkReadResponse = MarkReadResponses[keyof MarkReadResponses];
+
+export type ReleaseChannelData = {
+    body?: never;
+    path: {
+        /**
+         * Channel ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/chat/channels/{id}/release';
+};
+
+export type ReleaseChannelErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — not the assignee or an admin
+     */
+    403: unknown;
+    /**
+     * Channel not found
+     */
+    404: unknown;
+};
+
+export type ReleaseChannelResponses = {
+    /**
+     * Channel released
+     */
+    200: ChannelAssignmentResponse;
+};
+
+export type ReleaseChannelResponse = ReleaseChannelResponses[keyof ReleaseChannelResponses];
 
 export type List12Data = {
     body?: never;
@@ -4786,6 +4993,33 @@ export type UpdatePostResponses = {
 
 export type UpdatePostResponse = UpdatePostResponses[keyof UpdatePostResponses];
 
+export type GetStaffPresenceData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/presence/staff';
+};
+
+export type GetStaffPresenceErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden — staff only
+     */
+    403: unknown;
+};
+
+export type GetStaffPresenceResponses = {
+    /**
+     * Staff presence snapshot
+     */
+    200: StaffPresenceResponse;
+};
+
+export type GetStaffPresenceResponse = GetStaffPresenceResponses[keyof GetStaffPresenceResponses];
+
 export type List14Data = {
     body?: never;
     path?: never;
@@ -5277,7 +5511,7 @@ export type ListUsersResponses = {
     /**
      * User list
      */
-    200: Array<UserOut>;
+    200: UserListResponse;
 };
 
 export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
@@ -5337,6 +5571,50 @@ export type GetUserResponses = {
 };
 
 export type GetUserResponse = GetUserResponses[keyof GetUserResponses];
+
+export type SetUserRoleData = {
+    body: SetUserRoleRequest;
+    path: {
+        /**
+         * User ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/users/{id}/role';
+};
+
+export type SetUserRoleErrors = {
+    /**
+     * Invalid role or bot account
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * User not found
+     */
+    404: unknown;
+    /**
+     * Cannot demote the last admin
+     */
+    409: unknown;
+};
+
+export type SetUserRoleResponses = {
+    /**
+     * Role updated
+     */
+    200: SetUserRoleResponse;
+};
+
+export type SetUserRoleResponse2 = SetUserRoleResponses[keyof SetUserRoleResponses];
 
 export type ReportVitalsData = {
     body: VitalsReport;

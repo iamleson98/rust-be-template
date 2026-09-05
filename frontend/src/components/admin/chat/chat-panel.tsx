@@ -22,6 +22,11 @@ import {
   Phone,
   Mail,
   User as UserIcon,
+  Hand,
+  Undo2,
+  CheckCircle2,
+  Bot,
+  Filter,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
 import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/components/admin/dashboard/types'
@@ -89,6 +94,14 @@ export function ChatPanel({
   isFetchingMoreMessages,
   onFetchMoreMessages,
   chatStats,
+  staffPresence,
+  mineFilter,
+  onToggleMineFilter,
+  onClaim,
+  onRelease,
+  onCloseChannel,
+  assignmentBusy,
+  allChannelsCount,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -128,6 +141,32 @@ export function ChatPanel({
     totalChannels: number
     avgResponseTimeSecs: number
   }
+  /** Live staff presence (WS `staff_presence` broadcasts). */
+  staffPresence?: {
+    staff: {
+      userId: string
+      name: string
+      role: string
+      online: boolean
+      available: boolean
+      busy: boolean
+      inCall: boolean
+      activeChats: number
+    }[]
+    onlineCount: number
+    availableCount: number
+    botActive: boolean
+  } | null
+  /** "My channels" filter toggle (employee workspace). */
+  mineFilter?: boolean
+  onToggleMineFilter?: (v: boolean) => void
+  /** Assignment actions on the active channel. */
+  onClaim?: () => void
+  onRelease?: () => void
+  onCloseChannel?: () => void
+  assignmentBusy?: boolean
+  /** Unfiltered channel count (shown when the mine filter hides rows). */
+  allChannelsCount?: number
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -300,11 +339,75 @@ export function ChatPanel({
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Channel list */}
         <Card className="xl:col-span-2 flex flex-col">
-          <CardHeader className="pb-2 shrink-0">
+          <CardHeader className="pb-2 shrink-0 space-y-2">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-blue-600" />
               Hàng đợi cuộc trò chuyện
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                {channels.length}{allChannelsCount != null && allChannelsCount !== channels.length ? `/${allChannelsCount}` : ''} kênh
+              </span>
+              {onToggleMineFilter && (
+                <Button
+                  variant={mineFilter ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-7 gap-1 text-xs ${mineFilter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+                  onClick={() => onToggleMineFilter(!mineFilter)}
+                  title="Chỉ hiện kênh của tôi + kênh chưa phân công"
+                >
+                  <Filter className="h-3 w-3" />
+                  Của tôi
+                </Button>
+              )}
             </CardTitle>
+            {/* Staff presence strip — live availability (WS pushes).
+                Employees + admins with online/busy/available state;
+                the bot chip shows when nobody is online. */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {staffPresence ? (
+                <>
+                  {staffPresence.staff.map((st) => (
+                    <span
+                      key={st.userId}
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        !st.online
+                          ? 'border-slate-200 bg-slate-50 text-slate-400'
+                          : st.busy
+                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      }`}
+                      title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ${st.online ? (st.busy ? 'đang gọi điện' : 'sẵn sàng') : 'ngoại tuyến'} · ${st.activeChats} kênh`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          !st.online ? 'bg-slate-300' : st.busy ? 'bg-amber-500' : 'bg-emerald-500'
+                        }`}
+                      />
+                      {st.name}
+                      {st.role === 'admin' && <span className="text-[8px] uppercase">admin</span>}
+                    </span>
+                  ))}
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                      staffPresence.botActive
+                        ? 'border-violet-300 bg-violet-100 text-violet-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-400'
+                    }`}
+                    title={
+                      staffPresence.botActive
+                        ? 'Không có nhân viên trực tuyến — bot AI đang hỗ trợ khách'
+                        : 'Có nhân viên trực tuyến — bot chỉ hỗ trợ khi không ai online'
+                    }
+                  >
+                    <Bot className="h-3 w-3" />
+                    Bot {staffPresence.botActive ? 'đang hỗ trợ' : 'chờ'}
+                  </span>
+                </>
+              ) : (
+                <span className="text-[10px] text-muted-foreground">
+                  Đang kết nối trạng thái nhân viên...
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
             <ScrollArea className={PANES_HEIGHT}>
@@ -342,6 +445,14 @@ export function ChatPanel({
                             <div className="font-medium text-sm truncate">{customerDisplayName(c)}</div>
                             {c.brand?.name && (
                               <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                            )}
+                            {c.assignedTo?.fullName && (
+                              <Badge
+                                className={`text-[9px] border-0 ${c.assignedToMe ? 'bg-blue-600 text-white' : 'bg-indigo-100 text-indigo-700'}`}
+                                title={`Được phân công cho ${c.assignedTo.fullName}`}
+                              >
+                                {c.assignedToMe ? 'Của tôi' : c.assignedTo.fullName}
+                              </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -429,8 +540,58 @@ export function ChatPanel({
                     <TicketIcon className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Đặt vé cho khách</span>
                   </Button>
-                  <Badge className={`text-[10px] ${activeChannel.status === 'assigned' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'} border-0`}>
-                    {activeChannel.status === 'assigned' ? 'Đang xử lý' : 'Chờ'}
+                  {activeChannel.status !== 'closed' && (
+                    <>
+                      {/* Assignment actions — three-role routing.
+                          No assignee (or someone else) → claim ("nhận").
+                          Assignee (or admin) → release + close. */}
+                      {!activeChannel.assignedToMe && onClaim && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
+                          onClick={onClaim}
+                          disabled={assignmentBusy}
+                          title="Nhận kênh này về cho mình"
+                        >
+                          <Hand className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Nhận kênh</span>
+                        </Button>
+                      )}
+                      {activeChannel.assignedToMe && onRelease && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100"
+                          onClick={onRelease}
+                          disabled={assignmentBusy}
+                          title="Trả kênh về hàng đợi chung"
+                        >
+                          <Undo2 className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Trả kênh</span>
+                        </Button>
+                      )}
+                      {onCloseChannel && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 text-slate-600 border-slate-200 hover:bg-slate-100"
+                          onClick={onCloseChannel}
+                          disabled={assignmentBusy}
+                          title="Đóng cuộc trò chuyện"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Đóng</span>
+                        </Button>
+                      )}
+                    </>
+                  )}
+                  <Badge className={`text-[10px] border-0 ${activeChannel.status === 'assigned' ? 'bg-blue-100 text-blue-700' : activeChannel.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
+                    {activeChannel.status === 'assigned'
+                      ? `Đang xử lý${activeChannel.assignedTo?.fullName ? ` · ${activeChannel.assignedTo.fullName}` : ''}`
+                      : activeChannel.status === 'closed'
+                        ? 'Đã đóng'
+                        : 'Chờ'}
                   </Badge>
                   <Button
                     variant="ghost"

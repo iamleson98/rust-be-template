@@ -46,6 +46,7 @@ import { useMarkChatRead } from '@/lib/queries'
 import { playSound } from '@/lib/sound-effects'
 import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
+import { isStaffUser } from '@/lib/store'
 
 type WsChatMessageEvent = {
   id: string
@@ -70,6 +71,35 @@ type WsPresenceEvent = {
   online: boolean
 }
 
+/** Live staff presence entry (from the `staff_presence` broadcast). */
+export type StaffPresenceEntry = {
+  userId: string
+  name: string
+  role: 'employee' | 'admin' | string
+  brandId?: string | null
+  online: boolean
+  available: boolean
+  busy: boolean
+  inCall: boolean
+  activeChats: number
+}
+
+export type StaffPresenceSnapshot = {
+  staff: StaffPresenceEntry[]
+  onlineCount: number
+  availableCount: number
+  botActive: boolean
+}
+
+/** Assignment event (`channel_assigned` / `channel_released` / `channel_closed`). */
+type WsAssignmentEvent = {
+  channelId: string
+  employeeId?: string
+  employeeName?: string
+  role?: string
+  status?: string
+}
+
 export function useAdminChatWs(
   user: SessionUser | null,
   activeChannelId: string | null | undefined,
@@ -85,6 +115,12 @@ export function useAdminChatWs(
    * for a channel when the admin opens that channel.
    */
   const [unreadPulseChannels, setUnreadPulseChannels] = useState<Set<string>>(new Set())
+  /**
+   * Live staff presence snapshot — updated by `staff_presence`
+   * broadcasts (connect/disconnect, call start/end, assignment
+   * changes). Drives the presence column + bot status chip.
+   */
+  const [staffPresence, setStaffPresence] = useState<StaffPresenceSnapshot | null>(null)
   const markReadMut = useMarkChatRead()
 
   // CRITICAL: Use a ref for activeChannelId so the WS event handlers
@@ -98,7 +134,7 @@ export function useAdminChatWs(
   // Create the WS connection once when the admin logs in.
   useEffect(() => {
     if (!user) return
-    if (user.type !== 'employee') return
+    if (!isStaffUser(user)) return
 
     let disposed = false
     const ws = new WsClient()
@@ -206,6 +242,48 @@ export function useAdminChatWs(
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
     })
 
+    // ── Staff presence broadcasts ─────────────────────────────────
+    //
+    // The hub pushes the full snapshot whenever availability changes
+    // (staff connect/disconnect, call start/end, assignment load).
+    // Stored locally for the presence column + presence REST fallback
+    // is invalidated so refetches realign on reconnect.
+    ws.on('staff_presence', (data: Record<string, unknown>) => {
+      if (disposed) return
+      const d = data as unknown as StaffPresenceSnapshot
+      if (!Array.isArray(d?.staff)) return
+      setStaffPresence({
+        staff: d.staff,
+        onlineCount: d.onlineCount ?? d.staff.filter((x) => x.online).length,
+        availableCount: d.availableCount ?? d.staff.filter((x) => x.available).length,
+        botActive: !!d.botActive,
+      })
+    })
+
+    // ── Assignment events ─────────────────────────────────────────
+    //
+    // `channel_assigned` (auto or manual claim), `channel_released`,
+    // `channel_closed` — each changes the queue shape, so the channel
+    // list + stats must refetch. The assignee badge renders from the
+    // refreshed `listChannels` data (single source of truth).
+    const onAssignmentChange = (ev: Record<string, unknown>) => {
+      if (disposed) return
+      const d = ev as unknown as WsAssignmentEvent
+      if (!d?.channelId) return
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      // A new assignment changes the active-chats load of the
+      // assignee — the hub re-broadcasts staff_presence itself.
+    }
+    ws.on('channel_assigned', onAssignmentChange)
+    ws.on('channel_released', onAssignmentChange)
+    ws.on('channel_closed', onAssignmentChange)
+    ws.on('channels_changed', () => {
+      if (disposed) return
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      qc.invalidateQueries({ queryKey: ['chatStats'] })
+    })
+
     return () => {
       disposed = true
       ws.close()
@@ -278,5 +356,6 @@ export function useAdminChatWs(
     sendTyping,
     unreadPulseChannels,
     clearUnreadPulse,
+    staffPresence,
   }
 }
