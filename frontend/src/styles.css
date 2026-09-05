@@ -342,3 +342,108 @@
     color: #000 !important;
   }
 }
+/* ── Leaflet map design-system overrides ─────────────────────────
+ * The basemap is now a native CARTO raster TileLayer, so the only
+ * Leaflet chrome left to style is: zoom control, attribution, popups,
+ * tooltips and the tile-fade. These rules align Leaflet's default
+ * look with the shadcn surface language (rounded-lg, ring-1, soft
+ * shadows, backdrop blur) so the map doesn't look like a stock
+ * Leaflet demo dropped into the app.
+ */
+
+/* Softer tile fade-in than Leaflet's default 200ms pop. */
+.leaflet-tile {
+  transition: opacity 0.25s ease-out;
+}
+
+/* Zoom control — rounded pill, soft shadow, subtle ring. */
+.leaflet-bar {
+  border: none !important;
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.08),
+    0 4px 12px -2px rgb(0 0 0 / 0.12) !important;
+  border-radius: 0.625rem;
+  overflow: hidden;
+}
+.leaflet-bar a {
+  width: 2rem !important;
+  height: 2rem !important;
+  line-height: 2rem !important;
+  font-size: 1.05rem !important;
+  color: #334155 !important; /* slate-700 */
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid rgb(0 0 0 / 0.06) !important;
+  transition: background-color 0.15s ease;
+}
+.leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+.leaflet-bar a:hover {
+  background: #f8fafc !important; /* slate-50 */
+  color: #1e293b !important;
+}
+
+/* Attribution — compact, translucent pill, doesn't fight the UI. */
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(6px);
+  border-radius: 9999px 0 0 0;
+  padding: 2px 8px !important;
+  font-size: 10px !important;
+  color: #64748b !important; /* slate-500 */
+}
+.leaflet-control-attribution a {
+  color: #475569 !important; /* slate-600 */
+  text-decoration: none;
+}
+.leaflet-control-attribution a:hover {
+  text-decoration: underline;
+}
+
+/* Popups — rounded-xl card look with tighter type. */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.875rem !important;
+  box-shadow:
+    0 1px 3px 0 rgb(0 0 0 / 0.1),
+    0 8px 24px -4px rgb(0 0 0 / 0.15) !important;
+  padding: 2px;
+}
+.leaflet-popup-content {
+  margin: 10px 12px !important;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.leaflet-popup-tip {
+  box-shadow: none !important;
+}
+.leaflet-popup-close-button {
+  color: #94a3b8 !important; /* slate-400 */
+  padding: 6px 8px 0 0 !important;
+}
+.leaflet-popup-close-button:hover {
+  color: #475569 !important;
+  background: transparent !important;
+}
+
+/* Tooltips — dark pill, slightly larger than default. */
+.leaflet-tooltip {
+  border: none !important;
+  border-radius: 0.5rem !important;
+  background: rgba(15, 23, 42, 0.92) !important; /* slate-900 */
+  color: #f8fafc !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  padding: 4px 10px !important;
+  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 0.25) !important;
+}
+.leaflet-tooltip-top::before {
+  border-top-color: rgba(15, 23, 42, 0.92) !important;
+}
+
+/* Keep Leaflet's high z-index panes contained inside map containers —
+   guards against popups painting over the site header on scroll. */
+.leaflet-container {
+  font: inherit;
+  outline: none;
+}

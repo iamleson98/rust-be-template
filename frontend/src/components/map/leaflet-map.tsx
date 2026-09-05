@@ -12,8 +12,9 @@ import {
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
+import { toast } from 'sonner'
 import { search as sdkPlaceSearch, reverse as sdkReverseGeocode } from '@/lib/api/sdk.gen'
-import { OpenFreeMapLayer } from '@/components/map/openfreemap-layer'
+import { BasemapLayer } from '@/components/map/basemap-layer'
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
@@ -116,9 +117,9 @@ export function LeafletMap({
       scrollWheelZoom
       zoomControl={false}
       className={className ?? 'h-full w-full'}
-      style={{ background: '#aadaff' }}
+      style={{ background: '#e2eaf2' }}
     >
-      <OpenFreeMapLayer />
+      <BasemapLayer />
       <ZoomControl position="bottomright" />
       {onMapClick && <ClickHandler onPick={onMapClick} />}
       {/* Recenter MUST live inside <MapContainer> so useMap() has a context. */}
@@ -341,7 +342,10 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
   }, [])
 
   const handleMyLocation = useCallback(() => {
-    if (!navigator.geolocation) return
+    if (!navigator.geolocation) {
+      toast.error('Thiết bị không hỗ trợ định vị vị trí.')
+      return
+    }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords
@@ -352,7 +356,14 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         setReverseLoading(false)
         setFlyTarget([latitude, longitude])
       },
-      () => { },
+      () => {
+        // The OS/browser refused or couldn't determine the position
+        // (e.g. macOS kCLErrorLocationUnknown, permission denied, or
+        // no GPS on desktops) — surface it instead of failing silently.
+        toast.error('Không thể xác định vị trí của bạn. Hãy chọn thủ công trên bản đồ.', {
+          description: 'Kiểm tra quyền định vị của trình duyệt hoặc kết nối GPS.',
+        })
+      },
       { enableHighAccuracy: true, timeout: 8000 },
     )
   }, [])

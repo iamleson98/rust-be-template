@@ -153,15 +153,154 @@ async fn spa_fallback_serves_index_html_for_unknown_paths() -> anyhow::Result<()
         .oneshot(
             Request::builder()
                 .uri("/some-unknown-client-route")
+                .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
                 .body(Body::empty())?,
         )
         .await?;
 
-    // Should return 200 + HTML (the SPA index.html).
+    // Should never 5xx…
     assert!(
         !response.status().is_server_error(),
         "SPA fallback should not 5xx, got {}",
         response.status()
     );
+    // …and when the frontend is built it must serve HTML with no-cache
+    // (stale index.html references are the #1 cause of the
+    // "module script served as text/html" deploy failure).
+    if response.status() == StatusCode::OK {
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            content_type.contains("text/html"),
+            "SPA fallback must serve text/html, got: {content_type}"
+        );
+        let cache_control = response
+            .headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            cache_control.contains("no-cache"),
+            "SPA index.html must be served with no-cache, got: {cache_control}"
+        );
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn missing_hashed_assets_404_instead_of_serving_html() -> anyhow::Result<()> {
+    let app = boot_test_app().await?;
+
+    // Regression test for the "Failed to load module script: … MIME type
+    // text/html" deploy failure: a request for a missing /assets/*.js
+    // chunk (stale index.html in the browser cache) must be a hard 404 —
+    // serving index.html (200 + text/html) breaks the module graph.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/assets/vendor-deadbeef-does-not-exist.js")
+                .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "missing hashed asset must 404, got {}",
+        response.status()
+    );
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        !content_type.contains("text/html"),
+        "missing asset must never be served as HTML, got: {content_type}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn extension_shaped_misses_404_instead_of_serving_html() -> anyhow::Result<()> {
+    let app = boot_test_app().await?;
+
+    // Same contract as above but for root-level files (favicon.ico,
+    // stray /foo.css references, …): extension-shaped misses must not
+    // fall back to the SPA index.html.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/no-such-file-deadbeef.css")
+                .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "extension-shaped miss must 404, got {}",
+        response.status()
+    );
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(
+        !content_type.contains("text/html"),
+        "extension-shaped miss must never be served as HTML, got: {content_type}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn root_serves_spa_index_when_built() -> anyhow::Result<()> {
+    let app = boot_test_app().await?;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/")
+                .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0")
+                .body(Body::empty())?,
+        )
+        .await?;
+
+    // When the frontend is built, "/" must serve the SPA shell with
+    // no-cache; when it isn't (CI without a dist), a 404 with the
+    // "frontend not built" hint is acceptable.
+    if response.status() == StatusCode::OK {
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            content_type.contains("text/html"),
+            "/ must serve text/html, got: {content_type}"
+        );
+        let cache_control = response
+            .headers()
+            .get("cache-control")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        assert!(
+            cache_control.contains("no-cache"),
+            "/ index.html must be served with no-cache, got: {cache_control}"
+        );
+    } else {
+        assert_eq!(
+            response.status(),
+            StatusCode::NOT_FOUND,
+            "/ should be 200 (built) or 404 (not built), got {}",
+            response.status()
+        );
+    }
     Ok(())
 }

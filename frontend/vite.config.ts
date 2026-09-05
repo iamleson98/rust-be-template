@@ -64,9 +64,9 @@ export default defineConfig({
     // + i18n + forms + TanStack Query) legitimately weighs ~250KB gzip;
     // the lazy islands are already code-split. manualChunks below keeps
     // the shell stable across island updates for better long-term caching.
-    // vendor-maplibre (the vector-tile renderer for the OpenFreeMap
-    // basemap) is ~950KB min / ~250KB gzip — lazy-loaded only by map
-    // views, so it also stays under this adjusted limit.
+    // (The basemap is a raster CARTO TileLayer since the OpenFreeMap/
+    // MapLibre-GL bridge removal — no ~950KB vector renderer chunk anymore,
+    // only Leaflet's ~155KB, lazy-loaded by map views.)
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: path.resolve(import.meta.dirname, 'index.html'),
@@ -99,15 +99,9 @@ export default defineConfig({
           if (id.includes('@tanstack/react-query')) {
             return 'vendor-query'
           }
-          // MapLibre GL — the vector-tile renderer for the OpenFreeMap
-          // basemap (~950KB min). Must be checked BEFORE leaflet (the
-          // bridge plugin's path contains 'leaflet'). Lazy-loaded only
-          // by map views, cached separately from Leaflet so the two
-          // update independently.
-          if (id.includes('maplibre')) {
-            return 'vendor-maplibre'
-          }
           // Leaflet map — heavy (~155KB), only needed for map views.
+          // (MapLibre GL was removed with the OpenFreeMap bridge — the
+          // basemap is now native CARTO raster tiles via Leaflet.)
           if (id.includes('leaflet') || id.includes('react-leaflet')) {
             return 'vendor-leaflet'
           }

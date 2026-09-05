@@ -25,7 +25,7 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { OpenFreeMapLayer } from '@/components/map/openfreemap-layer'
+import { BasemapLayer } from '@/components/map/basemap-layer'
 
 // Fix leaflet's default marker icon paths (broken under bundlers).
 // We use custom divIcons below, but this is a safety net.
@@ -146,9 +146,9 @@ export default function RouteNavigationMap({
       scrollWheelZoom
       zoomControl={false}
       className="h-full w-full"
-      style={{ background: '#aadaff' }}
+      style={{ background: '#e2eaf2' }}
     >
-      <OpenFreeMapLayer />
+      <BasemapLayer />
       <ZoomControl position="bottomright" />
       <FixSize />
       <FitBounds

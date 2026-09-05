@@ -576,7 +576,7 @@ function MapSidebar({
               </div>
               <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-1">
                 <Crosshair className="h-3 w-3" />
-                Nguồn bản đồ: OpenStreetMap
+                Nguồn bản đồ: OpenStreetMap · CARTO
               </div>
             </div>
           </div>

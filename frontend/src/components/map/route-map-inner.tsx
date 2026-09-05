@@ -14,7 +14,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin, Bus, ArrowRight, Search } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import { OpenFreeMapLayer } from '@/components/map/openfreemap-layer'
+import { BasemapLayer } from '@/components/map/basemap-layer'
 
 // Fix default icon paths (safety net; we mostly use CircleMarker / divIcon)
 delete (L.Icon.Default.prototype as any)._getIconUrl
@@ -136,9 +136,9 @@ export function RouteMapInner({
       scrollWheelZoom
       zoomControl={false}
       className="h-full w-full"
-      style={{ background: '#aadaff' }}
+      style={{ background: '#e2eaf2' }}
     >
-      <OpenFreeMapLayer />
+      <BasemapLayer />
       <ZoomControl position="bottomright" />
       <FixSize />
       <FlyToController flyTo={flyTo} />

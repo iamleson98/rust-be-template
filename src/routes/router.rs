@@ -19,11 +19,12 @@
 
 use axum::response::IntoResponse;
 use axum::Router;
+use tower::service_fn;
 use tower_governor::governor::GovernorConfigBuilder;
 use tower_governor::GovernorLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use utoipa::OpenApi;
@@ -100,23 +101,128 @@ pub fn build_router(state: AppState) -> Router<()> {
         .layer(governor_layer);
 
     // ---- Static files (NO rate limit, browser-cache headers) -----------
+    // Correct SPA static-serving contract (prevents the "module script
+    // served as text/html" hard failure after a redeploy):
+    //   * `/assets/*` — Vite emits content-hashed filenames, so these are
+    //     immutable and safe to cache for a year. A miss means the browser
+    //     holds a stale index.html referencing dead chunk hashes: it MUST
+    //     get a plain 404 (never index.html, which returns 200 + text/html
+    //     and kills the module graph with a MIME-type error).
+    //   * `index.html` (root + SPA fallback) — `no-cache` so every deploy
+    //     is picked up immediately instead of serving stale references.
+    //   * other root files (favicon, manifests, images) — moderate cache.
     let static_dir = state.config.static_files.dir.clone();
     let static_cache_age = state.config.static_files.cache_max_age;
-    let index_html_path = std::path::Path::new(&static_dir).join("index.html");
-    let static_service = ServeDir::new(&static_dir)
+    let static_root = std::path::Path::new(&static_dir).to_path_buf();
+    let index_html_path = static_root.join("index.html");
+
+    // Plain 404 for missing hashed assets — no HTML fallback, no caching.
+    let asset_not_found = service_fn(
+        |_req: axum::http::Request<axum::body::Body>| async {
+            let resp = axum::response::Response::builder()
+                .status(axum::http::StatusCode::NOT_FOUND)
+                .header(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")
+                .header(axum::http::header::CACHE_CONTROL, "no-store")
+                .body(axum::body::Body::from("asset not found"))
+                .expect("static 404 response is always constructible");
+            Ok::<_, std::convert::Infallible>(resp)
+        },
+    );
+    let assets_service = ServeDir::new(&static_root)
+        .precompressed_gzip()
+        .precompressed_br()
+        .not_found_service(asset_not_found);
+
+    // SPA fallback: extension-shaped paths (missing .js/.css/.png/…)
+    // get a 404; everything else is a client-side route and gets
+    // index.html with `no-cache, must-revalidate`.
+    let make_spa_fallback = |index_html_path: std::path::PathBuf| {
+        service_fn(
+            move |req: axum::http::Request<axum::body::Body>| {
+                let index_html_path = index_html_path.clone();
+                async move {
+                    // "/admin/brands" → last segment "brands" (no dot) → SPA.
+                    // "/vendor-dead.js" → last segment has a dot → 404.
+                    let last_segment = req.uri().path().rsplit('/').next().unwrap_or("");
+                    if last_segment.contains('.') {
+                        let resp = axum::response::Response::builder()
+                            .status(axum::http::StatusCode::NOT_FOUND)
+                            .header(
+                                axum::http::header::CONTENT_TYPE,
+                                "text/plain; charset=utf-8",
+                            )
+                            .header(axum::http::header::CACHE_CONTROL, "no-store")
+                            .body(axum::body::Body::from("not found"))
+                            .expect("static 404 response is always constructible");
+                        return Ok::<_, std::convert::Infallible>(resp);
+                    }
+                    match tokio::fs::read(&index_html_path).await {
+                        Ok(bytes) => {
+                            let resp = axum::response::Response::builder()
+                                .status(axum::http::StatusCode::OK)
+                                .header(
+                                    axum::http::header::CONTENT_TYPE,
+                                    "text/html; charset=utf-8",
+                                )
+                                .header(
+                                    axum::http::header::CACHE_CONTROL,
+                                    "no-cache, must-revalidate",
+                                )
+                                .body(axum::body::Body::from(bytes))
+                                .expect("static index response is always constructible");
+                            Ok(resp)
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "index.html missing — is the frontend built?");
+                            let resp = axum::response::Response::builder()
+                                .status(axum::http::StatusCode::NOT_FOUND)
+                                .header(
+                                    axum::http::header::CONTENT_TYPE,
+                                    "text/plain; charset=utf-8",
+                                )
+                                .header(axum::http::header::CACHE_CONTROL, "no-store")
+                                .body(axum::body::Body::from(
+                                    "frontend not built (dist/index.html missing)",
+                                ))
+                                .expect("static 404 response is always constructible");
+                            Ok(resp)
+                        }
+                    }
+                }
+            },
+        )
+    };
+
+    // Root "/" and unknown non-asset paths both go through the SPA
+    // fallback so index.html is ALWAYS served with no-cache.
+    let root_service = make_spa_fallback(index_html_path.clone());
+    let spa_fallback = make_spa_fallback(index_html_path.clone());
+    let static_service = ServeDir::new(&static_root)
         .append_index_html_on_directories(true)
         .precompressed_gzip()
         .precompressed_br()
         // SPA fallback: if the requested file doesn't exist, serve index.html
         // so client-side routing (TanStack Router) can handle the path.
-        .fallback(ServeFile::new(&index_html_path));
+        .not_found_service(spa_fallback);
+
     let static_router: Router<AppState> = Router::new()
-        .route_service("/", static_service.clone())
+        .route_service("/", root_service)
         .route_service("/{*path}", static_service)
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
             axum::http::HeaderValue::from_str(&format!("public, max-age={static_cache_age}"))
                 .expect("valid header value"),
+        ));
+    // Hashed build assets — immutable for a year (explicit headers on
+    // 404 responses are left untouched by `if_not_present`).
+    let assets_router: Router<AppState> = Router::new()
+        .route_service(
+            "/assets/{*path}",
+            assets_service,
+        )
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("public, max-age=31536000, immutable"),
         ));
 
     // Capture timeout + body limit before state is moved into the router.
@@ -178,6 +284,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         // relay between customers and support agents. Gated by config.
         .merge(crate::audio_call::handler::router())
         .merge(swagger)
+        .merge(assets_router)
         .merge(static_router)
         // Request body size limit — protects against memory DoS.
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
