@@ -1,35 +1,49 @@
 //! SeaORM migrations.
 //!
-//! Apply via `migrator up` (see `migrator/src/main.rs`).
+//! Apply via `migrator up` (see `migrator/src/main.rs`) or `make
+//! migrate-up`.
+//!
+//! ## Layout (from scratch — clean dependency order)
+//!
+//! | # | Migration | Tables |
+//! |---|-----------|--------|
+//! | 1 | `create_users_auth`      | user, posts, refresh_tokens, user_verification, audit_log, notification |
+//! | 2 | `create_rbac`            | roles, permissions, user_roles, role_permissions |
+//! | 3 | `create_catalog`         | place, brand, vehicle_type, address |
+//! | 4 | `create_route_network`   | route, pickup_point, bus_layout, seat |
+//! | 5 | `create_schedules`       | schedule, schedule_point, trip_session |
+//! | 6 | `create_promotions`      | campaign, discount_program |
+//! | 7 | `create_bookings`        | booking, booking_seat, seat_inventory, payment, review |
+//! | 8 | `create_chat`            | chat_channel, chat_message, chat_assignment, chat_channel_member, nullclaw_exchange |
+//! | 9 | `create_engagement_jobs` | wishlist_item, price_alert, scheduled_job, job_run |
+//! | 10 | `seed_defaults`         | RBAC roles/permissions/grants + vehicle-type catalogue |
+//!
+//! Tables are created strictly in FK dependency order (referenced tables
+//! first). All seed data lives in the final migration so it runs after
+//! every permission-introducing table migration. Each file is
+//! self-contained — it redefines the minimal Iden enums it needs
+//! (for FK targets owned by earlier migrations)
+//! instead of importing another migration module's enums.
+//!
+//! Runtime-seeded data (NOT in migrations):
+//!   * the admin account — the first registered user is promoted by
+//!     `AuthService::register`
+//!   * the NullClaw bot account — created on first registration
+//!   * `scheduled_job` rows — seeded by `JobService::ensure_default_jobs`
+//!     at server boot (first `next_run_at` relative to first boot)
 
 pub use sea_orm_migration::prelude::*;
 
-mod m20250101_000001_create_users;
-mod m20250101_000002_create_posts;
-mod m20250101_000003_create_rbac;
-mod m20250101_000004_create_refresh_tokens;
-mod m20250101_000005_seed_rbac;
-mod m20260809_013648_places_brands;
-mod m20260809_014716_routes_pickups_buslayout_seats;
-mod m20260809_020540_schedules_trips_campaigns;
-mod m20260809_020741_bookings;
-mod m20260809_021017_auth_audit;
-mod m20260809_021159_reviews;
-mod m20260809_021323_chat;
-mod m20260809_021431_notifications_wishlist_alerts;
-mod m20260809_021550_discounts;
-mod m20260809_021759_nullclaw;
-mod m20260809_030000_price_alert_owner;
-mod m20260817_000001_add_missing_indexes;
-mod m20260818_000001_payments;
-mod m20260818_000002_seed_payment_perms;
-mod m20260820_000001_user_oauth;
-mod m20260824_000001_chat_channel_member_and_bot;
-mod m20260826_000001_audit_indexes;
-mod m20260902_000001_addresses_schedule_points;
-mod m20260903_000001_scheduled_jobs;
-mod m20260904_000001_vehicle_types_schedule_times;
-mod m20260905_000001_three_roles;
+mod m20260905_000001_create_users_auth;
+mod m20260905_000002_create_rbac;
+mod m20260905_000003_create_catalog;
+mod m20260905_000004_create_route_network;
+mod m20260905_000005_create_schedules;
+mod m20260905_000006_create_promotions;
+mod m20260905_000007_create_bookings;
+mod m20260905_000008_create_chat;
+mod m20260905_000009_create_engagement_jobs;
+mod m20260905_000010_seed_defaults;
 
 pub struct Migrator;
 
@@ -37,32 +51,16 @@ pub struct Migrator;
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
         vec![
-            Box::new(m20250101_000001_create_users::Migration),
-            Box::new(m20250101_000002_create_posts::Migration),
-            Box::new(m20250101_000003_create_rbac::Migration),
-            Box::new(m20250101_000004_create_refresh_tokens::Migration),
-            Box::new(m20250101_000005_seed_rbac::Migration),
-            Box::new(m20260809_013648_places_brands::Migration),
-            Box::new(m20260809_014716_routes_pickups_buslayout_seats::Migration),
-            Box::new(m20260809_020540_schedules_trips_campaigns::Migration),
-            Box::new(m20260809_020741_bookings::Migration),
-            Box::new(m20260809_021017_auth_audit::Migration),
-            Box::new(m20260809_021159_reviews::Migration),
-            Box::new(m20260809_021323_chat::Migration),
-            Box::new(m20260809_021431_notifications_wishlist_alerts::Migration),
-            Box::new(m20260809_021550_discounts::Migration),
-            Box::new(m20260809_021759_nullclaw::Migration),
-            Box::new(m20260809_030000_price_alert_owner::Migration),
-            Box::new(m20260817_000001_add_missing_indexes::Migration),
-            Box::new(m20260818_000001_payments::Migration),
-            Box::new(m20260818_000002_seed_payment_perms::Migration),
-            Box::new(m20260820_000001_user_oauth::Migration),
-            Box::new(m20260824_000001_chat_channel_member_and_bot::Migration),
-            Box::new(m20260826_000001_audit_indexes::Migration),
-            Box::new(m20260902_000001_addresses_schedule_points::Migration),
-            Box::new(m20260903_000001_scheduled_jobs::Migration),
-            Box::new(m20260904_000001_vehicle_types_schedule_times::Migration),
-            Box::new(m20260905_000001_three_roles::Migration),
+            Box::new(m20260905_000001_create_users_auth::Migration),
+            Box::new(m20260905_000002_create_rbac::Migration),
+            Box::new(m20260905_000003_create_catalog::Migration),
+            Box::new(m20260905_000004_create_route_network::Migration),
+            Box::new(m20260905_000005_create_schedules::Migration),
+            Box::new(m20260905_000006_create_promotions::Migration),
+            Box::new(m20260905_000007_create_bookings::Migration),
+            Box::new(m20260905_000008_create_chat::Migration),
+            Box::new(m20260905_000009_create_engagement_jobs::Migration),
+            Box::new(m20260905_000010_seed_defaults::Migration),
         ]
     }
 }

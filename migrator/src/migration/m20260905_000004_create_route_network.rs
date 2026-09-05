@@ -1,81 +1,26 @@
-use sea_orm_migration::{prelude::*, schema::*};
+//! Route network — routes, pickup points, bus layouts and seats.
+//!
+//!   1. `route`        — brand route between two city slugs
+//!                       (`start_location_id` / `end_location_id` are
+//!                       VARCHAR(20) slugs, NOT FKs — resolved via
+//!                       `crate::cities` in the service layer)
+//!   2. `pickup_point` — ordered stops along a route
+//!   3. `bus_layout`   — seat map definition per brand/vehicle class
+//!   4. `seat`         — concrete seat in a layout
 
-use crate::migration::m20260809_013648_places_brands::Brand;
+use sea_orm_migration::{prelude::*, schema::*};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
-#[derive(DeriveIden)]
-pub enum Route {
-    Table,
-    Id,
-    BrandId,
-    Name,
-    StartLocationId,
-    EndLocationId,
-    Status,
-    CreatedAt,
-    UpdatedAt,
-}
-
-#[derive(DeriveIden)]
-pub enum PickupPoint {
-    Table,
-    Id,
-    RouteId,
-    Name,
-    Address,
-    Lat,
-    Lon,
-    StopOrder,
-    Kind,
-    CreatedAt,
-}
-
-#[derive(DeriveIden)]
-pub enum BusLayout {
-    Table,
-    Id,
-    BrandId,
-    Name,
-    VehicleType,
-    TotalSeats,
-    LayoutData,
-    CreatedAt,
-    UpdatedAt,
-}
-
-#[derive(DeriveIden)]
-#[allow(clippy::enum_variant_names)]
-pub enum Seat {
-    Table,
-    Id,
-    BusLayoutId,
-    SeatLabel,
-    SeatClass,
-    RowNum,
-    ColNum,
-    IsWindow,
-    Floor,
-    CreatedAt,
-}
-
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // Route
-        // NOTE: `start_location_id` / `end_location_id` are VARCHAR(20)
-        // NOT NULL storing Vietnamese city slugs (e.g. "ha-noi",
-        // "da-nang") — NOT UUIDs. The slugs are resolved to display
-        // names via `crate::cities::find_by_slug` in the service layer;
-        // no FK to the `place` table is needed. See `src/cities.rs` for
-        // the hardcoded slug list (kept in sync with the frontend's
-        // `vietnamese-cities.ts`).
+        // ── route ────────────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
                     .table(Route::Table)
-                    .if_not_exists()
                     .col(pk_uuid(Route::Id))
                     .col(uuid_null(Route::BrandId))
                     .col(string_len(Route::Name, 255))
@@ -99,7 +44,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("Route_brandId_idx")
                     .table(Route::Table)
                     .col(Route::BrandId)
@@ -109,7 +53,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("Route_startEnd_idx")
                     .table(Route::Table)
                     .col(Route::StartLocationId)
@@ -120,7 +63,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("Route_status_idx")
                     .table(Route::Table)
                     .col(Route::Status)
@@ -128,12 +70,11 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // PickupPoint
+        // ── pickup_point ─────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
                     .table(PickupPoint::Table)
-                    .if_not_exists()
                     .col(pk_uuid(PickupPoint::Id))
                     .col(uuid(PickupPoint::RouteId))
                     .col(string_len_null(PickupPoint::Name, 255))
@@ -158,7 +99,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("PickupPoint_routeId_idx")
                     .table(PickupPoint::Table)
                     .col(PickupPoint::RouteId)
@@ -168,7 +108,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("PickupPoint_route_order_idx")
                     .table(PickupPoint::Table)
                     .col(PickupPoint::RouteId)
@@ -177,12 +116,11 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // BusLayout
+        // ── bus_layout ───────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
                     .table(BusLayout::Table)
-                    .if_not_exists()
                     .col(pk_uuid(BusLayout::Id))
                     .col(uuid_null(BusLayout::BrandId))
                     .col(string_len_null(BusLayout::Name, 255))
@@ -206,7 +144,6 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("BusLayout_brandId_idx")
                     .table(BusLayout::Table)
                     .col(BusLayout::BrandId)
@@ -214,12 +151,11 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Seat
+        // ── seat ─────────────────────────────────────────────────────
         manager
             .create_table(
                 Table::create()
                     .table(Seat::Table)
-                    .if_not_exists()
                     .col(pk_uuid(Seat::Id))
                     .col(uuid(Seat::BusLayoutId))
                     .col(string_len(Seat::SeatLabel, 10))
@@ -244,17 +180,16 @@ impl MigrationTrait for Migration {
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("Seat_busLayoutId_idx")
                     .table(Seat::Table)
                     .col(Seat::BusLayoutId)
                     .to_owned(),
             )
             .await?;
+        // A seat label appears at most once per layout.
         manager
             .create_index(
                 Index::create()
-                    .if_not_exists()
                     .name("Seat_layout_label_uniq")
                     .table(Seat::Table)
                     .col(Seat::BusLayoutId)
@@ -268,18 +203,81 @@ impl MigrationTrait for Migration {
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_table(Table::drop().table(Seat::Table).cascade().to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(BusLayout::Table).cascade().to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(PickupPoint::Table).cascade().to_owned())
-            .await?;
-        manager
-            .drop_table(Table::drop().table(Route::Table).cascade().to_owned())
-            .await?;
+        // Reverse dependency order.
+        for table in [
+            Seat::Table.into_iden(),
+            BusLayout::Table.into_iden(),
+            PickupPoint::Table.into_iden(),
+            Route::Table.into_iden(),
+        ] {
+            manager
+                .drop_table(Table::drop().table(table).if_exists().cascade().to_owned())
+                .await?;
+        }
         Ok(())
     }
+}
+
+// ── Iden enums ──────────────────────────────────────────────────────────
+
+/// Minimal reference to the `brand` table (created in
+/// `m20260905_000003_create_catalog`).
+#[derive(DeriveIden)]
+enum Brand {
+    Table,
+    Id,
+}
+
+#[derive(DeriveIden)]
+enum Route {
+    Table,
+    Id,
+    BrandId,
+    Name,
+    StartLocationId,
+    EndLocationId,
+    Status,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum PickupPoint {
+    Table,
+    Id,
+    RouteId,
+    Name,
+    Address,
+    Lat,
+    Lon,
+    StopOrder,
+    Kind,
+    CreatedAt,
+}
+
+#[derive(DeriveIden)]
+enum BusLayout {
+    Table,
+    Id,
+    BrandId,
+    Name,
+    VehicleType,
+    TotalSeats,
+    LayoutData,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum Seat {
+    Table,
+    Id,
+    BusLayoutId,
+    SeatLabel,
+    SeatClass,
+    RowNum,
+    ColNum,
+    IsWindow,
+    Floor,
+    CreatedAt,
 }
