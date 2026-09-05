@@ -16,7 +16,6 @@ import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/comp
 
 import { useAdminBusLayouts } from '@/lib/queries'
 import type { AdminBusLayoutOut } from '@/lib/api/types.gen'
-import { AdminShell } from '@/components/layout/admin-shell'
 
 /** Server-side page size for the bus-layouts table. */
 const PAGE_SIZE = 20
@@ -72,8 +71,7 @@ export function AdminBusLayoutsPage() {
   const total = data?.total ?? 0
 
   return (
-    <AdminShell>
-      <div className="p-3 md:p-6 space-y-4">
+      <div className="page-transition p-3 md:p-6 space-y-4">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-blue-600" />
@@ -99,6 +97,5 @@ export function AdminBusLayoutsPage() {
           emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
         />
       </div>
-    </AdminShell>
   )
 }

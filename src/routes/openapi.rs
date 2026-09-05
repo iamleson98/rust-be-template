@@ -156,6 +156,12 @@ use utoipa::OpenApi;
         crate::routes::admin::vehicle_types::delete,
         // admin — cron job run cancellation (the admin "kill" button).
         crate::routes::admin::jobs::cancel,
+        // reviews — the caller's own reviews (account feedback page).
+        // Appended LAST on purpose (see the addresses comment above):
+        // appending keeps the existing SDK function numbers stable.
+        crate::routes::reviews::mine,
+        // admin — per-brand feedback aggregates (admin feedback page).
+        crate::routes::admin::reviews::summary,
     ),
     components(schemas(
         // auth
@@ -334,6 +340,9 @@ use utoipa::OpenApi;
         crate::dto::admin::AdminVehicleTypeOut,
         crate::dto::admin::AdminVehicleTypeListResponse,
         crate::dto::admin::UpsertVehicleTypeRequest,
+        // admin — per-brand feedback aggregates (appended last, same rule)
+        crate::dto::admin::AdminReviewBrandSummary,
+        crate::dto::admin::AdminReviewBrandSummaryListResponse,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

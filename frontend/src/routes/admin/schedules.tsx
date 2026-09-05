@@ -64,7 +64,6 @@ import type {
   AdminScheduleOut,
 } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
-import { AdminShell } from '@/components/layout/admin-shell'
 import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
 import { formatVND } from '@/lib/types'
 import { DAY_LABELS } from '@/components/admin/types'
@@ -250,8 +249,7 @@ export function AdminSchedulesPage() {
     (s.amenities ?? '').split(',').filter(Boolean)
 
   return (
-    <AdminShell>
-      <div className="p-3 md:p-6 space-y-4">
+    <div className="page-transition p-3 md:p-6 space-y-4">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -479,7 +477,6 @@ export function AdminSchedulesPage() {
             })}
           </div>
         )}
-      </div>
 
       {/* Create / edit schedule (with point selects + map address modal) */}
       <ScheduleFormDialog
@@ -530,6 +527,6 @@ export function AdminSchedulesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </div>
   )
 }

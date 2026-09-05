@@ -4,13 +4,12 @@
  * the dashboard; the backend additionally enforces the
  * `admin:users:manage-roles` permission on the PATCH endpoint.
  */
-import { AdminShell } from '@/components/layout/admin-shell'
 import { UsersPanel } from '@/components/admin/users/users-panel'
 
 export function AdminUsersPage() {
   return (
-    <AdminShell>
+    <div className="page-transition">
       <UsersPanel />
-    </AdminShell>
+    </div>
   )
 }

@@ -1,12 +1,11 @@
 'use client'
 
-import { AccountShell } from '@/components/layout/account-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Bell } from 'lucide-react'
 
 export function AccountNotificationsPage() {
   return (
-    <AccountShell>
+    <div className="page-transition">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <Card>
           <CardHeader>
@@ -22,6 +21,6 @@ export function AccountNotificationsPage() {
           </CardContent>
         </Card>
       </div>
-    </AccountShell>
+    </div>
   )
 }

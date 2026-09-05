@@ -220,6 +220,25 @@
   100% { transform: translateX(100%); }
 }
 
+/* Shimmer sweep overlay — the skeleton primitive's moving highlight.
+ * Applied as an absolutely-positioned ::after gradient that slides
+ * across the placeholder block. Works in light + dark mode. */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.55), transparent);
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer::after { animation: none; }
+}
+
 @keyframes float-slow {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(-8px); }
@@ -257,13 +276,18 @@
   100% { transform: scale(1.05); }
 }
 
-/* Page fade-in on route change */
+/* Page fade-in on route change — applied to each page's root so the
+ * content fades in once the lazy chunk resolves (the persistent
+ * sidebar stays mounted, so only the content area animates). */
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 .page-transition {
-  animation: page-fade-in 150ms ease-out;
+  animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-transition { animation: none; }
 }
 
 /* Trust badge pulse — subtle attention draw */

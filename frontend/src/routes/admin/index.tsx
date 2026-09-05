@@ -1,17 +1,14 @@
-/** Admin route — `/admin` (employee-guarded via router beforeLoad)
+/** Admin route — `/admin` — the dashboard overview.
  *
- * Uses AdminShell (sidebar layout) instead of the old top-tabs layout.
- * The dashboard overview renders as the default content in the sidebar's
- * Outlet. Sub-routes like /admin/tickets, /admin/brands, etc. render
- * in the same outlet via TanStack Router's nested routing.
+ * The persistent AdminShell comes from the router's admin layout route;
+ * this file renders ONLY the dashboard panel into the shell's outlet.
  */
-import { AdminShell } from '@/components/layout/admin-shell'
 import { AdminDashboard } from '@/components/admin/dashboard'
 
 export function AdminPage() {
   return (
-    <AdminShell>
+    <div className="page-transition">
       <AdminDashboard />
-    </AdminShell>
+    </div>
   )
 }

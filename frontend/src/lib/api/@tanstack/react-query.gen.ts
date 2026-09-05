@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, setUserRole, sitemap, stats, stats2, status, systemStatus, tags, toggle, trigger, tripDetail, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, mine, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, setUserRole, sitemap, stats, stats2, status, summary, systemStatus, tags, toggle, trigger, tripDetail, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, MineData, MineResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SummaryData, SummaryResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -770,6 +770,26 @@ export const list7InfiniteOptions = (options?: Options<List7Data>) => {
     });
     return opts as Omit<typeof opts, 'initialData'>;
 };
+
+export const summaryQueryKey = (options?: Options<SummaryData>) => createQueryKey('summary', options);
+
+/**
+ * `GET /api/admin/reviews/summary` — per-brand feedback aggregates
+ * (volume / status counts / avg rating) for the admin feedback page's
+ * brand cards. Sorted by feedback volume descending.
+ */
+export const summaryOptions = (options?: Options<SummaryData>) => queryOptions<SummaryResponse, DefaultError, SummaryResponse, ReturnType<typeof summaryQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await summary({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: summaryQueryKey(options)
+});
 
 /**
  * `DELETE /api/admin/reviews/{id}` — delete a review (admin override).
@@ -2377,6 +2397,60 @@ export const create8Mutation = (options?: Partial<Options<Create8Data>>): UseMut
         }
     };
     return mutationOptions;
+};
+
+export const mineQueryKey = (options?: Options<MineData>) => createQueryKey('mine', options);
+
+/**
+ * `GET /api/reviews/mine` — the authenticated user's own reviews
+ * with a true `total` (server-side pagination for the account
+ * feedback history page). The `user_id` scope is forced to the
+ * caller — never taken from the query string.
+ */
+export const mineOptions = (options?: Options<MineData>) => queryOptions<MineResponse, DefaultError, MineResponse, ReturnType<typeof mineQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await mine({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: mineQueryKey(options)
+});
+
+export const mineInfiniteQueryKey = (options?: Options<MineData>): QueryKey<Options<MineData>> => createQueryKey('mine', options, true);
+
+/**
+ * `GET /api/reviews/mine` — the authenticated user's own reviews
+ * with a true `total` (server-side pagination for the account
+ * feedback history page). The `user_id` scope is forced to the
+ * caller — never taken from the query string.
+ */
+export const mineInfiniteOptions = (options?: Options<MineData>) => {
+    const opts = infiniteQueryOptions<MineResponse, DefaultError, InfiniteData<MineResponse>, QueryKey<Options<MineData>>, number | Pick<QueryKey<Options<MineData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<MineData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await mine({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: mineInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
 };
 
 export const tagsQueryKey = (options?: Options<TagsData>) => createQueryKey('tags', options);

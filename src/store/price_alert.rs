@@ -15,8 +15,17 @@ use uuid::Uuid;
 
 use crate::entity::price_alert;
 
-use super::error::StoreResult;
+use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
+
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (Postgres casts
+/// text->uuid implicitly, SQLite does not).
+fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -107,7 +116,7 @@ impl PriceAlertStore for DbPriceAlertStore {
         offset: u64,
     ) -> StoreResult<Vec<price_alert::Model>> {
         let mut q =
-            price_alert::Entity::find().filter(price_alert::Column::UserId.eq(user_id.to_string()));
+            price_alert::Entity::find().filter(price_alert::Column::UserId.eq(parse_uuid(user_id)?));
         if let Some(s) = status {
             q = q.filter(price_alert::Column::Status.eq(s.to_string()));
         }
@@ -145,7 +154,7 @@ impl PriceAlertStore for DbPriceAlertStore {
     ) -> StoreResult<u64> {
         let mut q = price_alert::Entity::find();
         if let Some(uid) = user_id {
-            q = q.filter(price_alert::Column::UserId.eq(uid.to_string()));
+            q = q.filter(price_alert::Column::UserId.eq(parse_uuid(uid)?));
         }
         if let Some(p) = phone {
             q = q.filter(price_alert::Column::Phone.eq(p.to_string()));
@@ -174,7 +183,7 @@ impl PriceAlertStore for DbPriceAlertStore {
             .filter(price_alert::Column::Status.eq("active"));
         match route_id {
             Some(rid) => {
-                q = q.filter(price_alert::Column::RouteId.eq(rid.to_string()));
+                q = q.filter(price_alert::Column::RouteId.eq(parse_uuid(rid)?));
             }
             None => {
                 q = q.filter(price_alert::Column::RouteId.is_null());
@@ -182,7 +191,7 @@ impl PriceAlertStore for DbPriceAlertStore {
         }
         match user_id {
             Some(uid) => {
-                q = q.filter(price_alert::Column::UserId.eq(uid.to_string()));
+                q = q.filter(price_alert::Column::UserId.eq(parse_uuid(uid)?));
             }
             None => {
                 q = q

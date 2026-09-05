@@ -479,11 +479,61 @@ pub struct UpsertVehicleTypeRequest {
 /// `ReviewOut` since the shape is identical.
 pub type AdminReviewOut = crate::dto::review::ReviewOut;
 
-/// Response of `GET /api/admin/reviews`.
+/// Response of `GET /api/admin/reviews` — flat, paginated review list.
+/// `total`/`limit`/`offset` back the admin feedback table's
+/// server-side pagination (same envelope style as the admin bookings
+/// list).
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminReviewListResponse {
     pub items: Vec<AdminReviewOut>,
+    /// Total rows matching the filters (for pagination controls).
+    pub total: u64,
+    /// Echo of the request's `limit`.
+    pub limit: u64,
+    /// Echo of the request's `offset`.
+    pub offset: u64,
+}
+
+/// Per-brand feedback aggregate — one row per transport brand that has
+/// reviews (plus a `brand_id: None` bucket for unattributed reviews).
+/// Powers the "organize feedbacks by transport brands" admin page.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminReviewBrandSummary {
+    /// `None` = reviews not linked to any brand (legacy/guest rows).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_slug: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_logo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_accent: Option<String>,
+    /// Total reviews for the brand (all statuses).
+    pub total: i64,
+    /// Reviews awaiting moderation.
+    pub pending: i64,
+    /// Reviews approved (publicly visible).
+    pub approved: i64,
+    /// Reviews rejected.
+    pub rejected: i64,
+    /// Reviews hidden by staff.
+    pub hidden: i64,
+    /// Average star rating (0.0–5.0) across all statuses, rounded to
+    /// one decimal place. `None` when the brand has no reviews.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avg_rating: Option<f64>,
+}
+
+/// Response of `GET /api/admin/reviews/summary` — per-brand feedback
+/// aggregates sorted by `total` descending.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminReviewBrandSummaryListResponse {
+    pub items: Vec<AdminReviewBrandSummary>,
 }
 
 /// Request body for `PATCH /api/admin/reviews/{id}` (moderation).

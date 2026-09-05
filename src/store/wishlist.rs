@@ -15,8 +15,17 @@ use uuid::Uuid;
 
 use crate::entity::wishlist_item;
 
-use super::error::StoreResult;
+use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
+
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (Postgres casts
+/// text->uuid implicitly, SQLite does not).
+fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -85,7 +94,7 @@ impl WishlistStore for DbWishlistStore {
         offset: u64,
     ) -> StoreResult<Vec<wishlist_item::Model>> {
         Ok(wishlist_item::Entity::find()
-            .filter(wishlist_item::Column::UserId.eq(user_id.to_string()))
+            .filter(wishlist_item::Column::UserId.eq(parse_uuid(user_id)?))
             .order_by_desc(wishlist_item::Column::CreatedAt)
             .limit(limit)
             .offset(offset)
@@ -95,7 +104,7 @@ impl WishlistStore for DbWishlistStore {
 
     async fn count_by_user(&self, user_id: &str) -> StoreResult<u64> {
         Ok(wishlist_item::Entity::find()
-            .filter(wishlist_item::Column::UserId.eq(user_id.to_string()))
+            .filter(wishlist_item::Column::UserId.eq(parse_uuid(user_id)?))
             .count(self.db.as_ref())
             .await?)
     }
@@ -106,7 +115,7 @@ impl WishlistStore for DbWishlistStore {
         user_id: &str,
     ) -> StoreResult<Option<wishlist_item::Model>> {
         Ok(wishlist_item::Entity::find_by_id(id)
-            .filter(wishlist_item::Column::UserId.eq(user_id.to_string()))
+            .filter(wishlist_item::Column::UserId.eq(parse_uuid(user_id)?))
             .one(self.db.as_ref())
             .await?)
     }
@@ -117,8 +126,8 @@ impl WishlistStore for DbWishlistStore {
         route_id: &str,
     ) -> StoreResult<Option<wishlist_item::Model>> {
         Ok(wishlist_item::Entity::find()
-            .filter(wishlist_item::Column::UserId.eq(user_id.to_string()))
-            .filter(wishlist_item::Column::RouteId.eq(route_id.to_string()))
+            .filter(wishlist_item::Column::UserId.eq(parse_uuid(user_id)?))
+            .filter(wishlist_item::Column::RouteId.eq(parse_uuid(route_id)?))
             .one(self.db.as_ref())
             .await?)
     }

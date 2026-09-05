@@ -38,7 +38,6 @@ import { toast } from 'sonner'
 import { useAdminBrands, useAdminRoutes, useDeleteAdminRoute } from '@/lib/queries'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { AdminBrandOut, AdminRouteOut } from '@/lib/api/types.gen'
-import { AdminShell } from '@/components/layout/admin-shell'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
 import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
 
@@ -227,8 +226,7 @@ export function AdminRoutesPage() {
   }
 
   return (
-    <AdminShell>
-      <div className="p-3 md:p-6 space-y-4">
+    <div className="page-transition p-3 md:p-6 space-y-4">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -368,7 +366,6 @@ export function AdminRoutesPage() {
             </div>
           }
         />
-      </div>
 
       {/* Create / edit */}
       <RouteFormDialog
@@ -414,6 +411,6 @@ export function AdminRoutesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </div>
   )
 }

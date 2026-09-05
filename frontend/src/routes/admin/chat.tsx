@@ -1,13 +1,17 @@
 /** Admin route — `/admin/chat` — chat support management page. */
-import { AdminShell } from '@/components/layout/admin-shell'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import { useAdminChatWorkspace } from '@/components/admin/chat/use-admin-chat-workspace'
+import { useApp } from '@/lib/store'
 
 export function AdminChatPage() {
   const ws = useAdminChatWorkspace()
+  const { user } = useApp()
+  // Employees can't leave an assigned channel (backend 403s) — only
+  // admins see the "Trả kênh" release button.
+  const canRelease = user?.type === 'admin'
 
   return (
-    <AdminShell>
+    <div className="page-transition">
       <ChatPanel
         channels={ws.channels}
         activeChannel={ws.activeChannel}
@@ -34,7 +38,8 @@ export function AdminChatPage() {
         onCloseChannel={ws.closeActiveChannel}
         assignmentBusy={ws.assignmentBusy}
         allChannelsCount={ws.allChannelsCount}
+        canRelease={canRelease}
       />
-    </AdminShell>
+    </div>
   )
 }

@@ -283,10 +283,74 @@ export type AdminPlacePreview = {
 };
 
 /**
- * Response of `GET /api/admin/reviews`.
+ * Per-brand feedback aggregate — one row per transport brand that has
+ * reviews (plus a `brand_id: None` bucket for unattributed reviews).
+ * Powers the "organize feedbacks by transport brands" admin page.
+ */
+export type AdminReviewBrandSummary = {
+    /**
+     * Reviews approved (publicly visible).
+     */
+    approved: number;
+    /**
+     * Average star rating (0.0–5.0) across all statuses, rounded to
+     * one decimal place. `None` when the brand has no reviews.
+     */
+    avgRating?: number | null;
+    brandAccent?: string | null;
+    /**
+     * `None` = reviews not linked to any brand (legacy/guest rows).
+     */
+    brandId?: string | null;
+    brandLogo?: string | null;
+    brandName?: string | null;
+    brandSlug?: string | null;
+    /**
+     * Reviews hidden by staff.
+     */
+    hidden: number;
+    /**
+     * Reviews awaiting moderation.
+     */
+    pending: number;
+    /**
+     * Reviews rejected.
+     */
+    rejected: number;
+    /**
+     * Total reviews for the brand (all statuses).
+     */
+    total: number;
+};
+
+/**
+ * Response of `GET /api/admin/reviews/summary` — per-brand feedback
+ * aggregates sorted by `total` descending.
+ */
+export type AdminReviewBrandSummaryListResponse = {
+    items: Array<AdminReviewBrandSummary>;
+};
+
+/**
+ * Response of `GET /api/admin/reviews` — flat, paginated review list.
+ * `total`/`limit`/`offset` back the admin feedback table's
+ * server-side pagination (same envelope style as the admin bookings
+ * list).
  */
 export type AdminReviewListResponse = {
     items: Array<ReviewOut>;
+    /**
+     * Echo of the request's `limit`.
+     */
+    limit: number;
+    /**
+     * Echo of the request's `offset`.
+     */
+    offset: number;
+    /**
+     * Total rows matching the filters (for pagination controls).
+     */
+    total: number;
 };
 
 /**
@@ -1561,10 +1625,24 @@ export type ReviewDeleteResponse = {
 };
 
 /**
- * Response of `GET /api/reviews`.
+ * Response of `GET /api/reviews` (public: `items` only) and
+ * `GET /api/reviews/mine` (adds `total`/`limit`/`offset` so the
+ * account feedback page can paginate).
  */
 export type ReviewListResponse = {
     items: Array<ReviewOut>;
+    /**
+     * Echo of the request's `limit` (only set by `/api/reviews/mine`).
+     */
+    limit?: number | null;
+    /**
+     * Echo of the request's `offset` (only set by `/api/reviews/mine`).
+     */
+    offset?: number | null;
+    /**
+     * Total matching rows (only set by `/api/reviews/mine`).
+     */
+    total?: number | null;
 };
 
 /**
@@ -2624,7 +2702,7 @@ export type List3Errors = {
      */
     401: unknown;
     /**
-     * Forbidden — employee role required
+     * Forbidden — staff (employee or admin) role required
      */
     403: unknown;
 };
@@ -3218,6 +3296,33 @@ export type List7Responses = {
 };
 
 export type List7Response = List7Responses[keyof List7Responses];
+
+export type SummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/reviews/summary';
+};
+
+export type SummaryErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type SummaryResponses = {
+    /**
+     * Per-brand feedback summary
+     */
+    200: AdminReviewBrandSummaryListResponse;
+};
+
+export type SummaryResponse = SummaryResponses[keyof SummaryResponses];
 
 export type Delete4Data = {
     body?: never;
@@ -5190,6 +5295,36 @@ export type Create8Responses = {
 };
 
 export type Create8Response = Create8Responses[keyof Create8Responses];
+
+export type MineData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Optional status filter: `pending` | `approved` | `rejected`.
+         */
+        status?: string;
+        limit?: number;
+        offset?: number;
+    };
+    url: '/api/reviews/mine';
+};
+
+export type MineErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type MineResponses = {
+    /**
+     * The caller's reviews
+     */
+    200: ReviewListResponse;
+};
+
+export type MineResponse = MineResponses[keyof MineResponses];
 
 export type TagsData = {
     body?: never;

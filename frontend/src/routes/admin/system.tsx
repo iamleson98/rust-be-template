@@ -1,5 +1,4 @@
 /** Admin route — `/admin/system` — system monitoring dashboard. */
-import { AdminShell } from '@/components/layout/admin-shell'
 import { useSystemStatus } from '@/lib/queries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,8 +9,7 @@ export function AdminSystemPage() {
 
   if (isLoading) {
     return (
-      <AdminShell>
-        <div className="container mx-auto px-4 py-6">
+        <div className="page-transition container mx-auto px-4 py-6">
           <h1 className="text-2xl font-bold mb-4">System Monitoring</h1>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[...Array(4)].map((_, i) => (
@@ -19,18 +17,15 @@ export function AdminSystemPage() {
             ))}
           </div>
         </div>
-      </AdminShell>
-    )
+  )
   }
 
   if (!data) {
     return (
-      <AdminShell>
         <div className="container mx-auto px-4 py-6 flex items-center justify-center">
           <p className="text-muted-foreground">Failed to load system status</p>
         </div>
-      </AdminShell>
-    )
+  )
   }
 
   const wsPct = data.websocket.maxConnections > 0
@@ -44,8 +39,7 @@ export function AdminSystemPage() {
   }
 
   return (
-    <AdminShell>
-      <div className="container mx-auto px-4 py-6">
+    <div className="page-transition container mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-4">System Monitoring</h1>
 
         {/* ── Top-row cards ────────────────────────────────────────── */}
@@ -188,6 +182,5 @@ export function AdminSystemPage() {
           Auto-refreshing every 5 seconds
         </div>
       </div>
-    </AdminShell>
   )
 }

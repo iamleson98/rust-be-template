@@ -14,8 +14,12 @@ pub struct Model {
     pub guest_name: Option<String>,
     pub guest_phone: Option<String>,
     pub guest_email: Option<String>,
-    #[sea_orm(column_type = "Text")]
-    pub trip_session_id: String,
+    /// The booked trip session. Typed as `Uuid` (NOT `String`) so the
+    /// value binds as a 16-byte BLOB — matching `trip_session.id` and
+    /// satisfying the FK on SQLite. A `String` bind stores TEXT which
+    /// never matches the BLOB primary key (works on Postgres via its
+    /// implicit text→uuid cast, fails on SQLite with FK 787).
+    pub trip_session_id: Uuid,
     pub boarding_point_id: Option<Uuid>,
     pub dropping_point_id: Option<Uuid>,
     pub adult_count: i64,

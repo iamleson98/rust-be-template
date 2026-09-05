@@ -49,6 +49,13 @@ import { useAuthMe } from '@/lib/queries'
 import { trackPageView } from '@/lib/analytics'
 import { Header } from '@/components/layout/header'
 import { IslandFallback } from '@/routes/_fallback'
+// Persistent shells — imported EAGERLY (not lazy) so the sidebar /
+// account nav never unmounts during page-to-page navigation. Only the
+// content area inside the shell swaps (with a skeleton fallback), which
+// eliminates the old full-page white-flash spinner.
+import { AdminShell } from '@/components/layout/admin-shell'
+import { AccountShell } from '@/components/layout/account-shell'
+import { AdminContentSkeleton, AccountContentSkeleton } from '@/components/layout/skeletons'
 
 // ── Lazy route components (code-split per route) ────────────────
 const HomePage = lazy(() => import('./routes/home').then((m) => ({ default: m.HomePage })))
@@ -80,6 +87,7 @@ const AccountLoyaltyPage = lazy(() => import('./routes/account/loyalty').then((m
 const AccountNotificationsPage = lazy(() => import('./routes/account/notifications').then((m) => ({ default: m.AccountNotificationsPage })))
 const AccountSecurityPage = lazy(() => import('./routes/account/security').then((m) => ({ default: m.AccountSecurityPage })))
 const AccountTripsPage = lazy(() => import('./routes/account/trips').then((m) => ({ default: m.AccountTripsPage })))
+const AccountFeedbackPage = lazy(() => import('./routes/account/feedback').then((m) => ({ default: m.AccountFeedbackPage })))
 const LoginPage = lazy(() => import('./routes/login').then((m) => ({ default: m.LoginPageRoute })))
 const NotFoundPage = lazy(() => import('./routes/not-found').then((m) => ({ default: m.NotFoundPage })))
 
@@ -137,6 +145,7 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/account/notifications': { title: 'Thông báo — VeXeVN', description: 'Cài đặt thông báo.' },
   '/account/security': { title: 'Bảo mật — VeXeVN', description: 'Bảo mật tài khoản.' },
   '/account/trips': { title: 'Lịch sử chuyến đi — VeXeVN', description: 'Lịch sử đặt vé và đánh giá chuyến đi.' },
+  '/account/feedback': { title: 'Phản hồi của tôi — VeXeVN', description: 'Lịch sử đánh giá các chuyến đi đã đi.' },
   '/map': {
     title: 'Bản đồ tuyến đường — VeXeVN',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
@@ -534,47 +543,69 @@ function requireAdmin() {
   }
 }
 
-// Admin route — staff guard (employees + admins).
-const adminRoute = createRoute({
+// ── Admin layout route (PERSISTENT SHELL) ─────────────────────────
+//
+// All /admin/* pages render INSIDE this layout: the AdminShell (sidebar
+// + top bar) mounts ONCE and stays mounted across admin navigations —
+// only the content area swaps. The Suspense fallback is a
+// structure-matched skeleton (toolbar + table + pagination), so lazy
+// chunk loads never flash a blank white page. The staff guard lives on
+// the layout, so every child inherits it.
+const adminLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/admin',
   beforeLoad: requireStaff,
+  component: AdminLayoutComponent,
+})
+
+function AdminLayoutComponent() {
+  return (
+    <AdminShell>
+      <Suspense fallback={<AdminContentSkeleton />}>
+        <Outlet />
+      </Suspense>
+    </AdminShell>
+  )
+}
+
+// Admin child routes — panels only (the shell comes from the layout).
+// Guards are inherited from the layout; `users` adds the admin-only
+// guard on top.
+const adminIndexRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: '/',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminPage />
     </Suspense>
   ),
 })
 
-// Admin sub-routes (all share the same employee guard)
 const adminBrandsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/brands',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/brands',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminBrandsPage />
     </Suspense>
   ),
 })
 
 const adminRoutesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/routes',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/routes',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminRoutesPage />
     </Suspense>
   ),
 })
 
 const adminSchedulesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/schedules',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/schedules',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminSchedulesPage />
     </Suspense>
   ),
@@ -582,11 +613,10 @@ const adminSchedulesRoute = createRoute({
 
 // Admin route — vehicle type catalog (schedule form's "Loại xe" picker).
 const adminVehicleTypesRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/vehicle-types',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/vehicle-types',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminVehicleTypesPage />
     </Suspense>
   ),
@@ -594,77 +624,70 @@ const adminVehicleTypesRoute = createRoute({
 
 // Admin route — cron jobs (recurring background jobs, e.g. the OSM import).
 const adminCronJobsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/cron-jobs',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/cron-jobs',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminCronJobsPage />
     </Suspense>
   ),
 })
 
 const adminTicketsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/tickets',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/tickets',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminTicketsPage />
     </Suspense>
   ),
 })
 
 const adminChatRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/chat',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/chat',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminChatPage />
     </Suspense>
   ),
 })
 
 const adminReviewsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/reviews',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/reviews',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminReviewsPage />
     </Suspense>
   ),
 })
 
 const adminFeedbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/feedback',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/feedback',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminFeedbackPage />
     </Suspense>
   ),
 })
 
 const adminBusLayoutsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/bus-layouts',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/bus-layouts',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminBusLayoutsPage />
     </Suspense>
   ),
 })
 
 const adminSystemRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/system',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/system',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminSystemPage />
     </Suspense>
   ),
@@ -672,22 +695,21 @@ const adminSystemRoute = createRoute({
 
 // Users admin page — ADMIN only (employees redirect to the dashboard).
 const adminUsersRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/users',
+  getParentRoute: () => adminLayoutRoute,
+  path: '/users',
   beforeLoad: requireAdmin,
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminUsersPage />
     </Suspense>
   ),
 })
 
 const adminPaymentsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/admin/payments',
-  beforeLoad: requireStaff,
+  getParentRoute: () => adminLayoutRoute,
+  path: '/payments',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AdminContentSkeleton />}>
       <AdminPaymentsPage />
     </Suspense>
   ),
@@ -703,75 +725,127 @@ const loginRoute = createRoute({
   ),
 })
 
-// ── Account routes (require login, any user type) ───────────────
-const accountRoute = createRoute({
+// ── Account layout route (PERSISTENT SHELL) ──────────────────────
+//
+// Same pattern as the admin layout: the AccountShell (side nav +
+// gradient header) stays mounted; only the content area swaps with a
+// structure-matched skeleton fallback. The auth guard lives on the
+// layout so every child inherits it.
+const accountLayoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/account',
   beforeLoad: requireAuth,
+  component: AccountLayoutComponent,
+})
+
+function AccountLayoutComponent() {
+  return (
+    <AccountShell>
+      <Suspense fallback={<AccountContentSkeleton />}>
+        <Outlet />
+      </Suspense>
+    </AccountShell>
+  )
+}
+
+// Account child routes — content only (shell from the layout).
+const accountIndexRoute = createRoute({
+  getParentRoute: () => accountLayoutRoute,
+  path: '/',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountPage />
     </Suspense>
   ),
 })
 
 const accountWishlistRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/account/wishlist',
-  beforeLoad: requireAuth,
+  getParentRoute: () => accountLayoutRoute,
+  path: '/wishlist',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountWishlistPage />
     </Suspense>
   ),
 })
 
 const accountLoyaltyRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/account/loyalty',
-  beforeLoad: requireAuth,
+  getParentRoute: () => accountLayoutRoute,
+  path: '/loyalty',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountLoyaltyPage />
     </Suspense>
   ),
 })
 
 const accountNotificationsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/account/notifications',
-  beforeLoad: requireAuth,
+  getParentRoute: () => accountLayoutRoute,
+  path: '/notifications',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountNotificationsPage />
     </Suspense>
   ),
 })
 
 const accountSecurityRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/account/security',
-  beforeLoad: requireAuth,
+  getParentRoute: () => accountLayoutRoute,
+  path: '/security',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountSecurityPage />
     </Suspense>
   ),
 })
 
 const accountTripsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/account/trips',
-  beforeLoad: requireAuth,
+  getParentRoute: () => accountLayoutRoute,
+  path: '/trips',
   component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
+    <Suspense fallback={<AccountContentSkeleton />}>
       <AccountTripsPage />
     </Suspense>
   ),
 })
 
+// Feedback history — the user's submitted trip reviews (star ratings).
+const accountFeedbackRoute = createRoute({
+  getParentRoute: () => accountLayoutRoute,
+  path: '/feedback',
+  component: () => (
+    <Suspense fallback={<AccountContentSkeleton />}>
+      <AccountFeedbackPage />
+    </Suspense>
+  ),
+})
+
 const routeTree = rootRoute.addChildren([
-  adminUsersRoute,
+  adminLayoutRoute.addChildren([
+    adminIndexRoute,
+    adminBrandsRoute,
+    adminRoutesRoute,
+    adminSchedulesRoute,
+    adminVehicleTypesRoute,
+    adminCronJobsRoute,
+    adminTicketsRoute,
+    adminChatRoute,
+    adminReviewsRoute,
+    adminFeedbackRoute,
+    adminBusLayoutsRoute,
+    adminSystemRoute,
+    adminUsersRoute,
+    adminPaymentsRoute,
+  ]),
+  accountLayoutRoute.addChildren([
+    accountIndexRoute,
+    accountWishlistRoute,
+    accountLoyaltyRoute,
+    accountNotificationsRoute,
+    accountSecurityRoute,
+    accountTripsRoute,
+    accountFeedbackRoute,
+  ]),
   indexRoute,
   searchRoute,
   tripDetailRoute,
@@ -780,25 +854,6 @@ const routeTree = rootRoute.addChildren([
   bookingDetailRoute,
   compareRoute,
   mapRoute,
-  adminRoute,
-  adminBrandsRoute,
-  adminRoutesRoute,
-  adminSchedulesRoute,
-  adminVehicleTypesRoute,
-  adminCronJobsRoute,
-  adminTicketsRoute,
-  adminChatRoute,
-  adminReviewsRoute,
-  adminFeedbackRoute,
-  adminBusLayoutsRoute,
-  adminSystemRoute,
-  adminPaymentsRoute,
-  accountRoute,
-  accountWishlistRoute,
-  accountLoyaltyRoute,
-  accountNotificationsRoute,
-  accountSecurityRoute,
-  accountTripsRoute,
   loginRoute,
 ])
 

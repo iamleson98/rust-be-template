@@ -1,12 +1,11 @@
 'use client'
 
-import { AccountShell } from '@/components/layout/account-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Heart } from 'lucide-react'
 
 export function AccountWishlistPage() {
   return (
-    <AccountShell>
+    <div className="page-transition">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         <Card>
           <CardHeader>
@@ -21,6 +20,6 @@ export function AccountWishlistPage() {
           </CardContent>
         </Card>
       </div>
-    </AccountShell>
+    </div>
   )
 }

@@ -29,6 +29,7 @@ import {
   History,
   ArrowLeft,
   LogOut,
+  MessageSquareHeart,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react'
@@ -43,6 +44,12 @@ const NAV_GROUPS = [
       { title: 'Hồ sơ cá nhân', icon: UserCircle, url: '/account' },
       { title: 'Lịch sử chuyến đi', icon: History, url: '/account/trips' },
       { title: 'Vé của tôi', icon: Ticket, url: '/bookings' },
+    ],
+  },
+  {
+    label: 'Đánh giá',
+    items: [
+      { title: 'Phản hồi chuyến đi', icon: MessageSquareHeart, url: '/account/feedback' },
     ],
   },
   {

@@ -59,6 +59,9 @@ import {
   tagsOptions as reviewTagsOptions,
   update8Mutation as reviewUpdateMutation,
   create8Mutation as reviewCreateMutation,
+  // reviews — my own reviews (paginated, /api/reviews/mine)
+  mineOptions as reviewsMineOptions,
+  mineQueryKey as reviewsMineQueryKey,
   // bookings (list11 = GET /api/bookings — the user's own bookings)
   list11Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
@@ -120,6 +123,9 @@ import {
   // admin — reviews (list6)
   list7Options as adminReviewsListOptions,
   list7QueryKey as adminReviewsListQueryKey,
+  // admin — per-brand feedback aggregates (/api/admin/reviews/summary)
+  summaryOptions as adminReviewsSummaryOptions,
+  summaryQueryKey as adminReviewsSummaryQueryKey,
   moderateMutation,
   // admin — addresses (list/create/delete_/update — unnumbered, first alphabetically)
   listOptions as adminAddressesListOptions,
@@ -382,16 +388,33 @@ export function useReviewsByBrand(brandId: string | undefined) {
   });
 }
 
+/**
+ * The caller's OWN reviews — server-side paginated via
+ * `GET /api/reviews/mine` (user scope forced by the backend, never
+ * spoofable via query params). Returns `{ items, total, limit, offset }`
+ * so the feedback history page can render true page controls.
+ *
+ * Keep `enabled` gated on a logged-in user — the endpoint 401s for
+ * guests.
+ */
 export function useMyReviews(opts?: {
   enabled?: boolean;
-  userId?: string | null;
+  status?: string;
+  limit?: number;
+  offset?: number;
 }) {
-  const userId = opts?.userId ?? null;
+  const status = (opts?.status ?? "").trim();
   return useQuery({
-    ...reviewsListOptions({
-      query: { user_id: userId ?? undefined, limit: 50 },
+    ...reviewsMineOptions({
+      query: {
+        status: status || undefined,
+        limit: opts?.limit ?? 10,
+        offset: opts?.offset ?? 0,
+      },
     }),
-    enabled: (opts?.enabled ?? false) && !!userId,
+    enabled: opts?.enabled ?? true,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
   });
 }
 
@@ -1338,6 +1361,8 @@ export function useAdminReviews(opts?: {
   status?: string;
   brandId?: string;
   search?: string;
+  limit?: number;
+  offset?: number;
 }) {
   const status = opts?.status ?? "";
   const brandId = opts?.brandId ?? "";
@@ -1348,10 +1373,24 @@ export function useAdminReviews(opts?: {
         status: status || undefined,
         brandId: brandId || undefined,
         search: search || undefined,
-        limit: 50,
+        limit: opts?.limit ?? 20,
+        offset: opts?.offset ?? 0,
       },
     }),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Per-brand feedback aggregates (volume / status counts / avg rating)
+ * for the admin feedback page's brand cards. Sorted server-side by
+ * feedback volume desc.
+ */
+export function useAdminReviewBrandSummary() {
+  return useQuery({
+    ...adminReviewsSummaryOptions(),
+    staleTime: 60 * 1000,
   });
 }
 
@@ -1361,6 +1400,7 @@ export function useModerateAdminReview() {
     ...moderateMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminReviewsSummaryQueryKey() });
       qc.invalidateQueries({ queryKey: ["reviews"] });
     },
   });

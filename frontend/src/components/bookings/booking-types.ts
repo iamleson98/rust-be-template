@@ -79,18 +79,31 @@ export type BookingItem = {
   review?: ReviewSummary | null
 }
 
-/** Shape returned by GET /api/users/me/reviews (legacy "Đánh giá của tôi" list). */
+/**
+ * Shape returned by the review list endpoints (`GET /api/reviews`,
+ * `GET /api/reviews/mine`). Mirrors the backend `ReviewOut` DTO —
+ * older consumers only read a subset of fields, so everything beyond
+ * the core is optional.
+ */
 export type ReviewItem = {
   id: string
   rating: number
-  title: string
-  content: string
+  title: string | null
+  content: string | null
   tags: string[]
-  authorName: string
+  photos: string[]
+  authorName: string | null
   status: string
   createdAt: string
-  brand: { name: string; accentColor: string }
-  route: { name: string; slug: string; fromName: string; toName: string }
+  bookingId?: string
+  brandId?: string
+  routeId?: string
+  /** The brand's reply (staff-written via moderation). */
+  reply?: string | null
+  repliedAt?: string | null
+  helpfulCount?: number
+  brand?: { name: string; accentColor: string }
+  route?: { name: string; slug: string; fromName: string; toName: string }
 }
 
 export const PAYMENT_LABELS: Record<string, string> = {
@@ -122,13 +135,25 @@ export const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: '
   expired: { label: 'Hết hạn', cls: 'bg-slate-100 text-slate-600', icon: 'alert' },
 }
 
+/**
+ * Effective departure time for bucketing/reviewability. The API's
+ * `departureAt` is the ACTUAL departure (set when the driver checks
+ * in — usually absent for past trips); `departureDate` (YYYY-MM-DD)
+ * is always present. Fall back so "already departed" detection works.
+ */
+export function effectiveDeparture(b: BookingItem): number {
+  if (!b.trip) return 0
+  const t = new Date(b.trip.departureAt || b.trip.departureDate || '').getTime()
+  return Number.isNaN(t) ? 0 : t
+}
+
 /** Whether the booking is "reviewable" — i.e. the trip has finished. */
 export function isBookingReviewable(b: BookingItem): boolean {
   if (!b.trip) return false
   if (b.status === 'cancelled' || b.status === 'refunded') return false
   if (b.status === 'completed') return true
   // confirmed/paid → reviewable only if departure date is in the past.
-  const depTime = new Date(b.trip.departureAt).getTime()
+  const depTime = effectiveDeparture(b)
   return depTime > 0 && depTime < Date.now()
 }
 
@@ -136,7 +161,7 @@ export function isBookingReviewable(b: BookingItem): boolean {
 export function isBookingUpcoming(b: BookingItem): boolean {
   if (!b.trip) return false
   if (b.status === 'cancelled' || b.status === 'refunded' || b.status === 'completed') return false
-  const depTime = new Date(b.trip.departureAt).getTime()
+  const depTime = effectiveDeparture(b)
   return depTime > Date.now()
 }
 
@@ -145,7 +170,7 @@ export function isBookingPast(b: BookingItem): boolean {
   if (!b.trip) return false
   if (b.status === 'cancelled' || b.status === 'refunded') return false
   if (b.status === 'completed') return true
-  const depTime = new Date(b.trip.departureAt).getTime()
+  const depTime = effectiveDeparture(b)
   return depTime > 0 && depTime <= Date.now()
 }
 

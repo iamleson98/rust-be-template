@@ -16,8 +16,17 @@ use uuid::Uuid;
 
 use crate::entity::notification;
 
-use super::error::StoreResult;
+use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
+
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (Postgres casts
+/// text->uuid implicitly, SQLite does not).
+fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -82,7 +91,7 @@ impl NotificationStore for DbNotificationStore {
         offset: u64,
     ) -> StoreResult<Vec<notification::Model>> {
         Ok(notification::Entity::find()
-            .filter(notification::Column::UserId.eq(user_id.to_string()))
+            .filter(notification::Column::UserId.eq(parse_uuid(user_id)?))
             .order_by_desc(notification::Column::CreatedAt)
             .limit(limit)
             .offset(offset)
@@ -92,14 +101,14 @@ impl NotificationStore for DbNotificationStore {
 
     async fn count_by_user(&self, user_id: &str) -> StoreResult<u64> {
         Ok(notification::Entity::find()
-            .filter(notification::Column::UserId.eq(user_id.to_string()))
+            .filter(notification::Column::UserId.eq(parse_uuid(user_id)?))
             .count(self.db.as_ref())
             .await?)
     }
 
     async fn count_unread(&self, user_id: &str) -> StoreResult<u64> {
         Ok(notification::Entity::find()
-            .filter(notification::Column::UserId.eq(user_id.to_string()))
+            .filter(notification::Column::UserId.eq(parse_uuid(user_id)?))
             .filter(notification::Column::Read.eq(false))
             .count(self.db.as_ref())
             .await?)
@@ -137,7 +146,7 @@ impl NotificationStore for DbNotificationStore {
         // could leave some notifications unread but report success.
         let res = notification::Entity::update_many()
             .col_expr(notification::Column::Read, Expr::value(true))
-            .filter(notification::Column::UserId.eq(user_id.to_string()))
+            .filter(notification::Column::UserId.eq(parse_uuid(user_id)?))
             .filter(notification::Column::Read.eq(false))
             .exec(self.db.as_ref())
             .await?;
@@ -153,7 +162,7 @@ impl NotificationStore for DbNotificationStore {
         // the requested id set. Replaces the previous load-then-loop.
         let res = notification::Entity::update_many()
             .col_expr(notification::Column::Read, Expr::value(true))
-            .filter(notification::Column::UserId.eq(user_id.to_string()))
+            .filter(notification::Column::UserId.eq(parse_uuid(user_id)?))
             .filter(notification::Column::Id.is_in(ids.to_vec()))
             .filter(notification::Column::Read.eq(false))
             .exec(self.db.as_ref())

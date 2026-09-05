@@ -254,8 +254,15 @@ impl ChatStore for DbChatStore {
         brand_id: Option<Uuid>,
         limit: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
+        // The staff support queue = every channel that is NOT closed:
+        // "open" (waiting / bot-owned) + "assigned" (an employee owns
+        // it). Previously this fetched only `status = "open"`, which
+        // made channels DISAPPEAR from the queue the moment
+        // `upsert_assignment` flipped them to "assigned" — including
+        // the creation-time assignment, where the channel would drop
+        // out of the queue before any staff ever saw it.
         let mut q = chat_channel::Entity::find()
-            .filter(chat_channel::Column::Status.eq("open"))
+            .filter(chat_channel::Column::Status.is_in(["open", "assigned"]))
             .order_by_desc(chat_channel::Column::LastMessageAt)
             .limit(limit);
         if let Some(brand_id) = brand_id {

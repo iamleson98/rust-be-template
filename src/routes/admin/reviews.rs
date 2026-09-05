@@ -7,7 +7,8 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::dto::admin::{
-    AdminReviewListResponse, AdminReviewsQuery, ModerateReviewRequest, ModerateReviewResponse,
+    AdminReviewBrandSummaryListResponse, AdminReviewListResponse, AdminReviewsQuery,
+    ModerateReviewRequest, ModerateReviewResponse,
 };
 use crate::error::AppError;
 use crate::middleware::AdminUser;
@@ -40,11 +41,35 @@ pub async fn list(
                 q.status.as_deref(),
                 q.brand_id.map(|u| u.to_string()).as_deref(),
                 q.route_id.map(|u| u.to_string()).as_deref(),
+                q.search.as_deref(),
                 q.limit.unwrap_or(50).min(200),
                 q.offset.unwrap_or(0),
             )
             .await?,
     ))
+}
+
+/// `GET /api/admin/reviews/summary` — per-brand feedback aggregates
+/// (volume / status counts / avg rating) for the admin feedback page's
+/// brand cards. Sorted by feedback volume descending.
+#[utoipa::path(
+    get,
+    path = "/api/admin/reviews/summary",
+    tag = "admin",
+    responses(
+        (status = 200, description = "Per-brand feedback summary", body = AdminReviewBrandSummaryListResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    )
+)]
+pub async fn summary(
+    State(st): State<AppState>,
+    admin: AdminUser,
+) -> Result<Json<AdminReviewBrandSummaryListResponse>, AppError> {
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_REVIEWS_MODERATE)
+        .await?;
+    Ok(Json(st.reviews.brand_summary().await?))
 }
 
 /// `PATCH /api/admin/reviews/{id}` — moderate a review (status + reply).
@@ -102,6 +127,7 @@ pub async fn delete(
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/summary", get(summary))
         .route("/", get(list))
         .route("/{id}", patch(moderate).delete(delete))
 }

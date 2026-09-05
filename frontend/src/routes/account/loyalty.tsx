@@ -1,6 +1,5 @@
 'use client'
 
-import { AccountShell } from '@/components/layout/account-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Gift } from 'lucide-react'
 import { useApp } from '@/lib/store'
@@ -8,7 +7,7 @@ import { useApp } from '@/lib/store'
 export function AccountLoyaltyPage() {
   const { loyaltyPoints } = useApp()
   return (
-    <AccountShell>
+    <div className="page-transition">
       <div className="container mx-auto px-4 py-6 max-w-4xl space-y-4">
         <Card>
           <CardHeader>
@@ -27,6 +26,6 @@ export function AccountLoyaltyPage() {
           </CardContent>
         </Card>
       </div>
-    </AccountShell>
+    </div>
   )
 }

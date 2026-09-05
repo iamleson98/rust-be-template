@@ -286,7 +286,7 @@ impl ChatService {
         //      bot doesn't have a WS socket; this row is for roster /
         //      audit purposes.
         //   3. The admin employee (role="employee") — the first non-bot
-        //      employee (i.e. the system admin who signed up first).
+        //      staff member (i.e. the system admin who signed up first).
         //      This is the human responsible for the support queue.
         //
         // All three inserts are best-effort: a failure to add a member
@@ -339,9 +339,10 @@ impl ChatService {
             }
         }
 
-        // 3. Admin employee — the first non-bot user with role="employee".
-        //    This is the human admin who signed up first (created by
-        //    `AuthService::register` before the NullClaw bot user).
+        // 3. Admin — the first non-bot staff member (the bootstrap
+        //    admin). Per the product spec every channel carries the
+        //    admin as a member so the queue always has a human owner
+        //    even when no employee is on shift.
         if let Some(admin_id) = self.resolve_admin_employee_id().await {
             if let Err(e) = self
                 .store
@@ -360,6 +361,28 @@ impl ChatService {
                     "failed to add admin as channel member (continuing)"
                 );
             }
+        }
+
+        // ── Creation-time assignment: bot + admin + most-free ACTIVE
+        // employee ────────────────────────────────────────────────
+        //
+        // Per the product spec, the moment a channel exists it must be
+        // OWNED by the most free and active employee (the one with the
+        // fewest active chats, not in a call, online right now). When
+        // nobody is online the channel stays open and the NullClaw bot
+        // answers until a human comes online. This mirrors what
+        // `route_user_message` does on the first customer message —
+        // running it here means the queue shows an assignee badge
+        // immediately, before the customer even types.
+        //
+        // Best-effort: assignment failures never break channel
+        // creation.
+        if let Err(e) = self.route_user_message(&channel.id.to_string()).await {
+            tracing::warn!(
+                channel_id = %channel_id_v4,
+                error = %e,
+                "creation-time assignment failed — channel stays in the open queue"
+            );
         }
 
         Ok(channel)
@@ -753,13 +776,23 @@ impl ChatService {
         Ok(staff_id)
     }
 
-    /// Release a channel back to the open queue. Allowed for the
-    /// current assignee or any admin.
+    /// Release a channel back to the open queue. Allowed for ADMINS
+    /// ONLY — per the product spec, once an employee is assigned to a
+    /// channel they stay on it until an admin reassigns it or the
+    /// channel is closed (the assignee going offline also triggers the
+    /// automatic internal release). Employees therefore never see a
+    /// "leave channel" affordance and any manual attempt returns 403.
     pub async fn release_channel(
         &self,
         channel_id: &str,
         requester: &SessionUser,
     ) -> AppResult<()> {
+        if !requester.is_admin() {
+            return Err(AppError::Forbidden(
+                "employees cannot leave an assigned channel — ask an admin to reassign it"
+                    .into(),
+            ));
+        }
         let assignment = self
             .store
             .chat_store()
@@ -767,17 +800,6 @@ impl ChatService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let assignee = assignment.and_then(|a| a.employee_id.clone());
-        let requester_id = requester.id.to_string();
-        let allowed = requester.is_admin()
-            || assignee.as_deref() == Some(requester_id.as_str())
-            // channels implicitly owned by an admin can be released by
-            // any staff (assignee is None)
-            || assignee.is_none();
-        if !allowed {
-            return Err(AppError::Forbidden(
-                "only the assignee or an admin may release this channel".into(),
-            ));
-        }
         if let Some(emp) = assignee {
             self.release_assignment_internal(channel_id, &emp).await;
         } else {

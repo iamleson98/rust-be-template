@@ -16,8 +16,16 @@ use uuid::Uuid;
 
 use crate::entity::{campaign, seat, seat_inventory, trip_session};
 
-use super::error::StoreResult;
+use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (Postgres casts
+/// text->uuid implicitly, SQLite does not).
+fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -200,9 +208,16 @@ impl TripStore for DbTripStore {
         trip_session_id: &str,
         seat_ids: Vec<String>,
     ) -> StoreResult<Vec<seat_inventory::Model>> {
+        // Bind uuid columns with parsed Uuid VALUES — SQLite stores
+        // them as 16-byte BLOBs and TEXT binds never match.
+        let tid = parse_uuid(trip_session_id)?;
+        let sids: Vec<Uuid> = seat_ids
+            .iter()
+            .map(|s| parse_uuid(s))
+            .collect::<StoreResult<Vec<_>>>()?;
         Ok(seat_inventory::Entity::find()
-            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
-            .filter(seat_inventory::Column::SeatId.is_in(seat_ids))
+            .filter(seat_inventory::Column::TripSessionId.eq(tid))
+            .filter(seat_inventory::Column::SeatId.is_in(sids))
             .all(self.db.as_ref())
             .await?)
     }
@@ -211,8 +226,9 @@ impl TripStore for DbTripStore {
         &self,
         trip_session_id: &str,
     ) -> StoreResult<Vec<seat_inventory::Model>> {
+        let tid = parse_uuid(trip_session_id)?;
         Ok(seat_inventory::Entity::find()
-            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
+            .filter(seat_inventory::Column::TripSessionId.eq(tid))
             .all(self.db.as_ref())
             .await?)
     }
@@ -281,8 +297,9 @@ impl TripStore for DbTripStore {
         &self,
         booking_id: &str,
     ) -> StoreResult<Vec<seat_inventory::Model>> {
+        let bid = parse_uuid(booking_id)?;
         Ok(seat_inventory::Entity::find()
-            .filter(seat_inventory::Column::HeldByBookingId.eq(booking_id.to_string()))
+            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .all(self.db.as_ref())
             .await?)
     }
@@ -305,6 +322,9 @@ impl TripStore for DbTripStore {
         held_until: &str,
     ) -> StoreResult<bool> {
         use sea_orm::sea_query::Expr;
+        let tid = parse_uuid(trip_session_id)?;
+        let sid = parse_uuid(seat_id)?;
+        let bid = parse_uuid(held_by_booking_id)?;
         // Atomic conditional UPDATE — only claims the seat if it is still
         // 'available'. The `filter` on `status = 'available'` makes this
         // safe under concurrent holds: the DB serializes the UPDATEs, so
@@ -312,12 +332,9 @@ impl TripStore for DbTripStore {
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value("held"))
             .col_expr(seat_inventory::Column::HeldUntil, Expr::value(held_until))
-            .col_expr(
-                seat_inventory::Column::HeldByBookingId,
-                Expr::value(held_by_booking_id),
-            )
-            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
-            .filter(seat_inventory::Column::SeatId.eq(seat_id.to_string()))
+            .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(bid))
+            .filter(seat_inventory::Column::TripSessionId.eq(tid))
+            .filter(seat_inventory::Column::SeatId.eq(sid))
             .filter(seat_inventory::Column::Status.eq("available"))
             .exec(self.db.as_ref())
             .await?;
@@ -334,6 +351,9 @@ impl TripStore for DbTripStore {
         held_by_booking_id: &str,
     ) -> StoreResult<()> {
         use sea_orm::sea_query::Expr;
+        let tid = parse_uuid(trip_session_id)?;
+        let sid = parse_uuid(seat_id)?;
+        let bid = parse_uuid(held_by_booking_id)?;
         // Conditional release — only flips back to 'available' if the
         // seat is still held by THIS booking. Prevents clobbering a
         // different booking's hold if the seat was somehow reassigned.
@@ -345,11 +365,11 @@ impl TripStore for DbTripStore {
             )
             .col_expr(
                 seat_inventory::Column::HeldByBookingId,
-                Expr::value(None::<String>),
+                Expr::value(None::<uuid::Uuid>),
             )
-            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
-            .filter(seat_inventory::Column::SeatId.eq(seat_id.to_string()))
-            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .filter(seat_inventory::Column::TripSessionId.eq(tid))
+            .filter(seat_inventory::Column::SeatId.eq(sid))
+            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .exec(self.db.as_ref())
             .await?;
         Ok(())
@@ -362,6 +382,7 @@ impl TripStore for DbTripStore {
         // for multi-seat bookings. Conditional on `held_by_booking_id`
         // so it never releases a different booking's holds.
         use sea_orm::sea_query::Expr;
+        let bid = parse_uuid(held_by_booking_id)?;
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value("available"))
             .col_expr(
@@ -370,9 +391,9 @@ impl TripStore for DbTripStore {
             )
             .col_expr(
                 seat_inventory::Column::HeldByBookingId,
-                Expr::value(None::<String>),
+                Expr::value(None::<uuid::Uuid>),
             )
-            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .exec(self.db.as_ref())
             .await?;
         Ok(res.rows_affected)
@@ -384,6 +405,7 @@ impl TripStore for DbTripStore {
         // 'held' → 'booked'. Used by booking_service::confirm. Idempotent:
         // already-booked seats are not affected (filter is on status='held').
         use sea_orm::sea_query::Expr;
+        let bid = parse_uuid(held_by_booking_id)?;
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value("booked"))
             .col_expr(
@@ -392,7 +414,7 @@ impl TripStore for DbTripStore {
             )
             // Keep held_by_booking_id set so we can still find the seats later
             // (e.g. for the booking detail view); just clear the held_until timestamp.
-            .filter(seat_inventory::Column::HeldByBookingId.eq(held_by_booking_id.to_string()))
+            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
             .filter(seat_inventory::Column::Status.eq("held"))
             .exec(self.db.as_ref())
             .await?;
@@ -428,8 +450,9 @@ impl TripStore for DbTripStore {
         &self,
         bus_layout_id: &str,
     ) -> StoreResult<Vec<seat::Model>> {
+        let lid = parse_uuid(bus_layout_id)?;
         Ok(seat::Entity::find()
-            .filter(seat::Column::BusLayoutId.eq(bus_layout_id.to_string()))
+            .filter(seat::Column::BusLayoutId.eq(lid))
             .all(self.db.as_ref())
             .await?)
     }

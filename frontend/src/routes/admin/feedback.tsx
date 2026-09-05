@@ -1,20 +1,15 @@
-/** Admin route — `/admin/feedback` — feedback management page. */
-import { AdminShell } from '@/components/layout/admin-shell'
-import { Card, CardContent } from '@/components/ui/card'
-import { MessageSquare } from 'lucide-react'
+/** Admin route — `/admin/feedback` — feedback management page.
+ *
+ * Customer feedback organized by transport brand with per-brand summary
+ * cards + a server-side paginated moderation table. The persistent
+ * AdminShell comes from the router's admin layout route.
+ */
+import { FeedbackPanel } from '@/components/admin/feedback/feedback-panel'
 
 export function AdminFeedbackPage() {
   return (
-    <AdminShell>
-      <div className="p-3">
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>Chức năng quản lý phản hồi đang được phát triển.</p>
-            <p className="text-xs mt-2">Vui lòng sử dụng tab Đánh giá để kiểm duyệt review.</p>
-          </CardContent>
-        </Card>
-      </div>
-    </AdminShell>
+    <div className="page-transition">
+      <FeedbackPanel />
+    </div>
   )
 }

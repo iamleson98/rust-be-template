@@ -1,12 +1,11 @@
 'use client'
 
-import { AccountShell } from '@/components/layout/account-shell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ShieldCheck, Lock, Smartphone } from 'lucide-react'
 
 export function AccountSecurityPage() {
   return (
-    <AccountShell>
+    <div className="page-transition">
       <div className="container mx-auto px-4 py-6 max-w-4xl space-y-4">
         <Card>
           <CardHeader>
@@ -53,6 +52,6 @@ export function AccountSecurityPage() {
           </CardContent>
         </Card>
       </div>
-    </AccountShell>
+    </div>
   )
 }

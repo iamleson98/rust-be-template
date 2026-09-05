@@ -52,11 +52,45 @@ pub struct ReviewOut {
     pub user_id: Option<Uuid>,
 }
 
-/// Response of `GET /api/reviews`.
+/// Response of `GET /api/reviews` (public: `items` only) and
+/// `GET /api/reviews/mine` (adds `total`/`limit`/`offset` so the
+/// account feedback page can paginate).
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewListResponse {
     pub items: Vec<ReviewOut>,
+    /// Total matching rows (only set by `/api/reviews/mine`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    /// Echo of the request's `limit` (only set by `/api/reviews/mine`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Echo of the request's `offset` (only set by `/api/reviews/mine`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+}
+
+impl ReviewListResponse {
+    /// Public-list shape (`items` only — `total`/`limit`/`offset` are
+    /// omitted from the JSON).
+    pub fn public(items: Vec<ReviewOut>) -> Self {
+        Self {
+            items,
+            total: None,
+            limit: None,
+            offset: None,
+        }
+    }
+
+    /// Paginated shape for `/api/reviews/mine`.
+    pub fn paginated(items: Vec<ReviewOut>, total: u64, limit: u64, offset: u64) -> Self {
+        Self {
+            items,
+            total: Some(total),
+            limit: Some(limit),
+            offset: Some(offset),
+        }
+    }
 }
 
 /// Response of `POST /api/reviews` and `PATCH /api/reviews/{id}`.

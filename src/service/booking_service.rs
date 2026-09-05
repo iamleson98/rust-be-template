@@ -159,8 +159,7 @@ impl BookingService {
 
         // Fetch booking seats + trip concurrently (independent of each other).
         let booking_id_str = b.id.to_string();
-        let trip_id =
-            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip_id = b.trip_session_id;
 
         let store = self.store.clone();
         let (seats, trip) = tokio::try_join!(
@@ -528,7 +527,7 @@ impl BookingService {
             // Bind the booking to its owner so subsequent cancel/confirm
             // calls can verify `booking.user_id == caller_user_id`.
             user_id: Set(caller_user_id),
-            trip_session_id: Set(req.trip_id.to_string()),
+            trip_session_id: Set(req.trip_id),
             boarding_point_id: Set(Some(req.boarding_point_id)),
             dropping_point_id: Set(Some(req.dropping_point_id)),
             adult_count: Set(adult_count),
@@ -570,7 +569,9 @@ impl BookingService {
                     passenger_type: Set(Some(passenger.passenger_type.clone())),
                     passenger_age: Set(Some(passenger.age as i16)),
                     price: Set(inv.final_price),
-                    ..Default::default()
+                    // `created_at` has a NOT NULL column without a DB
+                    // default — set it explicitly or the INSERT fails.
+                    created_at: Set(now_iso()),
                 }
             })
             .collect();
@@ -729,8 +730,7 @@ impl BookingService {
         }
 
         // Fetch trip for refund calculation
-        let trip_id =
-            Uuid::parse_str(&b.trip_session_id).map_err(|e| AppError::Internal(e.to_string()))?;
+        let trip_id = b.trip_session_id;
         let trip = self
             .store
             .trip_store()
@@ -1034,15 +1034,9 @@ impl BookingService {
             return Ok(Vec::new());
         }
 
-        // Collect trip session IDs
-        let trip_session_ids: Vec<String> =
-            bookings.iter().map(|b| b.trip_session_id.clone()).collect();
-
-        // Batch fetch trip sessions
-        let trip_uuids: Vec<Uuid> = trip_session_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
+        // Collect trip session IDs (Uuids since the entity column is
+        // typed `Uuid` — see entity/booking.rs for the SQLite FK rationale).
+        let trip_uuids: Vec<Uuid> = bookings.iter().map(|b| b.trip_session_id).collect();
         let trips: HashMap<String, trip_session::Model> = self
             .store
             .trip_store()
@@ -1109,7 +1103,7 @@ impl BookingService {
         // Build per-booking DTO
         let mut items: Vec<BookingListItem> = Vec::with_capacity(bookings.len());
         for b in bookings {
-            let trip = trips.get(&b.trip_session_id);
+            let trip = trips.get(&b.trip_session_id.to_string());
             let schedule = trip.and_then(|t| schedules.get(&t.schedule_id.to_string()));
             let route = schedule.and_then(|s| routes.get(&s.route_id.to_string()));
             let brand = route
@@ -1118,9 +1112,18 @@ impl BookingService {
                 .and_then(|bid| brands.get(bid));
 
             let trip_preview = if let (Some(t), Some(s), Some(r)) = (trip, schedule, route) {
+                // `departure_at`: prefer the ACTUAL departure (driver
+                // check-in) but fall back to the SCHEDULED one
+                // (departure_date + schedule.departure_time) so the
+                // frontend's upcoming/past bucketing works before the
+                // driver ever checks in.
+                let departure_at = t
+                    .actual_departure_at
+                    .clone()
+                    .or_else(|| Some(format!("{}T{}", t.departure_date, s.departure_time)));
                 Some(BookingTripPreview {
                     id: t.id,
-                    departure_at: t.actual_departure_at.clone(),
+                    departure_at,
                     departure_date: Some(t.departure_date.clone()),
                     status: Some(t.status.clone()),
                     route_name: Some(r.name.clone()),

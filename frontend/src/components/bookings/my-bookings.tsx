@@ -154,13 +154,13 @@ export function MyBookings() {
   const bookingsLoaded = !!bookingsData
 
   // Reviews: lazy-loaded only when the user opens the "Đánh giá" tab.
-  // The backend `GET /api/reviews` filters by `userId=` — pass the current
-  // user's id so we only get this user's reviews.
+  // `GET /api/reviews/mine` scopes to the CALLER server-side (the
+  // userId query param is never trusted).
   const {
     data: reviewsData,
     isLoading: reviewsLoading,
     refetch: refetchReviews,
-  } = useMyReviews({ enabled: isUserLoggedIn && userTab === 'reviews', userId: user?.id })
+  } = useMyReviews({ enabled: isUserLoggedIn && userTab === 'reviews' })
   const userReviews: ReviewItem[] = (reviewsData?.items ?? []) as unknown as ReviewItem[]
 
   // Guest lookup: TanStack Query driven by `submittedLookup`.
@@ -518,7 +518,7 @@ export function MyBookings() {
                     stats={[
                       { icon: <MessageSquare className="h-5 w-5" />, label: 'Số đánh giá', value: String(userReviews.length), accent: 'from-amber-500 to-orange-500', subtitle: 'đánh giá đã viết' },
                       { icon: <Star className="h-5 w-5" />, label: 'Điểm trung bình', value: userAvgRating > 0 ? userAvgRating.toFixed(1) : '—', accent: 'from-yellow-400 to-amber-500', subtitle: 'trên 5 sao' },
-                      { icon: <TrendingUp className="h-5 w-5" />, label: 'Nhà xe đã đi', value: String(new Set(userReviews.map((r) => r.brand.name)).size), accent: 'from-blue-500 to-blue-500', subtitle: 'hãng khác nhau' },
+                      { icon: <TrendingUp className="h-5 w-5" />, label: 'Nhà xe đã đi', value: String(new Set(userReviews.map((r) => r.brand?.name ?? r.brandId ?? 'unknown')).size), accent: 'from-blue-500 to-blue-500', subtitle: 'hãng khác nhau' },
                     ]}
                   />
                   <div className="flex items-center justify-between gap-3">

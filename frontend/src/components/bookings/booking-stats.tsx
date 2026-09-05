@@ -119,9 +119,9 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 text-sm font-bold text-foreground">
-                    <span className="truncate">{r.route.fromName || '—'}</span>
+                    <span className="truncate">{r.route?.fromName || '—'}</span>
                     <ArrowRightLeft className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                    <span className="truncate">{r.route.toName || '—'}</span>
+                    <span className="truncate">{r.route?.toName || '—'}</span>
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                     <span

@@ -102,6 +102,7 @@ export function ChatPanel({
   onCloseChannel,
   assignmentBusy,
   allChannelsCount,
+  canRelease,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -167,6 +168,13 @@ export function ChatPanel({
   assignmentBusy?: boolean
   /** Unfiltered channel count (shown when the mine filter hides rows). */
   allChannelsCount?: number
+  /**
+   * Per the product spec, employees CANNOT leave an assigned channel —
+   * only admins may reassign/release. The backend rejects employee
+   * releases with 403; this flag hides the button entirely for
+   * employees so the UI never offers an action that would fail.
+   */
+  canRelease?: boolean
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -558,7 +566,7 @@ export function ChatPanel({
                           <span className="hidden sm:inline">Nhận kênh</span>
                         </Button>
                       )}
-                      {activeChannel.assignedToMe && onRelease && (
+                      {activeChannel.assignedToMe && onRelease && canRelease && (
                         <Button
                           variant="outline"
                           size="sm"

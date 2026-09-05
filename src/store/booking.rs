@@ -17,6 +17,14 @@ use crate::entity::{booking, booking_seat};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
+/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
+/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
+/// every uuid filter must bind the parsed `Uuid` (Postgres casts
+/// text->uuid implicitly, SQLite does not).
+fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
+    uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
+}
+
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -155,20 +163,30 @@ impl BookingStore for DbBookingStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>> {
-        let mut query =
-            booking::Entity::find().filter(booking::Column::UserId.eq(user_id.to_string()));
+        // Bind the user id as a Uuid VALUE: SQLite stores Uuid columns
+        // as 16-byte BLOBs and a TEXT bind never matches (Postgres
+        // casts text→uuid implicitly, SQLite does not).
+        let uid = Uuid::parse_str(user_id)
+            .map_err(|_| StoreError::Validation(format!("invalid user id: {user_id}")))?;
+        let mut query = booking::Entity::find().filter(booking::Column::UserId.eq(uid));
 
+        // Bind trip ids as parsed Uuid VALUES (SQLite BLOB columns —
+        // TEXT binds never match; see entity/booking.rs).
+        let trip_uuids: Vec<Uuid> = trip_session_ids
+            .iter()
+            .map(|s| parse_uuid(s))
+            .collect::<StoreResult<Vec<_>>>()?;
         match status {
             "confirmed" | "upcoming" => {
                 query = query.filter(booking::Column::Status.eq("confirmed"));
-                if !trip_session_ids.is_empty() {
-                    query = query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                if !trip_uuids.is_empty() {
+                    query = query.filter(booking::Column::TripSessionId.is_in(trip_uuids));
                 }
             }
             "completed" | "past" => {
                 query = query.filter(booking::Column::Status.eq("completed"));
-                if !trip_session_ids.is_empty() {
-                    query = query.filter(booking::Column::TripSessionId.is_in(trip_session_ids));
+                if !trip_uuids.is_empty() {
+                    query = query.filter(booking::Column::TripSessionId.is_in(trip_uuids));
                 }
             }
             "cancelled" => {
@@ -199,8 +217,10 @@ impl BookingStore for DbBookingStore {
         // query — eliminates the previous "load all trips departing
         // today → filter bookings by trip_session_id IN (...)" pattern.
         use crate::entity::trip_session;
+        let uid = Uuid::parse_str(user_id)
+            .map_err(|_| StoreError::Validation(format!("invalid user id: {user_id}")))?;
         let mut query = booking::Entity::find()
-            .filter(booking::Column::UserId.eq(user_id.to_string()))
+            .filter(booking::Column::UserId.eq(uid))
             .join(
                 JoinType::InnerJoin,
                 trip_session::Relation::Booking.def().rev(),
@@ -309,7 +329,7 @@ impl BookingStore for DbBookingStore {
 
     async fn list_booking_seats(&self, booking_id: &str) -> StoreResult<Vec<booking_seat::Model>> {
         Ok(booking_seat::Entity::find()
-            .filter(booking_seat::Column::BookingId.eq(booking_id.to_string()))
+            .filter(booking_seat::Column::BookingId.eq(parse_uuid(booking_id)?))
             .all(self.db.as_ref())
             .await?)
     }
@@ -349,8 +369,8 @@ impl BookingStore for DbBookingStore {
         use sea_orm::sea_query::Expr;
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value(status))
-            .filter(seat_inventory::Column::TripSessionId.eq(trip_session_id.to_string()))
-            .filter(seat_inventory::Column::SeatId.eq(seat_id.to_string()))
+            .filter(seat_inventory::Column::TripSessionId.eq(parse_uuid(trip_session_id)?))
+            .filter(seat_inventory::Column::SeatId.eq(parse_uuid(seat_id)?))
             .exec(self.db.as_ref())
             .await?;
         if res.rows_affected == 0 {
@@ -363,8 +383,12 @@ impl BookingStore for DbBookingStore {
         &self,
         booking_ids: Vec<String>,
     ) -> StoreResult<Vec<booking_seat::Model>> {
+        let ids: Vec<Uuid> = booking_ids
+            .iter()
+            .map(|s| parse_uuid(s))
+            .collect::<StoreResult<Vec<_>>>()?;
         Ok(booking_seat::Entity::find()
-            .filter(booking_seat::Column::BookingId.is_in(booking_ids))
+            .filter(booking_seat::Column::BookingId.is_in(ids))
             .all(self.db.as_ref())
             .await?)
     }

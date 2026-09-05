@@ -1199,20 +1199,28 @@ impl AdminService {
 
     // ── Reviews moderation ──────────────────────────────────────
 
-    /// List reviews with admin filters (status, brand, route).
+    /// List reviews with admin filters (status, brand, route,
+    /// free-text search) + a true `total` for server-side pagination.
     pub async fn list_reviews(
         &self,
         status: Option<&str>,
         brand_id: Option<&str>,
         route_id: Option<&str>,
+        search: Option<&str>,
         limit: u64,
         offset: u64,
     ) -> AppResult<AdminReviewListResponse> {
-        let limit = limit.min(200);
+        let limit = limit.clamp(1, 200);
+        let total = self
+            .store
+            .review_store()
+            .count_reviews(brand_id, route_id, None, status, search)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         let reviews = self
             .store
             .review_store()
-            .list_reviews(brand_id, route_id, None, status, limit, offset)
+            .list_reviews(brand_id, route_id, None, status, search, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -1220,7 +1228,12 @@ impl AdminService {
             .iter()
             .map(crate::service::review_service::review_to_dto)
             .collect();
-        Ok(AdminReviewListResponse { items })
+        Ok(AdminReviewListResponse {
+            items,
+            total,
+            limit,
+            offset,
+        })
     }
 
     /// Update review status (approve / reject / hide) + optional reply.
