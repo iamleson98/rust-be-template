@@ -121,7 +121,8 @@ export const update2 = <ThrowOnError extends boolean = false>(options: Options<U
 });
 
 /**
- * `GET /api/admin/bus-layouts` — list all bus layouts.
+ * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
+ * filter and offset pagination.
  */
 export const list4 = <ThrowOnError extends boolean = false>(options?: Options<List4Data, ThrowOnError>): RequestResult<List4Responses, List4Errors, ThrowOnError> => (options?.client ?? client).get<List4Responses, List4Errors, ThrowOnError>({ url: '/api/admin/bus-layouts', ...options });
 
@@ -251,7 +252,8 @@ export const moderate = <ThrowOnError extends boolean = false>(options: Options<
 });
 
 /**
- * `GET /api/admin/routes` — list all routes (admin).
+ * `GET /api/admin/routes` — list routes (admin), with optional brand
+ * filter, search and offset pagination.
  */
 export const list8 = <ThrowOnError extends boolean = false>(options?: Options<List8Data, ThrowOnError>): RequestResult<List8Responses, List8Errors, ThrowOnError> => (options?.client ?? client).get<List8Responses, List8Errors, ThrowOnError>({ url: '/api/admin/routes', ...options });
 

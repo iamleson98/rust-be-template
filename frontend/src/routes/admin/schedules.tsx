@@ -194,7 +194,7 @@ export function AdminSchedulesPage() {
     [brands, brandId],
   )
 
-  const routesQuery = useAdminRoutes(brandId)
+  const routesQuery = useAdminRoutes({ brandId })
   const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === routeId) ?? null,
@@ -205,7 +205,9 @@ export function AdminSchedulesPage() {
   const schedules: AdminScheduleOut[] =
     (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
 
-  const busLayoutsQuery = useAdminBusLayouts(selectedRoute?.brandId ?? undefined)
+  const busLayoutsQuery = useAdminBusLayouts({
+    brandId: selectedRoute?.brandId ?? undefined,
+  })
   const busLayouts: AdminBusLayoutOut[] =
     (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
 

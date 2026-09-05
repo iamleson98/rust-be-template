@@ -57,9 +57,9 @@ export function AdminBrandManagement() {
   const placesQuery = usePlacesList(200)
   const places: PlaceOut[] = (placesQuery.data as any)?.items ?? []
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
-  const routesQuery = useAdminRoutes(selectedBrand?.id)
+  const routesQuery = useAdminRoutes({ brandId: selectedBrand?.id })
   const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
-  const busLayoutsQuery = useAdminBusLayouts(selectedBrand?.id)
+  const busLayoutsQuery = useAdminBusLayouts({ brandId: selectedBrand?.id })
   const busLayouts: AdminBusLayoutOut[] = (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
   /* --- queries: schedules + pickup points (when a route is selected) --- */
   const schedulesQuery = useAdminSchedules(selectedRoute?.id)

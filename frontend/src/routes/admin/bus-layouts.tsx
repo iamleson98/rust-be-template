@@ -1,11 +1,25 @@
-/** Admin route — `/admin/bus-layouts` — bus layout management page. */
+'use client'
+
+/**
+ * Admin route — `/admin/bus-layouts` — seat-layout catalog page.
+ *
+ * Server-side paginated table (the backend returns `total` so the
+ * footer's range label + page buttons work for arbitrarily large
+ * catalogs). The DataTable renders its own bordered surface.
+ */
+
+import { useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Bus, LayoutGrid } from 'lucide-react'
 
-import { AdminShell } from '@/components/layout/admin-shell'
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
-import { Card, CardContent } from '@/components/ui/card'
+
 import { useAdminBusLayouts } from '@/lib/queries'
+import type { AdminBusLayoutOut } from '@/lib/api/types.gen'
+import { AdminShell } from '@/components/layout/admin-shell'
+
+/** Server-side page size for the bus-layouts table. */
+const PAGE_SIZE = 20
 
 interface BusLayoutRow {
   id: string
@@ -15,39 +29,47 @@ interface BusLayoutRow {
 }
 
 const columnHelper = createColumnHelper<DataTableFeatures, BusLayoutRow>()
-
 const columns = columnHelper.columns([
   columnHelper.accessor('name', {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Tên sơ đồ" />,
-    cell: ({ getValue }) => getValue() ?? '—',
+    cell: ({ getValue }) => (
+      <span className="font-medium">{getValue() ?? '—'}</span>
+    ),
     sortFn: 'text',
     meta: { label: 'Tên sơ đồ' },
   }),
   columnHelper.accessor('vehicleType', {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Loại xe" />,
-    cell: ({ getValue }) => getValue() ?? '—',
     sortFn: 'text',
     meta: { label: 'Loại xe' },
   }),
   columnHelper.accessor('seatCount', {
     header: ({ column }) => <DataTableColumnHeader column={column} title="Số ghế" />,
-    cell: ({ getValue }) => <span className="tabular-nums">{getValue() ?? '—'}</span>,
+    cell: ({ getValue }) => (
+      <span className="tabular-nums font-semibold">{getValue() ?? '—'}</span>
+    ),
     sortFn: 'basic',
     meta: { label: 'Số ghế', align: 'right' },
   }),
 ])
 
 export function AdminBusLayoutsPage() {
-  const { data, isLoading } = useAdminBusLayouts()
+  const [page, setPage] = useState(0)
+
+  const { data, isLoading } = useAdminBusLayouts({
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  })
 
   const rows: BusLayoutRow[] = (data?.items ?? []).map(
-    (layout: { id: string; name?: string | null; vehicleType?: string | null; seatCount?: number | null }) => ({
+    (layout: AdminBusLayoutOut) => ({
       id: layout.id,
       name: layout.name ?? null,
       vehicleType: layout.vehicleType ?? null,
-      seatCount: layout.seatCount ?? null,
+      seatCount: layout.totalSeats ?? null,
     }),
   )
+  const total = data?.total ?? 0
 
   return (
     <AdminShell>
@@ -62,20 +84,20 @@ export function AdminBusLayoutsPage() {
           </p>
         </div>
 
-        <Card className="overflow-hidden">
-          <CardContent className="p-0">
-            <DataTable
-              columns={columns}
-              data={rows}
-              isLoading={isLoading}
-              rowNoun="sơ đồ"
-              hidePagination
-              emptyTitle="Chưa có sơ đồ ghế nào"
-              emptyDescription="Sơ đồ ghế sẽ xuất hiện khi hãng xe được khởi tạo."
-              emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
-            />
-          </CardContent>
-        </Card>
+        <DataTable
+          columns={columns}
+          data={rows}
+          rowNoun="sơ đồ"
+          manualPagination
+          totalRowCount={total}
+          pageIndex={page}
+          onPageIndexChange={setPage}
+          pageSize={PAGE_SIZE}
+          isLoading={isLoading}
+          emptyTitle="Chưa có sơ đồ ghế nào"
+          emptyDescription="Sơ đồ ghế sẽ xuất hiện khi hãng xe được khởi tạo."
+          emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
+        />
       </div>
     </AdminShell>
   )

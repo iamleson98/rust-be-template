@@ -100,7 +100,9 @@ export function CampaignsPanel() {
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
+        {/* The Card provides the surface — render the table unbordered. */}
         <DataTable
+          bordered={false}
           columns={columns}
           data={campaigns}
           isLoading={isLoading}

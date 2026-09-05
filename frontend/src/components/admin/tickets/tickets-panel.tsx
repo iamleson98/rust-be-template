@@ -631,31 +631,29 @@ export function TicketsPanel() {
         </div>
       )}
 
-      {/* ─── Bookings table (desktop) / cards (mobile) ─── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <TicketIcon className="h-4 w-4 text-blue-600" />
-              Danh sách vé đã bán
-              <Badge variant="secondary" className="text-[10px]">
-                {total} vé
-              </Badge>
-            </CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => bookingsQuery.refetch()}
-              disabled={bookingsQuery.isFetching}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`} />
-              Làm mới
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <DataTable
+      {/* ─── Bookings table (desktop) / cards (mobile) ───
+           The DataTable renders its own bordered surface; the header
+           row above it carries the title + refresh action. */}
+      <div className="flex items-center justify-between gap-2 pb-2">
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <TicketIcon className="h-4 w-4 text-blue-600" />
+          Danh sách vé đã bán
+          <Badge variant="secondary" className="text-[10px]">
+            {total} vé
+          </Badge>
+        </h2>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => bookingsQuery.refetch()}
+          disabled={bookingsQuery.isFetching}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`} />
+          Làm mới
+        </Button>
+      </div>
+      <DataTable
             columns={columns}
             data={bookingsQuery.data?.items ?? []}
             rowNoun="vé"
@@ -715,8 +713,6 @@ export function TicketsPanel() {
               </div>
             }
           />
-        </CardContent>
-      </Card>
 
       {/* ─── Detail dialog ─── */}
       <BookingDetailDialog

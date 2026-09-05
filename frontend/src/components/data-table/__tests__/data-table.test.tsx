@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { createColumnHelper } from '@tanstack/react-table'
@@ -93,6 +93,20 @@ describe('DataTable', () => {
     )
   })
 
+  it('renders exactly one sort control per sortable header (no duplicated controls)', () => {
+    render(<DataTable columns={columns} data={payments} />)
+
+    // Each sortable header is a single button — the sort affordance is
+    // never duplicated (no extra chevron dropdown next to the label).
+    const emailHeader = screen.getByRole('columnheader', { name: /email/i })
+    const emailButtons = within(emailHeader).getAllByRole('button')
+    expect(emailButtons).toHaveLength(1)
+    expect(emailButtons[0]).toHaveAccessibleName(/sắp xếp theo email/i)
+
+    const amountHeader = screen.getByRole('columnheader', { name: /amount/i })
+    expect(within(amountHeader).getAllByRole('button')).toHaveLength(1)
+  })
+
   it('toggles between ascending and descending sort', async () => {
     render(<DataTable columns={columns} data={payments} />)
 
@@ -106,25 +120,6 @@ describe('DataTable', () => {
     )
     const cells = screen.getAllByRole('row').slice(1)
     expect(cells[0]).toHaveTextContent('mon@example.com')
-  })
-
-  it('hides a column from the header dropdown menu', async () => {
-    render(<DataTable columns={columns} data={payments} />)
-
-    // Base UI portals mount asynchronously — open, flush, then pick the item.
-    await act(async () => {
-      fireEvent.click(
-        screen.getAllByRole('button', { name: /tuỳ chọn cột email/i })[0],
-      )
-      await new Promise((r) => setTimeout(r, 50))
-    })
-    await act(async () => {
-      fireEvent.click(screen.getByRole('menuitem', { name: /ẩn cột này/i }))
-    })
-
-    expect(screen.queryByRole('columnheader', { name: /email/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('cell', { name: 'abe@example.com' })).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: /amount/i })).toBeInTheDocument()
   })
 
   it('paginates client-side with a Vietnamese range label', async () => {

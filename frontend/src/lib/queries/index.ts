@@ -1085,9 +1085,15 @@ export function useDeleteAdminBrand() {
 // Admin — Routes
 // ─────────────────────────────────────────────────────────────
 
-export function useAdminRoutes(brandId?: string) {
+export function useAdminRoutes(query?: {
+  brandId?: string;
+  q?: string;
+  limit?: number;
+  offset?: number;
+}) {
   return useQuery({
-    ...adminRoutesListOptions({ query: { brandId } }),
+    ...adminRoutesListOptions({ query }),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }
@@ -1304,9 +1310,14 @@ export function useModerateAdminReview() {
 // Admin — Bus layouts
 // ─────────────────────────────────────────────────────────────
 
-export function useAdminBusLayouts(brandId?: string) {
+export function useAdminBusLayouts(query?: {
+  brandId?: string;
+  limit?: number;
+  offset?: number;
+}) {
   return useQuery({
-    ...adminBusLayoutsListOptions({ query: { brandId } }),
+    ...adminBusLayoutsListOptions({ query }),
+    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }

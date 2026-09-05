@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 use store_macros::retry;
 use uuid::Uuid;
@@ -16,6 +17,15 @@ use crate::entity::{bus_layout, schedule};
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
+
+/// A page of bus layouts plus the total matching-row count (before
+/// pagination) — powers the admin bus-layouts table's server-side paging.
+#[derive(Debug, Clone)]
+pub struct BusLayoutPage {
+    pub items: Vec<bus_layout::Model>,
+    /// Total rows matching the filter (ignores limit/offset).
+    pub total: u64,
+}
 
 // ────────────────────────────────────────────────────────────────
 //  Trait
@@ -48,6 +58,17 @@ pub trait ScheduleStore: Send + Sync {
 
     async fn find_bus_layout_by_id(&self, id: Uuid) -> StoreResult<Option<bus_layout::Model>>;
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>>;
+
+    /// Paginated list with an optional brand filter, ordered by
+    /// `created_at` (newest first) for stable pages. `limit=None`
+    /// returns every matching row (legacy "fetch all" consumers such as
+    /// the schedule form's seat-map picker).
+    async fn list_bus_layouts_page(
+        &self,
+        brand_id: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<BusLayoutPage>;
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize>;
 
     /// Batched version — `SELECT brand_id, COUNT(*) FROM bus_layout
@@ -186,6 +207,27 @@ impl ScheduleStore for DbScheduleStore {
 
     async fn list_bus_layouts(&self) -> StoreResult<Vec<bus_layout::Model>> {
         Ok(bus_layout::Entity::find().all(self.db.as_ref()).await?)
+    }
+
+    async fn list_bus_layouts_page(
+        &self,
+        brand_id: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<BusLayoutPage> {
+        let mut base = bus_layout::Entity::find().order_by_desc(bus_layout::Column::CreatedAt);
+        if let Some(brand_id) = brand_id.map(str::trim).filter(|s| !s.is_empty()) {
+            // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
+            let brand_uuid = super::parse_uuid(brand_id)?;
+            base = base.filter(bus_layout::Column::BrandId.eq(brand_uuid));
+        }
+        let total = base.clone().count(self.db.as_ref()).await?;
+        let mut query = base.offset(offset);
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        }
+        let items = query.all(self.db.as_ref()).await?;
+        Ok(BusLayoutPage { items, total })
     }
 
     async fn count_bus_layouts_by_brand(&self, brand_id: &str) -> StoreResult<usize> {

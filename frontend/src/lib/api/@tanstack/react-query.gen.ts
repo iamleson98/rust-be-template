@@ -422,7 +422,8 @@ export const update2Mutation = (options?: Partial<Options<Update2Data>>): UseMut
 export const list4QueryKey = (options?: Options<List4Data>) => createQueryKey('list4', options);
 
 /**
- * `GET /api/admin/bus-layouts` — list all bus layouts.
+ * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
+ * filter and offset pagination.
  */
 export const list4Options = (options?: Options<List4Data>) => queryOptions<List4Response, DefaultError, List4Response, ReturnType<typeof list4QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -436,6 +437,37 @@ export const list4Options = (options?: Options<List4Data>) => queryOptions<List4
     },
     queryKey: list4QueryKey(options)
 });
+
+export const list4InfiniteQueryKey = (options?: Options<List4Data>): QueryKey<Options<List4Data>> => createQueryKey('list4', options, true);
+
+/**
+ * `GET /api/admin/bus-layouts` — list bus layouts, with optional brand
+ * filter and offset pagination.
+ */
+export const list4InfiniteOptions = (options?: Options<List4Data>) => {
+    const opts = infiniteQueryOptions<List4Response, DefaultError, InfiniteData<List4Response>, QueryKey<Options<List4Data>>, number | Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<List4Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await list4({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: list4InfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const chatStatsQueryKey = (options?: Options<ChatStatsData>) => createQueryKey('chatStats', options);
 
@@ -776,7 +808,8 @@ export const moderateMutation = (options?: Partial<Options<ModerateData>>): UseM
 export const list8QueryKey = (options?: Options<List8Data>) => createQueryKey('list8', options);
 
 /**
- * `GET /api/admin/routes` — list all routes (admin).
+ * `GET /api/admin/routes` — list routes (admin), with optional brand
+ * filter, search and offset pagination.
  */
 export const list8Options = (options?: Options<List8Data>) => queryOptions<List8Response, DefaultError, List8Response, ReturnType<typeof list8QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -790,6 +823,37 @@ export const list8Options = (options?: Options<List8Data>) => queryOptions<List8
     },
     queryKey: list8QueryKey(options)
 });
+
+export const list8InfiniteQueryKey = (options?: Options<List8Data>): QueryKey<Options<List8Data>> => createQueryKey('list8', options, true);
+
+/**
+ * `GET /api/admin/routes` — list routes (admin), with optional brand
+ * filter, search and offset pagination.
+ */
+export const list8InfiniteOptions = (options?: Options<List8Data>) => {
+    const opts = infiniteQueryOptions<List8Response, DefaultError, InfiniteData<List8Response>, QueryKey<Options<List8Data>>, number | Pick<QueryKey<Options<List8Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<List8Data>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await list8({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: list8InfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * `POST /api/admin/routes` — create a route.

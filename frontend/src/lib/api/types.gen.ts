@@ -186,6 +186,11 @@ export type AdminBrandOut = {
  */
 export type AdminBusLayoutListResponse = {
     items: Array<AdminBusLayoutOut>;
+    /**
+     * Total matching-row count (independent of pagination). Omitted
+     * when the caller didn't paginate (legacy "fetch all" consumers).
+     */
+    total?: number | null;
 };
 
 export type AdminBusLayoutOut = {
@@ -289,6 +294,11 @@ export type AdminReviewListResponse = {
  */
 export type AdminRouteListResponse = {
     items: Array<AdminRouteOut>;
+    /**
+     * Total matching-row count (independent of pagination). Omitted
+     * when the caller didn't paginate (legacy "fetch all" consumers).
+     */
+    total?: number | null;
 };
 
 /**
@@ -2633,6 +2643,15 @@ export type List4Data = {
     path?: never;
     query?: {
         brandId?: string;
+        /**
+         * Page size (clamped to `[1, 200]` by the service). `None` = all
+         * rows (legacy consumers).
+         */
+        limit?: number;
+        /**
+         * Page offset (0-based).
+         */
+        offset?: number;
     };
     url: '/api/admin/bus-layouts';
 };
@@ -3178,6 +3197,20 @@ export type List8Data = {
     path?: never;
     query?: {
         brandId?: string;
+        /**
+         * Case-insensitive search over the route name, start/end city
+         * slugs and the owning brand's name.
+         */
+        q?: string;
+        /**
+         * Page size (clamped to `[1, 200]` by the service). `None` = all
+         * rows (legacy consumers).
+         */
+        limit?: number;
+        /**
+         * Page offset (0-based).
+         */
+        offset?: number;
     };
     url: '/api/admin/routes';
 };

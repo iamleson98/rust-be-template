@@ -445,7 +445,9 @@ export function CronJobsPanel() {
               <Skeleton className="h-40 w-full" />
             </div>
           ) : (
+            /* The Card provides the surface — render the table unbordered. */
             <DataTable
+              bordered={false}
               columns={runHistoryColumns}
               data={runs}
               rowNoun="lượt chạy"

@@ -9,7 +9,7 @@
  * brand → route → schedule master-detail remains at `/admin/brands`.
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { createColumnHelper } from '@tanstack/react-table'
 import {
@@ -24,9 +24,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
 import {
   Select,
   SelectContent,
@@ -38,6 +36,7 @@ import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/comp
 import { ArrowRight, CalendarDays, Loader2, MapPin, Pencil, Plus, Route as RouteIcon, Search, Trash2, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAdminBrands, useAdminRoutes, useDeleteAdminRoute } from '@/lib/queries'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { AdminBrandOut, AdminRouteOut } from '@/lib/api/types.gen'
 import { AdminShell } from '@/components/layout/admin-shell'
 import { RouteFormDialog } from '@/components/admin/routes/route-form'
@@ -58,14 +57,26 @@ function BrandDot({ color }: { color?: string | null }) {
 
 const routeColumnHelper = createColumnHelper<DataTableFeatures, AdminRouteOut>()
 
+/** Server-side page size for the routes table. */
+const PAGE_SIZE = 20
+
 export function AdminRoutesPage() {
   const navigate = useNavigate()
   const [brandId, setBrandId] = useState<string | undefined>(undefined)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editRoute, setEditRoute] = useState<AdminRouteOut | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminRouteOut | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Server-side search: keystrokes are debounced into the query key so
+  // the API only sees one request per settled term (the backend matches
+  // the route name, both city slugs and the brand's name).
+  const debouncedSearch = useDebouncedValue(search, 300)
+  useEffect(() => {
+    setPage(0)
+  }, [debouncedSearch, brandId])
 
   const brandsQuery = useAdminBrands()
   const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as unknown as AdminBrandOut[]
@@ -74,26 +85,17 @@ export function AdminRoutesPage() {
     [brands, brandId],
   )
 
-  const routesQuery = useAdminRoutes(brandId)
+  const routesQuery = useAdminRoutes({
+    brandId,
+    q: debouncedSearch.trim() || undefined,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+  })
   const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
+  const total = routesQuery.data?.total ?? 0
   const brandById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands])
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return routes
-    return routes.filter((r) => {
-      const brandName = brandById.get(r.brandId ?? '')?.name ?? ''
-      return (
-        r.name.toLowerCase().includes(q) ||
-        brandName.toLowerCase().includes(q) ||
-        (cityLabel(r.startLocationId)?.toLowerCase().includes(q) ?? false) ||
-        (cityLabel(r.endLocationId)?.toLowerCase().includes(q) ?? false)
-      )
-    })
-  }, [routes, search, brandById])
-
   const deleteMutation = useDeleteAdminRoute()
-
   // Columns close over the brand map (icon color + name) and stable setters.
   const columns = useMemo(
     () =>
@@ -287,100 +289,85 @@ export function AdminRoutesPage() {
           </div>
         </div>
 
-        {/* Table */}
-        {routesQuery.isLoading ? (
-          <Skeleton className="h-72 w-full" />
-        ) : (
-          <Card className="overflow-hidden">
-            <CardHeader className="py-3 border-b">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {filtered.length} tuyến
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {/* Desktop table */}
-              <div className="hidden md:block">
-                <DataTable
-                  columns={columns}
-                  data={filtered}
-                  rowNoun="tuyến"
-                  defaultPageSize={20}
-                  hidePaginationOnSinglePage={false}
-                  emptyTitle="Chưa có tuyến đường nào"
-                  emptyDescription={
-                    selectedBrand
-                      ? `Hãng ${selectedBrand.name} chưa có tuyến. Thêm tuyến đầu tiên để bắt đầu tạo lịch trình.`
-                      : 'Chọn một hãng hoặc thêm tuyến mới để bắt đầu.'
-                  }
-                  emptyIcon={<RouteIcon className="h-5 w-5" aria-hidden />}
-                  emptyAction={
-                    selectedBrand ? (
-                      <Button size="sm" className="mt-2" onClick={openCreate}>
-                        <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
+        {/* Table — the DataTable renders its own bordered surface and
+            swaps in the mobile card list below `md`, sharing the
+            loading/empty states and the pagination footer. */}
+        <DataTable
+          columns={columns}
+          data={routes}
+          rowNoun="tuyến"
+          manualPagination
+          totalRowCount={total}
+          pageIndex={page}
+          onPageIndexChange={setPage}
+          pageSize={PAGE_SIZE}
+          hidePaginationOnSinglePage={false}
+          isLoading={routesQuery.isLoading}
+          emptyTitle="Chưa có tuyến đường nào"
+          emptyDescription={
+            selectedBrand
+              ? `Hãng ${selectedBrand.name} chưa có tuyến. Thêm tuyến đầu tiên để bắt đầu tạo lịch trình.`
+              : 'Chọn một hãng hoặc thêm tuyến mới để bắt đầu.'
+          }
+          emptyIcon={<RouteIcon className="h-5 w-5" aria-hidden />}
+          emptyAction={
+            selectedBrand ? (
+              <Button size="sm" className="mt-2" onClick={openCreate}>
+                <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
+              </Button>
+            ) : null
+          }
+          mobileList={
+            <div className="divide-y">
+              {routes.map((r) => {
+                const brand = brandById.get(r.brandId ?? '')
+                return (
+                  <div key={r.id} className="p-3 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{r.name}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                        {brand ? (
+                          <>
+                            <BrandDot color={brand.accentColor} />
+                            <span className="truncate">{brand.name}</span>
+                            <span>·</span>
+                          </>
+                        ) : null}
+                        {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {r.scheduleCount} lịch trình · {r.pickupPointCount} điểm đón
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setEditRoute(r)
+                          setDialogOpen(true)
+                        }}
+                        aria-label="Sửa tuyến"
+                      >
+                        <Pencil className="h-4 w-4" />
                       </Button>
-                    ) : null
-                  }
-                />
-              </div>
-
-              {/* Mobile list */}
-              <div className="md:hidden divide-y">
-                {filtered.length === 0 ? (
-                  <p className="p-8 text-center text-sm text-muted-foreground">
-                    Chưa có tuyến đường nào
-                  </p>
-                ) : (
-                  filtered.map((r) => {
-                    const brand = brandById.get(r.brandId ?? '')
-                    return (
-                      <div key={r.id} className="p-3 flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{r.name}</p>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                            {brand ? (
-                              <>
-                                <BrandDot color={brand.accentColor} />
-                                <span className="truncate">{brand.name}</span>
-                                <span>·</span>
-                              </>
-                            ) : null}
-                            {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {r.scheduleCount} lịch trình · {r.pickupPointCount} điểm đón
-                          </p>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => {
-                              setEditRoute(r)
-                              setDialogOpen(true)
-                            }}
-                            aria-label="Sửa tuyến"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-rose-600"
-                            onClick={() => setDeleteTarget(r)}
-                            aria-label="Xoá tuyến"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-rose-600"
+                        onClick={() => setDeleteTarget(r)}
+                        aria-label="Xoá tuyến"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          }
+        />
       </div>
 
       {/* Create / edit */}

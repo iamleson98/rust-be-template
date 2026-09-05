@@ -138,6 +138,10 @@ pub struct AdminRouteOut {
 #[serde(rename_all = "camelCase")]
 pub struct AdminRouteListResponse {
     pub items: Vec<AdminRouteOut>,
+    /// Total matching-row count (independent of pagination). Omitted
+    /// when the caller didn't paginate (legacy "fetch all" consumers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
 }
 
 /// Request body for `POST /api/admin/routes` + `PUT /api/admin/routes/{id}`.
@@ -397,6 +401,10 @@ pub struct AdminBusLayoutOut {
 #[serde(rename_all = "camelCase")]
 pub struct AdminBusLayoutListResponse {
     pub items: Vec<AdminBusLayoutOut>,
+    /// Total matching-row count (independent of pagination). Omitted
+    /// when the caller didn't paginate (legacy "fetch all" consumers).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -711,6 +719,14 @@ pub struct AdminReviewsQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminRoutesQuery {
     pub brand_id: Option<Uuid>,
+    /// Case-insensitive search over the route name, start/end city
+    /// slugs and the owning brand's name.
+    pub q: Option<String>,
+    /// Page size (clamped to `[1, 200]` by the service). `None` = all
+    /// rows (legacy consumers).
+    pub limit: Option<u64>,
+    /// Page offset (0-based).
+    pub offset: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]
@@ -746,6 +762,11 @@ pub struct AdminPickupPointsQuery {
 #[into_params(parameter_in = Query)]
 pub struct AdminBusLayoutsQuery {
     pub brand_id: Option<Uuid>,
+    /// Page size (clamped to `[1, 200]` by the service). `None` = all
+    /// rows (legacy consumers).
+    pub limit: Option<u64>,
+    /// Page offset (0-based).
+    pub offset: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, utoipa::IntoParams)]

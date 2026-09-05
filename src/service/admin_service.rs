@@ -246,9 +246,24 @@ impl AdminService {
 
     // ── Routes ──────────────────────────────────────────────────
 
-    /// List all routes with start/end place names and schedule/pickup counts.
-    pub async fn list_routes(&self) -> AppResult<AdminRouteListResponse> {
-        let routes = self.store.route_store().list_all_routes().await?;
+    /// List routes with start/end place names and schedule/pickup
+    /// counts, with an optional brand filter + case-insensitive search
+    /// and offset pagination (`limit=None` returns every matching row,
+    /// matching the legacy "fetch all" behaviour for the schedule form).
+    pub async fn list_routes(
+        &self,
+        brand_id: Option<&str>,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> AppResult<AdminRouteListResponse> {
+        let limit = limit.map(|l| l.clamp(1, 200));
+        let page = self
+            .store
+            .route_store()
+            .list_routes_page(brand_id, q, limit, offset)
+            .await?;
+        let routes = page.items;
 
         // Batched counts — replaces the previous N+1 pattern of
         // per-route count_schedules_by_route + count_pickup_points_by_route.
@@ -307,7 +322,10 @@ impl AdminService {
                 pickup_point_count: pickup_count as i64,
             });
         }
-        Ok(AdminRouteListResponse { items })
+        Ok(AdminRouteListResponse {
+            items,
+            total: Some(page.total),
+        })
     }
 
     /// Create a new route.
@@ -1268,14 +1286,23 @@ impl AdminService {
 
     // ── Bus Layouts ─────────────────────────────────────────────
 
-    /// List all bus layouts.
-    pub async fn list_bus_layouts(&self) -> AppResult<AdminBusLayoutListResponse> {
-        let layouts = self
+    /// List bus layouts with an optional brand filter and offset
+    /// pagination (`limit=None` returns every matching row — the
+    /// schedule form's seat-map picker relies on that).
+    pub async fn list_bus_layouts(
+        &self,
+        brand_id: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> AppResult<AdminBusLayoutListResponse> {
+        let limit = limit.map(|l| l.clamp(1, 200));
+        let page = self
             .store
             .schedule_store()
-            .list_bus_layouts()
+            .list_bus_layouts_page(brand_id, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+        let layouts = page.items;
 
         let items: Vec<AdminBusLayoutOut> = layouts
             .iter()
@@ -1289,7 +1316,10 @@ impl AdminService {
                 updated_at: l.updated_at.clone(),
             })
             .collect();
-        Ok(AdminBusLayoutListResponse { items })
+        Ok(AdminBusLayoutListResponse {
+            items,
+            total: Some(page.total),
+        })
     }
 
     // ── Booking management ──────────────────────────────────────
@@ -1308,6 +1338,15 @@ impl AdminService {
         offset: u64,
     ) -> AppResult<AdminBookingListResponse> {
         let limit = limit.min(200);
+        // Total matching-row count (independent of the window) — the
+        // admin tickets table needs it to render "Hiển thị X–Y / N" and
+        // to enable the next/previous page buttons.
+        let total = self
+            .store
+            .booking_store()
+            .count_bookings_by_status(status)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
         // Note: brand_id, route_id, date_from, date_to, search filters are
         // not supported by the current BookingStore trait; only status is.
         // For full admin filtering, the store trait would need extension.
@@ -1345,7 +1384,7 @@ impl AdminService {
 
         Ok(AdminBookingListResponse {
             items,
-            total: None,
+            total: Some(total),
             limit,
             offset,
         })

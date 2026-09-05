@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select'
 import type { ReactTable } from '@tanstack/react-table'
 
+import { cn } from '@/lib/utils'
 import type { DataTableFeatures } from './data-table-features'
 
 interface DataTablePaginationProps<TData extends RowData> {
@@ -37,6 +38,7 @@ interface DataTablePaginationProps<TData extends RowData> {
   pageSizeOptions?: number[]
   /** Hide the whole bar when everything fits on one page. Default: true. */
   hideOnSinglePage?: boolean
+  className?: string
 }
 
 export function DataTablePagination<TData extends RowData>({
@@ -45,6 +47,7 @@ export function DataTablePagination<TData extends RowData>({
   showPageSize = false,
   pageSizeOptions = [10, 20, 30, 40, 50],
   hideOnSinglePage = true,
+  className,
 }: DataTablePaginationProps<TData>) {
   const { pageIndex, pageSize } = table.state.pagination
   const pageCount = table.getPageCount()
@@ -61,7 +64,10 @@ export function DataTablePagination<TData extends RowData>({
 
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-2 border-t bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground"
+      className={cn(
+        'flex flex-wrap items-center justify-between gap-2 border-t bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground',
+        className,
+      )}
       data-slot="data-table-pagination"
       data-testid="data-table-pagination"
     >

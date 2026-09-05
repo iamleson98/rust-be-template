@@ -160,6 +160,9 @@ function ComboboxItem({
       data-slot="combobox-item"
       className={cn(
         "focus:bg-accent focus:text-accent-foreground",
+        "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
+        "hover:bg-accent hover:text-accent-foreground",
+        "transition-colors duration-150",
         "relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
         className,
       )}

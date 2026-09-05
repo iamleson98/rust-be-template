@@ -413,10 +413,8 @@ export function AdminPaymentsPanel() {
         </CardContent>
       </Card>
 
-      {/* ── Table / Cards ─────────────────────────────────── */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <DataTable
+      {/* ── Table / Cards — the DataTable renders its own bordered surface. ─── */}
+      <DataTable
             columns={columns}
             data={items}
             rowNoun="giao dịch"
@@ -516,8 +514,6 @@ export function AdminPaymentsPanel() {
               </div>
             }
           />
-        </CardContent>
-      </Card>
 
       {/* ── Detail dialog ──────────────────────────────────── */}
       <Dialog open={!!selectedPayment} onOpenChange={(o) => !o && setSelectedPayment(null)}>

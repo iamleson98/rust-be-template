@@ -786,7 +786,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`GET /api/admin/bus-layouts` — list all bus layouts.",
+        "summary": "`GET /api/admin/bus-layouts` — list bus layouts, with optional brand\nfilter and offset pagination.",
         "operationId": "list",
         "parameters": [
           {
@@ -796,6 +796,28 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size (clamped to `[1, 200]` by the service). `None` = all\nrows (legacy consumers).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Page offset (0-based).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
             }
           }
         ],
@@ -1517,7 +1539,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`GET /api/admin/routes` — list all routes (admin).",
+        "summary": "`GET /api/admin/routes` — list routes (admin), with optional brand\nfilter, search and offset pagination.",
         "operationId": "list",
         "parameters": [
           {
@@ -1527,6 +1549,37 @@
             "schema": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Case-insensitive search over the route name, start/end city\nslugs and the owning brand's name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Page size (clamped to `[1, 200]` by the service). `None` = all\nrows (legacy consumers).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Page offset (0-based).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
             }
           }
         ],
@@ -5650,6 +5703,15 @@
             "items": {
               "$ref": "#/components/schemas/AdminBusLayoutOut"
             }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Total matching-row count (independent of pagination). Omitted\nwhen the caller didn't paginate (legacy \"fetch all\" consumers).",
+            "minimum": 0
           }
         }
       },
@@ -5998,6 +6060,15 @@
             "items": {
               "$ref": "#/components/schemas/AdminRouteOut"
             }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Total matching-row count (independent of pagination). Omitted\nwhen the caller didn't paginate (legacy \"fetch all\" consumers).",
+            "minimum": 0
           }
         }
       },

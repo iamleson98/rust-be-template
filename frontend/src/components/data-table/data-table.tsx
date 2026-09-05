@@ -8,6 +8,9 @@
  * client-side and server-side ("manual") pagination + sorting.
  *
  * Conventions:
+ *  - The table renders inside the official `overflow-hidden rounded-lg
+ *    border` surface (disable with `bordered={false}` when a parent Card
+ *    already provides the surface).
  *  - Column alignment/responsive classes come from `meta: { align,
  *    headerClassName, cellClassName }` so every table renders identically.
  *  - Rows are optional click targets (`onRowClick`): they get
@@ -102,6 +105,8 @@ export interface DataTableProps<TData extends RowData> {
   emptyAction?: ReactNode
 
   // ── Layout ──────────────────────────────────────────────────
+  /** Render the official `rounded-lg border` surface around the table. */
+  bordered?: boolean
   /** Rendered above the table — receives the table instance (e.g. column menu). */
   toolbar?: (table: ReactTable<DataTableFeatures, TData>) => ReactNode
   /**
@@ -144,6 +149,7 @@ export function DataTable<TData extends RowData>({
   emptyDescription,
   emptyIcon,
   emptyAction,
+  bordered = true,
   toolbar,
   mobileList,
   className,
@@ -217,15 +223,20 @@ export function DataTable<TData extends RowData>({
       data-slot="data-table"
       data-testid={testId}
     >
-      {toolbar ? toolbar(table) : null}
+      <div
+        className={cn(
+          bordered && 'overflow-hidden rounded-lg border bg-card shadow-sm',
+          hideTableOnMobile && 'hidden md:block',
+        )}
+      >
+        {toolbar ? toolbar(table) : null}
 
-      <div className={cn(hideTableOnMobile && 'hidden md:block')}>
-          <Table>
+        <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
                 key={headerGroup.id}
-                className="bg-muted/50 hover:bg-muted/50"
+                className="border-border/60 bg-muted/50 hover:bg-muted/50"
               >
                 {headerGroup.headers.map((header) => {
                   const meta = header.column.columnDef.meta as DataTableColumnMeta | undefined
@@ -243,7 +254,7 @@ export function DataTable<TData extends RowData>({
                             : undefined
                       }
                       className={cn(
-                        'h-11 bg-muted/50 px-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
+                        'h-10 bg-transparent px-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground',
                         ALIGN_CLASSES[align],
                         meta?.headerClassName,
                       )}
@@ -341,7 +352,10 @@ export function DataTable<TData extends RowData>({
       </div>
 
       {mobileList && hideTableOnMobile ? (
-        <div className="md:hidden" data-slot="data-table-mobile-list">
+        <div
+          className="overflow-hidden rounded-lg border bg-card shadow-sm md:hidden"
+          data-slot="data-table-mobile-list"
+        >
           {mobileList}
         </div>
       ) : null}
@@ -353,6 +367,7 @@ export function DataTable<TData extends RowData>({
           showPageSize={showPageSize}
           pageSizeOptions={pageSizeOptions}
           hideOnSinglePage={hidePaginationOnSinglePage}
+          className={bordered ? 'rounded-b-lg border border-t-0 bg-card' : undefined}
         />
       )}
     </div>

@@ -14,7 +14,8 @@ use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
 
-/// `GET /api/admin/routes` — list all routes (admin).
+/// `GET /api/admin/routes` — list routes (admin), with optional brand
+/// filter, search and offset pagination.
 #[utoipa::path(
     get,
     path = "/api/admin/routes",
@@ -29,12 +30,21 @@ use crate::state::AppState;
 pub async fn list(
     State(st): State<AppState>,
     admin: AdminUser,
-    Query(_q): Query<AdminRoutesQuery>,
+    Query(q): Query<AdminRoutesQuery>,
 ) -> Result<Json<AdminRouteListResponse>, AppError> {
     st.rbac
         .check(admin.user_id(), rbac::ADMIN_ROUTES_READ)
         .await?;
-    Ok(Json(st.admin.list_routes().await?))
+    Ok(Json(
+        st.admin
+            .list_routes(
+                q.brand_id.map(|id| id.to_string()).as_deref(),
+                q.q.as_deref(),
+                q.limit,
+                q.offset.unwrap_or(0),
+            )
+            .await?,
+    ))
 }
 
 /// `POST /api/admin/routes` — create a route.

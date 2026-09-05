@@ -188,3 +188,73 @@ describe('InfiniteSelect search throttling', () => {
     // the exhausted-list footer is the one removed.
   })
 })
+
+describe('InfiniteSelect list UX parity with Select', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Backend that immediately resolves one full page of items. */
+  function resolvedBackend(items: Array<{ id: string; label: string }>) {
+    const fetchPage: InfiniteFetchPage<{ id: string; label: string }> = async () => ({
+      items,
+      total: items.length,
+      hasMore: false,
+    })
+    return fetchPage
+  }
+
+  it('gives the dropdown list a max height with overflow scrolling', async () => {
+    const items = Array.from({ length: 40 }, (_, i) => ({ id: `i${i}`, label: `Item ${i}` }))
+    withClient(
+      <InfiniteSelect
+        scope="max-height-test"
+        fetchPage={resolvedBackend(items)}
+        value={null}
+        onValueChange={vi.fn()}
+        itemValue={(i) => i.id}
+        itemLabel={(i) => i.label}
+      />,
+    )
+    openPopup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const list = document.querySelector('[data-slot="combobox-list"]') as HTMLElement
+    expect(list).not.toBeNull()
+    // Max height + vertical overflow so long catalogs scroll inside the
+    // popup instead of stretching the page.
+    expect(list.className).toContain('max-h-')
+    expect(list.className).toContain('overflow-y-auto')
+  })
+
+  it('options have hover transitions and a pointer cursor (Select parity)', async () => {
+    const items = Array.from({ length: 5 }, (_, i) => ({ id: `i${i}`, label: `Item ${i}` }))
+    withClient(
+      <InfiniteSelect
+        scope="hover-test"
+        fetchPage={resolvedBackend(items)}
+        value={null}
+        onValueChange={vi.fn()}
+        itemValue={(i) => i.id}
+        itemLabel={(i) => i.label}
+      />,
+    )
+    openPopup()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const option = screen.getByText('Item 1').closest('[data-slot="combobox-item"]') as HTMLElement
+    expect(option).not.toBeNull()
+    // Hovering an option visibly transitions (UI parity with Select):
+    // a color transition + the pointer cursor on hover.
+    expect(option.className).toContain('transition-colors')
+    expect(option.className).toContain('hover:bg-accent')
+    expect(option.className).toContain('cursor-pointer')
+  })
+})

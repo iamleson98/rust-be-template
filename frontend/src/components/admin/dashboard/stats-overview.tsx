@@ -640,7 +640,9 @@ export function StatsOverview({
               </div>
             </CardHeader>
             <CardContent className="p-0">
+              {/* The Card provides the surface — render the table unbordered. */}
               <DataTable
+                bordered={false}
                 columns={recentBookingsColumns}
                 data={recentBookings.slice(0, 5)}
                 rowNoun="vé"

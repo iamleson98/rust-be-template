@@ -43,6 +43,15 @@ pub struct PickupPointWithRoute {
 //  Trait
 // ────────────────────────────────────────────────────────────────
 
+/// A page of routes plus the total matching-row count (before
+/// pagination) — powers the admin routes table's server-side paging.
+#[derive(Debug, Clone)]
+pub struct RoutePage {
+    pub items: Vec<route::Model>,
+    /// Total rows matching the filter (ignores limit/offset).
+    pub total: u64,
+}
+
 #[async_trait]
 pub trait RouteStore: Send + Sync {
     // ── Route ───────────────────────────────────────────────────
@@ -55,6 +64,19 @@ pub trait RouteStore: Send + Sync {
     ) -> StoreResult<Vec<route::Model>>;
     async fn list_routes_by_brand(&self, brand_id: &str) -> StoreResult<Vec<route::Model>>;
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>>;
+
+    /// Admin list with an optional brand filter + case-insensitive
+    /// search over the route name, the start/end city slugs and the
+    /// owning brand's name, ordered by `created_at` (newest first) for
+    /// stable pages. `limit=None` returns every matching row (legacy
+    /// "fetch all" consumers such as the schedule form).
+    async fn list_routes_page(
+        &self,
+        brand_id: Option<&str>,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<RoutePage>;
 
     /// Search active routes where the name contains both `from` and `to`
     /// substrings (case-insensitive). Replaces the previous "load 1000
@@ -175,6 +197,57 @@ impl RouteStore for DbRouteStore {
 
     async fn list_all_routes(&self) -> StoreResult<Vec<route::Model>> {
         Ok(route::Entity::find().all(self.db.as_ref()).await?)
+    }
+
+    async fn list_routes_page(
+        &self,
+        brand_id: Option<&str>,
+        q: Option<&str>,
+        limit: Option<u64>,
+        offset: u64,
+    ) -> StoreResult<RoutePage> {
+        use sea_orm::sea_query::Expr;
+
+        let mut base = route::Entity::find().order_by_desc(route::Column::CreatedAt);
+        if let Some(brand_id) = brand_id.map(str::trim).filter(|s| !s.is_empty()) {
+            // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
+            let brand_uuid = super::parse_uuid(brand_id)?;
+            base = base.filter(route::Column::BrandId.eq(brand_uuid));
+        }
+        if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
+            let needle = q.to_lowercase();
+            // Search the route name, both city slugs and the owning
+            // brand's name (subquery keeps it one round-trip). LIKE with
+            // a LOWER()-ed column is portable across SQLite + Postgres —
+            // the same trick `apply_q` in the vehicle-type store uses.
+            base = base.filter(
+                sea_orm::Condition::any()
+                    .add(Expr::cust_with_values(
+                        "LOWER(name) LIKE '%' || ? || '%'",
+                        [needle.clone()],
+                    ))
+                    .add(Expr::cust_with_values(
+                        "LOWER(start_location_id) LIKE '%' || ? || '%'",
+                        [needle.clone()],
+                    ))
+                    .add(Expr::cust_with_values(
+                        "LOWER(end_location_id) LIKE '%' || ? || '%'",
+                        [needle.clone()],
+                    ))
+                    .add(Expr::cust_with_values(
+                        "brand_id IN (SELECT id FROM brand WHERE LOWER(name) LIKE '%' || ? || '%')",
+                        [needle],
+                    )),
+            );
+        }
+
+        let total = base.clone().count(self.db.as_ref()).await?;
+        let mut query = base.offset(offset);
+        if let Some(limit) = limit {
+            query = query.limit(limit);
+        }
+        let items = query.all(self.db.as_ref()).await?;
+        Ok(RoutePage { items, total })
     }
 
     async fn search_active_routes_by_name(

@@ -27,7 +27,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 
 import {
@@ -249,10 +248,8 @@ export function VehicleTypesPanel() {
         </div>
       </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <DataTable
+      {/* Table — the DataTable renders its own bordered surface. */}
+      <DataTable
             columns={columns}
             data={items}
             testId="vehicle-types-table"
@@ -274,8 +271,6 @@ export function VehicleTypesPanel() {
             }
             emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
           />
-        </CardContent>
-      </Card>
 
       {/* Create / edit dialog */}
       <VehicleTypeFormDialog
