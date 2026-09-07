@@ -2,12 +2,12 @@
 //! payments and reviews.
 //!
 //!   1. `booking`        — a ticket order (user or guest, trip, boarding
-//!                         /dropping points, pricing breakdown, contact
-//!                         info, optional home pickup/dropoff geo)
+//!      /dropping points, pricing breakdown, contact
+//!      info, optional home pickup/dropoff geo)
 //!   2. `booking_seat`   — passenger-per-seat line items
 //!   3. `seat_inventory` — per-trip seat availability + hold state
 //!   4. `payment`        — provider payment attempts (VNPay/MoMo/ZaloPay/
-//!                         VietQR/COD) with IPN state machine
+//!      VietQR/COD) with IPN state machine
 //!   5. `review`         — trip/brand reviews with moderation workflow
 
 use sea_orm_migration::{prelude::*, schema::*};

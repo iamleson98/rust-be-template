@@ -77,7 +77,7 @@ pub fn advance_slot(
 ) -> DateTime<Utc> {
     let (day, _) = to_local(previous_slot, offset_minutes);
     let next_day = day
-        .checked_add_signed(Duration::days(i64::from(interval_days as i64)))
+        .checked_add_signed(Duration::days(interval_days as i64))
         .expect("date arithmetic overflow");
     from_local(next_day, at_hour, at_minute, offset_minutes)
 }

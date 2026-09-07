@@ -38,7 +38,7 @@ pub struct VerifyQuery {
 }
 
 pub async fn verify(
-    State(st): State<AppState>,
+    State(_st): State<AppState>,
     Query(q): Query<VerifyQuery>,
 ) -> Result<String, AppError> {
     // Verify the token matches our configured MESSENGER_VERIFY_TOKEN.
@@ -65,6 +65,8 @@ pub struct MessengerEntry {
 #[derive(Debug, Deserialize)]
 pub struct MessengerMessaging {
     pub sender: MessengerUser,
+    // Deserialized for payload completeness; not used by the handler.
+    #[allow(dead_code)]
     pub recipient: MessengerUser,
     pub message: Option<MessengerMsg>,
 }
@@ -119,7 +121,7 @@ pub async fn webhook(
 }
 
 /// Send a text message to a Messenger user via the Graph API.
-async fn send_messenger_reply(st: &AppState, recipient_psid: &str, text: &str) {
+async fn send_messenger_reply(_st: &AppState, recipient_psid: &str, text: &str) {
     // TODO: Read MESSENGER_PAGE_ACCESS_TOKEN from config.
     //
     // POST https://graph.facebook.com/v18.0/me/messages

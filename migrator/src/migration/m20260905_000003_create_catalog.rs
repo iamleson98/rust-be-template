@@ -2,12 +2,12 @@
 //! and brand-owned addresses.
 //!
 //!   1. `place`        — Vietnam OSM gazetteer used by autocomplete
-//!                       (populated by the import job, not seeded here)
+//!      (populated by the import job, not seeded here)
 //!   2. `brand`        — transport brands (slug-addressed)
 //!   3. `vehicle_type` — admin-managed vehicle class catalogue (seeded
-//!                       with the five legacy codes in the seed migration)
+//!      with the five legacy codes in the seed migration)
 //!   4. `address`      — named geographic points owned by a brand, used
-//!                       as schedule stops
+//!      as schedule stops
 //!
 //! No table here depends on another table in this migration except
 //! `address` → `brand`.
@@ -232,6 +232,7 @@ enum VehicleType {
 }
 
 #[derive(DeriveIden)]
+#[allow(clippy::enum_variant_names)] // SeaORM Iden: variant name = SQL identifier
 enum Address {
     Table,
     Id,

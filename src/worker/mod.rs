@@ -113,10 +113,7 @@ pub async fn await_worker_shutdown(timeout: Duration) -> bool {
     match handle {
         // No runner started in this process — nothing to wait for.
         None => true,
-        Some(handle) => match tokio::time::timeout(timeout, handle).await {
-            Ok(_) => true,
-            Err(_) => false,
-        },
+        Some(handle) => tokio::time::timeout(timeout, handle).await.is_ok(),
     }
 }
 

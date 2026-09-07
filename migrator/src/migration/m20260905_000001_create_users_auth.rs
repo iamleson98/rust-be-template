@@ -2,8 +2,8 @@
 //!
 //! Tables (dependency order):
 //!   1. `user`             — accounts (role: user | employee | admin; is_bot
-//!                           flags the NullClaw AI agent account; OAuth
-//!                           provider/subject columns inline from day one)
+//!      flags the NullClaw AI agent account; OAuth
+//!      provider/subject columns inline from day one)
 //!   2. `posts`            — demo posts authored by users
 //!   3. `refresh_tokens`   — rotating refresh tokens (one active per session)
 //!   4. `user_verification`— email/phone OTP verification codes

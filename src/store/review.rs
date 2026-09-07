@@ -32,6 +32,7 @@ pub type BrandRatingAvg = (Option<Uuid>, Option<f64>);
 #[async_trait]
 pub trait ReviewStore: Send + Sync {
     async fn find_review_by_id(&self, id: Uuid) -> StoreResult<Option<review::Model>>;
+    #[allow(clippy::too_many_arguments)] // explicit filter tuple; a filter struct would obscure the SQL
     async fn list_reviews(
         &self,
         brand_id: Option<&str>,

@@ -713,8 +713,8 @@ impl AdminService {
                     effective_from: s.effective_from.clone(),
                     effective_to: s.effective_to.clone(),
                     days_of_week: s.days_of_week.clone(),
-                    bus_layout_id: s.bus_layout_id.clone(),
-                    vehicle_type_id: s.vehicle_type_id.clone(),
+                    bus_layout_id: s.bus_layout_id,
+                    vehicle_type_id: s.vehicle_type_id,
                     vehicle_type: s
                         .vehicle_type_id
                         .as_ref()
@@ -784,7 +784,7 @@ impl AdminService {
             effective_from: Set(body.effective_from.clone()),
             effective_to: Set(body.effective_to.clone()),
             days_of_week: Set(days_of_week),
-            bus_layout_id: Set(body.bus_layout_id.clone()),
+            bus_layout_id: Set(body.bus_layout_id),
             vehicle_type_id: Set(body.vehicle_type_id),
             base_price_adult: Set(body.base_price_adult.unwrap_or(0)),
             base_price_child: Set(body.base_price_child),
@@ -927,7 +927,7 @@ impl AdminService {
         let code = body
             .code
             .as_deref()
-            .map(|s| slugify(s))
+            .map(slugify)
             .filter(|s| !s.is_empty())
             .ok_or_else(|| AppError::BadRequest("code is required".into()))?;
         if !valid_slug(&code) {

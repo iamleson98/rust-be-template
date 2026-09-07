@@ -35,8 +35,12 @@ pub struct DiscordInteraction {
     pub interaction_type: i64,
     pub data: Option<DiscordInteractionData>,
     pub member: Option<DiscordMember>,
+    // Present in the payload for completeness; kept for webhook debugging.
+    #[allow(dead_code)]
     pub channel_id: Option<String>,
+    #[allow(dead_code)]
     pub id: Option<String>,
+    #[allow(dead_code)]
     pub token: Option<String>,
 }
 

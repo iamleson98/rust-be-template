@@ -4,10 +4,10 @@
 //!   1. `chat_channel`         — one support conversation per customer
 //!   2. `chat_message`          — messages (user | employee | bot senders)
 //!   3. `chat_assignment`       — which employee/admin currently owns a
-//!                                channel (one active row per channel;
-//!                                `employee_id` is TEXT by design — it
-//!                                also stores historical/bot ids without
-//!                                FK enforcement)
+//!      channel (one active row per channel;
+//!      `employee_id` is TEXT by design — it
+//!      also stores historical/bot ids without
+//!      FK enforcement)
 //!   4. `chat_channel_member`   — channel roster (customer + staff + bot)
 //!   5. `nullclaw_exchange`     — AI prompt/completion audit rows
 //!

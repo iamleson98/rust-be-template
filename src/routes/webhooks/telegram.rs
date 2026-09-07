@@ -29,12 +29,16 @@ use super::shared::{handle_platform_message, PlatformMessage};
 /// Telegram Update (partial — only `message` field).
 #[derive(Debug, Deserialize)]
 pub struct TelegramUpdate {
+    // Deserialized for payload completeness; not used by the handler.
+    #[allow(dead_code)]
     pub update_id: i64,
     pub message: Option<TelegramMessage>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TelegramMessage {
+    // Deserialized for payload completeness; not used by the handler.
+    #[allow(dead_code)]
     pub message_id: i64,
     pub from: Option<TelegramUser>,
     pub chat: TelegramChat,
@@ -43,6 +47,8 @@ pub struct TelegramMessage {
 
 #[derive(Debug, Deserialize)]
 pub struct TelegramUser {
+    // Deserialized for payload completeness; not used by the handler.
+    #[allow(dead_code)]
     pub id: i64,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
@@ -103,7 +109,7 @@ pub async fn webhook(
 }
 
 /// Send a text message to a Telegram chat via the Bot API.
-async fn send_telegram_reply(st: &AppState, chat_id: i64, text: &str) {
+async fn send_telegram_reply(_st: &AppState, chat_id: i64, text: &str) {
     // TODO: Read TELEGRAM_BOT_TOKEN from config + call:
     //
     // POST https://api.telegram.org/bot<TOKEN>/sendMessage

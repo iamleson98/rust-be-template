@@ -479,6 +479,7 @@ impl NullClawProvider for DirectLLMProvider {
 impl DirectLLMProvider {
     /// Persist the AI reply as a ChatMessage + audit row, then return
     /// the `NullClawOutcome` for the WS handler to broadcast.
+    #[allow(clippy::too_many_arguments)]
     async fn persist_and_return(
         &self,
         chat_store: &dyn ChatStore,
@@ -511,12 +512,12 @@ impl DirectLLMProvider {
 
         // Update channel last-message preview.
         let preview: String = reply.reply.chars().take(100).collect();
-        let _ = chat_store
+        chat_store
             .update_channel_preview(channel_id, preview, now.clone())
             .await?;
 
         // Audit row.
-        let _ = chat_store
+        chat_store
             .insert_nullclaw_exchange(NewNullClawExchange {
                 channel_id: Some(channel_uuid),
                 user_message_id: Some(user_msg_uuid),

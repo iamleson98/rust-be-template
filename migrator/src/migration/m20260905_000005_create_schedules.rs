@@ -2,14 +2,14 @@
 //! concrete trip sessions.
 //!
 //!   1. `schedule`      — a recurring departure template for a route
-//!                        (time, effective range, days-of-week, prices,
-//!                        optional bus layout + explicit vehicle type)
+//!      (time, effective range, days-of-week, prices,
+//!      optional bus layout + explicit vehicle type)
 //!   2. `schedule_point`— ordered address sequence for a schedule;
-//!                        first = departure, last = final drop, middle =
-//!                        midway stops. `arrival_time` publishes when the
-//!                        vehicle reaches each stop.
+//!      first = departure, last = final drop, middle =
+//!      midway stops. `arrival_time` publishes when the
+//!      vehicle reaches each stop.
 //!   3. `trip_session`  — one concrete departure (schedule × date),
-//!                        materialised with live seat counters.
+//!      materialised with live seat counters.
 
 use sea_orm_migration::{prelude::*, schema::*};
 

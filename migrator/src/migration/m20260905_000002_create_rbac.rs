@@ -1,9 +1,9 @@
 //! RBAC tables — roles, permissions and their join tables.
 //!
 //!   1. `roles`            — named roles (admin / employee / user, seeded
-//!                           in the final seed migration)
+//!      in the final seed migration)
 //!   2. `permissions`      — permission catalogue (`users:read`,
-//!                           `admin:bookings:write`, …)
+//!      `admin:bookings:write`, …)
 //!   3. `user_roles`       — M2M user ↔ role
 //!   4. `role_permissions` — M2M role ↔ permission
 //!

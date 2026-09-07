@@ -30,6 +30,8 @@ use super::shared::{handle_platform_message, PlatformMessage};
 #[serde(rename_all = "snake_case")]
 pub struct ZaloEvent {
     pub event_name: String,
+    // Deserialized for payload completeness; not used by the handler.
+    #[allow(dead_code)]
     pub timestamp: i64,
     pub sender: ZaloSender,
     pub message: Option<ZaloMessage>,
@@ -104,7 +106,7 @@ pub async fn webhook(
 }
 
 /// Send a text message to a Zalo user via the Zalo OA API.
-async fn send_zalo_reply(st: &AppState, user_id: &str, text: &str) {
+async fn send_zalo_reply(_st: &AppState, user_id: &str, text: &str) {
     tracing::info!(
         user_id = %user_id,
         reply = %text,

@@ -1,9 +1,9 @@
 //! Route network — routes, pickup points, bus layouts and seats.
 //!
 //!   1. `route`        — brand route between two city slugs
-//!                       (`start_location_id` / `end_location_id` are
-//!                       VARCHAR(20) slugs, NOT FKs — resolved via
-//!                       `crate::cities` in the service layer)
+//!      (`start_location_id` / `end_location_id` are
+//!      VARCHAR(20) slugs, NOT FKs — resolved via
+//!      `crate::cities` in the service layer)
 //!   2. `pickup_point` — ordered stops along a route
 //!   3. `bus_layout`   — seat map definition per brand/vehicle class
 //!   4. `seat`         — concrete seat in a layout
@@ -269,6 +269,7 @@ enum BusLayout {
 }
 
 #[derive(DeriveIden)]
+#[allow(clippy::enum_variant_names)] // SeaORM Iden: variant name = SQL identifier
 enum Seat {
     Table,
     Id,

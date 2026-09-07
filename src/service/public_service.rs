@@ -47,6 +47,7 @@ fn vehicle_type_label(vt: &str) -> &'static str {
 /// 1. the schedule's explicit `vehicle_type_id` (admin-managed catalog),
 /// 2. the bus layout's legacy `vehicle_type` string,
 /// 3. `standard` as the default.
+///
 /// Legacy codes get their label from the catalog when one matches
 /// (e.g. a bus layout still saying `limousine`), else the static map.
 fn resolve_vehicle_type(
@@ -548,6 +549,7 @@ impl PublicService {
     /// - `max_distance_km` — max distance from desired pickup/drop to
     ///   nearest route stop (default 50 km). Routes with no stop within
     ///   this radius are excluded.
+    #[allow(clippy::too_many_arguments)] // geo search has an inherently wide signature
     pub async fn search_trips_geo(
         &self,
         from_lat: f64,
@@ -607,6 +609,7 @@ impl PublicService {
         // - Check direction: pickup.stop_order < drop.stop_order
         // - Combined distance = pickup_dist + drop_dist
         #[derive(Clone)]
+        #[allow(dead_code)] // debug fields kept for future diagnostics
         struct RouteMatch {
             route_id: Uuid,
             route_name: String,
@@ -625,10 +628,9 @@ impl PublicService {
             for p in points {
                 if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
                     let dist = haversine_km(from_lat, from_lon, p_lat, p_lon);
-                    if dist <= max_dist {
-                        if best_pickup.is_none() || dist < best_pickup.unwrap().1 {
-                            best_pickup = Some((p, dist));
-                        }
+                    if dist <= max_dist && (best_pickup.is_none() || dist < best_pickup.unwrap().1)
+                    {
+                        best_pickup = Some((p, dist));
                     }
                 }
             }
@@ -645,10 +647,8 @@ impl PublicService {
                 }
                 if let (Some(p_lat), Some(p_lon)) = (p.lat, p.lon) {
                     let dist = haversine_km(to_lat, to_lon, p_lat, p_lon);
-                    if dist <= max_dist {
-                        if best_drop.is_none() || dist < best_drop.unwrap().1 {
-                            best_drop = Some((p, dist));
-                        }
+                    if dist <= max_dist && (best_drop.is_none() || dist < best_drop.unwrap().1) {
+                        best_drop = Some((p, dist));
                     }
                 }
             }
@@ -801,7 +801,7 @@ impl PublicService {
             // Vehicle type filter (schedule catalog row first, bus-layout
             // fallback, "standard" default — same as the text search).
             let (vehicle_type, vt_label) = resolve_vehicle_type(schedule, None, &vt_map);
-            if !vehicle_types.is_empty() && !vehicle_types.iter().any(|vt| *vt == vehicle_type) {
+            if !vehicle_types.is_empty() && !vehicle_types.contains(&vehicle_type) {
                 continue;
             }
 

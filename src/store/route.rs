@@ -57,6 +57,7 @@ pub trait RouteStore: Send + Sync {
     // ── Route ───────────────────────────────────────────────────
 
     async fn find_route_by_id(&self, id: Uuid) -> StoreResult<Option<route::Model>>;
+    #[allow(clippy::too_many_arguments)] // explicit filter tuple; a filter struct would obscure the SQL
     async fn list_routes_by_status(
         &self,
         status: &str,
@@ -134,6 +135,7 @@ pub trait RouteStore: Send + Sync {
     /// Two bounding boxes are passed: one for the pickup location, one for
     /// the drop location. The query returns ALL pickup_points in EITHER
     /// box — the Rust caller filters by direction (stop_order) + distance.
+    #[allow(clippy::too_many_arguments)] // two bounding boxes — inherent to the geo query
     async fn find_pickup_points_in_bbox(
         &self,
         from_lat_min: f64,

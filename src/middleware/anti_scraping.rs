@@ -131,6 +131,14 @@ fn is_blocked_ua(ua: &str) -> bool {
     false
 }
 
+/// Infra/health paths that are always exempt from every check in this
+/// middleware. Docker HEALTHCHECK, CD deploy gates, and uptime monitors
+/// probe these with CLI tools (curl/wget) — blocking them restart-loops
+/// perfectly healthy containers.
+fn is_infra_path(path: &str) -> bool {
+    matches!(path, "/health" | "/ready")
+}
+
 /// Anti-scraping middleware.
 ///
 /// Applied to all `/api/*` routes. Does NOT apply to:
@@ -145,6 +153,12 @@ pub async fn anti_scraping(
     let headers = req.headers();
     let method = req.method().clone();
     let path = req.uri().path().to_string();
+
+    // ── 0. Infra paths are ALWAYS exempt ────────────────────────
+    // Matches the module docs ("Does NOT apply to /health and /ready").
+    if is_infra_path(path.as_str()) {
+        return Ok(next.run(req).await);
+    }
 
     // ── 1. User-Agent check ────────────────────────────────────
     let ua = headers
@@ -250,6 +264,18 @@ pub fn init_allowed_origins(origins: Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_infra_path_exempt() {
+        // Health endpoints must never be UA-blocked: Docker HEALTHCHECK
+        // and CD gates probe them with curl (regression: 2026-09-07 the
+        // layer wrapped the whole router and restart-looped the task).
+        assert!(is_infra_path("/health"));
+        assert!(is_infra_path("/ready"));
+        assert!(!is_infra_path("/api/health"));
+        assert!(!is_infra_path("/"));
+        assert!(!is_infra_path("/api/public/routes"));
+    }
 
     #[test]
     fn test_is_blocked_ua_curl() {

@@ -1,9 +1,9 @@
 //! Promotions — discount code campaigns and always-on discount programs.
 //!
 //!   1. `campaign`         — a code-based discount campaign
-//!                           (percentage or fixed, usage-capped, dated)
+//!      (percentage or fixed, usage-capped, dated)
 //!   2. `discount_program` — brand-level sale programs shown on the
-//!                           public site (managed by employees)
+//!      public site (managed by employees)
 
 use sea_orm_migration::{prelude::*, schema::*};
 

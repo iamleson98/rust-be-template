@@ -126,8 +126,8 @@ impl PlaceService {
         &self,
         query: &str,
         limit: u64,
-        lat: Option<f64>,
-        lon: Option<f64>,
+        _lat: Option<f64>,
+        _lon: Option<f64>,
     ) -> AppResult<PlaceSearchResponse> {
         let q_trim = query.trim();
         if q_trim.is_empty() {
@@ -267,6 +267,9 @@ pub fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 }
 
 /// Remove Vietnamese diacritical marks for accent-insensitive search.
+/// Only used by unit tests (production search uses `vn_text` in the OSM
+/// module) — hence the test-only gate.
+#[cfg(test)]
 fn remove_vietnamese_tones(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     for c in s.chars() {

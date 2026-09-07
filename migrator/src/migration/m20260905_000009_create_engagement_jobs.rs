@@ -2,14 +2,14 @@
 //!
 //!   1. `wishlist_item`  — saved routes per user
 //!   2. `price_alert`    — route price-drop alerts (phone-anchored;
-//!                         `user_id` is a TEXT UUID — nullable for legacy
-//!                         phone-only alerts, no FK by design)
+//!      `user_id` is a TEXT UUID — nullable for legacy
+//!      phone-only alerts, no FK by design)
 //!   3. `scheduled_job`  — recurring job schedules (rows are seeded by
-//!                         `JobService::ensure_default_jobs` at server
-//!                         boot so the first `next_run_at` is relative to
-//!                         the first boot, NOT to migration time)
+//!      `JobService::ensure_default_jobs` at server
+//!      boot so the first `next_run_at` is relative to
+//!      the first boot, NOT to migration time)
 //!   4. `job_run`        — one row per job execution (queued → running →
-//!                         succeeded/failed)
+//!      succeeded/failed)
 
 use sea_orm_migration::{prelude::*, schema::*};
 
