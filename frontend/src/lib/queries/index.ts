@@ -153,6 +153,8 @@ import {
   releaseChannelMutation as chatReleaseChannelMutation,
   closeChannelMutation as chatCloseChannelMutation,
   getStaffPresenceOptions,
+  // system — live host metrics (admin server-monitoring page)
+  systemMetricsOptions,
 } from '@/lib/api/@tanstack/react-query.gen';
 
 // Generated types — re-exported so components can import from here
@@ -184,6 +186,8 @@ import type {
   AdminAddressOut,
   AdminAddressListResponse,
   CronJobRunOut,
+  DiskInfo,
+  SystemMetrics,
 } from "@/lib/api/types.gen";
 
 // ─────────────────────────────────────────────────────────────
@@ -218,6 +222,9 @@ export type {
   AdminVehicleTypeOut as AdminVehicleType,
   AdminAddressOut as AdminAddress,
   CronJobRunOut as CronJobRun,
+  // system — live host metrics (admin server-monitoring page)
+  SystemMetrics,
+  DiskInfo as SystemMetricDisk,
 };
 
 // Convenience types used by components
@@ -815,6 +822,24 @@ export function useSystemStatus() {
       if (!res.ok) throw new Error("Failed to fetch system status");
       return res.json();
     },
+    refetchInterval: 5 * 1000,
+  });
+}
+
+/**
+ * `useSystemMetrics` — live host metrics (CPU / RAM / disks / process)
+ * for the admin `/admin/system` server-monitoring section.
+ *
+ * Endpoint: `GET /api/admin/system/metrics` (admin-gated; collected
+ * server-side via `sysinfo` — cross-platform). Each scrape costs the
+ * backend a ~200 ms CPU-sample window, so 5 s is a sane cadence.
+ * Mirrors pdf-tts's `systemMetricsOptions` polling hook (5 s there
+ * too); goes through the generated SDK client so the auth-fetch
+ * 401→refresh→retry interceptor applies.
+ */
+export function useSystemMetrics() {
+  return useQuery({
+    ...systemMetricsOptions(),
     refetchInterval: 5 * 1000,
   });
 }

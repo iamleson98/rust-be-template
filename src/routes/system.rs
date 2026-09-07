@@ -5,7 +5,9 @@
 //!
 //! Also hosts `/api/admin/chat/stats` — aggregate chat stats for the
 //! admin dashboard's top-row cards (open / assigned / closed counts +
-//! average first-response time).
+//! average first-response time) — and `/api/admin/system/metrics` —
+//! live host-level metrics (CPU / RAM / disks / process / host info)
+//! for the admin server-monitoring page, ported from pdf-tts.
 
 use axum::extract::State;
 use axum::Json;
@@ -13,6 +15,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::dto::chat::ChatStatsResponse;
+use crate::dto::system::SystemMetrics;
 use crate::error::AppResult;
 use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
@@ -343,10 +346,42 @@ fn format_uptime(secs: u64) -> String {
     }
 }
 
-/// Build the system monitoring router (`/api/admin/system` + `/api/admin/chat/stats`).
+/// `GET /api/admin/system/metrics` — live host metrics (CPU, RAM,
+/// disks, process, host info) for the admin server-monitoring page.
+///
+/// Collected via the `sysinfo` crate — cross-platform by design, so
+/// the same cards work against Linux, macOS and Windows backends.
+/// Each scrape costs one ~200 ms CPU-sample window, so clients should
+/// poll at a sane cadence (the frontend polls every 5 s). The snapshot
+/// is never cached server-side — every scrape reflects live values.
+#[utoipa::path(
+    get,
+    path = "/api/admin/system/metrics",
+    tag = "admin",
+    responses(
+        (status = 200, description = "Live server metrics", body = SystemMetrics),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    )
+)]
+pub async fn system_metrics(
+    State(st): State<AppState>,
+    admin: AdminUser,
+) -> AppResult<Json<SystemMetrics>> {
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .await?;
+    Ok(Json(
+        crate::service::metrics::collect_system_metrics().await,
+    ))
+}
+
+/// Build the system monitoring router (`/api/admin/system` +
+/// `/api/admin/system/metrics` + `/api/admin/chat/stats`).
 pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
     axum::Router::new()
         .route("/", get(system_status))
+        .route("/metrics", get(system_metrics))
         .route("/chat/stats", get(chat_stats))
 }

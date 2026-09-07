@@ -162,6 +162,10 @@ use utoipa::OpenApi;
         crate::routes::reviews::mine,
         // admin — per-brand feedback aggregates (admin feedback page).
         crate::routes::admin::reviews::summary,
+        // system — live host metrics (admin server-monitoring page).
+        // Appended LAST on purpose (see the addresses comment above):
+        // appending keeps the existing SDK function numbers stable.
+        crate::routes::system::system_metrics,
     ),
     components(schemas(
         // auth
@@ -343,6 +347,9 @@ use utoipa::OpenApi;
         // admin — per-brand feedback aggregates (appended last, same rule)
         crate::dto::admin::AdminReviewBrandSummary,
         crate::dto::admin::AdminReviewBrandSummaryListResponse,
+        // system — live host metrics (admin server-monitoring page)
+        crate::dto::system::SystemMetrics,
+        crate::dto::system::DiskInfo,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

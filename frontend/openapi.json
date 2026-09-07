@@ -1942,6 +1942,34 @@
         }
       }
     },
+    "/api/admin/system/metrics": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/system/metrics` — live host metrics (CPU, RAM,\ndisks, process, host info) for the admin server-monitoring page.",
+        "description": "Collected via the `sysinfo` crate — cross-platform by design, so\nthe same cards work against Linux, macOS and Windows backends.\nEach scrape costs one ~200 ms CPU-sample window, so clients should\npoll at a sane cadence (the frontend polls every 5 s). The snapshot\nis never cached server-side — every scrape reflects live values.",
+        "operationId": "system_metrics",
+        "responses": {
+          "200": {
+            "description": "Live server metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemMetrics"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
     "/api/admin/vehicle-types": {
       "get": {
         "tags": [
@@ -8348,6 +8376,49 @@
           }
         }
       },
+      "DiskInfo": {
+        "type": "object",
+        "description": "One mounted volume's capacity snapshot.",
+        "required": [
+          "mountPoint",
+          "fsType",
+          "totalBytes",
+          "availableBytes",
+          "usagePercent",
+          "isRemovable"
+        ],
+        "properties": {
+          "availableBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Free space available to unprivileged users, in bytes.",
+            "minimum": 0
+          },
+          "fsType": {
+            "type": "string",
+            "description": "Filesystem type, e.g. `ext4`, `xfs`."
+          },
+          "isRemovable": {
+            "type": "boolean",
+            "description": "Removable media (USB, …) — surfaced as a badge in the UI."
+          },
+          "mountPoint": {
+            "type": "string",
+            "description": "Mount point, e.g. `/`, `/home`."
+          },
+          "totalBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total capacity in bytes.",
+            "minimum": 0
+          },
+          "usagePercent": {
+            "type": "number",
+            "format": "float",
+            "description": "`used / total * 100`, 0–100."
+          }
+        }
+      },
       "HealthResponse": {
         "type": "object",
         "required": [
@@ -9999,6 +10070,116 @@
           "trips": {
             "type": "integer",
             "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "SystemMetrics": {
+        "type": "object",
+        "description": "Live host-level metrics for the admin server-monitoring page.",
+        "required": [
+          "cpuUsagePercent",
+          "perCoreUsagePercent",
+          "logicalCores",
+          "physicalCores",
+          "memoryTotalBytes",
+          "memoryUsedBytes",
+          "memoryAvailableBytes",
+          "memoryUsagePercent",
+          "processMemoryBytes",
+          "processCpuUsagePercent",
+          "disks",
+          "uptimeSecs",
+          "osName",
+          "kernelVersion",
+          "hostname",
+          "timestamp"
+        ],
+        "properties": {
+          "cpuUsagePercent": {
+            "type": "number",
+            "format": "float",
+            "description": "Overall CPU utilization across all cores, 0–100."
+          },
+          "disks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiskInfo"
+            },
+            "description": "Every mounted volume with a non-zero capacity."
+          },
+          "hostname": {
+            "type": "string",
+            "description": "Host machine name."
+          },
+          "kernelVersion": {
+            "type": "string",
+            "description": "Kernel / OS version string."
+          },
+          "logicalCores": {
+            "type": "integer",
+            "description": "Logical CPU cores (what `nproc` reports).",
+            "minimum": 0
+          },
+          "memoryAvailableBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "RAM immediately available to processes.",
+            "minimum": 0
+          },
+          "memoryTotalBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total installed RAM in bytes.",
+            "minimum": 0
+          },
+          "memoryUsagePercent": {
+            "type": "number",
+            "format": "float",
+            "description": "`used / total * 100`, 0–100."
+          },
+          "memoryUsedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "RAM in use (includes cached/buffers as reported by the OS).",
+            "minimum": 0
+          },
+          "osName": {
+            "type": "string",
+            "description": "OS display name, e.g. \"Ubuntu 24.04\" / \"macOS 15.2\"."
+          },
+          "perCoreUsagePercent": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            },
+            "description": "Per-core utilization in core order, each 0–100."
+          },
+          "physicalCores": {
+            "type": "integer",
+            "description": "Physical CPU cores (fewer than logical when hyper-threading).",
+            "minimum": 0
+          },
+          "processCpuUsagePercent": {
+            "type": "number",
+            "format": "float",
+            "description": "CPU used by THIS process, 0–100 where 100 = one full core\n(values > 100 mean multiple cores are in use)."
+          },
+          "processMemoryBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Resident set size of THIS server process in bytes.",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "RFC-3339 collection timestamp."
+          },
+          "uptimeSecs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Host uptime in seconds.",
             "minimum": 0
           }
         }
