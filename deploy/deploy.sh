@@ -87,23 +87,21 @@ reload_caddy() {
 }
 reload_caddy
 
-# ── 7. Health gate on the NEW backend task (120s budget) ─────────────
-# Match the container by IMAGE (ancestor filter) so the check cannot pass
-# against a still-draining OLD task during stop-first updates.
+# ── 7. Health gate on the backend task (180s budget) ─────────────────
+# Two signals, both must pass:
+#   a) `docker ps --filter health=healthy` — the container's OWN
+#      Docker HEALTHCHECK (curl /health) reports healthy. NOTE: an
+#      `--filter ancestor=$IMAGE` approach does NOT work — swarm
+#      resolves the tag to a digest (`image:tag@sha256:...`) when the
+#      service is created, so the tag-only ancestor filter never
+#      matches (false negative seen 2026-09-07).
+#   b) `docker exec ... curl /health` — direct confirmation from inside
+#      the task (immune to the anti-scraping UA block: /health is
+#      exempted in middleware).
 echo "waiting for /health ..."
-healthy_task() {
-  local t
-  for t in $(docker ps -q --filter "name=${STACK}_backend" --filter "ancestor=${IMAGE}" 2>/dev/null); do
-    if docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
-      echo "$t"
-      return 0
-    fi
-  done
-  return 1
-}
-for i in $(seq 1 60); do
-  t=$(healthy_task || true)
-  if [ -n "$t" ]; then
+for i in $(seq 1 90); do
+  t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1)
+  if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
     echo "backend healthy after ~$((i*2))s (task $t)"
     docker stack ps "$STACK" --no-trunc --format \
       'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
