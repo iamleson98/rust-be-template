@@ -1,0 +1,70 @@
+# ┌──────────────────────────────────────────────────────────────────────┐
+# │ Caddy for `--profile direct` — classic Cloudflare proxied mode.      │
+# │                                                                       │
+# │ Cloudflare (orange cloud, SSL/TLS mode = Full strict) ──▶ Caddy ──▶   │
+# │ backend:8080. TLS at the edge is Cloudflare's; TLS origin↔edge uses  │
+# │ a Cloudflare Origin CA certificate.                                  │
+# │                                                                       │
+# │ Setup:                                                                │
+# │   1. DNS A record for your domain → VPS IP, PROXIED (orange cloud).  │
+# │   2. Cloudflare dash → SSL/TLS → Overview → Full (strict).            │
+# │   3. SSL/TLS → Origin Server → Create Certificate (RSA, 15y).        │
+# │      Save into deploy/certs/origin.pem + deploy/certs/origin.key.    │
+# │   4. export DOMAIN=yourdomain.com (or set it in .env)                │
+# │   5. docker compose -f deploy/docker-compose.contabo.yml \          │
+# │        --profile direct up -d                                         │
+# │                                                                       │
+# │ Firewall: allow 22, 80, 443 (see deploy/server-init.sh).              │
+# │ Unlike tunnel mode, this DOES expose the VPS to the internet.        │
+# └──────────────────────────────────────────────────────────────────────┘
+
+{$DOMAIN} {
+        # ── TLS: Cloudflare Origin CA cert ─────────────────────────────
+        # Managed by Caddy? No — Origin CA certs aren't publicly trusted,
+        # only Cloudflare accepts them, which is exactly what we want.
+        tls /certs/origin.pem /certs/origin.key
+
+        # ── Reverse proxy to backend ───────────────────────────────────
+        reverse_proxy backend:8080 {
+                # Restore the REAL client IP from Cloudflare's header so the
+                # backend audit log + future header-aware rate limiting see
+                # per-visitor IPs instead of one shared proxy IP.
+                header_up X-Real-IP {http.request.header.Cf-Connecting-IP}
+                header_up X-Forwarded-For {http.request.header.Cf-Connecting-IP}
+                header_up X-Forwarded-Proto https
+                # Flush immediately so SSE / WebSocket / streaming responses
+                # reach the client without buffering.
+                flush_interval -1
+        }
+
+        # ── Security headers ──────────────────────────────────────────
+        header {
+                Strict-Transport-Security "max-age=31536000; includeSubDomains"
+                X-Content-Type-Options "nosniff"
+                X-Frame-Options "SAMEORIGIN"
+                Referrer-Policy "strict-origin-when-cross-origin"
+                Permissions-Policy "camera=(self), microphone=(self), geolocation=(self), interest-cohort=()"
+                -Server
+        }
+
+        # ── Compression (origin → Cloudflare hop) ─────────────────────
+        encode zstd gzip
+
+        # ── Static asset caching (CDN-ish at the Caddy layer) ─────────
+        @static path /assets/* /sw.js /icons/* /manifest.webmanifest /robots.txt
+        header @static Cache-Control "public, max-age=31536000, immutable"
+
+        @health path /health
+        header @health Cache-Control "no-cache, no-store, must-revalidate"
+
+        log {
+                output stdout
+                format json
+        }
+}
+
+# Plain HTTP listener: ACME HTTP-01 challenges (if you ever switch to
+# Let's Encrypt certs) + redirect anything else to HTTPS.
+http://{$DOMAIN} {
+        redir https://{$DOMAIN}{uri} permanent
+}

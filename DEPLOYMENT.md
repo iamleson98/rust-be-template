@@ -1,6 +1,23 @@
 # Deployment & Configuration Guide — VeXeVN
 
-Complete guide for deploying the full stack (Rust backend + React frontend + Postgres + Redis + Caddy + NullClaw AI) to a Kamatera VM using Docker Swarm.
+Complete guide for deploying the full stack (Rust backend + React frontend + Postgres + Redis + Caddy + NullClaw AI) to a VM using Docker.
+
+> ### ⭐ Recommended path: Contabo + Cloudflare Tunnel + tag-driven CI/CD
+>
+> The current production stack deploys to a **Contabo VPS** with **Cloudflare**
+> in front (outbound-only tunnel — zero open ports) and releases via **GitHub
+> Actions on `v*` tags**: `git tag v1.2.3 && git push origin v1.2.3` builds the
+> single Docker image (frontend built inside, served by the backend), pushes
+> it to GHCR, and SSHes into the VPS to roll it out. The Tantivy place-search
+> index persists on its own volume across releases.
+>
+> **Runbook: [`deploy/README.md`](deploy/README.md)** · stack:
+> [`deploy/docker-compose.contabo.yml`](deploy/docker-compose.contabo.yml) ·
+> bootstrap: [`deploy/server-init.sh`](deploy/server-init.sh) · pipeline:
+> [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
+>
+> The Swarm/Kamatera path below (§3, §13) remains as the Postgres+Redis
+> scale-out alternative.
 
 ---
 
@@ -819,19 +836,31 @@ The CI pipeline (`.github/workflows/ci.yml`) runs on every push/PR:
 
 ### Auto-deploy (`.github/workflows/deploy.yml`)
 
-On push to the `server` branch:
-1. Builds the Docker image with `BACKEND_FEATURES=postgres` (or `sqlite`)
-2. Pushes to GHCR (`ghcr.io/iamleson98/vexevn:latest`)
-3. SCPs `docker-compose.prod.yml` + `.env.example` to the VM
-4. SSHes in + runs `docker stack deploy`
+**Tag-driven releases (current):** on pushing a `v*` tag
+(`git tag v1.2.3 && git push origin v1.2.3`):
+1. Builds the single Docker image — frontend (Vite/bun) + backend — with
+   `BACKEND_FEATURES=sqlite` (the Contabo path; pass `postgres` if you run the
+   Swarm stack)
+2. Pushes to GHCR tagged `1.2.3`, `1.2`, `latest`, `commit-<sha>`
+3. SCPs `deploy/docker-compose.contabo.yml` (+ Caddyfile, import-osm.sh)
+   to the VPS
+4. SSHes in and runs `APP_IMAGE=<exact tag> docker compose up -d`, then
+   waits for `/health` and prints a one-line rollback on failure
 
-### Required GitHub secrets
+Full runbook: [`deploy/README.md`](deploy/README.md). The legacy branch-push
+flow (`server` branch → Swarm) has been superseded; the Swarm compose file
+(`docker-compose.prod.yml`) is still maintained for scale-out.
+
+### Required GitHub secrets (Contabo path)
 
 | Secret | Value |
 |---|---|
-| `VM_HOST` | VM public IP or domain |
-| `VM_SSH_KEY` | SSH private key (PEM) |
-| `VM_USER` | SSH user (usually `root`) |
+| `SERVER_HOST` | Contabo VPS public IP or hostname |
+| `SERVER_SSH_KEY` | SSH private key (OpenSSH PEM) |
+| `SERVER_USER` | SSH user (usually `root`) |
+| `GHCR_USER` + `GHCR_TOKEN` | *(optional)* PAT with `read:packages` — only if the GHCR package stays private |
+
+Optional GitHub **variable**: `DEPLOY_DIR` (default `/opt/vexevn`).
 
 ---
 

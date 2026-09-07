@@ -1,8 +1,9 @@
 # ─── CI: test + lint + security on every push/PR ──────────────────────
 #
-# Runs on every push to `server` / `main` and every PR targeting them.
-# Each job is independent and short — failures don't block the others
-# (so a frontend type error won't hide a Rust clippy warning).
+# Runs on every push to `master` / `server` / `main` and every PR
+# targeting them. Each job is independent and short — failures don't
+# block the others (so a frontend type error won't hide a Rust clippy
+# warning).
 #
 # Job summary:
 #   1. backend        — cargo fmt --check + cargo check + clippy -D warnings + cargo test
@@ -10,14 +11,16 @@
 #   3. frontend        — bun install + tsc --noEmit + vitest run + bun run build
 #   4. secrets-scan    — gitleaks: blocks commits containing real secrets
 #   5. docker-build    — verifies the Dockerfile still builds
+#
+# Releases/deployments are tag-driven — see deploy.yml (push tag `v*`).
 
 name: CI
 
 on:
   push:
-    branches: [server, main]
+    branches: [master, server, main]
   pull_request:
-    branches: [server, main]
+    branches: [master, server, main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -63,7 +66,9 @@ jobs:
       - name: Test
         run: cargo test --no-default-features --features sqlite --all-targets
         env:
-          DATABASE_URL: sqlite::memory:
+          # NOTE: must stay quoted — `sqlite::memory:` unquoted ends with a
+          # colon, which is invalid YAML and silently kills the whole file.
+          DATABASE_URL: "sqlite::memory:"
           JWT_SECRET: ci-test-secret-at-least-32-bytes-long-aaaaaaaa
           COOKIE_SECURE: "false"
           COOKIE_DOMAIN: localhost

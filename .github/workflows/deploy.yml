@@ -1,23 +1,51 @@
-# ─── CD: build Docker image + push to GHCR + deploy ─────────────────
+# ─── CD: build Docker image + push to GHCR + deploy to Contabo ────────
 #
-# On push to `server` branch:
-#   1. Builds the multi-stage Docker image (frontend + backend)
-#   2. Pushes to GitHub Container Registry (ghcr.io)
-#   3. SSHs into the Kamatera VM and runs docker compose pull + up
+# Trigger: pushing a version tag. Every release is a tag:
+#   git tag v1.2.3 && git push origin v1.2.3
+#
+# Pipeline:
+#   1. build-and-push — multi-stage Dockerfile builds the Vite frontend
+#      (bun) AND the Rust backend, producing ONE image where the backend
+#      serves the static frontend on :8080 (plus API + WS + Tantivy
+#      search). Pushed to ghcr.io tagged with the semver + latest + sha.
+#   2. deploy — SSHes into the Contabo VPS, syncs the compose stack,
+#      pulls the new image, recreates the backend, and waits for
+#      /health. Volumes (SQLite data, Tantivy index, uploads) persist
+#      across releases by design.
 #
 # Required GitHub repository secrets:
-#   VM_HOST          — Kamatera VM public IP (or domain)
-#   VM_SSH_KEY       — SSH private key for the VM (PEM format)
-#   VM_USER          — SSH user (usually "root")
+#   SERVER_HOST      — Contabo VPS public IP or hostname
+#   SERVER_USER      — SSH user (root or a sudo-capable user)
+#   SERVER_SSH_KEY   — SSH PRIVATE key (OpenSSH PEM format)
+# Optional:
+#   GHCR_USER + GHCR_TOKEN — only if the GHCR package stays PRIVATE
+#                            (a PAT with read:packages). For public
+#                            packages, anonymous pulls just work.
+#   DEPLOY_DIR       — GitHub VARIABLE (not secret) for the stack dir,
+#                      default /opt/vexevn
+#
+# First-time server prep: run deploy/server-init.sh once on the VPS
+# (installs Docker, writes .env with a random JWT_SECRET + TUNNEL_TOKEN,
+# locks the firewall). See deploy/README.md.
 
 name: Deploy
 
 on:
   push:
-    branches: [server]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (default: latest)'
+        required: false
+        default: 'latest'
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/vexevn
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -27,7 +55,7 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
+      image_ref: ${{ steps.image.outputs.ref }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,94 +69,140 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
+      - name: Extract metadata (tags + labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            type=sha,prefix=commit-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
+            type=sha,prefix=commit-
+
+      - name: Resolve deployed image ref + build timestamp
+        id: image
+        # Tag push → exact semver (e.g. :1.2.3); manual run → input tag.
+        # metadata-action lowercases the image path — match it here
+        # (matters for owners/repos with uppercase letters). It also has
+        # no `date` output, so we stamp the build timestamp ourselves.
+        run: |
+          REPO_LC="${IMAGE_NAME,,}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            REF="${REPO_LC}:${{ steps.meta.outputs.version }}"
+          else
+            REF="${REPO_LC}:${{ github.event.inputs.image_tag }}"
+          fi
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "deploying ${REF}"
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
+          platforms: linux/amd64   # Contabo VPSes are x86_64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             BACKEND_FEATURES=sqlite
+            VERSION=${{ steps.meta.outputs.version }}
+            CREATED=${{ steps.image.outputs.created }}
 
   deploy:
-    name: Deploy to Kamatera
+    name: Deploy to Contabo
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/server'
+    if: ${{ github.event_name == 'push' || github.event.inputs.image_tag != '' }}
+    # Skip gracefully on repos without the server secrets configured yet
+    # (lets the build+push half run for forks / before server prep).
+    env:
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR || '/opt/vexevn' }}
     steps:
+      - name: Guard — server secrets present?
+        id: guard
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          if [ -z "$SERVER_HOST" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "SERVER_HOST secret not set — skipping the deploy step (image is on GHCR)."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip == 'false'
 
-      - name: Copy deployment files to VM
-        uses: appleboy/scp-action@master
+      - name: Sync compose stack to the server
+        if: steps.guard.outputs.skip == 'false'
+        uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          source: "docker-compose.prod.yml,.env.example"
-          target: "/opt/vexevn"
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: "deploy/docker-compose.contabo.yml,deploy/Caddyfile.cloudflare,deploy/import-osm.sh"
+          target: ${{ env.DEPLOY_DIR }}
+          strip_components: 1
 
-      - name: Deploy and verify
+      - name: Deploy + verify health
+        if: steps.guard.outputs.skip == 'false'
         uses: appleboy/ssh-action@v1.2.0
         env:
-          IMAGE: ${{ env.IMAGE_NAME }}:latest
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          IMAGE: ${{ needs.build-and-push.outputs.image_ref }}
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+          GHCR_USER: ${{ secrets.GHCR_USER }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          envs: IMAGE,GITHUB_TOKEN,GITHUB_ACTOR
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: IMAGE,DEPLOY_DIR,GHCR_USER,GHCR_TOKEN
+          script_stop: true
           script: |
-            cd /opt/vexevn
+            set -eu
+            cd "$DEPLOY_DIR"
+            COMPOSE="docker compose -f docker-compose.contabo.yml"
 
-            # Login to GHCR
-            echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-
-            # Pull the latest image
-            echo "📦 Pulling image: ${IMAGE}"
-            docker pull "${IMAGE}"
-
-            # Ensure .env exists (create from example on first run)
-            if [ ! -f .env ]; then
-              echo "📝 Creating .env from .env.example..."
-              cp .env.example .env
-              JWT_SECRET=$(openssl rand -hex 32)
-              sed -i "s|^JWT__SECRET=.*|JWT__SECRET=${JWT_SECRET}|g" .env
-              sed -i 's|^COOKIE__SECURE=.*|COOKIE__SECURE=true|g' .env
-              sed -i 's|^CORS__ORIGINS=.*|CORS__ORIGINS=https://yourdomain.com|g' .env
-              echo "✅ .env created with secure defaults"
+            # ── Optional GHCR login (private packages only) ──
+            if [ -n "$GHCR_TOKEN" ]; then
+              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             fi
 
-            # Stop old container
-            echo "🛑 Stopping previous deployment..."
-            docker compose -f docker-compose.prod.yml down 2>/dev/null || true
+            # ── Record the running image for a documented rollback ──
+            PREV_IMAGE=$(docker inspect --format '{{.Config.Image}}' \
+              "$($COMPOSE ps -q backend 2>/dev/null)" 2>/dev/null || echo "(none)")
+            echo "previous image: $PREV_IMAGE"
 
-            # Start new container
-            echo "🚀 Starting new deployment..."
-            docker compose -f docker-compose.prod.yml up -d
-
-            # Wait for container to be ready
-            echo "⏳ Waiting for health check..."
-            sleep 10
-            
-            # Health check
-            if curl -sf http://localhost:8080/health > /dev/null; then
-              echo "✅ Deployment successful!"
-              docker compose -f docker-compose.prod.yml ps
-            else
-              echo "❌ Health check failed"
-              docker compose -f docker-compose.prod.yml logs --tail 50
-              exit 1
+            # ── Surface an unconfigured tunnel token (non-fatal) ──
+            if grep -q '^TUNNEL_TOKEN=PASTE_TUNNEL_TOKEN_HERE' .env 2>/dev/null; then
+              echo "WARNING: TUNNEL_TOKEN is still the placeholder — the tunnel will not connect."
+              echo "  fix: edit $DEPLOY_DIR/.env, then: $COMPOSE up -d cloudflared"
             fi
+
+            # ── Pull + recreate (volumes persist: data, index, storage) ──
+            echo "deploying $IMAGE"
+            APP_IMAGE="$IMAGE" $COMPOSE pull backend
+            APP_IMAGE="$IMAGE" $COMPOSE up -d --remove-orphans
+
+            # ── Wait for /health on the NEW container ──
+            echo "waiting for health check..."
+            for i in $(seq 1 45); do
+              if $COMPOSE exec -T backend curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+                echo "healthy after ~$((i*2))s"
+                $COMPOSE ps
+                docker image prune -f >/dev/null
+                echo "deployed: $IMAGE"
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "health check FAILED — last 80 log lines:"
+            $COMPOSE logs --tail 80 backend || true
+            echo "rollback:  APP_IMAGE=$PREV_IMAGE $COMPOSE up -d"
+            exit 1

@@ -1,0 +1,155 @@
+# ┌──────────────────────────────────────────────────────────────────────┐
+# │ Contabo VPS + Cloudflare Tunnel + tag-based CI/CD                     │
+# │                                                                       │
+# │ Architecture:                                                          │
+# │                                                                       │
+# │   users ──▶ Cloudflare (DNS+CDN+WAF+TLS) ──▶ cloudflared ──▶ backend  │
+# │                                              (outbound-only    :8080   │
+# │                                               tunnel)                  │
+# │                                                                       │
+# │   * NO inbound ports are opened — cloudflared dials OUT to            │
+# │     Cloudflare, so the Contabo firewall can allow SSH only.           │
+# │   * The backend serves the built frontend (single image).             │
+# │   * Plain `docker compose` (no Swarm) — right-sized for one VPS.      │
+# │                                                                       │
+# │ Usage:                                                                │
+# │   docker compose -f deploy/docker-compose.contabo.yml up -d          │
+# │                                                                       │
+# │ Required .env keys (see deploy/README.md § server setup):            │
+# │   JWT_SECRET, TUNNEL_TOKEN, COOKIE_SECURE=true, CORS_ORIGINS          │
+# │                                                                       │
+# │ Optional `direct` profile — if you prefer classic Cloudflare          │
+# │ proxied mode (orange cloud → server IP, ports 80/443 open):           │
+# │   docker compose ... --profile direct up -d                           │
+# │   (starts Caddy; see deploy/Caddyfile.cloudflare)                     │
+# │                                                                       │
+# │ CI/CD: .github/workflows/deploy.yml triggers on `git tag v*`,        │
+# │ builds the image to GHCR, then runs `APP_IMAGE=<tag> compose up -d`   │
+# │ on the server over SSH. `APP_IMAGE` below lets CI pin exact tags      │
+# │ while local runs fall back to `:latest`.                              │
+# └──────────────────────────────────────────────────────────────────────┘
+
+name: vexevn
+
+services:
+  # ── Backend (Rust: API + WS + static frontend + Tantivy search) ──────
+  backend:
+    image: ${APP_IMAGE:-ghcr.io/iamleson98/rust-be-template:latest}
+    # No `ports:` — the backend is reachable ONLY inside the compose
+    # network (via cloudflared/caddy). To debug from the VPS itself:
+    #   curl http://localhost:8080/health
+    # or bind loopback only:
+    #   uncomment the two lines below (never 0.0.0.0 — no auth on /metrics).
+    #ports:
+    #  - "127.0.0.1:8080:8080"
+    env_file:
+      - .env
+    environment:
+      # SQLite on the app-data volume. Migrations auto-apply on boot
+      # (built-in `serve` behavior — no separate migration step).
+      DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
+      # Tantivy place-search index — NESTED inside the osm-index volume
+      # so the importer's staging/old siblings share one filesystem
+      # (atomic renames; see Dockerfile header for the EXDEV story).
+      SEARCH_INDEX_DIR: ${SEARCH_INDEX_DIR:-/app/index/osm-index}
+      SEARCH_OSM_PBF_PATH: ${SEARCH_OSM_PBF_PATH:-/app/data/vietnam-latest.osm.pbf}
+    volumes:
+      - app-data:/app/data      # SQLite DB + OSM PBF downloads
+      - app-storage:/app/storage # local uploads
+      - osm-index:/app/index     # Tantivy index (survives redeploys)
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+    stop_grace_period: 30s # drain in-flight requests + WS connections
+    stop_signal: SIGTERM
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - vexevn-net
+
+  # ── Cloudflare Tunnel (cloudflared) ──────────────────────────────────
+  # Outbound-only connection to Cloudflare's edge. TLS, WAF, CDN, and
+  # DDoS protection are all handled at Cloudflare; the VPS exposes ZERO
+  # inbound ports. WebSockets and SSE pass through natively.
+  #
+  # Create the tunnel in Cloudflare Zero Trust (Networks → Tunnels →
+  # Create tunnel → copy the token) and set TUNNEL_TOKEN in .env.
+  # Then add a Public Hostname routing to:  http://backend:8080
+  # (remotely-managed ingress — no config file needed here).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?set TUNNEL_TOKEN in .env (Cloudflare Zero Trust → Networks → Tunnels)}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - vexevn-net
+
+  # ── Caddy (OPTIONAL — `--profile direct`) ────────────────────────────
+  # Classic Cloudflare proxied mode instead of the tunnel: open 80/443,
+  # point the DNS A record (proxied) at the VPS, and use Full (strict)
+  # SSL with a Cloudflare Origin CA cert. See deploy/Caddyfile.cloudflare.
+  caddy:
+    profiles: ["direct"]
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.cloudflare:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      # Cloudflare Origin CA cert (Full-strict mode):
+      #   ./certs/origin.pem + ./certs/origin.key — see README § Direct mode
+      - ./certs:/certs:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE # bind 80/443
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    networks:
+      - vexevn-net
+
+networks:
+  vexevn-net:
+    driver: bridge
+
+volumes:
+  app-data:
+  app-storage:
+  osm-index:
+  caddy_data:
+  caddy_config:
