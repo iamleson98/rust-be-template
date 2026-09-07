@@ -81,7 +81,7 @@ ARG BACKEND_FEATURES=sqlite
 
 # Install build deps. pkg-config + libssl-dev for openssl/rustls.
 # ca-certificates for cargo to fetch crates. curl for healthchecks.
-RUN apt-get update && apt-get install -y --no-install-removes \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libssl-dev ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
