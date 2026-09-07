@@ -26,6 +26,7 @@ pub mod cache;
 pub mod cities;
 pub mod cli;
 pub mod config;
+pub mod db;
 pub mod dto;
 pub mod entity;
 pub mod error;

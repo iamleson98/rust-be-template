@@ -68,7 +68,12 @@ RUN cargo install cargo-chef --locked --version ^0.1
 WORKDIR /app
 
 FROM chef AS planner
+# rust-sql/ (engine submodule) is a path dependency of the patched
+# libsqlite3-sys → cargo chef must walk it to build the recipe.
+# .cargo/config.toml sets RUSTQLITE_LINK_MODE=rlib for every cargo run.
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo/ .cargo/
+COPY rust-sql/ ./rust-sql/
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 RUN cargo chef prepare --recipe-path recipe.json
@@ -91,8 +96,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --no-default-features --features ${BACKEND_FEATURES} --recipe-path recipe.json
 
-# Copy source + build
+# Copy source + build. rust-sql/ first (pinned submodule, changes rarely)
+# so src/ edits don't dirty the engine layer. .cargo/config.toml carries
+# RUSTQLITE_LINK_MODE=rlib — without it the compat build.rs falls back to
+# dylib mode and the link fails inside the container.
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo/ .cargo/
+COPY rust-sql/ ./rust-sql/
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 COPY src/ ./src/
@@ -108,10 +118,15 @@ FROM debian:bookworm-slim AS runtime
 # - ca-certificates: for HTTPS cert validation
 # - curl: for healthcheck
 # - tini: PID 1 init (proper signal handling)
-# NOTE: no libsqlite3-0 needed — the SQLite feature links the bundled
-# (static) sqlite from libsqlite3-sys, so nothing extra at runtime.
+# - sqlite3: CLI used ONLY by the boot-time legacy-database migration
+#   (src/db/sqlite_migrate.rs dumps old C-SQLite files via `sqlite3
+#   .dump` before the rustqlite engine replays them). Fresh deployments
+#   never invoke it; it is ~2 MB.
+# NOTE: no libsqlite3-0 needed — the sqlite backend links the pure-Rust
+# rustqlite engine compiled INTO the binary (rlib link mode), so there is
+# no C SQLite anywhere in the image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates curl tini \
+    libssl3 ca-certificates curl tini sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -u 1000 app
 

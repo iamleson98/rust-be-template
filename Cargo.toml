@@ -13,11 +13,39 @@ path = "src/main.rs"
 members = ["store_macros", "migrator"]
 exclude = ["rust-sql"]
 
+# ── Database engine: rustqlite (submodule rust-sql) ─────────────────────
+#
+# The `sqlite` backend no longer links C SQLite. libsqlite3-sys is
+# patched to rustqlite's drop-in replacement AND `rustqlite-compat`
+# (the sqlite3_* C ABI implemented on the rustqlite engine) is linked
+# as a Rust rlib compiled into the binary — every sqlite3_* call from
+# sqlx / sea-orm / sea-orm-migration lands in the pure-Rust engine.
+#
+# The link mode is selected by RUSTQLITE_LINK_MODE=rlib in
+# .cargo/config.toml (see that file for the full rationale); the whole
+# engine builds from source with the app — no prebuilt artifacts, no
+# rpath, no system-libsqlite3 fallback.
+#
+# The submodule pin lives in .gitmodules + the gitlink; `git submodule
+# update --init --recursive` after clone. CI/Docker check it out with
+# submodules: recursive.
+#
+# NOTE: the engine enables mimalloc as the global allocator (its
+# default feature). This is deliberate — it also accelerates the rest
+# of the process — but it means the binary links mimalloc.
+[patch.crates-io]
+libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
+
 [dependencies]
 store_macros = { path = "store_macros" }
 migrator = { path = "migrator" }
-rustqlite = { path = "rust-sql", features = ["sqlx-chrono", "sqlx-uuid", "sqlx-json"] }
-sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "derive"] }
+# The engine itself: exports the sqlite3_* symbols sqlx-sqlite calls.
+# (rlib link mode — see .cargo/config.toml.)
+rustqlite-compat = { path = "rust-sql/compat/rustqlite-compat", optional = true }
+# Bindings for the old-SQLite → rustqlite boot-time migration module
+# (src/db/sqlite_migrate.rs): opens the engine via the same C ABI the
+# pool uses, so the replay shares ONE engine instance with the pool.
+libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys", optional = true }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
 # Add "process" only if you need to spawn child processes (currently not used).
@@ -148,7 +176,12 @@ default = ["sqlite"]
 # is selected by the DATABASE_URL scheme (`sqlite://` vs `postgres://`).
 # SQLite is the default for dev/CI; switch to `--no-default-features
 # --features postgres` for production.
-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite"]
+sqlite = [
+    "sea-orm/sqlx-sqlite",
+    "sea-orm-migration/sqlx-sqlite",
+    "dep:libsqlite3-sys",
+    "dep:rustqlite-compat",
+]
 postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
 
 # Worker — Kafka broker is optional because librdkafka requires system libs.

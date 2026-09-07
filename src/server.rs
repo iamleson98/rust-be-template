@@ -4,9 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use rustqlite::sqlx_driver::{Rustqlite, RustqliteConnectOptions, RustqlitePool};
 use sea_orm::{ConnectOptions, Database};
-use sqlx::{Executor, Pool};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 use crate::auth::jwt::JwtManager;
@@ -50,22 +48,23 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
-    // let mut opts = ConnectOptions::new(&config.database.url);
-    // opts.max_connections(config.database.max_connections)
-    //     .min_connections(config.database.min_connections)
-    //     .connect_timeout(config.database.connect_timeout())
-    //     .idle_timeout(config.database.idle_timeout())
-    //     .max_lifetime(config.database.max_lifetime())
-    //     .sqlx_logging(config.database.enable_sqlx_logs);
+    // Legacy C-SQLite files (from before the rustqlite engine switch)
+    // are migrated transparently before the pool opens. No-op otherwise.
+    #[cfg(feature = "sqlite")]
+    {
+        crate::db::sqlite_migrate::maybe_migrate_sqlite_database(&config.database.url).await?;
+    }
+    let mut opts = ConnectOptions::new(&config.database.url);
+    opts.max_connections(config.database.max_connections)
+        .min_connections(config.database.min_connections)
+        .connect_timeout(config.database.connect_timeout())
+        .idle_timeout(config.database.idle_timeout())
+        .max_lifetime(config.database.max_lifetime())
+        .sqlx_logging(config.database.enable_sqlx_logs);
     // Note: sqlx statement cache is configured via the connection string
     // (e.g. `?statement-cache-capacity=100`) on sqlx 0.7+. sea-orm 1.1
     // doesn't expose a builder method for it.
-    // let db = Database::connect(opts).await.context("db connect")?;
-
-    let opt = RustqliteConnectOptions::filename(&config.database.url).create_if_missing(true);
-    let db = RustqlitePool::connect_with(opt)
-        .await
-        .context("db connect")?;
+    let db = Database::connect(opts).await.context("db connect")?;
 
     // ── Backend-specific setup ───────────────────────────────────
     // SQLite: apply performance pragmas (WAL mode, sync=NORMAL,
@@ -449,8 +448,8 @@ fn init_tracing(directive: &str) {
 }
 
 /// Apply SQLite performance pragmas to the connection pool.
-async fn apply_sqlite_pragmas(db: &Pool<Rustqlite>) -> anyhow::Result<()> {
-    // use sea_orm::ConnectionTrait;
+async fn apply_sqlite_pragmas(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+    use sea_orm::ConnectionTrait;
     let pragmas = [
         "PRAGMA journal_mode=WAL;",
         "PRAGMA synchronous=NORMAL;",
@@ -461,8 +460,7 @@ async fn apply_sqlite_pragmas(db: &Pool<Rustqlite>) -> anyhow::Result<()> {
         "PRAGMA foreign_keys=ON;",
     ];
     for stmt in pragmas {
-        // db.execute_unprepared(stmt).await?;
-        db.execute(stmt).await?;
+        db.execute_unprepared(stmt).await?;
     }
     tracing::info!("applied SQLite performance pragmas (WAL, sync=NORMAL, 64MB cache, FK on)");
     Ok(())

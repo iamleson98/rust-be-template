@@ -30,6 +30,7 @@ pub async fn run() -> anyhow::Result<()> {
             println!("{}", crate::cli::util::db_backend_name());
             Ok(())
         }
+        Command::MigrateDb { url } => commands::migrate_db::run(url).await,
         Command::ImportOsm {
             pbf_path,
             index_dir,
