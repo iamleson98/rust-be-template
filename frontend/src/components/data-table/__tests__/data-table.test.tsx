@@ -58,12 +58,25 @@ describe('DataTable', () => {
     expect(screen.getByText('Thử thay đổi bộ lọc.')).toBeInTheDocument()
   })
 
-  it('renders skeleton rows while loading', () => {
+  it('renders a structure-matched skeleton surface while loading (never the real table)', () => {
     render(<DataTable columns={columns} data={[]} isLoading />)
 
-    // 6 default skeleton rows × 2 columns
-    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(12)
+    // The skeleton surface replaces the real table entirely
+    const surface = document.querySelector('[data-slot="table-skeleton"]')
+    expect(surface).toBeInTheDocument()
+    expect(surface).toHaveAttribute('role', 'status')
+    expect(surface).toHaveAttribute('aria-busy', 'true')
+
+    // No semantic table / headers / cells while loading — the placeholder
+    // mirrors the table's shape, it is not a table with skeleton fillers.
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /email/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /amount/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('cell', { name: 'abe@example.com' })).not.toBeInTheDocument()
+
+    // 6 default skeleton body rows worth of shimmer blocks
+    // (header row + 6 body rows + pagination footer)
+    expect(surface!.querySelectorAll('[data-slot="shimmer"]').length).toBeGreaterThanOrEqual(12)
   })
 
   it('shows an error state with a retry button', async () => {

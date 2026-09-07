@@ -28,7 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { AdminScheduleCardsSkeleton } from '@/components/layout/skeletons'
 import {
   Select,
   SelectContent,
@@ -348,10 +348,7 @@ export function AdminSchedulesPage() {
             </CardContent>
           </Card>
         ) : schedulesQuery.isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
+          <AdminScheduleCardsSkeleton count={3} />
         ) : schedules.length === 0 ? (
           <Card>
             <CardContent className="py-12 flex flex-col items-center text-center gap-2">

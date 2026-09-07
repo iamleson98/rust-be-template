@@ -41,6 +41,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { AdminStatsCardsSkeleton } from '@/components/layout/skeletons'
 import {
   CreditCard,
   Filter,
@@ -345,7 +346,10 @@ export function AdminPaymentsPanel() {
         </Button>
       </div>
 
-      {/* ── KPI cards ──────────────────────────────────────── */}
+      {/* ── KPI cards — skeleton while the first page loads (never zero-value cards) ── */}
+      {isLoading ? (
+        <AdminStatsCardsSkeleton count={4} />
+      ) : (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <KpiCard
           icon={<TrendingUp className="h-4 w-4" />}
@@ -372,6 +376,7 @@ export function AdminPaymentsPanel() {
           color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
         />
       </div>
+      )}
 
       {/* ── Filter bar ─────────────────────────────────────── */}
       <Card>
@@ -428,7 +433,6 @@ export function AdminPaymentsPanel() {
             onRetry={() => refetch()}
             onRowClick={(p) => setSelectedPayment(p)}
             rowAriaLabel={(p) => `Xem chi tiết giao dịch ${p.bookingCode ?? p.bookingId.slice(0, 8)}`}
-            rowClassName="card-hover-lift"
             emptyTitle="Chưa có giao dịch nào"
             emptyDescription={
               statusFilter !== 'all' || providerFilter !== 'all'

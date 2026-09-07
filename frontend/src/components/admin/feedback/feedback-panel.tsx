@@ -113,8 +113,8 @@ function BrandSummaryCard({
       aria-pressed={active}
       className={`text-left rounded-xl border bg-card p-4 min-w-60 flex-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
         active
-          ? 'border-primary/60 ring-2 ring-primary/15 shadow-md'
-          : 'border-border/60 hover:border-border hover:shadow-sm'
+          ? 'border-primary/60 ring-2 ring-primary/15'
+          : 'border-border/60 hover:border-border'
       }`}
     >
       <div className="flex items-center gap-3">
@@ -378,8 +378,8 @@ export function FeedbackPanel() {
             aria-pressed={brandId === null}
             className={`text-left rounded-xl border bg-card p-4 min-w-52 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
               brandId === null
-                ? 'border-primary/60 ring-2 ring-primary/15 shadow-md'
-                : 'border-border/60 hover:border-border hover:shadow-sm'
+                ? 'border-primary/60 ring-2 ring-primary/15'
+                : 'border-border/60 hover:border-border'
             }`}
           >
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -415,7 +415,7 @@ export function FeedbackPanel() {
               onClick={() => setStatus(s.value)}
               className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
                 status === s.value
-                  ? 'bg-background text-foreground shadow-sm'
+                  ? 'bg-background text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >

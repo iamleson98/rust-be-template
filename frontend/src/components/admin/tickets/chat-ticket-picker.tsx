@@ -40,7 +40,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SeatMapSkeleton, TripResultsSkeleton } from '@/components/layout/skeletons'
 import { toast } from 'sonner'
 import {
   Select,
@@ -391,10 +391,7 @@ export function ChatTicketPicker({
             )}
 
             {step === 'seats' && tripDetail.isLoading && (
-              <div className="space-y-2">
-                <Skeleton className="h-32 w-full" />
-                <Skeleton className="h-32 w-full" />
-              </div>
+              <SeatMapSkeleton />
             )}
 
             {step === 'passenger' && (
@@ -657,11 +654,7 @@ function SearchStep({
 
       {/* Results */}
       {tripSearch.isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
-          ))}
-        </div>
+        <TripResultsSkeleton count={4} />
       ) : tripSearch.data?.items && tripSearch.data.items.length > 0 ? (
         <div className="space-y-2 max-h-75 overflow-y-auto">
           {tripSearch.data.items.map((t) => (

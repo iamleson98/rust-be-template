@@ -44,6 +44,10 @@ import { toast } from 'sonner'
 import { relativeTime } from '@/lib/types'
 import { useAdminReviews, useModerateAdminReview, useAdminBrands } from '@/lib/queries'
 import {
+  AdminReviewsListSkeleton,
+  AdminStatsCardsSkeleton,
+} from '@/components/layout/skeletons'
+import {
   Form,
   FormField,
   FormItem,
@@ -175,7 +179,10 @@ export function ReviewsModerationPanel() {
 
   return (
     <div className="space-y-4 p-3">
-      {/* KPIs */}
+      {/* KPIs — skeleton while the first page loads (never zero-value cards) */}
+      {isLoading ? (
+        <AdminStatsCardsSkeleton count={4} />
+      ) : (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card>
           <CardContent className="p-4">
@@ -214,6 +221,7 @@ export function ReviewsModerationPanel() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Filter bar */}
       <Card>
@@ -303,7 +311,7 @@ export function ReviewsModerationPanel() {
         </CardHeader>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Đang tải đánh giá…</div>
+            <AdminReviewsListSkeleton count={5} />
           ) : isError ? (
             <div className="p-8 text-center">
               <AlertCircle className="h-10 w-10 text-rose-300 mx-auto mb-3" />

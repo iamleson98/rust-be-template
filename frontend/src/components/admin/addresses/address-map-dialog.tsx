@@ -373,7 +373,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 ) : null}
               </div>
               {searchOpen && debounced.trim().length >= 2 && (
-                <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white">
                   {hits.length === 0 && !searchLoading ? (
                     <div className="px-3 py-2.5 text-xs text-muted-foreground">
                       Không tìm thấy địa điểm phù hợp
@@ -424,7 +424,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
 
             {/* Picked-location pill (bottom-left) */}
             {picked && (
-              <div className="absolute bottom-14 left-3 z-1000 max-w-[min(22rem,calc(100%-1.5rem))] rounded-lg bg-white/95 backdrop-blur border border-slate-200 px-3 py-2 shadow-sm flex items-center gap-2">
+              <div className="absolute bottom-14 left-3 z-1000 max-w-[min(22rem,calc(100%-1.5rem))] rounded-lg bg-white/95 backdrop-blur border border-slate-200 px-3 py-2 flex items-center gap-2">
                 {reverseLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin text-blue-600 shrink-0" />
                 ) : (

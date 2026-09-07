@@ -3,14 +3,17 @@
 /**
  * Core data table following the official shadcn data-table guide
  * (https://ui.shadcn.com/docs/components/base/data-table), adapted to this
- * project's design system: Vietnamese empty/loading/error states, the
- * shared `dataTableFeatures` set, and built-in support for both
- * client-side and server-side ("manual") pagination + sorting.
+ * project's design system: Vietnamese empty/error states, the shared
+ * `dataTableFeatures` set, and built-in support for both client-side and
+ * server-side ("manual") pagination + sorting.
  *
  * Conventions:
  *  - The table renders inside the official `overflow-hidden rounded-lg
- *    border` surface (disable with `bordered={false}` when a parent Card
- *    already provides the surface).
+ *    border` surface (no shadow — admin screens stay flat; disable with
+ *    `bordered={false}` when a parent Card already provides the surface).
+ *  - While `isLoading` the component renders a STRUCTURE-MATCHED
+ *    shimmer skeleton (header row + body rows + pagination footer) —
+ *    never the real table headers/cells with skeleton fillers.
  *  - Column alignment/responsive classes come from `meta: { align,
  *    headerClassName, cellClassName }` so every table renders identically.
  *  - Rows are optional click targets (`onRowClick`): they get
@@ -35,7 +38,7 @@ import {
 import { AlertCircle, Inbox } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Shimmer } from '@/components/ui/shimmer'
 import {
   Table,
   TableBody,
@@ -225,14 +228,62 @@ export function DataTable<TData extends RowData>({
     >
       <div
         className={cn(
-          bordered && 'overflow-hidden rounded-lg border bg-card shadow-sm',
+          bordered && 'overflow-hidden rounded-lg border bg-card',
           hideTableOnMobile && 'hidden md:block',
         )}
       >
-        {toolbar ? toolbar(table) : null}
+        {toolbar && !showSkeleton ? toolbar(table) : null}
 
-        <Table>
-          <TableHeader>
+        {showSkeleton ? (
+          /* ── Loading: structure-matched skeleton surface ──
+           * NOT the real table: while loading we render generic shimmer
+           * blocks mirroring the table's shape (header row + body rows +
+           * pagination footer), so users see a placeholder — never real
+           * column headers or data cells pretending to be loaded. */
+          <div
+            data-slot="table-skeleton"
+            role="status"
+            aria-busy="true"
+            aria-label="Đang tải dữ liệu"
+          >
+            {/* Header row */}
+            <div className="flex items-center gap-4 border-b bg-muted/40 px-4 py-3">
+              <Shimmer className="h-4 w-32" />
+              <Shimmer className="h-4 w-24" />
+              <Shimmer className="h-4 w-20 hidden sm:block" />
+              <div className="flex-1" />
+              <Shimmer className="h-4 w-16" />
+            </div>
+            {/* Body rows */}
+            {Array.from({ length: skeletonRows }).map((_, rowIndex) => {
+              const fade = 1 - rowIndex * (0.7 / Math.max(skeletonRows, 1))
+              return (
+                <div
+                  key={`skeleton-row-${rowIndex}`}
+                  className="flex items-center gap-4 border-b last:border-b-0 px-4 py-3.5"
+                >
+                  <Shimmer className="h-5 w-40" style={{ opacity: fade }} />
+                  <Shimmer className="h-5 w-24" style={{ opacity: fade }} />
+                  <Shimmer className="h-5 w-16 hidden sm:block" style={{ opacity: fade }} />
+                  <Shimmer className="h-5 w-28 hidden md:block" style={{ opacity: fade }} />
+                  <div className="flex-1" />
+                  <Shimmer className="h-7 w-7 rounded-md" style={{ opacity: fade }} />
+                </div>
+              )
+            })}
+            {/* Pagination footer */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <Shimmer className="h-4 w-36" />
+              <div className="flex items-center gap-2">
+                <Shimmer className="h-8 w-8 rounded-md" />
+                <Shimmer className="h-8 w-8 rounded-md" />
+                <Shimmer className="h-8 w-8 rounded-md" />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
                 key={headerGroup.id}
@@ -267,17 +318,7 @@ export function DataTable<TData extends RowData>({
             ))}
           </TableHeader>
           <TableBody>
-            {showSkeleton ? (
-              Array.from({ length: skeletonRows }).map((_, rowIndex) => (
-                <TableRow key={`skeleton-row-${rowIndex}`} className="hover:bg-transparent">
-                  {columns.map((_column, columnIndex) => (
-                    <TableCell key={`skeleton-cell-${columnIndex}`} className="px-4 py-3.5">
-                      <Skeleton className="h-5 w-full max-w-[10rem]" />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : showError ? (
+            {showError ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="p-0">
                   <div className="flex flex-col items-center justify-center gap-1.5 py-12 text-center">
@@ -349,18 +390,19 @@ export function DataTable<TData extends RowData>({
             )}
           </TableBody>
         </Table>
+        )}
       </div>
 
       {mobileList && hideTableOnMobile ? (
         <div
-          className="overflow-hidden rounded-lg border bg-card shadow-sm md:hidden"
+          className="overflow-hidden rounded-lg border bg-card md:hidden"
           data-slot="data-table-mobile-list"
         >
           {mobileList}
         </div>
       ) : null}
 
-      {hidePagination ? null : (
+      {hidePagination || showSkeleton ? null : (
         <DataTablePagination
           table={table}
           noun={rowNoun}

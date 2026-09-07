@@ -19,7 +19,12 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import {
+  BrandListSkeleton,
+  PickupPointsSkeleton,
+  RouteListSkeleton,
+  ScheduleMiniSkeleton,
+} from '@/components/layout/skeletons'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Building2,
@@ -95,11 +100,7 @@ export function BrandListPanel({
       <CardContent className="p-0">
         <ScrollArea className="h-140">
           {brandsLoading ? (
-            <div className="p-3 space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
-              ))}
-            </div>
+            <BrandListSkeleton count={5} />
           ) : filteredBrands.length === 0 ? (
             <div className="p-8 text-center text-xs text-muted-foreground">
               <Building2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -258,11 +259,7 @@ export function RouteListPanel({
               Chọn một hãng xe bên trái
             </div>
           ) : routesLoading ? (
-            <div className="p-3 space-y-2">
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="h-20 w-full" />
-              ))}
-            </div>
+            <RouteListSkeleton count={4} />
           ) : filteredRoutes.length === 0 ? (
             <div className="p-8 text-center text-xs text-muted-foreground">
               <RouteIcon className="h-8 w-8 mx-auto mb-2 opacity-40" />
@@ -416,11 +413,7 @@ export function ScheduleAndPickupPanel({
                 </div>
 
                 {schedulesLoading ? (
-                  <div className="space-y-2">
-                    {[...Array(2)].map((_, i) => (
-                      <Skeleton key={i} className="h-20 w-full" />
-                    ))}
-                  </div>
+                  <ScheduleMiniSkeleton count={2} />
                 ) : schedules.length === 0 ? (
                   <div className="text-center text-[11px] text-muted-foreground py-6 border border-dashed rounded-md">
                     Chưa có lịch trình
@@ -527,11 +520,7 @@ export function ScheduleAndPickupPanel({
                 </div>
 
                 {pickupLoading ? (
-                  <div className="space-y-2">
-                    {[...Array(2)].map((_, i) => (
-                      <Skeleton key={i} className="h-14 w-full" />
-                    ))}
-                  </div>
+                  <PickupPointsSkeleton count={2} />
                 ) : pickupPoints.length === 0 ? (
                   <div className="text-center text-[11px] text-muted-foreground py-6 border border-dashed rounded-md">
                     Chưa có điểm đón/trả

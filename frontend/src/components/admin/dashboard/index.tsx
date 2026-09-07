@@ -135,6 +135,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
             <TabsContent value="chat">
               <ChatPanel
                 channels={chat.channels}
+                channelsLoading={chat.channelsLoading}
                 activeChannel={chat.activeChannel}
                 chatMessages={chat.chatMessages}
                 replyText={chat.replyText}
