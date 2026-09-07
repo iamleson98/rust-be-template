@@ -1,0 +1,41 @@
+# cargo-audit configuration — documented, justified exceptions.
+#
+# Every entry below is a transitive dependency we do NOT control directly
+# and cannot upgrade without a major version bump of a core crate. Each
+# ignore is revisited when the blocking crate ships a fix.
+#
+# CI runs `cargo audit --deny warnings`, so this file is the single
+# source of truth for accepted advisories.
+
+[advisories]
+ignore = [
+    # rsa 0.9.10 — Marvin Attack (timing sidechannel, medium 5.9).
+    # NOT compiled into the binary: it enters Cargo.lock only as a
+    # possible optional dependency of sqlx's *mysql* feature, which we
+    # never enable (we use the sqlite feature). Upstream has released
+    # NO fixed version for this advisory, so there is nothing to update
+    # to. Revisit: if sqlx prunes the mysql chain or rsa ships a patch.
+    "RUSTSEC-2023-0071",
+
+    # lru 0.12.5 — use-after-free in LruCache::pop() (panic safety) and
+    # Stacked-Borrows violation in IterMut. Both fixed only in lru
+    # 0.16.3 / 0.18.2; tantivy 0.22 pins lru ^0.12. We only use lru
+    # through tantivy (search index), never call pop()/IterMut on it.
+    # Revisit: tantivy >0.22 upgrades its lru dependency.
+    "RUSTSEC-2026-0253",
+    "RUSTSEC-2026-0002",
+
+    # memmap2 0.5.10 — unchecked pointer offset (unsound). Fixed only in
+    # 0.9.11; osmpbf 0.3.8 (our OSM PBF reader) pins memmap2 ^0.5.
+    # Revisit: osmpbf release with a newer memmap2.
+    "RUSTSEC-2026-0186",
+
+    # instant 0.1.13 — crate is unmaintained (no vuln). Pulled by
+    # measure_time via tantivy 0.22. No fixed version exists.
+    "RUSTSEC-2024-0384",
+
+    # i_tree 0.8.3 — OOB access via public node accessors. Fixed in
+    # i_tree 0.10, which requires i_overlay 7+ / geo 0.30+ — a major
+    # bump of the geo stack (spatial code). Revisit: geo >0.29.
+    "RUSTSEC-2025-0165",
+]

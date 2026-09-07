@@ -26,7 +26,6 @@ fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
 
-
 // ────────────────────────────────────────────────────────────────
 //  Trait
 // ────────────────────────────────────────────────────────────────
@@ -115,8 +114,8 @@ impl PriceAlertStore for DbPriceAlertStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<price_alert::Model>> {
-        let mut q =
-            price_alert::Entity::find().filter(price_alert::Column::UserId.eq(parse_uuid(user_id)?));
+        let mut q = price_alert::Entity::find()
+            .filter(price_alert::Column::UserId.eq(parse_uuid(user_id)?));
         if let Some(s) = status {
             q = q.filter(price_alert::Column::Status.eq(s.to_string()));
         }

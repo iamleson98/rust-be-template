@@ -57,7 +57,19 @@ redis = { version = "0.32", features = ["tokio-comp", "connection-manager", "tok
 
 # Object storage
 aws-config = { version = "1", features = ["behavior-version-latest"] }
-aws-sdk-s3 = "1"
+# default-features = false: the SDK default enables BOTH the modern
+# default-https-client (hyper 1 / rustls 0.23 / h2 0.4) AND the legacy
+# `rustls` feature (hyper 0.14 / rustls 0.21 / h2 0.3 / rustls-webpki
+# 0.101) — the legacy half carries open CVEs (RUSTSEC-2026-0258 h2,
+# RUSTSEC-2026-0098/-0099/-0104 webpki) with no patches in those old
+# lines. We keep everything from the default EXCEPT the legacy half.
+aws-sdk-s3 = { version = "1", default-features = false, features = [
+    "behavior-version-latest",
+    "rt-tokio",
+    "default-https-client",
+    "sigv4a",
+    "http-1x",
+] }
 bytes = "1"
 mime = "0.3"
 mime_guess = "2"

@@ -789,8 +789,7 @@ impl ChatService {
     ) -> AppResult<()> {
         if !requester.is_admin() {
             return Err(AppError::Forbidden(
-                "employees cannot leave an assigned channel — ask an admin to reassign it"
-                    .into(),
+                "employees cannot leave an assigned channel — ask an admin to reassign it".into(),
             ));
         }
         let assignment = self

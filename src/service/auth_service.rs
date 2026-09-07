@@ -137,11 +137,8 @@ impl AuthService {
                     // treat the bot as operational staff.
                     if let Ok(roles) = self.store.rbac_store().list_roles().await {
                         if let Some(role) = roles.iter().find(|r| r.name == "employee") {
-                            if let Err(e) = self
-                                .store
-                                .rbac_store()
-                                .assign_role(bot.id, role.id)
-                                .await
+                            if let Err(e) =
+                                self.store.rbac_store().assign_role(bot.id, role.id).await
                             {
                                 tracing::warn!(
                                     error = %e,

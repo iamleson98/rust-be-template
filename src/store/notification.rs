@@ -27,7 +27,6 @@ fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
 
-
 // ────────────────────────────────────────────────────────────────
 //  Trait
 // ────────────────────────────────────────────────────────────────

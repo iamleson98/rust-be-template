@@ -58,9 +58,7 @@ pub trait ReviewStore: Send + Sync {
     /// `GROUP BY (brand_id, status) → count` — the per-brand feedback
     /// summary building block. Includes a `brand_id = NULL` bucket for
     /// reviews not linked to any brand.
-    async fn count_reviews_grouped_by_brand_status(
-        &self,
-    ) -> StoreResult<Vec<BrandStatusCount>>;
+    async fn count_reviews_grouped_by_brand_status(&self) -> StoreResult<Vec<BrandStatusCount>>;
 
     /// `GROUP BY brand_id → AVG(rating)` — the per-brand average star
     /// rating across ALL moderation statuses (the admin summary shows
@@ -183,13 +181,8 @@ impl ReviewStore for DbReviewStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<review::Model>> {
-        let query = apply_review_filters(
-            review::Entity::find(),
-            brand_id,
-            route_id,
-            user_id,
-            status,
-        );
+        let query =
+            apply_review_filters(review::Entity::find(), brand_id, route_id, user_id, status);
         let query = apply_review_search(query, search);
         let query = query
             .order_by_desc(review::Column::CreatedAt)
@@ -206,13 +199,8 @@ impl ReviewStore for DbReviewStore {
         status: Option<&str>,
         search: Option<&str>,
     ) -> StoreResult<u64> {
-        let query = apply_review_filters(
-            review::Entity::find(),
-            brand_id,
-            route_id,
-            user_id,
-            status,
-        );
+        let query =
+            apply_review_filters(review::Entity::find(), brand_id, route_id, user_id, status);
         let query = apply_review_search(query, search);
         Ok(query.count(self.db.as_ref()).await?)
     }
@@ -221,9 +209,7 @@ impl ReviewStore for DbReviewStore {
         Ok(review::Entity::find().all(self.db.as_ref()).await?)
     }
 
-    async fn count_reviews_grouped_by_brand_status(
-        &self,
-    ) -> StoreResult<Vec<BrandStatusCount>> {
+    async fn count_reviews_grouped_by_brand_status(&self) -> StoreResult<Vec<BrandStatusCount>> {
         let rows: Vec<(Option<Uuid>, String, i64)> = review::Entity::find()
             .select_only()
             .column(review::Column::BrandId)

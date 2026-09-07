@@ -46,8 +46,7 @@ pub trait UserStore: Send + Sync {
     /// doesn't exist yet or is already canonical. Self-heals databases
     /// created before the three-role refactor without a data
     /// migration.
-    async fn normalize_bot_account(&self, email: &str)
-        -> StoreResult<Option<user::Model>>;
+    async fn normalize_bot_account(&self, email: &str) -> StoreResult<Option<user::Model>>;
     /// Look up a user by their OAuth `(provider, subject)` pair.
     /// Returns `None` if no user is linked to this OAuth identity yet.
     async fn get_user_by_oauth(
@@ -223,11 +222,18 @@ impl UserStore for DbUserStore {
         username: String,
         password_hash: String,
     ) -> StoreResult<user::Model> {
-        Self::insert_user(self, email, username, password_hash, "employee".into(), true).await
+        Self::insert_user(
+            self,
+            email,
+            username,
+            password_hash,
+            "employee".into(),
+            true,
+        )
+        .await
     }
 
-    async fn normalize_bot_account(&self, email: &str)
-        -> StoreResult<Option<user::Model>> {
+    async fn normalize_bot_account(&self, email: &str) -> StoreResult<Option<user::Model>> {
         let Some(existing) = self.get_user_by_email(email.to_string()).await? else {
             return Ok(None);
         };
@@ -489,8 +495,7 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
             .await
     }
 
-    async fn normalize_bot_account(&self, email: &str)
-        -> StoreResult<Option<user::Model>> {
+    async fn normalize_bot_account(&self, email: &str) -> StoreResult<Option<user::Model>> {
         let updated = self.inner.normalize_bot_account(email).await?;
         // The bot's `role` / `is_bot` columns changed — drop the cached
         // entity so SessionUser::from_model sees the fresh state.

@@ -97,15 +97,7 @@ impl ReviewService {
         let reviews = self
             .store
             .review_store()
-            .list_reviews(
-                None,
-                None,
-                Some(user_id),
-                status,
-                None,
-                limit,
-                offset,
-            )
+            .list_reviews(None, None, Some(user_id), status, None, limit, offset)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         let items: Vec<ReviewOut> = reviews.iter().map(review_to_dto).collect();
@@ -149,20 +141,19 @@ impl ReviewService {
                 }
             }
         }
-        let brand_map: std::collections::HashMap<Uuid, crate::entity::brand::Model> = if brand_ids
-            .is_empty()
-        {
-            std::collections::HashMap::new()
-        } else {
-            self.store
-                .brand_store()
-                .list_brands_by_ids(brand_ids)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-                .into_iter()
-                .map(|b| (b.id, b))
-                .collect()
-        };
+        let brand_map: std::collections::HashMap<Uuid, crate::entity::brand::Model> =
+            if brand_ids.is_empty() {
+                std::collections::HashMap::new()
+            } else {
+                self.store
+                    .brand_store()
+                    .list_brands_by_ids(brand_ids)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?
+                    .into_iter()
+                    .map(|b| (b.id, b))
+                    .collect()
+            };
 
         #[derive(Default)]
         struct Acc {
@@ -281,7 +272,9 @@ impl ReviewService {
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))?
                 .ok_or_else(|| {
-                    AppError::NotFound("booking not found — you can only review trips you booked".into())
+                    AppError::NotFound(
+                        "booking not found — you can only review trips you booked".into(),
+                    )
                 })?;
 
             // Ownership: the booking must belong to the caller.
@@ -313,8 +306,7 @@ impl ReviewService {
                 .next()
                 .map(|d| d < &Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)[..10])
                 .unwrap_or(false);
-            let cancelled =
-                booking.status == "cancelled" || trip.status == "cancelled";
+            let cancelled = booking.status == "cancelled" || trip.status == "cancelled";
             if cancelled {
                 return Err(AppError::Validation(
                     "cancelled trips cannot be reviewed".into(),
@@ -322,7 +314,8 @@ impl ReviewService {
             }
             if !departed {
                 return Err(AppError::Validation(
-                    "you can only review trips you have ridden — this trip hasn't departed yet".into(),
+                    "you can only review trips you have ridden — this trip hasn't departed yet"
+                        .into(),
                 ));
             }
 

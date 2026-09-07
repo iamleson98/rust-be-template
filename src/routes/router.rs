@@ -117,17 +117,18 @@ pub fn build_router(state: AppState) -> Router<()> {
     let index_html_path = static_root.join("index.html");
 
     // Plain 404 for missing hashed assets — no HTML fallback, no caching.
-    let asset_not_found = service_fn(
-        |_req: axum::http::Request<axum::body::Body>| async {
-            let resp = axum::response::Response::builder()
-                .status(axum::http::StatusCode::NOT_FOUND)
-                .header(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")
-                .header(axum::http::header::CACHE_CONTROL, "no-store")
-                .body(axum::body::Body::from("asset not found"))
-                .expect("static 404 response is always constructible");
-            Ok::<_, std::convert::Infallible>(resp)
-        },
-    );
+    let asset_not_found = service_fn(|_req: axum::http::Request<axum::body::Body>| async {
+        let resp = axum::response::Response::builder()
+            .status(axum::http::StatusCode::NOT_FOUND)
+            .header(
+                axum::http::header::CONTENT_TYPE,
+                "text/plain; charset=utf-8",
+            )
+            .header(axum::http::header::CACHE_CONTROL, "no-store")
+            .body(axum::body::Body::from("asset not found"))
+            .expect("static 404 response is always constructible");
+        Ok::<_, std::convert::Infallible>(resp)
+    });
     let assets_service = ServeDir::new(&static_root)
         .precompressed_gzip()
         .precompressed_br()
@@ -137,14 +138,39 @@ pub fn build_router(state: AppState) -> Router<()> {
     // get a 404; everything else is a client-side route and gets
     // index.html with `no-cache, must-revalidate`.
     let make_spa_fallback = |index_html_path: std::path::PathBuf| {
-        service_fn(
-            move |req: axum::http::Request<axum::body::Body>| {
-                let index_html_path = index_html_path.clone();
-                async move {
-                    // "/admin/brands" → last segment "brands" (no dot) → SPA.
-                    // "/vendor-dead.js" → last segment has a dot → 404.
-                    let last_segment = req.uri().path().rsplit('/').next().unwrap_or("");
-                    if last_segment.contains('.') {
+        service_fn(move |req: axum::http::Request<axum::body::Body>| {
+            let index_html_path = index_html_path.clone();
+            async move {
+                // "/admin/brands" → last segment "brands" (no dot) → SPA.
+                // "/vendor-dead.js" → last segment has a dot → 404.
+                let last_segment = req.uri().path().rsplit('/').next().unwrap_or("");
+                if last_segment.contains('.') {
+                    let resp = axum::response::Response::builder()
+                        .status(axum::http::StatusCode::NOT_FOUND)
+                        .header(
+                            axum::http::header::CONTENT_TYPE,
+                            "text/plain; charset=utf-8",
+                        )
+                        .header(axum::http::header::CACHE_CONTROL, "no-store")
+                        .body(axum::body::Body::from("not found"))
+                        .expect("static 404 response is always constructible");
+                    return Ok::<_, std::convert::Infallible>(resp);
+                }
+                match tokio::fs::read(&index_html_path).await {
+                    Ok(bytes) => {
+                        let resp = axum::response::Response::builder()
+                            .status(axum::http::StatusCode::OK)
+                            .header(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")
+                            .header(
+                                axum::http::header::CACHE_CONTROL,
+                                "no-cache, must-revalidate",
+                            )
+                            .body(axum::body::Body::from(bytes))
+                            .expect("static index response is always constructible");
+                        Ok(resp)
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "index.html missing — is the frontend built?");
                         let resp = axum::response::Response::builder()
                             .status(axum::http::StatusCode::NOT_FOUND)
                             .header(
@@ -152,45 +178,15 @@ pub fn build_router(state: AppState) -> Router<()> {
                                 "text/plain; charset=utf-8",
                             )
                             .header(axum::http::header::CACHE_CONTROL, "no-store")
-                            .body(axum::body::Body::from("not found"))
+                            .body(axum::body::Body::from(
+                                "frontend not built (dist/index.html missing)",
+                            ))
                             .expect("static 404 response is always constructible");
-                        return Ok::<_, std::convert::Infallible>(resp);
-                    }
-                    match tokio::fs::read(&index_html_path).await {
-                        Ok(bytes) => {
-                            let resp = axum::response::Response::builder()
-                                .status(axum::http::StatusCode::OK)
-                                .header(
-                                    axum::http::header::CONTENT_TYPE,
-                                    "text/html; charset=utf-8",
-                                )
-                                .header(
-                                    axum::http::header::CACHE_CONTROL,
-                                    "no-cache, must-revalidate",
-                                )
-                                .body(axum::body::Body::from(bytes))
-                                .expect("static index response is always constructible");
-                            Ok(resp)
-                        }
-                        Err(e) => {
-                            tracing::warn!(error = %e, "index.html missing — is the frontend built?");
-                            let resp = axum::response::Response::builder()
-                                .status(axum::http::StatusCode::NOT_FOUND)
-                                .header(
-                                    axum::http::header::CONTENT_TYPE,
-                                    "text/plain; charset=utf-8",
-                                )
-                                .header(axum::http::header::CACHE_CONTROL, "no-store")
-                                .body(axum::body::Body::from(
-                                    "frontend not built (dist/index.html missing)",
-                                ))
-                                .expect("static 404 response is always constructible");
-                            Ok(resp)
-                        }
+                        Ok(resp)
                     }
                 }
-            },
-        )
+            }
+        })
     };
 
     // Root "/" and unknown non-asset paths both go through the SPA
@@ -216,10 +212,7 @@ pub fn build_router(state: AppState) -> Router<()> {
     // Hashed build assets — immutable for a year (explicit headers on
     // 404 responses are left untouched by `if_not_present`).
     let assets_router: Router<AppState> = Router::new()
-        .route_service(
-            "/assets/{*path}",
-            assets_service,
-        )
+        .route_service("/assets/{*path}", assets_service)
         .layer(SetResponseHeaderLayer::if_not_present(
             axum::http::header::CACHE_CONTROL,
             axum::http::HeaderValue::from_static("public, max-age=31536000, immutable"),

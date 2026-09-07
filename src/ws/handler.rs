@@ -822,11 +822,7 @@ async fn handle_read(
     // Best-effort: clear unread counter for the appropriate side.
     // Staff = employee OR admin — an admin reading the channel must
     // clear the employee-side badge, not the customer side.
-    let side = if user.is_staff() {
-        "employee"
-    } else {
-        "user"
-    };
+    let side = if user.is_staff() { "employee" } else { "user" };
     let _ = st.chats.clear_unread(&channel_id, side).await;
 
     hub().broadcast_to_room(

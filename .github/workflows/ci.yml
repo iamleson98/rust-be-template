@@ -157,12 +157,15 @@ jobs:
         run: |
           set -e
           # The leaked Google OAuth client secret from .env.example (now scrubbed).
-          if grep -r --line-number "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" . --exclude-dir=.git; then
+          # NOTE: --exclude=ci.yml — the patterns themselves necessarily appear
+          # in THIS file; without the exclusion the grep matches itself and the
+          # step fails on every run (self-referential match, seen 2026-09-07).
+          if grep -r --line-number --exclude=ci.yml "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" . --exclude-dir=.git; then
             echo "❌ FOUND: previously-leaked Google OAuth client secret"
             exit 1
           fi
           # The leaked JWT secret from .env.example (now scrubbed).
-          if grep -r --line-number "8ec7dc585377c32aaa59104b093be930bb094ff4e6b32e580351e3d0d702a084" . --exclude-dir=.git; then
+          if grep -r --line-number --exclude=ci.yml "8ec7dc585377c32aaa59104b093be930bb094ff4e6b32e580351e3d0d702a084" . --exclude-dir=.git; then
             echo "❌ FOUND: previously-leaked JWT secret"
             exit 1
           fi

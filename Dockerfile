@@ -81,8 +81,10 @@ ARG BACKEND_FEATURES=sqlite
 
 # Install build deps. pkg-config + libssl-dev for openssl/rustls.
 # ca-certificates for cargo to fetch crates. curl for healthchecks.
+# cmake: required to build aws-lc-sys (the rustls 0.23 crypto provider,
+# pulled in via reqwest/sea-orm and the AWS SDK's modern HTTPS client).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev ca-certificates curl \
+    pkg-config libssl-dev ca-certificates curl cmake \
     && rm -rf /var/lib/apt/lists/*
 
 # Cook deps from recipe — cached unless recipe.json (i.e. Cargo.toml) changes.
