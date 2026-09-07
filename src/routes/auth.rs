@@ -1,4 +1,5 @@
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,19 @@ pub struct LoginRequest {
 pub struct AuthResponse {
     pub user: crate::auth::SessionUser,
     pub expires_at: DateTime<Utc>,
+    /// Raw token pair — ONLY present when the caller opted in via the
+    /// `X-Client: mobile` request header (the mobile app keeps tokens in
+    /// secure storage and uses Bearer auth). Browser flows never see
+    /// this field: they authenticate with httpOnly cookies instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tokens: Option<AuthTokens>,
+}
+
+/// Raw credentials for non-browser clients (see [`AuthResponse::tokens`]).
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AuthTokens {
+    pub access_token: String,
+    pub refresh_token: String,
 }
 
 impl AuthResponse {
@@ -44,7 +58,26 @@ impl AuthResponse {
         Self {
             user: crate::auth::SessionUser::from_model(u),
             expires_at: Utc::now() + chrono::Duration::seconds(access_ttl_secs as i64),
+            tokens: None,
         }
+    }
+
+    /// Attach the raw token pair when the request opted in via the
+    /// `X-Client: mobile` header. Callers that don't have a session's
+    /// raw tokens (e.g. `GET /me`) simply leave `tokens` as `None`.
+    fn with_mobile_tokens(mut self, headers: &HeaderMap, session: &crate::service::auth_service::AuthSession) -> Self {
+        let is_mobile = headers
+            .get("x-client")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.trim().eq_ignore_ascii_case("mobile"))
+            .unwrap_or(false);
+        if is_mobile {
+            self.tokens = Some(AuthTokens {
+                access_token: session.access_token.clone(),
+                refresh_token: session.refresh_token.clone(),
+            });
+        }
+        self
     }
 }
 
@@ -65,6 +98,7 @@ impl AuthResponse {
 pub async fn register(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
     Json(body): Json<RegisterRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
@@ -89,10 +123,10 @@ pub async fn register(
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(
-            &session.user,
-            state.auth.access_ttl_secs(),
-        )),
+        Json(
+            AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())
+                .with_mobile_tokens(&headers, &session),
+        ),
     ))
 }
 
@@ -110,6 +144,7 @@ pub async fn register(
 pub async fn login(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
@@ -118,10 +153,10 @@ pub async fn login(
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(
-            &session.user,
-            state.auth.access_ttl_secs(),
-        )),
+        Json(
+            AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())
+                .with_mobile_tokens(&headers, &session),
+        ),
     ))
 }
 
@@ -140,6 +175,7 @@ pub async fn login(
 pub async fn employee_login(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     body.validate()
@@ -159,10 +195,10 @@ pub async fn employee_login(
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(
-            &session.user,
-            state.auth.access_ttl_secs(),
-        )),
+        Json(
+            AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())
+                .with_mobile_tokens(&headers, &session),
+        ),
     ))
 }
 
@@ -191,6 +227,7 @@ pub struct RefreshRequest {
 pub async fn refresh(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
     Json(body): Json<RefreshRequest>,
 ) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
     // Read refresh token: cookie first (preferred — JS can't read it),
@@ -204,10 +241,10 @@ pub async fn refresh(
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
-        Json(AuthResponse::from_user(
-            &session.user,
-            state.auth.access_ttl_secs(),
-        )),
+        Json(
+            AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())
+                .with_mobile_tokens(&headers, &session),
+        ),
     ))
 }
 

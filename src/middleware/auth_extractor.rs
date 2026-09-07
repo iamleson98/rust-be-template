@@ -15,11 +15,40 @@ use std::sync::Arc;
 
 use axum::extract::{FromRef, FromRequestParts};
 use axum::http::request::Parts;
+use axum_extra::extract::CookieJar;
 use uuid::Uuid;
 
 use crate::auth::cookies::extract_tokens;
 use crate::error::AppError;
 use crate::service::AuthService;
+
+/// Resolve the access token for a request.
+///
+/// Order:
+///   1. `Authorization: Bearer <jwt>` header — mobile app / programmatic
+///      clients that hold raw tokens (no cookie jar).
+///   2. `access_token` cookie — the browser flow (httpOnly, set at login).
+///
+/// The Bearer path exists because the mobile support client persists
+/// tokens in secure storage and attaches them as headers; browsers keep
+/// using cookies and never send `Authorization`.
+fn bearer_or_cookie_token(parts: &Parts, jar: &CookieJar) -> Option<String> {
+    if let Some(value) = parts.headers.get(axum::http::header::AUTHORIZATION) {
+        if let Ok(s) = value.to_str() {
+            let s = s.trim();
+            let token = s
+                .strip_prefix("Bearer ")
+                .or_else(|| s.strip_prefix("bearer "))
+                .map(str::trim)
+                .filter(|t| !t.is_empty());
+            if let Some(token) = token {
+                return Some(token.to_string());
+            }
+        }
+    }
+    let (access, _) = extract_tokens(jar);
+    access
+}
 
 /// Authenticated user extractor.
 ///
@@ -43,8 +72,8 @@ where
         let jar = axum_extra::extract::CookieJar::from_request_parts(parts, state)
             .await
             .expect("cookie jar extractor never fails");
-        let (access, _refresh) = extract_tokens(&jar);
-        let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
+        let token = bearer_or_cookie_token(parts, &jar)
+            .ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
 
         // Full JWT verify (HMAC-SHA256) + revocation checks.
         // Don't echo jsonwebtoken internals to the client — log server-side.
@@ -71,7 +100,7 @@ where
         let jar = axum_extra::extract::CookieJar::from_request_parts(parts, state)
             .await
             .expect("cookie jar extractor never fails");
-        let (access, _) = extract_tokens(&jar);
+        let access = bearer_or_cookie_token(parts, &jar);
         match access {
             None => Ok(MaybeAuthUser(None)),
             Some(tok) => match auth.verify_access_token(&tok).await {
@@ -125,8 +154,8 @@ where
         let jar = axum_extra::extract::CookieJar::from_request_parts(parts, state)
             .await
             .expect("cookie jar extractor never fails");
-        let (access, _refresh) = extract_tokens(&jar);
-        let token = access.ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
+        let token = bearer_or_cookie_token(parts, &jar)
+            .ok_or_else(|| AppError::Unauthorized("missing access token".into()))?;
         let session = auth
             .verify_access_token_session(&token)
             .await

@@ -56,17 +56,23 @@ fn parse_origin(headers: &HeaderMap) -> Option<String> {
 pub(crate) fn check_ws_origin(
     headers: &HeaderMap,
     allowed_origins: &[String],
+    token_auth: bool,
 ) -> Result<(), AppError> {
     // Empty allowlist = dev mode, allow all. In prod this MUST be set.
     if allowed_origins.is_empty() {
         return Ok(());
     }
     let Some(origin) = parse_origin(headers) else {
-        // No Origin header = non-browser client (curl, server-to-server).
-        // WS is intended for browsers; reject non-browser upgrades
-        // unless explicitly allowed. (Auth via ?token= still applies,
-        // so a missing origin here means a programmatic client — those
-        // should use the REST API, not WS.)
+        // No Origin header = non-browser client (mobile app, CLI,
+        // server-to-server). Allowed ONLY when the upgrade carries an
+        // explicit `?token=<jwt>` — an attacker page riding ambient
+        // cookies for CSWSH can't forge that (it would need the raw
+        // token, at which point the Origin check isn't the defense
+        // that matters). Cookie-only handshakes without Origin stay
+        // rejected.
+        if token_auth {
+            return Ok(());
+        }
         tracing::debug!("ws upgrade rejected: missing Origin header");
         return Err(AppError::Forbidden("missing Origin header".into()));
     };
@@ -125,7 +131,11 @@ pub async fn ws_upgrade(
     // CSWSH defense: see `check_ws_origin` doc. Parse the CORS allowlist
     // once per upgrade (cheap — it's a small comma-split string).
     let allowed_origins = st.config.cors.origin_list();
-    check_ws_origin(&headers, &allowed_origins)?;
+    // `token_auth` = the upgrade carries `?token=<jwt>` (mobile app /
+    // programmatic clients) — those skip the browser-Origin requirement,
+    // see `check_ws_origin`.
+    let token_auth = q.token.as_deref().filter(|t| !t.is_empty()).is_some();
+    check_ws_origin(&headers, &allowed_origins, token_auth)?;
 
     // Resolve the session user via the auth service (verifies JWT + loads user).
     // Try query param first, then fall back to cookie (same as REST endpoints).

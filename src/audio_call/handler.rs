@@ -63,8 +63,11 @@ pub async fn ws_upgrade(
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
     // ── Origin check FIRST — CSWSH defense, same as /ws ─────────────────
+    // `token_auth` = the upgrade carries `?token=<jwt>` (mobile app /
+    // programmatic clients) — those skip the browser-Origin requirement.
     let allowed_origins = st.config.cors.origin_list();
-    check_ws_origin(&headers, &allowed_origins)?;
+    let token_auth = q.token.as_deref().filter(|t| !t.is_empty()).is_some();
+    check_ws_origin(&headers, &allowed_origins, token_auth)?;
 
     // ── Auth (JWT) — try query param first, then cookie ─────────────────
     let user = if let Some(t) = q.token.as_deref() {
