@@ -14,7 +14,9 @@
 #   3. docker stack deploy      (pulls $IMAGE, volumes persist)
 #   4. appends the datxevui.com site block to the shared Caddyfile once
 #   5. hot-reloads Caddy        (zero downtime; restart fallback)
-#   6. health gate: /health on the NEW backend task, 120s budget
+#   6. health gate: /health on the NEW backend task (verified against
+#      the service spec image — detects swarm auto-rollback; retries
+#      once on the transient "lease does not exist" rejection)
 #
 # Rollback on failure (documented, manual):
 #   docker service update --image <PREV_IMAGE> vexevn_backend
@@ -87,33 +89,89 @@ reload_caddy() {
 }
 reload_caddy
 
-# ── 7. Health gate on the backend task (180s budget) ─────────────────
-# Two signals, both must pass:
-#   a) `docker ps --filter health=healthy` — the container's OWN
-#      Docker HEALTHCHECK (curl /health) reports healthy. NOTE: an
-#      `--filter ancestor=$IMAGE` approach does NOT work — swarm
-#      resolves the tag to a digest (`image:tag@sha256:...`) when the
-#      service is created, so the tag-only ancestor filter never
-#      matches (false negative seen 2026-09-07).
-#   b) `docker exec ... curl /health` — direct confirmation from inside
-#      the task (immune to the anti-scraping UA block: /health is
-#      exempted in middleware).
-echo "waiting for /health ..."
-for i in $(seq 1 90); do
-  t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1)
-  if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
-    echo "backend healthy after ~$((i*2))s (task $t)"
-    docker stack ps "$STACK" --no-trunc --format \
-      'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
-    docker image prune -f >/dev/null 2>&1 || true
-    echo "deployed: $IMAGE"
-    echo "e2e (needs DNS): curl -I https://datxevui.com/health"
-    exit 0
-  fi
-  sleep 2
-done
+# ── 7. Health gate on the NEW backend task (180s budget) ─────────────
+# All must pass before the deploy is declared successful:
+#   a) the HEALTHY TASK's OWN image matches $IMAGE — the container's
+#      Config.Image, which swarm resolves to "image:tag@sha256:…".
+#      This is the authoritative check: the OLD task (previous image)
+#      can be briefly healthy during the stop-first drain window, and
+#      without this check the gate would pass before the new task
+#      takes over.
+#   b) the SERVICE SPEC image matches $IMAGE. A ROLLBACK reverts the
+#      spec to the previous image: healthy-task + mismatched spec =
+#      swarm auto-rollback (seen 2026-09-07: a transient "lease does
+#      not exist" task rejection rolled the deploy back and the old
+#      gate passed on the old task — the workflow went green while
+#      the service kept running the previous image).
+#   c) Docker health=healthy (the image's own HEALTHCHECK, curl
+#      /health) plus an in-container `curl /health` — direct
+#      confirmation, immune to the anti-scraping UA block (/health is
+#      exempted in middleware). NOTE: `--filter ancestor=$IMAGE` does
+#      NOT work — swarm resolves the tag to a digest at service
+#      create, so the tag-only ancestor filter never matched
+#      (false negative seen 2026-09-07).
+#
+# On ROLLBACK the stack deploy is retried ONCE: the "lease does not
+# exist" rejection is a transient Docker 29 stack-deploy flake and the
+# image is already pulled by then, so the second attempt usually
+# converges.
+wait_for_healthy() {
+  for i in $(seq 1 90); do
+    local t spec_img task_img
+    t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1)
+    if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
+      spec_img=$(docker service inspect --format \
+        '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "${STACK}_backend" 2>/dev/null)
+      case "$spec_img" in
+        "$IMAGE"|"$IMAGE@"*)
+          # Spec is the new image — but the spec flips BEFORE the old
+          # task drains (stop-first), so also require the healthy
+          # task's OWN image to match (swarm sets the container's
+          # Config.Image to the resolved "tag@digest").
+          task_img=$(docker inspect --format '{{.Config.Image}}' "$t" 2>/dev/null)
+          case "$task_img" in
+            "$IMAGE"|"$IMAGE@"*)
+              echo "backend healthy after ~$((i*2))s (task $t)"
+              echo "task image:   $task_img"
+              echo "service spec: $spec_img"
+              return 0
+              ;;
+            *)
+              # Old image still draining — new task hasn't taken over.
+              ;;
+          esac
+          ;;
+        *)
+          echo "ROLLBACK DETECTED: healthy task $t but service spec is '$spec_img' (expected $IMAGE)"
+          return 2
+          ;;
+      esac
+    fi
+    sleep 2
+  done
+  return 1
+}
 
-echo "health check FAILED — last 80 backend log lines:"
-docker service logs --tail 80 "${STACK}_backend" || true
-echo "rollback:  docker service update --image ${PREV_IMAGE} ${STACK}_backend"
-exit 1
+echo "waiting for /health ..."
+rc=0
+wait_for_healthy || rc=$?
+if [ "$rc" -eq 2 ]; then
+  echo "retrying the stack deploy once (transient rejection) ..."
+  IMAGE="$IMAGE" docker stack deploy --with-registry-auth -c stack.yml "$STACK"
+  rc=0
+  wait_for_healthy || rc=$?
+fi
+
+if [ "$rc" -ne 0 ]; then
+  echo "health check FAILED (rc=$rc) — last 80 backend log lines:"
+  docker service logs --tail 80 "${STACK}_backend" || true
+  echo "rollback:  docker service update --image ${PREV_IMAGE} ${STACK}_backend"
+  exit 1
+fi
+
+docker stack ps "$STACK" --no-trunc --format \
+  'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
+docker image prune -f >/dev/null 2>&1 || true
+echo "deployed: $IMAGE"
+echo "e2e (needs DNS): curl -I https://datxevui.com/health"
+exit 0
