@@ -27,7 +27,7 @@ you can grep the worklog for the full detail.
 **IMMEDIATELY REQUIRED FROM YOU (cannot be done from this codebase alone):**
 
 1. **Rotate the Google OAuth client_secret** in Google Cloud Console →
-   APIs & Services → Credentials. The previous `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`
+   APIs & Services → Credentials. The previous `GOCSPX-Y9CP…7rA2N`
    is in git history forever — assume it's compromised.
 2. **Revoke all refresh tokens** in the existing `app.db` / Postgres —
    run `UPDATE refresh_tokens SET revoked_at = NOW() WHERE revoked_at IS NULL;`
