@@ -1,6 +1,32 @@
-# Deployment — Contabo VPS + Cloudflare + Docker + GitHub CI/CD
+# Deployment — single image + GitHub CI/CD
 
-Production runbook for the single-image stack:
+Production runbook for the single-image stack. **Two supported topologies:**
+
+- **A. Shared Swarm node + Caddy (CURRENT — datxevui.com):** the server
+  already runs Docker Swarm with a `pdf-tts` stack and a shared Caddy that
+  owns `:80/:443`. The `vexevn` stack joins the same overlay network; Caddy
+  proxies `datxevui.com` → `vexevn_backend:8080` with automatic Let's
+  Encrypt TLS. Deploy assets: `deploy/stack.yml`, `deploy/deploy.sh`,
+  `deploy/Caddyfile.datxevui` (all synced by the `Deploy` workflow on every
+  `v*` tag). Prerequisite: A records `datxevui.com` + `www.datxevui.com` →
+  the server IP (Namecheap DNS today). Nothing is built on the server —
+  GitHub Actions builds the image and pushes it to GHCR.
+
+```
+ users ──HTTPS──▶ Caddy (swarm, owns :80/:443, LE certs)
+                     │  Host: datxevui.com
+                     ▼
+               vexevn_backend:8080   (overlay network pdf-tts_pdf-tts)
+                     │  serves frontend/dist + API + WS
+                     ├ /app/data   [vol]  SQLite DB + OSM PBF
+                     ├ /app/index  [vol]  Tantivy index (nested osm-index)
+                     └ /app/storage[vol]  local uploads
+```
+
+- **B. Standalone Contabo + Cloudflare tunnel (fresh-server path):** the
+  original cloudflared-outbound-only topology below — use it when deploying
+  to a brand-new VPS with no existing reverse proxy:
+
 
 ```
                       ┌──────────────────────┐

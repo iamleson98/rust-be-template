@@ -1,0 +1,112 @@
+# Docker Swarm stack for VeXeVN (datxevui.com) — deployed on the shared
+# single-manager node that already runs the pdf-tts stack + shared Caddy.
+#
+# Deployed by .github/workflows/deploy.yml (tag push → GHCR image → SSH):
+#   cd /opt/vexevn && IMAGE=ghcr.io/iamleson98/rust-be-template:v0.1.0 bash deploy.sh
+#
+# The backend joins the EXISTING `pdf-tts_pdf-tts` attachable overlay
+# network so the already-running Caddy (service pdf-tts_caddy, which owns
+# host ports 80/443) can reach it at `vexevn_backend:8080` and proxy
+# datxevui.com → here. This stack publishes NO ports itself.
+#
+# NOTE: `docker stack deploy` does NOT support `env_file:` — values are
+# interpolated from the (exported) shell environment; deploy.sh sources
+# /opt/vexevn/.env first. Secrets (JWT) are generated on the server.
+
+services:
+  backend:
+    image: ${IMAGE:?IMAGE is required — set by the CD pipeline or manually}
+    environment:
+      # ── Server ─────────────────────────────────────────────────
+      - SERVER_HOST=0.0.0.0
+      - RUST_LOG=${RUST_LOG:-info,backend=info,tower_http=warn}
+
+      # ── Database (SQLite on the vexevn-data volume) ────────────
+      - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
+
+      # ── JWT (generated on first run, see deploy.sh) ────────────
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required in .env}
+
+      # ── Cookies: same-origin SPA over HTTPS (Caddy terminates
+      #    Let's Encrypt TLS) ──────────────────────────────────────
+      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      - COOKIE_SAMESITE=${COOKIE_SAMESITE:-lax}
+
+      # ── CORS: same-origin (frontend + API behind one host) ──────
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://datxevui.com,https://www.datxevui.com}
+
+      # ── Rate limit ──────────────────────────────────────────────
+      # IMPORTANT: all traffic arrives via the Caddy container, so the
+      # backend sees ONE socket peer IP for everyone. Keep the global
+      # bucket generous; do per-client limiting at the edge (WAF/CDN).
+      - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-6000}
+      - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-1000}
+
+      # ── Payments / contact ──────────────────────────────────────
+      - PAYMENT_PUBLIC_BASE_URL=${PAYMENT_PUBLIC_BASE_URL:-https://datxevui.com}
+
+      # Everything else (STATIC_FILES_DIR, SEARCH_INDEX_DIR,
+      # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, CACHE/WORKER/SCHEDULER)
+      # comes from the image defaults baked into the Dockerfile.
+
+    volumes:
+      # SQLite database + OSM PBF downloads
+      - vexevn-data:/app/data
+      # Tantivy place-search index — the live index is NESTED at
+      # /app/index/osm-index so the importer's sibling staging dir
+      # (osm-index.staging) shares the volume filesystem and its
+      # atomic rename never hits EXDEV. Do NOT flatten.
+      - vexevn-index:/app/index
+      # Local file uploads
+      - vexevn-storage:/app/storage
+
+    networks:
+      - pdf-tts
+
+    deploy:
+      replicas: 1
+      # SQLite + local volumes pin the app to the manager node.
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        # Tuned for the shared 4 vCPU / 8 GB node (pdf-tts lives here too).
+        limits:
+          memory: ${APP_MEM_LIMIT:-2g}
+          cpus: "${APP_CPU_LIMIT:-1.5}"
+        reservations:
+          memory: 192m
+      # One replica + SQLite: never two containers on the same DB file.
+      update_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        parallelism: 1
+        order: stop-first
+        delay: 10s
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 30s
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  pdf-tts:
+    # The overlay network created by the pdf-tts stack (attachable,
+    # swarm-scoped). External so this stack attaches to it instead of
+    # creating its own — the shared Caddy proxies to vexevn_backend:8080.
+    external: true
+    name: pdf-tts_pdf-tts
+
+volumes:
+  vexevn-data:
+  vexevn-index:
+  vexevn-storage:

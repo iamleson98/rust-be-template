@@ -1,4 +1,4 @@
-# ─── CD: build Docker image + push to GHCR + deploy to Contabo ────────
+# ─── CD: build Docker image + push to GHCR + deploy to prod ────────
 #
 # Trigger: pushing a version tag. Every release is a tag:
 #   git tag v1.2.3 && git push origin v1.2.3
@@ -8,25 +8,33 @@
 #      (bun) AND the Rust backend, producing ONE image where the backend
 #      serves the static frontend on :8080 (plus API + WS + Tantivy
 #      search). Pushed to ghcr.io tagged with the semver + latest + sha.
-#   2. deploy — SSHes into the Contabo VPS, syncs the compose stack,
-#      pulls the new image, recreates the backend, and waits for
-#      /health. Volumes (SQLite data, Tantivy index, uploads) persist
-#      across releases by design.
+#      NO code is built on the server.
+#   2. deploy — SSHes into the production Swarm node, syncs
+#      deploy/{stack.yml,deploy.sh,Caddyfile.datxevui}, and runs
+#      deploy.sh: docker stack deploy (pulls the image from GHCR),
+#      appends the datxevui.com site block to the shared Caddyfile,
+#      hot-reloads Caddy, and waits for /health. Volumes (SQLite data,
+#      Tantivy index, uploads) persist across releases by design.
+#
+# Production topology (datxevui.com):
+#   Shared Swarm manager already running the pdf-tts stack. vexevn's
+#   backend joins the pdf-tts_pdf-tts overlay network; the existing
+#   Caddy (owns :80/:443) proxies datxevui.com → vexevn_backend:8080
+#   with automatic Let's Encrypt TLS.
 #
 # Required GitHub repository secrets:
-#   SERVER_HOST      — Contabo VPS public IP or hostname
+#   SERVER_HOST      — server public IP or hostname
 #   SERVER_USER      — SSH user (root or a sudo-capable user)
-#   SERVER_SSH_KEY   — SSH PRIVATE key (OpenSSH PEM format)
+#   SERVER_SSH_KEY   — SSH PRIVATE key (OpenSSH format)
 # Optional:
-#   GHCR_USER + GHCR_TOKEN — only if the GHCR package stays PRIVATE
-#                            (a PAT with read:packages). For public
-#                            packages, anonymous pulls just work.
+#   GHCR_USER + GHCR_TOKEN — only if the GHCR package stays PRIVATE and
+#                            the node has no stored ghcr.io credentials.
 #   DEPLOY_DIR       — GitHub VARIABLE (not secret) for the stack dir,
 #                      default /opt/vexevn
 #
-# First-time server prep: run deploy/server-init.sh once on the VPS
-# (installs Docker, writes .env with a random JWT_SECRET + TUNNEL_TOKEN,
-# locks the firewall). See deploy/README.md.
+# Server prerequisites: Docker Swarm manager + shared Caddy already
+# running (see deploy/README.md). DNS: A records datxevui.com and
+# www.datxevui.com → the server IP (Caddy then auto-issues certs).
 
 name: Deploy
 
@@ -114,7 +122,7 @@ jobs:
             CREATED=${{ steps.image.outputs.created }}
 
   deploy:
-    name: Deploy to Contabo
+    name: Deploy (Swarm + shared Caddy)
     needs: build-and-push
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'push' || github.event.inputs.image_tag != '' }}
@@ -138,14 +146,14 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.guard.outputs.skip == 'false'
 
-      - name: Sync compose stack to the server
+      - name: Sync swarm stack to the server
         if: steps.guard.outputs.skip == 'false'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "deploy/docker-compose.contabo.yml,deploy/Caddyfile.cloudflare,deploy/import-osm.sh"
+          source: "deploy/stack.yml,deploy/deploy.sh,deploy/Caddyfile.datxevui"
           target: ${{ env.DEPLOY_DIR }}
           strip_components: 1
 
@@ -166,43 +174,6 @@ jobs:
           script: |
             set -eu
             cd "$DEPLOY_DIR"
-            COMPOSE="docker compose -f docker-compose.contabo.yml"
-
-            # ── Optional GHCR login (private packages only) ──
-            if [ -n "$GHCR_TOKEN" ]; then
-              echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            fi
-
-            # ── Record the running image for a documented rollback ──
-            PREV_IMAGE=$(docker inspect --format '{{.Config.Image}}' \
-              "$($COMPOSE ps -q backend 2>/dev/null)" 2>/dev/null || echo "(none)")
-            echo "previous image: $PREV_IMAGE"
-
-            # ── Surface an unconfigured tunnel token (non-fatal) ──
-            if grep -q '^TUNNEL_TOKEN=PASTE_TUNNEL_TOKEN_HERE' .env 2>/dev/null; then
-              echo "WARNING: TUNNEL_TOKEN is still the placeholder — the tunnel will not connect."
-              echo "  fix: edit $DEPLOY_DIR/.env, then: $COMPOSE up -d cloudflared"
-            fi
-
-            # ── Pull + recreate (volumes persist: data, index, storage) ──
-            echo "deploying $IMAGE"
-            APP_IMAGE="$IMAGE" $COMPOSE pull backend
-            APP_IMAGE="$IMAGE" $COMPOSE up -d --remove-orphans
-
-            # ── Wait for /health on the NEW container ──
-            echo "waiting for health check..."
-            for i in $(seq 1 45); do
-              if $COMPOSE exec -T backend curl -sf http://localhost:8080/health >/dev/null 2>&1; then
-                echo "healthy after ~$((i*2))s"
-                $COMPOSE ps
-                docker image prune -f >/dev/null
-                echo "deployed: $IMAGE"
-                exit 0
-              fi
-              sleep 2
-            done
-
-            echo "health check FAILED — last 80 log lines:"
-            $COMPOSE logs --tail 80 backend || true
-            echo "rollback:  APP_IMAGE=$PREV_IMAGE $COMPOSE up -d"
-            exit 1
+            # deploy.sh: stack deploy → Caddy site block + hot reload →
+            # health gate on the new task; logs + rollback hint on failure.
+            bash deploy.sh
