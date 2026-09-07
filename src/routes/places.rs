@@ -38,8 +38,6 @@ pub async fn list(
 pub struct SearchQuery {
     pub q: String,
     pub limit: Option<u64>,
-    pub lat: Option<f64>,
-    pub lon: Option<f64>,
 }
 
 /// `GET /api/places/search` — search places by query.
@@ -58,7 +56,7 @@ pub async fn search(
 ) -> Result<Json<PlaceSearchResponse>, AppError> {
     Ok(Json(
         st.places
-            .search(&q.q, q.limit.unwrap_or(10).min(50), q.lat, q.lon)
+            .search(&q.q, q.limit.unwrap_or(10).min(50))
             .await?,
     ))
 }

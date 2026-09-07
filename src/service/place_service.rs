@@ -122,13 +122,7 @@ impl PlaceService {
     /// This is a simplified version that uses store `LIKE` queries
     /// instead of Tantivy fulltext search. For production use with
     /// large place datasets, consider integrating Tantivy or Meilisearch.
-    pub async fn search(
-        &self,
-        query: &str,
-        limit: u64,
-        _lat: Option<f64>,
-        _lon: Option<f64>,
-    ) -> AppResult<PlaceSearchResponse> {
+    pub async fn search(&self, query: &str, limit: u64) -> AppResult<PlaceSearchResponse> {
         let q_trim = query.trim();
         if q_trim.is_empty() {
             return Ok(PlaceSearchResponse {

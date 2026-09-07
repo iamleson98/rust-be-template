@@ -103,12 +103,12 @@ function PointsTimeline({ points }: { points: AdminScheduleOut['points'] }) {
             {!isLast && (
               <span
                 aria-hidden
-                className={cn('absolute left-[9px] top-5 bottom-0 w-0.5', style.line)}
+                className={cn('absolute left-2.25 top-5 bottom-0 w-0.5', style.line)}
               />
             )}
             <span
               className={cn(
-                'relative z-10 mt-0.5 h-[19px] w-[19px] shrink-0 rounded-full border-[3px] flex items-center justify-center',
+                'relative z-10 mt-0.5 h-4.75 w-4.75 shrink-0 rounded-full border-[3px] flex items-center justify-center',
                 style.dot,
               )}
             >
@@ -250,233 +250,233 @@ export function AdminSchedulesPage() {
 
   return (
     <div className="page-transition p-3 md:p-6 space-y-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-blue-600" />
-              Lịch trình
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Chuyến xe theo tuyến — giờ chạy, điểm đón/trả theo trình tự, giá và loại xe.
-            </p>
-          </div>
-          <Button size="sm" onClick={openCreate} disabled={!selectedRoute}>
-            <Plus className="h-4 w-4 mr-1.5" /> Thêm lịch trình
-          </Button>
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            <CalendarDays className="h-5 w-5 text-blue-600" />
+            Lịch trình
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Chuyến xe theo tuyến — giờ chạy, điểm đón/trả theo trình tự, giá và loại xe.
+          </p>
         </div>
+        <Button size="sm" onClick={openCreate} disabled={!selectedRoute}>
+          <Plus className="h-4 w-4 mr-1.5" /> Thêm lịch trình
+        </Button>
+      </div>
 
-        {/* Filters: brand → route cascade */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="w-full sm:w-56">
-            <Select value={brandId ?? 'all'} onValueChange={onBrandChange}>
-              <SelectTrigger className="w-full">
-                <span className="flex items-center gap-2 min-w-0">
-                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Tất cả hãng">
-                    {(v: string | null | undefined) =>
-                      v === 'all' || !v ? 'Tất cả hãng' : selectedBrand?.name ?? 'Hãng'}
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả hãng</SelectItem>
-                {brands.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    <span className="flex items-center gap-2">
-                      <BrandDot color={b.accentColor} />
-                      {b.name}
+      {/* Filters: brand → route cascade */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="w-full sm:w-56">
+          <Select value={brandId ?? 'all'} onValueChange={onBrandChange}>
+            <SelectTrigger className="w-full">
+              <span className="flex items-center gap-2 min-w-0">
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Tất cả hãng">
+                  {(v: string | null | undefined) =>
+                    v === 'all' || !v ? 'Tất cả hãng' : selectedBrand?.name ?? 'Hãng'}
+                </SelectValue>
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả hãng</SelectItem>
+              {brands.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  <span className="flex items-center gap-2">
+                    <BrandDot color={b.accentColor} />
+                    {b.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:flex-1">
+          <Select
+            value={routeId ?? 'none'}
+            onValueChange={(v) => setRouteId(v === 'none' ? undefined : v)}
+            disabled={!brandId}
+          >
+            <SelectTrigger className="w-full">
+              <span className="flex items-center gap-2 min-w-0">
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder={brandId ? 'Chọn tuyến…' : 'Chọn hãng trước'}>
+                  {(v: string | null | undefined) =>
+                    v === 'none' || !v
+                      ? brandId
+                        ? 'Chọn tuyến…'
+                        : 'Chọn hãng trước'
+                      : selectedRoute?.name ?? 'Tuyến'}
+                </SelectValue>
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              {routes.length === 0 ? (
+                <div className="p-2 text-xs text-center text-muted-foreground">
+                  Hãng chưa có tuyến nào
+                </div>
+              ) : (
+                routes.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="truncate">{r.name}</span>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
+                      </span>
                     </span>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="w-full sm:flex-1">
-            <Select
-              value={routeId ?? 'none'}
-              onValueChange={(v) => setRouteId(v === 'none' ? undefined : v)}
-              disabled={!brandId}
-            >
-              <SelectTrigger className="w-full">
-                <span className="flex items-center gap-2 min-w-0">
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder={brandId ? 'Chọn tuyến…' : 'Chọn hãng trước'}>
-                    {(v: string | null | undefined) =>
-                      v === 'none' || !v
-                        ? brandId
-                          ? 'Chọn tuyến…'
-                          : 'Chọn hãng trước'
-                        : selectedRoute?.name ?? 'Tuyến'}
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {routes.length === 0 ? (
-                  <div className="p-2 text-xs text-center text-muted-foreground">
-                    Hãng chưa có tuyến nào
-                  </div>
-                ) : (
-                  routes.map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="truncate">{r.name}</span>
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </div>
+      </div>
 
-        {/* Schedule cards */}
-        {!selectedRoute ? (
-          <Card>
-            <CardContent className="py-12 flex flex-col items-center text-center gap-2">
-              <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-blue-600" />
-              </div>
-              <p className="font-medium">Chọn hãng và tuyến đường</p>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Lịch trình hiển thị theo từng tuyến. Chọn hãng, sau đó chọn tuyến để xem
-                và quản lý các chuyến xe.
-              </p>
-            </CardContent>
-          </Card>
-        ) : schedulesQuery.isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        ) : schedules.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 flex flex-col items-center text-center gap-2">
-              <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
-                <Clock className="h-5 w-5 text-blue-600" />
-              </div>
-              <p className="font-medium">Tuyến chưa có lịch trình nào</p>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Thêm lịch trình đầu tiên cho tuyến {selectedRoute.name} — chọn giờ khởi
-                hành, các điểm đón/trả và giá vé.
-              </p>
-              <Button size="sm" className="mt-1" onClick={openCreate}>
-                <Plus className="h-4 w-4 mr-1.5" /> Thêm lịch trình
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3">
-            {schedules.map((s) => {
-              const layout = layoutById.get(s.busLayoutId ?? '')
-              const amenities = amenitiesOf(s)
-              return (
-                <Card key={s.id} className="overflow-hidden">
-                  <CardContent className="p-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px]">
-                      {/* Left: identity + meta */}
-                      <div className="p-4 space-y-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="flex flex-col items-center shrink-0">
-                              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="text-xl font-bold tabular-nums leading-tight text-blue-700">
-                                {s.departureTime}
-                              </span>
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {selectedRoute.name}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {selectedBrand?.name}
-                                {layout ? ` · ${layout.name}` : ''}
-                                {layout ? ` (${VEHICLE_LABELS[layout.vehicleType ?? ''] ?? layout.vehicleType})` : ''}
-                              </p>
-                            </div>
+      {/* Schedule cards */}
+      {!selectedRoute ? (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center text-center gap-2">
+            <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
+              <CalendarDays className="h-5 w-5 text-blue-600" />
+            </div>
+            <p className="font-medium">Chọn hãng và tuyến đường</p>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Lịch trình hiển thị theo từng tuyến. Chọn hãng, sau đó chọn tuyến để xem
+              và quản lý các chuyến xe.
+            </p>
+          </CardContent>
+        </Card>
+      ) : schedulesQuery.isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      ) : schedules.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 flex flex-col items-center text-center gap-2">
+            <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
+              <Clock className="h-5 w-5 text-blue-600" />
+            </div>
+            <p className="font-medium">Tuyến chưa có lịch trình nào</p>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Thêm lịch trình đầu tiên cho tuyến {selectedRoute.name} — chọn giờ khởi
+              hành, các điểm đón/trả và giá vé.
+            </p>
+            <Button size="sm" className="mt-1" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1.5" /> Thêm lịch trình
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {schedules.map((s) => {
+            const layout = layoutById.get(s.busLayoutId ?? '')
+            const amenities = amenitiesOf(s)
+            return (
+              <Card key={s.id} className="overflow-hidden">
+                <CardContent className="p-0">
+                  <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px]">
+                    {/* Left: identity + meta */}
+                    <div className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex flex-col items-center shrink-0">
+                            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="text-xl font-bold tabular-nums leading-tight text-blue-700">
+                              {s.departureTime}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                setEditSchedule(s)
-                                setDialogOpen(true)
-                              }}
-                              aria-label="Sửa lịch trình"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
-                              onClick={() => setDeleteTarget(s)}
-                              aria-label="Xoá lịch trình"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {selectedRoute.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedBrand?.name}
+                              {layout ? ` · ${layout.name}` : ''}
+                              {layout ? ` (${VEHICLE_LABELS[layout.vehicleType ?? ''] ?? layout.vehicleType})` : ''}
+                            </p>
                           </div>
                         </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setEditSchedule(s)
+                              setDialogOpen(true)
+                            }}
+                            aria-label="Sửa lịch trình"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-rose-600 hover:bg-rose-50"
+                            onClick={() => setDeleteTarget(s)}
+                            aria-label="Xoá lịch trình"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                          <DaysChips daysOfWeek={s.daysOfWeek} />
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                        <DaysChips daysOfWeek={s.daysOfWeek} />
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-muted-foreground text-xs">NL:</span>
+                          <span className="font-semibold tabular-nums">
+                            {formatVND(s.basePriceAdult)}
+                          </span>
+                        </span>
+                        {s.basePriceChild != null && s.basePriceChild > 0 ? (
                           <span className="flex items-center gap-1.5">
-                            <span className="text-muted-foreground text-xs">NL:</span>
-                            <span className="font-semibold tabular-nums">
-                              {formatVND(s.basePriceAdult)}
+                            <span className="text-muted-foreground text-xs">TE:</span>
+                            <span className="font-medium tabular-nums">
+                              {formatVND(s.basePriceChild)}
                             </span>
                           </span>
-                          {s.basePriceChild != null && s.basePriceChild > 0 ? (
-                            <span className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground text-xs">TE:</span>
-                              <span className="font-medium tabular-nums">
-                                {formatVND(s.basePriceChild)}
-                              </span>
-                            </span>
-                          ) : null}
-                          {s.effectiveFrom ? (
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              {s.effectiveFrom}
-                              {s.effectiveTo ? ` → ${s.effectiveTo}` : ''}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        {amenities.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {amenities.slice(0, 6).map((a) => (
-                              <Badge key={a} variant="outline" className="text-[10px] font-normal">
-                                {a}
-                              </Badge>
-                            ))}
-                            {amenities.length > 6 ? (
-                              <Badge variant="outline" className="text-[10px] font-normal">
-                                +{amenities.length - 6}
-                              </Badge>
-                            ) : null}
-                          </div>
+                        ) : null}
+                        {s.effectiveFrom ? (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            {s.effectiveFrom}
+                            {s.effectiveTo ? ` → ${s.effectiveTo}` : ''}
+                          </span>
                         ) : null}
                       </div>
 
-                      {/* Right: points timeline */}
-                      <div className="border-t lg:border-t-0 lg:border-l bg-slate-50/60 p-4">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2.5 flex items-center gap-1.5">
-                          <MapPin className="h-3 w-3" /> Điểm đón — trả
-                        </p>
-                        <PointsTimeline points={(s as any).points} />
-                      </div>
+                      {amenities.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {amenities.slice(0, 6).map((a) => (
+                            <Badge key={a} variant="outline" className="text-[10px] font-normal">
+                              {a}
+                            </Badge>
+                          ))}
+                          {amenities.length > 6 ? (
+                            <Badge variant="outline" className="text-[10px] font-normal">
+                              +{amenities.length - 6}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        )}
+
+                    {/* Right: points timeline */}
+                    <div className="border-t lg:border-t-0 lg:border-l bg-slate-50/60 p-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2.5 flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3" /> Điểm đón — trả
+                      </p>
+                      <PointsTimeline points={(s as any).points} />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* Create / edit schedule (with point selects + map address modal) */}
       <ScheduleFormDialog

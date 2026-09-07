@@ -17,7 +17,7 @@
  *     caller can immediately select it for the schedule point.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,9 @@ import { useCreateAdminAddress, usePlaceSearch } from '@/lib/queries'
 import { reverseGeocode } from '@/components/map/leaflet-map'
 import type { AdminAddressOut, PlaceSearchHit } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
+import { useQuery } from '@tanstack/react-query'
+import { reverseOptions } from '@/lib/api/@tanstack/react-query.gen'
+import { LatLongRegex, parseLatLong } from '@/lib/slug'
 
 // Leaflet touches `window` at import time — load the map client-side only.
 const LeafletMap = lazy(() =>
@@ -90,13 +93,35 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const searchBoxRef = useRef<HTMLDivElement>(null)
 
+  useEffect(() => {
+    const result = parseLatLong(debounced);
+    if (result.ok) {
+      setReverseLoading(true)
+
+      reverseGeocode(result.value![0], result.value![1])
+        .then(({ name, lat, lon, province, district }) => {
+          setPicked({ name, lat, lon })
+          setForm((f) => ({
+            ...f,
+            name: f.name.trim() ? f.name : name,
+            province: f.province.trim() ? f.province : (province ?? ''),
+            district: f.district.trim() ? f.district : (district ?? ''),
+            lat,
+            lon,
+          }))
+        }).finally(() => setReverseLoading(false));
+    }
+
+    // return null;
+  }, [debounced]);
+
   const { data: searchData, isLoading: searchLoading } = usePlaceSearch(debounced, {
-    enabled: open && debounced.trim().length >= 2,
+    enabled: open && debounced.trim().length >= 2 && !LatLongRegex.test(debounced),
   })
-  const hits: PlaceSearchHit[] = (searchData as any)?.items ?? []
+  const hits: PlaceSearchHit[] = searchData?.items ?? []
+
 
   const createMutation = useCreateAdminAddress()
-  const saving = createMutation.isPending
 
   // Reset every time the dialog opens.
   useEffect(() => {
@@ -171,7 +196,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         setFlyTarget([latitude, longitude])
         void handleMapClick(latitude, longitude)
       },
-      () => {},
+      () => { },
       { enableHighAccuracy: true, timeout: 8000 },
     )
   }, [handleMapClick])
@@ -236,7 +261,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !createMutation.isPending && onOpenChange(o)}>
       <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-5 py-4 border-b bg-white">
           <DialogTitle className="flex items-center gap-2 text-base">
@@ -444,15 +469,15 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         </div>
 
         <DialogFooter className="px-5 py-4 border-t bg-white">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
             Huỷ
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving || !form.name.trim() || form.lat == null || form.lon == null || !brandId}
+            disabled={createMutation.isPending || !form.name.trim() || form.lat == null || form.lon == null || !brandId}
             className={cn('bg-blue-600 hover:bg-blue-700')}
           >
-            {saving ? (
+            {createMutation.isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
               </>

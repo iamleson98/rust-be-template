@@ -400,7 +400,7 @@ export function InfiniteMultiSelect<T>({
             {badges.map((v) => (
               <span
                 key={v}
-                className="inline-flex max-w-[10rem] items-center rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                className="inline-flex max-w-40 items-center rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300"
               >
                 <span className="truncate">{labelByValue.get(v) ?? v}</span>
               </span>

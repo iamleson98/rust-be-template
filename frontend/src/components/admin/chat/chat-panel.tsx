@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Activity,
   Clock,
-  ArrowDownRight,
   Ban,
   Send,
   Ticket as TicketIcon,
@@ -376,30 +375,27 @@ export function ChatPanel({
                   {staffPresence.staff.map((st) => (
                     <span
                       key={st.userId}
-                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                        !st.online
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors ${!st.online
                           ? 'border-slate-200 bg-slate-50 text-slate-400'
                           : st.busy
                             ? 'border-amber-200 bg-amber-50 text-amber-700'
                             : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      }`}
+                        }`}
                       title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ${st.online ? (st.busy ? 'đang gọi điện' : 'sẵn sàng') : 'ngoại tuyến'} · ${st.activeChats} kênh`}
                     >
                       <span
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          !st.online ? 'bg-slate-300' : st.busy ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}
+                        className={`h-1.5 w-1.5 rounded-full ${!st.online ? 'bg-slate-300' : st.busy ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}
                       />
                       {st.name}
                       {st.role === 'admin' && <span className="text-[8px] uppercase">admin</span>}
                     </span>
                   ))}
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                      staffPresence.botActive
+                    className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${staffPresence.botActive
                         ? 'border-violet-300 bg-violet-100 text-violet-700'
                         : 'border-slate-200 bg-slate-50 text-slate-400'
-                    }`}
+                      }`}
                     title={
                       staffPresence.botActive
                         ? 'Không có nhân viên trực tuyến — bot AI đang hỗ trợ khách'

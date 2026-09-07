@@ -272,7 +272,7 @@ export function DataTable<TData extends RowData>({
                 <TableRow key={`skeleton-row-${rowIndex}`} className="hover:bg-transparent">
                   {columns.map((_column, columnIndex) => (
                     <TableCell key={`skeleton-cell-${columnIndex}`} className="px-4 py-3.5">
-                      <Skeleton className="h-5 w-full max-w-[10rem]" />
+                      <Skeleton className="h-5 w-full max-w-40" />
                     </TableCell>
                   ))}
                 </TableRow>

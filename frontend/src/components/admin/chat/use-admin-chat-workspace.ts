@@ -45,7 +45,7 @@ export function useAdminChatWorkspace() {
   // queue. Admins see everything (they own the whole queue). The
   // toggle lives in the panel's channel-list header.
   const [mineFilter, setMineFilter] = useState(false);
-  const isEmployee = user?.type === "employee";
+  // const isEmployee = user?.type === "employee";
 
   // ── Assignment actions ────────────────────────────────────────
   const claimMut = useClaimChannel();

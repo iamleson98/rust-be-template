@@ -104,7 +104,7 @@ export function AdminRoutesPage() {
             <DataTableColumnHeader column={column} title="Tên tuyến" />
           ),
           cell: ({ getValue }) => (
-            <span className="block max-w-[220px] truncate font-medium">{getValue()}</span>
+            <span className="block max-w-55 truncate font-medium">{getValue()}</span>
           ),
           sortFn: 'text',
           meta: { label: 'Tên tuyến' },
@@ -117,7 +117,7 @@ export function AdminRoutesPage() {
             return brand ? (
               <span className="flex items-center gap-1.5">
                 <BrandDot color={brand.accentColor} />
-                <span className="max-w-[180px] truncate">{brand.name}</span>
+                <span className="max-w-45 truncate">{brand.name}</span>
               </span>
             ) : (
               <span className="text-muted-foreground">—</span>
@@ -132,12 +132,12 @@ export function AdminRoutesPage() {
           cell: ({ row }) => (
             <span className="flex items-center gap-1.5 text-sm">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-              <span className="max-w-[130px] truncate">
+              <span className="max-w-32.5 truncate">
                 {cityLabel(row.original.startLocationId)}
               </span>
               <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <MapPin className="h-3.5 w-3.5 shrink-0 text-rose-600" />
-              <span className="max-w-[130px] truncate">
+              <span className="max-w-32.5 truncate">
                 {cityLabel(row.original.endLocationId)}
               </span>
             </span>
@@ -227,145 +227,145 @@ export function AdminRoutesPage() {
 
   return (
     <div className="page-transition p-3 md:p-6 space-y-4">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold flex items-center gap-2">
-              <RouteIcon className="h-5 w-5 text-blue-600" />
-              Tuyến đường
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Quản lý tuyến của các hãng — mỗi tuyến chứa lịch trình và điểm đón/trả.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate({ to: '/admin/schedules' as any })}>
-              <CalendarDays className="h-4 w-4 mr-1.5" /> Lịch trình
-            </Button>
-            <Button size="sm" onClick={openCreate} disabled={!selectedBrand}>
-              <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
-            </Button>
-          </div>
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            <RouteIcon className="h-5 w-5 text-blue-600" />
+            Tuyến đường
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Quản lý tuyến của các hãng — mỗi tuyến chứa lịch trình và điểm đón/trả.
+          </p>
         </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="w-full sm:w-64">
-            <Select value={brandId ?? 'all'} onValueChange={(v) => setBrandId(v === 'all' ? undefined : v)}>
-              <SelectTrigger className="w-full">
-                <span className="flex items-center gap-2 min-w-0">
-                  <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Tất cả hãng">
-                    {(v: string | null | undefined) =>
-                      v === 'all' || !v
-                        ? 'Tất cả hãng'
-                        : brandById.get(v)?.name ?? 'Hãng'}
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả hãng</SelectItem>
-                {brands.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    <span className="flex items-center gap-2">
-                      <BrandDot color={b.accentColor} />
-                      {b.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm tuyến, thành phố…"
-              className="pl-9"
-            />
-          </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/admin/schedules' as any })}>
+            <CalendarDays className="h-4 w-4 mr-1.5" /> Lịch trình
+          </Button>
+          <Button size="sm" onClick={openCreate} disabled={!selectedBrand}>
+            <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
+          </Button>
         </div>
+      </div>
 
-        {/* Table — the DataTable renders its own bordered surface and
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="w-full sm:w-64">
+          <Select value={brandId ?? 'all'} onValueChange={(v) => setBrandId(v === 'all' ? undefined : v)}>
+            <SelectTrigger className="w-full">
+              <span className="flex items-center gap-2 min-w-0">
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Tất cả hãng">
+                  {(v: string | null | undefined) =>
+                    v === 'all' || !v
+                      ? 'Tất cả hãng'
+                      : brandById.get(v)?.name ?? 'Hãng'}
+                </SelectValue>
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả hãng</SelectItem>
+              {brands.map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  <span className="flex items-center gap-2">
+                    <BrandDot color={b.accentColor} />
+                    {b.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Tìm tuyến, thành phố…"
+            className="pl-9"
+          />
+        </div>
+      </div>
+
+      {/* Table — the DataTable renders its own bordered surface and
             swaps in the mobile card list below `md`, sharing the
             loading/empty states and the pagination footer. */}
-        <DataTable
-          columns={columns}
-          data={routes}
-          rowNoun="tuyến"
-          manualPagination
-          totalRowCount={total}
-          pageIndex={page}
-          onPageIndexChange={setPage}
-          pageSize={PAGE_SIZE}
-          hidePaginationOnSinglePage={false}
-          isLoading={routesQuery.isLoading}
-          emptyTitle="Chưa có tuyến đường nào"
-          emptyDescription={
-            selectedBrand
-              ? `Hãng ${selectedBrand.name} chưa có tuyến. Thêm tuyến đầu tiên để bắt đầu tạo lịch trình.`
-              : 'Chọn một hãng hoặc thêm tuyến mới để bắt đầu.'
-          }
-          emptyIcon={<RouteIcon className="h-5 w-5" aria-hidden />}
-          emptyAction={
-            selectedBrand ? (
-              <Button size="sm" className="mt-2" onClick={openCreate}>
-                <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
-              </Button>
-            ) : null
-          }
-          mobileList={
-            <div className="divide-y">
-              {routes.map((r) => {
-                const brand = brandById.get(r.brandId ?? '')
-                return (
-                  <div key={r.id} className="p-3 flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{r.name}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        {brand ? (
-                          <>
-                            <BrandDot color={brand.accentColor} />
-                            <span className="truncate">{brand.name}</span>
-                            <span>·</span>
-                          </>
-                        ) : null}
-                        {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {r.scheduleCount} lịch trình · {r.pickupPointCount} điểm đón
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          setEditRoute(r)
-                          setDialogOpen(true)
-                        }}
-                        aria-label="Sửa tuyến"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-rose-600"
-                        onClick={() => setDeleteTarget(r)}
-                        aria-label="Xoá tuyến"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+      <DataTable
+        columns={columns}
+        data={routes}
+        rowNoun="tuyến"
+        manualPagination
+        totalRowCount={total}
+        pageIndex={page}
+        onPageIndexChange={setPage}
+        pageSize={PAGE_SIZE}
+        hidePaginationOnSinglePage={false}
+        isLoading={routesQuery.isLoading}
+        emptyTitle="Chưa có tuyến đường nào"
+        emptyDescription={
+          selectedBrand
+            ? `Hãng ${selectedBrand.name} chưa có tuyến. Thêm tuyến đầu tiên để bắt đầu tạo lịch trình.`
+            : 'Chọn một hãng hoặc thêm tuyến mới để bắt đầu.'
+        }
+        emptyIcon={<RouteIcon className="h-5 w-5" aria-hidden />}
+        emptyAction={
+          selectedBrand ? (
+            <Button size="sm" className="mt-2" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1.5" /> Thêm tuyến
+            </Button>
+          ) : null
+        }
+        mobileList={
+          <div className="divide-y">
+            {routes.map((r) => {
+              const brand = brandById.get(r.brandId ?? '')
+              return (
+                <div key={r.id} className="p-3 flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{r.name}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      {brand ? (
+                        <>
+                          <BrandDot color={brand.accentColor} />
+                          <span className="truncate">{brand.name}</span>
+                          <span>·</span>
+                        </>
+                      ) : null}
+                      {cityLabel(r.startLocationId)} → {cityLabel(r.endLocationId)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {r.scheduleCount} lịch trình · {r.pickupPointCount} điểm đón
+                    </p>
                   </div>
-                )
-              })}
-            </div>
-          }
-        />
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setEditRoute(r)
+                        setDialogOpen(true)
+                      }}
+                      aria-label="Sửa tuyến"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-rose-600"
+                      onClick={() => setDeleteTarget(r)}
+                      aria-label="Xoá tuyến"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        }
+      />
 
       {/* Create / edit */}
       <RouteFormDialog

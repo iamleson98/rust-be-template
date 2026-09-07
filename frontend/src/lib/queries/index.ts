@@ -27,7 +27,10 @@ import {
 // `fetch*Page` helpers below (consumed by the infinite-scroll picker's
 // own useInfiniteQuery) are the exception: they call the raw SDK list
 // functions directly.
-import { list as listAddresses, list10 as listVehicleTypes } from "@/lib/api/sdk.gen";
+import {
+  list as listAddresses,
+  list10 as listVehicleTypes,
+} from "@/lib/api/sdk.gen";
 
 // Generated TanStack Query options + keys + mutations
 import {
@@ -153,7 +156,7 @@ import {
   releaseChannelMutation as chatReleaseChannelMutation,
   closeChannelMutation as chatCloseChannelMutation,
   getStaffPresenceOptions,
-} from '@/lib/api/@tanstack/react-query.gen';
+} from "@/lib/api/@tanstack/react-query.gen";
 
 // Generated types — re-exported so components can import from here
 import type {
@@ -354,7 +357,7 @@ export function useCampaigns() {
 export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
   const enabled = opts?.enabled ?? q.trim().length >= 1;
   return useQuery({
-    ...placeSearchOptions({ query: { q, limit: 15 } }),
+    ...placeSearchOptions({ query: { q, limit: 20 } }),
     enabled,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
@@ -891,7 +894,10 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
  * invalidation). Not used for backward pagination (we only paginate
  * forward in time via `fetchNextPage`).
  */
-export function useChatMessagesInfinite(channelId: string | undefined, pageSize = 30) {
+export function useChatMessagesInfinite(
+  channelId: string | undefined,
+  pageSize = 30,
+) {
   const opts = channelId
     ? chatMessagesListInfiniteOptions({
         path: { id: channelId },
@@ -901,7 +907,7 @@ export function useChatMessagesInfinite(channelId: string | undefined, pageSize 
 
   const query = useInfiniteQuery<any>({
     queryKey: opts?.queryKey ?? ["chat", "messages", "infinite", "disabled"],
-    queryFn: opts?.queryFn as any,
+    queryFn: (opts?.queryFn as any) ?? (() => Promise.resolve(null)),
     initialPageParam: 0,
     getNextPageParam: (lastPage: any, allPages: any[], lastPageParam: any) => {
       // `lastPage` is the API response: `{ items: [...] }`.
@@ -1458,7 +1464,10 @@ export async function fetchVehicleTypesPage(
     },
     signal,
   });
-  const body = (data ?? { items: [], total: 0 }) as AdminVehicleTypeListResponse;
+  const body = (data ?? {
+    items: [],
+    total: 0,
+  }) as AdminVehicleTypeListResponse;
   const offset = page * pageSize;
   return {
     items: body.items ?? [],
@@ -1597,7 +1606,6 @@ export function useAdminBookingExport(filter: AdminBookingFilter) {
   });
 }
 
-
 // ─── Cron jobs (recurring background jobs) ────────────────────────────
 
 /**
@@ -1664,20 +1672,20 @@ export function useUsers(query?: { limit?: number; offset?: number }) {
     ...listUsersOptions({ query }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  })
+  });
 }
 
 /** Change a user's role (admin-only; backend enforces the permission). */
 export function useSetUserRole() {
-  const qc = useQueryClient()
+  const qc = useQueryClient();
   return useMutation({
     ...setUserRoleMutation(),
     onSuccess: () => {
       // Refresh the users page (the changed row may reorder).
-      qc.invalidateQueries({ queryKey: ['listUsers'] })
+      qc.invalidateQueries({ queryKey: ["listUsers"] });
       // Role changes can flip what this account is allowed to see —
       // drop the cached /me so guards re-evaluate on next load.
-      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: ["me"] });
     },
-  })
+  });
 }

@@ -31,7 +31,7 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
   if (!column.getCanSort()) {
-    return <span className={cn('text-[inherit]', className)}>{title}</span>
+    return <span className={cn('text-inherit', className)}>{title}</span>
   }
 
   const sorted = column.getIsSorted()

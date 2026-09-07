@@ -295,7 +295,7 @@ export function ScheduleFormDialog({
     const target = index + delta
     if (target < 0 || target >= middlePoints.length) return
     const next = [...middlePoints]
-    ;[next[index], next[target]] = [next[target], next[index]]
+      ;[next[index], next[target]] = [next[target], next[index]]
     form.setValue('middlePoints', next, { shouldDirty: true })
   }
 
@@ -450,7 +450,7 @@ export function ScheduleFormDialog({
                     control={form.control}
                     name="startPointTime"
                     render={({ field }) => (
-                      <FormItem className="grid gap-1.5 w-[7.5rem]">
+                      <FormItem className="grid gap-1.5 w-30">
                         <FormLabel className="text-muted-foreground">Giờ đến</FormLabel>
                         <FormControl>
                           <TimePicker value={field.value} onChange={field.onChange} />
@@ -485,7 +485,7 @@ export function ScheduleFormDialog({
                               extraAddresses={knownAddresses}
                               onCreateNew={() => openCreateFor(i)}
                             />
-                            <div className="w-[7rem]">
+                            <div className="w-28">
                               <TimePicker
                                 value={mid.time ?? null}
                                 onChange={(t) => setMiddleTime(i, t)}
@@ -567,7 +567,7 @@ export function ScheduleFormDialog({
                     control={form.control}
                     name="endPointTime"
                     render={({ field }) => (
-                      <FormItem className="grid gap-1.5 w-[7.5rem]">
+                      <FormItem className="grid gap-1.5 w-30">
                         <FormLabel className="text-muted-foreground">Giờ đến</FormLabel>
                         <FormControl>
                           <TimePicker value={field.value} onChange={field.onChange} />
@@ -727,8 +727,8 @@ export function ScheduleFormDialog({
                           type="button"
                           onClick={() => toggleDay(i)}
                           className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${field.value[i]
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'bg-white text-muted-foreground hover:bg-slate-50'
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-muted-foreground hover:bg-slate-50'
                             }`}
                         >
                           {label}
@@ -839,8 +839,8 @@ export function ScheduleFormDialog({
                             type="button"
                             onClick={() => toggleAmenity(opt.key)}
                             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${active
-                                ? 'bg-blue-50 text-blue-700 border-blue-300'
-                                : 'bg-white text-muted-foreground hover:bg-slate-50'
+                              ? 'bg-blue-50 text-blue-700 border-blue-300'
+                              : 'bg-white text-muted-foreground hover:bg-slate-50'
                               }`}
                           >
                             <Icon className="h-3.5 w-3.5" />

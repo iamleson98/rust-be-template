@@ -31,6 +31,7 @@ export type PickedPlace = {
   lon: number
   type?: string
   province?: string | null
+  district?: string | null
 }
 
 type PlaceHit = {
@@ -290,7 +291,8 @@ async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
       lat,
       lon,
       type: h.type,
-      province: h.province ?? null,
+      province: h.province,
+      district: h.district,
     }
   } catch {
     return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
