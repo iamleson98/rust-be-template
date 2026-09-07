@@ -11,10 +11,13 @@ path = "src/main.rs"
 
 [workspace]
 members = ["store_macros", "migrator"]
+exclude = ["rust-sql"]
 
 [dependencies]
 store_macros = { path = "store_macros" }
 migrator = { path = "migrator" }
+rustqlite = { path = "rust-sql", features = ["sqlx-chrono", "sqlx-uuid", "sqlx-json"] }
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "derive"] }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
 # Add "process" only if you need to spawn child processes (currently not used).
