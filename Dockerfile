@@ -93,16 +93,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Cook deps from recipe — cached unless recipe.json (i.e. Cargo.toml) changes.
+# cargo-chef's recipe skeletonizes WORKSPACE members only; the [patch.crates-io]
+# path dependencies (the rust-sql engine submodule) are NOT members, so they
+# must exist on disk before `cook` or cargo cannot resolve the patch.
+# .cargo/config.toml must be present too: RUSTQLITE_LINK_MODE=rlib applies to
+# every cargo invocation, cook included — without it the compat build script
+# defaults to dylib mode and emits flags the final link cannot satisfy (and
+# the fingerprint flip would rebuild everything after cook anyway).
+# Bonus: the engine + compat compile INSIDE the cached cook layer — app-code
+# edits don't recompile the engine.
 COPY --from=planner /app/recipe.json recipe.json
-RUN cargo chef cook --release --no-default-features --features ${BACKEND_FEATURES} --recipe-path recipe.json
-
-# Copy source + build. rust-sql/ first (pinned submodule, changes rarely)
-# so src/ edits don't dirty the engine layer. .cargo/config.toml carries
-# RUSTQLITE_LINK_MODE=rlib — without it the compat build.rs falls back to
-# dylib mode and the link fails inside the container.
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo/ .cargo/
 COPY rust-sql/ ./rust-sql/
+RUN cargo chef cook --release --no-default-features --features ${BACKEND_FEATURES} --recipe-path recipe.json
+
+# Workspace members + app source: the cook wrote their SKELETONS (manifest
+# verbatim, stubbed lib.rs) — copy the real code over them and build.
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 COPY src/ ./src/
