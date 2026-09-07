@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { CronJobCardsSkeleton, RunHistorySkeleton } from '@/components/layout/skeletons'
 import { Switch } from '@/components/ui/switch'
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 
@@ -400,7 +400,7 @@ export function CronJobsPanel() {
 
       {/* Jobs */}
       {jobsQuery.isLoading ? (
-        <Skeleton className="h-48 w-full" />
+        <CronJobCardsSkeleton count={3} />
       ) : jobs.length === 0 ? (
         <Card>
           <CardContent className="py-12 flex flex-col items-center text-center gap-2">
@@ -441,9 +441,7 @@ export function CronJobsPanel() {
         </CardHeader>
         <CardContent className="p-0">
           {runsQuery.isLoading ? (
-            <div className="p-4">
-              <Skeleton className="h-40 w-full" />
-            </div>
+            <RunHistorySkeleton rows={5} />
           ) : (
             /* The Card provides the surface — render the table unbordered. */
             <DataTable

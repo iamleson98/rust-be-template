@@ -68,7 +68,12 @@ RUN cargo install cargo-chef --locked --version ^0.1
 WORKDIR /app
 
 FROM chef AS planner
+# rust-sql/ (engine submodule) is a path dependency of the patched
+# libsqlite3-sys → cargo chef must walk it to build the recipe.
+# .cargo/config.toml sets RUSTQLITE_LINK_MODE=rlib for every cargo run.
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo/ .cargo/
+COPY rust-sql/ ./rust-sql/
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 RUN cargo chef prepare --recipe-path recipe.json
@@ -88,11 +93,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Cook deps from recipe — cached unless recipe.json (i.e. Cargo.toml) changes.
+# cargo-chef's recipe skeletonizes WORKSPACE members only; the [patch.crates-io]
+# path dependencies (the rust-sql engine submodule) are NOT members, so they
+# must exist on disk before `cook` or cargo cannot resolve the patch.
+# .cargo/config.toml must be present too: RUSTQLITE_LINK_MODE=rlib applies to
+# every cargo invocation, cook included — without it the compat build script
+# defaults to dylib mode and emits flags the final link cannot satisfy (and
+# the fingerprint flip would rebuild everything after cook anyway).
+# Bonus: the engine + compat compile INSIDE the cached cook layer — app-code
+# edits don't recompile the engine.
 COPY --from=planner /app/recipe.json recipe.json
+COPY Cargo.toml Cargo.lock ./
+COPY .cargo/ .cargo/
+COPY rust-sql/ ./rust-sql/
 RUN cargo chef cook --release --no-default-features --features ${BACKEND_FEATURES} --recipe-path recipe.json
 
-# Copy source + build
-COPY Cargo.toml Cargo.lock ./
+# Workspace members + app source: the cook wrote their SKELETONS (manifest
+# verbatim, stubbed lib.rs) — copy the real code over them and build.
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 COPY src/ ./src/
@@ -108,10 +125,15 @@ FROM debian:bookworm-slim AS runtime
 # - ca-certificates: for HTTPS cert validation
 # - curl: for healthcheck
 # - tini: PID 1 init (proper signal handling)
-# NOTE: no libsqlite3-0 needed — the SQLite feature links the bundled
-# (static) sqlite from libsqlite3-sys, so nothing extra at runtime.
+# - sqlite3: CLI used ONLY by the boot-time legacy-database migration
+#   (src/db/sqlite_migrate.rs dumps old C-SQLite files via `sqlite3
+#   .dump` before the rustqlite engine replays them). Fresh deployments
+#   never invoke it; it is ~2 MB.
+# NOTE: no libsqlite3-0 needed — the sqlite backend links the pure-Rust
+# rustqlite engine compiled INTO the binary (rlib link mode), so there is
+# no C SQLite anywhere in the image.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates curl tini \
+    libssl3 ca-certificates curl tini sqlite3 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -u 1000 app
 

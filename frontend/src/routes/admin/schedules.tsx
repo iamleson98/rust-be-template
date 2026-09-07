@@ -28,7 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { AdminScheduleCardsSkeleton } from '@/components/layout/skeletons'
 import {
   Select,
   SelectContent,
@@ -69,6 +69,7 @@ import { formatVND } from '@/lib/types'
 import { DAY_LABELS } from '@/components/admin/types'
 import { VEHICLE_TYPE_LABELS as VEHICLE_LABELS } from '@/lib/types'
 import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
+import { Skeleton } from '@/components/ui/skeleton'
 
 const CITY_NAME_BY_ID = new Map<string, string>(VIETNAMESE_CITIES.map((c) => [c.id, c.name]))
 const cityLabel = (slug: string | null | undefined) =>

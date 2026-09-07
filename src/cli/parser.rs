@@ -58,6 +58,18 @@ pub enum Command {
     /// (`sqlite` or `postgres`), based on which cargo feature is enabled.
     DbBackend,
 
+    /// Migrate a legacy C-SQLite database file to the rustqlite engine.
+    ///
+    /// Runs automatically at startup (before the pool opens); this
+    /// command exists for ops/deploy scripts and verification. The
+    /// original file is kept as `<path>.sqlite.bak`.
+    MigrateDb {
+        /// Override the database URL (default: DATABASE_URL from the
+        /// environment / `.env`).
+        #[arg(long, env = "DATABASE_URL")]
+        url: Option<String>,
+    },
+
     /// Build the Tantivy place-search index from an OSM PBF file.
     /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
     ImportOsm {

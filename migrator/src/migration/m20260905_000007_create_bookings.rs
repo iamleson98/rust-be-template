@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                     .col(string_len_null(Booking::GuestName, 255))
                     .col(string_len_null(Booking::GuestPhone, 20))
                     .col(string_len_null(Booking::GuestEmail, 255))
-                    .col(text(Booking::TripSessionId))
+                    .col(uuid(Booking::TripSessionId))
                     .col(uuid_null(Booking::BoardingPointId))
                     .col(uuid_null(Booking::DroppingPointId))
                     .col(integer(Booking::AdultCount).default(1))

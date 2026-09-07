@@ -1,0 +1,3 @@
+[submodule "rust-sql"]
+	path = rust-sql
+	url = https://github.com/iamleson98/rust-sql.git

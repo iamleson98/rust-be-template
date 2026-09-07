@@ -1,0 +1,16 @@
+# Repo-wide cargo configuration.
+#
+# RUSTQLITE_LINK_MODE=rlib: the sqlite backend links the rustqlite
+# engine (submodule rust-sql) as a Rust rlib compiled INTO the binary —
+# sqlx/sea-orm's sqlite3_* calls resolve against the in-binary
+# rustqlite-compat symbols at link time. No libsqlite3.so, no rpath,
+# and no possibility of silently falling back to a system libsqlite3.
+# (The alternative `dylib` mode links a prebuilt libsqlite3.so — see
+# rust-sql/compat/libsqlite3-sys/build.rs.)
+#
+# [env] entries are applied to every cargo invocation in this repo
+# (build/test/run/clippy, IDE/rust-analyzer, CI, Docker) — including
+# build scripts, which is where this variable is read.
+
+[env]
+RUSTQLITE_LINK_MODE = "rlib"

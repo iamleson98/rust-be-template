@@ -14,6 +14,7 @@ export function AdminChatPage() {
     <div className="page-transition">
       <ChatPanel
         channels={ws.channels}
+        channelsLoading={ws.channelsLoading}
         activeChannel={ws.activeChannel}
         chatMessages={ws.chatMessages}
         replyText={ws.replyText}

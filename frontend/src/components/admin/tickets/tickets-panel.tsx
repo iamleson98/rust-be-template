@@ -50,7 +50,7 @@ import {
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Skeleton } from '@/components/ui/skeleton'
+import { TicketDetailSkeleton } from '@/components/layout/skeletons'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -842,11 +842,7 @@ function BookingDetailDialog({
         </DialogHeader>
 
         {isLoading ? (
-          <div className="p-4 space-y-2">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-          </div>
+          <TicketDetailSkeleton />
         ) : isError ? (
           <div className="p-4 text-center">
             <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />

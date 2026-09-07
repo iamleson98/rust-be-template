@@ -28,6 +28,7 @@ import {
   Filter,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
+import { AdminStatsCardsSkeleton, ChatChannelListSkeleton } from '@/components/layout/skeletons'
 import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/components/admin/dashboard/types'
 import { PriorityBadge, StatusBadge, BookingStatusBadge } from '@/components/admin/dashboard/badges'
 import {
@@ -102,6 +103,7 @@ export function ChatPanel({
   assignmentBusy,
   allChannelsCount,
   canRelease,
+  channelsLoading,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -174,6 +176,9 @@ export function ChatPanel({
    * employees so the UI never offers an action that would fail.
    */
   canRelease?: boolean
+  /** While the channels query loads: the queue + the stat cards show
+   * structure-matched skeletons instead of empty/zero values. */
+  channelsLoading?: boolean
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -306,6 +311,10 @@ export function ChatPanel({
 
   return (
     <div className="space-y-4 p-3">
+      {/* Stat cards — skeleton while the channels load (never zero values) */}
+      {channelsLoading ? (
+        <AdminStatsCardsSkeleton count={3} />
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -337,6 +346,7 @@ export function ChatPanel({
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Chat queue + workspace split view.
           Both panes share the same fixed height so they align — the
@@ -416,7 +426,9 @@ export function ChatPanel({
           <CardContent className="p-0 flex-1 min-h-0">
             <ScrollArea className={PANES_HEIGHT}>
               <div className="divide-y">
-                {channels.length === 0 ? (
+                {channelsLoading ? (
+                  <ChatChannelListSkeleton count={6} />
+                ) : channels.length === 0 ? (
                   <div className="p-8 text-center text-sm text-muted-foreground">Chưa có cuộc trò chuyện</div>
                 ) : (
                   channels.map((c) => {
@@ -662,7 +674,7 @@ export function ChatPanel({
                         className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
-                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word shadow-sm ${isEmployee
+                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
                             ? 'bg-blue-600 text-white rounded-br-sm'
                             : m.senderType === 'system'
                               ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'

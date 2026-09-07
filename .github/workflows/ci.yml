@@ -18,7 +18,7 @@ name: CI
 
 on:
   push:
-    branches: [master, server, main]
+    branches: [master, server, main, migrate-database]
   pull_request:
     branches: [master, server, main]
 
@@ -33,6 +33,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The sqlite engine (rust-sql) is a git submodule — required for
+          # the [patch.crates-io] libsqlite3-sys → rustqlite-compat path.
+          submodules: recursive
 
       - name: Install Rust toolchain (stable + clippy + rustfmt)
         uses: dtolnay/rust-toolchain@stable
@@ -90,6 +94,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Submodule needed: the audit must resolve the patched
+          # libsqlite3-sys path dependency.
+          submodules: recursive
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -176,6 +184,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The engine submodule is part of the build context.
+          submodules: recursive
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

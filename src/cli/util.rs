@@ -5,7 +5,15 @@ use anyhow::Context;
 
 /// Construct a DB connection (without applying migrations) for use in
 /// CLI commands that need to talk to the DB.
+///
+/// On the sqlite backend this first transparently migrates a legacy
+/// C-SQLite database file to the rustqlite engine (no-op unless the
+/// file carries the old format).
 pub async fn db_connect(cfg: &Config) -> anyhow::Result<sea_orm::DatabaseConnection> {
+    #[cfg(feature = "sqlite")]
+    {
+        crate::db::sqlite_migrate::maybe_migrate_sqlite_database(&cfg.database.url).await?;
+    }
     let mut opts = sea_orm::ConnectOptions::new(&cfg.database.url);
     opts.max_connections(cfg.database.max_connections)
         .min_connections(cfg.database.min_connections)

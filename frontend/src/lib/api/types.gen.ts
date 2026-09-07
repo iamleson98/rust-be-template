@@ -1123,6 +1123,36 @@ export type DirectionsResponse = {
     valhalla: unknown;
 };
 
+/**
+ * One mounted volume's capacity snapshot.
+ */
+export type DiskInfo = {
+    /**
+     * Free space available to unprivileged users, in bytes.
+     */
+    availableBytes: number;
+    /**
+     * Filesystem type, e.g. `ext4`, `xfs`.
+     */
+    fsType: string;
+    /**
+     * Removable media (USB, …) — surfaced as a badge in the UI.
+     */
+    isRemovable: boolean;
+    /**
+     * Mount point, e.g. `/`, `/home`.
+     */
+    mountPoint: string;
+    /**
+     * Total capacity in bytes.
+     */
+    totalBytes: number;
+    /**
+     * `used / total * 100`, 0–100.
+     */
+    usagePercent: number;
+};
+
 export type HealthResponse = {
     status: string;
     version: string;
@@ -1824,6 +1854,77 @@ export type StatsResponse = {
     brands: number;
     routes: number;
     trips: number;
+};
+
+/**
+ * Live host-level metrics for the admin server-monitoring page.
+ */
+export type SystemMetrics = {
+    /**
+     * Overall CPU utilization across all cores, 0–100.
+     */
+    cpuUsagePercent: number;
+    /**
+     * Every mounted volume with a non-zero capacity.
+     */
+    disks: Array<DiskInfo>;
+    /**
+     * Host machine name.
+     */
+    hostname: string;
+    /**
+     * Kernel / OS version string.
+     */
+    kernelVersion: string;
+    /**
+     * Logical CPU cores (what `nproc` reports).
+     */
+    logicalCores: number;
+    /**
+     * RAM immediately available to processes.
+     */
+    memoryAvailableBytes: number;
+    /**
+     * Total installed RAM in bytes.
+     */
+    memoryTotalBytes: number;
+    /**
+     * `used / total * 100`, 0–100.
+     */
+    memoryUsagePercent: number;
+    /**
+     * RAM in use (includes cached/buffers as reported by the OS).
+     */
+    memoryUsedBytes: number;
+    /**
+     * OS display name, e.g. "Ubuntu 24.04" / "macOS 15.2".
+     */
+    osName: string;
+    /**
+     * Per-core utilization in core order, each 0–100.
+     */
+    perCoreUsagePercent: Array<number>;
+    /**
+     * Physical CPU cores (fewer than logical when hyper-threading).
+     */
+    physicalCores: number;
+    /**
+     * CPU used by THIS process, 0–100 where 100 = one full core
+     * (values > 100 mean multiple cores are in use).
+     */
+    processCpuUsagePercent: number;
+    /**
+     * Resident set size of THIS server process in bytes.
+     */
+    processMemoryBytes: number;
+    /**
+     * RFC-3339 collection timestamp.
+     */
+    timestamp: string;
+    /**
+     * Host uptime in seconds.
+     */
+    uptimeSecs: number;
 };
 
 export type SystemStatusResponse = {
@@ -3692,6 +3793,33 @@ export type SystemStatusResponses = {
 };
 
 export type SystemStatusResponse2 = SystemStatusResponses[keyof SystemStatusResponses];
+
+export type SystemMetricsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/system/metrics';
+};
+
+export type SystemMetricsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type SystemMetricsResponses = {
+    /**
+     * Live server metrics
+     */
+    200: SystemMetrics;
+};
+
+export type SystemMetricsResponse = SystemMetricsResponses[keyof SystemMetricsResponses];
 
 export type List10Data = {
     body?: never;

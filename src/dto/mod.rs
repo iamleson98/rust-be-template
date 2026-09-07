@@ -34,6 +34,7 @@ pub mod place;
 pub mod public;
 pub mod review;
 pub mod routing;
+pub mod system;
 pub mod wishlist;
 
 use serde::{Deserialize, Serialize};

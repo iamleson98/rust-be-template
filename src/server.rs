@@ -48,6 +48,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
+    // Legacy C-SQLite files (from before the rustqlite engine switch)
+    // are migrated transparently before the pool opens. No-op otherwise.
+    #[cfg(feature = "sqlite")]
+    {
+        crate::db::sqlite_migrate::maybe_migrate_sqlite_database(&config.database.url).await?;
+    }
     let mut opts = ConnectOptions::new(&config.database.url);
     opts.max_connections(config.database.max_connections)
         .min_connections(config.database.min_connections)
