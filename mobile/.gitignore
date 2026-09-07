@@ -1,0 +1,23 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+coverage/
+lcov.info
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Platform scaffolding is generated once via `flutter create` (see README.md),
+# then COMMITTED (it carries the mic/camera permissions and notification setup).
+*.g.dart
+
+# Secrets / local config
+*.env
+lib/firebase_options.dart
