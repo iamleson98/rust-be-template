@@ -73,8 +73,8 @@ endif
 #
 # NOTE: This overwrites mod.rs — if you have extra entity files not yet in the DB,
 #       re-add their `pub mod` lines to mod.rs after running this.
-generate-entities: install-sea-orm-cli
-	$(SEA_ORM_CLI) generate entity --database-url sqlite:app.db?mode=rwc -o src/entity --with-serde both --with-prelude none
+generate-entities:
+	cargo run -p migrator -- entity-generate --output src/entity --database-url sqlite:app.db?mode=rwc
 
 .PHONY: migrate-generate migrate-up migrate-down migrate-status migrate-reset generate-entities install-sea-orm-cli
 
