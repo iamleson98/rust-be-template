@@ -42,6 +42,14 @@ dependencies:
   # Local notifications (new-message / new-request / incoming-call alerts).
   flutter_local_notifications: ^22.0.0
 
+  # In-app messenger sounds — notification cues + looping call ringtone.
+  # Real tunes, Apache-2.0: Google AOSP sound set + Jitsi Meet (see
+  # assets/sounds/ATTRIBUTION.md).
+  audioplayers: ^6.4.0
+
+  # Haptics for incoming calls/messages (messenger-style).
+  vibration: ^3.1.3
+
   # Utilities.
   intl: ^0.20.0
   uuid: ^4.5.0
@@ -53,3 +61,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/

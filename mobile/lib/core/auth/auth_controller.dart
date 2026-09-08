@@ -45,12 +45,24 @@ class AuthController extends Notifier<AuthState> {
 
   /// Restores a persisted session on cold start: load tokens, validate
   /// with `/auth/me` (the API layer auto-refreshes on 401), then publish.
+  /// `restored` flips to true either way so the router can leave the
+  /// splash screen for /chat (auto-login) or /login (no session) WITHOUT
+  /// flashing the login form during the token check.
   Future<void> _restore() async {
     final ticket = ++_restoreToken;
     final tokens = ref.read(tokenStoreProvider);
     final (user, access, refresh) = await tokens.load();
-    if (ticket != _restoreToken || user == null || access == null) return;
-    state = AuthState(user: user, accessToken: access, refreshToken: refresh);
+    if (ticket != _restoreToken) return;
+    if (user == null || access == null) {
+      state = AuthState.signedOut;
+      return;
+    }
+    state = AuthState(
+      user: user,
+      accessToken: access,
+      refreshToken: refresh,
+      restored: true,
+    );
 
     // Validate in the background; a 401 here means the refresh already
     // failed inside the interceptor → log out.
@@ -62,6 +74,7 @@ class AuthController extends Notifier<AuthState> {
         user: fresh,
         accessToken: access,
         refreshToken: refresh,
+        restored: true,
       );
     } on ApiException catch (e) {
       if (ticket != _restoreToken) return;
@@ -86,6 +99,7 @@ class AuthController extends Notifier<AuthState> {
         user: user,
         accessToken: tokens.cachedAccess,
         refreshToken: tokens.cachedRefresh,
+        restored: true,
       );
       return null;
     } on ApiException catch (e) {
@@ -115,7 +129,7 @@ class AuthController extends Notifier<AuthState> {
 
   void _reset() {
     _restoreToken++;
-    state = AuthState.empty;
+    state = AuthState.signedOut;
   }
 }
 

@@ -4,9 +4,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
+import '../../core/audio/sound_service.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/env.dart';
 import '../../core/router.dart';
+import '../../core/settings.dart';
 import '../../core/theme_mode.dart';
 import '../../shared/widgets.dart';
 
@@ -103,6 +105,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final cfg = ref.watch(appConfigProvider);
     final mode = ref.watch(themeModeProvider);
     final alerts = ref.watch(alertsEnabledProvider);
+    final sound = ref.watch(soundEnabledProvider);
+    final vibrate = ref.watch(vibrateEnabledProvider);
 
     final modeLabel = switch (mode) {
       ThemeMode.light => 'Sáng',
@@ -174,16 +178,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             details: modeLabel,
             onTap: _pickTheme,
           ),
+          // ── Alerts ────────────────────────────────────────────────
           FCard(
-            child: FSwitch(
-              value: alerts,
-              onChange: (v) =>
-                  ref.read(alertsEnabledProvider.notifier).set(v),
-              label: const Text('Thông báo & âm thanh'),
-              description: const Text(
-                'Báo động khi có khách nhắn tin hoặc gọi tới',
-              ),
+            child: Column(
+              children: [
+                FSwitch(
+                  value: alerts,
+                  onChange: (v) =>
+                      ref.read(alertsEnabledProvider.notifier).set(v),
+                  label: const Text('Thông báo'),
+                  description: const Text(
+                    'Hiện thông báo khi có tin nhắn hoặc cuộc gọi mới',
+                  ),
+                ),
+                const FDivider(),
+                FSwitch(
+                  value: sound && alerts,
+                  onChange: (v) =>
+                      ref.read(soundEnabledProvider.notifier).set(v),
+                  label: const Text('Âm thanh'),
+                  description: const Text(
+                    'Phát nhạc chuông và âm báo thật (Google AOSP + Jitsi)',
+                  ),
+                ),
+                const FDivider(),
+                FSwitch(
+                  value: vibrate && alerts,
+                  onChange: (v) =>
+                      ref.read(vibrateEnabledProvider.notifier).set(v),
+                  label: const Text('Rung'),
+                  description: const Text(
+                    'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
+                  ),
+                ),
+              ],
             ),
+          ),
+          const SizedBox(height: 8),
+          FButton(
+            variant: FButtonVariant.outline,
+            prefix: const Icon(FLucideIcons.volume2),
+            onPress: () => unawaited(
+              ref.read(soundServiceProvider).preview(),
+            ),
+            child: const Text('Nghe thử âm báo'),
           ),
           const SizedBox(height: 24),
 

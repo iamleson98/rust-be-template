@@ -63,7 +63,15 @@ RUN bun run build
 # ════════════════════════════════════════════════════════════════════
 # Stage 2: cargo-chef planner
 # ════════════════════════════════════════════════════════════════════
-FROM rust:1.97-slim AS chef
+# ⚠️ PINNED to the explicit bookworm variant — NOT the floating
+# `rust:1.97-slim`. The plain -slim tag silently re-published on a
+# Debian trixie base (glibc 2.41) between the v0.2.2 and v0.2.3 builds,
+# producing a binary that requires GLIBC_2.39+ while the runtime stage
+# below is debian:bookworm-slim (glibc 2.36) → the container crashed on
+# boot with `libc.so.6: version 'GLIBC_2.39' not found` and Swarm rolled
+# the deploy back. Builder and runtime MUST stay on the same Debian
+# release; when upgrading the runtime to trixie, change BOTH lines.
+FROM rust:1.97-slim-bookworm AS chef
 RUN cargo install cargo-chef --locked --version ^0.1
 WORKDIR /app
 

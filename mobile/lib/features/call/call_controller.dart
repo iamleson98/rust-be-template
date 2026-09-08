@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../core/audio/sound_service.dart';
 import '../chat/conversations_controller.dart';
 import 'call_engine.dart';
 import 'call_signaling.dart';
@@ -91,6 +92,8 @@ class CallController extends Notifier<CallUiState> {
       peerName: customerName,
       channelId: channelId,
     );
+    // Ringback tone while the customer's device is alerting.
+    unawaited(ref.read(soundServiceProvider).startRingback());
     _callTimer = Timer(_callTimeout, () {
       if (state.status == CallStatus.calling) {
         state = state.copyWith(error: 'Không ai nhấc máy — thử lại sau');
@@ -105,6 +108,8 @@ class CallController extends Notifier<CallUiState> {
       return;
     }
     _ringTimer?.cancel();
+    // Picking up silences the ring + vibration immediately.
+    unawaited(ref.read(soundServiceProvider).stopRinging());
     final sig = ref.read(callSignalingProvider);
     if (sig == null) return;
 
@@ -197,6 +202,9 @@ class CallController extends Notifier<CallUiState> {
       channelId: channelId,
       remoteOffer: Map<String, dynamic>.from(sdp),
     );
+    // Ring + vibrate (AgentAlerts also shows a notification when the
+    // app is backgrounded).
+    unawaited(ref.read(soundServiceProvider).startIncomingRing());
     _ringTimer = Timer(_ringTimeout, () {
       if (state.status == CallStatus.incoming) {
         _hangup('busy', flashEnded: false);
@@ -209,6 +217,7 @@ class CallController extends Notifier<CallUiState> {
     final sdp = msg['sdp'];
     if (sdp is! Map) return;
     _callTimer?.cancel();
+    unawaited(ref.read(soundServiceProvider).stopRinging());
     final from = msg['from'] as String?;
     // The caller learns the agent's real id here.
     state = state.copyWith(
@@ -217,6 +226,7 @@ class CallController extends Notifier<CallUiState> {
       startedAt: DateTime.now(),
       clearError: true,
     );
+    unawaited(ref.read(soundServiceProvider).playCallJoined());
     _engine?.setRemoteAnswer(Map<String, dynamic>.from(sdp)).catchError((_) {});
   }
 
@@ -315,6 +325,8 @@ class CallController extends Notifier<CallUiState> {
     _callTimer?.cancel();
     _ringTimer?.cancel();
     _iceRecoveryTimer?.cancel();
+    // Kill the ring/ringback + haptics before anything else.
+    unawaited(ref.read(soundServiceProvider).stopAll());
     _teardownEngine();
     if (!flashEnded) {
       state = const CallUiState();
@@ -326,6 +338,7 @@ class CallController extends Notifier<CallUiState> {
       error: error,
       clearOffer: true,
     );
+    unawaited(ref.read(soundServiceProvider).playCallEnded());
     _endedTimer = Timer(const Duration(milliseconds: 2500), () {
       if (state.status == CallStatus.ended) {
         state = const CallUiState();

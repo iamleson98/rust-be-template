@@ -64,13 +64,41 @@ class SessionUser {
 /// Full auth session state held in memory by [AuthController].
 @immutable
 class AuthState {
-  const AuthState({this.user, this.accessToken, this.refreshToken});
+  const AuthState({
+    this.user,
+    this.accessToken,
+    this.refreshToken,
+    this.restored = false,
+  });
 
+  /// A session-less placeholder — BEFORE the cold-start session restore
+  /// has finished. Router keeps the splash screen up while this is false
+  /// so a persisted session (auto-login) never flashes the login form.
   static const empty = AuthState();
+
+  /// A session-less state AFTER the restore finished — genuinely logged
+  /// out (or never logged in); the router may show the login screen.
+  static const signedOut = AuthState(restored: true);
 
   final SessionUser? user;
   final String? accessToken;
   final String? refreshToken;
 
+  /// Cold-start session restore finished (tokens loaded + validated).
+  final bool restored;
+
   bool get isLoggedIn => user != null && accessToken != null;
+
+  AuthState copyWith({
+    SessionUser? user,
+    String? accessToken,
+    String? refreshToken,
+    bool? restored,
+  }) =>
+      AuthState(
+        user: user ?? this.user,
+        accessToken: accessToken ?? this.accessToken,
+        refreshToken: refreshToken ?? this.refreshToken,
+        restored: restored ?? this.restored,
+      );
 }

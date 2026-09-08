@@ -65,7 +65,11 @@ impl AuthResponse {
     /// Attach the raw token pair when the request opted in via the
     /// `X-Client: mobile` header. Callers that don't have a session's
     /// raw tokens (e.g. `GET /me`) simply leave `tokens` as `None`.
-    fn with_mobile_tokens(mut self, headers: &HeaderMap, session: &crate::service::auth_service::AuthSession) -> Self {
+    fn with_mobile_tokens(
+        mut self,
+        headers: &HeaderMap,
+        session: &crate::service::auth_service::AuthSession,
+    ) -> Self {
         let is_mobile = headers
             .get("x-client")
             .and_then(|v| v.to_str().ok())

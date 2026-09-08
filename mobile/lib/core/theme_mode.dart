@@ -32,29 +32,3 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
 
 final themeModeProvider =
     NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
-
-/// Whether agent alerts (sounds + local notifications) are enabled.
-class AlertsEnabledNotifier extends Notifier<bool> {
-  static const _kKey = 'vexevn.alerts_enabled';
-
-  @override
-  bool build() {
-    _load();
-    return true;
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final enabled = prefs.getBool(_kKey);
-    if (enabled != null && enabled != state) state = enabled;
-  }
-
-  Future<void> set(bool enabled) async {
-    state = enabled;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kKey, enabled);
-  }
-}
-
-final alertsEnabledProvider =
-    NotifierProvider<AlertsEnabledNotifier, bool>(AlertsEnabledNotifier.new);

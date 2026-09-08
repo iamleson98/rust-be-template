@@ -9,8 +9,9 @@
 #   1. backend        — cargo fmt --check + cargo check + clippy -D warnings + cargo test
 #   2. backend-audit   — cargo audit for known-vulnerable dependencies
 #   3. frontend        — bun install + tsc --noEmit + vitest run + bun run build
-#   4. secrets-scan    — gitleaks: blocks commits containing real secrets
-#   5. docker-build    — verifies the Dockerfile still builds
+#   4. mobile          — flutter analyze (zero issues) + flutter test + debug APK build
+#   5. secrets-scan    — gitleaks: blocks commits containing real secrets
+#   6. docker-build    — verifies the Dockerfile still builds
 #
 # Releases/deployments are tag-driven — see deploy.yml (push tag `v*`).
 
@@ -139,6 +140,58 @@ jobs:
 
       - name: Build
         run: bun run build
+
+  mobile:
+    name: Mobile (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Java (Temurin 21)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Flutter
+        uses: subosw/flutter-action@v2
+        with:
+          flutter-version: 3.47.2
+          channel: stable
+          # Caches ~/.pub-cache keyed on pubspec.lock.
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The gate the mobile workflow actually blocks on: zero analyzer
+      # issues (infos included — lints keep the codebase honest).
+      - name: Analyze (zero issues)
+        run: flutter analyze --fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      # Full Gradle/AGP/Kotlin build — catches Android-side regressions
+      # (plugin Gradle integration, manifest, res/raw resources) that
+      # analyze/test cannot see.
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          # NOTE: cache `path` is relative to the repo root, NOT the job's
+          # `defaults.run.working-directory`.
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            mobile/android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Build debug APK (smoke)
+        run: flutter build apk --debug
 
   secrets-scan:
     name: Secrets scan (gitleaks)
