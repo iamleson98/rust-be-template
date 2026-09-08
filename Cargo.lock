@@ -2944,7 +2944,11 @@ dependencies = [
  "dotenvy",
  "rustqlite-compat",
  "sea-orm",
+ "sea-orm-codegen",
  "sea-orm-migration",
+ "sea-query",
+ "sea-schema",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -4362,6 +4366,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "sea-orm-codegen"
+version = "1.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98d0b75337ba7cdedc25dad0cc690a1f71359b15a29c3660e4f716657557ed33"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
+ "sea-query",
+ "syn 2.0.119",
+ "tracing",
 ]
 
 [[package]]

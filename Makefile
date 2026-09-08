@@ -30,7 +30,7 @@ migrate-generate: install-sea-orm-cli
 migrate-up: install-sea-orm-cli
 	$(SEA_ORM_CLI) migrate up -d migrator --database-url sqlite:app.db?mode=rwc
 
-# Rollback the last migration
+# Rollback the last migration (or N with: sea-orm-cli migrate down -n N)
 migrate-down: install-sea-orm-cli
 	$(SEA_ORM_CLI) migrate down -d migrator --database-url sqlite:app.db?mode=rwc
 
@@ -63,6 +63,14 @@ install-sea-orm-cli:
 endif
 
 # Generate entities from the database into src/entity
+#
+# Runs IN-PROCESS through the rust-sql engine (sea-schema discovery +
+# sea-orm-codegen compiled inside the migrator crate, where the
+# workspace [patch] routes sqlite3_* FFI to rustqlite). The standalone
+# `sea-orm-cli generate entity` binary links REAL SQLite and cannot
+# read rust-sql database files ("file is not a database"), so it must
+# NOT be used here.
+#
 # NOTE: This overwrites mod.rs — if you have extra entity files not yet in the DB,
 #       re-add their `pub mod` lines to mod.rs after running this.
 generate-entities: install-sea-orm-cli
