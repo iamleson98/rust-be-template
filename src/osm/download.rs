@@ -102,10 +102,6 @@ pub async fn download_file(
     // Flush the BufWriter before sync + rename.
     file.flush().await.context("flushing download buffer")?;
     drop(file);
-    // fsync so the rename below can't publish unflushed data.
-    let sync_file = tokio::fs::File::open(&part).await?;
-    sync_file.sync_all().await.context("fsyncing download")?;
-    drop(sync_file);
 
     if let Some(min) = expected {
         // Server told us the size and we wrote less — truncated body.
@@ -119,6 +115,11 @@ pub async fn download_file(
         "download too small to be an OSM extract ({written} bytes < {} MiB floor) — {url}",
         MIN_PBF_BYTES / (1024 * 1024)
     );
+
+    // fsync so the rename below can't publish unflushed data.
+    let sync_file = tokio::fs::File::open(&part).await?;
+    sync_file.sync_all().await.context("fsyncing download")?;
+    drop(sync_file);
 
     tokio::fs::rename(&part, dest)
         .await

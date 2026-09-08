@@ -149,7 +149,56 @@ impl JobStore for DbJobStore {
         &self,
         model: scheduled_job::ActiveModel,
     ) -> StoreResult<scheduled_job::Model> {
-        Ok(model.update(self.db.as_ref()).await?)
+        let id = match &model.id {
+            sea_orm::ActiveValue::Set(id) | sea_orm::ActiveValue::Unchanged(id) => *id,
+            sea_orm::ActiveValue::NotSet => {
+                return Err(super::error::StoreError::Validation(
+                    "scheduled job update requires an id".to_string(),
+                ));
+            }
+        };
+        let enabled = match model.enabled {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        let interval_days = match model.interval_days {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        let at_hour = match model.at_hour {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        let at_minute = match model.at_minute {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        let next_run_at = match model.next_run_at {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        let updated_at = match model.updated_at {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("scheduled job update requires all fields".to_string())),
+        };
+        scheduled_job::Entity::update_many()
+            .col_expr(scheduled_job::Column::Enabled, sea_orm::sea_query::Expr::value(enabled))
+            .col_expr(scheduled_job::Column::IntervalDays, sea_orm::sea_query::Expr::value(interval_days))
+            .col_expr(scheduled_job::Column::AtHour, sea_orm::sea_query::Expr::value(at_hour))
+            .col_expr(scheduled_job::Column::AtMinute, sea_orm::sea_query::Expr::value(at_minute))
+            .col_expr(scheduled_job::Column::NextRunAt, sea_orm::sea_query::Expr::value(next_run_at))
+            .col_expr(scheduled_job::Column::UpdatedAt, sea_orm::sea_query::Expr::value(updated_at))
+            .filter(scheduled_job::Column::Id.eq(id))
+            .exec(self.db.as_ref())
+            .await?;
+        scheduled_job::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| {
+                super::error::StoreError::Validation(
+                    "scheduled job disappeared during update".to_string(),
+                )
+            })
     }
 
     // ── job_run ────────────────────────────────────────────────────
@@ -159,7 +208,51 @@ impl JobStore for DbJobStore {
     }
 
     async fn update_run(&self, model: job_run::ActiveModel) -> StoreResult<job_run::Model> {
-        Ok(model.update(self.db.as_ref()).await?)
+        let id = match &model.id {
+            sea_orm::ActiveValue::Set(id) | sea_orm::ActiveValue::Unchanged(id) => *id,
+            sea_orm::ActiveValue::NotSet => {
+                return Err(super::error::StoreError::Validation(
+                    "job run update requires an id".to_string(),
+                ));
+            }
+        };
+        let status = match model.status {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("job run update requires all fields".to_string())),
+        };
+        let detail = match model.detail {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("job run update requires all fields".to_string())),
+        };
+        let error = match model.error {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("job run update requires all fields".to_string())),
+        };
+        let started_at = match model.started_at {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("job run update requires all fields".to_string())),
+        };
+        let finished_at = match model.finished_at {
+            sea_orm::ActiveValue::Set(value) | sea_orm::ActiveValue::Unchanged(value) => value,
+            sea_orm::ActiveValue::NotSet => return Err(super::error::StoreError::Validation("job run update requires all fields".to_string())),
+        };
+        job_run::Entity::update_many()
+            .col_expr(job_run::Column::Status, sea_orm::sea_query::Expr::value(status))
+            .col_expr(job_run::Column::Detail, sea_orm::sea_query::Expr::value(detail))
+            .col_expr(job_run::Column::Error, sea_orm::sea_query::Expr::value(error))
+            .col_expr(job_run::Column::StartedAt, sea_orm::sea_query::Expr::value(started_at))
+            .col_expr(job_run::Column::FinishedAt, sea_orm::sea_query::Expr::value(finished_at))
+            .filter(job_run::Column::Id.eq(id))
+            .exec(self.db.as_ref())
+            .await?;
+        job_run::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| {
+                super::error::StoreError::Validation(
+                    "job run disappeared during update".to_string(),
+                )
+            })
     }
 
     async fn set_run_detail(&self, id: Uuid, detail: &str) -> StoreResult<()> {
