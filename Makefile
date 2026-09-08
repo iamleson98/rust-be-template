@@ -32,11 +32,11 @@ migrate-up: install-sea-orm-cli
 
 # Rollback the last migration
 migrate-down: install-sea-orm-cli
-	$(SEA_ORM_CLI) migrate down -d migrator
+	$(SEA_ORM_CLI) migrate down -d migrator --database-url sqlite:app.db?mode=rwc
 
 # Check migration status
 migrate-status: install-sea-orm-cli
-	$(SEA_ORM_CLI) migrate status -d migrator
+	$(SEA_ORM_CLI) migrate status -d migrator --database-url sqlite:app.db
 
 # Reset database (drop all, then re-apply from scratch).
 # Direct migrator invocation: sea-orm-cli's `migrate fresh` forwards no
@@ -66,7 +66,7 @@ endif
 # NOTE: This overwrites mod.rs — if you have extra entity files not yet in the DB,
 #       re-add their `pub mod` lines to mod.rs after running this.
 generate-entities: install-sea-orm-cli
-	$(SEA_ORM_CLI) generate entity --database-url sqlite:app.db -o src/entity --with-serde both --with-prelude none
+	$(SEA_ORM_CLI) generate entity --database-url sqlite:app.db?mode=rwc -o src/entity --with-serde both --with-prelude none
 
 .PHONY: migrate-generate migrate-up migrate-down migrate-status migrate-reset generate-entities install-sea-orm-cli
 
