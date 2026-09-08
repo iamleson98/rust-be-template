@@ -188,9 +188,17 @@ class ApiClient {
       ));
 
   /// `GET /api/chat/channels/{id}/messages` — newest-first; reverse for
-  /// chronological display.
-  Future<List<Map<String, dynamic>>> listMessages(String channelId) async =>
-      _items(await dio.get('/api/chat/channels/$channelId/messages'));
+  /// chronological display. Paginated (`limit`/`offset`) so the room can
+  /// lazily load older pages while the user scrolls up.
+  Future<List<Map<String, dynamic>>> listMessages(
+    String channelId, {
+    int limit = 30,
+    int offset = 0,
+  }) async =>
+      _items(await dio.get(
+        '/api/chat/channels/$channelId/messages',
+        queryParameters: {'limit': limit, 'offset': offset},
+      ));
 
   /// `POST /api/chat/channels/{id}/messages` — REST send (WS is receive-only
   /// for the agent console; the response is authoritative).

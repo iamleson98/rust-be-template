@@ -2,6 +2,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:forui/forui.dart';
 import 'package:intl/intl.dart';
 
+import '../core/design.dart';
+
 /// Parses the backend's ISO-8601 UTC timestamps (second precision),
 /// returning null for unparseable input instead of throwing.
 DateTime? parseIso(String? iso) {
@@ -28,6 +30,34 @@ String formatBubbleTime(String? iso) {
   return DateFormat('HH:mm').format(dt);
 }
 
+/// Vietnamese day-divider label: `Hôm nay`, `Hôm qua`,
+/// `Thứ N, dd tháng M` this year, `dd tháng M yyyy` otherwise.
+String formatDayLabel(DateTime day) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+  final d = DateTime(day.year, day.month, day.day);
+  if (d == today) return 'Hôm nay';
+  if (d == yesterday) return 'Hôm qua';
+  const weekdays = [
+    'Chủ nhật',
+    'Thứ hai',
+    'Thứ ba',
+    'Thứ tư',
+    'Thứ năm',
+    'Thứ sáu',
+    'Thứ bảy',
+  ];
+  final label = DateFormat("d 'tháng' M").format(d);
+  if (d.year == now.year) {
+    final diff = today.difference(d).inDays;
+    // Recent week: name the weekday for quick orientation.
+    if (diff < 7) return '${weekdays[d.weekday % 7]}, $label';
+    return label;
+  }
+  return DateFormat("d 'tháng' M yyyy").format(d);
+}
+
 /// Vietnamese relative time: `vừa xong`, `n phút trước`, `Hôm qua`,
 /// falling back to a compact date.
 String formatRelative(String? iso) {
@@ -48,14 +78,23 @@ String formatCallDuration(Duration d) {
   return '$m:$s';
 }
 
-/// Circular avatar with initials fallback (name's first letters over
-/// the theme's muted color).
+/// Circular avatar: network image when available, otherwise initials on
+/// a deterministic purple-family gradient (stable per name).
 class AgentAvatar extends StatelessWidget {
-  const AgentAvatar({required this.name, this.imageUrl, this.size = 40, super.key});
+  const AgentAvatar({
+    required this.name,
+    this.imageUrl,
+    this.size = 40,
+    this.foregroundColor = Colors.white,
+    super.key,
+  });
 
   final String name;
   final String? imageUrl;
   final double size;
+
+  /// Initials/text color on the gradient fallback.
+  final Color? foregroundColor;
 
   String get _initials {
     final parts =
@@ -68,7 +107,6 @@ class AgentAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return CircleAvatar(
         radius: size / 2,
@@ -76,23 +114,34 @@ class AgentAvatar extends StatelessWidget {
         onBackgroundImageError: (_, __) {},
       );
     }
-    return CircleAvatar(
-      radius: size / 2,
-      backgroundColor: theme.colors.muted,
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: AppBrand.avatarColors(name),
+        ),
+      ),
+      alignment: Alignment.center,
       child: Text(
         _initials,
-        style: theme.typography.body.md.copyWith(
-          color: theme.colors.mutedForeground,
-          fontWeight: FontWeight.w600,
+        style: TextStyle(
+          color: foregroundColor,
+          fontSize: size * 0.34,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
         ),
       ),
     );
   }
 }
 
-/// Green/red presence dot.
+/// Green/gray presence dot with a background ring (for avatar stacks).
 class PresenceDot extends StatelessWidget {
-  const PresenceDot({required this.online, this.size = 9, super.key});
+  const PresenceDot({required this.online, this.size = 10, super.key});
 
   final bool online;
   final double size;
@@ -105,16 +154,29 @@ class PresenceDot extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: online ? const Color(0xFF22C55E) : theme.colors.muted,
-        border: Border.all(color: theme.colors.background, width: 1.5),
+        color: online ? AppBrand.success : theme.colors.mutedForeground,
+        border: Border.all(
+          color: theme.colors.background,
+          width: size * 0.18,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: online
+                ? AppBrand.success.withValues(alpha: 0.45)
+                : Colors.transparent,
+            blurRadius: size * 0.6,
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Animated "typing…" indicator (three pulsing dots).
+/// Animated "typing…" indicator (three wave-pulsing dots in brand color).
 class TypingIndicator extends StatefulWidget {
-  const TypingIndicator({super.key});
+  const TypingIndicator({this.color, super.key});
+
+  final Color? color;
 
   @override
   State<TypingIndicator> createState() => _TypingIndicatorState();
@@ -135,7 +197,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
+    final color = widget.color ?? context.theme.colors.primary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(3, (i) {
@@ -153,7 +215,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
               height: 7 * scale,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: theme.colors.mutedForeground,
+                color: color.withValues(alpha: 0.45 + 0.55 * wave),
               ),
             );
           },
@@ -163,7 +225,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
   }
 }
 
-/// Friendly empty/error placeholder for lists.
+/// Friendly empty/error placeholder for lists — brand-tinted glyph.
 class EmptyState extends StatelessWidget {
   const EmptyState({
     required this.icon,
@@ -187,22 +249,44 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 44, color: theme.colors.mutedForeground),
-            const SizedBox(height: 12),
-            Text(title, style: theme.typography.display.lg.copyWith(
-              fontWeight: FontWeight.w600,
-              color: theme.colors.foreground,
-            )),
-            const SizedBox(height: 6),
+            Container(
+              width: 84,
+              height: 84,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colors.primary.withValues(alpha: 0.10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                icon,
+                size: 38,
+                color: theme.colors.primary,
+              ),
+            ),
+            const SizedBox(height: 16),
             Text(
-              message,
+              title,
               textAlign: TextAlign.center,
-              style: theme.typography.body.sm.copyWith(
-                color: theme.colors.mutedForeground,
+              style: theme.typography.display.lg.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colors.foreground,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: theme.typography.body.sm.copyWith(
+                  color: theme.colors.mutedForeground,
+                  height: 1.4,
+                ),
               ),
             ),
             if (onRetry != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
               FButton(
                 variant: FButtonVariant.outline,
                 size: FButtonSizeVariant.sm,
@@ -264,7 +348,6 @@ class _PulsingAvatarState extends State<PulsingAvatar>
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.theme;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -282,7 +365,7 @@ class _PulsingAvatarState extends State<PulsingAvatar>
                   height: 116,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: theme.colors.primary.withValues(alpha: 0.35),
+                    color: AppBrand.violet.withValues(alpha: 0.35),
                   ),
                 ),
               ),

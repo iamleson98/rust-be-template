@@ -1,6 +1,6 @@
-name: vexevn_support
+name: datxevui_support
 description: >-
-  VeXeVN support agent console — realtime customer chat and calls.
+  "đặt xe vui" support agent console — realtime customer chat and calls.
   Talks to the rust-be-template backend (/ws chat hub, /ws-call WebRTC
   signaling relay, /api/chat/* REST).
 publish_to: 'none'

@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
+import '../../core/design.dart';
 import '../../shared/widgets.dart';
 import 'call_controller.dart';
 import 'call_state.dart';
@@ -56,57 +57,74 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final status = _statusText(call);
 
     return Scaffold(
-      backgroundColor: theme.colors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            const Spacer(flex: 2),
-            PulsingAvatar(
-              pulse: call.status == CallStatus.incoming ||
-                  call.status == CallStatus.calling,
-              child: AgentAvatar(name: call.peerName, size: 112),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              call.peerName.isEmpty ? 'Khách hàng' : call.peerName,
-              style: theme.typography.display.xl.copyWith(
-                fontWeight: FontWeight.w700,
-                color: theme.colors.foreground,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.colors.background,
+              AppBrand.violet.withValues(alpha: 0.10),
+              theme.colors.background,
+            ],
+            stops: const [0, 0.45, 1],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              PulsingAvatar(
+                pulse: call.status == CallStatus.incoming ||
+                    call.status == CallStatus.calling,
+                child: AgentAvatar(name: call.peerName, size: 112),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              status,
-              style: theme.typography.body.md.copyWith(
-                color: call.status == CallStatus.active
-                    ? theme.colors.primary
-                    : theme.colors.mutedForeground,
-              ),
-            ),
-            if (call.status == CallStatus.active) ...[
-              const SizedBox(height: 4),
+              const SizedBox(height: 24),
               Text(
-                formatCallDuration(_elapsed),
-                style: theme.typography.display.lg.copyWith(
-                  fontFeatures: [const FontFeature.tabularFigures()],
+                call.peerName.isEmpty ? 'Khách hàng' : call.peerName,
+                style: theme.typography.display.xl.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                   color: theme.colors.foreground,
                 ),
               ),
-            ],
-            if (call.error != null) ...[
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: FAlert(
-                  variant: FAlertVariant.destructive,
-                  title: Text(call.error!),
+              const SizedBox(height: 8),
+              Text(
+                status,
+                style: theme.typography.body.md.copyWith(
+                  color: call.status == CallStatus.active
+                      ? theme.colors.primary
+                      : theme.colors.mutedForeground,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+              if (call.status == CallStatus.active) ...[
+                const SizedBox(height: 4),
+                Text(
+                  formatCallDuration(_elapsed),
+                  style: theme.typography.display.lg.copyWith(
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                    color: theme.colors.foreground,
+                  ),
+                ),
+              ],
+              if (call.error != null) ...[
+                const SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: FAlert(
+                    variant: FAlertVariant.destructive,
+                    title: Text(call.error!),
+                  ),
+                ),
+              ],
+              const Spacer(flex: 3),
+              _controls(context, call),
+              const SizedBox(height: 48),
             ],
-            const Spacer(flex: 3),
-            _controls(context, call),
-            const SizedBox(height: 48),
-          ],
+          ),
         ),
       ),
     );

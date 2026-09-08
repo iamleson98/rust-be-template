@@ -2,7 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:vexevn_support/app.dart';
+import 'package:datxevui_support/app.dart';
 
 void main() {
   // The app boots several platform integrations (SharedPreferences for the
@@ -26,12 +26,12 @@ void main() {
     WidgetTester tester,
   ) async {
     // Build the app with an empty provider scope (no stored session).
-    await tester.pumpWidget(const ProviderScope(child: VeXevnApp()));
+    await tester.pumpWidget(const ProviderScope(child: DatXeVuiApp()));
 
     // First frames render the branded splash while the (empty) keystore
     // session is being restored.
     await tester.pump();
-    expect(find.text('Đang đăng nhập…'), findsOneWidget);
+    expect(find.text('Tổng đài hỗ trợ'), findsOneWidget);
 
     // Session restore completes (no tokens) → login screen.
     await tester.pump(const Duration(milliseconds: 50));
