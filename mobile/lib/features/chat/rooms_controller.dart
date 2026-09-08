@@ -21,6 +21,8 @@ class RoomState {
     this.typingName,
     this.customerOnline = false,
     this.active = true,
+    this.hasMore = true,
+    this.loadingOlder = false,
   });
 
   /// Snapshot of the channel (kept loosely in sync with the queue list).
@@ -36,6 +38,13 @@ class RoomState {
   /// False once closed (trims memory when the agent leaves the room).
   final bool active;
 
+  /// Whether older history pages remain on the server (drives the
+  /// "load more" trigger when the agent scrolls up).
+  final bool hasMore;
+
+  /// True while an older page is in flight (guards double-triggering).
+  final bool loadingOlder;
+
   RoomState copyWith({
     Channel? channel,
     List<ChatMessage>? messages,
@@ -44,6 +53,8 @@ class RoomState {
     String? typingName,
     bool? customerOnline,
     bool? active,
+    bool? hasMore,
+    bool? loadingOlder,
     bool clearError = false,
     bool clearTyping = false,
   }) =>
@@ -55,6 +66,8 @@ class RoomState {
         typingName: clearTyping ? null : (typingName ?? this.typingName),
         customerOnline: customerOnline ?? this.customerOnline,
         active: active ?? this.active,
+        hasMore: hasMore ?? this.hasMore,
+        loadingOlder: loadingOlder ?? this.loadingOlder,
       );
 }
 
@@ -80,8 +93,12 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     return {};
   }
 
-  /// Opens (or re-opens) a room: joins the WS room, fetches history
-  /// (backend returns newest-first → reversed), marks it read.
+  /// Message page size for history pagination (backend caps at 200).
+  static const int pageSize = 40;
+
+  /// Opens (or re-opens) a room: joins the WS room, fetches the newest
+  /// history page (backend returns newest-first → reversed), marks it
+  /// read.
   Future<void> open(String channelId) async {
     final svc = ref.read(chatLiveServiceProvider);
     svc?.join(channelId);
@@ -130,7 +147,9 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     };
 
     try {
-      final raw = await ref.read(apiClientProvider).listMessages(channelId);
+      final raw = await ref
+          .read(apiClientProvider)
+          .listMessages(channelId, limit: pageSize);
       // Backend lists messages newest-first — reverse for display order.
       final messages =
           raw.map(ChatMessage.fromJson).toList().reversed.toList();
@@ -138,6 +157,9 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
             messages: messages,
             loading: false,
             clearError: true,
+            // A short page means we already reached the beginning of
+            // history — nothing older to fetch.
+            hasMore: messages.length >= pageSize,
           ));
       unawaited(_markRead(channelId));
     } on ApiException catch (e) {
@@ -153,9 +175,50 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     }
   }
 
+  /// Loads the next-older page (offset = messages already loaded) and
+  /// prepends it. Dedupes against anything the WS already delivered.
+  /// The reverse-list room keeps its scroll position naturally: pixels
+  /// are anchored to the bottom, so prepending older rows does not move
+  /// the viewport.
+  Future<void> loadOlder(String channelId) async {
+    final room = state[channelId];
+    if (room == null || room.loadingOlder || !room.hasMore) return;
+    _updateRoom(channelId, (r) => r.copyWith(loadingOlder: true));
+    try {
+      final raw = await ref.read(apiClientProvider).listMessages(
+        channelId,
+        limit: pageSize,
+        offset: room.messages.length,
+      );
+      final older = raw.map(ChatMessage.fromJson).toList().reversed;
+      _updateRoom(channelId, (r) {
+        final existingIds = r.messages.map((m) => m.id).toSet();
+        final fresh =
+            older.where((m) => !existingIds.contains(m.id)).toList();
+        return r.copyWith(
+          messages: [...fresh, ...r.messages],
+          loadingOlder: false,
+          hasMore: raw.length >= pageSize,
+          clearError: true,
+        );
+      });
+    } on ApiException catch (e) {
+      _updateRoom(channelId, (r) =>
+          r.copyWith(loadingOlder: false, error: e.message));
+    } catch (_) {
+      _updateRoom(channelId, (r) => r.copyWith(
+            loadingOlder: false,
+            error: 'Không tải được tin nhắn cũ hơn',
+          ));
+    }
+  }
+
   /// Leaves the room (back to the queue): drop message history but keep
   /// the channel snapshot so re-entry is instant if re-opened soon.
   void close(String channelId) {
+    // Provider may already be tearing down (test teardown / hot
+    // restart) — a late room dispose must stay benign.
+    if (!ref.mounted) return;
     final room = state[channelId];
     if (room == null) return;
     state = {
@@ -345,6 +408,9 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
   // ── Mutation helper ────────────────────────────────────────────────
 
   void _updateRoom(String channelId, RoomState Function(RoomState) fn) {
+    // Provider may already be tearing down (test teardown / hot
+    // restart) — a late room dispose must stay benign.
+    if (!ref.mounted) return;
     final room = state[channelId];
     if (room == null) return;
     state = {...state, channelId: fn(room)};
@@ -369,7 +435,12 @@ class ActiveRoomNotifier extends Notifier<String?> {
   @override
   String? build() => null;
 
-  void set(String? channelId) => state = channelId;
+  void set(String? channelId) {
+    // The room's dispose may race provider teardown (tests, hot
+    // restart) — Riverpod 3's mounted guard keeps that benign.
+    if (!ref.mounted) return;
+    state = channelId;
+  }
 }
 
 final activeRoomIdProvider =

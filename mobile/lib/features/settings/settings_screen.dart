@@ -114,13 +114,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ThemeMode.system => 'Theo hệ thống',
     };
 
-    return FScaffold(
-      header: FHeader(title: const Text('Cài đặt')),
-      child: ListView(
-        padding: const EdgeInsets.all(12),
+    return Scaffold(
+      backgroundColor: theme.colors.background,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 110),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 10, 8, 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Cài đặt',
+                style: theme.typography.display.xl3.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
+                  color: theme.colors.foreground,
+                ),
+              ),
+            ),
+          ),
+
           // ── Profile ────────────────────────────────────────────────
-          FCard(
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  theme.colors.primary.withValues(alpha: 0.14),
+                  theme.colors.card,
+                ],
+                stops: const [0, 0.45],
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: theme.colors.primary.withValues(alpha: 0.25),
+              ),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -138,7 +168,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         Text(
                           user?.name ?? '—',
                           style: theme.typography.display.lg.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -234,7 +265,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'DatXeVui Tổng đài • v0.1.0',
+            'đặt xe vui • v0.1.0',
             textAlign: TextAlign.center,
             style: theme.typography.body.sm
                 .copyWith(color: theme.colors.mutedForeground),

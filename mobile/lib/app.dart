@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
+import 'core/design.dart';
 import 'core/router.dart';
 import 'core/theme_mode.dart';
 import 'features/call/call_controller.dart';
@@ -12,14 +13,14 @@ import 'features/notifications/notification_service.dart';
 /// Root widget: theme plumbing (forui + Material), the call-screen
 /// navigation listener, notification tap deep-links, and app-lifecycle
 /// driven reconnects.
-class VeXevnApp extends ConsumerStatefulWidget {
-  const VeXevnApp({super.key});
+class DatXeVuiApp extends ConsumerStatefulWidget {
+  const DatXeVuiApp({super.key});
 
   @override
-  ConsumerState<VeXevnApp> createState() => _VeXevnAppState();
+  ConsumerState<DatXeVuiApp> createState() => _DatXeVuiAppState();
 }
 
-class _VeXevnAppState extends ConsumerState<VeXevnApp>
+class _DatXeVuiAppState extends ConsumerState<DatXeVuiApp>
     with WidgetsBindingObserver {
   bool _callRouteOpen = false;
 
@@ -81,8 +82,7 @@ class _VeXevnAppState extends ConsumerState<VeXevnApp>
           WidgetsBinding.instance.platformDispatcher.platformBrightness ==
               Brightness.dark,
     };
-    final fTheme =
-        dark ? FTheme.neutral.dark.touch : FTheme.neutral.light.touch;
+    final fTheme = vexevnTheme(dark: dark);
 
     // Push/pop the call screen as the call state machine demands.
     ref.listen<CallNav>(callNavProvider, (previous, next) {
@@ -97,11 +97,11 @@ class _VeXevnAppState extends ConsumerState<VeXevnApp>
     });
 
     return MaterialApp.router(
-      title: 'DatXeVui Tổng đài',
+      title: 'đặt xe vui',
       debugShowCheckedModeBanner: false,
       themeMode: mode,
-      theme: FTheme.neutral.light.touch.toApproximateMaterialTheme(),
-      darkTheme: FTheme.neutral.dark.touch.toApproximateMaterialTheme(),
+      theme: vexevnTheme(dark: false).toApproximateMaterialTheme(),
+      darkTheme: vexevnTheme(dark: true).toApproximateMaterialTheme(),
       localizationsDelegates: FLocalizations.localizationsDelegates,
       supportedLocales: FLocalizations.supportedLocales,
       routerConfig: ref.watch(routerProvider),

@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
+import '../../core/design.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/env.dart';
 
@@ -10,9 +11,9 @@ import '../../core/env.dart';
 /// run). The server URL is persisted; `--dart-define=API_BASE_URL` locks
 /// it for managed deployments.
 ///
-/// Layout: gradient brand hero (logo mark + product name), then a card
-/// with the sign-in form, then a quiet footer. The card slides up over
-/// the hero's rounded bottom edge for a modern, layered look.
+/// Layout: violet→fuchsia gradient hero (taxi logo mark + "đặt xe vui"
+/// wordmark), then the sign-in card slides over the hero's rounded
+/// bottom edge, then a quiet footer.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -98,7 +99,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 460),
-                  child: FCard(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: theme.colors.card,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: theme.colors.border.withValues(alpha: 0.8),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppBrand.violet.withValues(alpha: 0.16),
+                          blurRadius: 32,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
                       child: Column(
@@ -108,7 +123,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             'Đăng nhập nhân viên hỗ trợ',
                             textAlign: TextAlign.center,
                             style: theme.typography.display.sm.copyWith(
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.4,
                               color: theme.colors.foreground,
                             ),
                           ),
@@ -136,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             control:
                                 FTextFieldControl.managed(controller: _email),
                             label: const Text('Email'),
-                            hint: 'you@datxevui.vn',
+                            hint: 'you@datxevui.com',
                             textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),
@@ -157,18 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ],
                           const SizedBox(height: 22),
-                          FButton(
-                            onPress: _busy ? null : _submit,
-                            child: _busy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Đăng nhập'),
-                          ),
+                          _LoginButton(busy: _busy, onSubmit: _submit),
                           const SizedBox(height: 14),
                           // Server quick-toggle row.
                           Center(
@@ -219,17 +224,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: theme.colors.mutedForeground,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        cfg.baseUrl,
-                        style: theme.typography.body.sm.copyWith(
-                          color: theme.colors.mutedForeground,
+                      Flexible(
+                        child: Text(
+                          cfg.baseUrl,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.typography.body.sm.copyWith(
+                            color: theme.colors.mutedForeground,
+                          ),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'DatXeVui Tổng đài • v0.1.0',
+                    'đặt xe vui • v0.1.0',
                     style: theme.typography.body.sm.copyWith(
                       color: theme.colors.mutedForeground,
                     ),
@@ -244,7 +253,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Gradient brand header with the headset logo mark.
+/// Gradient primary login button (forui buttons stay token-colored;
+/// this one carries the brand gradient + glow).
+class _LoginButton extends StatelessWidget {
+  const _LoginButton({required this.busy, required this.onSubmit});
+
+  final bool busy;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return Semantics(
+      button: true,
+      enabled: !busy,
+      label: 'Đăng nhập',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: busy ? null : onSubmit,
+        child: Container(
+          height: 50,
+          decoration: BoxDecoration(
+            gradient: AppBrand.heroGradient,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: AppBrand.violet.withValues(alpha: 0.42),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: busy
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: theme.colors.primaryForeground,
+                  ),
+                )
+              : Text(
+                  'Đăng nhập',
+                  style: theme.typography.body.md.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Gradient brand header with the taxi logo mark.
 class _Hero extends StatelessWidget {
   const _Hero({required this.theme});
 
@@ -252,25 +316,22 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = theme.colors.background;
+    final fg = Colors.white;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 72, bottom: 76),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            theme.colors.primary,
-            Color.alphaBlend(
-              theme.colors.primary.withValues(alpha: 0.6),
-              theme.colors.background,
-            ),
-          ],
+      padding: const EdgeInsets.only(top: 76, bottom: 76),
+      decoration: const BoxDecoration(
+        gradient: AppBrand.heroGradient,
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(36),
         ),
-        borderRadius: const BorderRadius.vertical(
-          bottom: Radius.circular(32),
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x337C3AED),
+            blurRadius: 36,
+            offset: Offset(0, 12),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -286,22 +347,23 @@ class _Hero extends StatelessWidget {
               ),
             ),
             child: Icon(
-              FLucideIcons.headphones,
+              FLucideIcons.carTaxiFront,
               size: 40,
               color: fg,
             ),
           ),
           const SizedBox(height: 18),
           Text(
-            'DatXeVui Tổng đài',
-            style: theme.typography.display.lg.copyWith(
-              fontWeight: FontWeight.w700,
+            'đặt xe vui',
+            style: theme.typography.display.xl.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.6,
               color: fg,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Trung tâm hỗ trợ khách hàng',
+            'Tổng đài hỗ trợ khách hàng',
             style: theme.typography.body.md.copyWith(
               color: fg.withValues(alpha: 0.85),
             ),

@@ -5,5 +5,5 @@ import 'app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ProviderScope(child: VeXevnApp()));
+  runApp(const ProviderScope(child: DatXeVuiApp()));
 }

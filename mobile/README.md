@@ -1,4 +1,4 @@
-# DatXeVui Tổng đài — Support Agent Mobile Client
+# "đặt xe vui" — Support Agent Mobile Client
 
 Flutter mobile app (Android + iOS) for the support agent: **live chat with
 customers and WebRTC audio calls**, with instant local notifications when a
@@ -25,7 +25,10 @@ navigation, **dio** for REST, and **flutter_webrtc** for calls.
   claim / release / close actions.
 - **Chat rooms** — realtime over `/ws` (join, typing indicators, presence,
   read receipts), optimistic sends with `clientMsgId` reconciliation and
-  retry, pagination-ready (newest-first REST history, reversed for display).
+  retry, and **infinite history pagination** (reverse list: oldest
+  pages lazy-load while scrolling up, live messages dock to the bottom
+  — Telegram-style with a jump-to-bottom FAB and a "new messages"
+  pill).
 - **Calls** — WebRTC audio over `/ws-call` signaling: the agent registers as
   an agent and receives `incoming` offers; mic mute, speaker toggle, ring
   timeout auto-busy, ICE-failure recovery.
@@ -52,8 +55,11 @@ lib/
 ├── main.dart                  # bootstrap (ProviderScope)
 ├── app.dart                   # theme plumbing, call-screen nav, notification taps
 ├── core/
+│   ├── design.dart            # "đặt xe vui" purple design system (brand tokens,
+│   │                          #   custom Forui FColors/FThemeData, motion curves)
 │   ├── env.dart               # AppConfig (server URL: dart-define / persisted / dev default)
-│   ├── router.dart            # go_router: splash, login, 3-branch shell, /call overlay
+│   ├── router.dart            # go_router: splash, login, 3-branch shell, /call overlay;
+│   │                          #   custom fade-through + slide-from-right transitions
 │   ├── settings.dart          # persisted alert toggles (notifications/sound/vibrate)
 │   ├── theme_mode.dart        # persisted theme mode
 │   ├── auth/                  # models, TokenStore (secure storage), AuthController
@@ -63,15 +69,28 @@ lib/
 │   │   └── ws_client.dart     # JSON-envelope WS with jittered backoff reconnect
 │   └── models/ (chat DTOs)
 ├── features/
-│   ├── splash/                # branded cold-start splash (session restore)
-│   ├── login/                 # staff login screen (gradient hero)
+│   ├── splash/                # branded gradient cold-start splash (session restore)
+│   ├── login/                 # staff login screen (gradient hero + gradient CTA)
 │   ├── chat/                  # queue (conversations_*) + room (rooms_*, room_screen)
 │   ├── call/                  # state machine, WebRTC engine, /ws-call signaling, screen
 │   ├── notifications/         # local notifications + agent alert wiring
-│   ├── team/                  # presence board
+│   ├── team/                  # presence board (gradient stat cards)
 │   └── settings/
-└── shared/                    # HomeShell (bottom nav), shared widgets
+└── shared/                    # HomeShell (floating glass bottom bar), shared widgets
 ```
+
+## Design language
+
+Purple-first identity (`lib/core/design.dart`): violet-600 primary with a
+violet→fuchsia hero gradient and violet→purple bubble gradient,
+purple-tinted neutrals in light mode and a deep purple-black surface
+stack in dark mode. Both Forui and the Material widgets share the same
+tokens (`vexevnTheme(dark:)` → `toApproximateMaterialTheme()`), so the
+whole app — buttons, cards, toasts, avatars, chips — follows one purple
+system. Motion: `easeOutCubic` page transitions (fade-through between
+tabs, iOS-style slide-from-right into a chat room), a sliding selection
+pill in the bottom bar and filter tabs, and scale/overshoot
+micro-animations (send button, FAB, new-messages pill).
 
 Key behaviors:
 
