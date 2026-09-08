@@ -6,12 +6,17 @@ plugins {
 
 android {
     namespace = "com.datxevui.support_agent"
-    compileSdk = flutter.compileSdkVersion
+    // flutter_secure_storage 11+ AARs are built against API 37 — compile
+    // against 37 (runtime targetSdk stays flutter.targetSdkVersion).
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications 22+ requires core library desugaring
+        // (java.time on minSdk < 26).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -46,4 +51,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Required by isCoreLibraryDesugaringEnabled (flutter_local_notifications).
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
