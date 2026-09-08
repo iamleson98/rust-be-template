@@ -114,14 +114,14 @@ class ApiClient {
     try {
       final res = await dio.post(
         '/api/auth/refresh',
-        data: {'refreshToken': refresh},
+        data: {'refresh_token': refresh},
         options: Options(extra: {'skipAuth': true}),
       );
       if (res.statusCode != 200) return false;
       final rawTokens = res.data['tokens'];
       if (rawTokens is! Map) return false;
-      final newAccess = rawTokens['accessToken'];
-      final newRefresh = rawTokens['refreshToken'];
+      final newAccess = rawTokens['access_token'];
+      final newRefresh = rawTokens['refresh_token'];
       if (newAccess is! String || newRefresh is! String) return false;
       await tokens.saveTokens(
         accessToken: newAccess,
@@ -149,15 +149,15 @@ class ApiClient {
     _throwIfNotOk(res, 200, 'Đăng nhập thất bại');
     final rawTokens = res.data['tokens'];
     if (rawTokens is! Map ||
-        rawTokens['accessToken'] is! String ||
-        rawTokens['refreshToken'] is! String) {
+        rawTokens['access_token'] is! String ||
+        rawTokens['refresh_token'] is! String) {
       throw const ApiException('Phiên đăng nhập không hợp lệ (thiếu token)');
     }
     final user = SessionUser.fromJson(res.data['user'] as Map<String, dynamic>);
     await tokens.save(
       user: user,
-      accessToken: rawTokens['accessToken'] as String,
-      refreshToken: rawTokens['refreshToken'] as String,
+      accessToken: rawTokens['access_token'] as String,
+      refreshToken: rawTokens['refresh_token'] as String,
     );
     return user;
   }

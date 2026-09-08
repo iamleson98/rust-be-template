@@ -24,22 +24,27 @@ class RoomScreen extends ConsumerStatefulWidget {
 class _RoomScreenState extends ConsumerState<RoomScreen> {
   final _composer = TextEditingController();
   final _scroll = ScrollController();
+  late final RoomsNotifier _roomsNotifier;
+  late final ActiveRoomNotifier _activeRoomNotifier;
   int _lastCount = 0;
 
   @override
   void initState() {
     super.initState();
+    _roomsNotifier = ref.read(roomsProvider.notifier);
+    _activeRoomNotifier = ref.read(activeRoomIdProvider.notifier);
     Future(() {
-      ref.read(roomsProvider.notifier).open(widget.channelId);
-      ref.read(activeRoomIdProvider.notifier).set(widget.channelId);
+      if (!mounted) return;
+      _roomsNotifier.open(widget.channelId);
+      _activeRoomNotifier.set(widget.channelId);
       ref.read(notificationServiceProvider).clearChannel(widget.channelId);
     });
   }
 
   @override
   void dispose() {
-    ref.read(activeRoomIdProvider.notifier).set(null);
-    ref.read(roomsProvider.notifier).close(widget.channelId);
+    _activeRoomNotifier.set(null);
+    _roomsNotifier.close(widget.channelId);
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
