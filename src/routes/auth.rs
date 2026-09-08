@@ -1,5 +1,5 @@
 use axum::extract::State;
-use axum::http::HeaderMap;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -8,7 +8,7 @@ use validator::Validate;
 
 use crate::entity::user;
 use crate::error::{AppError, AppResult};
-use crate::middleware::AuthUser;
+use crate::middleware::{AuthUser, MaybeAuthUser};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
@@ -262,10 +262,25 @@ pub async fn refresh(
 pub async fn logout(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
-    AuthUser(user_id): AuthUser,
-) -> AppResult<axum_extra::extract::CookieJar> {
-    state.auth.logout(user_id).await?;
-    Ok(state.auth.clear_cookies(jar))
+    MaybeAuthUser(user_id): MaybeAuthUser,
+) -> AppResult<(axum_extra::extract::CookieJar, StatusCode)> {
+    if let Some(user_id) = user_id {
+        if let Err(error) = state.auth.logout(user_id).await {
+            tracing::warn!(?error, %user_id, "logout token revocation failed; clearing cookies anyway");
+        }
+    } else {
+        use crate::auth::cookies::extract_tokens;
+        let (_, refresh_token) = extract_tokens(&jar);
+        if let Some(refresh_token) = refresh_token {
+            if let Err(error) = state.auth.logout_by_refresh_token(refresh_token).await {
+                tracing::debug!(
+                    ?error,
+                    "logout refresh-token fallback failed; clearing cookies anyway"
+                );
+            }
+        }
+    }
+    Ok((state.auth.clear_cookies(jar), StatusCode::NO_CONTENT))
 }
 
 /// `GET /api/auth/me` — return the current authenticated user's info.

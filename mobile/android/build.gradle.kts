@@ -1,3 +1,5 @@
+import com.android.build.api.dsl.LibraryExtension
+
 allprojects {
     repositories {
         google()
@@ -17,6 +19,14 @@ subprojects {
 }
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+gradle.beforeProject {
+    afterEvaluate {
+        extensions.findByType<LibraryExtension>()?.let { libraryExtension ->
+            libraryExtension.compileSdk = 37
+        }
+    }
 }
 
 tasks.register<Delete>("clean") {

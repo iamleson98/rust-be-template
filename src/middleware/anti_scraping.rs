@@ -30,7 +30,7 @@
 //! warning), not a hard block. Hard blocks are impossible (the browser
 //! runs user code).
 
-use axum::http::{Method, Request};
+use axum::http::{HeaderMap, Method, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 
@@ -116,6 +116,15 @@ fn is_search_engine_bot(ua: &str) -> bool {
         || ua_lower.contains("zalo")
 }
 
+    /// Check if a request explicitly identifies the native mobile client.
+    fn is_mobile_client(headers: &HeaderMap) -> bool {
+        headers
+        .get("x-client")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.trim().eq_ignore_ascii_case("mobile"))
+        .unwrap_or(false)
+    }
+
 /// Check if a User-Agent is blocked (scraping tool, empty, etc.).
 fn is_blocked_ua(ua: &str) -> bool {
     // Empty UA is always blocked (browsers always send one).
@@ -165,8 +174,9 @@ pub async fn anti_scraping(
         .get(axum::http::header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+    let is_mobile_client = is_mobile_client(headers);
 
-    if is_blocked_ua(ua) {
+    if !is_mobile_client && is_blocked_ua(ua) {
         tracing::warn!(
             ua = %ua,
             path = %path,
@@ -189,8 +199,9 @@ pub async fn anti_scraping(
     {
         // IPN webhook endpoints are exempt — payment gateways send POSTs
         // without Referer/Origin headers.
-        if path.contains("/ipn/") || path.contains("/vitals") {
-            // Payment webhooks + vitals beacon — no Referer check.
+        if path.contains("/ipn/") || path.contains("/vitals") || is_mobile_client {
+            // Payment webhooks, vitals beacon, and the native mobile app do
+            // not have browser Referer/Origin headers.
         } else {
             let referer = headers
                 .get(axum::http::header::REFERER)
@@ -224,6 +235,7 @@ pub async fn anti_scraping(
     // If the UA isn't a browser AND isn't a search engine bot, block
     // access to /api/* (but allow static files + sitemap + robots).
     if path.starts_with("/api/")
+        && !is_mobile_client
         && !is_browser_ua(ua)
         && !is_search_engine_bot(ua)
         && !ua.contains("axios")
@@ -343,6 +355,30 @@ mod tests {
     #[test]
     fn test_is_browser_ua_not_curl() {
         assert!(!is_browser_ua("curl/7.81.0"));
+    }
+
+    #[test]
+    fn test_is_mobile_client_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-client", " mobile ".parse().unwrap());
+
+        assert!(is_mobile_client(&headers));
+    }
+
+    #[test]
+    fn test_is_mobile_client_header_case_insensitive() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-client", "Mobile".parse().unwrap());
+
+        assert!(is_mobile_client(&headers));
+    }
+
+    #[test]
+    fn test_is_mobile_client_header_rejects_other_clients() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-client", "web".parse().unwrap());
+
+        assert!(!is_mobile_client(&headers));
     }
 
     #[test]

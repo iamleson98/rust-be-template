@@ -15,7 +15,7 @@
 
 services:
   backend:
-    image: ${IMAGE:?IMAGE is required — set by the CD pipeline or manually}
+    image: ${IMAGE:?IMAGE is required}
     environment:
       # ── Server ─────────────────────────────────────────────────
       - SERVER_HOST=0.0.0.0
@@ -45,8 +45,13 @@ services:
       # ── Payments / contact ──────────────────────────────────────
       - PAYMENT_PUBLIC_BASE_URL=${PAYMENT_PUBLIC_BASE_URL:-https://datxevui.com}
 
+      # ── Cache / worker: single-node production uses in-process cache
+      #    and the DB-backed queue. Redis is intentionally not required.
+      - CACHE_BACKEND=${CACHE_BACKEND:-moka}
+      - WORKER_BACKEND=${WORKER_BACKEND:-db}
+
       # Everything else (STATIC_FILES_DIR, SEARCH_INDEX_DIR,
-      # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, CACHE/WORKER/SCHEDULER)
+      # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, SCHEDULER)
       # comes from the image defaults baked into the Dockerfile.
 
     volumes:

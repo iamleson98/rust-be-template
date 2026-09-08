@@ -22,7 +22,7 @@
 # 1. Docker + Docker Compose v2 installed.
 # 2. The backend must be running + reachable from Docker.
 #
-#    Case A — backend in Docker (via the project's docker-compose.yml):
+#    Case A — backend in Docker (via deploy/docker-compose.contabo.yml):
 #      The k6 workers join the same network (`vexevn_default` by
 #      default). Set BASE_URL=http://backend:8080.
 #
@@ -34,7 +34,7 @@
 # ## Usage
 #
 #   # Start the backend first (if not already running):
-#   docker compose up -d backend
+#   TUNNEL_TOKEN=dummy docker compose -f deploy/docker-compose.contabo.yml up -d backend
 #
 #   # Run 3 k6 workers hitting the public scenario:
 #   K6_SCENARIO=public docker compose -f tests/k6/docker-compose.k6.yml up
@@ -187,7 +187,7 @@ volumes:
   k6-results:
 
 networks:
-  # If the backend is also in Docker (via the project's docker-compose.yml),
+  # If the backend is also in Docker (via deploy/docker-compose.contabo.yml),
   # change this to `external: true` + `name: vexevn_default` to join the
   # backend's network. See the README for details.
   k6-net:

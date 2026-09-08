@@ -5,6 +5,10 @@ analyzer:
     - build/**
     - android/**
     - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   language:
     # Allow forui's newer idioms without drowning in style lints.
     strict-casts: true

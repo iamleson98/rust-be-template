@@ -15,7 +15,7 @@ mixed workload. Designed to find the backend's sustainable throughput
 
 # 2. Start the backend (in another terminal)
 cargo run -- serve
-# or: docker compose up backend
+# or: TUNNEL_TOKEN=dummy docker compose -f deploy/docker-compose.contabo.yml up -d backend
 
 # 3. Run the smoke test (1 VU, 1 iteration — verifies the server is up)
 ./tests/k6/run.sh smoke
@@ -365,10 +365,10 @@ need, or add more by copying the pattern.
 
 ### When the backend is in Docker vs on the host
 
-**Backend in Docker** (via `docker-compose.yml`):
+**Backend in Docker** (via `deploy/docker-compose.contabo.yml`):
 ```bash
 # Start backend first:
-docker compose up -d backend
+TUNNEL_TOKEN=dummy docker compose -f deploy/docker-compose.contabo.yml up -d backend
 
 # Then run k6 workers on the same network:
 BASE_URL=http://backend:8080 \

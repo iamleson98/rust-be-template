@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use sea_orm::sea_query::Expr;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set};
 use store_macros::retry;
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ pub trait RefreshTokenStore: Send + Sync {
     async fn save_refresh_token(&self, token: refresh_tokens::Model) -> StoreResult<()>;
     async fn get_refresh_token(&self, id: Uuid) -> StoreResult<Option<refresh_tokens::Model>>;
     async fn revoke_refresh_token(&self, id: Uuid) -> StoreResult<()>;
-    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()>;
+    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<Vec<Uuid>>;
 
     /// Atomically revoke an unrevoked, unexpired token. Returns `Some(user_id)`
     /// on success, `None` if the row was already revoked/expired (or doesn't
@@ -78,14 +78,23 @@ impl RefreshTokenStore for DbRefreshTokenStore {
         Ok(())
     }
 
-    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()> {
+    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<Vec<Uuid>> {
+        let token_ids = refresh_tokens::Entity::find()
+            .select_only()
+            .column(refresh_tokens::Column::Id)
+            .filter(refresh_tokens::Column::UserId.eq(user_id))
+            .filter(refresh_tokens::Column::Revoked.eq(false))
+            .into_tuple::<Uuid>()
+            .all(self.db.as_ref())
+            .await?;
+
         refresh_tokens::Entity::update_many()
             .col_expr(refresh_tokens::Column::Revoked, Expr::value(true))
             .filter(refresh_tokens::Column::UserId.eq(user_id))
             .filter(refresh_tokens::Column::Revoked.eq(false))
             .exec(self.db.as_ref())
             .await?;
-        Ok(())
+        Ok(token_ids)
     }
 
     async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>> {
@@ -188,8 +197,20 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
         result
     }
 
-    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<()> {
-        self.inner.revoke_all_refresh_tokens_for_user(user_id).await
+    async fn revoke_all_refresh_tokens_for_user(&self, user_id: Uuid) -> StoreResult<Vec<Uuid>> {
+        let token_ids = self
+            .inner
+            .revoke_all_refresh_tokens_for_user(user_id)
+            .await?;
+        let keys = token_ids
+            .iter()
+            .copied()
+            .map(refresh_token_key)
+            .collect::<Vec<_>>();
+        if let Err(e) = self.cache.delete_many(&keys).await {
+            tracing::debug!(user_id = %user_id, error = %e, "refresh token cache bulk delete failed after logout");
+        }
+        Ok(token_ids)
     }
 
     async fn try_revoke_refresh_token(&self, id: Uuid) -> StoreResult<Option<Uuid>> {
@@ -199,5 +220,117 @@ impl<S: RefreshTokenStore> RefreshTokenStore for CacheRefreshTokenStore<S> {
             let _ = self.cache.delete(&refresh_token_key(id)).await;
         }
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::{CacheBackend, CacheValue};
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    struct FakeRefreshTokenStore {
+        revoked_ids: Vec<Uuid>,
+    }
+
+    #[async_trait]
+    impl RefreshTokenStore for FakeRefreshTokenStore {
+        async fn save_refresh_token(&self, _token: refresh_tokens::Model) -> StoreResult<()> {
+            unimplemented!()
+        }
+
+        async fn get_refresh_token(&self, _id: Uuid) -> StoreResult<Option<refresh_tokens::Model>> {
+            unimplemented!()
+        }
+
+        async fn revoke_refresh_token(&self, _id: Uuid) -> StoreResult<()> {
+            unimplemented!()
+        }
+
+        async fn revoke_all_refresh_tokens_for_user(
+            &self,
+            _user_id: Uuid,
+        ) -> StoreResult<Vec<Uuid>> {
+            Ok(self.revoked_ids.clone())
+        }
+
+        async fn try_revoke_refresh_token(&self, _id: Uuid) -> StoreResult<Option<Uuid>> {
+            unimplemented!()
+        }
+    }
+
+    struct RecordingCache {
+        deleted_keys: Mutex<Vec<String>>,
+    }
+
+    #[async_trait]
+    impl CacheBackend for RecordingCache {
+        async fn get(&self, _key: &str) -> anyhow::Result<Option<CacheValue>> {
+            Ok(None)
+        }
+
+        async fn set(
+            &self,
+            _key: &str,
+            _value: CacheValue,
+            _ttl: Option<Duration>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn delete(&self, key: &str) -> anyhow::Result<()> {
+            self.deleted_keys.lock().unwrap().push(key.to_string());
+            Ok(())
+        }
+
+        async fn get_many(&self, _keys: &[String]) -> anyhow::Result<HashMap<String, CacheValue>> {
+            Ok(HashMap::new())
+        }
+
+        async fn set_many(
+            &self,
+            _items: Vec<(String, CacheValue)>,
+            _ttl: Option<Duration>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn delete_many(&self, keys: &[String]) -> anyhow::Result<()> {
+            self.deleted_keys
+                .lock()
+                .unwrap()
+                .extend(keys.iter().cloned());
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn bulk_revoke_deletes_cached_refresh_tokens() {
+        let user_id = Uuid::new_v4();
+        let token_ids = vec![Uuid::new_v4(), Uuid::new_v4()];
+        let cache = Arc::new(RecordingCache {
+            deleted_keys: Mutex::new(Vec::new()),
+        });
+        let store = CacheRefreshTokenStore::new(
+            FakeRefreshTokenStore {
+                revoked_ids: token_ids.clone(),
+            },
+            cache.clone(),
+            Duration::from_secs(60),
+        );
+
+        let revoked_ids = store
+            .revoke_all_refresh_tokens_for_user(user_id)
+            .await
+            .unwrap();
+
+        let expected_keys = token_ids
+            .iter()
+            .copied()
+            .map(refresh_token_key)
+            .collect::<Vec<_>>();
+        assert_eq!(revoked_ids, token_ids);
+        assert_eq!(*cache.deleted_keys.lock().unwrap(), expected_keys);
     }
 }

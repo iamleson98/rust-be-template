@@ -53,6 +53,9 @@ services:
       # (atomic renames; see Dockerfile header for the EXDEV story).
       SEARCH_INDEX_DIR: ${SEARCH_INDEX_DIR:-/app/index/osm-index}
       SEARCH_OSM_PBF_PATH: ${SEARCH_OSM_PBF_PATH:-/app/data/vietnam-latest.osm.pbf}
+      # Single-node production defaults: no Redis sidecar required.
+      CACHE_BACKEND: ${CACHE_BACKEND:-moka}
+      WORKER_BACKEND: ${WORKER_BACKEND:-db}
     volumes:
       - app-data:/app/data      # rust-sql DB file + OSM PBF downloads
       - app-storage:/app/storage # local uploads

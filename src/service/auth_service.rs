@@ -9,7 +9,7 @@ use crate::auth::password::PasswordHasher;
 use crate::auth::refresh::{RefreshTokenManager, RefreshTokenValue};
 use crate::auth::SessionUser;
 use crate::config::{Config, CookieConfig, JwtConfig};
-use crate::entity::user;
+use crate::entity::{refresh_tokens, user};
 use crate::error::{AppError, AppResult};
 use crate::nullclaw::NULLCLAW_BOT_EMAIL;
 use crate::store::CompositeStore;
@@ -209,26 +209,7 @@ impl AuthService {
     /// surface as a 401. This closes the replay-attack window that the
     /// previous `get_refresh_token` + `revoke_refresh_token` pair had.
     pub async fn refresh(&self, refresh_token: String) -> AppResult<AuthSession> {
-        let value = RefreshTokenValue::parse(&refresh_token)
-            .ok_or_else(|| AppError::BadRequest("malformed refresh token".into()))?;
-
-        let model = self
-            .store
-            .refresh_token_store()
-            .get_refresh_token(value.id)
-            .await?
-            .ok_or_else(|| AppError::Unauthorized("unknown refresh token".into()))?;
-
-        if model.revoked || model.expires_at < Utc::now() {
-            return Err(AppError::Unauthorized("refresh token expired".into()));
-        }
-
-        if !constant_time_eq::constant_time_eq(
-            model.token_hash.as_bytes(),
-            self.refresh.secret_hash(&value.secret).as_bytes(),
-        ) {
-            return Err(AppError::Unauthorized("refresh token mismatch".into()));
-        }
+        let (value, _model) = self.verified_refresh_token(&refresh_token).await?;
 
         // Atomically claim the token: only the first concurrent caller wins.
         // Without this guard, two concurrent refresh requests both pass the
@@ -254,6 +235,41 @@ impl AuthService {
             .await?;
         self.jwt_validator.revoke_all_for_user(user_id).await;
         Ok(())
+    }
+
+    /// Logout when the access token is missing/expired but the browser still
+    /// has a refresh cookie. The token is verified before its user id is used.
+    pub async fn logout_by_refresh_token(&self, refresh_token: String) -> AppResult<()> {
+        let (_value, model) = self.verified_refresh_token(&refresh_token).await?;
+        self.logout(model.user_id).await
+    }
+
+    async fn verified_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> AppResult<(RefreshTokenValue, refresh_tokens::Model)> {
+        let value = RefreshTokenValue::parse(refresh_token)
+            .ok_or_else(|| AppError::BadRequest("malformed refresh token".into()))?;
+
+        let model = self
+            .store
+            .refresh_token_store()
+            .get_refresh_token(value.id)
+            .await?
+            .ok_or_else(|| AppError::Unauthorized("unknown refresh token".into()))?;
+
+        if model.revoked || model.expires_at < Utc::now() {
+            return Err(AppError::Unauthorized("refresh token expired".into()));
+        }
+
+        if !constant_time_eq::constant_time_eq(
+            model.token_hash.as_bytes(),
+            self.refresh.secret_hash(&value.secret).as_bytes(),
+        ) {
+            return Err(AppError::Unauthorized("refresh token mismatch".into()));
+        }
+
+        Ok((value, model))
     }
 
     /// Fetch the current user (after auth has been verified by the

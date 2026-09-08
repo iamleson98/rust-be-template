@@ -64,7 +64,7 @@ mkdir -p "$RESULTS_DIR"
 
 # Backend URL — default to host.docker.internal so it works when the
 # backend runs on the host via `cargo run`. If the backend is in Docker
-# (via docker-compose.yml), set BASE_URL=http://backend:8080.
+# (via deploy/docker-compose.contabo.yml), set BASE_URL=http://backend:8080.
 BASE_URL="${BASE_URL:-http://host.docker.internal:8080}"
 ORIGIN="${ORIGIN:-http://localhost:8080}"
 

@@ -18,7 +18,7 @@ you can grep the worklog for the full detail.
 | SEC-007 | No `Origin` header check on `/ws` or `/ws-call` — Cross-Site WebSocket Hijacking when cookie auth is used | **High** | ✅ Fixed (shared `check_ws_origin` enforces CORS allowlist on every upgrade) |
 | SEC-008 | `LocalStorage::resolve` used `Path::starts_with` (lexical, foolable by symlinks / URL-decoded `..`) — path traversal | **High** | ✅ Fixed (component-walk rejection of `..`/absolute/Prefix, defense-in-depth `starts_with` kept) + tests |
 | SEC-009 | Caddyfile CSP allowed `'unsafe-inline' 'unsafe-eval'` + `wss: ws:` (any WS origin) | **High** | ✅ Fixed (`'self'` script-src, `wss://{yourdomain}` connect-src, `object-src 'none'`, `worker-src 'self'`) |
-| SEC-010 | `docker-compose.prod.yml` shipped with DB/Redis ports exposed to `0.0.0.0`, no `security_opt`/`cap_drop`/resource limits/log caps, hardcoded `COOKIE_SECURE=false` | **High** | ✅ Fixed (no host port mapping for db/redis, `no-new-privileges`, `cap_drop: ALL`, resource limits, log caps, internal-only `vexevn-net` network) |
+| SEC-010 | Legacy root production compose shipped with DB/Redis ports exposed to `0.0.0.0`, no `security_opt`/`cap_drop`/resource limits/log caps, hardcoded `COOKIE_SECURE=false` | **High** | ✅ Fixed by removing the legacy root compose files and keeping production deploy config under `deploy/` |
 | STRUCT-013 | `database.url` printed plain to startup logs + `config show` (Postgres password leak) | **High** | ✅ Fixed (`mask_db_url` replaces password with `***`) |
 | STRUCT-014 | `tests/api_smoke.rs` set `DATABASE__URL` (double-underscore) → tests bypassed env overrides and wrote to `app.db` on disk using the leaked example JWT secret | **High** | ✅ Fixed (single-underscore env vars) |
 | STRUCT-022 | 88 `osm-index/*` binary files (160 MB) committed — bloat + may include cached PII from OSM | **Medium** | ✅ Fixed (`git rm --cached`, `.gitignore` hardened) |
@@ -87,7 +87,7 @@ Top 10 (the audit identified these as high-impact, low-effort fixes):
 2. **STRUCT-013** — DB URL password leak (✅ fixed in this audit)
 3. **STRUCT-015** — CI gaps (✅ fixed in this audit)
 4. **STRUCT-022** — Committed `osm-index/` + `app.db-wal`/`shm` (✅ fixed in this audit)
-5. **STRUCT-017** — `docker-compose.prod.yml` hardening (✅ fixed in this audit)
+5. **STRUCT-017** — legacy root production compose hardening (✅ fixed by removal)
 6. **STRUCT-020** — Terraform: switch from local state to S3 + DynamoDB lock, add resource tags, remove `remote-exec` anti-pattern
 7. **STRUCT-003** — `migrator` crate is sqlite-only despite backend supporting postgres — enable `postgres` feature on `migrator` so `cargo build --features postgres` works end-to-end *(resolved differently, 2026-09: the postgres backend was removed entirely; the migrator now links the rust-sql engine unconditionally)*
 8. **STRUCT-009** — `anyhow::Result` in `FileStorage` trait — switch to `thiserror`-based error enum for libraries
@@ -106,7 +106,7 @@ Top 10 (the audit identified these as high-impact, low-effort fixes):
 
 Critical / must-fix-before-prod:
 - [x] Caddyfile CSP tightened (no `'unsafe-eval'`, `wss:` scoped to your domain)
-- [x] `docker-compose.prod.yml` hardened (no host port mapping for db/redis, `no-new-privileges`, `cap_drop: ALL`, resource limits, log caps, internal network)
+- [x] Legacy root production compose removed; supported production deploy files live under `deploy/`
 - [x] `deploy.sh` uses correct single-underscore env vars and generates a random JWT secret on first run
 - [x] `.env.example` contains only placeholders
 - [x] `.gitignore` excludes DB files, WAL/SHM, `osm-index/`, `storage/`, `data/`
@@ -184,7 +184,7 @@ The following were verified by re-reading the code (full cargo build + test pend
 - [x] `tests/api_smoke.rs` uses single-underscore env vars
 - [x] `terraform/deploy.sh` uses single-underscore env vars
 - [x] `Caddyfile` CSP has no `'unsafe-eval'`, scoped `wss://`
-- [x] `docker-compose.prod.yml` has no host port exposure for db/redis
+- [x] Legacy root production compose removed; supported production deploy files live under `deploy/`
 - [x] `.github/workflows/ci.yml` runs fmt+check+clippy+test+audit+vitest+gitleaks
 
 Pending (need full `cargo build`):
