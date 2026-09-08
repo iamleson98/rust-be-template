@@ -12,15 +12,16 @@
 #   2. deploy — SSHes into the production Swarm node, syncs
 #      deploy/{stack.yml,deploy.sh,Caddyfile.datxevui}, and runs
 #      deploy.sh: docker stack deploy (pulls the image from GHCR),
-#      appends the datxevui.com site block to the shared Caddyfile,
-#      hot-reloads Caddy, and waits for /health. Volumes (SQLite data,
-#      Tantivy index, uploads) persist across releases by design.
+#      guarantees exactly one datxevui.com site block in the shared
+#      Caddyfile (validated before swap, in-place write), hot-reloads
+#      Caddy, and waits for /health. Volumes (rust-sql DB, Tantivy
+#      index, uploads) persist across releases by design.
 #
 # Production topology (datxevui.com):
-#   Shared Swarm manager already running the pdf-tts stack. vexevn's
-#   backend joins the pdf-tts_pdf-tts overlay network; the existing
-#   Caddy (owns :80/:443) proxies datxevui.com → vexevn_backend:8080
-#   with automatic Let's Encrypt TLS.
+#   Shared Swarm manager already running the pdf-tts stack. The
+#   datxevui stack's backend joins the pdf-tts_pdf-tts overlay network;
+#   the existing Caddy (owns :80/:443) proxies datxevui.com →
+#   datxevui_backend:8080 with automatic Let's Encrypt TLS.
 #
 # Required GitHub repository secrets:
 #   SERVER_HOST      — server public IP or hostname

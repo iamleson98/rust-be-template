@@ -6,7 +6,7 @@
 #
 # The backend joins the EXISTING `pdf-tts_pdf-tts` attachable overlay
 # network so the already-running Caddy (service pdf-tts_caddy, which owns
-# host ports 80/443) can reach it at `vexevn_backend:8080` and proxy
+# host ports 80/443) can reach it at `datxevui_backend:8080` and proxy
 # datxevui.com → here. This stack publishes NO ports itself.
 #
 # NOTE: `docker stack deploy` does NOT support `env_file:` — values are
@@ -21,7 +21,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - RUST_LOG=${RUST_LOG:-info,backend=info,tower_http=warn}
 
-      # ── Database (rust-sql engine file on the vexevn-data volume) ─
+      # ── Database (rust-sql engine file on the data volume) ──────
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
 
       # ── JWT (generated on first run, see deploy.sh) ────────────
@@ -107,11 +107,17 @@ networks:
   pdf-tts:
     # The overlay network created by the pdf-tts stack (attachable,
     # swarm-scoped). External so this stack attaches to it instead of
-    # creating its own — the shared Caddy proxies to vexevn_backend:8080.
+    # creating its own — the shared Caddy proxies to datxevui_backend:8080.
     external: true
     name: pdf-tts_pdf-tts
 
 volumes:
+  # NOTE: these keys keep the historic "vexevn-" prefix ON PURPOSE. They
+  # are STACK-SCOPED: with STACK=datxevui the live volumes are
+  # datxevui_vexevn-data / datxevui_vexevn-index / datxevui_vexevn-storage
+  # and they hold the production data (migrated 2026-09-08 after the
+  # vexevn→datxevui stack rename silently created fresh empty volumes).
+  # RENAMING THESE KEYS WOULD ORPHAN THAT DATA — do not rename.
   vexevn-data:
   vexevn-index:
   vexevn-storage:

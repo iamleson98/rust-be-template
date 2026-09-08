@@ -1,7 +1,7 @@
-# vexevn-datxevui — site block appended to the SHARED Caddyfile
+# datxevui-datxevui — site block appended to the SHARED Caddyfile
 # (/opt/pdf-tts/Caddyfile) by /opt/vexevn/deploy.sh. Idempotent: the
 # marker comment above makes re-runs skip; if a pdf-tts redeploy ever
-# replaces the shared Caddyfile, the next vexevn deploy re-appends it.
+# replaces the shared Caddyfile, the next datxevui deploy re-appends it.
 #
 # DNS prerequisite: A records for datxevui.com AND www.datxevui.com →
 # this server's public IP. Caddy then automatically issues/renews
@@ -13,9 +13,9 @@ datxevui.com, www.datxevui.com {
 	encode zstd gzip
 
 	# SPA + API + WebSocket (chat) + SSE all live on the backend's one
-	# origin (:8080). `vexevn_backend` is the swarm DNS name of the
-	# vexevn stack's backend service on the shared overlay network.
-	reverse_proxy vexevn_backend:8080 {
+	# origin (:8080). `datxevui_backend` is the swarm DNS name of the
+	# datxevui stack's backend service on the shared overlay network.
+	reverse_proxy datxevui_backend:8080 {
 		# Disable response buffering so SSE/chat streams flush immediately.
 		flush_interval -1
 		transport http {

@@ -12,21 +12,23 @@
 #   1. first-run .env           (JWT_SECRET via openssl)
 #   2. optional GHCR login      (private packages only)
 #   3. docker stack deploy      (pulls $IMAGE, volumes persist)
-#   4. appends the datxevui.com site block to the shared Caddyfile once
-#   5. hot-reloads Caddy        (zero downtime; restart fallback)
+#   4. guarantees exactly ONE datxevui.com site block in the shared
+#      Caddyfile (strips stale blocks — old or new markers, duplicates
+#      included — appends the canonical one, validates BEFORE swap;
+#      writes IN-PLACE so the bind-mounted file stays in sync)
+#   5. hot-reloads Caddy        (zero downtime; task-recreate fallback)
 #   6. health gate: /health on the NEW backend task (verified against
 #      the service spec image — detects swarm auto-rollback; retries
 #      once on the transient "lease does not exist" rejection)
 #
 # Rollback on failure (documented, manual):
-#   docker service update --image <PREV_IMAGE> vexevn_backend
+#   docker service update --image <PREV_IMAGE> datxevui_backend
 set -euo pipefail
 
 cd "$(cd "$(dirname "$0")" && pwd)"
 
 STACK=datxevui
 SHARED_CADDYFILE=/opt/pdf-tts/Caddyfile
-MARKER='# datxevui-datxevui'
 
 [ -f stack.yml ]          || { echo "FATAL: stack.yml missing in $(pwd)"; exit 1; }
 [ -f Caddyfile.datxevui ] || { echo "FATAL: Caddyfile.datxevui missing in $(pwd)"; exit 1; }
@@ -67,15 +69,65 @@ echo "previous image: $PREV_IMAGE"
 echo "deploying $IMAGE"
 IMAGE="$IMAGE" docker stack deploy --with-registry-auth -c stack.yml "$STACK"
 
-# ── 5. Shared Caddy: append the datxevui.com site block once ─────────
-if ! grep -q "$MARKER" "$SHARED_CADDYFILE" 2>/dev/null; then
-  cat Caddyfile.datxevui >> "$SHARED_CADDYFILE"
-  echo "Caddyfile: datxevui.com site block appended"
-else
-  echo "Caddyfile: site block already present"
+# ── 5. Shared Caddy: exactly ONE datxevui.com site block ───────────
+# 2026-09-08 outage post-mortem: the old "grep marker, else append"
+# logic silently relied on deploy.sh and Caddyfile.datxevui staying in
+# sync. The stack rename (vexevn → datxevui) updated deploy.sh's
+# MARKER but not the snippet, so the grep NEVER matched and the block
+# was appended on EVERY deploy → "ambiguous site definition:
+# datxevui.com" → the shared Caddy crash-looped and took BOTH
+# datxevui.com and pdf-tts down. Instead we REBUILD the tail of the
+# shared Caddyfile deterministically:
+#   a) strip everything from the first appended-block marker (old
+#      '# vexevn-datxevui' or new '# datxevui-datxevui') to EOF —
+#      kills stale AND duplicated blocks in one pass;
+#   b) append exactly one canonical block from Caddyfile.datxevui;
+#   c) validate the result in a throwaway caddy container BEFORE
+#      touching the live file (a broken config can never reach the
+#      edge);
+#   d) write IN-PLACE ('cat >'), NEVER 'mv'/'cp' a replacement over
+#      the path. The shared Caddyfile is bind-mounted into the
+#      running caddy container as a SINGLE FILE: replacing it via mv
+#      swaps the inode and the container keeps reading the OLD
+#      content — a subsequent 'caddy reload' then "succeeds" while
+#      still serving the old upstream (seen 2026-09-08: reload went
+#      green, then 502 "lookup vexevn_backend: no such host" once the
+#      old stack was removed). 'cat >' truncates and rewrites the
+#      SAME inode, so the bind-mounted view stays in sync.
+[ -f "$SHARED_CADDYFILE" ] || {
+  echo "FATAL: shared Caddyfile $SHARED_CADDYFILE missing — is the pdf-tts stack deployed?"
+  exit 1
+}
+NEXT=$(mktemp /tmp/Caddyfile.datxevui.next.XXXXXX)
+awk 'BEGIN{p=1} /^# (vexevn|datxevui)-datxevui/{p=0} p' "$SHARED_CADDYFILE" > "$NEXT"
+cat Caddyfile.datxevui >> "$NEXT"
+n_blocks=$(grep -c '^datxevui\.com, www\.datxevui\.com' "$NEXT" || true)
+if [ "$n_blocks" != "1" ]; then
+  echo "FATAL: expected exactly 1 datxevui.com site block in the rebuilt Caddyfile, got $n_blocks"
+  rm -f "$NEXT"
+  exit 1
 fi
+if ! docker run --rm --entrypoint caddy \
+     -v "$NEXT":/etc/caddy/Caddyfile:ro \
+     caddy:2-alpine validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+  echo "FATAL: rebuilt Caddyfile failed 'caddy validate' — NOT touching the live config;"
+  echo "       the last good config is still serving. Inspect $NEXT for the cause."
+  exit 1
+fi
+cp -a "$SHARED_CADDYFILE" "$SHARED_CADDYFILE.bak-$(date +%Y%m%d-%H%M%S)"
+cat "$NEXT" > "$SHARED_CADDYFILE"   # in-place rewrite — same inode
+chmod 644 "$SHARED_CADDYFILE"
+rm -f "$NEXT"
+echo "Caddyfile: exactly one datxevui.com site block (validated, in-place write)"
 
-# ── 6. Hot-reload Caddy (zero downtime; restart fallback) ────────────
+# ── 6. Hot-reload Caddy (zero downtime; task-recreate fallback) ─────
+# reload reads the bind-mounted /etc/caddy/Caddyfile inside the
+# container — valid because step 5 wrote the file IN-PLACE. On failure
+# (dead admin endpoint, ancient caddy, or a stale-inode situation left
+# behind by an earlier bad write) recreate the caddy task: a fresh
+# container re-binds the host path and definitely sees the new config.
+# Recreating is safe: caddy is stateless here (certs live in the
+# pdf-tts_caddy_data volume); the cost is a brief blip on :80/:443.
 reload_caddy() {
   local task
   task=$(docker ps -q --filter name=pdf-tts_caddy | head -n1)
@@ -83,9 +135,8 @@ reload_caddy() {
     echo "caddy reloaded (hot)"
     return 0
   fi
-  echo "caddy hot-reload failed — restarting the caddy task (brief blip on :80/:443)"
-  task=$(docker ps -q --filter name=pdf-tts_caddy | head -n1)
-  [ -n "$task" ] && docker restart "$task"
+  echo "caddy hot-reload failed — recreating the caddy task (brief blip on :80/:443)"
+  docker service update --force pdf-tts_caddy
 }
 reload_caddy
 

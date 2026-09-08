@@ -4,8 +4,8 @@ Production runbook for the single-image stack. **Two supported topologies:**
 
 - **A. Shared Swarm node + Caddy (CURRENT — datxevui.com):** the server
   already runs Docker Swarm with a `pdf-tts` stack and a shared Caddy that
-  owns `:80/:443`. The `vexevn` stack joins the same overlay network; Caddy
-  proxies `datxevui.com` → `vexevn_backend:8080` with automatic Let's
+  owns `:80/:443`. The `datxevui` stack joins the same overlay network; Caddy
+  proxies `datxevui.com` → `datxevui_backend:8080` with automatic Let's
   Encrypt TLS. Deploy assets: `deploy/stack.yml`, `deploy/deploy.sh`,
   `deploy/Caddyfile.datxevui` (all synced by the `Deploy` workflow on every
   `v*` tag). Prerequisite: A records `datxevui.com` + `www.datxevui.com` →
@@ -16,7 +16,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
  users ──HTTPS──▶ Caddy (swarm, owns :80/:443, LE certs)
                      │  Host: datxevui.com
                      ▼
-               vexevn_backend:8080   (overlay network pdf-tts_pdf-tts)
+               datxevui_backend:8080  (overlay network pdf-tts_pdf-tts)
                      │  serves frontend/dist + API + WS
                      ├ /app/data   [vol]  rust-sql DB + OSM PBF
                      ├ /app/index  [vol]  Tantivy index (nested osm-index)
@@ -265,6 +265,21 @@ APP_IMAGE=ghcr.io/iamleson98/rust-be-template:1.2.2 $COMPOSE up -d
 **Backups** (all state lives in three named volumes):
 
 ```bash
+# Topology A (CURRENT — swarm stack `datxevui`, volumes are stack-scoped):
+docker service scale datxevui_backend=0        # stop writes (edge gives 502-ish blip)
+docker run --rm -v datxevui_vexevn-data:/data -v $(pwd):/backup alpine \
+  tar czf /backup/app-data-$(date +%F).tgz -C /data .
+docker run --rm -v datxevui_vexevn-storage:/data -v $(pwd):/backup alpine \
+  tar czf /backup/app-storage-$(date +%F).tgz -C /data .
+docker service scale datxevui_backend=1        # back online
+# NOTE the historic "vexevn-" prefix inside the volume names: the stack
+# rename (vexevn → datxevui, 2026-09-08) changed the STACK prefix only.
+# 2026-09-08 post-mortem: that rename silently created fresh empty
+# datxevui_vexevn-* volumes while production data stayed in the old
+# vexevn_vexevn-* ones — recovered by draining the service and copying
+# volume contents across; verified before switching the Caddy upstream.
+
+# Topology B (standalone compose):
 # stop writes, snapshot, restart (≈15 s downtime)
 $COMPOSE stop backend
 docker run --rm -v vexevn_app-data:/data -v $(pwd):/backup alpine \
