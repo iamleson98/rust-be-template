@@ -116,14 +116,14 @@ fn is_search_engine_bot(ua: &str) -> bool {
         || ua_lower.contains("zalo")
 }
 
-    /// Check if a request explicitly identifies the native mobile client.
-    fn is_mobile_client(headers: &HeaderMap) -> bool {
-        headers
+/// Check if a request explicitly identifies the native mobile client.
+fn is_mobile_client(headers: &HeaderMap) -> bool {
+    headers
         .get("x-client")
         .and_then(|v| v.to_str().ok())
         .map(|v| v.trim().eq_ignore_ascii_case("mobile"))
         .unwrap_or(false)
-    }
+}
 
 /// Check if a User-Agent is blocked (scraping tool, empty, etc.).
 fn is_blocked_ua(ua: &str) -> bool {
