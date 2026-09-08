@@ -453,8 +453,7 @@ async fn run_entity_generate(
     for OutputFile { name, content } in writer_output.files.iter() {
         let file_path = dir.join(name);
         println!("Writing {}", file_path.display());
-        std::fs::write(&file_path, content)
-            .context(format!("writing {}", file_path.display()))?;
+        std::fs::write(&file_path, content).context(format!("writing {}", file_path.display()))?;
     }
 
     // Format each generated file, same as sea-orm-cli.
