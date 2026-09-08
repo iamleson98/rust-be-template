@@ -443,8 +443,9 @@ async fn collect_db_stats(st: &AppState) -> (i32, i32, f64) {
 /// live throughput rates. Updated on every scrape of
 /// `/api/admin/system` (the frontend polls every 5 s, so rates always
 /// reflect the last ~5 s window).
-static PREV_ENGINE: std::sync::OnceLock<std::sync::Mutex<Option<(std::time::Instant, sqlite3::EngineStats)>>> =
-    std::sync::OnceLock::new();
+static PREV_ENGINE: std::sync::OnceLock<
+    std::sync::Mutex<Option<(std::time::Instant, sqlite3::EngineStats)>>,
+> = std::sync::OnceLock::new();
 
 /// Snapshot the engine's resource usage + compute live throughput
 /// rates from the delta since the previous scrape.

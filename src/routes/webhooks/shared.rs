@@ -61,10 +61,7 @@ pub async fn handle_platform_message(
     };
 
     // ── 2. Find or create an OPEN chat channel ─────────────────────
-    let existing_channels = st
-        .chats
-        .list_channels(user.id, false, None, 50, 0)
-        .await?;
+    let existing_channels = st.chats.list_channels(user.id, false, None, 50, 0).await?;
 
     let channel = if let Some(open) = existing_channels.into_iter().find(|c| c.status == "open") {
         open

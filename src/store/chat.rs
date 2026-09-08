@@ -889,9 +889,7 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
-        self.inner
-            .list_open_channels(brand_id, limit, offset)
-            .await
+        self.inner.list_open_channels(brand_id, limit, offset).await
     }
 
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
@@ -1125,20 +1123,35 @@ mod tests {
         // Page 1: the two most recently active channels.
         let page1 = store.list_open_channels(None, 2, 0).await.unwrap();
         assert_eq!(page1.len(), 2);
-        assert_eq!(page1[0].last_message_at.as_deref(), Some("2026-09-05T12:00:00Z"));
-        assert_eq!(page1[1].last_message_at.as_deref(), Some("2026-09-04T12:00:00Z"));
+        assert_eq!(
+            page1[0].last_message_at.as_deref(),
+            Some("2026-09-05T12:00:00Z")
+        );
+        assert_eq!(
+            page1[1].last_message_at.as_deref(),
+            Some("2026-09-04T12:00:00Z")
+        );
 
         // Page 2 (offset=2): the next two, strictly older.
         let page2 = store.list_open_channels(None, 2, 2).await.unwrap();
         assert_eq!(page2.len(), 2);
-        assert_eq!(page2[0].last_message_at.as_deref(), Some("2026-09-03T12:00:00Z"));
-        assert_eq!(page2[1].last_message_at.as_deref(), Some("2026-09-02T12:00:00Z"));
+        assert_eq!(
+            page2[0].last_message_at.as_deref(),
+            Some("2026-09-03T12:00:00Z")
+        );
+        assert_eq!(
+            page2[1].last_message_at.as_deref(),
+            Some("2026-09-02T12:00:00Z")
+        );
 
         // Page 3 (offset=4): the last one — a partial page means
         // "no more" for the frontend's hasNextPage heuristic.
         let page3 = store.list_open_channels(None, 2, 4).await.unwrap();
         assert_eq!(page3.len(), 1);
-        assert_eq!(page3[0].last_message_at.as_deref(), Some("2026-09-01T12:00:00Z"));
+        assert_eq!(
+            page3[0].last_message_at.as_deref(),
+            Some("2026-09-01T12:00:00Z")
+        );
 
         // Beyond the end: empty page.
         let page4 = store.list_open_channels(None, 2, 6).await.unwrap();
@@ -1154,14 +1167,10 @@ mod tests {
             .exec(store.db.as_ref())
             .await
             .unwrap();
-        chat_channel::Entity::insert(channel(
-            Uuid::new_v4(),
-            "open",
-            "2026-09-07T10:00:00Z",
-        ))
-        .exec(store.db.as_ref())
-        .await
-        .unwrap();
+        chat_channel::Entity::insert(channel(Uuid::new_v4(), "open", "2026-09-07T10:00:00Z"))
+            .exec(store.db.as_ref())
+            .await
+            .unwrap();
 
         // Even with offset 0 and a big limit, the closed channel is
         // excluded — pagination must never resurrect it on a later page.
@@ -1196,13 +1205,19 @@ mod tests {
         let page1 = store.list_channels(user, 3, 0).await.unwrap();
         assert_eq!(page1.len(), 3);
         assert!(page1.iter().all(|c| c.user_id == user));
-        assert_eq!(page1[0].last_message_at.as_deref(), Some("2026-08-04T09:00:00Z"));
+        assert_eq!(
+            page1[0].last_message_at.as_deref(),
+            Some("2026-08-04T09:00:00Z")
+        );
 
         // Page 2: the customer's oldest channel — not the stranger's.
         let page2 = store.list_channels(user, 3, 3).await.unwrap();
         assert_eq!(page2.len(), 1);
         assert_eq!(page2[0].user_id, user);
-        assert_eq!(page2[0].last_message_at.as_deref(), Some("2026-08-01T09:00:00Z"));
+        assert_eq!(
+            page2[0].last_message_at.as_deref(),
+            Some("2026-08-01T09:00:00Z")
+        );
 
         // No third page for this customer.
         let page3 = store.list_channels(user, 3, 6).await.unwrap();
