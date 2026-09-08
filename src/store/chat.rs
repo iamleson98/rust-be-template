@@ -68,18 +68,29 @@ pub trait ChatStore: Send + Sync {
     async fn get_channel(&self, channel_id: &str) -> StoreResult<Option<chat_channel::Model>>;
     /// List channels owned by a customer (channels they started).
     /// Used by the customer-facing chat widget.
+    ///
+    /// `offset` is 0-based page pagination on the same ordering
+    /// (`last_message_at DESC`) — supports the admin workspace's
+    /// infinite channel list (scroll down → fetch the next page of
+    /// older-activity channels).
     async fn list_channels(
         &self,
         user_id: Uuid,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>>;
     /// List all OPEN channels — the employee support queue.
     /// Optionally filtered by brand. Used by the admin chat dashboard
     /// so all support staff see the same queue.
+    ///
+    /// `offset` is 0-based page pagination on `last_message_at DESC`
+    /// (most recent activity first) — the queue's initial page shows
+    /// the most recent channels, scrolling down appends older ones.
     async fn list_open_channels(
         &self,
         brand_id: Option<Uuid>,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>>;
     /// Count channels grouped by status — used by the admin chat
     /// dashboard's top-row cards (open / assigned / closed counts).
@@ -240,10 +251,12 @@ impl ChatStore for DbChatStore {
         &self,
         user_id: Uuid,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         Ok(chat_channel::Entity::find()
             .filter(chat_channel::Column::UserId.eq(user_id))
             .order_by_desc(chat_channel::Column::LastMessageAt)
+            .offset(offset)
             .limit(limit)
             .all(self.db.as_ref())
             .await?)
@@ -253,6 +266,7 @@ impl ChatStore for DbChatStore {
         &self,
         brand_id: Option<Uuid>,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
         // The staff support queue = every channel that is NOT closed:
         // "open" (waiting / bot-owned) + "assigned" (an employee owns
@@ -261,9 +275,14 @@ impl ChatStore for DbChatStore {
         // `upsert_assignment` flipped them to "assigned" — including
         // the creation-time assignment, where the channel would drop
         // out of the queue before any staff ever saw it.
+        //
+        // `offset` pages through the queue on the same ordering —
+        // the admin workspace's channel list loads the most recent
+        // `limit` channels first + fetches more as the staff scrolls.
         let mut q = chat_channel::Entity::find()
             .filter(chat_channel::Column::Status.is_in(["open", "assigned"]))
             .order_by_desc(chat_channel::Column::LastMessageAt)
+            .offset(offset)
             .limit(limit);
         if let Some(brand_id) = brand_id {
             q = q.filter(chat_channel::Column::BrandId.eq(brand_id));
@@ -859,16 +878,20 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         &self,
         user_id: Uuid,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
-        self.inner.list_channels(user_id, limit).await
+        self.inner.list_channels(user_id, limit, offset).await
     }
 
     async fn list_open_channels(
         &self,
         brand_id: Option<Uuid>,
         limit: u64,
+        offset: u64,
     ) -> StoreResult<Vec<chat_channel::Model>> {
-        self.inner.list_open_channels(brand_id, limit).await
+        self.inner
+            .list_open_channels(brand_id, limit, offset)
+            .await
     }
 
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
@@ -1027,5 +1050,162 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         channel_id: &str,
     ) -> StoreResult<Vec<chat_channel_member::Model>> {
         self.inner.list_channel_members(channel_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Offset-pagination coverage for the admin workspace's infinite
+    //! channel list: page 1 = the most recently active channels,
+    //! `offset` advances toward older ones, closed channels never
+    //! appear in the staff queue.
+    use super::*;
+    use sea_orm::{Database, EntityTrait, Set};
+
+    /// In-memory chat store with just the `chat_channel` table
+    /// (mirrors the migration DDL; the user FK is omitted — no users
+    /// table needed for pagination semantics).
+    async fn mem_store() -> DbChatStore {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        db.execute_unprepared(
+            r#"CREATE TABLE chat_channel (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                brand_id TEXT,
+                topic TEXT(255),
+                status TEXT(30) NOT NULL DEFAULT 'open',
+                priority TEXT(10) NOT NULL DEFAULT 'normal',
+                last_message_at TEXT,
+                last_message_preview TEXT(500),
+                unread_user INTEGER NOT NULL DEFAULT 0,
+                unread_employee INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                closed_at TEXT
+            )"#,
+        )
+        .await
+        .unwrap();
+        DbChatStore::new(std::sync::Arc::new(db))
+    }
+
+    fn channel(user_id: Uuid, status: &str, last_message_at: &str) -> chat_channel::ActiveModel {
+        chat_channel::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            user_id: Set(user_id),
+            brand_id: Set(None),
+            topic: Set(None),
+            status: Set(status.into()),
+            priority: Set("normal".into()),
+            last_message_at: Set(Some(last_message_at.into())),
+            last_message_preview: Set(None),
+            unread_user: Set(0),
+            unread_employee: Set(0),
+            created_at: Set("2026-09-08T00:00:00Z".into()),
+            closed_at: Set(None),
+        }
+    }
+
+    #[tokio::test]
+    async fn open_queue_pages_by_offset_most_recent_first() {
+        let store = mem_store().await;
+        // 5 channels with strictly ordered activity; #5 most recent.
+        let user = Uuid::new_v4();
+        for i in 1..=5 {
+            let at = format!("2026-09-0{i}T12:00:00Z");
+            let mut am = channel(user, "open", &at);
+            // Distinct users keep list_channels' per-customer filter
+            // from short-circuiting the queue query.
+            am.user_id = Set(Uuid::new_v4());
+            chat_channel::Entity::insert(am)
+                .exec(store.db.as_ref())
+                .await
+                .unwrap();
+        }
+
+        // Page 1: the two most recently active channels.
+        let page1 = store.list_open_channels(None, 2, 0).await.unwrap();
+        assert_eq!(page1.len(), 2);
+        assert_eq!(page1[0].last_message_at.as_deref(), Some("2026-09-05T12:00:00Z"));
+        assert_eq!(page1[1].last_message_at.as_deref(), Some("2026-09-04T12:00:00Z"));
+
+        // Page 2 (offset=2): the next two, strictly older.
+        let page2 = store.list_open_channels(None, 2, 2).await.unwrap();
+        assert_eq!(page2.len(), 2);
+        assert_eq!(page2[0].last_message_at.as_deref(), Some("2026-09-03T12:00:00Z"));
+        assert_eq!(page2[1].last_message_at.as_deref(), Some("2026-09-02T12:00:00Z"));
+
+        // Page 3 (offset=4): the last one — a partial page means
+        // "no more" for the frontend's hasNextPage heuristic.
+        let page3 = store.list_open_channels(None, 2, 4).await.unwrap();
+        assert_eq!(page3.len(), 1);
+        assert_eq!(page3[0].last_message_at.as_deref(), Some("2026-09-01T12:00:00Z"));
+
+        // Beyond the end: empty page.
+        let page4 = store.list_open_channels(None, 2, 6).await.unwrap();
+        assert!(page4.is_empty());
+    }
+
+    #[tokio::test]
+    async fn closed_channels_are_never_in_the_queue() {
+        let store = mem_store().await;
+        let mut closed = channel(Uuid::new_v4(), "closed", "2026-09-08T10:00:00Z");
+        closed.closed_at = Set(Some("2026-09-08T10:05:00Z".into()));
+        chat_channel::Entity::insert(closed)
+            .exec(store.db.as_ref())
+            .await
+            .unwrap();
+        chat_channel::Entity::insert(channel(
+            Uuid::new_v4(),
+            "open",
+            "2026-09-07T10:00:00Z",
+        ))
+        .exec(store.db.as_ref())
+        .await
+        .unwrap();
+
+        // Even with offset 0 and a big limit, the closed channel is
+        // excluded — pagination must never resurrect it on a later page.
+        for offset in [0u64, 1] {
+            let page = store.list_open_channels(None, 50, offset).await.unwrap();
+            assert!(
+                page.iter().all(|c| c.status != "closed"),
+                "closed channel leaked into queue page {offset}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn customer_channel_list_pages_by_offset() {
+        let store = mem_store().await;
+        let user = Uuid::new_v4();
+        // The customer's own 4 channels (distinct activity) + one
+        // channel belonging to somebody else.
+        for i in 1..=4 {
+            let at = format!("2026-08-0{i}T09:00:00Z");
+            chat_channel::Entity::insert(channel(user, "open", &at))
+                .exec(store.db.as_ref())
+                .await
+                .unwrap();
+        }
+        chat_channel::Entity::insert(channel(Uuid::new_v4(), "open", "2026-09-08T09:00:00Z"))
+            .exec(store.db.as_ref())
+            .await
+            .unwrap();
+
+        // Page 1: the customer's 3 most recent channels only.
+        let page1 = store.list_channels(user, 3, 0).await.unwrap();
+        assert_eq!(page1.len(), 3);
+        assert!(page1.iter().all(|c| c.user_id == user));
+        assert_eq!(page1[0].last_message_at.as_deref(), Some("2026-08-04T09:00:00Z"));
+
+        // Page 2: the customer's oldest channel — not the stranger's.
+        let page2 = store.list_channels(user, 3, 3).await.unwrap();
+        assert_eq!(page2.len(), 1);
+        assert_eq!(page2[0].user_id, user);
+        assert_eq!(page2[0].last_message_at.as_deref(), Some("2026-08-01T09:00:00Z"));
+
+        // No third page for this customer.
+        let page3 = store.list_channels(user, 3, 6).await.unwrap();
+        assert!(page3.is_empty());
     }
 }

@@ -482,7 +482,16 @@ export type AdminVehicleTypeOut = {
 
 export type AuthResponse = {
     expires_at: string;
+    tokens?: null | AuthTokens;
     user: SessionUser;
+};
+
+/**
+ * Raw credentials for non-browser clients (see [`AuthResponse::tokens`]).
+ */
+export type AuthTokens = {
+    access_token: string;
+    refresh_token: string;
 };
 
 /**
@@ -1063,9 +1072,18 @@ export type DatabaseStats = {
      */
     activeConnections: number;
     /**
-     * Backend name — `"sqlite"` or `"postgres"`.
+     * Backend name — always `"sqlite (rust-sql engine)"` in this
+     * build (rustqlite via the sqlx-sqlite C-ABI compat layer).
      */
     backend: string;
+    /**
+     * Engine-level resource usage: memory used, throughput, and
+     * performance capacity. Sourced from the rustqlite engine's
+     * built-in counters (`sqlite3::engine_stats()` — process-global
+     * atomics bumped on the hot path at ~1 ns each, the same trade
+     * SQLite's own `SQLITE_STATUS` counters make).
+     */
+    engine: EngineStatsOut;
     /**
      * Current idle connections (in pool, available). `-1` if unavailable.
      */
@@ -1080,7 +1098,7 @@ export type DatabaseStats = {
     minConnections: number;
     /**
      * Database file size in MB (SQLite only — WAL + main DB file).
-     * `0.0` for Postgres (no file).
+     * `0.0` when no file backs the URL (not the case here).
      */
     sizeMb: number;
     /**
@@ -1151,6 +1169,230 @@ export type DiskInfo = {
      * `used / total * 100`, 0–100.
      */
     usagePercent: number;
+};
+
+export type EngineCacheOut = {
+    /**
+     * Hit rate, 0.0–100.0. High (> 95) = working set fits in memory.
+     */
+    hitRatePct: number;
+    /**
+     * Page-cache hits since open.
+     */
+    hits: number;
+    /**
+     * Page-cache misses (file/WAL reads) since open.
+     */
+    misses: number;
+};
+
+export type EngineConnectionsOut = {
+    /**
+     * Connections fully dropped since process start.
+     */
+    closed: number;
+    /**
+     * Live C-ABI connections right now (each sqlx pool connection
+     * = one).
+     */
+    live: number;
+    /**
+     * Total `sqlite3_open*` calls since process start.
+     */
+    opened: number;
+};
+
+export type EngineContentionOut = {
+    /**
+     * Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.
+     */
+    busyTimeouts: number;
+    /**
+     * Times a writer had to WAIT for a foreign transaction's slot.
+     */
+    busyWaits: number;
+};
+
+/**
+ * Per-database-file engine snapshot (usually one: the app DB).
+ */
+export type EngineFileOut = {
+    /**
+     * Cache capacity, MB.
+     */
+    cacheCapacityMb: number;
+    /**
+     * Cache capacity in pages.
+     */
+    cacheCapacityPages: number;
+    /**
+     * Cache hits since open.
+     */
+    cacheHits: number;
+    /**
+     * Cache memory in use, MB.
+     */
+    cacheMb: number;
+    /**
+     * Cache misses since open.
+     */
+    cacheMisses: number;
+    /**
+     * Pages currently held in the shared page cache.
+     */
+    cachePages: number;
+    /**
+     * Freelist pages (reclaimable space).
+     */
+    freelistPages: number;
+    /**
+     * Hit rate, 0.0–100.0.
+     */
+    hitRatePct: number;
+    /**
+     * Live C-ABI connections sharing this engine right now.
+     */
+    liveConnections: number;
+    /**
+     * Registry key — canonical file path (or shared-memory name).
+     */
+    name: string;
+    /**
+     * Pages in the database file.
+     */
+    pageCount: number;
+    /**
+     * Page size in bytes.
+     */
+    pageSizeBytes: number;
+    /**
+     * Database size in MB (`page_count × page_size`).
+     */
+    sizeMb: number;
+    /**
+     * Row mutations since open.
+     */
+    totalChanges: number;
+    /**
+     * True when a transaction owns the engine slot right now.
+     */
+    transactionActive: boolean;
+    /**
+     * Frames currently in the write-ahead log.
+     */
+    walFrames: number;
+};
+
+export type EngineMemoryOut = {
+    /**
+     * Page-cache capacity in MB (the configured upper bound the
+     * caches may grow to).
+     */
+    cacheCapacityMb: number;
+    /**
+     * Page-cache memory in use across all engine files (pages
+     * currently cached × page size), in MB.
+     */
+    cacheMb: number;
+    /**
+     * On-disk database size across all files, in MB.
+     */
+    dbSizeMb: number;
+    /**
+     * Reclaimable freelist pages across all files.
+     */
+    freelistPages: number;
+    /**
+     * Cache utilization, 0.0–100.0 — `cache / capacity`.
+     */
+    utilizationPct: number;
+    /**
+     * Frames currently buffered in the write-ahead log.
+     */
+    walFrames: number;
+};
+
+/**
+ * Live resource usage of the rustqlite engine — the "database
+ * engine" card group on the admin system page.
+ */
+export type EngineStatsOut = {
+    /**
+     * Page-cache performance (hit rate — the primary "performance
+     * capacity" signal for a page-cache-driven engine).
+     */
+    cache: EngineCacheOut;
+    connections: EngineConnectionsOut;
+    /**
+     * Write-slot contention (how often writers waited for the
+     * engine-level transaction slot + how many timed out).
+     */
+    contention: EngineContentionOut;
+    /**
+     * One entry per registered engine (per database file). Usually
+     * exactly one — the app's `app.db`.
+     */
+    files: Array<EngineFileOut>;
+    /**
+     * Memory used by the engine's page caches (the engine's own
+     * memory footprint, distinct from process RSS).
+     */
+    memory: EngineMemoryOut;
+    /**
+     * Live throughput rates (per second, computed between successive
+     * scrapes of this endpoint) + lifetime totals.
+     */
+    throughput: EngineThroughputOut;
+    transactions: EngineTransactionsOut;
+    /**
+     * Engine build identity (`sqlite3_source_id()` — names rustqlite).
+     */
+    version: string;
+};
+
+export type EngineThroughputOut = {
+    /**
+     * Rows delivered to clients per second (between scrapes).
+     */
+    rowsPerSec: number;
+    /**
+     * Total rows returned since process start.
+     */
+    rowsReturned: number;
+    /**
+     * Total statements prepared since process start.
+     */
+    statementsPrepared: number;
+    /**
+     * Total statement steps since process start.
+     */
+    steps: number;
+    /**
+     * Statement steps per second (total statement progress).
+     */
+    stepsPerSec: number;
+    /**
+     * Row mutations since open (the engine's `total_changes`).
+     */
+    totalChanges: number;
+    /**
+     * Total writes executed since process start.
+     */
+    writesExecuted: number;
+    /**
+     * Write statements completed per second.
+     */
+    writesPerSec: number;
+};
+
+export type EngineTransactionsOut = {
+    /**
+     * True when a transaction owns the engine write slot right now.
+     */
+    active: boolean;
+    begun: number;
+    committed: number;
+    rolledBack: number;
 };
 
 export type HealthResponse = {
@@ -4414,6 +4656,12 @@ export type ListChannelsData = {
     path?: never;
     query?: {
         limit?: number;
+        /**
+         * 0-based page offset on the `last_message_at DESC` ordering —
+         * `offset=30` returns the next 30 less-recent channels. Powers
+         * the admin workspace's infinite channel list.
+         */
+        offset?: number;
     };
     url: '/api/chat/channels';
 };
@@ -5092,8 +5340,6 @@ export type SearchData = {
     query: {
         q: string;
         limit?: number | null;
-        lat?: number | null;
-        lon?: number | null;
     };
     url: '/api/places/search';
 };

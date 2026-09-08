@@ -1,7 +1,10 @@
 /** Admin route — `/admin/system` — system monitoring dashboard.
  *
- * Two live sections (both poll every 5 s):
+ * Three live sections (the first two poll every 5 s):
  *   • System Status — platform runtime: uptime, WebSocket hub, DB pool.
+ *   • Database Engine — the rustqlite engine's own resource usage:
+ *     memory used, performance capacity, throughput (+ per-file
+ *     detail cards). Sourced from the engine's built-in counters.
  *   • Server Metrics — host hardware: CPU, RAM, disks, this process
  *     (the pdf-tts admin "Server Metrics" feature, ported 1:1).
  *
@@ -11,6 +14,7 @@
  */
 import { Activity, Clock, Database, Wifi } from 'lucide-react'
 
+import { DatabaseEngineSection } from '@/components/admin/system/database-engine-section'
 import { SystemMetricsSection } from '@/components/admin/system/system-metrics-section'
 import { SystemStatusSkeleton } from '@/components/layout/skeletons'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,6 +42,9 @@ export function AdminSystemPage() {
           </div>
         )}
       </section>
+
+      {/* ── Database Engine (memory / capacity / throughput) ──────── */}
+      {data?.database?.engine && <DatabaseEngineSection engine={data.database.engine} />}
 
       {/* ── Server Metrics (host hardware, pdf-tts feature) ────────── */}
       <SystemMetricsSection />
@@ -117,6 +124,7 @@ function WebSocketCard({ data }: { data: NonNullable<StatusData> }) {
 
 function DatabaseCard({ data }: { data: NonNullable<StatusData> }) {
   const db = data.database
+  const engine = db.engine
 
   return (
     <Card data-testid="status-database-card">
@@ -139,6 +147,29 @@ function DatabaseCard({ data }: { data: NonNullable<StatusData> }) {
               </div>
               <div>
                 Pool: {db.minConnections}–{db.maxConnections} conns
+              </div>
+            </>
+          ) : engine ? (
+            <>
+              <div>
+                Size: <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span>
+                {engine.memory.dbSizeMb > 0 && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    ({engine.memory.dbSizeMb.toFixed(2)} MB data)
+                  </span>
+                )}
+              </div>
+              <div>
+                Engine connections:{' '}
+                <span className="font-medium text-blue-600 tabular-nums">
+                  {engine.connections.live}
+                </span>{' '}
+                · cache {engine.memory.cacheMb.toFixed(1)}/
+                {engine.memory.cacheCapacityMb.toFixed(1)} MB
+              </div>
+              <div className="text-muted-foreground">
+                See "Database Engine" below for memory · capacity · throughput
               </div>
             </>
           ) : (

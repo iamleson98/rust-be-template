@@ -3,7 +3,7 @@
 import { useCallback, useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
-  useChatChannels,
+  useChatChannelsInfinite,
   useChatMessagesInfinite,
   useChatStats,
   usePostChatMessage,
@@ -27,9 +27,28 @@ export function useAdminChatWorkspace() {
   const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null);
   const [replyText, setReplyText] = useState("");
 
-  const channelsQuery = useChatChannels(50);
-  const channels: AdminChannel[] = (channelsQuery.data?.items ??
-    []) as unknown as AdminChannel[];
+  // ── Infinite-scroll channel list ─────────────────────────────
+  //
+  // Initial page = the 30 most recently active channels (the top of
+  // the support queue). When the staff scrolls the channel list to
+  // the bottom, the panel calls `fetchMoreChannels()` to load the
+  // next 30 less-recent channels. The list is ordered
+  // `last_message_at DESC` — newest activity first, so "scroll down"
+  // = "further back in the queue".
+  //
+  // WS events (new message / new channel / assignment changes)
+  // invalidate `listChannels` → the loaded pages refetch → the queue
+  // re-sorts (a channel with new activity jumps to the top).
+  const {
+    channels: fetchedChannels,
+    hasNextPage: hasMoreChannels,
+    fetchNextPage: fetchMoreChannels,
+    isFetchingNextPage: isFetchingMoreChannels,
+    isLoading: channelsLoading,
+    error: channelsError,
+  } = useChatChannelsInfinite(PAGE_SIZE);
+  const channels: AdminChannel[] =
+    fetchedChannels as unknown as AdminChannel[];
 
   // ── Aggregate chat stats (server-side count, not client-side filter) ──
   //
@@ -99,9 +118,12 @@ export function useAdminChatWorkspace() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
+    isLoading: messagesQueryLoading,
+    error: messagesError,
   } = useChatMessagesInfinite(activeChannel?.id, PAGE_SIZE);
   const chatMessages: AdminChatMessage[] = infiniteMessages as unknown as AdminChatMessage[];
-  const messagesLoading = !infiniteMessages && hasNextPage;
+  const messagesLoading = messagesQueryLoading;
+  const messagesErrorOut: unknown = messagesError;
 
   const {
     typingUser,
@@ -254,20 +276,24 @@ export function useAdminChatWorkspace() {
     closeActiveChannel,
     assignmentBusy:
       claimMut.isPending || releaseMut.isPending || closeMut.isPending,
-    channelsLoading: channelsQuery.isLoading,
-    channelsError: channelsQuery.error,
+    channelsLoading,
+    channelsError: channelsError ?? null,
     chatMessages,
     messagesLoading,
-    messagesError: null as any,
+    messagesError: messagesErrorOut ?? null,
     activeChannel,
     setActiveChannel: openChannel,
     replyText,
     setReplyText: onReplyTextChange,
     sending: postReplyMut.isPending,
-    // infinite scroll
+    // message infinite scroll (up = older)
     hasMoreMessages: hasNextPage,
     fetchMoreMessages: fetchNextPage,
     isFetchingMoreMessages: isFetchingNextPage,
+    // channel list infinite scroll (down = more channels)
+    hasMoreChannels,
+    fetchMoreChannels,
+    isFetchingMoreChannels,
     // realtime state
     typingUser,
     userOnline,

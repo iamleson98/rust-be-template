@@ -15,6 +15,7 @@ export function AdminChatPage() {
       <ChatPanel
         channels={ws.channels}
         channelsLoading={ws.channelsLoading}
+        messagesLoading={ws.messagesLoading}
         activeChannel={ws.activeChannel}
         chatMessages={ws.chatMessages}
         replyText={ws.replyText}
@@ -30,6 +31,9 @@ export function AdminChatPage() {
         hasMoreMessages={ws.hasMoreMessages}
         isFetchingMoreMessages={ws.isFetchingMoreMessages}
         onFetchMoreMessages={ws.fetchMoreMessages as any}
+        hasMoreChannels={ws.hasMoreChannels}
+        isFetchingMoreChannels={ws.isFetchingMoreChannels}
+        onFetchMoreChannels={ws.fetchMoreChannels as any}
         chatStats={ws.chatStats}
         staffPresence={ws.staffPresence}
         mineFilter={ws.mineFilter}

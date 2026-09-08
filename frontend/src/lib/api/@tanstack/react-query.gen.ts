@@ -1512,6 +1512,12 @@ export const listChannelsQueryKey = (options?: Options<ListChannelsData>) => cre
  * Each channel includes the customer's `user` row (`id`, `fullName`,
  * `email`, `phone`, `avatarUrl`) so the admin's channel list can
  * display "who" without a second round-trip per channel.
+ *
+ * **Pagination**: `limit` (default 50, max 200) + `offset` (default
+ * 0) page through the `last_message_at DESC` ordering — the initial
+ * page returns the most recently active channels; scrolling the
+ * admin channel list down fetches subsequent pages. The list is
+ * ordered most-recent-first, so a full page means "there may be more".
  */
 export const listChannelsOptions = (options?: Options<ListChannelsData>) => queryOptions<ListChannelsResponse, DefaultError, ListChannelsResponse, ReturnType<typeof listChannelsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -1525,6 +1531,50 @@ export const listChannelsOptions = (options?: Options<ListChannelsData>) => quer
     },
     queryKey: listChannelsQueryKey(options)
 });
+
+export const listChannelsInfiniteQueryKey = (options?: Options<ListChannelsData>): QueryKey<Options<ListChannelsData>> => createQueryKey('listChannels', options, true);
+
+/**
+ * `GET /api/chat/channels` — list chat channels for the authenticated user.
+ *
+ * For **customers**: returns only their own channels (the ones they started).
+ * For **employees**: returns the entire open-channel support queue (optionally
+ * filtered by the employee's brand) so support staff see all inbound chats.
+ *
+ * Each channel includes the customer's `user` row (`id`, `fullName`,
+ * `email`, `phone`, `avatarUrl`) so the admin's channel list can
+ * display "who" without a second round-trip per channel.
+ *
+ * **Pagination**: `limit` (default 50, max 200) + `offset` (default
+ * 0) page through the `last_message_at DESC` ordering — the initial
+ * page returns the most recently active channels; scrolling the
+ * admin channel list down fetches subsequent pages. The list is
+ * ordered most-recent-first, so a full page means "there may be more".
+ */
+export const listChannelsInfiniteOptions = (options?: Options<ListChannelsData>) => {
+    const opts = infiniteQueryOptions<ListChannelsResponse, DefaultError, InfiniteData<ListChannelsResponse>, QueryKey<Options<ListChannelsData>>, number | Pick<QueryKey<Options<ListChannelsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListChannelsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    offset: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listChannels({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listChannelsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 /**
  * `POST /api/chat/channels` — create a new chat channel for the

@@ -171,24 +171,30 @@ impl ChatService {
     /// - For **employees** (`is_employee == true`): returns ALL open
     ///   channels in the support queue (optionally filtered by their
     ///   brand). This is the admin support dashboard's view.
+    ///
+    /// `offset` pages through either list on the `last_message_at
+    /// DESC` ordering — the admin workspace loads the most recently
+    /// active `limit` channels first, then auto-fetches the next page
+    /// (`offset += limit`) as the staff scrolls the channel list down.
     pub async fn list_channels(
         &self,
         user_id: Uuid,
         is_employee: bool,
         brand_id: Option<Uuid>,
         limit: u64,
+        offset: u64,
     ) -> AppResult<Vec<chat_channel::Model>> {
         let limit = limit.min(200);
         if is_employee {
             self.store
                 .chat_store()
-                .list_open_channels(brand_id, limit)
+                .list_open_channels(brand_id, limit, offset)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))
         } else {
             self.store
                 .chat_store()
-                .list_channels(user_id, limit)
+                .list_channels(user_id, limit, offset)
                 .await
                 .map_err(|e| AppError::Internal(e.to_string()))
         }
@@ -253,7 +259,7 @@ impl ChatService {
         let existing = self
             .store
             .chat_store()
-            .list_channels(user_id, 50)
+            .list_channels(user_id, 50, 0)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
         if let Some(open) = existing

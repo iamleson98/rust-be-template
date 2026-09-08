@@ -22,6 +22,10 @@ use crate::state::AppState;
 #[into_params(parameter_in = Query)]
 pub struct ListChannelsQuery {
     pub limit: Option<u64>,
+    /// 0-based page offset on the `last_message_at DESC` ordering —
+    /// `offset=30` returns the next 30 less-recent channels. Powers
+    /// the admin workspace's infinite channel list.
+    pub offset: Option<u64>,
 }
 
 /// `GET /api/chat/channels` — list chat channels for the authenticated user.
@@ -33,6 +37,12 @@ pub struct ListChannelsQuery {
 /// Each channel includes the customer's `user` row (`id`, `fullName`,
 /// `email`, `phone`, `avatarUrl`) so the admin's channel list can
 /// display "who" without a second round-trip per channel.
+///
+/// **Pagination**: `limit` (default 50, max 200) + `offset` (default
+/// 0) page through the `last_message_at DESC` ordering — the initial
+/// page returns the most recently active channels; scrolling the
+/// admin channel list down fetches subsequent pages. The list is
+/// ordered most-recent-first, so a full page means "there may be more".
 #[utoipa::path(
     get,
     path = "/api/chat/channels",
@@ -66,7 +76,13 @@ pub async fn list_channels(
 
     let channels = st
         .chats
-        .list_channels(uid, is_employee, brand_id, q.limit.unwrap_or(50))
+        .list_channels(
+            uid,
+            is_employee,
+            brand_id,
+            q.limit.unwrap_or(50).min(200),
+            q.offset.unwrap_or(0),
+        )
         .await?;
 
     // Batch-fetch the customer user rows for every channel in one

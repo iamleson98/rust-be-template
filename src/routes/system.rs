@@ -3,6 +3,13 @@
 //! Returns real-time metrics about the server: WebSocket hub stats,
 //! database pool, cache, uptime, and process info. Admin-only.
 //!
+//! The `database.engine` section surfaces the rustqlite engine's own
+//! resource usage — memory used (page-cache footprint), throughput
+//! (rows/writes/steps per second, computed between successive
+//! scrapes), + performance capacity (cache hit rate, live
+//! connections, transaction + busy contention) — sourced from the
+//! engine's built-in counters via `sqlite3::engine_stats()`.
+//!
 //! Also hosts `/api/admin/chat/stats` — aggregate chat stats for the
 //! admin dashboard's top-row cards (open / assigned / closed counts +
 //! average first-response time) — and `/api/admin/system/metrics` —
@@ -81,6 +88,158 @@ pub struct DatabaseStats {
     /// Database file size in MB (SQLite only — WAL + main DB file).
     /// `0.0` when no file backs the URL (not the case here).
     pub size_mb: f64,
+    /// Engine-level resource usage: memory used, throughput, and
+    /// performance capacity. Sourced from the rustqlite engine's
+    /// built-in counters (`sqlite3::engine_stats()` — process-global
+    /// atomics bumped on the hot path at ~1 ns each, the same trade
+    /// SQLite's own `SQLITE_STATUS` counters make).
+    pub engine: EngineStatsOut,
+}
+
+/// Live resource usage of the rustqlite engine — the "database
+/// engine" card group on the admin system page.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStatsOut {
+    /// Engine build identity (`sqlite3_source_id()` — names rustqlite).
+    pub version: String,
+    pub connections: EngineConnectionsOut,
+    /// Memory used by the engine's page caches (the engine's own
+    /// memory footprint, distinct from process RSS).
+    pub memory: EngineMemoryOut,
+    /// Live throughput rates (per second, computed between successive
+    /// scrapes of this endpoint) + lifetime totals.
+    pub throughput: EngineThroughputOut,
+    /// Page-cache performance (hit rate — the primary "performance
+    /// capacity" signal for a page-cache-driven engine).
+    pub cache: EngineCacheOut,
+    pub transactions: EngineTransactionsOut,
+    /// Write-slot contention (how often writers waited for the
+    /// engine-level transaction slot + how many timed out).
+    pub contention: EngineContentionOut,
+    /// One entry per registered engine (per database file). Usually
+    /// exactly one — the app's `app.db`.
+    pub files: Vec<EngineFileOut>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineConnectionsOut {
+    /// Total `sqlite3_open*` calls since process start.
+    pub opened: u64,
+    /// Connections fully dropped since process start.
+    pub closed: u64,
+    /// Live C-ABI connections right now (each sqlx pool connection
+    /// = one).
+    pub live: u64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineMemoryOut {
+    /// Page-cache memory in use across all engine files (pages
+    /// currently cached × page size), in MB.
+    pub cache_mb: f64,
+    /// Page-cache capacity in MB (the configured upper bound the
+    /// caches may grow to).
+    pub cache_capacity_mb: f64,
+    /// Cache utilization, 0.0–100.0 — `cache / capacity`.
+    pub utilization_pct: f64,
+    /// Frames currently buffered in the write-ahead log.
+    pub wal_frames: u64,
+    /// On-disk database size across all files, in MB.
+    pub db_size_mb: f64,
+    /// Reclaimable freelist pages across all files.
+    pub freelist_pages: u64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineThroughputOut {
+    /// Rows delivered to clients per second (between scrapes).
+    pub rows_per_sec: f64,
+    /// Write statements completed per second.
+    pub writes_per_sec: f64,
+    /// Statement steps per second (total statement progress).
+    pub steps_per_sec: f64,
+    /// Total rows returned since process start.
+    pub rows_returned: u64,
+    /// Total writes executed since process start.
+    pub writes_executed: u64,
+    /// Total statements prepared since process start.
+    pub statements_prepared: u64,
+    /// Total statement steps since process start.
+    pub steps: u64,
+    /// Row mutations since open (the engine's `total_changes`).
+    pub total_changes: u64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineCacheOut {
+    /// Page-cache hits since open.
+    pub hits: u64,
+    /// Page-cache misses (file/WAL reads) since open.
+    pub misses: u64,
+    /// Hit rate, 0.0–100.0. High (> 95) = working set fits in memory.
+    pub hit_rate_pct: f64,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineTransactionsOut {
+    pub begun: u64,
+    pub committed: u64,
+    pub rolled_back: u64,
+    /// True when a transaction owns the engine write slot right now.
+    pub active: bool,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineContentionOut {
+    /// Times a writer had to WAIT for a foreign transaction's slot.
+    pub busy_waits: u64,
+    /// Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.
+    pub busy_timeouts: u64,
+}
+
+/// Per-database-file engine snapshot (usually one: the app DB).
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineFileOut {
+    /// Registry key — canonical file path (or shared-memory name).
+    pub name: String,
+    /// Page size in bytes.
+    pub page_size_bytes: u64,
+    /// Pages in the database file.
+    pub page_count: u64,
+    /// Database size in MB (`page_count × page_size`).
+    pub size_mb: f64,
+    /// Freelist pages (reclaimable space).
+    pub freelist_pages: u64,
+    /// Pages currently held in the shared page cache.
+    pub cache_pages: u64,
+    /// Cache capacity in pages.
+    pub cache_capacity_pages: u64,
+    /// Cache memory in use, MB.
+    pub cache_mb: f64,
+    /// Cache capacity, MB.
+    pub cache_capacity_mb: f64,
+    /// Cache hits since open.
+    pub cache_hits: u64,
+    /// Cache misses since open.
+    pub cache_misses: u64,
+    /// Hit rate, 0.0–100.0.
+    pub hit_rate_pct: f64,
+    /// Frames currently in the write-ahead log.
+    pub wal_frames: u64,
+    /// Row mutations since open.
+    pub total_changes: u64,
+    /// Live C-ABI connections sharing this engine right now.
+    pub live_connections: u64,
+    /// True when a transaction owns the engine slot right now.
+    pub transaction_active: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -184,6 +343,7 @@ pub async fn system_status(
     let db_url_masked = mask_db_url(&st.config.database.url);
     let db_backend = crate::cli::util::db_backend_name().to_string();
     let (active_connections, idle_connections, size_mb) = collect_db_stats(&st).await;
+    let engine = engine_stats_with_rates();
 
     Ok(Json(SystemStatusResponse {
         uptime: SystemUptime {
@@ -207,6 +367,7 @@ pub async fn system_status(
             active_connections,
             idle_connections,
             size_mb,
+            engine,
         },
         process: ProcessStats {
             pid,
@@ -276,6 +437,159 @@ async fn collect_db_stats(st: &AppState) -> (i32, i32, f64) {
     // Single connection (not a pool) — return -1 to indicate "not
     // applicable".
     (-1, -1, size_mb)
+}
+
+/// Previous engine-stats snapshot — the reference point for computing
+/// live throughput rates. Updated on every scrape of
+/// `/api/admin/system` (the frontend polls every 5 s, so rates always
+/// reflect the last ~5 s window).
+static PREV_ENGINE: std::sync::OnceLock<std::sync::Mutex<Option<(std::time::Instant, sqlite3::EngineStats)>>> =
+    std::sync::OnceLock::new();
+
+/// Snapshot the engine's resource usage + compute live throughput
+/// rates from the delta since the previous scrape.
+///
+/// Rates: `rows_per_sec` etc. are `(current - previous) / elapsed`.
+/// The first scrape after boot has no previous snapshot → rates are
+/// 0.0 (the same warm-up semantics as sysinfo's CPU sampling). If two
+/// scrapes land within the same millisecond, `elapsed` floors at 1 ms
+/// to avoid division blow-ups.
+fn engine_stats_with_rates() -> EngineStatsOut {
+    let raw = sqlite3::engine_stats();
+    let now = std::time::Instant::now();
+
+    // ── Throughput rates (delta vs. previous scrape) ───────────────
+    let (rows_per_sec, writes_per_sec, steps_per_sec) = {
+        let mut prev = PREV_ENGINE
+            .get_or_init(|| std::sync::Mutex::new(None))
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let rates = match prev.as_ref() {
+            Some((t, p)) => {
+                let elapsed = now.duration_since(*t).as_secs_f64().max(0.001);
+                (
+                    raw.rows_returned.saturating_sub(p.rows_returned) as f64 / elapsed,
+                    raw.writes_executed.saturating_sub(p.writes_executed) as f64 / elapsed,
+                    raw.steps.saturating_sub(p.steps) as f64 / elapsed,
+                )
+            }
+            None => (0.0, 0.0, 0.0),
+        };
+        *prev = Some((now, raw.clone()));
+        rates
+    };
+
+    // ── Aggregates across all registered engine files ─────────────
+    let live: u64 = raw.files.iter().map(|f| f.live_connections as u64).sum();
+    let cache_hits: u64 = raw.files.iter().map(|f| f.cache_hits).sum();
+    let cache_misses: u64 = raw.files.iter().map(|f| f.cache_misses).sum();
+    let hit_rate_pct = if cache_hits + cache_misses > 0 {
+        cache_hits as f64 / (cache_hits + cache_misses) as f64 * 100.0
+    } else {
+        0.0
+    };
+    // Memory: cache pages × page size per file. `page_size` can be 0
+    // only for engines with no pages yet — treat as no footprint.
+    let cache_bytes: u64 = raw
+        .files
+        .iter()
+        .map(|f| (f.cache_pages as u64) * (f.page_size as u64))
+        .sum();
+    let cache_capacity_bytes: u64 = raw
+        .files
+        .iter()
+        .map(|f| (f.cache_capacity_pages as u64) * (f.page_size as u64))
+        .sum();
+    let db_bytes: u64 = raw
+        .files
+        .iter()
+        .map(|f| (f.page_count as u64) * (f.page_size as u64))
+        .sum();
+    let total_changes: i64 = raw.files.iter().map(|f| f.total_changes).sum();
+    let tx_active = raw.files.iter().any(|f| f.transaction_active);
+    let wal_frames: u64 = raw.files.iter().map(|f| f.wal_frames).sum();
+    let freelist_pages: u32 = raw.files.iter().map(|f| f.freelist_pages).sum();
+
+    let files = raw
+        .files
+        .iter()
+        .map(|f| {
+            let f_hits = f.cache_hits;
+            let f_misses = f.cache_misses;
+            let f_hit_rate = if f_hits + f_misses > 0 {
+                f_hits as f64 / (f_hits + f_misses) as f64 * 100.0
+            } else {
+                0.0
+            };
+            EngineFileOut {
+                name: f.name.clone(),
+                page_size_bytes: f.page_size as u64,
+                page_count: f.page_count as u64,
+                size_mb: (f.page_count as f64 * f.page_size as f64) / 1024.0 / 1024.0,
+                freelist_pages: f.freelist_pages as u64,
+                cache_pages: f.cache_pages as u64,
+                cache_capacity_pages: f.cache_capacity_pages as u64,
+                cache_mb: (f.cache_pages as f64 * f.page_size as f64) / 1024.0 / 1024.0,
+                cache_capacity_mb: (f.cache_capacity_pages as f64 * f.page_size as f64)
+                    / 1024.0
+                    / 1024.0,
+                cache_hits: f_hits,
+                cache_misses: f_misses,
+                hit_rate_pct: f_hit_rate,
+                wal_frames: f.wal_frames,
+                total_changes: f.total_changes.max(0) as u64,
+                live_connections: f.live_connections as u64,
+                transaction_active: f.transaction_active,
+            }
+        })
+        .collect();
+
+    EngineStatsOut {
+        version: crate::db::engine_source_id().to_string(),
+        connections: EngineConnectionsOut {
+            opened: raw.connections_opened,
+            closed: raw.connections_closed,
+            live,
+        },
+        memory: EngineMemoryOut {
+            cache_mb: cache_bytes as f64 / 1024.0 / 1024.0,
+            cache_capacity_mb: cache_capacity_bytes as f64 / 1024.0 / 1024.0,
+            utilization_pct: if cache_capacity_bytes > 0 {
+                cache_bytes as f64 / cache_capacity_bytes as f64 * 100.0
+            } else {
+                0.0
+            },
+            wal_frames,
+            db_size_mb: db_bytes as f64 / 1024.0 / 1024.0,
+            freelist_pages: freelist_pages as u64,
+        },
+        throughput: EngineThroughputOut {
+            rows_per_sec,
+            writes_per_sec,
+            steps_per_sec,
+            rows_returned: raw.rows_returned,
+            writes_executed: raw.writes_executed,
+            statements_prepared: raw.statements_prepared,
+            steps: raw.steps,
+            total_changes: total_changes.max(0) as u64,
+        },
+        cache: EngineCacheOut {
+            hits: cache_hits,
+            misses: cache_misses,
+            hit_rate_pct,
+        },
+        transactions: EngineTransactionsOut {
+            begun: raw.transactions_begun,
+            committed: raw.transactions_committed,
+            rolled_back: raw.transactions_rolled_back,
+            active: tx_active,
+        },
+        contention: EngineContentionOut {
+            busy_waits: raw.busy_waits,
+            busy_timeouts: raw.busy_timeouts,
+        },
+        files,
+    }
 }
 
 fn mask_db_url(url: &str) -> String {

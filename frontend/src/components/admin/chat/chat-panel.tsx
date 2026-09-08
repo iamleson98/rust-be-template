@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,144 @@ function customerSubtitle(channel: Channel): string {
   return ''
 }
 
+// ────────────────────────────────────────────────────────────────
+//  Message rendering: timestamps + day separators + virtualization
+// ────────────────────────────────────────────────────────────────
+
+/** `HH:mm` (vi-VN, 24h) for a message timestamp. */
+function formatMessageTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
+
+/** Day key (`YYYY-M-D` in local time) for day-boundary detection. */
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
+}
+
+/**
+ * Day-separator label ("Hôm nay" / "Hôm qua" / `dd/MM/yyyy`) shown
+ * between messages from different calendar days.
+ */
+function formatDayLabel(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const that = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diffDays = Math.round((today - that) / 86_400_000)
+  if (diffDays === 0) return 'Hôm nay'
+  if (diffDays === 1) return 'Hôm qua'
+  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+/**
+ * Decide whether a separator is needed before this message: when the
+ * previous message (chronological) is from a different calendar day
+ * (or there is no previous message). Returns the label, or null.
+ */
+function daySeparatorLabel(prevIso: string | null | undefined, iso: string): string | null {
+  if (!iso) return null
+  if (!prevIso || dayKey(prevIso) !== dayKey(iso)) return formatDayLabel(iso)
+  return null
+}
+
+/**
+ * One chat message row — memoized so that typing in the reply input
+ * (or any unrelated panel re-render) doesn't re-render the whole
+ * message history.
+ *
+ * ## Virtual scrolling
+ *
+ * Each row sets `content-visibility: auto` +
+ * `contain-intrinsic-size: auto 72px` — the browser skips layout +
+ * paint for off-screen rows entirely while keeping them in the DOM.
+ * This is native rendering-level virtual scrolling: it works with
+ * dynamic message heights (long messages, ticket cards), preserves
+ * scroll anchoring when prepending older pages, and needs zero JS
+ * measurement — the right trade-off for a chat log inside ScrollArea
+ * (a JS virtualizer with dynamic heights + bidirectional anchoring
+ * would be far riskier for the same win).
+ */
+const MessageRow = memo(function MessageRow({
+  message,
+  dayLabel,
+  isLast,
+  onViewTicket,
+}: {
+  message: ChatMessage
+  /** Day-separator label to render above this row (null = none). */
+  dayLabel: string | null
+  isLast: boolean
+  onViewTicket?: (bookingCode: string) => void
+}) {
+  const isEmployee = message.senderType === 'employee'
+  const ticketPayload = parseTicketPayload(message)
+  const time = formatMessageTime(message.createdAt)
+  // Timestamp color adapts to the bubble style (legible on each).
+  const timeClass = isEmployee
+    ? 'text-blue-100/80 text-right'
+    : message.senderType === 'system'
+      ? 'text-amber-600/80 text-center'
+      : message.senderType === 'assistant'
+        ? 'text-violet-400'
+        : 'text-slate-400'
+
+  return (
+    <>
+      {dayLabel && (
+        <div className="flex items-center justify-center py-1.5">
+          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            {dayLabel}
+          </span>
+        </div>
+      )}
+      <div
+        style={{
+          // Browser-native virtual scrolling (see component doc).
+          // The intrinsic-size hint (72px) keeps the scrollbar
+          // estimated for far-off-screen rows.
+          contentVisibility: 'auto',
+          containIntrinsicSize: 'auto 72px',
+        }}
+        className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
+      >
+        {ticketPayload ? (
+          <div className="max-w-[88%] sm:max-w-[75%] space-y-0.5">
+            <TicketCardMessage
+              payload={ticketPayload}
+              isEmployee={isEmployee}
+              onView={onViewTicket}
+            />
+            {time && (
+              <div className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}>{time}</div>
+            )}
+          </div>
+        ) : (
+          <div
+            className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
+              ? 'bg-blue-600 text-white rounded-br-sm'
+              : message.senderType === 'system'
+                ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
+                : message.senderType === 'assistant'
+                  ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
+                  : 'bg-white border rounded-bl-sm '
+              }`}
+          >
+            {message.content}
+            {time && <div className={`mt-0.5 text-[10px] ${timeClass}`}>{time}</div>}
+          </div>
+        )}
+      </div>
+      {/* Accessibility: the last message's timestamp doubles as the
+          live region's data anchor (screen readers announce changes). */}
+      {isLast && <span className="sr-only" aria-live="polite">{time}</span>}
+    </>
+  )
+})
+
 export function ChatPanel({
   channels,
   activeChannel,
@@ -104,6 +242,10 @@ export function ChatPanel({
   allChannelsCount,
   canRelease,
   channelsLoading,
+  messagesLoading,
+  hasMoreChannels,
+  isFetchingMoreChannels,
+  onFetchMoreChannels,
 }: {
   channels: Channel[]
   activeChannel: Channel | null
@@ -128,10 +270,21 @@ export function ChatPanel({
   unreadPulseChannels?: Set<string>
   /** Whether there are more older messages to load (infinite scroll). */
   hasMoreMessages?: boolean
+  /** True while the FIRST page of messages for the open channel is
+   *  in flight (TanStack `isLoading` — no data yet). */
+  messagesLoading?: boolean
   /** Whether we're currently fetching the next page of older messages. */
   isFetchingMoreMessages?: boolean
   /** Call this when the user scrolls to the top of the chat. */
   onFetchMoreMessages?: () => void
+  /** Whether there are more channels to load (channel-list infinite
+   *  scroll — the initial page shows the most recently active
+   *  channels; scrolling DOWN appends older ones). */
+  hasMoreChannels?: boolean
+  /** Whether we're currently fetching the next page of channels. */
+  isFetchingMoreChannels?: boolean
+  /** Call this when the user scrolls to the bottom of the channel list. */
+  onFetchMoreChannels?: () => void
   /** Aggregate chat stats from GET /api/admin/chat/stats — drives the
    *  top-row cards (open / assigned / closed counts + avg response
    *  time). When undefined, the cards fall back to client-side
@@ -194,6 +347,35 @@ export function ChatPanel({
   // overflow scrolls. This was the "channel list doesn't scroll
   // when overflow" bug.
   const PANES_HEIGHT = 'h-[32rem]'
+
+  // ── Channel-list infinite scroll (scroll DOWN = load more) ────
+  //
+  // The channel list's initial page shows the most recently active
+  // channels; when the staff scrolls near the bottom, fetch the next
+  // page of older channels + append. Same viewport-querySelector
+  // technique as the chat pane's scroll handling (the ScrollArea
+  // primitive doesn't expose its viewport ref directly).
+  const channelScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = channelScrollRef.current
+    if (!root) return
+    const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+    const handleScroll = () => {
+      const distanceFromBottom =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      if (
+        distanceFromBottom <= 120 &&
+        hasMoreChannels &&
+        !isFetchingMoreChannels &&
+        onFetchMoreChannels
+      ) {
+        onFetchMoreChannels()
+      }
+    }
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+    return () => viewport.removeEventListener('scroll', handleScroll)
+  }, [hasMoreChannels, isFetchingMoreChannels, onFetchMoreChannels])
 
   // ── Chat scroll behavior (auto-scroll + infinite scroll trigger) ─
   //
@@ -424,11 +606,11 @@ export function ChatPanel({
             </div>
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
-            <ScrollArea className={PANES_HEIGHT}>
+            <ScrollArea ref={channelScrollRef} className={PANES_HEIGHT}>
               <div className="divide-y">
                 {channelsLoading ? (
                   <ChatChannelListSkeleton count={6} />
-                ) : channels.length === 0 ? (
+                ) : channels.length === 0 && !hasMoreChannels ? (
                   <div className="p-8 text-center text-sm text-muted-foreground">Chưa có cuộc trò chuyện</div>
                 ) : (
                   channels.map((c) => {
@@ -498,6 +680,29 @@ export function ChatPanel({
                       </button>
                     )
                   })
+                )}
+                {/* ── Channel-list infinite-scroll sentinel (bottom) ──
+                    Spinner while the next page loads; a manual
+                    fallback button otherwise (also covers the case
+                    where the loaded pages don't yet fill the viewport
+                    + no scroll event can fire). */}
+                {isFetchingMoreChannels && (
+                  <div className="flex items-center justify-center py-3">
+                    <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
+                      <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
+                      Đang tải thêm kênh...
+                    </div>
+                  </div>
+                )}
+                {!isFetchingMoreChannels && hasMoreChannels && onFetchMoreChannels && (
+                  <div className="flex items-center justify-center py-2">
+                    <button
+                      onClick={onFetchMoreChannels}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Tải thêm kênh
+                    </button>
+                  </div>
                 )}
               </div>
             </ScrollArea>
@@ -655,39 +860,40 @@ export function ChatPanel({
                       </button>
                     </div>
                   )}
-                  {chatMessages.map((m) => {
-                    const isEmployee = m.senderType === 'employee'
-                    const ticketPayload = parseTicketPayload(m)
-                    if (ticketPayload) {
-                      return (
-                        <TicketCardMessage
-                          key={m.id}
-                          payload={ticketPayload}
-                          isEmployee={isEmployee}
-                          onView={onViewTicket}
-                        />
-                      )
-                    }
-                    return (
-                      <div
-                        key={m.id}
-                        className={`flex animate-in fade-in slide-in-from-bottom-1 duration-200 ${isEmployee ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
-                            ? 'bg-blue-600 text-white rounded-br-sm'
-                            : m.senderType === 'system'
-                              ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
-                              : m.senderType === 'assistant'
-                                ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
-                                : 'bg-white border rounded-bl-sm '
-                            }`}
-                        >
-                          {m.content}
-                        </div>
+                  {/* ── Message rows ─────────────────────────────────────
+                      Memoized `MessageRow` (virtualized via
+                      content-visibility, timestamped, day-separated).
+                      Typing in the reply input no longer re-renders
+                      the whole history — only the rows whose props
+                      actually change re-render. */}
+                  {chatMessages.map((m, i) => (
+                    <MessageRow
+                      key={m.id}
+                      message={m}
+                      dayLabel={daySeparatorLabel(chatMessages[i - 1]?.createdAt, m.createdAt)}
+                      isLast={i === chatMessages.length - 1}
+                      onViewTicket={onViewTicket}
+                    />
+                  ))}
+
+                  {/* ── First-load spinner / empty state ───────────────
+                      `messagesLoading` = the first page is in flight
+                      (TanStack `isLoading` — no data yet). The empty
+                      state shows when a channel is open, nothing is
+                      loading, and the history is genuinely empty. */}
+                  {messagesLoading && (
+                    <div className="flex items-center justify-center py-10">
+                      <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
+                        <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
+                        Đang tải tin nhắn...
                       </div>
-                    )
-                  })}
+                    </div>
+                  )}
+                  {!messagesLoading && activeChannel && chatMessages.length === 0 && (
+                    <div className="py-10 text-center text-xs text-muted-foreground">
+                      Chưa có tin nhắn — hãy gửi câu trả lời đầu tiên.
+                    </div>
+                  )}
                 </div>
 
                 {typingUser && (

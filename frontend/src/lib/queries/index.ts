@@ -30,6 +30,7 @@ import {
 import {
   list as listAddresses,
   list10 as listVehicleTypes,
+  listChannels as listChannelsSdk,
 } from "@/lib/api/sdk.gen";
 
 // Generated TanStack Query options + keys + mutations
@@ -739,6 +740,100 @@ export function useChatChannels(limit = 50) {
 }
 
 /**
+ * `useChatChannelsInfinite` — infinite-scroll hook for the admin
+ * workspace's channel list.
+ *
+ * Pages through `GET /api/chat/channels` with `limit` + `offset` on
+ * the backend's `last_message_at DESC` ordering:
+ *
+ *   1. Initial load: `offset=0, limit=30` → the 30 most recently
+ *      active channels (the top of the support queue).
+ *   2. Staff scrolls the channel list down → `fetchNextPage()` →
+ *      `offset=30, limit=30` → the next 30 less-recent channels,
+ *      appended below.
+ *   3. Repeat until `hasNextPage` is false (the page returned fewer
+ *      than `pageSize` items — the whole queue is loaded).
+ *
+ * ## Query-key shape
+ *
+ * The key mirrors the generated `createQueryKey('listChannels', ...)`
+ * shape (`[{ _id: 'listChannels', baseUrl, query, _infinite }]`) so
+ * the WS hook's partial-match invalidation
+ * (`invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })`)
+ * still refreshes this query on every channel event.
+ *
+ * ## Dedup on flatten
+ *
+ * Offset pagination + realtime inserts can shift page boundaries
+ * (a new channel landing at offset 0 pushes every later channel one
+ * row down → the next page re-returns a channel already loaded).
+ * The flatten step therefore dedupes by channel `id`, keeping the
+ * first (most recent) occurrence.
+ *
+ * ## Realtime updates
+ *
+ * WS events (`channel_message`, `channel_created`, assignment
+ * changes...) invalidate `listChannels` — TanStack refetches the
+ * loaded pages, which re-sorts the queue (a channel with new
+ * activity jumps to the top) + refreshes unread badges.
+ */
+export function useChatChannelsInfinite(pageSize = 30) {
+  const query = useInfiniteQuery<any>({
+    queryKey: [
+      {
+        _id: "listChannels",
+        _infinite: true,
+        query: { limit: pageSize },
+      },
+    ],
+    queryFn: async ({ pageParam }: { pageParam: unknown }) => {
+      const offset = typeof pageParam === "number" ? pageParam : 0;
+      const { data } = await listChannelsSdk({
+        query: { limit: pageSize, offset },
+      });
+      return data;
+    },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: any, allPages: any[]) => {
+      // A full page means "there may be more" — the next offset is
+      // the total fetched so far (same convention as the messages
+      // infinite hook).
+      const items = lastPage?.items ?? [];
+      if (items.length < pageSize) return undefined;
+      return allPages.reduce(
+        (sum, p) => sum + (p?.items?.length ?? 0),
+        0,
+      );
+    },
+    staleTime: 30 * 1000,
+    // No polling — WS invalidations drive refreshes.
+  });
+
+  // Flatten + dedupe. Pages arrive most-recent-first; the flattened
+  // list keeps that order (channel list renders top = most recent).
+  const pages = (query.data?.pages ?? []) as any[];
+  const channels: any[] = [];
+  const seen = new Set<string>();
+  for (const page of pages) {
+    for (const item of page?.items ?? []) {
+      if (item?.id == null || seen.has(item.id)) continue;
+      seen.add(item.id);
+      channels.push(item);
+    }
+  }
+
+  return {
+    channels,
+    query,
+    hasNextPage: query.hasNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
+    fetchNextPage: query.fetchNextPage,
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+}
+
+/**
  * `useChatStats` — aggregate chat stats for the admin dashboard's
  * top-row cards (open / assigned / closed counts + avg response time).
  *
@@ -798,6 +893,8 @@ export type SystemStatus = {
     activeConnections: number;
     idleConnections: number;
     sizeMb: number;
+    /** Engine-level resource usage (memory / throughput / capacity). */
+    engine: SystemEngineStats;
   };
   process: {
     pid: number;
@@ -809,6 +906,59 @@ export type SystemStatus = {
     osVersion: string;
     hostname: string;
   };
+};
+
+/** rustqlite engine resource usage — `database.engine` on
+ *  `/api/admin/system`. Counters are process-lifetime totals; the
+ *  `*PerSec` rates are deltas between the last two scrapes (the
+ *  frontend polls every 5 s). */
+export type SystemEngineStats = {
+  version: string;
+  connections: { opened: number; closed: number; live: number };
+  memory: {
+    cacheMb: number;
+    cacheCapacityMb: number;
+    utilizationPct: number;
+    walFrames: number;
+    dbSizeMb: number;
+    freelistPages: number;
+  };
+  throughput: {
+    rowsPerSec: number;
+    writesPerSec: number;
+    stepsPerSec: number;
+    rowsReturned: number;
+    writesExecuted: number;
+    statementsPrepared: number;
+    steps: number;
+    totalChanges: number;
+  };
+  cache: { hits: number; misses: number; hitRatePct: number };
+  transactions: {
+    begun: number;
+    committed: number;
+    rolledBack: number;
+    active: boolean;
+  };
+  contention: { busyWaits: number; busyTimeouts: number };
+  files: {
+    name: string;
+    pageSizeBytes: number;
+    pageCount: number;
+    sizeMb: number;
+    freelistPages: number;
+    cachePages: number;
+    cacheCapacityPages: number;
+    cacheMb: number;
+    cacheCapacityMb: number;
+    cacheHits: number;
+    cacheMisses: number;
+    hitRatePct: number;
+    walFrames: number;
+    totalChanges: number;
+    liveConnections: number;
+    transactionActive: boolean;
+  }[];
 };
 
 export function useSystemStatus() {
@@ -979,6 +1129,10 @@ export function useChatMessagesInfinite(
     messages,
     // The raw TanStack query result (for `isFetching`, `hasNextPage`, etc.).
     query,
+    // True while the FIRST page is loading (no channel → false).
+    isLoading: !!channelId && query.isLoading,
+    // The query error (network / API failure), if any.
+    error: query.error,
     // Convenience: whether we're currently fetching the next page
     // (for showing a "Loading more..." spinner at the top of the chat).
     isFetchingNextPage: query.isFetchingNextPage,

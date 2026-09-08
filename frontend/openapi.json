@@ -2877,12 +2877,23 @@
           "chat"
         ],
         "summary": "`GET /api/chat/channels` — list chat channels for the authenticated user.",
-        "description": "For **customers**: returns only their own channels (the ones they started).\nFor **employees**: returns the entire open-channel support queue (optionally\nfiltered by the employee's brand) so support staff see all inbound chats.\n\nEach channel includes the customer's `user` row (`id`, `fullName`,\n`email`, `phone`, `avatarUrl`) so the admin's channel list can\ndisplay \"who\" without a second round-trip per channel.",
+        "description": "For **customers**: returns only their own channels (the ones they started).\nFor **employees**: returns the entire open-channel support queue (optionally\nfiltered by the employee's brand) so support staff see all inbound chats.\n\nEach channel includes the customer's `user` row (`id`, `fullName`,\n`email`, `phone`, `avatarUrl`) so the admin's channel list can\ndisplay \"who\" without a second round-trip per channel.\n\n**Pagination**: `limit` (default 50, max 200) + `offset` (default\n0) page through the `last_message_at DESC` ordering — the initial\npage returns the most recently active channels; scrolling the\nadmin channel list down fetches subsequent pages. The list is\nordered most-recent-first, so a full page means \"there may be more\".",
         "operationId": "list_channels",
         "parameters": [
           {
             "name": "limit",
             "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "0-based page offset on the `last_message_at DESC` ordering —\n`offset=30` returns the next 30 less-recent channels. Powers\nthe admin workspace's infinite channel list.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -6115,7 +6126,7 @@
               "string",
               "null"
             ],
-            "description": "Joined from the booking row — the human-readable booking code\n(e.g. `DATXEVUI-AB12CD`). Lets the admin list / search without an\nextra round-trip per row."
+            "description": "Joined from the booking row — the human-readable booking code\n(e.g. `VEXEVN-AB12CD`). Lets the admin list / search without an\nextra round-trip per row."
           },
           "bookingId": {
             "type": "string",
@@ -8296,7 +8307,8 @@
           "minConnections",
           "activeConnections",
           "idleConnections",
-          "sizeMb"
+          "sizeMb",
+          "engine"
         ],
         "properties": {
           "activeConnections": {
@@ -8307,6 +8319,10 @@
           "backend": {
             "type": "string",
             "description": "Backend name — always `\"sqlite (rust-sql engine)\"` in this\nbuild (rustqlite via the sqlx-sqlite C-ABI compat layer)."
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineStatsOut",
+            "description": "Engine-level resource usage: memory used, throughput, and\nperformance capacity. Sourced from the rustqlite engine's\nbuilt-in counters (`sqlite3::engine_stats()` — process-global\natomics bumped on the hot path at ~1 ns each, the same trade\nSQLite's own `SQLITE_STATUS` counters make)."
           },
           "idleConnections": {
             "type": "integer",
@@ -8419,6 +8435,378 @@
             "type": "number",
             "format": "float",
             "description": "`used / total * 100`, 0–100."
+          }
+        }
+      },
+      "EngineCacheOut": {
+        "type": "object",
+        "required": [
+          "hits",
+          "misses",
+          "hitRatePct"
+        ],
+        "properties": {
+          "hitRatePct": {
+            "type": "number",
+            "format": "double",
+            "description": "Hit rate, 0.0–100.0. High (> 95) = working set fits in memory."
+          },
+          "hits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Page-cache hits since open.",
+            "minimum": 0
+          },
+          "misses": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Page-cache misses (file/WAL reads) since open.",
+            "minimum": 0
+          }
+        }
+      },
+      "EngineConnectionsOut": {
+        "type": "object",
+        "required": [
+          "opened",
+          "closed",
+          "live"
+        ],
+        "properties": {
+          "closed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Connections fully dropped since process start.",
+            "minimum": 0
+          },
+          "live": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Live C-ABI connections right now (each sqlx pool connection\n= one).",
+            "minimum": 0
+          },
+          "opened": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total `sqlite3_open*` calls since process start.",
+            "minimum": 0
+          }
+        }
+      },
+      "EngineContentionOut": {
+        "type": "object",
+        "required": [
+          "busyWaits",
+          "busyTimeouts"
+        ],
+        "properties": {
+          "busyTimeouts": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Waits that exhausted `busy_timeout` and returned SQLITE_BUSY.",
+            "minimum": 0
+          },
+          "busyWaits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Times a writer had to WAIT for a foreign transaction's slot.",
+            "minimum": 0
+          }
+        }
+      },
+      "EngineFileOut": {
+        "type": "object",
+        "description": "Per-database-file engine snapshot (usually one: the app DB).",
+        "required": [
+          "name",
+          "pageSizeBytes",
+          "pageCount",
+          "sizeMb",
+          "freelistPages",
+          "cachePages",
+          "cacheCapacityPages",
+          "cacheMb",
+          "cacheCapacityMb",
+          "cacheHits",
+          "cacheMisses",
+          "hitRatePct",
+          "walFrames",
+          "totalChanges",
+          "liveConnections",
+          "transactionActive"
+        ],
+        "properties": {
+          "cacheCapacityMb": {
+            "type": "number",
+            "format": "double",
+            "description": "Cache capacity, MB."
+          },
+          "cacheCapacityPages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cache capacity in pages.",
+            "minimum": 0
+          },
+          "cacheHits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cache hits since open.",
+            "minimum": 0
+          },
+          "cacheMb": {
+            "type": "number",
+            "format": "double",
+            "description": "Cache memory in use, MB."
+          },
+          "cacheMisses": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cache misses since open.",
+            "minimum": 0
+          },
+          "cachePages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pages currently held in the shared page cache.",
+            "minimum": 0
+          },
+          "freelistPages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Freelist pages (reclaimable space).",
+            "minimum": 0
+          },
+          "hitRatePct": {
+            "type": "number",
+            "format": "double",
+            "description": "Hit rate, 0.0–100.0."
+          },
+          "liveConnections": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Live C-ABI connections sharing this engine right now.",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "description": "Registry key — canonical file path (or shared-memory name)."
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pages in the database file.",
+            "minimum": 0
+          },
+          "pageSizeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Page size in bytes.",
+            "minimum": 0
+          },
+          "sizeMb": {
+            "type": "number",
+            "format": "double",
+            "description": "Database size in MB (`page_count × page_size`)."
+          },
+          "totalChanges": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Row mutations since open.",
+            "minimum": 0
+          },
+          "transactionActive": {
+            "type": "boolean",
+            "description": "True when a transaction owns the engine slot right now."
+          },
+          "walFrames": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Frames currently in the write-ahead log.",
+            "minimum": 0
+          }
+        }
+      },
+      "EngineMemoryOut": {
+        "type": "object",
+        "required": [
+          "cacheMb",
+          "cacheCapacityMb",
+          "utilizationPct",
+          "walFrames",
+          "dbSizeMb",
+          "freelistPages"
+        ],
+        "properties": {
+          "cacheCapacityMb": {
+            "type": "number",
+            "format": "double",
+            "description": "Page-cache capacity in MB (the configured upper bound the\ncaches may grow to)."
+          },
+          "cacheMb": {
+            "type": "number",
+            "format": "double",
+            "description": "Page-cache memory in use across all engine files (pages\ncurrently cached × page size), in MB."
+          },
+          "dbSizeMb": {
+            "type": "number",
+            "format": "double",
+            "description": "On-disk database size across all files, in MB."
+          },
+          "freelistPages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Reclaimable freelist pages across all files.",
+            "minimum": 0
+          },
+          "utilizationPct": {
+            "type": "number",
+            "format": "double",
+            "description": "Cache utilization, 0.0–100.0 — `cache / capacity`."
+          },
+          "walFrames": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Frames currently buffered in the write-ahead log.",
+            "minimum": 0
+          }
+        }
+      },
+      "EngineStatsOut": {
+        "type": "object",
+        "description": "Live resource usage of the rustqlite engine — the \"database\nengine\" card group on the admin system page.",
+        "required": [
+          "version",
+          "connections",
+          "memory",
+          "throughput",
+          "cache",
+          "transactions",
+          "contention",
+          "files"
+        ],
+        "properties": {
+          "cache": {
+            "$ref": "#/components/schemas/EngineCacheOut",
+            "description": "Page-cache performance (hit rate — the primary \"performance\ncapacity\" signal for a page-cache-driven engine)."
+          },
+          "connections": {
+            "$ref": "#/components/schemas/EngineConnectionsOut"
+          },
+          "contention": {
+            "$ref": "#/components/schemas/EngineContentionOut",
+            "description": "Write-slot contention (how often writers waited for the\nengine-level transaction slot + how many timed out)."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EngineFileOut"
+            },
+            "description": "One entry per registered engine (per database file). Usually\nexactly one — the app's `app.db`."
+          },
+          "memory": {
+            "$ref": "#/components/schemas/EngineMemoryOut",
+            "description": "Memory used by the engine's page caches (the engine's own\nmemory footprint, distinct from process RSS)."
+          },
+          "throughput": {
+            "$ref": "#/components/schemas/EngineThroughputOut",
+            "description": "Live throughput rates (per second, computed between successive\nscrapes of this endpoint) + lifetime totals."
+          },
+          "transactions": {
+            "$ref": "#/components/schemas/EngineTransactionsOut"
+          },
+          "version": {
+            "type": "string",
+            "description": "Engine build identity (`sqlite3_source_id()` — names rustqlite)."
+          }
+        }
+      },
+      "EngineThroughputOut": {
+        "type": "object",
+        "required": [
+          "rowsPerSec",
+          "writesPerSec",
+          "stepsPerSec",
+          "rowsReturned",
+          "writesExecuted",
+          "statementsPrepared",
+          "steps",
+          "totalChanges"
+        ],
+        "properties": {
+          "rowsPerSec": {
+            "type": "number",
+            "format": "double",
+            "description": "Rows delivered to clients per second (between scrapes)."
+          },
+          "rowsReturned": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total rows returned since process start.",
+            "minimum": 0
+          },
+          "statementsPrepared": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total statements prepared since process start.",
+            "minimum": 0
+          },
+          "steps": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total statement steps since process start.",
+            "minimum": 0
+          },
+          "stepsPerSec": {
+            "type": "number",
+            "format": "double",
+            "description": "Statement steps per second (total statement progress)."
+          },
+          "totalChanges": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Row mutations since open (the engine's `total_changes`).",
+            "minimum": 0
+          },
+          "writesExecuted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total writes executed since process start.",
+            "minimum": 0
+          },
+          "writesPerSec": {
+            "type": "number",
+            "format": "double",
+            "description": "Write statements completed per second."
+          }
+        }
+      },
+      "EngineTransactionsOut": {
+        "type": "object",
+        "required": [
+          "begun",
+          "committed",
+          "rolledBack",
+          "active"
+        ],
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "True when a transaction owns the engine write slot right now."
+          },
+          "begun": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "committed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "rolledBack": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
