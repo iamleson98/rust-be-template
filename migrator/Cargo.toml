@@ -24,6 +24,18 @@ default = []
 # Database
 sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
 sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+
+# Entity generation (in-process, via the rust-sql engine).
+# sea-orm-cli CANNOT be used here: it is a standalone binary whose own
+# sqlx-sqlite driver links REAL SQLite, so it cannot read the rust-sql
+# on-disk format ("file is not a database"). Instead we run the same
+# discovery + codegen sea-orm-cli uses (sea-schema 0.16 + sea-orm-codegen
+# 1.1) inside this crate, where the workspace [patch] routes every
+# sqlite3_* FFI call to the rustqlite engine.
+sea-schema = { version = "0.16.2", default-features = false, features = ["sqlx-sqlite", "runtime-tokio-rustls", "discovery", "writer", "probe"] }
+sea-orm-codegen = { version = "=1.1.20", default-features = false }
+sea-query = "0.32"
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio-rustls"] }
 # The rust-sql engine itself (rlib link mode): the migrator binary
 # links sqlx-sqlite, whose sqlite3_* FFI is satisfied by the compat
 # crate's #[no_mangle] exports. The link anchor in src/lib.rs keeps

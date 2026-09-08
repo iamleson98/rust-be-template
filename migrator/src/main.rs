@@ -9,6 +9,17 @@
 //! cp target/release/migrator bin/
 //! bin/migrator up
 //! ```
+//!
+//! `sea-orm-cli` compatibility notes: when the Makefile fronts this binary
+//! with `sea-orm-cli migrate …`, the CLI spawns `cargo run -- <sub>` and
+//! forwards `-n <num>` for `up --num` / `down`, plus a `DATABASE_URL` env
+//! var when `--database-url` was given. The subcommand flags below accept
+//! exactly that forwarding shape.
+//!
+//! Entity generation is IN-PROCESS (sea-schema discovery + sea-orm-codegen
+//! linked against the workspace-patched rust-sql engine). The standalone
+//! `sea-orm-cli generate entity` binary links REAL SQLite and cannot read
+//! the rust-sql on-disk format.
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -33,12 +44,18 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Apply all pending migrations.
-    Up,
+    /// Apply all pending migrations (or at most `-n`).
+    Up {
+        /// Apply at most N pending migrations. sea-orm-cli's
+        /// `migrate up --num N` forwards this flag as `-n N`.
+        #[arg(short = 'n', long = "num")]
+        num: Option<u32>,
+    },
 
-    /// Revert the last N migrations (default 1).
+    /// Revert the last N migrations (default 1). sea-orm-cli's
+    /// `migrate down` always forwards `-n N`.
     Down {
-        #[arg(default_value_t = 1)]
+        #[arg(short = 'n', long = "num", default_value_t = 1)]
         steps: u32,
     },
 
@@ -64,15 +81,17 @@ enum Command {
 
     /// Generate SeaORM entities from the live database schema.
     ///
-    /// Requires `sea-orm-cli` installed (`cargo install sea-orm-cli`).
+    /// Runs sea-schema discovery + sea-orm-codegen IN-PROCESS through the
+    /// rust-sql engine (the standalone sea-orm-cli links real SQLite and
+    /// cannot read rust-sql database files).
     EntityGenerate {
         /// Output directory (default: `src/entity`).
-        #[arg(long, default_value = "src/entity")]
+        #[arg(short = 'o', long = "output", default_value = "src/entity")]
         output: PathBuf,
 
-        /// Also generate relation code (default: true).
-        #[arg(long, default_value_t = true)]
-        with_relations: bool,
+        /// Override DATABASE_URL for this run.
+        #[arg(short = 'u', long = "database-url")]
+        database_url: Option<String>,
     },
 
     /// Database utilities.
@@ -93,6 +112,13 @@ enum DbAction {
 
     /// Print the DATABASE_URL (useful for scripts).
     Url,
+
+    /// Run an ad-hoc SQL statement through the rust-sql engine and print
+    /// the rows (schema-discovery debugging: PRAGMA table_info, …).
+    Probe {
+        /// SQL to execute, e.g. "PRAGMA table_info('user')".
+        sql: String,
+    },
 }
 
 #[tokio::main]
@@ -101,18 +127,19 @@ async fn main() -> anyhow::Result<()> {
     init_tracing(cli.verbose);
 
     match cli.command {
-        Command::Up => run_up().await,
+        Command::Up { num } => run_up(num).await,
         Command::Down { steps } => run_down(steps).await,
         Command::List | Command::Status => run_list().await,
         Command::Fresh { yes } => run_fresh(yes).await,
         Command::New { name } => run_new(&name),
         Command::EntityGenerate {
             output,
-            with_relations,
-        } => run_entity_generate(&output, with_relations).await,
+            database_url,
+        } => run_entity_generate(&output, database_url).await,
         Command::Db { action } => match action {
             DbAction::Reset { yes } => run_db_reset(yes).await,
             DbAction::Url => run_db_url().await,
+            DbAction::Probe { sql } => run_db_probe(&sql).await,
         },
     }
 }
@@ -127,12 +154,76 @@ fn load_db_url() -> anyhow::Result<String> {
     let _ = dotenvy::dotenv();
 
     // Try DATABASE_URL env var first.
-    if let Ok(url) = std::env::var("DATABASE_URL") {
-        return Ok(url);
+    let url = match std::env::var("DATABASE_URL") {
+        Ok(url) => url,
+        Err(_) => "sqlite://./app.db?mode=rwc".to_string(),
+    };
+
+    // Everything here registers as sea-orm's `sqlite://` driver (the
+    // rust-sql engine). A stale or foreign DATABASE_URL (e.g. `file:…`)
+    // would otherwise die deep inside sea-orm with "has no supporting
+    // driver" — fail early with something actionable instead.
+    if !url.starts_with("sqlite:") {
+        anyhow::bail!(
+            "unsupported DATABASE_URL '{url}': this project runs on the rust-sql \
+             engine, which registers as the sqlite:// driver. Unset DATABASE_URL \
+             (or point it at sqlite://./app.db?mode=rwc) and try again"
+        );
     }
 
-    // Default for SQLite.
-    Ok("sqlite://./app.db?mode=rwc".into())
+    Ok(url)
+}
+
+/// Extract the on-disk file path from a `sqlite:…` URL, if any
+/// (memory databases have none). Accepts both `sqlite:app.db` and
+/// `sqlite://./app.db` forms.
+fn sqlite_file_path(db_url: &str) -> Option<String> {
+    let rest = db_url
+        .strip_prefix("sqlite://")
+        .or_else(|| db_url.strip_prefix("sqlite:"))?;
+    if rest.starts_with(":memory:") {
+        return None;
+    }
+    let path = rest.split('?').next().unwrap_or("");
+    let path = path.trim_start_matches("./");
+    (!path.is_empty()).then(|| path.to_string())
+}
+
+/// Normalize any accepted sqlite URL form into one plain sqlx parses:
+/// `sqlite:app.db?mode=rwc` / `sqlite://./app.db` →
+/// `sqlite://./app.db?mode=rwc`. Defaults the mode to `rwc` for file
+/// paths so a not-yet-created database is created rather than rejected.
+fn normalize_sqlite_url(db_url: &str) -> anyhow::Result<String> {
+    let rest = db_url
+        .strip_prefix("sqlite://")
+        .or_else(|| db_url.strip_prefix("sqlite:"))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "unsupported DATABASE_URL '{db_url}': only sqlite://… URLs are \
+                 supported (the rust-sql engine registers as the sqlite driver)"
+            )
+        })?;
+
+    // `sqlite::memory:` / `sqlite://:memory:` pass through untouched.
+    if rest.starts_with(":memory:") {
+        return Ok(format!("sqlite://{rest}"));
+    }
+
+    let (path, query) = match rest.split_once('?') {
+        Some((p, q)) => (p.to_string(), q.to_string()),
+        None => (rest.to_string(), String::new()),
+    };
+
+    let mut query = if query.is_empty() {
+        "mode=rwc".to_string()
+    } else {
+        query
+    };
+    if !query.contains("mode=") {
+        query.push_str("&mode=rwc");
+    }
+
+    Ok(format!("sqlite://{path}?{query}"))
 }
 
 async fn db_connect(db_url: &str) -> anyhow::Result<sea_orm::DatabaseConnection> {
@@ -151,11 +242,14 @@ async fn db_connect(db_url: &str) -> anyhow::Result<sea_orm::DatabaseConnection>
 // Command implementations
 // ---------------------------------------------------------------------------
 
-async fn run_up() -> anyhow::Result<()> {
+async fn run_up(num: Option<u32>) -> anyhow::Result<()> {
     let db_url = load_db_url()?;
     let db = db_connect(&db_url).await?;
-    println!("applying pending migrations…");
-    Migrator::up(&db, None).await?;
+    match num {
+        Some(n) => println!("applying at most {n} pending migration(s)…"),
+        None => println!("applying pending migrations…"),
+    }
+    Migrator::up(&db, num).await?;
     println!("✓ migrations up to date");
     Ok(())
 }
@@ -198,22 +292,15 @@ async fn run_fresh(yes: bool) -> anyhow::Result<()> {
 
     let db_url = load_db_url()?;
 
-    // For SQLite: delete the database file and re-apply from scratch.
-    if db_url.starts_with("sqlite://") {
-        let path = db_url
-            .strip_prefix("sqlite://")
-            .unwrap_or("")
-            .split('?')
-            .next()
-            .unwrap_or("")
-            .trim_start_matches("./");
-
-        if !path.is_empty() && std::path::Path::new(path).exists() {
-            std::fs::remove_file(path).context(format!("deleting database file {path}"))?;
+    // For SQLite (rust-sql): delete the database file and re-apply from
+    // scratch. Handles both `sqlite://./app.db` and `sqlite:app.db` forms.
+    if let Some(path) = sqlite_file_path(&db_url) {
+        if std::path::Path::new(&path).exists() {
+            std::fs::remove_file(&path).context(format!("deleting database file {path}"))?;
             println!("removed {path}");
         }
     } else {
-        // For non-SQLite backends, fall back to down() + up().
+        // For non-file backends, fall back to down() + up().
         let db = db_connect(&db_url).await?;
         println!("reverting all migrations…");
         Migrator::down(&db, None).await?;
@@ -273,51 +360,116 @@ enum {pascal_name} {{
     Ok(())
 }
 
-async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> anyhow::Result<()> {
-    use std::process::Command;
+async fn run_entity_generate(
+    output: &std::path::Path,
+    database_url: Option<String>,
+) -> anyhow::Result<()> {
+    use sea_orm_codegen::{
+        DateTimeCrate as CodegenDateTimeCrate, EntityTransformer, EntityWriterContext, OutputFile,
+        WithPrelude, WithSerde,
+    };
+    use sea_schema::sqlite::discovery::SchemaDiscovery;
 
-    ensure_sea_orm_cli_available()?;
+    let db_url = match database_url {
+        Some(url) => url,
+        None => load_db_url()?,
+    };
+    let sqlx_url = normalize_sqlite_url(&db_url)?;
 
-    let db_url = load_db_url()?;
-
-    // The only supported scheme is sqlite:// — backed by the rust-sql
-    // (rustqlite) engine everywhere (see the workspace Cargo.toml).
-    if !db_url.starts_with("sqlite") {
-        anyhow::bail!("unsupported DATABASE_URL scheme: {db_url} — this tool runs on the rust-sql (rustqlite) engine only");
-    }
-
-    println!("→ sea-orm-cli generate entity (backend: sqlite / rust-sql engine)");
-    println!("  output: {}", output.display());
+    println!("→ discovering schema (rust-sql engine)");
     println!("  database: {db_url}");
+    println!("  output:   {}", output.display());
 
-    let mut cmd = Command::new("sea-orm-cli");
-    cmd.arg("generate")
-        .arg("entity")
-        .arg("--output-dir")
-        .arg(output)
-        .arg("--database-url")
-        .arg(&db_url)
-        .arg("--with-serde")
-        .arg("both");
-    // .arg("--model-extra-derives")
-    // .arg("utoipa::ToSchema")
-    // .arg("--column-extra-derives")
-    // .arg("utoipa::ToSchema");
+    // Single connection: discovery walks tables with interleaved PRAGMA
+    // queries; keeping it on one connection gives a single consistent
+    // engine view (and sidesteps pool-split behavior in the engine).
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .acquire_timeout(std::time::Duration::from_secs(30))
+        .connect(&sqlx_url)
+        .await
+        .context("connecting to database (rust-sql engine)")?;
+    println!("  connected");
 
-    if !with_relations {
-        println!(
-            "note: `--with-relations=false` is ignored with sea-orm-cli v2; relations are generated by default"
-        );
+    let schema = SchemaDiscovery::new(pool.clone())
+        .discover()
+        .await
+        .context("discovering schema")?
+        .merge_indexes_into_table();
+
+    // Mirror sea-orm-cli's defaults: skip the migration bookkeeping table
+    // and hidden (underscore-prefixed) tables.
+    let table_stmts = schema
+        .tables
+        .into_iter()
+        .filter(|t| t.name != "seaql_migrations")
+        .filter(|t| !t.name.starts_with("sqlite_"))
+        .filter(|t| !t.name.starts_with('_'))
+        .map(|mut t| {
+            // SQLite INTEGER is 64-bit; sea-orm-codegen 1.1 maps
+            // ColumnType::Integer to i32 (sea-orm 2.0 fixed this to i64).
+            // The existing entities and backend code use i64 for INTEGER
+            // columns, so widen the discovered type before writing the
+            // create-statement. (TinyInteger/SmallInteger keep their
+            // width; only plain INTEGER widens.)
+            for col in t.columns.iter_mut() {
+                if matches!(col.r#type, sea_query::ColumnType::Integer) {
+                    col.r#type = sea_query::ColumnType::BigInteger;
+                }
+            }
+            t.write()
+        })
+        .collect::<Vec<_>>();
+
+    println!("  discovered {} table(s)", table_stmts.len());
+
+    // Compact format, serde both, no prelude module — matching the
+    // checked-in entity layout (plain `pub mod` list in mod.rs).
+    let writer_context = EntityWriterContext::new(
+        false, // expanded_format
+        false, // frontend_format
+        WithPrelude::None,
+        WithSerde::Both,
+        false, // with_copy_enums
+        CodegenDateTimeCrate::Chrono,
+        None,  // schema_name
+        false, // lib
+        false, // serde_skip_deserializing_primary_key
+        false, // serde_skip_hidden_column
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+        false, // seaography
+        true,  // impl_active_model_behavior
+    );
+    let entity_writer = EntityTransformer::transform(table_stmts)
+        .map_err(|e| anyhow::anyhow!("transforming discovered tables: {e}"))?;
+
+    let dir = output.to_path_buf();
+    std::fs::create_dir_all(&dir).context(format!("creating {}", dir.display()))?;
+
+    let writer_output = entity_writer.generate(&writer_context);
+    for OutputFile { name, content } in writer_output.files.iter() {
+        let file_path = dir.join(name);
+        println!("Writing {}", file_path.display());
+        std::fs::write(&file_path, content)
+            .context(format!("writing {}", file_path.display()))?;
     }
 
-    let status = cmd
-        .status()
-        .context("spawning sea-orm-cli — is it installed and on PATH?")?;
-    if !status.success() {
-        anyhow::bail!("sea-orm-cli exited with status {status}");
+    // Format each generated file, same as sea-orm-cli.
+    for OutputFile { name, .. } in writer_output.files.iter() {
+        let status = std::process::Command::new("rustfmt")
+            .arg(dir.join(name))
+            .status()
+            .context("spawning rustfmt — is it installed? (rustup component)")?;
+        if !status.success() {
+            anyhow::bail!("rustfmt failed on {name}");
+        }
     }
 
-    println!("✓ entities generated to {}", output.display());
+    pool.close().await;
+    println!("✓ entities generated to {}", dir.display());
     Ok(())
 }
 
@@ -344,18 +496,11 @@ async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
 
     let db_url = load_db_url()?;
 
-    // For SQLite: delete the database file and re-apply from scratch.
-    if db_url.starts_with("sqlite://") {
-        let path = db_url
-            .strip_prefix("sqlite://")
-            .unwrap_or("")
-            .split('?')
-            .next()
-            .unwrap_or("")
-            .trim_start_matches("./");
-
-        if !path.is_empty() && std::path::Path::new(path).exists() {
-            std::fs::remove_file(path).context(format!("deleting database file {path}"))?;
+    // For SQLite (rust-sql): delete the database file and re-apply from
+    // scratch. Handles both `sqlite://./app.db` and `sqlite:app.db` forms.
+    if let Some(path) = sqlite_file_path(&db_url) {
+        if std::path::Path::new(&path).exists() {
+            std::fs::remove_file(&path).context(format!("deleting database file {path}"))?;
             println!("removed {path}");
         }
     } else {
@@ -374,6 +519,44 @@ async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
 async fn run_db_url() -> anyhow::Result<()> {
     let db_url = load_db_url()?;
     println!("{db_url}");
+    Ok(())
+}
+
+async fn run_db_probe(sql: &str) -> anyhow::Result<()> {
+    use sqlx::{Column, Row};
+
+    let db_url = load_db_url()?;
+    let sqlx_url = normalize_sqlite_url(&db_url)?;
+
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(&sqlx_url)
+        .await
+        .context("connecting to database (rust-sql engine)")?;
+
+    let rows = sqlx::query(sql)
+        .fetch_all(&mut *pool.acquire().await?)
+        .await
+        .context("executing probe")?;
+
+    println!("→ {sql}");
+    println!("  {} row(s)", rows.len());
+    for row in rows.iter() {
+        let mut cols: Vec<String> = Vec::new();
+        for (i, col) in row.columns().iter().enumerate() {
+            let v: String = match row.try_get::<Option<String>, _>(i) {
+                Ok(Some(s)) => s,
+                Ok(None) => "NULL".to_string(),
+                Err(_) => row
+                    .try_get::<Option<i64>, _>(i)
+                    .map(|v| v.map(|n| n.to_string()).unwrap_or_else(|| "NULL".into()))
+                    .unwrap_or_else(|_| "<blob>".to_string()),
+            };
+            cols.push(format!("{}={}", col.name(), v));
+        }
+        println!("  | {}", cols.join(" "));
+    }
+    pool.close().await;
     Ok(())
 }
 
@@ -399,22 +582,6 @@ async fn list_migrations(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()>
             MigrationStatus::Pending => "pending",
         };
         println!("{:<50} {:<10}", version, status);
-    }
-    Ok(())
-}
-
-fn ensure_sea_orm_cli_available() -> anyhow::Result<()> {
-    use std::process::Command;
-
-    let status = Command::new("sea-orm-cli")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .context("sea-orm-cli not found on PATH")?;
-
-    if !status.success() {
-        anyhow::bail!("sea-orm-cli --version failed; install with: cargo install sea-orm-cli");
     }
     Ok(())
 }
