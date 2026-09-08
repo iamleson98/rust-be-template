@@ -116,28 +116,43 @@ export function withAuth(extra = {}) {
 const VU_OFFSET = Number(__ENV.K6_VU_OFFSET) || 0;
 
 /**
- * Build a unique email for registration. Uses the VU id (offset by
- * `K6_VU_OFFSET` for distributed runs) + iteration number so
- * concurrent registrations don't collide — even across multiple
- * k6 worker containers.
+ * Per-RUN token (init context — evaluated once per k6 process).
  *
- * Format: `k6-vu{vu}-it{iter}@loadtest.example`
+ * `__VU` + `__ITER` alone are only unique WITHIN one run: re-running a
+ * scenario against a REUSED database (staging/prod after a previous
+ * load test) collides with the earlier run's deterministic emails →
+ * UNIQUE constraint 500s on every registration. Folding a time-based
+ * token in makes addresses unique across runs while staying
+ * deterministic within the run (same token for every VU/iteration).
+ */
+const RUN_TOKEN = (Date.now() % 1e9).toString(36);
+
+/**
+ * Build a unique email for registration. Uses the per-run token + the
+ * VU id (offset by `K6_VU_OFFSET` for distributed runs) + iteration
+ * number so concurrent registrations don't collide — across VUs,
+ * k6 worker containers, AND repeated runs against the same database.
+ *
+ * Format: `k6-{token}-vu{vu}-it{iter}@loadtest.example`
  */
 export function uniqueEmail() {
   const vu = __VU + VU_OFFSET;
   const iter = __ITER;
-  return `k6-vu${vu}-it${iter}@loadtest.example`;
+  return `k6-${RUN_TOKEN}-vu${vu}-it${iter}@loadtest.example`;
 }
 
 /**
  * Build a unique phone number. Vietnamese mobile format: `+849` + 8 digits.
- * Uses VU id (offset for distributed runs) + iteration to avoid collisions.
+ * Time-based so repeated runs against the same database never collide
+ * (register calls are ms apart; the VU id separates concurrent ones).
  */
 export function uniquePhone() {
   const vu = __VU + VU_OFFSET;
-  const iter = __ITER;
-  // Pad to ensure 8 digits after `+849`.
-  const num = String(vu * 100000 + (iter % 100000)).padStart(8, '0').slice(-8);
+  // 8 digits after `+849`: wall-clock (ms) + a per-VU multiple, truncated
+  // to the low 8 digits. Two registers collide only if they land in the
+  // same millisecond AND share a VU id — impossible (one register per VU
+  // per iteration, iterations are >= ~200 ms apart).
+  const num = String((Date.now() + vu * 1000) % 1e8).padStart(8, '0').slice(-8);
   return `+849${num}`;
 }
 
