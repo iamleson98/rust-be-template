@@ -1,5 +1,5 @@
 /**
- * TanStack Router — type-safe, URL-driven routing for the VeXeVN SPA.
+ * TanStack Router — type-safe, URL-driven routing for the DatXeVui SPA.
  *
  * WHY TANSTACK ROUTER (not React Router / not Zustand view-state)
  * ───────────────────────────────────────────────────────────────
@@ -111,51 +111,51 @@ const SupportFab = lazy(() => import('@/components/layout/support-fab').then((m)
 // build time; for client-side navigations we update them here.
 const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/': {
-    title: 'VeXeVN — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ',
+    title: 'DatXeVui — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ',
     description: 'Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, sleeper bus các tuyến Hà Nội, Đà Nẵng, Sài Gòn. Hỗ trợ 24/7.',
   },
   '/search': {
-    title: 'Tìm chuyến xe — VeXeVN',
+    title: 'Tìm chuyến xe — DatXeVui',
     description: 'So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.',
   },
   '/bookings': {
-    title: 'Vé của tôi — VeXeVN',
+    title: 'Vé của tôi — DatXeVui',
     description: 'Quản lý vé đã đặt, lịch sử chuyến đi, đánh giá chuyến.',
   },
   '/admin': {
-    title: 'Quản trị — VeXeVN',
-    description: 'Bảng điều khiển quản trị hệ thống VeXeVN.',
+    title: 'Quản trị — DatXeVui',
+    description: 'Bảng điều khiển quản trị hệ thống DatXeVui.',
   },
-  '/admin/brands': { title: 'Hãng xe — Quản trị VeXeVN', description: 'Quản lý hãng xe, tuyến đường, lịch trình.' },
-  '/admin/routes': { title: 'Tuyến đường — Quản trị VeXeVN', description: 'Quản lý tuyến đường.' },
-  '/admin/schedules': { title: 'Lịch trình — Quản trị VeXeVN', description: 'Quản lý lịch trình.' },
-  '/admin/cron-jobs': { title: 'Cron jobs — Quản trị VeXeVN', description: 'Quản lý tác vụ nền định kỳ.' },
-  '/admin/tickets': { title: 'Vé đã bán — Quản trị VeXeVN', description: 'Quản lý vé đã bán.' },
-  '/admin/chat': { title: 'Chat hỗ trợ — Quản trị VeXeVN', description: 'Hỗ trợ khách hàng qua chat.' },
-  '/admin/reviews': { title: 'Đánh giá — Quản trị VeXeVN', description: 'Kiểm duyệt đánh giá.' },
-  '/admin/feedback': { title: 'Phản hồi — Quản trị VeXeVN', description: 'Quản lý phản hồi khách hàng.' },
-  '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị VeXeVN', description: 'Quản lý sơ đồ ghế xe.' },
-  '/admin/vehicle-types': { title: 'Loại xe — Quản trị VeXeVN', description: 'Quản lý danh mục loại xe.' },
-  '/admin/system': { title: 'Hệ thống — Quản trị VeXeVN', description: 'Theo dõi hệ thống.' },
-  '/admin/users': { title: 'Người dùng — Quản trị VeXeVN', description: 'Quản lý vai trò người dùng, nhân viên và quản trị viên.' },
-  '/admin/payments': { title: 'Thanh toán — Quản trị VeXeVN', description: 'Quản lý giao dịch thanh toán.' },
-  '/account': { title: 'Tài khoản — VeXeVN', description: 'Quản lý tài khoản và cài đặt.' },
-  '/account/wishlist': { title: 'Yêu thích — VeXeVN', description: 'Danh sách yêu thích.' },
-  '/account/loyalty': { title: 'Điểm thưởng — VeXeVN', description: 'Điểm tích lũy.' },
-  '/account/notifications': { title: 'Thông báo — VeXeVN', description: 'Cài đặt thông báo.' },
-  '/account/security': { title: 'Bảo mật — VeXeVN', description: 'Bảo mật tài khoản.' },
-  '/account/trips': { title: 'Lịch sử chuyến đi — VeXeVN', description: 'Lịch sử đặt vé và đánh giá chuyến đi.' },
-  '/account/feedback': { title: 'Phản hồi của tôi — VeXeVN', description: 'Lịch sử đánh giá các chuyến đi đã đi.' },
+  '/admin/brands': { title: 'Hãng xe — Quản trị DatXeVui', description: 'Quản lý hãng xe, tuyến đường, lịch trình.' },
+  '/admin/routes': { title: 'Tuyến đường — Quản trị DatXeVui', description: 'Quản lý tuyến đường.' },
+  '/admin/schedules': { title: 'Lịch trình — Quản trị DatXeVui', description: 'Quản lý lịch trình.' },
+  '/admin/cron-jobs': { title: 'Cron jobs — Quản trị DatXeVui', description: 'Quản lý tác vụ nền định kỳ.' },
+  '/admin/tickets': { title: 'Vé đã bán — Quản trị DatXeVui', description: 'Quản lý vé đã bán.' },
+  '/admin/chat': { title: 'Chat hỗ trợ — Quản trị DatXeVui', description: 'Hỗ trợ khách hàng qua chat.' },
+  '/admin/reviews': { title: 'Đánh giá — Quản trị DatXeVui', description: 'Kiểm duyệt đánh giá.' },
+  '/admin/feedback': { title: 'Phản hồi — Quản trị DatXeVui', description: 'Quản lý phản hồi khách hàng.' },
+  '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị DatXeVui', description: 'Quản lý sơ đồ ghế xe.' },
+  '/admin/vehicle-types': { title: 'Loại xe — Quản trị DatXeVui', description: 'Quản lý danh mục loại xe.' },
+  '/admin/system': { title: 'Hệ thống — Quản trị DatXeVui', description: 'Theo dõi hệ thống.' },
+  '/admin/users': { title: 'Người dùng — Quản trị DatXeVui', description: 'Quản lý vai trò người dùng, nhân viên và quản trị viên.' },
+  '/admin/payments': { title: 'Thanh toán — Quản trị DatXeVui', description: 'Quản lý giao dịch thanh toán.' },
+  '/account': { title: 'Tài khoản — DatXeVui', description: 'Quản lý tài khoản và cài đặt.' },
+  '/account/wishlist': { title: 'Yêu thích — DatXeVui', description: 'Danh sách yêu thích.' },
+  '/account/loyalty': { title: 'Điểm thưởng — DatXeVui', description: 'Điểm tích lũy.' },
+  '/account/notifications': { title: 'Thông báo — DatXeVui', description: 'Cài đặt thông báo.' },
+  '/account/security': { title: 'Bảo mật — DatXeVui', description: 'Bảo mật tài khoản.' },
+  '/account/trips': { title: 'Lịch sử chuyến đi — DatXeVui', description: 'Lịch sử đặt vé và đánh giá chuyến đi.' },
+  '/account/feedback': { title: 'Phản hồi của tôi — DatXeVui', description: 'Lịch sử đánh giá các chuyến đi đã đi.' },
   '/map': {
-    title: 'Bản đồ tuyến đường — VeXeVN',
+    title: 'Bản đồ tuyến đường — DatXeVui',
     description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
   },
   '/login': {
-    title: 'Đăng nhập — VeXeVN',
+    title: 'Đăng nhập — DatXeVui',
     description: 'Đăng nhập để đặt vé, xem vé của bạn và tích điểm thưởng.',
   },
   '/compare': {
-    title: 'So sánh chuyến xe — VeXeVN',
+    title: 'So sánh chuyến xe — DatXeVui',
     description: 'So sánh giá, giờ đi, tiện nghi của các chuyến xe.',
   },
 }
@@ -167,13 +167,13 @@ function RouteMeta() {
     let meta = ROUTE_META[pathname]
     if (!meta) {
       if (pathname.startsWith('/trips/')) {
-        meta = { title: 'Chi tiết chuyến xe — VeXeVN', description: 'Xem sơ đồ ghế, lịch trình, đánh giá và đặt vé trực tuyến.' }
+        meta = { title: 'Chi tiết chuyến xe — DatXeVui', description: 'Xem sơ đồ ghế, lịch trình, đánh giá và đặt vé trực tuyến.' }
       } else if (pathname.startsWith('/brands/')) {
-        meta = { title: 'Hãng xe — VeXeVN', description: 'Thông tin hãng xe, tuyến đường, đánh giá khách hàng.' }
+        meta = { title: 'Hãng xe — DatXeVui', description: 'Thông tin hãng xe, tuyến đường, đánh giá khách hàng.' }
       } else if (pathname.startsWith('/bookings/')) {
-        meta = { title: 'Chi tiết vé — VeXeVN', description: 'Thông tin vé đã đặt.' }
+        meta = { title: 'Chi tiết vé — DatXeVui', description: 'Thông tin vé đã đặt.' }
       } else {
-        meta = { title: 'VeXeVN — Đặt vé xe khách online', description: ROUTE_META['/'].description }
+        meta = { title: 'DatXeVui — Đặt vé xe khách online', description: ROUTE_META['/'].description }
       }
     }
     if (typeof document !== 'undefined') {

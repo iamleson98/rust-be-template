@@ -79,7 +79,7 @@ export function LoginPage() {
                 <Bus className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="font-bold text-xl leading-tight">VeXeVN</h1>
+                <h1 className="font-bold text-xl leading-tight">DatXeVui</h1>
                 <p className="text-[12px] text-blue-100 mt-0.5">
                   Đăng nhập để quản lý vé, đánh giá và ưu đãi
                 </p>

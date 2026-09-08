@@ -146,7 +146,7 @@ export const Footer = memo(function Footer() {
                 <Bus className="h-5 w-5 text-white" />
               </div>
               <div>
-                <div className="font-extrabold text-white text-lg tracking-tight">VeXeVN</div>
+                <div className="font-extrabold text-white text-lg tracking-tight">DatXeVui</div>
                 <div className="text-[10px] text-blue-400 font-medium -mt-0.5">Đặt vé xe online</div>
               </div>
             </div>
@@ -233,8 +233,8 @@ export const Footer = memo(function Footer() {
                 </a>
               </li>
               <li>
-                <a href="mailto:cskh@vexevn.vn" className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
-                  <Mail className="h-3.5 w-3.5" /> cskh@vexevn.vn
+                <a href="mailto:cskh@datxevui.vn" className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
+                  <Mail className="h-3.5 w-3.5" /> cskh@datxevui.vn
                 </a>
               </li>
               <li className="flex items-center gap-1.5 text-slate-400">
@@ -314,7 +314,7 @@ export const Footer = memo(function Footer() {
         <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-1 text-sm text-slate-400">
-              © 2025 VeXeVN. Bản quyền thuộc về Công ty TNHH VeXeVN
+              © 2025 DatXeVui. Bản quyền thuộc về Công ty TNHH DatXeVui
               <Heart className="h-3 w-3 text-rose-500 inline mx-0.5" />
             </div>
             <div className="text-xs text-slate-500">

@@ -146,7 +146,7 @@ export function StaticSections() {
       <Section id="avatar" title="Avatar" description="User images with text fallbacks.">
         <Row>
           <Avatar data-testid="avatar-image">
-            <AvatarImage src="/logo.svg" alt="VeXeVN" />
+            <AvatarImage src="/logo.svg" alt="DatXeVui" />
             <AvatarFallback>VX</AvatarFallback>
           </Avatar>
           <Avatar data-testid="avatar-fallback">

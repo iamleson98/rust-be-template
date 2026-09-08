@@ -66,7 +66,7 @@ export function JsonLd({ data }: { data: JsonLdData }) {
 export function buildBreadcrumb(
   items: Array<{ name: string; path: string }>,
 ): JsonLdData {
-  const baseUrl = 'https://vexevn.vn'
+  const baseUrl = 'https://datxevui.vn'
   return {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',

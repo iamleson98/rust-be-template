@@ -91,7 +91,7 @@ export function Gallery() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
           <div>
             <h1 className="text-xl font-bold tracking-tight">
-              VeXeVN UI Component Gallery
+              DatXeVui UI Component Gallery
             </h1>
             <p className="text-muted-foreground text-sm">
               {SECTIONS.length} base components · dev-only test harness

@@ -159,7 +159,7 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
                   </div>
                   <div>
                     <h2 className="font-extrabold text-sm">Điểm thưởng</h2>
-                    <p className="text-[11px] text-muted-foreground">VeXeVN Loyalty</p>
+                    <p className="text-[11px] text-muted-foreground">DatXeVui Loyalty</p>
                   </div>
                 </div>
                 <button

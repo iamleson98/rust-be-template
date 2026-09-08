@@ -277,7 +277,7 @@ export function RegisterForm() {
         </Button>
 
         <p className="text-[11px] text-muted-foreground text-center">
-          Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của VeXeVN.
+          Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của DatXeVui.
         </p>
       </form>
 

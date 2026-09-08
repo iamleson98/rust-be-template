@@ -82,7 +82,7 @@ export const Header = memo(function Header() {
             <Bus className="h-5 w-5 text-white" />
           </div>
           <div className="leading-tight">
-            <div className="font-extrabold text-lg tracking-tight">VeXeVN</div>
+            <div className="font-extrabold text-lg tracking-tight">DatXeVui</div>
             <div className="text-[10px] text-blue-200 -mt-0.5">Đặt vé xe khách online</div>
           </div>
         </button>
@@ -244,14 +244,14 @@ export const Header = memo(function Header() {
             </DropdownMenu>
           )}
 
-          <Button
+          {/* <Button
             onClick={() => setChatOpen(true)}
             size="sm"
             className="bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white gap-1.5 transition-all"
           >
             <Headset className="h-4 w-4" />
             <span className="hidden sm:inline">{t('nav.support')}</span>
-          </Button>
+          </Button> */}
 
           <Suspense fallback={null}>
             <LoyaltyWidget />

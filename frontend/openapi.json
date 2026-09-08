@@ -6115,7 +6115,7 @@
               "string",
               "null"
             ],
-            "description": "Joined from the booking row — the human-readable booking code\n(e.g. `VEXEVN-AB12CD`). Lets the admin list / search without an\nextra round-trip per row."
+            "description": "Joined from the booking row — the human-readable booking code\n(e.g. `DATXEVUI-AB12CD`). Lets the admin list / search without an\nextra round-trip per row."
           },
           "bookingId": {
             "type": "string",

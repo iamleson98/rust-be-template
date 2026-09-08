@@ -226,7 +226,7 @@ const DEFAULT_TIPS: TravelTipData = {
   emergency: [
     { label: 'Công an', phone: '113' },
     { label: 'Cấp cứu', phone: '115' },
-    { label: 'Hotline VeXeVN', phone: '1900 6067' },
+    { label: 'Hotline DatXeVui', phone: '1900 6067' },
   ],
   payment: 'Tiền mặt và ví điện tử (MoMo, ZaloPay, VNPay) phổ biến. Thẻ tín dụng chấp nhận ở nơi lớn.',
 }

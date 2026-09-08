@@ -110,7 +110,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           </div>
           {!collapsed && (
             <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
-              <span className="truncate font-bold text-white">VeXeVN</span>
+              <span className="truncate font-bold text-white">DatXeVui</span>
               <span className="truncate text-xs text-white/70">Tài khoản của tôi</span>
             </div>
           )}

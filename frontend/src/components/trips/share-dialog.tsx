@@ -71,7 +71,7 @@ function buildShareUrl(tripId: string): { code: string; url: string } {
   for (let i = 0; i < 6; i++) {
     code += chars[(seed + i * 31) % chars.length]
   }
-  return { code, url: `https://vexevn.vn/s/${code}` }
+  return { code, url: `https://datxevui.vn/s/${code}` }
 }
 
 /**
@@ -123,7 +123,7 @@ function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.getState>[
   ctx.fillStyle = '#ffffff'
   ctx.font = 'bold 42px sans-serif'
   ctx.textBaseline = 'middle'
-  ctx.fillText('VeXeVN', cardX + 40, cardY + 55)
+  ctx.fillText('DatXeVui', cardX + 40, cardY + 55)
   ctx.font = '20px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.fillText('Đặt vé xe khách online', cardX + 240, cardY + 58)
@@ -229,7 +229,7 @@ function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.getState>[
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.font = '24px sans-serif'
   ctx.textAlign = 'center'
-  ctx.fillText('Truy cập vexevn.vn để đặt vé ngay', W / 2, H - 36)
+  ctx.fillText('Truy cập datxevui.vn để đặt vé ngay', W / 2, H - 36)
   ctx.textAlign = 'left'
 
   // Download
@@ -371,7 +371,7 @@ export function ShareDialog() {
     const quote = encodeURIComponent(
       shareTripData
         ? `${shareTripData.fromName} → ${shareTripData.toName} chỉ từ ${formatCurrency(shareTripData.minPrice, currency)} — ${shareTripData.brandName}`
-        : 'VeXeVN — Đặt vé xe online',
+        : 'DatXeVui — Đặt vé xe online',
     )
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`, '_blank', 'noopener,noreferrer,width=640,height=540')
   }
@@ -383,7 +383,7 @@ export function ShareDialog() {
     const desc = encodeURIComponent(
       shareTripData
         ? `${shareTripData.fromName} → ${shareTripData.toName} • ${shareTripData.brandName}`
-        : 'VeXeVN',
+        : 'DatXeVui',
     )
     window.open(`https://zalo.me/share?url=${u}&title=${desc}`, '_blank', 'noopener,noreferrer,width=640,height=540')
   }
@@ -403,10 +403,10 @@ export function ShareDialog() {
     }
     setSendingEmail(true)
     try {
-      const subject = `VeXeVN — ${shareTripData.fromName} → ${shareTripData.toName} · ${shareTripData.brandName}`
+      const subject = `DatXeVui — ${shareTripData.fromName} → ${shareTripData.toName} · ${shareTripData.brandName}`
       const defaultBody = `Chào bạn,
 
-Tôi muốn chia sẻ chuyến đi trên VeXeVN:
+Tôi muốn chia sẻ chuyến đi trên DatXeVui:
 
 • Tuyến: ${shareTripData.fromName} → ${shareTripData.toName}
 • Hãng xe: ${shareTripData.brandName}
@@ -415,7 +415,7 @@ Tôi muốn chia sẻ chuyến đi trên VeXeVN:
 
 Đặt vé tại: ${shareInfo.url}
 
-VeXeVN — Đặt vé xe khách online.`
+DatXeVui — Đặt vé xe khách online.`
       const body = values.message?.trim() ? `${values.message.trim()}\n\n${defaultBody}` : defaultBody
       const mailto = `mailto:${values.recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
       // Open the user's email client. We do NOT POST to any backend —
@@ -461,7 +461,7 @@ VeXeVN — Đặt vé xe khách online.`
                   <div className="h-7 w-7 rounded-lg bg-white/20 flex items-center justify-center">
                     <Bus className="h-4 w-4" />
                   </div>
-                  <div className="text-sm font-extrabold tracking-wide">VeXeVN</div>
+                  <div className="text-sm font-extrabold tracking-wide">DatXeVui</div>
                   <span className="text-[10px] text-white/80 ml-auto">Đặt vé xe online</span>
                 </div>
 

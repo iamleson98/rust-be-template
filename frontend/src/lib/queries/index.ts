@@ -1,5 +1,5 @@
 /**
- * Centralized TanStack Query hooks for the VeXeVN frontend.
+ * Centralized TanStack Query hooks for the DatXeVui frontend.
  *
  * This module wraps the auto-generated OpenAPI SDK (`@/lib/api/sdk.gen`)
  * + TanStack Query options (`@/lib/api/@tanstack/react-query.gen`) into

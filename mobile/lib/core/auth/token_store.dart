@@ -20,9 +20,9 @@ class TokenStore {
 
   final FlutterSecureStorage _storage;
 
-  static const _kAccess = 'vexevn.access_token';
-  static const _kRefresh = 'vexevn.refresh_token';
-  static const _kUser = 'vexevn.user';
+  static const _kAccess = 'datxevui.access_token';
+  static const _kRefresh = 'datxevui.refresh_token';
+  static const _kUser = 'datxevui.user';
 
   SessionUser? _cachedUser;
   String? _cachedAccess;

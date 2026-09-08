@@ -42,7 +42,7 @@ export function ChatHeader({
   onClose: () => void
   onBackToList: () => void
 }) {
-  const title = view === 'conversation' && activeChannel ? activeChannel.topic : 'Hỗ trợ VeXeVN'
+  const title = view === 'conversation' && activeChannel ? activeChannel.topic : 'Hỗ trợ DatXeVui'
 
   return (
     <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">

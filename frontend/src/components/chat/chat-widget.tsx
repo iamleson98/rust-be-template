@@ -697,7 +697,7 @@ export function ChatWidget() {
       ref={panelRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Hỗ trợ VeXeVN"
+      aria-label="Hỗ trợ DatXeVui"
       className="fixed bottom-0 right-0 sm:bottom-5 sm:right-5 z-50 w-full sm:w-100 h-screen sm:h-150 sm:max-h-[85vh] bg-white sm:rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
     >
       <ChatHeader

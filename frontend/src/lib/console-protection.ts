@@ -57,7 +57,7 @@ function checkDevtools(): boolean {
 
 function logWarning(): void {
   // Use a styled console.log so the warning is visually prominent.
-  const banner = '%c⚠️ VeXeVN — Cảnh báo bảo mật'
+  const banner = '%c⚠️ DatXeVui — Cảnh báo bảo mật'
   const style =
     'color: white; background: #dc2626; font-size: 16px; font-weight: bold; padding: 4px 8px; border-radius: 4px;'
   const message = [
@@ -68,7 +68,7 @@ function logWarning(): void {
     '⚠️ Không nhập thông tin nhạy cảm vào console.',
     '⚠️ Chúng tôi KHÔNG bao giờ yêu cầu bạn chạy script trong console.',
     '',
-    'Nếu bạn là lập trình viên, vui lòng liên hệ admin@vexevn.vn để được cấp quyền dev.',
+    'Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.vn để được cấp quyền dev.',
   ].join('\n')
 
   console.log(banner, style)

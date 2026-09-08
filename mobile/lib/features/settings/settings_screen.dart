@@ -234,7 +234,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'VeXeVN Tổng đài • v0.1.0',
+            'DatXeVui Tổng đài • v0.1.0',
             textAlign: TextAlign.center,
             style: theme.typography.body.sm
                 .copyWith(color: theme.colors.mutedForeground),

@@ -17,7 +17,7 @@ type Faq = {
 
 const FAQS: Faq[] = [
   {
-    q: 'Làm thế nào để đặt vé xe trên VeXeVN?',
+    q: 'Làm thế nào để đặt vé xe trên DatXeVui?',
     a: 'Chỉ với 4 bước đơn giản: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công.',
   },
   {
@@ -26,15 +26,15 @@ const FAQS: Faq[] = [
   },
   {
     q: 'Những phương thức thanh toán nào được hỗ trợ?',
-    a: 'VeXeVN hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit và tuân thủ chuẩn bảo mật PCI DSS, đảm bảo an toàn tuyệt đối cho thông tin thẻ và tài khoản của bạn.',
+    a: 'DatXeVui hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit và tuân thủ chuẩn bảo mật PCI DSS, đảm bảo an toàn tuyệt đối cho thông tin thẻ và tài khoản của bạn.',
   },
   {
     q: 'Vé điện tử có hợp lệ không?',
-    a: 'Có. Vé điện tử trên VeXeVN có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe, nhân viên sẽ quét mã để xác nhận. Không cần in vé giấy, thân thiện với môi trường.',
+    a: 'Có. Vé điện tử trên DatXeVui có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe, nhân viên sẽ quét mã để xác nhận. Không cần in vé giấy, thân thiện với môi trường.',
   },
   {
     q: 'Tôi có được chọn ghế cụ thể không?',
-    a: 'Có. VeXeVN hiển thị sơ đồ ghế chi tiết theo từng loại xe (limousine, giường nằm, ghế ngồi). Bạn có thể chọn ghế trực quan theo tầng, vị trí cửa sổ/lối đi, và xem ngay giá tương ứng với từng ghế trước khi xác nhận đặt vé.',
+    a: 'Có. DatXeVui hiển thị sơ đồ ghế chi tiết theo từng loại xe (limousine, giường nằm, ghế ngồi). Bạn có thể chọn ghế trực quan theo tầng, vị trí cửa sổ/lối đi, và xem ngay giá tương ứng với từng ghế trước khi xác nhận đặt vé.',
   },
   {
     q: 'Trẻ em có được giảm giá không?',
@@ -42,11 +42,11 @@ const FAQS: Faq[] = [
   },
   {
     q: 'Nếu xe đến trễ thì sao?',
-    a: 'VeXeVN cam kết đền bù 100% giá vé nếu xe trễ quá 30 phút so với giờ khởi hành đã thông báo. Bạn vui lòng liên hệ hotline 1900 6067 hoặc chat trực tiếp với nhà xe trong phần "Theo dõi xe" để được hỗ trợ và nhận bồi thường theo quy định.',
+    a: 'DatXeVui cam kết đền bù 100% giá vé nếu xe trễ quá 30 phút so với giờ khởi hành đã thông báo. Bạn vui lòng liên hệ hotline 1900 6067 hoặc chat trực tiếp với nhà xe trong phần "Theo dõi xe" để được hỗ trợ và nhận bồi thường theo quy định.',
   },
   {
     q: 'Làm sao để theo dõi chuyến xe?',
-    a: 'Tính năng "Theo dõi xe trực tiếp" có sẵn trong trang chi tiết chuyến đi. Bạn sẽ thấy vị trí xe real-time trên bản đồ, dự kiến giờ đến trạm đón, và nhận thông báo push khi xe sắp tới nơi. Tính năng này cần nhà xe hỗ trợ GPS — áp dụng cho hơn 90% chuyến xe trên VeXeVN.',
+    a: 'Tính năng "Theo dõi xe trực tiếp" có sẵn trong trang chi tiết chuyến đi. Bạn sẽ thấy vị trí xe real-time trên bản đồ, dự kiến giờ đến trạm đón, và nhận thông báo push khi xe sắp tới nơi. Tính năng này cần nhà xe hỗ trợ GPS — áp dụng cho hơn 90% chuyến xe trên DatXeVui.',
   },
 ]
 
@@ -158,7 +158,7 @@ export const FaqSection = memo(function FaqSection() {
                 </div>
               </a>
               <a
-                href="mailto:cskh@vexevn.vn"
+                href="mailto:cskh@datxevui.vn"
                 className="group flex items-center gap-3 rounded-xl bg-white/10 hover:bg-white/15 transition-colors px-4 py-3 ring-1 ring-white/10"
               >
                 <Mail className="size-5 text-rose-300" />
@@ -166,7 +166,7 @@ export const FaqSection = memo(function FaqSection() {
                   <div className="text-[11px] uppercase tracking-wide text-white/60">
                     Email
                   </div>
-                  <div className="text-sm font-semibold">cskh@vexevn.vn</div>
+                  <div className="text-sm font-semibold">cskh@datxevui.vn</div>
                 </div>
               </a>
             </div>

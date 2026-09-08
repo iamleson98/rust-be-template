@@ -179,7 +179,7 @@ export const Testimonials = memo(function Testimonials() {
             ⭐ Đánh giá từ hành khách
           </div>
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-            Khách hàng nói gì về VeXeVN?
+            Khách hàng nói gì về DatXeVui?
           </h2>
           <p className="text-muted-foreground mt-3">
             Hơn 125.000 hành khách tin dùng

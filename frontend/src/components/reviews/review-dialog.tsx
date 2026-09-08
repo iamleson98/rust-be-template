@@ -241,7 +241,7 @@ export function ReviewDialog({
             </div>
             <h3 className="font-bold text-xl mb-1">Cảm ơn đánh giá của bạn!</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Nhận xét của bạn giúp cộng đồng hành khách VeXeVN chọn chuyến đi tốt hơn và giúp hãng
+              Nhận xét của bạn giúp cộng đồng hành khách DatXeVui chọn chuyến đi tốt hơn và giúp hãng
               xe cải thiện dịch vụ.
             </p>
             <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-50 ring-1 ring-amber-200 px-3 py-1.5">

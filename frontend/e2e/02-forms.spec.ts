@@ -200,7 +200,7 @@ test.describe('Form (react-hook-form + zod)', () => {
 
   test('valid input submits and shows success status', async ({ page }) => {
     await page.getByTestId('form-username').fill('leson')
-    await page.getByTestId('form-email').fill('leson@vexevn.vn')
+    await page.getByTestId('form-email').fill('leson@datxevui.vn')
     await page.getByTestId('form-submit').click()
     await expect(page.getByTestId('form-status')).toHaveText('ok:leson')
     // Errors are gone once valid
@@ -209,7 +209,7 @@ test.describe('Form (react-hook-form + zod)', () => {
 
   test('clearing a field re-triggers validation', async ({ page }) => {
     await page.getByTestId('form-username').fill('leson')
-    await page.getByTestId('form-email').fill('leson@vexevn.vn')
+    await page.getByTestId('form-email').fill('leson@datxevui.vn')
     await page.getByTestId('form-username').fill('ab')
     await page.getByTestId('form-submit').click()
     await expect(page.getByTestId('form-username-error')).toBeVisible()

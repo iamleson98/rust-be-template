@@ -159,7 +159,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           {!collapsed && (
             <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
-              <span className="truncate font-bold text-white">VeXeVN</span>
+              <span className="truncate font-bold text-white">DatXeVui</span>
               <span className="truncate text-xs text-white/70">Hệ thống quản trị</span>
             </div>
           )}
@@ -294,7 +294,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </Button>
           <Separator orientation="vertical" className="mr-2 h-5" />
           <span className="text-sm font-medium text-muted-foreground truncate">
-            {user?.name || 'Admin'} · VeXeVN Admin
+            {user?.name || 'Admin'} · DatXeVui Admin
           </span>
         </header>
         <div className="flex-1">

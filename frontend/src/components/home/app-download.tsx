@@ -31,7 +31,7 @@ function AppDownloadImpl() {
           {/* Left column — copy + CTAs */}
           <div className="text-center md:text-left">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur">
-              📱 Tải app VeXeVN
+              📱 Tải app DatXeVui
             </span>
 
             <h2
@@ -42,7 +42,7 @@ function AppDownloadImpl() {
             </h2>
 
             <p className="mt-4 text-sm md:text-base text-white/70 max-w-lg mx-auto md:mx-0">
-              Tải app VeXeVN để nhận thông báo giá rẻ, quản lý vé dễ dàng, tích điểm đổi quà.
+              Tải app DatXeVui để nhận thông báo giá rẻ, quản lý vé dễ dàng, tích điểm đổi quà.
               Hơn <span className="font-semibold text-white">125.000 người</span> đã tải.
             </p>
 

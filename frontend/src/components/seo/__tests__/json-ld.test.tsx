@@ -69,7 +69,7 @@ describe('buildTripProduct', () => {
       brandName: 'Phương Trang',
       price: 350000,
       currency: 'VND',
-      url: 'https://vexevn.vn/trips/trip-123',
+      url: 'https://datxevui.vn/trips/trip-123',
     })
     expect(schema['@type']).toBe('Product')
     expect(schema.name).toBe('Hà Nội → Đà Nẵng')

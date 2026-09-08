@@ -14,8 +14,8 @@
  */
 
 const VERSION = 'v1'
-const PRECACHE = `vexevn-precache-${VERSION}`
-const RUNTIME = `vexevn-runtime-${VERSION}`
+const PRECACHE = `datxevui-precache-${VERSION}`
+const RUNTIME = `datxevui-runtime-${VERSION}`
 
 const PRECACHE_URLS = ['/', '/offline.html', '/manifest.webmanifest', '/logo.svg']
 

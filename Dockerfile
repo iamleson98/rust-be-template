@@ -6,11 +6,11 @@
 # Stage 4: Runtime — slim image with only the binary + static files
 #
 # Build:
-#   docker build -t vexevn:latest .
+#   docker build -t datxevui:latest .
 #   (No database feature flags — the rust-sql engine is always compiled in.)
 #
 # Run:
-#   docker run -p 8080:8080 --env-file .env vexevn:latest
+#   docker run -p 8080:8080 --env-file .env datxevui:latest
 #
 # Persistent data (bind or named volumes):
 #   - /app/data     — rust-sql database file + OSM PBF downloads
@@ -148,8 +148,8 @@ ARG VERSION=dev
 ARG CREATED=1970-01-01T00:00:00Z
 
 # OCI labels — `docker inspect` shows exactly which git tag built this.
-LABEL org.opencontainers.image.title="vexevn" \
-      org.opencontainers.image.description="VeXeVN — Rust/Axum backend serving the React frontend, API, WebSocket, and Tantivy place search" \
+LABEL org.opencontainers.image.title="datxevui" \
+      org.opencontainers.image.description="DatXeVui — Rust/Axum backend serving the React frontend, API, WebSocket, and Tantivy place search" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${CREATED}" \
       org.opencontainers.image.source="https://github.com/iamleson98/rust-be-template" \

@@ -52,7 +52,7 @@ export function MobileNav() {
   return (
     <>
       {/* Floating CTA button */}
-      <div className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
+      {/* <div className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
         <button
           onClick={() => navigate({ to: '/' })}
           className="h-14 w-14 rounded-full bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center ring-4 ring-white/20"
@@ -65,7 +65,7 @@ export function MobileNav() {
             {t('nav.bookTicket')}
           </span>
         </div>
-      </div>
+      </div> */}
 
       {/* Bottom nav bar — touch targets are ≥48px (Apple HIG + Material). */}
       <nav

@@ -29,7 +29,7 @@
 # │ while local runs fall back to `:latest`.                              │
 # └──────────────────────────────────────────────────────────────────────┘
 
-name: vexevn
+name: datxevui
 
 services:
   # ── Backend (Rust: API + WS + static frontend + Tantivy search) ──────

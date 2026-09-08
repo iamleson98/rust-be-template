@@ -55,7 +55,7 @@ function FeaturesImpl() {
       <div className="container mx-auto px-4 py-16">
         <div className="text-center max-w-2xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-3">
-            Tại sao chọn VeXeVN?
+            Tại sao chọn DatXeVui?
           </div>
           <h2 className="text-balance text-3xl md:text-4xl font-extrabold tracking-tight">
             Đặt vé xe dễ dàng, an toàn, tiết kiệm

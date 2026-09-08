@@ -23,8 +23,8 @@
  *
  * ## What's stored
  *
- *   `vexevn:notif-permission` → "asked" | "granted" | "denied" | "unsupported"
- *   `vexevn:notif-asked-at`   → ISO timestamp (for debugging)
+ *   `datxevui:notif-permission` → "asked" | "granted" | "denied" | "unsupported"
+ *   `datxevui:notif-asked-at`   → ISO timestamp (for debugging)
  *
  * If the user clears localStorage (or uses a different device), we'll
  * ask again — which is fine because the browser's own permission
@@ -43,8 +43,8 @@
  * ```
  */
 
-const LS_PERMISSION_KEY = 'vexevn:notif-permission'
-const LS_ASKED_AT_KEY = 'vexevn:notif-asked-at'
+const LS_PERMISSION_KEY = 'datxevui:notif-permission'
+const LS_ASKED_AT_KEY = 'datxevui:notif-asked-at'
 
 type CachedPermission = 'asked' | 'granted' | 'denied' | 'unsupported' | 'default'
 
@@ -222,7 +222,7 @@ export function notifyChatMessage(senderName: string, body: string, channelId?: 
     tag: channelId ? `chat:${channelId}` : 'chat',
     onClick: () => {
       // Dispatch a custom event so the chat widget can open itself.
-      window.dispatchEvent(new CustomEvent('vexevn:open-chat'))
+      window.dispatchEvent(new CustomEvent('datxevui:open-chat'))
     },
   })
 }
@@ -234,7 +234,7 @@ export function notifyIncomingCall(fromName: string): void {
   showNotification(`📞 Cuộc gọi đến từ ${fromName}`, 'Nhấn để trả lời cuộc gọi', {
     tag: 'audio-call',
     onClick: () => {
-      window.dispatchEvent(new CustomEvent('vexevn:open-call'))
+      window.dispatchEvent(new CustomEvent('datxevui:open-call'))
     },
   })
 }

@@ -97,7 +97,7 @@ class _VeXevnAppState extends ConsumerState<VeXevnApp>
     });
 
     return MaterialApp.router(
-      title: 'VeXeVN Tổng đài',
+      title: 'DatXeVui Tổng đài',
       debugShowCheckedModeBanner: false,
       themeMode: mode,
       theme: FTheme.neutral.light.touch.toApproximateMaterialTheme(),

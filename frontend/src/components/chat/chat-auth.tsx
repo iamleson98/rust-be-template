@@ -155,7 +155,7 @@ export function ChatAuthView({
 
       <div className="mt-auto border-t p-3 bg-slate-50 text-xs text-muted-foreground flex items-center justify-between">
         <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> 1900 6067</span>
-        <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> cskh@vexevn.vn</span>
+        <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> cskh@datxevui.vn</span>
       </div>
     </div>
   )

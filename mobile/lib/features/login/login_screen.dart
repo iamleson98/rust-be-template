@@ -136,7 +136,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             control:
                                 FTextFieldControl.managed(controller: _email),
                             label: const Text('Email'),
-                            hint: 'you@vexevn.vn',
+                            hint: 'you@datxevui.vn',
                             textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),
@@ -229,7 +229,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'VeXeVN Tổng đài • v0.1.0',
+                    'DatXeVui Tổng đài • v0.1.0',
                     style: theme.typography.body.sm.copyWith(
                       color: theme.colors.mutedForeground,
                     ),
@@ -293,7 +293,7 @@ class _Hero extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           Text(
-            'VeXeVN Tổng đài',
+            'DatXeVui Tổng đài',
             style: theme.typography.display.lg.copyWith(
               fontWeight: FontWeight.w700,
               color: fg,

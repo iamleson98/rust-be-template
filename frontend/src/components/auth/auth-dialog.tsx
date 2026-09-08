@@ -108,9 +108,9 @@ export function AuthDialog() {
       }}
     >
       <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-        <DialogTitle className="sr-only">Đăng nhập VeXeVN</DialogTitle>
+        <DialogTitle className="sr-only">Đăng nhập DatXeVui</DialogTitle>
         <DialogDescription className="sr-only">
-          Nhập email và mật khẩu để đăng nhập hoặc tạo tài khoản VeXeVN.
+          Nhập email và mật khẩu để đăng nhập hoặc tạo tài khoản DatXeVui.
         </DialogDescription>
 
         {/* Teal gradient header */}
@@ -121,7 +121,7 @@ export function AuthDialog() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <div className="font-bold text-lg leading-tight">Đăng nhập VeXeVN</div>
+              <div className="font-bold text-lg leading-tight">Đăng nhập DatXeVui</div>
               <div className="text-[11px] text-blue-100/90 mt-0.5">
                 Đăng nhập để đồng bộ vé và ưu đãi
               </div>

@@ -34,14 +34,14 @@
 import http from 'k6/http';
 
 /** Backend base URL. Override with `-e BASE_URL=https://staging.example.com`. */
-export const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+export const BASE_URL = __ENV.BASE_URL || 'https://datxevui.com';
 
 /**
  * Allowed origin for the `Origin` header. Must match one of the
  * backend's `CORS_ORIGINS` entries or POSTs will be rejected with 403.
- * Default `http://localhost:8080` is in the default CORS list.
+ * Default `https://datxevui.com` is in the default CORS list.
  */
-export const ORIGIN = __ENV.ORIGIN || 'http://localhost:8080';
+export const ORIGIN = __ENV.ORIGIN || 'https://datxevui.com';
 
 /**
  * Browser-like User-Agent. The backend's anti-scraping middleware

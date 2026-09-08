@@ -1,4 +1,4 @@
-# VeXeVN Tổng đài — Support Agent Mobile Client
+# DatXeVui Tổng đài — Support Agent Mobile Client
 
 Flutter mobile app (Android + iOS) for the support agent: **live chat with
 customers and WebRTC audio calls**, with instant local notifications when a

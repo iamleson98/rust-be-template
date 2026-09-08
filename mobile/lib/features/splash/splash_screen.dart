@@ -21,7 +21,7 @@ class SplashScreen extends StatelessWidget {
             _LogoMark(size: 88),
             const SizedBox(height: 24),
             Text(
-              'VeXeVN Tổng đài',
+              'DatXeVui Tổng đài',
               style: theme.typography.display.lg.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colors.foreground,

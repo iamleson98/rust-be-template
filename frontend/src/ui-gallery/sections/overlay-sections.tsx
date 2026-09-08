@@ -350,7 +350,7 @@ export function OverlaySections() {
               className="text-primary font-medium underline underline-offset-4"
               data-testid="hover-card-trigger"
             >
-              @vexevn
+              @datxevui
             </a>
           </HoverCardTrigger>
           <HoverCardContent className="w-64" data-testid="hover-card-content">
@@ -359,7 +359,7 @@ export function OverlaySections() {
                 VX
               </div>
               <div className="grid gap-0.5">
-                <p className="text-sm font-medium">VeXeVN Support</p>
+                <p className="text-sm font-medium">DatXeVui Support</p>
                 <p className="text-muted-foreground text-xs">
                   Official account · replies in ~2 min
                 </p>
