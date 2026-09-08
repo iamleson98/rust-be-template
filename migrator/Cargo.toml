@@ -13,14 +13,23 @@ name = "migrator"
 path = "src/lib.rs"
 
 [features]
-default = ["sqlite"]
-sqlite = ["sea-orm/sqlx-sqlite", "sea-orm-migration/sqlx-sqlite"]
-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+# The engine is not selectable: the migrator always runs on the
+# rust-sql (rustqlite) engine — sea-orm's sqlite dialect via the
+# sqlx-sqlite C-ABI compat layer (the libsqlite3-sys patch lives in
+# the workspace root). The former sqlite/postgres backend features
+# were removed 2026-09.
+default = []
 
 [dependencies]
 # Database
-sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
-sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls"] }
+sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
+sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
+# The rust-sql engine itself (rlib link mode): the migrator binary
+# links sqlx-sqlite, whose sqlite3_* FFI is satisfied by the compat
+# crate's #[no_mangle] exports. The link anchor in src/lib.rs keeps
+# this rlib on the migrator binary's link line (see the engine block
+# in the workspace root Cargo.toml).
+rustqlite-compat = { path = "../rust-sql/compat/rustqlite-compat" }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }

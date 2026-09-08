@@ -6,14 +6,8 @@ use anyhow::Context;
 /// Construct a DB connection (without applying migrations) for use in
 /// CLI commands that need to talk to the DB.
 ///
-/// On the sqlite backend this first transparently migrates a legacy
-/// C-SQLite database file to the rustqlite engine (no-op unless the
-/// file carries the old format).
+/// The engine is always rust-sql (rustqlite) — see [`crate::db`].
 pub async fn db_connect(cfg: &Config) -> anyhow::Result<sea_orm::DatabaseConnection> {
-    #[cfg(feature = "sqlite")]
-    {
-        crate::db::sqlite_migrate::maybe_migrate_sqlite_database(&cfg.database.url).await?;
-    }
     let mut opts = sea_orm::ConnectOptions::new(&cfg.database.url);
     opts.max_connections(cfg.database.max_connections)
         .min_connections(cfg.database.min_connections)
@@ -26,22 +20,15 @@ pub async fn db_connect(cfg: &Config) -> anyhow::Result<sea_orm::DatabaseConnect
     Ok(db)
 }
 
-/// Returns the cargo feature that's currently active for the DB backend.
+/// Returns the DB backend/engine identity for this build.
+///
+/// Always the rust-sql engine: sea-orm's sqlite dialect routed onto
+/// the rustqlite pure-Rust engine via the C-ABI compat layer.
 pub fn db_backend_name() -> &'static str {
-    #[cfg(feature = "postgres")]
-    {
-        "postgres"
-    }
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        "sqlite"
-    }
-    #[cfg(not(any(feature = "postgres", feature = "sqlite")))]
-    {
-        compile_error!(
-            "no DB backend feature enabled; rebuild with --features sqlite or --features postgres"
-        );
-    }
+    // Kept as a function (not a constant) so `db-backend` and the
+    // admin system endpoint share one source of truth with the
+    // engine identity in [`crate::db`].
+    "sqlite (rust-sql engine)"
 }
 
 /// Mask a secret string, showing only the first 4 and last 4 characters
@@ -87,6 +74,6 @@ mod tests {
 
     #[test]
     fn backend_name_is_set() {
-        assert!(matches!(db_backend_name(), "sqlite" | "postgres"));
+        assert!(db_backend_name().contains("rust-sql"));
     }
 }

@@ -45,11 +45,11 @@ pub use self::wishlist::{DbWishlistStore, WishlistStore};
 /// [`StoreError::Validation`].
 ///
 /// Why this exists: several store methods accept ids as `&str` (the
-/// wire-facing convention). On SQLite, SeaORM stores `Uuid` columns as
-/// 16-byte BLOBs, so filtering with `.eq(some_string)` (a TEXT parameter)
-/// NEVER matches — BLOB ≠ TEXT in SQLite's comparison rules. Binding the
-/// parsed [`uuid::Uuid`] (a BLOB parameter) matches correctly, and on
-/// Postgres both forms work. Every `&str`-id filter must go through this.
+/// wire-facing convention). The rust-sql engine (sqlite dialect) stores
+/// `Uuid` columns as 16-byte BLOBs, so filtering with `.eq(some_string)`
+/// (a TEXT parameter) NEVER matches — BLOB ≠ TEXT in the engine's
+/// comparison rules. Binding the parsed [`uuid::Uuid`] (a BLOB parameter)
+/// matches correctly. Every `&str`-id filter must go through this.
 pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid UUID: {s:?}")))
 }

@@ -48,11 +48,22 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     config.log_active();
 
     // ---- DB pool ------------------------------------------------------
-    // Legacy C-SQLite files (from before the rustqlite engine switch)
-    // are migrated transparently before the pool opens. No-op otherwise.
-    #[cfg(feature = "sqlite")]
-    {
-        crate::db::sqlite_migrate::maybe_migrate_sqlite_database(&config.database.url).await?;
+    // The engine is ALWAYS rust-sql (rustqlite) — sea-orm's sqlite
+    // dialect on the pure-Rust engine via the C-ABI compat layer
+    // (see `src/db/mod.rs` and the [patch.crates-io] in Cargo.toml).
+    // Any non-sqlite:// URL (e.g. a stale postgres:// one) fails fast
+    // with a clear message instead of limping into an unsupported
+    // backend at connect time.
+    if !config.database.url.starts_with("sqlite") {
+        anyhow::bail!(
+            "unsupported DATABASE_URL {:?} — this build links only the \
+             rust-sql (rustqlite) engine; use a sqlite://… URL",
+            &config.database.url[..config
+                .database
+                .url
+                .find(':')
+                .unwrap_or(config.database.url.len())]
+        );
     }
     let mut opts = ConnectOptions::new(&config.database.url);
     opts.max_connections(config.database.max_connections)
@@ -66,25 +77,16 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // doesn't expose a builder method for it.
     let db = Database::connect(opts).await.context("db connect")?;
 
-    // ── Backend-specific setup ───────────────────────────────────
-    // SQLite: apply performance pragmas (WAL mode, sync=NORMAL,
-    //   busy_timeout, cache_size, mmap_size, foreign_keys=ON).
-    //   SQLite has FK enforcement OFF by default — sea-orm migrations
-    //   assume FK enforcement, so we must turn it on.
-    // Postgres: no pragmas needed (FK enforcement is on by default,
-    //   MVCC handles concurrent readers/writers natively, and tuning
-    //   is done via `postgresql.conf` rather than per-connection
-    //   PRAGMAs).
-    if config.database.url.starts_with("sqlite") {
-        apply_sqlite_pragmas(&db).await?;
-    } else if config.database.url.starts_with("postgres") {
-        tracing::info!("Postgres detected — no pragmas needed (FK enforcement is on by default)");
-    } else {
-        tracing::warn!(
-            url = &config.database.url[..config.database.url.find("://").unwrap_or(0)],
-            "unknown database URL scheme — no backend-specific setup applied"
-        );
-    }
+    // ── Engine-specific setup ────────────────────────────────────
+    // Apply performance pragmas (WAL mode, sync=NORMAL, busy_timeout,
+    // cache_size, mmap_size, foreign_keys=ON). The rustqlite engine
+    // follows SQLite's default of FK enforcement OFF — sea-orm
+    // migrations assume FK enforcement, so we must turn it on.
+    apply_sqlite_pragmas(&db).await?;
+    tracing::info!(
+        engine = crate::db::engine_version(),
+        "database engine: rust-sql (rustqlite) via the sqlx-sqlite C-ABI compat layer"
+    );
 
     let db = Arc::new(db);
 

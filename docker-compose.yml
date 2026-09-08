@@ -7,8 +7,11 @@
 #
 # This compose file runs:
 #   - backend    (this app — Rust + frontend static files)
-#   - postgres   (database)
 #   - redis      (cache + worker queue)
+#
+# The database is the rust-sql (rustqlite) engine — compiled INTO the
+# backend binary (no C SQLite, no postgres container). Data persists
+# in the `appdata` volume (/app/data).
 #
 # The backend runs migrations on startup, so the first `up` will create
 # all tables. Swagger UI at http://localhost:8080/swagger-ui.
@@ -19,24 +22,6 @@
 # handle all messages manually.
 
 services:
-  # ── Database (Postgres) ──────────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-vexevn}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vexevn_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-vexevn}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vexevn}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   # ── Cache + Worker queue (Redis) ─────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -51,25 +36,20 @@ services:
       retries: 5
 
   # ── Backend (this app) ───────────────────────────────────────────
-  # Build with the postgres feature:
-  #   docker compose build
-  # (BACKEND_FEATURES is set to "postgres" by default below)
+  # The rust-sql (rustqlite) engine is linked into the binary — no
+  # database container, no feature flags.
   backend:
     build:
       context: .
-      args:
-        BACKEND_FEATURES: postgres
     restart: unless-stopped
     ports:
       - "8080:8080"
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      # ── Database ───────────────────────────────────────────────
-      DATABASE_URL: postgres://${POSTGRES_USER:-vexevn}:${POSTGRES_PASSWORD:-vexevn_secret}@db:5432/${POSTGRES_DB:-vexevn}
+      # ── Database (rust-sql engine, file-backed) ────────────────
+      DATABASE_URL: sqlite:///app/data/app.db?mode=rwc
       DATABASE_MAX_CONNECTIONS: "20"
       DATABASE_MIN_CONNECTIONS: "5"
 
@@ -133,7 +113,9 @@ services:
     volumes:
       # Persist uploaded files (avatars, etc.)
       - uploads:/app/storage
+      # Persist the rust-sql database file (+ WAL)
+      - appdata:/app/data
 
 volumes:
-  pgdata:
+  appdata:
   uploads:

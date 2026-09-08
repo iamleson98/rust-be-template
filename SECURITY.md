@@ -68,7 +68,8 @@ Before exposing any instance to the public internet, verify:
       `terraform/main.tf`
 - [ ] Docker images run as non-root user (the included `Dockerfile`
       creates and switches to a non-root user)
-- [ ] Database backups are configured (Postgres: `pg_dump` cron + S3 push)
+- [ ] Database backups are configured (rust-sql: copy `app.db` off the
+      data volume on a cron + push to S3 — see DEPLOYMENT.md §14)
 - [ ] Log aggregation ships `tracing` JSON to your SIEM (Datadog, Loki, etc.)
 
 ## Incident Response

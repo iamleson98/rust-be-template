@@ -86,7 +86,7 @@ else
 RUST_LOG=info,backend=info,tower_http=warn
 SERVER_REQUEST_TIMEOUT_SECS=30
 
-# ── Database (SQLite on the app-data volume; migrations run on boot) ─
+# ── Database (rust-sql engine file on the app-data volume; migrations run on boot) ─
 DATABASE_URL=sqlite:/app/data/app.db?mode=rwc
 
 # ── JWT (random, generated once) ─────────────────────────────────

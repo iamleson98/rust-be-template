@@ -274,7 +274,7 @@ impl ChatStore for DbChatStore {
     async fn count_channels_by_status(&self) -> StoreResult<Vec<(String, i64)>> {
         // Group channels by status + count each group. SeaORM doesn't
         // have a clean `GROUP BY` builder, so we use raw SQL via
-        // `execute_unprepared` for portability across SQLite + Postgres.
+        // `execute_unprepared` (portable raw SQL for the engine's dialect).
         //
         // Returns `Vec<(status, count)>` — e.g. `[("open", 42), ("assigned", 3), ("closed", 15)]`.
         use sea_orm::FromQueryResult;
@@ -310,7 +310,7 @@ impl ChatStore for DbChatStore {
         // express "find the min created_at per (channel_id, sender_type)
         // group, then join the two groups on channel_id + compute the
         // avg of the difference". The query below works on both SQLite
-        // + Postgres (standard SQL window functions).
+        // (standard SQL window functions, supported by the engine).
         //
         // Returns 0.0 if no channels have both a user + employee message.
         use sea_orm::FromQueryResult;
@@ -324,13 +324,10 @@ impl ChatStore for DbChatStore {
         // message per channel. The outer query averages the difference.
         //
         // NOTE: `created_at` is stored as TEXT (ISO 8601 RFC 3339).
-        // SQLite's `julianday()` converts to a float (days), Postgres
-        // casts to `timestamp` via `::timestamp`. We detect the backend
-        // + use the right conversion.
+        // The rust-sql engine's `julianday()` converts to a float
+        // (days) — multiply by 86400.0 for seconds.
         let backend = self.db.as_ref().get_database_backend();
-        let (sql, convert) = match backend {
-            sea_orm::DatabaseBackend::Sqlite => (
-                r#"SELECT
+        let sql = r#"SELECT
                     AVG(
                         (julianday(e.first_emp) - julianday(u.first_user)) * 86400.0
                     ) as avg_secs
@@ -346,32 +343,7 @@ impl ChatStore for DbChatStore {
                     WHERE sender_type = 'employee'
                     GROUP BY channel_id
                 ) e ON u.channel_id = e.channel_id
-                WHERE e.first_emp > u.first_user"#,
-                "sqlite",
-            ),
-            sea_orm::DatabaseBackend::Postgres => (
-                r#"SELECT
-                    AVG(
-                        EXTRACT(EPOCH FROM (e.first_emp::timestamp - u.first_user::timestamp))
-                    ) as avg_secs
-                FROM (
-                    SELECT channel_id, MIN(created_at) as first_user
-                    FROM chat_message
-                    WHERE sender_type = 'user'
-                    GROUP BY channel_id
-                ) u
-                JOIN (
-                    SELECT channel_id, MIN(created_at) as first_emp
-                    FROM chat_message
-                    WHERE sender_type = 'employee'
-                    GROUP BY channel_id
-                ) e ON u.channel_id = e.channel_id
-                WHERE e.first_emp > u.first_user"#,
-                "postgres",
-            ),
-            _ => return Ok(0.0),
-        };
-        let _ = convert; // silence unused warning
+                WHERE e.first_emp > u.first_user"#;
 
         let row =
             AvgResult::find_by_statement(sea_orm::Statement::from_sql_and_values(backend, sql, []))
@@ -639,7 +611,7 @@ impl ChatStore for DbChatStore {
             Err(e) => {
                 let msg = e.to_string();
                 // UNIQUE violation → already a member. Both SQLite
-                // ("unique") and Postgres ("duplicate key") surface this
+                // ("unique") and other engines ("duplicate key") surface this
                 // via the same string match.
                 if msg.contains("unique") || msg.contains("duplicate") || msg.contains("conflict") {
                     Ok(())

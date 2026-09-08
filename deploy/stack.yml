@@ -21,7 +21,7 @@ services:
       - SERVER_HOST=0.0.0.0
       - RUST_LOG=${RUST_LOG:-info,backend=info,tower_http=warn}
 
-      # ── Database (SQLite on the vexevn-data volume) ────────────
+      # ── Database (rust-sql engine file on the vexevn-data volume) ─
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
 
       # ── JWT (generated on first run, see deploy.sh) ────────────
@@ -50,7 +50,7 @@ services:
       # comes from the image defaults baked into the Dockerfile.
 
     volumes:
-      # SQLite database + OSM PBF downloads
+      # rust-sql DB file + OSM PBF downloads
       - vexevn-data:/app/data
       # Tantivy place-search index — the live index is NESTED at
       # /app/index/osm-index so the importer's sibling staging dir
@@ -65,7 +65,7 @@ services:
 
     deploy:
       replicas: 1
-      # SQLite + local volumes pin the app to the manager node.
+      # rust-sql DB file + local volumes pin the app to the manager node.
       placement:
         constraints:
           - node.role == manager
@@ -76,7 +76,7 @@ services:
           cpus: "${APP_CPU_LIMIT:-1.5}"
         reservations:
           memory: 192m
-      # One replica + SQLite: never two containers on the same DB file.
+      # One replica + single-writer engine: never two containers on the same DB file.
       update_config:
         parallelism: 1
         order: stop-first

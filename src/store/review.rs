@@ -73,7 +73,8 @@ pub trait ReviewStore: Send + Sync {
     /// into memory just to extract the distinct tag set.
     ///
     /// Note: tags are stored as a comma-separated `Option<String>` column.
-    /// On Postgres this would use `regexp_split_to_table`; on SQLite we
+    /// On Postgres this would be `regexp_split_to_table`; with the rust-sql
+    /// engine we
     /// fetch only the `tags` column (much smaller than full rows) and
     /// split client-side. Either way, the result is at most a few dozen
     /// unique tag strings — never the full table.
@@ -97,9 +98,9 @@ pub trait ReviewStore: Send + Sync {
 /// build identical WHERE clauses — a mismatch between the two would
 /// desync the pagination total from the page contents.
 ///
-/// UUID filters bind as `Uuid` VALUES, never strings: SQLite stores
-/// Uuid columns as 16-byte BLOBs, and a TEXT bind never matches a
-/// BLOB (Postgres casts text→uuid implicitly, SQLite does not).
+/// UUID filters bind as `Uuid` VALUES, never strings: the engine
+/// stores Uuid columns as 16-byte BLOBs, and a TEXT bind never
+/// matches a BLOB column.
 fn apply_review_filters<Q>(
     query: Q,
     brand_id: Option<&str>,
@@ -128,7 +129,7 @@ where
 
 /// Apply the admin free-text search — matches author name, author
 /// phone, title and content. SQLite's `LIKE` is ASCII-case-insensitive
-/// natively; on Postgres both sides are lowered for the same effect.
+/// natively via `LOWER()` on both sides for the same effect.
 fn apply_review_search<Q>(query: Q, search: Option<&str>) -> Q
 where
     Q: QueryFilter,

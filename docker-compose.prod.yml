@@ -34,8 +34,9 @@ services:
     env_file:
       - .env
     environment:
-      # Override the dev SQLite default with the Postgres service below.
-      DATABASE_URL: postgres://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-app}
+      # rust-sql (rustqlite) engine — compiled INTO the binary. The DB
+      # file persists on the app-data volume; no database container.
+      DATABASE_URL: sqlite:///app/data/app.db?mode=rwc
       # Force HTTPS-only cookies in production.
       COOKIE_SECURE: "true"
       COOKIE_SAMESITE: "lax"
@@ -56,6 +57,7 @@ services:
     volumes:
       - app-storage:/app/storage
       - app-osm:/app/osm-index
+      - app-data:/app/data
     healthcheck:
       # Hit the actual HTTP health endpoint — the previous command
       # (`/app/backend db-backend`) just printed the DB name + exited 0,
@@ -103,53 +105,6 @@ services:
     networks:
       - vexevn-net
 
-  # ── Postgres ──────────────────────────────────────────────────────────
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-app}
-    volumes:
-      - pg-data:/var/lib/postgresql/data
-    # ⚠️  No `ports:` mapping — the DB is reachable only on the internal
-    # Docker network, never from the host or the public internet.
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 30s
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
-      - DAC_OVERRIDE
-    deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
-        max_attempts: 5
-        delay: 10s
-        window: 30s
-      resources:
-        limits:
-          memory: 1g
-      placement:
-        constraints:
-          - node.role == manager
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    networks:
-      - vexevn-net
-
   # ── Redis (shared cache + WS hub backplane + worker broker) ───────────
   redis:
     image: redis:7-alpine
@@ -158,7 +113,8 @@ services:
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --requirepass ${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}
-    # ⚠️  No `ports:` mapping — same as `db`.
+    # ⚠️  No `ports:` mapping — the DB is the in-binary rust-sql
+    # engine (file-backed), so Redis is the only stateful sidecar.
     volumes:
       - redis-data:/data
     healthcheck:
@@ -244,7 +200,7 @@ networks:
 volumes:
   app-storage:
   app-osm:
-  pg-data:
+  app-data:
   redis-data:
   caddy_data:
   caddy_config:

@@ -140,7 +140,7 @@ impl ScheduleStore for DbScheduleStore {
         }
         use sea_orm::sea_query::Expr;
         // GROUP BY key decodes as `Uuid` — on SQLite the column is a 16-byte
-        // BLOB (decoding as `String` fails); on Postgres both work. See
+        // BLOB (decoding as `String` fails). See
         // `parse_uuid`. Map back to the caller's string keys afterwards.
         let route_uuids: Vec<Uuid> = route_ids
             .iter()

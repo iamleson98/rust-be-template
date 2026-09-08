@@ -3864,30 +3864,6 @@
               "format": "int64",
               "minimum": 0
             }
-          },
-          {
-            "name": "lat",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "double"
-            }
-          },
-          {
-            "name": "lon",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "double"
-            }
           }
         ],
         "responses": {
@@ -6822,8 +6798,35 @@
             "type": "string",
             "format": "date-time"
           },
+          "tokens": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AuthTokens",
+                "description": "Raw token pair — ONLY present when the caller opted in via the\n`X-Client: mobile` request header (the mobile app keeps tokens in\nsecure storage and uses Bearer auth). Browser flows never see\nthis field: they authenticate with httpOnly cookies instead."
+              }
+            ]
+          },
           "user": {
             "$ref": "#/components/schemas/SessionUser"
+          }
+        }
+      },
+      "AuthTokens": {
+        "type": "object",
+        "description": "Raw credentials for non-browser clients (see [`AuthResponse::tokens`]).",
+        "required": [
+          "access_token",
+          "refresh_token"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
           }
         }
       },
@@ -8303,7 +8306,7 @@
           },
           "backend": {
             "type": "string",
-            "description": "Backend name — `\"sqlite\"` or `\"postgres\"`."
+            "description": "Backend name — always `\"sqlite (rust-sql engine)\"` in this\nbuild (rustqlite via the sqlx-sqlite C-ABI compat layer)."
           },
           "idleConnections": {
             "type": "integer",
@@ -8325,7 +8328,7 @@
           "sizeMb": {
             "type": "number",
             "format": "double",
-            "description": "Database file size in MB (SQLite only — WAL + main DB file).\n`0.0` for Postgres (no file)."
+            "description": "Database file size in MB (SQLite only — WAL + main DB file).\n`0.0` when no file backs the URL (not the case here)."
           },
           "urlMasked": {
             "type": "string",

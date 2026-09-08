@@ -17,7 +17,7 @@ pub struct Model {
     /// The booked trip session. Typed as `Uuid` (NOT `String`) so the
     /// value binds as a 16-byte BLOB — matching `trip_session.id` and
     /// satisfying the FK on SQLite. A `String` bind stores TEXT which
-    /// never matches the BLOB primary key (works on Postgres via its
+    /// never matches the BLOB primary key (would work on a text-casting
     /// implicit text→uuid cast, fails on SQLite with FK 787).
     pub trip_session_id: Uuid,
     pub boarding_point_id: Option<Uuid>,

@@ -1,6 +1,6 @@
 # Deployment & Configuration Guide — VeXeVN
 
-Complete guide for deploying the full stack (Rust backend + React frontend + Postgres + Redis + Caddy + NullClaw AI) to a VM using Docker.
+Complete guide for deploying the full stack (Rust backend + React frontend + rust-sql database + Redis + Caddy + NullClaw AI) to a VM using Docker.
 
 > ### ⭐ Recommended path: Contabo + Cloudflare Tunnel + tag-driven CI/CD
 >
@@ -16,7 +16,7 @@ Complete guide for deploying the full stack (Rust backend + React frontend + Pos
 > bootstrap: [`deploy/server-init.sh`](deploy/server-init.sh) · pipeline:
 > [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
 >
-> The Swarm/Kamatera path below (§3, §13) remains as the Postgres+Redis
+> The Swarm/Kamatera path below (§3, §13) remains as the Redis
 > scale-out alternative.
 
 ---
@@ -27,7 +27,7 @@ Complete guide for deploying the full stack (Rust backend + React frontend + Pos
 2. [Prerequisites](#2-prerequisites)
 3. [Quick Start: Deploy to Kamatera](#3-quick-start-deploy-to-kamatera)
 4. [Environment Variables Reference](#4-environment-variables-reference)
-5. [Database (SQLite vs Postgres)](#5-database-sqlite-vs-postgres)
+5. [Database (rust-sql engine)](#5-database-rust-sql-engine)
 6. [NullClaw AI Chat Assistant](#6-nullclaw-ai-chat-assistant)
 7. [Payment Gateways](#7-payment-gateways)
 8. [OAuth 2.0 (Google / Facebook / Twitter)](#8-oauth-20-google--facebook--twitter)
@@ -66,17 +66,17 @@ Complete guide for deploying the full stack (Rust backend + React frontend + Pos
                     │  - Auto-migrations on startup      │
                     └────┬─────────┬──────────┬─────────┘
                          │         │          │
-              ┌──────────▼──┐ ┌───▼────┐ ┌───▼──────────┐
-              │  Postgres   │ │ Redis  │ │  NullClaw    │
-              │  (:5432)    │ │(:6379) │ │  (:42617)    │
-              │  - 23 tables│ │ - cache│ │  - Gemini AI │
-              │  - pg-data  │ │ - jobs │ │  - Optional   │
+              ┌─────────────┐ ┌───▼────┐ ┌───▼──────────┐
+              │  rust-sql   │ │ Redis  │ │  NullClaw    │
+              │  (in-binary │ │(:6379) │ │  (:42617)    │
+              │  rustqlite) │ │ - cache│ │  - Gemini AI │
+              │  - app-data │ │ - jobs │ │  - Optional   │
               └─────────────┘ └────────┘ └──────────────┘
 ```
 
 **Single binary**: The Rust backend serves the API, WebSocket hub, and static frontend files from a single process. No separate frontend server needed in production.
 
-**Docker Swarm**: All services run as Swarm services on a single VM. Caddy handles TLS termination. Postgres + Redis are internal-only (no public ports). NullClaw is optional (profile-gated).
+**Docker Swarm**: All services run as Swarm services on a single VM. Caddy handles TLS termination. The database is the rust-sql engine compiled INTO the backend binary (no DB container); Redis is internal-only (no public ports). NullClaw is optional (profile-gated).
 
 ---
 
@@ -86,7 +86,7 @@ Complete guide for deploying the full stack (Rust backend + React frontend + Pos
 - **Size**: A-4GB (4 GB RAM, 2 vCPU) minimum. A-8GB recommended for production.
 - **OS**: Ubuntu 22.04 LTS
 - **Region**: Asia-Singapore (closest to Vietnam)
-- **Disk**: 50 GB SSD minimum (Postgres + Redis + app storage + Docker images)
+- **Disk**: 50 GB SSD minimum (database files + Redis + app storage + Docker images)
 
 ### Domain
 - A domain name (e.g. `vexevn.vn`) with DNS A record pointing to the VM's public IP.
@@ -134,15 +134,10 @@ SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
 RUST_LOG=info,backend=info,tower_http=warn
 
-# ── Database (Postgres) ─────────────────────────────
-DATABASE_URL=postgres://app:CHANGE_ME@db:5432/vexevn
+# ── Database (rust-sql engine — the only backend) ───
+DATABASE_URL=sqlite:///app/data/app.db?mode=rwc
 DATABASE_MAX_CONNECTIONS=20
 DATABASE_MIN_CONNECTIONS=5
-
-# ── Postgres credentials (used by docker-compose) ───
-POSTGRES_USER=app
-POSTGRES_PASSWORD=CHANGE_ME_STRONG_PASSWORD
-POSTGRES_DB=vexevn
 
 # ── Redis ───────────────────────────────────────────
 REDIS_PASSWORD=CHANGE_ME_STRONG_PASSWORD
@@ -214,7 +209,6 @@ openssl rand -hex 32
 
 **Generate strong passwords**:
 ```bash
-openssl rand -hex 16  # For POSTGRES_PASSWORD
 openssl rand -hex 16  # For REDIS_PASSWORD
 ```
 
@@ -278,7 +272,6 @@ docker stack deploy -c docker-compose.prod.yml --with-registry-auth vexevn
 docker service ls
 # NAME             MODE     REPLICAS  IMAGE
 # vexevn_backend   replicated 1/1     ghcr.io/iamleson98/vexevn:latest
-# vexevn_db        replicated 1/1     postgres:16-alpine
 # vexevn_redis     replicated 1/1     redis:7-alpine
 # vexevn_caddy     replicated 1/1     caddy:2-alpine
 
@@ -347,7 +340,7 @@ All variables are documented in `.env.example`. Here's a summary by section:
 ### Database
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | SQLite or Postgres connection string |
+| `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | rust-sql (rustqlite) database URL — sqlite:// scheme |
 | `DATABASE_MAX_CONNECTIONS` | `20` | Pool max |
 | `DATABASE_MIN_CONNECTIONS` | `5` | Pool min |
 
@@ -397,13 +390,6 @@ All variables are documented in `.env.example`. Here's a summary by section:
 | `NULLCLAW_MAX_HISTORY` | `12` | Conversation history sliding window |
 | `NULLCLAW_FALLBACK_ONLINE_EMPLOYEES` | `1` | AI replies only when <N employees online |
 
-### Postgres (docker-compose only)
-| Variable | Description |
-|---|---|
-| `POSTGRES_USER` | Postgres username (used by the `db` service) |
-| `POSTGRES_PASSWORD` | Postgres password (**must set**) |
-| `POSTGRES_DB` | Database name |
-
 ### Redis (docker-compose only)
 | Variable | Description |
 |---|---|
@@ -423,34 +409,35 @@ See [section 8](#8-oauth-20-google--facebook--twitter) below.
 
 ---
 
-## 5. Database (SQLite vs Postgres)
+## 5. Database (rust-sql engine)
 
-### When to use which
+### The only engine
 
-| | SQLite | Postgres |
-|---|---|---|
-| **Dev / CI** | ✅ Default. Zero config. | ❌ Overkill |
-| **Production** | ⚠️ Works for small traffic | ✅ Recommended |
-| **Multi-worker** | ❌ Single writer | ✅ Multiple writers |
-| **Concurrent bookings** | ⚠️ May lock under load | ✅ MVCC handles it |
+The database is **rust-sql** (`rustqlite`) — a pure-Rust SQLite-dialect
+engine compiled INTO the backend binary. sea-orm speaks its sqlite
+dialect through sqlx-sqlite, and every `sqlite3_*` FFI call lands in
+the rustqlite engine via the C-ABI compat layer (the `[patch.crates-io]`
+libsqlite3-sys redirect in `Cargo.toml`).
 
-### Switching to Postgres
+- **No C SQLite** in the image — not even the `sqlite3` CLI.
+- **No Postgres backend** — the former `sqlite`/`postgres` cargo
+  features were removed; every build links rust-sql.
+- **No DB container** — the database is a file on the `app-data`
+  volume (`/app/data/app.db`), WAL mode on.
+- The engine is a git submodule: `git submodule update --init --recursive`
+  after clone (CI/Docker do this automatically).
 
-1. **Build with Postgres feature**:
+### `DATABASE_URL`
+
+The URL scheme is `sqlite://` (the dialect the engine speaks):
+
 ```bash
-# Local build:
-cargo build --release --no-default-features --features postgres
-
-# Docker build:
-docker build --build-arg BACKEND_FEATURES=postgres -t vexevn:latest .
+DATABASE_URL=sqlite:///app/data/app.db?mode=rwc
 ```
 
-2. **Set `DATABASE_URL`**:
-```bash
-DATABASE_URL=postgres://app:password@db:5432/vexevn
-```
+### Migrations
 
-3. **Migrations auto-run** on `backend serve` startup (23 migrations). No manual step needed.
+**Migrations auto-run** on `backend serve` startup (23 migrations). No manual step needed.
 
 ### Running migrations manually
 
@@ -791,14 +778,19 @@ docker stack deploy -c docker-compose.prod.yml --with-registry-auth --profile nu
 
 ## 14. Backup & Recovery
 
-### Postgres backup
+### Database backup
+
+The database is a file (plus its WAL) on the `app-data` volume —
+back it up by copying the file while the WAL is checkpointed:
 
 ```bash
-# Manual backup:
-docker exec $(docker ps -qf name=vexevn_db) pg_dump -U app vexevn > backup_$(date +%Y%m%d).sql
+# Manual backup (run inside the backend container, engine quiesced):
+docker exec $(docker ps -qf name=vexevn_backend)   sh -c 'curl -sf http://localhost:8080/health >/dev/null && cp /app/data/app.db /app/data/backup_$(date +%Y%m%d).db'
 
-# Restore:
-cat backup_20260826.sql | docker exec -i $(docker ps -qf name=vexevn_db) psql -U app vexevn
+# Or snapshot the volume from the host:
+docker run --rm -v vexevn_app-data:/data -v $(pwd):/backup alpine   cp /data/app.db /backup/backup_$(date +%Y%m%d).db
+
+# Restore: stop the stack, replace app.db, start the stack.
 ```
 
 ### Automated daily backup (cron)
@@ -838,9 +830,8 @@ The CI pipeline (`.github/workflows/ci.yml`) runs on every push/PR:
 
 **Tag-driven releases (current):** on pushing a `v*` tag
 (`git tag v1.2.3 && git push origin v1.2.3`):
-1. Builds the single Docker image — frontend (Vite/bun) + backend — with
-   `BACKEND_FEATURES=sqlite` (the Contabo path; pass `postgres` if you run the
-   Swarm stack)
+1. Builds the single Docker image — frontend (Vite/bun) + backend (the
+   rust-sql engine is compiled in unconditionally — no feature flags)
 2. Pushes to GHCR tagged `1.2.3`, `1.2`, `latest`, `commit-<sha>`
 3. SCPs `deploy/docker-compose.contabo.yml` (+ Caddyfile, import-osm.sh)
    to the VPS
@@ -874,7 +865,8 @@ docker service logs vexevn_backend --tail 100
 
 # Common issues:
 # 1. "JWT_SECRET not set" → generate one: openssl rand -hex 32
-# 2. "Postgres connection refused" → db not ready yet, check: docker service ls
+# 2. "unsupported DATABASE_URL" → the URL must start with sqlite:// (the
+#    rust-sql engine is the only backend; postgres URLs are rejected)
 # 3. "migration failed" → check logs for the specific migration error
 ```
 
@@ -919,9 +911,12 @@ docker service logs vexevn_nullclaw --tail 50
 # 4. No human agent offline → AI only replies when 0 employees are online
 ```
 
-### Database locked (SQLite only)
+### Database busy
 
-SQLite only allows one writer at a time. Under high concurrency you may see "database is locked" errors. **Switch to Postgres** for production.
+The rust-sql engine serializes writes (SQLite-dialect semantics) and the
+pool applies `PRAGMA busy_timeout=5000` + WAL mode at boot. Under extreme
+write contention you may still see "database is busy" errors — scale the
+app horizontally and shard write-heavy workloads, or rate-limit bursts.
 
 ---
 
@@ -931,7 +926,7 @@ SQLite only allows one writer at a time. Under high concurrency you may see "dat
 
 - Rust 1.97+ (`rustup install stable`)
 - Bun 1.2+ (`curl -fsSL https://bun.sh/install | bash`)
-- SQLite3 (for dev database) or Postgres
+- No database to install — the rust-sql (rustqlite) engine builds from the `rust-sql/` submodule with the app (`git submodule update --init --recursive`)
 
 ### Start the backend
 

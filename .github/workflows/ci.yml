@@ -62,14 +62,14 @@ jobs:
       - name: Rustfmt (zero diff)
         run: cargo fmt --all -- --check
 
-      - name: Check (SQLite — default backend)
-        run: cargo check --no-default-features --features sqlite --all-targets
+      - name: Check (rust-sql engine — the only backend, workspace-wide)
+        run: cargo check --workspace --all-targets
 
       - name: Clippy (zero warnings)
-        run: cargo clippy --no-default-features --features sqlite --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Test
-        run: cargo test --no-default-features --features sqlite --all-targets
+        run: cargo test --workspace --all-targets
         env:
           # NOTE: must stay quoted — `sqlite::memory:` unquoted ends with a
           # colon, which is invalid YAML and silently kills the whole file.
@@ -251,7 +251,7 @@ jobs:
           key: docker-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'frontend/bun.lock') }}
           restore-keys: docker-${{ runner.os }}-
 
-      - name: Build backend image (SQLite)
+      - name: Build backend image (rust-sql engine)
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -259,5 +259,3 @@ jobs:
           tags: rust-be-template:ci
           cache-from: type=local,src=/tmp/.docker-cache
           cache-to: type=local,dest=/tmp/.docker-cache
-          build-args: |
-            BACKEND_FEATURES=sqlite

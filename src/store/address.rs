@@ -115,7 +115,7 @@ impl AddressStore for DbAddressStore {
         // matches the BLOB-stored uuid column on SQLite).
         let brand_uuid = super::parse_uuid(brand_id)?;
         // LOWER(name) LIKE — portable case-insensitive contains across
-        // SQLite + Postgres (same trick as the route store).
+        // the rust-sql engine (same trick as the route store).
         let needle = q
             .map(str::trim)
             .filter(|s| !s.is_empty())

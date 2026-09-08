@@ -121,7 +121,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            BACKEND_FEATURES=sqlite
             VERSION=${{ steps.meta.outputs.version }}
             CREATED=${{ steps.image.outputs.created }}
 

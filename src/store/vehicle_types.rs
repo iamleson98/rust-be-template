@@ -81,7 +81,7 @@ impl RetryPolicy for DbVehicleTypeStore {}
 
 /// Portable case-insensitive filter across label + code. `LIKE` with a
 /// lower-cased column (`LOWER(x) LIKE …`) works on both SQLite and
-/// Postgres — the same trick `RouteStore::search_active_routes_by_name`
+/// the engine — the same trick `RouteStore::search_active_routes_by_name`
 /// uses.
 fn apply_q(
     mut query: sea_orm::Select<vehicle_type::Entity>,

@@ -220,7 +220,7 @@ impl RouteStore for DbRouteStore {
             let needle = q.to_lowercase();
             // Search the route name, both city slugs and the owning
             // brand's name (subquery keeps it one round-trip). LIKE with
-            // a LOWER()-ed column is portable across SQLite + Postgres —
+            // a LOWER()-ed column keeps matches case-insensitive on the engine —
             // the same trick `apply_q` in the vehicle-type store uses.
             base = base.filter(
                 sea_orm::Condition::any()
@@ -267,7 +267,7 @@ impl RouteStore for DbRouteStore {
         // route name (case-insensitive). Replaces the previous
         // "load 1000 routes + to_lowercase().contains() in Rust" pattern.
         // On SQLite, LIKE is case-insensitive for ASCII by default; on
-        // Postgres, ILIKE is the case-insensitive variant.
+        // Postgres ILIKE would be; LOWER() is the engine-compatible form.
         // We use LIKE (portable across both backends) with already-lowercased
         // inputs — the route names are stored in their original case, so we
         // also lowercase the column via `LOWER(name) LIKE '%from%'`.

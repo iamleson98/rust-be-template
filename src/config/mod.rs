@@ -307,7 +307,7 @@ pub struct WorkerConfig {
 
 impl Default for WorkerConfig {
     fn default() -> Self {
-        // Default `db`: the queue lives in the SQLite/Postgres DB the
+        // Default `db`: the queue lives in the rust-sql DB the
         // app already uses — zero new infrastructure for a single-binary
         // deployment. Set `redis`/`kafka` to scale workers out instead.
         let backend = match env_var("WORKER_BACKEND").as_deref() {
@@ -827,7 +827,7 @@ impl Config {
         tracing::info!("active configuration (loaded directly from .env / environment):");
         tracing::info!("  server: {}:{}", self.server.host, self.server.port);
         // Mask the password in the database URL so logs / `config show`
-        // don't leak the Postgres password (STRUCT-013). Replace the
+        // don't leak a URL password (STRUCT-013). Replace the
         // `user:password@` part with `user:***@`, keep host + db name
         // so logs are still useful for debugging connectivity issues.
         tracing::info!("  database url: {}", mask_db_url(&self.database.url));

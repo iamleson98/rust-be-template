@@ -80,10 +80,6 @@ enum Command {
 
 #[derive(Debug, Subcommand)]
 enum DbAction {
-    /// Open an interactive database shell (`psql` for Postgres, `sqlite3`
-    /// for SQLite). Requires the corresponding CLI on your PATH.
-    Shell,
-
     /// Reset the database: drop all tables, re-apply migrations.
     /// Destructive — confirm with `--yes`.
     Reset {
@@ -111,7 +107,6 @@ async fn main() -> anyhow::Result<()> {
             with_relations,
         } => run_entity_generate(&output, with_relations).await,
         Command::Db { action } => match action {
-            DbAction::Shell => run_db_shell().await,
             DbAction::Reset { yes } => run_db_reset(yes).await,
             DbAction::Url => run_db_url().await,
         },
@@ -273,15 +268,13 @@ async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> 
 
     let db_url = load_db_url()?;
 
-    let backend = if db_url.starts_with("postgres://") || db_url.starts_with("postgresql://") {
-        "postgres"
-    } else if db_url.starts_with("sqlite://") {
-        "sqlite"
-    } else {
-        anyhow::bail!("unsupported DATABASE_URL scheme: {db_url}")
-    };
+    // The only supported scheme is sqlite:// — backed by the rust-sql
+    // (rustqlite) engine everywhere (see the workspace Cargo.toml).
+    if !db_url.starts_with("sqlite") {
+        anyhow::bail!("unsupported DATABASE_URL scheme: {db_url} — this tool runs on the rust-sql (rustqlite) engine only");
+    }
 
-    println!("→ sea-orm-cli generate entity (backend: {backend})");
+    println!("→ sea-orm-cli generate entity (backend: sqlite / rust-sql engine)");
     println!("  output: {}", output.display());
     println!("  database: {db_url}");
 
@@ -314,11 +307,6 @@ async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> 
 
     println!("✓ entities generated to {}", output.display());
     Ok(())
-}
-
-async fn run_db_shell() -> anyhow::Result<()> {
-    let db_url = load_db_url()?;
-    open_shell(&db_url)
 }
 
 async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
@@ -372,50 +360,6 @@ async fn run_db_url() -> anyhow::Result<()> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-fn open_shell(db_url: &str) -> anyhow::Result<()> {
-    use std::process::Command;
-
-    if db_url.starts_with("postgres://") || db_url.starts_with("postgresql://") {
-        let parsed = url::Url::parse(db_url).context("parsing DATABASE_URL")?;
-        let host = parsed.host_str().unwrap_or("localhost");
-        let port = parsed.port().unwrap_or(5432);
-        let db = parsed.path().trim_start_matches('/');
-        let user = parsed.username();
-        let password = parsed.password().unwrap_or("");
-
-        let mut cmd = Command::new("psql");
-        cmd.arg("-h").arg(host);
-        cmd.arg("-p").arg(port.to_string());
-        cmd.arg("-U").arg(user);
-        cmd.arg("-d").arg(db);
-
-        if !password.is_empty() {
-            cmd.env("PGPASSWORD", password);
-        }
-
-        println!("→ opening psql shell at {host}:{port}/{db} as {user}");
-        let status = cmd.status().context("running psql — is it installed?")?;
-        if !status.success() {
-            anyhow::bail!("psql exited with status {status}");
-        }
-        Ok(())
-    } else if let Some(path) = db_url.strip_prefix("sqlite://") {
-        let path = path.split('?').next().unwrap_or(path);
-        let path = path.trim_start_matches("./");
-        println!("→ opening sqlite3 shell at {path}");
-        let status = Command::new("sqlite3")
-            .arg(path)
-            .status()
-            .context("running sqlite3 — is it installed?")?;
-        if !status.success() {
-            anyhow::bail!("sqlite3 exited with status {status}");
-        }
-        Ok(())
-    } else {
-        anyhow::bail!("unsupported DATABASE_URL scheme: {db_url}")
-    }
-}
 
 async fn list_migrations(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
     use sea_orm_migration::MigrationStatus;

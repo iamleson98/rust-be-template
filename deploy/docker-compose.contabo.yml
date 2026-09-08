@@ -45,7 +45,7 @@ services:
     env_file:
       - .env
     environment:
-      # SQLite on the app-data volume. Migrations auto-apply on boot
+      # rust-sql (rustqlite) engine file on the app-data volume. Migrations auto-apply on boot
       # (built-in `serve` behavior — no separate migration step).
       DATABASE_URL: ${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
       # Tantivy place-search index — NESTED inside the osm-index volume
@@ -54,7 +54,7 @@ services:
       SEARCH_INDEX_DIR: ${SEARCH_INDEX_DIR:-/app/index/osm-index}
       SEARCH_OSM_PBF_PATH: ${SEARCH_OSM_PBF_PATH:-/app/data/vietnam-latest.osm.pbf}
     volumes:
-      - app-data:/app/data      # SQLite DB + OSM PBF downloads
+      - app-data:/app/data      # rust-sql DB file + OSM PBF downloads
       - app-storage:/app/storage # local uploads
       - osm-index:/app/index     # Tantivy index (survives redeploys)
     healthcheck:

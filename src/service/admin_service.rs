@@ -1051,7 +1051,7 @@ impl AdminService {
     /// Delete a vehicle type. Referencing schedules fall back to their
     /// bus layout (`ON DELETE SET NULL` semantics) — the reference is
     /// cleared explicitly in one transaction so SQLite (no FK on the
-    /// added column) behaves exactly like Postgres.
+    /// added column) matches standard SQL engines.
     pub async fn delete_vehicle_type(&self, id: Uuid) -> AppResult<()> {
         use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
 
@@ -1856,7 +1856,7 @@ impl AdminService {
     /// A schedule's `vehicleType` reference must point at a real catalog
     /// row. Validated on create/update so a bad id reads as a friendly
     /// 4xx instead of an FK 500 (and to keep SQLite — no FK on the added
-    /// column — consistent with Postgres).
+    /// column — standard SQL semantics).
     async fn ensure_vehicle_type_exists(&self, id: Uuid) -> AppResult<()> {
         if self
             .store

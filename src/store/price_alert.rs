@@ -18,10 +18,10 @@ use crate::entity::price_alert;
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
 
-/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
-/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
-/// every uuid filter must bind the parsed `Uuid` (Postgres casts
-/// text->uuid implicitly, SQLite does not).
+/// Parse a uuid string for a query filter BIND. The rust-sql engine
+/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
+/// TEXT value never matches, so every uuid filter must bind the parsed
+/// `Uuid` (a BLOB parameter that does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }

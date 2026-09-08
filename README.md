@@ -34,12 +34,12 @@ src/
 |---------|--------|
 | Async runtime | tokio (multi-thread scheduler) |
 | Web framework | axum 0.8 |
-| ORM | sea-orm 1.1 (sqlx + Postgres) |
+| ORM | sea-orm 1.1 (sqlx-sqlite dialect) |
 | Migrations | sea-orm-migration |
 | Auth | jsonwebtoken + argon2 + HttpOnly cookies + double-submit CSRF |
 | Cache | `moka` (in-process) or `redis` (shared) — pluggable |
 | File storage | local filesystem, AWS S3, or MinIO — pluggable |
-| Job broker | Redis, Postgres (`FOR UPDATE SKIP LOCKED`), or Kafka — pluggable |
+| Job broker | Redis, DB (rust-sql), or Kafka — pluggable |
 | OpenAPI | utoipa + utoipa-swagger-ui |
 | Compression | tower-http (gzip + brotli) |
 | Rate limit | tower-governor (token bucket per IP, `/api/*` only) |
@@ -108,9 +108,6 @@ backend migration-new add_comments_table
 # (requires sea-orm-cli installed: cargo install sea-orm-cli)
 backend entity-generate
 
-# Open an interactive DB shell (psql for Postgres, sqlite3 for SQLite)
-backend db shell
-
 # Print the DATABASE_URL (useful for scripts)
 backend db url
 
@@ -145,7 +142,7 @@ All config is loaded from `.env` (or actual env vars) via `figment`. See
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/app` | Postgres DSN |
+| `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | rust-sql (rustqlite) DB URL — sqlite:// scheme |
 | `CACHE_BACKEND` | `moka` | `moka` or `redis` |
 | `STORAGE_BACKEND` | `local` | `local`, `s3`, or `minio` |
 | `WORKER_BACKEND` | `redis` | `redis`, `db`, or `kafka` |
@@ -153,66 +150,47 @@ All config is loaded from `.env` (or actual env vars) via `figment`. See
 | `RATE_LIMIT_RPM` | `60` | per-IP token bucket |
 | `CORS_ORIGINS` | `http://localhost:3000,5173` | comma-separated |
 
-## Database backend — SQLite (default) or Postgres
+## Database — the rust-sql engine (the only backend)
 
-The DB layer is fully portable. Pick one at build time via cargo features:
-
-```bash
-cargo build                                       # default = SQLite
-cargo build --no-default-features --features postgres
-```
-
-At runtime, the `DATABASE_URL` scheme selects which driver sea-orm uses:
+The database is **rust-sql** (`rustqlite`): a pure-Rust SQLite-dialect
+engine compiled INTO the binary. sea-orm drives it through sqlx-sqlite,
+and every `sqlite3_*` FFI call lands in the rustqlite engine via the
+C-ABI compat layer — `libsqlite3-sys` is `[patch.crates-io]`-redirected
+to the `rust-sql` submodule (see `Cargo.toml`).
 
 ```bash
-DATABASE_URL=sqlite://./app.db?mode=rwc           # dev/CI
-DATABASE_URL=postgres://user:pass@host:5432/db    # prod/scaling
+git submodule update --init --recursive   # engine source
+cargo build                                # engine compiles in — no flags
 ```
 
-### Why both
+- **No backend choice at build or runtime** — the former
+  `sqlite`/`postgres` cargo features were removed; every build links
+  rust-sql and `DATABASE_URL` must use the `sqlite://` scheme.
+- **No C SQLite** — not even the `sqlite3` CLI ships in the runtime
+  image; the legacy C-SQLite → rustqlite boot migration was removed.
+- **Single file** (`app.db` + WAL) — backup/restore is a file copy.
 
-- **SQLite** for dev/CI/tests: zero-infra, instant startup, single file.
-- **Postgres** for prod/scaling: real concurrency, `FOR UPDATE SKIP LOCKED`
-  for the worker, native JSON/UUID types, replication.
+### Engine dialect notes
 
-### How portability is achieved
+| Concern | Behavior |
+|---------|----------|
+| UUID columns | `uuid_text` (sea-orm portable alias) |
+| Timestamps | `timestamp` (NaiveDateTime) |
+| JSON columns | `text` (parse with serde_json) |
+| Job dequeue | Atomic `DELETE ... WHERE id IN (SELECT ... LIMIT 1) RETURNING *` — the engine serializes writes, so no `FOR UPDATE SKIP LOCKED` is needed |
+| Seed inserts | SeaQuery builder (no `NOW()`) |
 
-| Concern | SQLite | Postgres |
-|---------|--------|----------|
-| UUID columns | `uuid_text` (sea-orm portable alias) | `uuid` |
-| Timestamps | `timestamp` (NaiveDateTime) | `timestamp` (NaiveDateTime) |
-| JSON columns | `text` (parse with serde_json) | `json`/`jsonb` |
-| Job dequeue | Atomic `DELETE ... WHERE id IN (SELECT ...)` | Same + `FOR UPDATE SKIP LOCKED` for concurrent safety |
-| Seed inserts | SeaQuery builder (no `NOW()`) | SeaQuery builder (`current_timestamp()`) |
-
-### What's NOT portable (and what to do about it)
-
-- **`FOR UPDATE SKIP LOCKED`** — SQLite serializes writes so concurrent
-  workers don't need it. The `DbBroker` conditionally compiles the lock
-  clause via `#[cfg(feature = "postgres")]`. On SQLite, the simpler
-  `DELETE ... WHERE id IN (SELECT ... LIMIT 1)` form is used.
-- **JSON columns** — the `DbBroker` stores the job payload as `TEXT`
-  (JSON string) on both backends so we don't depend on PG's `JSONB`.
-  For domain tables that need JSON, store as `text` and parse with
-  `serde_json` in your code.
-
-### Switching backends
-
-1. **Build with the right feature** (see above)
-2. **Change `DATABASE_URL`** in `.env`
-3. **Delete the old DB file / drop the schema** (migrations are
-   idempotent but the table DDL differs slightly between dialects)
-4. **`cargo run`** — migrations re-apply on the new backend
-
-### SQLite gotchas
+### Engine gotchas
 
 - `last_insert_rowid()` returns the integer autoincrement rowid, not
   the UUID PK. So `Entity::insert(model).exec_without_returning()` is
   used in `create_user` / `create_post` instead of `insert().exec()`
   which tries to refetch by rowid.
-- No concurrent write transactions — only one writer at a time. The
-  worker's `DbBroker` works but is single-threaded on SQLite.
-- File-based — perfect for dev, but for prod use Postgres.
+- Writes serialize (SQLite-dialect semantics): one writer at a time.
+  The worker's `DbBroker` is single-writer; scale out via the Redis or
+  Kafka broker for high write throughput.
+- File-based — the DB lives on a volume; WAL mode + `busy_timeout`
+  pragmas are applied at boot.
 
 ## Architecture: layered store
 
@@ -275,7 +253,7 @@ Switch via `STORAGE_BACKEND=local|s3|minio`.
 `WorkerBroker` trait — three backends:
 
 - `RedisBroker` — `BRPOP`/`LPUSH` list semantics, ~ms latency
-- `DbBroker` — Postgres `FOR UPDATE SKIP LOCKED`, zero new infra
+- `DbBroker` — job queue in the rust-sql DB, zero new infra
 - `KafkaBroker` — rdkafka producer + consumer, high throughput at scale
   (requires `--features kafka` to compile in librdkafka)
 

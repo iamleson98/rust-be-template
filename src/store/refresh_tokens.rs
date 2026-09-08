@@ -100,8 +100,8 @@ impl RefreshTokenStore for DbRefreshTokenStore {
             .filter(refresh_tokens::Column::ExpiresAt.gt(now_iso))
             .exec(self.db.as_ref())
             .await?;
-        // UPDATE in SeaORM doesn't support RETURNING across both SQLite and
-        // Postgres uniformly, so we fall back to a follow-up read for the
+        // UPDATE in SeaORM doesn't support RETURNING uniformly on the rust-sql
+        // engine, so we fall back to a follow-up read for the
         // user_id. The atomic UPDATE above is what closes the race — the
         // read here is safe because if `rows_affected == 0` no one else can
         // claim it; if `rows_affected == 1` we know the row is now `revoked=true`,

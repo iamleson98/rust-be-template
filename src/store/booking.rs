@@ -17,10 +17,10 @@ use crate::entity::{booking, booking_seat};
 
 use super::error::{StoreError, StoreResult};
 use super::retry::RetryPolicy;
-/// Parse a uuid string for a query filter BIND. SQLite stores Uuid
-/// columns as 16-byte BLOBs — binding a TEXT value never matches, so
-/// every uuid filter must bind the parsed `Uuid` (Postgres casts
-/// text->uuid implicitly, SQLite does not).
+/// Parse a uuid string for a query filter BIND. The rust-sql engine
+/// (sqlite dialect) stores Uuid columns as 16-byte BLOBs — binding a
+/// TEXT value never matches, so every uuid filter must bind the parsed
+/// `Uuid` (a BLOB parameter that does).
 fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
     uuid::Uuid::parse_str(s).map_err(|_| StoreError::Validation(format!("invalid uuid: {s}")))
 }
@@ -162,9 +162,8 @@ impl BookingStore for DbBookingStore {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>> {
-        // Bind the user id as a Uuid VALUE: SQLite stores Uuid columns
-        // as 16-byte BLOBs and a TEXT bind never matches (Postgres
-        // casts text→uuid implicitly, SQLite does not).
+        // Bind the user id as a Uuid VALUE: the engine stores Uuid
+        // columns as 16-byte BLOBs and a TEXT bind never matches.
         let uid = Uuid::parse_str(user_id)
             .map_err(|_| StoreError::Validation(format!("invalid user id: {user_id}")))?;
         let mut query = booking::Entity::find().filter(booking::Column::UserId.eq(uid));

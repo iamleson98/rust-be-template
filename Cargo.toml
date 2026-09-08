@@ -13,13 +13,15 @@ path = "src/main.rs"
 members = ["store_macros", "migrator"]
 exclude = ["rust-sql"]
 
-# ── Database engine: rustqlite (submodule rust-sql) ─────────────────────
+# ── Database engine: rustqlite (submodule rust-sql) — the ONLY one ──
 #
-# The `sqlite` backend no longer links C SQLite. libsqlite3-sys is
-# patched to rustqlite's drop-in replacement AND `rustqlite-compat`
-# (the sqlite3_* C ABI implemented on the rustqlite engine) is linked
-# as a Rust rlib compiled into the binary — every sqlite3_* call from
-# sqlx / sea-orm / sea-orm-migration lands in the pure-Rust engine.
+# sea-orm speaks its sqlite dialect through sqlx-sqlite, and every
+# sqlite3_* FFI call lands in the PURE-RUST rustqlite engine:
+# `libsqlite3-sys` is patched to rustqlite's drop-in replacement AND
+# `rustqlite-compat` (the sqlite3_* C ABI implemented on the rustqlite
+# engine) is linked as a Rust rlib compiled into the binary. There is
+# no C SQLite, no libsqlite3.so, and no postgres backend — the engine
+# is not a cargo feature anymore; EVERY build links rust-sql.
 #
 # The link mode is selected by RUSTQLITE_LINK_MODE=rlib in
 # .cargo/config.toml (see that file for the full rationale); the whole
@@ -40,12 +42,9 @@ libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
 store_macros = { path = "store_macros" }
 migrator = { path = "migrator" }
 # The engine itself: exports the sqlite3_* symbols sqlx-sqlite calls.
-# (rlib link mode — see .cargo/config.toml.)
-rustqlite-compat = { path = "rust-sql/compat/rustqlite-compat", optional = true }
-# Bindings for the old-SQLite → rustqlite boot-time migration module
-# (src/db/sqlite_migrate.rs): opens the engine via the same C ABI the
-# pool uses, so the replay shares ONE engine instance with the pool.
-libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys", optional = true }
+# (rlib link mode — see .cargo/config.toml.) Unconditional: rust-sql
+# is the only database engine in this project.
+rustqlite-compat = { path = "rust-sql/compat/rustqlite-compat" }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
 # Add "process" only if you need to spawn child processes (currently not used).
@@ -60,11 +59,12 @@ tower = { version = "0.5", features = ["util", "limit", "timeout"] }
 tower-http = { version = "0.6", features = ["compression-gzip", "compression-br", "cors", "fs", "trace", "set-header", "limit"] }
 tower_governor = "0.7"
 
-# Database — backend is selected via the `sqlite` / `postgres` feature
-# flags below. Both can be enabled simultaneously (useful for tests that
-# exercise both backends), but at runtime only one DATABASE_URL is active.
-sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json"] }
-sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls"] }
+# Database — sea-orm on the rust-sql (rustqlite) engine, always.
+# sqlx-sqlite is the dialect driver; its FFI is satisfied by the
+# patched libsqlite3-sys + rustqlite-compat (see the engine block
+# above). There is no backend selection at build or runtime time.
+sea-orm = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "macros", "with-chrono", "with-uuid", "with-json", "sqlx-sqlite"] }
+sea-orm-migration = { version = "1.1", default-features = false, features = ["runtime-tokio-rustls", "sqlx-sqlite"] }
 sea-query = "0.32"
 
 # Serialization
@@ -170,19 +170,12 @@ clap = { version = "4", features = ["derive", "env"] }
 tempfile = "3.27.0"
 
 [features]
-default = ["sqlite"]
+default = []
 
-# Database backends — pick one (or both). At runtime, the chosen backend
-# is selected by the DATABASE_URL scheme (`sqlite://` vs `postgres://`).
-# SQLite is the default for dev/CI; switch to `--no-default-features
-# --features postgres` for production.
-sqlite = [
-    "sea-orm/sqlx-sqlite",
-    "sea-orm-migration/sqlx-sqlite",
-    "dep:libsqlite3-sys",
-    "dep:rustqlite-compat",
-]
-postgres = ["sea-orm/sqlx-postgres", "sea-orm-migration/sqlx-postgres"]
+# The database engine is NOT a feature flag anymore — every build links
+# the rust-sql (rustqlite) engine via the sqlx-sqlite C-ABI compat
+# layer (see the engine block at the top of this file). The former
+# `sqlite` / `postgres` backend features were removed 2026-09.
 
 # Worker — Kafka broker is optional because librdkafka requires system libs.
 kafka = ["rdkafka"]
@@ -191,6 +184,10 @@ kafka = ["rdkafka"]
 tokio-test = "0.4"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+# Direct C-ABI access for the engine regression test
+# (tests/engine_regression.rs) — drives the rustqlite engine exactly
+# the way sqlx-sqlite does.
+libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
 
 [profile.release]
 opt-level = 3

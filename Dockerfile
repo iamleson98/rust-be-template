@@ -7,14 +7,13 @@
 #
 # Build:
 #   docker build -t vexevn:latest .
-#   # With Postgres instead of SQLite:
-#   docker build --build-arg BACKEND_FEATURES=postgres -t vexevn:latest .
+#   (No database feature flags — the rust-sql engine is always compiled in.)
 #
 # Run:
 #   docker run -p 8080:8080 --env-file .env vexevn:latest
 #
 # Persistent data (bind or named volumes):
-#   - /app/data     — SQLite database + OSM PBF downloads
+#   - /app/data     — rust-sql database file + OSM PBF downloads
 #   - /app/index    — Tantivy place-search index (see SEARCH_INDEX_DIR)
 #   - /app/storage  — local file uploads
 #
@@ -90,7 +89,10 @@ RUN cargo chef prepare --recipe-path recipe.json
 # Stage 3: Build Rust deps + actual binary
 # ════════════════════════════════════════════════════════════════════
 FROM chef AS builder
-ARG BACKEND_FEATURES=sqlite
+
+# NOTE: no BACKEND_FEATURES arg anymore — the database engine is not a
+# cargo feature; every build links the rust-sql (rustqlite) engine
+# unconditionally (see the engine block in Cargo.toml).
 
 # Install build deps. pkg-config + libssl-dev for openssl/rustls.
 # ca-certificates for cargo to fetch crates. curl for healthchecks.
@@ -114,14 +116,14 @@ COPY --from=planner /app/recipe.json recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo/ .cargo/
 COPY rust-sql/ ./rust-sql/
-RUN cargo chef cook --release --no-default-features --features ${BACKEND_FEATURES} --recipe-path recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
 
 # Workspace members + app source: the cook wrote their SKELETONS (manifest
 # verbatim, stubbed lib.rs) — copy the real code over them and build.
 COPY store_macros/ ./store_macros/
 COPY migrator/ ./migrator/
 COPY src/ ./src/
-RUN cargo build --release --no-default-features --features ${BACKEND_FEATURES}
+RUN cargo build --release
 
 # ════════════════════════════════════════════════════════════════════
 # Stage 4: Runtime (minimal — no package manager at runtime)
@@ -133,15 +135,12 @@ FROM debian:bookworm-slim AS runtime
 # - ca-certificates: for HTTPS cert validation
 # - curl: for healthcheck
 # - tini: PID 1 init (proper signal handling)
-# - sqlite3: CLI used ONLY by the boot-time legacy-database migration
-#   (src/db/sqlite_migrate.rs dumps old C-SQLite files via `sqlite3
-#   .dump` before the rustqlite engine replays them). Fresh deployments
-#   never invoke it; it is ~2 MB.
-# NOTE: no libsqlite3-0 needed — the sqlite backend links the pure-Rust
-# rustqlite engine compiled INTO the binary (rlib link mode), so there is
-# no C SQLite anywhere in the image.
+# NOTE: no sqlite3 CLI and no libsqlite3-0 — the database engine is
+# pure-Rust rustqlite compiled INTO the binary (rlib link mode). There
+# is no C SQLite anywhere in the image (the legacy C-SQLite → rustqlite
+# boot migration and its sqlite3 CLI dependency were removed 2026-09).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 ca-certificates curl tini sqlite3 \
+    libssl3 ca-certificates curl tini \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -r -s /bin/false -u 1000 app
 

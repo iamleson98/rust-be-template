@@ -10,9 +10,9 @@ use uuid::Uuid;
 
 use super::backend::{JobEnvelope, WorkerBroker};
 
-/// In-DB job queue. Portable across SQLite and Postgres.
+/// In-DB job queue on the rust-sql (rustqlite) engine.
 ///
-/// - **Postgres**: uses a `DELETE ... USING` CTE with `FOR UPDATE SKIP
+/// - Single-writer: the engine serializes writes; no `FOR UPDATE SKIP
 ///   LOCKED` so concurrent workers don't race on the same row.
 ///   (`PERF-003` fix: the previous build of the `select_oldest` statement
 ///   was discarded via `let _ = select_oldest`, so the DELETE's inner
@@ -128,40 +128,22 @@ impl WorkerBroker for DbBroker {
     }
 
     async fn dequeue(&self) -> anyhow::Result<Option<JobEnvelope>> {
-        // PERF-003 fix: build the inner SELECT once with the lock clause
-        // (PG only) and use it as the DELETE's subquery. The previous
-        // code built `select_oldest` with the lock then threw it away
-        // (`let _ = select_oldest`) — so the actual DELETE's inner
-        // SELECT had no lock, and two PG workers could race.
+        // PERF-003 fix: build the inner SELECT once and use it as the
+        // DELETE's subquery.
         let backend = self.db.get_database_backend();
         let now = Utc::now().naive_utc();
 
-        // Build the inner SELECT: oldest available job, with optional
-        // `FOR UPDATE SKIP LOCKED` on Postgres.
-        // The `mut` is required when the `postgres` feature is enabled
-        // (because `lock_with_behavior` is `&mut self`); on sqlite it's
-        // not, so we allow the unused_mut warning conditionally.
-        #[allow(unused_mut)]
-        let mut select_oldest = SelectStatement::new()
+        // Inner SELECT: oldest available job. No `FOR UPDATE SKIP
+        // LOCKED` — that is Postgres-only syntax and this project links
+        // ONLY the rust-sql engine; rustqlite serializes writes, so
+        // concurrent workers cannot race on the same row.
+        let select_oldest = SelectStatement::new()
             .column(Jobs::Id)
             .from(Jobs::Table)
             .and_where(Expr::col(Jobs::AvailableAt).lte(now))
             .order_by_columns([(Jobs::AvailableAt, sea_orm::sea_query::Order::Asc)])
             .limit(1)
             .to_owned();
-
-        // Postgres-only: lock the row for update so concurrent workers
-        // skip it. SQLite serializes writes anyway, so we only emit the
-        // lock clause on PG.
-        #[cfg(feature = "postgres")]
-        {
-            use sea_orm::sea_query::LockType;
-            select_oldest.lock_with_behavior(
-                LockType::Update,
-                sea_orm::sea_query::LockBehavior::SkipLocked,
-            );
-        }
-        // SQLite serializes writes — no SKIP LOCKED needed.
 
         // DELETE ... WHERE id IN (the SELECT above) RETURNING *
         let delete = Query::delete()

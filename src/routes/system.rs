@@ -64,7 +64,8 @@ pub struct WebsocketStats {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DatabaseStats {
-    /// Backend name — `"sqlite"` or `"postgres"`.
+    /// Backend name — always `"sqlite (rust-sql engine)"` in this
+    /// build (rustqlite via the sqlx-sqlite C-ABI compat layer).
     pub backend: String,
     /// Masked DB URL (password hidden).
     pub url_masked: String,
@@ -78,7 +79,7 @@ pub struct DatabaseStats {
     /// Current idle connections (in pool, available). `-1` if unavailable.
     pub idle_connections: i32,
     /// Database file size in MB (SQLite only — WAL + main DB file).
-    /// `0.0` for Postgres (no file).
+    /// `0.0` when no file backs the URL (not the case here).
     pub size_mb: f64,
 }
 
@@ -182,7 +183,7 @@ pub async fn system_status(
     // ── Database stats ─────────────────────────────────────────────
     let db_url_masked = mask_db_url(&st.config.database.url);
     let db_backend = crate::cli::util::db_backend_name().to_string();
-    let (active_connections, idle_connections, size_mb) = collect_db_stats(&st, &db_backend).await;
+    let (active_connections, idle_connections, size_mb) = collect_db_stats(&st).await;
 
     Ok(Json(SystemStatusResponse {
         uptime: SystemUptime {
@@ -249,76 +250,36 @@ pub async fn chat_stats(
     Ok(Json(stats))
 }
 
-/// Collect DB-pool + file-size stats. Returns
-/// `(active_connections, idle_connections, size_mb)`.
+/// Collect DB stats for the admin system endpoint.
 ///
-/// - For SQLite: pool stats are unavailable (SQLite uses a single
-///   connection, not a pool) → returns `(-1, -1, file_size_mb)`.
-///   The file size is the sum of `app.db` + `app.db-wal` (WAL mode).
-/// - For Postgres: queries `pg_stat_activity` for active + idle
-///   connections in the current DB. File size is `0.0` (Postgres
-///   doesn't map to a single file).
-async fn collect_db_stats(st: &AppState, backend: &str) -> (i32, i32, f64) {
-    if backend.eq_ignore_ascii_case("sqlite") {
-        // SQLite — compute the file size (main DB + WAL).
-        let db_path = st
-            .config
-            .database
-            .url
-            .strip_prefix("sqlite:")
-            .unwrap_or(&st.config.database.url)
-            .trim_start_matches("./")
-            .split('?')
-            .next()
-            .unwrap_or("app.db");
-        let size_mb = std::fs::metadata(db_path)
+/// The rust-sql engine (sqlite dialect) uses a single connection, not
+/// a pool → returns `(-1, -1, file_size_mb)`. The file size is the sum
+/// of `app.db` + `app.db-wal` (WAL mode).
+async fn collect_db_stats(st: &AppState) -> (i32, i32, f64) {
+    // rust-sql (sqlite dialect) — compute the file size (main DB + WAL).
+    let db_path = st
+        .config
+        .database
+        .url
+        .strip_prefix("sqlite:")
+        .unwrap_or(&st.config.database.url)
+        .trim_start_matches("./")
+        .split('?')
+        .next()
+        .unwrap_or("app.db");
+    let size_mb = std::fs::metadata(db_path)
+        .map(|m| m.len() as f64 / 1024.0 / 1024.0)
+        .unwrap_or(0.0)
+        + std::fs::metadata(format!("{}-wal", db_path))
             .map(|m| m.len() as f64 / 1024.0 / 1024.0)
-            .unwrap_or(0.0)
-            + std::fs::metadata(format!("{}-wal", db_path))
-                .map(|m| m.len() as f64 / 1024.0 / 1024.0)
-                .unwrap_or(0.0);
-        // SQLite uses a single connection (not a pool) — return -1
-        // to indicate "not applicable".
-        (-1, -1, size_mb)
-    } else {
-        // Postgres — query pg_stat_activity for connection counts.
-        use sea_orm::ConnectionTrait;
-        use sea_orm::FromQueryResult;
-
-        #[derive(FromQueryResult)]
-        struct ConnCount {
-            state: String,
-            count: i64,
-        }
-
-        let db = st.chats.db_for_stats();
-        let rows = ConnCount::find_by_statement(sea_orm::Statement::from_sql_and_values(
-            db.get_database_backend(),
-            r#"SELECT state, COUNT(*) as count
-               FROM pg_stat_activity
-               WHERE datname = current_database()
-               GROUP BY state"#,
-            [],
-        ))
-        .all(db)
-        .await
-        .unwrap_or_default();
-
-        let mut active = 0i32;
-        let mut idle = 0i32;
-        for row in rows {
-            if row.state == "active" {
-                active = row.count as i32;
-            } else {
-                idle += row.count as i32;
-            }
-        }
-        (active, idle, 0.0)
-    }
+            .unwrap_or(0.0);
+    // Single connection (not a pool) — return -1 to indicate "not
+    // applicable".
+    (-1, -1, size_mb)
 }
 
 fn mask_db_url(url: &str) -> String {
-    // Mask password in postgres://user:pass@host/db
+    // Mask password in user:pass@host URLs (any scheme)
     if let Some(at_pos) = url.find('@') {
         if let Some(start) = url.find("://") {
             let scheme = &url[..start + 3];

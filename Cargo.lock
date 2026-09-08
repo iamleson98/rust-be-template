@@ -2942,6 +2942,7 @@ dependencies = [
  "chrono",
  "clap",
  "dotenvy",
+ "rustqlite-compat",
  "sea-orm",
  "sea-orm-migration",
  "tokio",

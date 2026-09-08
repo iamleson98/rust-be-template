@@ -89,7 +89,7 @@ Top 10 (the audit identified these as high-impact, low-effort fixes):
 4. **STRUCT-022** — Committed `osm-index/` + `app.db-wal`/`shm` (✅ fixed in this audit)
 5. **STRUCT-017** — `docker-compose.prod.yml` hardening (✅ fixed in this audit)
 6. **STRUCT-020** — Terraform: switch from local state to S3 + DynamoDB lock, add resource tags, remove `remote-exec` anti-pattern
-7. **STRUCT-003** — `migrator` crate is sqlite-only despite backend supporting postgres — enable `postgres` feature on `migrator` so `cargo build --features postgres` works end-to-end
+7. **STRUCT-003** — `migrator` crate is sqlite-only despite backend supporting postgres — enable `postgres` feature on `migrator` so `cargo build --features postgres` works end-to-end *(resolved differently, 2026-09: the postgres backend was removed entirely; the migrator now links the rust-sql engine unconditionally)*
 8. **STRUCT-009** — `anyhow::Result` in `FileStorage` trait — switch to `thiserror`-based error enum for libraries
 9. **STRUCT-007** — Audit files >500 lines for refactoring candidates:
    - `src/service/booking_service.rs` (1370 lines — split into `hold.rs`, `cancel.rs`, `confirm.rs`)
@@ -138,7 +138,7 @@ Critical / must-fix-before-prod:
 ### Tier 3 — Performance
 1. **Keyset pagination** on every list endpoint (bookings, users, posts, payments).
 2. **Moka `try_get_with`** for true singleflight cache stampede protection.
-3. **Postgres `LISTEN/NOTIFY`** for the worker (replaces the 1s poll).
+3. ~~**Postgres `LISTEN/NOTIFY`** for the worker (replaces the 1s poll).~~ *(obsolete 2026-09: no postgres backend — the rust-sql engine is the only DB)*
 4. **Frontend route-level `Suspense` + `lazy`** (already partially done — verify all admin routes).
 5. **Bundle analyzer** in CI (`vite-bundle-visualizer`).
 6. **Image AVIF/WebP** for hero images — already have `hero-vietnam-bus.avif`, but the `<link rel="preload">` should use a `media` query.

@@ -1,7 +1,7 @@
 //! Pluggable async worker broker. Trait + three backends:
 //! - `RedisBroker`: BLPOP/BRPOP, sub-ms latency, simplest to scale out
-//! - `DbBroker`: Postgres `FOR UPDATE SKIP LOCKED` — zero new infra
-//!   (default: works on the SQLite/Postgres DB the app already runs on)
+//! - `DbBroker`: job queue in the rust-sql DB — zero new infra
+//!   (works on the database the app already runs on)
 //! - `KafkaBroker`: rdkafka producer/consumer — high-throughput at scale
 //!
 //! The [`runner`] consumes jobs from whichever broker is selected and
