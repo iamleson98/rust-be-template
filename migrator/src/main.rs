@@ -45,6 +45,10 @@ enum Command {
     /// List applied + pending migrations.
     List,
 
+    /// Same as `list` — sea-orm-cli's `migrate status -d migrator`
+    /// forwards this subcommand name, so the migrator must accept it.
+    Status,
+
     /// Drop all tables and re-apply all migrations from scratch.
     /// Destructive — confirm with `--yes`.
     Fresh {
@@ -99,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Command::Up => run_up().await,
         Command::Down { steps } => run_down(steps).await,
-        Command::List => run_list().await,
+        Command::List | Command::Status => run_list().await,
         Command::Fresh { yes } => run_fresh(yes).await,
         Command::New { name } => run_new(&name),
         Command::EntityGenerate {
@@ -173,6 +177,14 @@ async fn run_list() -> anyhow::Result<()> {
 
 async fn run_fresh(yes: bool) -> anyhow::Result<()> {
     if !yes {
+        // Non-interactive stdin (piped / no TTY — e.g. sea-orm-cli's
+        // `migrate fresh` spawning `cargo run -- fresh`): asking would
+        // BLOCK forever. Abort with the escape hatch instead.
+        if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            anyhow::bail!(
+                "refusing to drop tables without confirmation: re-run with --yes (stdin is not a terminal)"
+            );
+        }
         print!("This will DROP all tables and re-apply migrations. Continue? [y/N] ");
         use std::io::{self, Write};
         std::io::stdout().flush()?;
@@ -311,6 +323,14 @@ async fn run_entity_generate(output: &std::path::Path, with_relations: bool) -> 
 
 async fn run_db_reset(yes: bool) -> anyhow::Result<()> {
     if !yes {
+        // Non-interactive stdin (piped / no TTY — e.g. sea-orm-cli's
+        // `migrate fresh` spawning `cargo run -- fresh`): asking would
+        // BLOCK forever. Abort with the escape hatch instead.
+        if !std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            anyhow::bail!(
+                "refusing to drop tables without confirmation: re-run with --yes (stdin is not a terminal)"
+            );
+        }
         print!("This will DROP all tables and re-apply migrations. Continue? [y/N] ");
         use std::io::{self, Write};
         std::io::stdout().flush()?;

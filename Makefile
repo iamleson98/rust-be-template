@@ -38,9 +38,12 @@ migrate-down: install-sea-orm-cli
 migrate-status: install-sea-orm-cli
 	$(SEA_ORM_CLI) migrate status -d migrator
 
-# Reset database (rollback all, then apply all)
-migrate-reset: install-sea-orm-cli
-	$(SEA_ORM_CLI) migrate fresh -d migrator
+# Reset database (drop all, then re-apply from scratch).
+# Direct migrator invocation: sea-orm-cli's `migrate fresh` forwards no
+# flags, so the migrator's destructive-fresh confirmation could never be
+# answered non-interactively. `--yes` makes the target scriptable.
+migrate-reset:
+	cargo run -p migrator -- fresh --yes
 
 ## --- Entity Generation ---
 
