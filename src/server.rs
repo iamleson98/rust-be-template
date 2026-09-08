@@ -90,6 +90,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     let db = Arc::new(db);
 
+    // Bootstrap is also used directly by integration tests and embedded
+    // callers, so do not rely on the CLI wrapper to migrate first.
+    crate::run_migrations(db.as_ref())
+        .await
+        .context("database migrations")?;
+
     // ---- Cache backend (shared via Arc<dyn CacheBackend>) ------------
     let cache: Arc<dyn CacheBackend> = cache::build_shared(&config.cache).await?;
 
