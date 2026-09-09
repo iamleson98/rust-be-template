@@ -123,7 +123,10 @@ pub enum HangupOutcome {
     Notify { customer_id: String, reason: String },
     /// Re-routed: relay the stored offer (fetch via
     /// [`SessionManager::get`]) to the next agent.
-    ReRouted { customer_id: String, agent_id: String },
+    ReRouted {
+        customer_id: String,
+        agent_id: String,
+    },
     /// No session involving this agent (nothing to do).
     NoSession,
 }
@@ -132,7 +135,9 @@ pub enum HangupOutcome {
 #[derive(Debug, PartialEq, Eq)]
 pub enum CustomerHangup {
     /// Session removed — notify this agent.
-    NotifyAgent { agent_id: String },
+    NotifyAgent {
+        agent_id: String,
+    },
     NoSession,
 }
 
@@ -187,9 +192,7 @@ impl SessionManager {
     /// The agent a customer's session is with (ICE + hangup routing —
     /// replaces the hub's old pin map).
     pub fn agent_for(&self, customer_id: &str) -> Option<String> {
-        self.sessions
-            .get(customer_id)
-            .map(|s| s.agent_id.clone())
+        self.sessions.get(customer_id).map(|s| s.agent_id.clone())
     }
 
     /// Begin a CUSTOMER-initiated call: busy-guard the customer, pick
@@ -330,7 +333,11 @@ impl SessionManager {
                 };
             }
             // Nobody left to try — the customer learns the queue is dry.
-            let why = if reason == "busy" { "agents-busy" } else { "timeout" };
+            let why = if reason == "busy" {
+                "agents-busy"
+            } else {
+                "timeout"
+            };
             return HangupOutcome::Notify {
                 customer_id,
                 reason: why.to_string(),
@@ -425,8 +432,13 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        let out = m.begin_customer_offer("cust-1", offer(), Some("ch-1").into(), picker_pick("a1"));
-        assert_eq!(out, OfferOutcome::Ringing { agent_id: "a1".into() });
+        let out = m.begin_customer_offer("cust-1", offer(), Some("ch-1".into()), picker_pick("a1"));
+        assert_eq!(
+            out,
+            OfferOutcome::Ringing {
+                agent_id: "a1".into()
+            }
+        );
         let s = m.get("cust-1").unwrap();
         assert_eq!(s.state, CallState::Ringing);
         assert_eq!(s.agent_id, "a1");
@@ -551,7 +563,9 @@ mod tests {
         m.on_answer("a1", "cust-1");
         assert_eq!(
             m.on_customer_hangup("cust-1"),
-            CustomerHangup::NotifyAgent { agent_id: "a1".into() }
+            CustomerHangup::NotifyAgent {
+                agent_id: "a1".into()
+            }
         );
         // Second hangup: no session.
         assert_eq!(m.on_customer_hangup("cust-1"), CustomerHangup::NoSession);

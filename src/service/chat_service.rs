@@ -391,9 +391,8 @@ impl ChatService {
                 // membership roster too (role="employee") so the
                 // channel's participant list reflects the real assignee
                 // from the first message on.
-                if let crate::service::chat_service::RoutingOutcome::NewlyAssigned {
-                    employee_id,
-                } = &outcome
+                if let crate::service::chat_service::RoutingOutcome::NewlyAssigned { employee_id } =
+                    &outcome
                 {
                     if let Ok(emp_uuid) = Uuid::parse_str(employee_id) {
                         if let Err(e) = self

@@ -321,11 +321,17 @@ pub async fn handle_socket(
                 for _ in 0..100 {
                     match sessions().on_agent_hangup(&uid, "agent-offline", pick_agent) {
                         HangupOutcome::NoSession => break,
-                        HangupOutcome::ReRouted { customer_id, agent_id } => {
+                        HangupOutcome::ReRouted {
+                            customer_id,
+                            agent_id,
+                        } => {
                             relay_offer(&customer_id, &agent_id);
                             continue;
                         }
-                        HangupOutcome::Notify { customer_id, reason } => {
+                        HangupOutcome::Notify {
+                            customer_id,
+                            reason,
+                        } => {
                             agent_session_cleanup(&uid);
                             let _ = call_hub().send_to(
                                 &customer_id,
@@ -436,17 +442,20 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
     match kind {
         // ── Offer: the session manager owns routing + busy guards ────
         "offer" => {
-            let offer = sdp.cloned().unwrap_or_else(|| serde_json::json!(null));
+            let offer = sdp.cloned().unwrap_or(serde_json::Value::Null);
             match role {
                 CallRole::Customer => {
                     let uid = user.id.to_string();
-                    match sessions().begin_customer_offer(&uid, offer, channel_id.map(str::to_string), pick_agent) {
+                    match sessions().begin_customer_offer(
+                        &uid,
+                        offer,
+                        channel_id.map(str::to_string),
+                        pick_agent,
+                    ) {
                         OfferOutcome::Ringing { agent_id } => relay_offer(&uid, &agent_id),
-                        OfferOutcome::CustomerBusy => send_error(
-                            &uid,
-                            "customer-busy",
-                            "You are already in a call",
-                        ),
+                        OfferOutcome::CustomerBusy => {
+                            send_error(&uid, "customer-busy", "You are already in a call")
+                        }
                         // No agent / all busy — same split as before:
                         // zero agents online vs. everyone busy.
                         OfferOutcome::NoAgent => {
@@ -473,23 +482,28 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                     // The customer must be online on this hub to receive
                     // the offer.
                     if call_hub().role_of(to) != Some(CallRole::Customer) {
-                        send_error(&user.id.to_string(), "peer-unavailable", "Peer not online or invalid");
+                        send_error(
+                            &user.id.to_string(),
+                            "peer-unavailable",
+                            "Peer not online or invalid",
+                        );
                         return Ok(());
                     }
                     let uid = user.id.to_string();
-                    match sessions().begin_agent_offer(&uid, to, offer, channel_id.map(str::to_string)) {
+                    match sessions().begin_agent_offer(
+                        &uid,
+                        to,
+                        offer,
+                        channel_id.map(str::to_string),
+                    ) {
                         // The session is keyed by the CUSTOMER id (`to`).
                         OfferOutcome::Ringing { agent_id } => relay_offer(to, &agent_id),
-                        OfferOutcome::PeerBusy => send_error(
-                            &uid,
-                            "peer-busy",
-                            "Customer is already in a call",
-                        ),
-                        OfferOutcome::AgentBusy => send_error(
-                            &uid,
-                            "agent-busy",
-                            "You are already in a call",
-                        ),
+                        OfferOutcome::PeerBusy => {
+                            send_error(&uid, "peer-busy", "Customer is already in a call")
+                        }
+                        OfferOutcome::AgentBusy => {
+                            send_error(&uid, "agent-busy", "You are already in a call")
+                        }
                         _ => {}
                     }
                 }
@@ -570,7 +584,9 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
 /// vanished between pick + send, a customer-initiated session is aborted
 /// with `peer-unavailable` (the next offer attempt will re-pick).
 fn relay_offer(customer_id: &str, agent_id: &str) {
-    let Some(s) = sessions().get(customer_id) else { return };
+    let Some(s) = sessions().get(customer_id) else {
+        return;
+    };
     let sent = call_hub().send_to(
         agent_id,
         &json!({
@@ -645,12 +661,18 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
             for _ in 0..100 {
                 match sessions().on_agent_hangup(&uid, reason, pick_agent) {
                     HangupOutcome::NoSession => break,
-                    HangupOutcome::ReRouted { customer_id, agent_id } => {
+                    HangupOutcome::ReRouted {
+                        customer_id,
+                        agent_id,
+                    } => {
                         relay_offer(&customer_id, &agent_id);
                         // Continue: the agent may hold more sessions.
                         continue;
                     }
-                    HangupOutcome::Notify { customer_id, reason } => {
+                    HangupOutcome::Notify {
+                        customer_id,
+                        reason,
+                    } => {
                         agent_session_cleanup(&uid);
                         let _ = call_hub().send_to(
                             &customer_id,
