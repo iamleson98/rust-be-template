@@ -63,7 +63,8 @@ use dashmap::DashMap;
 use serde_json::Value;
 
 /// Lifecycle of one call session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CallState {
     /// Offer relayed to the agent, waiting for their `answer`.
     Ringing,
@@ -72,7 +73,8 @@ pub enum CallState {
 }
 
 /// Which side placed the call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Initiator {
     Customer,
     Agent,
@@ -164,6 +166,23 @@ pub struct SocketEndedCall {
     pub agent_id: String,
 }
 
+/// Snapshot of the live session a registering user is part of — sent
+/// back in the `registered` frame as `activeCall` so (re)connecting
+/// clients can reconcile their call UI with server truth.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveCallInfo {
+    /// The session's customer id.
+    pub customer_id: String,
+    /// The OTHER party's user id (agent if this user is the customer,
+    /// customer if this user is the agent).
+    pub peer_id: String,
+    /// `"ringing"` | `"active"`.
+    pub state: CallState,
+    /// `"customer"` | `"agent"` — who placed the call.
+    pub initiator: Initiator,
+}
+
 /// The process-wide session registry.
 pub struct SessionManager {
     /// `customer_id → session`. ONE call per customer — the busy guard
@@ -236,6 +255,51 @@ impl SessionManager {
         self.sessions
             .iter()
             .any(|s| s.customer_id == user_id || s.agent_id == user_id)
+    }
+
+    /// Does THIS socket carry a live call? Used by the WS read pump to
+    /// pick its idle budget: the caller's socket carries the offer while
+    /// RINGING, the answerer's socket carries the session once ACTIVE.
+    ///
+    /// A call-carrying socket is legitimately SILENT for long stretches
+    /// (audio flows peer-to-peer over WebRTC, not through the signaling
+    /// socket), and its owning app may be OS-frozen in the background
+    /// (Android caches a call screen the moment the proximity sensor
+    /// blanks the display). Reaping such a socket at the plain 90s idle
+    /// timeout kills LIVE calls — see the handler's call-aware idle
+    /// logic. Call liveness is WebRTC/ICE's job (both clients end the
+    /// call on ICE failure themselves); the idle timeout only needs to
+    /// reap sockets that are NOT carrying a call.
+    pub fn socket_carries_call(&self, user_id: &str, sid: u64) -> bool {
+        self.sessions.iter().any(|s| {
+            (s.customer_id == user_id || s.agent_id == user_id)
+                && (s.offerer_sid == Some(sid)
+                    || (s.state == CallState::Active && s.answered_on == Some(sid)))
+        })
+    }
+
+    /// The live call session this user is part of (either role), for
+    /// the `registered` frame's `activeCall` field. Clients use it to
+    /// reconcile after a reconnect: a client whose local UI still shows
+    /// a call but sees `activeCall: null` on (re)register knows the
+    /// session is gone server-side and must end its zombie call UI —
+    /// the hangup that ended the session was sent to the OTHER side
+    /// (and to this user's OTHER sockets), so a socket that reconnected
+    /// would otherwise never learn the call is over.
+    pub fn active_call_of(&self, user_id: &str) -> Option<ActiveCallInfo> {
+        self.sessions
+            .iter()
+            .find(|s| s.customer_id == user_id || s.agent_id == user_id)
+            .map(|s| ActiveCallInfo {
+                customer_id: s.customer_id.clone(),
+                peer_id: if s.customer_id == user_id {
+                    s.agent_id.clone()
+                } else {
+                    s.customer_id.clone()
+                },
+                state: s.state,
+                initiator: s.initiator,
+            })
     }
 
     /// Agents currently RINGING for some customer — excluded from new
@@ -763,5 +827,88 @@ mod tests {
         assert_eq!(ended.len(), 1);
         assert_eq!(ended[0].notify_user_id, "a1");
         m.clear();
+    }
+
+    #[test]
+    fn socket_carries_call_follows_the_calling_and_answering_sockets() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+        // Customer socket 1 sends the offer; agent socket 9 answers.
+        m.begin_customer_offer("cust-1", offer(), None, Some(1), picker_pick("a1"));
+
+        // While RINGING only the OFFERER's socket carries the call — the
+        // answerer hasn't picked up yet (idle budget stays plain for 9).
+        assert!(m.socket_carries_call("cust-1", 1));
+        assert!(!m.socket_carries_call("a1", 9));
+        // Unrelated users/sockets never carry it.
+        assert!(!m.socket_carries_call("a2", 1));
+        assert!(!m.socket_carries_call("cust-1", 2));
+
+        // Once ACTIVE both the offerer and the answerer carry it.
+        assert!(m.on_answer("a1", "cust-1", Some(9)).is_some());
+        assert!(m.socket_carries_call("cust-1", 1));
+        assert!(m.socket_carries_call("a1", 9));
+        // ...but the agent's OTHER socket does not.
+        assert!(!m.socket_carries_call("a1", 10));
+
+        // Session gone → nobody carries anything.
+        assert_eq!(
+            m.on_customer_hangup("cust-1"),
+            CustomerHangup::NotifyAgent {
+                agent_id: "a1".into()
+            }
+        );
+        assert!(!m.socket_carries_call("cust-1", 1));
+        assert!(!m.socket_carries_call("a1", 9));
+        m.clear();
+    }
+
+    #[test]
+    fn active_call_of_resolves_peer_for_both_sides() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+
+        // Customer sees the agent as the peer, agent sees the customer.
+        let c = m.active_call_of("cust-1").unwrap();
+        assert_eq!(c.peer_id, "a1");
+        assert_eq!(c.customer_id, "cust-1");
+        assert_eq!(c.state, CallState::Ringing);
+        assert_eq!(c.initiator, Initiator::Customer);
+        let a = m.active_call_of("a1").unwrap();
+        assert_eq!(a.peer_id, "cust-1");
+        assert_eq!(a.initiator, Initiator::Customer);
+
+        // Once active the state flips.
+        assert!(m.on_answer("a1", "cust-1", None).is_some());
+        assert_eq!(m.active_call_of("cust-1").unwrap().state, CallState::Active);
+
+        // No session → null (the reconciliation signal).
+        assert!(m.active_call_of("a2").is_none());
+        m.on_customer_hangup("cust-1");
+        assert!(m.active_call_of("cust-1").is_none());
+        assert!(m.active_call_of("a1").is_none());
+        m.clear();
+
+        // Wire format: camelCase + snake_case enum values, `null` when
+        // absent — the exact shape clients parse out of `registered`.
+        let wire = serde_json::to_value(m.active_call_of("cust-1").unwrap_or(ActiveCallInfo {
+            customer_id: "c".into(),
+            peer_id: "a".into(),
+            state: CallState::Active,
+            initiator: Initiator::Agent,
+        }))
+        .unwrap();
+        assert_eq!(
+            wire,
+            json!({
+                "customerId": "c",
+                "peerId": "a",
+                "state": "active",
+                "initiator": "agent",
+            })
+        );
     }
 }

@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../core/audio/sound_service.dart';
+import '../../core/net/ws_client.dart' show WsStatus;
 import '../chat/conversations_controller.dart';
 import 'call_engine.dart';
+import 'call_keepalive.dart';
 import 'call_signaling.dart';
 import 'call_state.dart';
 
@@ -17,6 +19,11 @@ import 'call_state.dart';
 class CallController extends Notifier<CallUiState> {
   CallEngine? _engine;
   StreamSubscription<Map<String, dynamic>>? _sigSub;
+
+  /// Signaling-socket lifecycle — a dropped /ws-call socket means the
+  /// call is dead server-side (the server ends every session a dropped
+  /// socket carries). Watched to end zombie call UIs immediately.
+  StreamSubscription<WsStatus>? _sigStatusSub;
 
   /// Inbound ring timeout — auto-busy so the customer isn't left hanging.
   Timer? _ringTimer;
@@ -35,6 +42,16 @@ class CallController extends Notifier<CallUiState> {
 
   Timer? _iceRecoveryTimer;
 
+  /// Grace window the signaling socket gets to come back before an
+  /// in-progress call is ended as lost (see [_onSignalingStatus]).
+  Timer? _sigLossTimer;
+
+  /// How long the /ws-call socket may be down mid-call before the call
+  /// is declared dead — covers the WsClient's exponential backoff
+  /// (first retries land in 1–2s) while still ending zombie calls
+  /// promptly instead of "running" forever after a freeze.
+  static const _sigLossGrace = Duration(seconds: 10);
+
   /// Set once `RTCPeerConnectionStateConnected` fires — the connect
   /// timeout only applies while this is false.
   bool _mediaConnected = false;
@@ -48,15 +65,24 @@ class CallController extends Notifier<CallUiState> {
     final sig = ref.watch(callSignalingProvider);
     ref.onDispose(() {
       _sigSub?.cancel();
+      _sigStatusSub?.cancel();
       _ringTimer?.cancel();
       _callTimer?.cancel();
       _connectTimer?.cancel();
       _endedTimer?.cancel();
       _iceRecoveryTimer?.cancel();
+      _sigLossTimer?.cancel();
       _teardownEngine();
+      CallKeepAlive.stop();
     });
     if (sig == null) return const CallUiState();
     _sigSub = sig.signals.listen(_onSignal, onError: (_) {});
+    // Signaling-socket loss = call death (server invariant: a dropped
+    // socket ends every session it carries). Without this, an employee
+    // whose phone lost the socket mid-call (OS froze the app, network
+    // switched) kept a zombie "running" call — the end-of-call hangup
+    // goes to the OTHER side, never to the socket that dropped.
+    _sigStatusSub = sig.connectionStates.listen(_onSignalingStatus);
     return const CallUiState();
   }
 
@@ -98,6 +124,10 @@ class CallController extends Notifier<CallUiState> {
       return;
     }
 
+    // The mic is open and an offer is out — keep the process alive
+    // through screen-blanks from here on (see CallKeepAlive).
+    unawaited(CallKeepAlive.start());
+
     state = CallUiState(
       status: CallStatus.calling,
       peerId: customerId,
@@ -130,6 +160,10 @@ class CallController extends Notifier<CallUiState> {
       await engine.open(_iceServers());
       final answer = await engine.acceptOffer(state.remoteOffer!);
       sig.sendAnswer(state.peerId ?? '', answer);
+      // Mic open + answer sent — the call is being set up. Hold the
+      // process awake from now on so the WS heartbeat survives
+      // screen-blanks (CallKeepAlive).
+      unawaited(CallKeepAlive.start());
       state = state.copyWith(
         status: CallStatus.connecting,
         clearOffer: true,
@@ -178,6 +212,7 @@ class CallController extends Notifier<CallUiState> {
             .toList();
         final sig = ref.read(callSignalingProvider);
         if (sig != null && servers.isNotEmpty) sig.iceServers = servers;
+        _reconcileWithServerCallState(msg['activeCall']);
       case 'incoming':
         _onIncoming(msg);
       case 'answer':
@@ -189,6 +224,66 @@ class CallController extends Notifier<CallUiState> {
       case 'error':
         _onServerError(msg);
     }
+  }
+
+  /// Reconcile the local call UI against the server's session truth.
+  ///
+  /// `registered.activeCall` is the LIVE session the server has for this
+  /// user (or `null`). Every reconnect re-registers — so a client whose
+  /// socket dropped mid-call (and whose call the server therefore ended)
+  /// learns here, on the very first frame after reconnecting, that its
+  /// call UI is a zombie and must end now. The hangup that ended the
+  /// session was sent to the OTHER side and to this user's OTHER
+  /// sockets — a socket that reconnected would otherwise never hear
+  /// about it and would show "in call" forever.
+  void _reconcileWithServerCallState(Object? activeCall) {
+    final status = state.status;
+    final inCall = status == CallStatus.calling ||
+        status == CallStatus.connecting ||
+        status == CallStatus.active;
+    if (!inCall) return;
+    if (activeCall is Map && activeCall['peerId'] is String) {
+      // The server still has a live session for us — keep the call (a
+      // transient WS blip that reconnected does not end the call; the
+      // audio is peer-to-peer and only this reconciliation decides).
+      return;
+    }
+    _endCallInternal(
+      error: 'Mất kết nối cuộc gọi — đã kết thúc',
+    );
+  }
+
+  /// Signaling-socket lifecycle: a socket that DROPS while we're in a
+  /// call almost always means the server has ended the session it
+  /// carried (its end-of-call hangup went to the peer). Rather than
+  /// killing the call on a 2-second network blip, give the auto-reconnect
+  /// a grace window: if the socket comes back, the `registered`
+  /// reconciliation above decides with server truth; if it doesn't, the
+  /// call ends here instead of zombie-ing until the user notices.
+  void _onSignalingStatus(WsStatus status) {
+    if (status == WsStatus.connected) {
+      // Socket is back — the registered reconciliation is now in charge.
+      _sigLossTimer?.cancel();
+      _sigLossTimer = null;
+      return;
+    }
+    if (status != WsStatus.disconnected && status != WsStatus.backoff) {
+      return;
+    }
+    final s = state.status;
+    if (s != CallStatus.connecting && s != CallStatus.active) return;
+    // Arm once per outage (status flapping between disconnected/backoff
+    // must NOT push the deadline out forever) — only `connected` cancels.
+    if (_sigLossTimer != null) return;
+    _sigLossTimer = Timer(_sigLossGrace, () {
+      _sigLossTimer = null;
+      final cur = state.status;
+      if (cur == CallStatus.connecting || cur == CallStatus.active) {
+        _endCallInternal(
+          error: 'Mất kết nối với máy chủ — cuộc gọi đã kết thúc',
+        );
+      }
+    });
   }
 
   void _onIncoming(Map<String, dynamic> msg) {
@@ -385,9 +480,14 @@ class CallController extends Notifier<CallUiState> {
     _ringTimer?.cancel();
     _connectTimer?.cancel();
     _iceRecoveryTimer?.cancel();
+    _sigLossTimer?.cancel();
     // Kill the ring/ringback + haptics before anything else.
     unawaited(ref.read(soundServiceProvider).stopAll());
     _teardownEngine();
+    // Call over — the keep-alive foreground service is no longer needed
+    // (and holding a mic-type FGS after the call ends would keep the
+    // notification + wake lock alive pointlessly).
+    unawaited(CallKeepAlive.stop());
     if (!flashEnded) {
       state = const CallUiState();
       return;

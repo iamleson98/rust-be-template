@@ -13,6 +13,13 @@ class MainActivity : FlutterActivity() {
     /// boot; this only bridges the native start/stop calls.
     private val dutyChannel = "datxevui/duty"
 
+    /// Channel: start/stop the call foreground service (mic type) that
+    /// keeps the process alive + the microphone open while a call is
+    /// live — without it Android freezes the backgrounded call screen,
+    /// the WS heartbeat stops, and the server's idle timeout killed
+    /// live calls at exactly 90s (production incident 2026-09-09).
+    private val callChannel = "datxevui/callfg"
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, dutyChannel)
@@ -29,6 +36,29 @@ class MainActivity : FlutterActivity() {
                     "stop" -> {
                         try {
                             DutyModeService.stop(applicationContext)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("STOP_FAILED", e.message, null)
+                        }
+                    }
+                    "isSupported" -> result.success(true)
+                    else -> result.notImplemented()
+                }
+            }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, callChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        try {
+                            CallKeepAliveService.start(applicationContext)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("START_FAILED", e.message, null)
+                        }
+                    }
+                    "stop" -> {
+                        try {
+                            CallKeepAliveService.stop(applicationContext)
                             result.success(true)
                         } catch (e: Exception) {
                             result.error("STOP_FAILED", e.message, null)

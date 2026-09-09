@@ -203,10 +203,27 @@ pub async fn handle_socket(
     let user_r = user.clone();
     let read_task = tokio::spawn(async move {
         let idle = Duration::from_secs(idle_timeout_sec);
+        // Call-aware idle budget: a socket CARRYING a live call session
+        // gets 10x the idle window. Signaling silence is normal mid-call
+        // (audio is peer-to-peer WebRTC, not this socket), and the owning
+        // app may be OS-frozen (Android blanks+caches the call screen the
+        // moment the proximity sensor fires; without a foreground service
+        // the whole process — heartbeats AND auto-pongs — suspends).
+        // Killing that socket at the bare 90s ended LIVE calls at
+        // exactly 1m30s and left the other side's UI running (the hangup
+        // went only to the peer). Media liveness is ICE's job — both
+        // clients already end the call themselves on ICE failure — so
+        // the idle timeout must only reap sockets NOT carrying a call.
+        // The budget is recomputed each loop: once the session ends (any
+        // side hangs up, the peer's socket drops), the socket reverts to
+        // the plain idle window and is reaped normally.
+        let call_idle = idle * 10;
         let mut registered_role: Option<CallRole> = None;
 
         loop {
-            let next = tokio::time::timeout(idle, stream.next());
+            let carrying_call = sessions().socket_carries_call(&user_r.id.to_string(), sid);
+            let budget = if carrying_call { call_idle } else { idle };
+            let next = tokio::time::timeout(budget, stream.next());
             match next.await {
                 Ok(Some(Ok(msg))) => match msg {
                     Message::Text(text) => {
@@ -246,6 +263,21 @@ pub async fn handle_socket(
                                                 ice_servers = ice_n,
                                                 "ws-call peer registered"
                                             );
+                                            // Server-side call truth: the live
+                                            // session this user is part of, if
+                                            // any. (Re)connecting clients whose
+                                            // local UI shows a call compare
+                                            // against this — a mismatch (usually
+                                            // `null`) means the session is gone
+                                            // server-side and their call UI is
+                                            // a zombie that must end now. The
+                                            // end-of-call hangup is delivered to
+                                            // the OTHER side (and to this
+                                            // user's other sockets) — a socket
+                                            // that reconnected would otherwise
+                                            // never hear about it.
+                                            let active_call =
+                                                sessions().active_call_of(&user_r.id.to_string());
                                             let _ = tx.try_send(bytes::Bytes::from(
                                                 json!({
                                                     "type": "registered",
@@ -253,6 +285,7 @@ pub async fn handle_socket(
                                                     "userId": user_r.id,
                                                     "onlineAgents": n,
                                                     "iceServers": &ice_servers,
+                                                    "activeCall": active_call,
                                                 })
                                                 .to_string(),
                                             ));
@@ -314,7 +347,8 @@ pub async fn handle_socket(
                 Err(_) => {
                     tracing::info!(
                         user_id = %user_r.id,
-                        idle_sec = idle.as_secs(),
+                        idle_sec = budget.as_secs(),
+                        carrying_call,
                         "ws-call idle timeout — closing half-open socket"
                     );
                     break;
@@ -348,6 +382,20 @@ pub async fn handle_socket(
         agent_session_cleanup(&ended.agent_id);
         let _ = call_hub().send_to(
             &ended.notify_user_id,
+            &json!({
+                "type": "hangup",
+                "from": "system",
+                "reason": "peer-offline",
+            }),
+        );
+        // The DROPPED user's other sockets (multi-session: web console +
+        // phone, extra tabs) also carry a mirrored call UI — tell them
+        // the call ended too. Without this, an employee whose phone
+        // dropped mid-call keeps seeing the call "running" on their
+        // other devices until the next reconciliation.
+        call_hub().send_to_except(
+            &ended.dropped_user_id,
+            sid,
             &json!({
                 "type": "hangup",
                 "from": "system",

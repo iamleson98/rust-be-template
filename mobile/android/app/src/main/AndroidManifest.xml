@@ -53,6 +53,17 @@
             android:exported="false"
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false"/>
+        <!-- Live-call keep-alive FGS (microphone type): started when a
+             call connects, stopped when it ends. Keeps the process
+             unfrozen (WS heartbeat + auto-pong keep flowing after the
+             screen blanks) and the mic open while backgrounded. Without
+             it the server's WS idle timeout killed live calls at
+             exactly 90s and left a zombie call UI on the agent's phone
+             (production incident 2026-09-09). -->
+        <service
+            android:name=".CallKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="microphone"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

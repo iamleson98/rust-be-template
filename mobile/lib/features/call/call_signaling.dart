@@ -46,6 +46,12 @@ class CallSignalingService {
   late final Stream<Map<String, dynamic>> _signals;
   Stream<Map<String, dynamic>> get signals => _signals;
 
+  /// Connection lifecycle of the underlying socket (connected /
+  /// disconnected / backoff). The call controller watches it: a socket
+  /// that drops mid-call means the server ended the session it carried,
+  /// so a still-"active" call UI must not zombie on.
+  Stream<WsStatus> get connectionStates => _client.connectionStates;
+
   /// STUN/TURN servers pushed by the server in `registered` (empty →
   /// callers fall back to public STUN).
   List<Map<String, dynamic>> iceServers = const [];

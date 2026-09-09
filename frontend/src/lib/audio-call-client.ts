@@ -239,9 +239,14 @@ export class AudioCallClient {
 
   // ── Signal handling ────────────────────────────────────────
 
+  private isCallLive(): boolean {
+    return this.state === 'calling' || this.state === 'incoming' ||
+      this.state === 'connecting' || this.state === 'active'
+  }
+
   private handleSignal(msg: any): void {
     switch (msg.type) {
-      case 'registered':
+      case 'registered': {
         this.onlineAgents = msg.onlineAgents ?? 0
         // Server-provided STUN/TURN config (AUDIO_CALL_ICE_SERVERS), pushed
         // over the authed WS. Empty/absent → keep the public-STUN default.
@@ -249,9 +254,27 @@ export class AudioCallClient {
         if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0) {
           this.cfg.iceServers = msg.iceServers
         }
+        // Reconcile with server session truth: a client whose socket
+        // dropped mid-call reconnects + re-registers, and the server
+        // tells it (activeCall) whether a session still exists. null +
+        // live local call = zombie — the end-of-call hangup was sent to
+        // the OTHER side, so this is the only place we can learn it.
+        // (A transient WS blip that reconnects with the session still
+        // alive keeps the call — audio is peer-to-peer, only the
+        // reconciliation decides, never the socket-close event itself.)
+        if (!this.disposed && this.isCallLive() && !msg.activeCall) {
+          this.clearCallTimeout()
+          this.clearRingTimeout()
+          this.clearConnectTimeout()
+          this.cleanupCall()
+          this.setState('ended')
+          this.emit('error', { code: 'call-gone', message: 'Cuộc gọi đã kết thúc' })
+          setTimeout(() => this.setState('idle'), 2500)
+        }
         this.emit('registered', msg)
         this.emit('presence', { onlineAgents: this.onlineAgents })
         break
+      }
       case 'presence':
         this.onlineAgents = msg.onlineAgents ?? 0
         this.emit('presence', { onlineAgents: this.onlineAgents })
