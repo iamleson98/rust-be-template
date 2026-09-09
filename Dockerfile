@@ -193,5 +193,10 @@ CMD ["/app/backend", "serve"]
 # 3. Start the Axum server
 # On a small 2GB VPS (e.g. Contabo Cloud 4) this can exceed 15s, causing
 # orchestrators to mark the task unhealthy and restart-loop it.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+# retries=5 (was 3): a healthcheck kill drops EVERY live WebSocket —
+# including in-progress calls. Three 30s-interval curl blips (deploys,
+# transient exec hiccups) restarting the backend mid-call was observed
+# in production; five consecutive misses (2.5 min of real failure) is
+# the safer kill bar while still catching genuine hangs.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
     CMD curl -sf http://localhost:8080/health || exit 1

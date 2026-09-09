@@ -100,6 +100,22 @@ pub async fn ws_upgrade(
     })?;
 
     let _ip = addr.ip().to_string();
+    // Client fingerprint for call diagnostics: browsers send their UA,
+    // the Flutter app sends Dart's. Keeps "which build is the phone
+    // running" answerable straight from the server logs.
+    let ua = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .chars()
+        .take(120)
+        .collect::<String>();
+    tracing::info!(
+        user_id = %user.id,
+        ip = %addr.ip(),
+        user_agent = %ua,
+        "ws-call connected"
+    );
 
     // ── Clamp frame/message sizes (defense vs. malicious SDP) ───────────
     let ws = ws
@@ -219,6 +235,17 @@ pub async fn handle_socket(
                                         Ok(role) => {
                                             registered_role = Some(role);
                                             let n = call_hub().online_agent_count();
+                                            let ice_n = ice_servers
+                                                .as_array()
+                                                .map(|a| a.len())
+                                                .unwrap_or(0);
+                                            tracing::info!(
+                                                user_id = %user_r.id,
+                                                role = role.as_str(),
+                                                online_agents = n,
+                                                ice_servers = ice_n,
+                                                "ws-call peer registered"
+                                            );
                                             let _ = tx.try_send(bytes::Bytes::from(
                                                 json!({
                                                     "type": "registered",
@@ -325,6 +352,12 @@ pub async fn handle_socket(
                             customer_id,
                             agent_id,
                         } => {
+                            tracing::info!(
+                                customer = %customer_id,
+                                from_agent = %uid,
+                                to_agent = %agent_id,
+                                "agent socket dropped — call re-routed"
+                            );
                             relay_offer(&customer_id, &agent_id);
                             continue;
                         }
@@ -376,7 +409,10 @@ pub async fn handle_socket(
         }
     }
 
-    tracing::debug!(user_id = %user_id, "ws-call disconnected");
+    tracing::info!(
+        user_id = %user_id,
+        "ws-call disconnected"
+    );
 }
 
 /// Process a `register` message: parse role + channelId, enforce RBAC,
@@ -440,6 +476,16 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
     let sdp = msg.get("sdp");
     let candidate = msg.get("candidate");
     let channel_id = msg.get("channelId").and_then(|v| v.as_str());
+    if kind != "ice" {
+        tracing::info!(
+            from = %user.id,
+            role = role.as_str(),
+            kind,
+            to,
+            channel = channel_id.unwrap_or(""),
+            "call signal"
+        );
+    }
 
     match kind {
         // ── Offer: the session manager owns routing + busy guards ────
@@ -524,6 +570,11 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
             };
             match sessions().on_answer(&agent_id, &customer_id) {
                 Some(_) => {
+                    tracing::info!(
+                        agent = %agent_id,
+                        customer = %customer_id,
+                        "call answered — session ACTIVE"
+                    );
                     // The agent of the session is now in a call — other
                     // customers' offers route elsewhere.
                     call_hub().set_in_call(&agent_id, true);
@@ -544,6 +595,11 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                     // Stale answer (re-routed away, already answered, or
                     // no session) — drop it so a late/dup answer can't
                     // fabricate a call.
+                    tracing::warn!(
+                        agent = %agent_id,
+                        customer = %customer_id,
+                        "stale call answer dropped (no ringing session)"
+                    );
                     send_error(
                         &user.id.to_string(),
                         "no-session",
@@ -566,6 +622,12 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                 }
             };
             if let Some(tid) = target_id {
+                tracing::debug!(
+                    from = %user.id,
+                    role = role.as_str(),
+                    to = %tid,
+                    "ice candidate relayed"
+                );
                 let _ = call_hub().send_to(
                     &tid,
                     &json!({
@@ -573,6 +635,16 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                         "from": user.id,
                         "candidate": candidate,
                     }),
+                );
+            } else {
+                // The #1 "stuck on connecting" signature: candidates
+                // have nowhere to go because no live session pairs the
+                // peers (answer never validated / session re-routed).
+                tracing::warn!(
+                    from = %user.id,
+                    role = role.as_str(),
+                    to,
+                    "ice candidate DROPPED — no live session"
                 );
             }
         }
@@ -589,6 +661,12 @@ fn relay_offer(customer_id: &str, agent_id: &str) {
     let Some(s) = sessions().get(customer_id) else {
         return;
     };
+    tracing::info!(
+        customer = customer_id,
+        agent = agent_id,
+        channel = s.channel_id.as_deref().unwrap_or(""),
+        "call offer relayed — RINGING"
+    );
     let sent = call_hub().send_to(
         agent_id,
         &json!({
@@ -605,6 +683,11 @@ fn relay_offer(customer_id: &str, agent_id: &str) {
         // above remains the source of truth — push only accelerates.
         crate::push::push().notify_incoming_call(agent_id, customer_id, s.channel_id.as_deref());
     } else {
+        tracing::warn!(
+            customer = customer_id,
+            agent = agent_id,
+            "offer relay FAILED — agent socket gone, session rolled back"
+        );
         // Roll the session back so the customer isn't stuck "ringing"
         // against a dead socket.
         let _ = sessions().on_customer_hangup(customer_id);
@@ -637,6 +720,12 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
         .and_then(|v| v.as_str())
         .filter(|r| matches!(*r, "busy" | "declined" | "timeout"))
         .unwrap_or("remote");
+    tracing::info!(
+        from = %user.id,
+        role = role.as_str(),
+        reason,
+        "call hangup"
+    );
 
     match role {
         CallRole::Customer => {
@@ -675,6 +764,13 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
                         customer_id,
                         agent_id,
                     } => {
+                        tracing::info!(
+                            customer = %customer_id,
+                            from_agent = %uid,
+                            to_agent = %agent_id,
+                            reason,
+                            "ring escalation — call re-routed to next agent"
+                        );
                         relay_offer(&customer_id, &agent_id);
                         // Continue: the agent may hold more sessions.
                         continue;

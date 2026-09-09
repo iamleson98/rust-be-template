@@ -90,7 +90,9 @@ ensure_env AUDIO_CALL_ICE_SERVERS "$ICE"
 # The coturn image's ENTRYPOINT is `turnserver`, so Cmd = flags only.
 # NOTE: no --no-loopback-peers/--no-multicast-peers — coturn 4.6 denies
 # loopback + multicast peers by DEFAULT (the allow-* flags opt in).
-desired_cmd="-n --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-tls --no-dtls"
+# --Verbose: log TURN allocations / permissions / session events — the
+# only way to answer "did the phone ever allocate a relay?" from the logs.
+desired_cmd="-n --Verbose --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-tls --no-dtls"
 
 running_cmd=$(docker inspect --format '{{join .Config.Cmd " "}}' "$CONTAINER" 2>/dev/null || true)
 running_state=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
