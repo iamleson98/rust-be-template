@@ -22,6 +22,11 @@ pub struct Migration;
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        // NOTE: no inline `.index(...)` inside create_table — the
+        // rust-sql engine's parser rejects inline INDEX table
+        // constraints (they're a SQLite legacy extension; standard
+        // SQL wants separate CREATE INDEX statements, which also keeps
+        // the statement Postgres-compatible).
         manager
             .create_table(
                 Table::create()
@@ -33,19 +38,32 @@ impl MigrationTrait for Migration {
                     .col(text(PushDevice::CreatedAt))
                     .col(text_null(PushDevice::UpdatedAt))
                     .col(text_null(PushDevice::LastSeenAt))
-                    .index(
-                        Index::create()
-                            .name("idx_push_device_user")
-                            .col(PushDevice::UserId),
-                    )
-                    .index(
-                        Index::create()
-                            .name("idx_push_device_token")
-                            .col(PushDevice::Token),
-                    )
                     .to_owned(),
             )
             .await?;
+
+        // Lookup by owner (fan-out list on every ring).
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_push_device_user")
+                    .table(PushDevice::Table)
+                    .col(PushDevice::UserId)
+                    .to_owned(),
+            )
+            .await?;
+
+        // Token lookup (logout / rotation / prune by exact token).
+        manager
+            .create_index(
+                Index::create()
+                    .name("idx_push_device_token")
+                    .table(PushDevice::Table)
+                    .col(PushDevice::Token)
+                    .to_owned(),
+            )
+            .await?;
+
         // One row per (user, token) — re-registering a known token
         // refreshes `updated_at` instead of duplicating.
         manager
