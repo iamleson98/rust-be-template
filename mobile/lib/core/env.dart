@@ -25,25 +25,17 @@ class AppConfig {
 
   /// Builds a WebSocket URI from the base URL: `http(s)://` → `ws(s)://`.
   Uri wsUri(String path, [Map<String, String>? query]) {
-    var base = httpBase;
-    final scheme = base.startsWith('https://')
-        ? 'wss'
-        : 'ws';
-    if (base.startsWith('https://') || base.startsWith('http://')) {
-      base = base.substring(base.indexOf('://') + 3);
-    }
-    return Uri(
-      scheme: scheme,
-      host: base.split('/').first,
-      // Preserve any path prefix that the host might route on.
-      path: _joinPath(base, path),
+    final base = Uri.parse(httpBase);
+    return base.replace(
+      scheme: base.scheme == 'https' ? 'wss' : 'ws',
+      path: _joinPath(base.path, path),
       queryParameters: query,
     );
   }
 
-  static String _joinPath(String base, String path) {
+  static String _joinPath(String basePath, String path) {
     final baseSegments =
-        base.split('/').skip(1).where((s) => s.isNotEmpty).toList();
+        basePath.split('/').where((s) => s.isNotEmpty).toList();
     final segments = path
         .split('/')
         .where((s) => s.isNotEmpty)

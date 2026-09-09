@@ -59,6 +59,7 @@ function buildSignalingUrl(): string {
 
 export function AudioCallWidget() {
   const { user, chatOpen } = useApp()
+  const isAgent = isStaffUser(user)
   const [open, setOpen] = useState(false)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
@@ -71,6 +72,7 @@ export function AudioCallWidget() {
   const [incomingFrom, setIncomingFrom] = useState<{ from: string; sdp: any } | null>(null)
 
   const clientRef = useRef<AudioCallClient | null>(null)
+  const clientOwnerRef = useRef<string | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Wake Lock sentinel — keeps the screen on during an active call so
@@ -123,10 +125,14 @@ export function AudioCallWidget() {
 
   // Initialize client when the panel is first opened.
   const ensureClient = useCallback(async () => {
-    if (clientRef.current) return clientRef.current
     if (!user) throw new Error('Not authenticated')
-    const { AudioCallClient } = await import('@/lib/audio-call-client')
     const role = isStaffUser(user) ? 'agent' : 'customer'
+    const owner = `${user.id}:${role}`
+    if (clientRef.current && clientOwnerRef.current === owner) return clientRef.current
+    clientRef.current?.dispose()
+    clientRef.current = null
+    clientOwnerRef.current = null
+    const { AudioCallClient } = await import('@/lib/audio-call-client')
     const client = new AudioCallClient({
       signalingUrl: buildSignalingUrl(),
       token: '',
@@ -206,6 +212,7 @@ export function AudioCallWidget() {
     })
     client.connect()
     clientRef.current = client
+    clientOwnerRef.current = owner
     return client
   }, [user])
 
@@ -266,14 +273,17 @@ export function AudioCallWidget() {
     setMicOn(on)
   }, [])
 
-  // Cleanup on unmount.
+  // Tear down the socket when the authenticated identity or role changes.
+  // The widget lives at the app root and can survive logout/login, so an
+  // unmount-only cleanup would let a customer reuse a stale agent client.
   useEffect(() => {
     return () => {
       if (callTimerRef.current) clearInterval(callTimerRef.current)
       clientRef.current?.dispose()
       clientRef.current = null
+      clientOwnerRef.current = null
     }
-  }, [])
+  }, [user?.id, isAgent])
 
   // ── Auto-connect for agents ──────────────────────────────────────
   // Agents MUST be connected to the signaling WS as soon as they log
@@ -283,8 +293,6 @@ export function AudioCallWidget() {
   // closed. The panel opens only when the agent clicks the FAB.
   //
   // For customers: we still connect when the panel opens (below).
-  const isAgent = isStaffUser(user)
-
   // Connect to the signaling WS as soon as the panel opens (for
   // customers) OR as soon as the agent logs in (for agents).
   useEffect(() => {
