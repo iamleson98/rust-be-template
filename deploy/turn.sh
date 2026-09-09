@@ -126,15 +126,25 @@ desired_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=
 
 running_cmd=$(docker inspect --format '{{join .Config.Cmd " "}}' "$CONTAINER" 2>/dev/null || true)
 running_state=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
-if [ -z "$running_cmd" ] || [ "$running_cmd" != "$desired_cmd" ] || [ "$running_state" != "running" ]; then
+# Log limits: the first coturn container was started WITHOUT --log-opt,
+# so with --Verbose its json-file log grows UNBOUNDED — every TURN
+# allocation/permission event plus the constant internet scanner noise
+# on public 3478 lands in /var/lib/docker/containers/<id>-json.log and
+# slowly fills the disk. A missing max-size therefore counts as
+# "container wrong" and triggers a re-create (the Cmd comparison alone
+# would leave the unbounded-log container running forever).
+log_max_size=$(docker inspect --format '{{index .HostConfig.LogConfig.Config "max-size"}}' "$CONTAINER" 2>/dev/null || true)
+if [ -z "$running_cmd" ] || [ "$running_cmd" != "$desired_cmd" ] || [ "$running_state" != "running" ] || [ -z "$log_max_size" ]; then
   docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   # shellcheck disable=SC2086
   docker run -d \
     --name "$CONTAINER" \
     --network host \
     --restart unless-stopped \
+    --log-driver json-file --log-opt max-size=20m --log-opt max-file=3 \
+    --memory 512m --memory-swap 512m \
     $IMAGE $desired_cmd
-  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp)"
+  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp, logs capped 3x20m, mem 512m)"
 else
   echo "coturn: container already correct (running)"
 fi

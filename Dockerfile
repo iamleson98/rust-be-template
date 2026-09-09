@@ -193,10 +193,16 @@ CMD ["/app/backend", "serve"]
 # 3. Start the Axum server
 # On a small 2GB VPS (e.g. Contabo Cloud 4) this can exceed 15s, causing
 # orchestrators to mark the task unhealthy and restart-loop it.
-# retries=5 (was 3): a healthcheck kill drops EVERY live WebSocket —
-# including in-progress calls. Three 30s-interval curl blips (deploys,
-# transient exec hiccups) restarting the backend mid-call was observed
-# in production; five consecutive misses (2.5 min of real failure) is
-# the safer kill bar while still catching genuine hangs.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=5 \
+# retries=8 (was 5) + timeout 10s (was 5s): a healthcheck kill drops
+# EVERY live WebSocket — including in-progress calls. Transient curl
+# blips restarting the backend mid-call were observed in production.
+# The task is also CPU-capped (1.5 cpus in stack.yml) on a node SHARED
+# with the pdf-tts stack: under host contention a 5s curl timeout can
+# miss even when the process is fine, and five 30s-interval misses
+# (2.5 min) then replaced a healthy task. 8 misses at a 10s timeout =
+# 4 minutes of SUSTAINED failure before Swarm replaces the task —
+# contention false positives are gone, genuine runtime hangs are still
+# caught (recovering in ~4 min instead of ~2.5 min, an acceptable
+# trade for not killing live calls).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=8 \
     CMD curl -sf http://localhost:8080/health || exit 1

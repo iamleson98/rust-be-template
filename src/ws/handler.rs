@@ -886,15 +886,43 @@ pub fn spawn_idem_gc() {
 }
 
 /// Periodic metrics logger (every 60s).
+///
+/// Besides the hub counts, each tick also samples the process RSS and
+/// the host memory watermark (same sysinfo 0.32 calls as
+/// `service/metrics.rs` — refreshes only THIS pid + global memory
+/// counters, no /proc walk). The 60 s cadence means
+/// `docker service logs datxevui_backend` shows the task's full memory
+/// trajectory: when the task disappears (Swarm health replacement or
+/// cgroup OOM at the stack.yml `limits.memory`), the last samples
+/// before the log gap answer "was RSS creeping toward the limit?"
+/// (in-process leak / undersized limit) vs "RSS was flat" (external:
+/// host-level OOM pressure from the co-tenant stacks, or a health
+/// check flap under CPU contention).
 pub fn spawn_metrics_logger() {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
             let stats = hub().stats();
+            let (rss_mb, host_used_mb, host_total_mb) = {
+                let pid = sysinfo::Pid::from_u32(std::process::id());
+                let mut sys = sysinfo::System::new();
+                sys.refresh_memory();
+                sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[pid]), true);
+                (
+                    sys.process(pid)
+                        .map(|p| p.memory() / 1024 / 1024)
+                        .unwrap_or(0),
+                    sys.used_memory() / 1024 / 1024,
+                    sys.total_memory() / 1024 / 1024,
+                )
+            };
             tracing::info!(
                 connections = stats.connections,
                 rooms = stats.rooms,
                 online_employee_brands = stats.online_staff,
+                rss_mb,
+                host_used_mb,
+                host_total_mb,
                 "ws hub metrics"
             );
         }
