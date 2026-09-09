@@ -31,6 +31,14 @@
  * view auto-scrolls to the bottom — but only if the user was already
  * at (or near) the bottom. If the user has scrolled up to read older
  * messages, we DON'T yank them down.
+ *
+ * ## Prepend vs append detection
+ *
+ * Both older-page prepends + new-message appends GROW the array, so
+ * length deltas can't tell them apart (the old `delta < 0` prepend
+ * branch never fired). We compare the BOUNDARY MESSAGE IDS instead:
+ * first id changed + last id unchanged → prepend (preserve the scroll
+ * anchor); last id changed → append (auto-scroll if at bottom).
  */
 
 import type React from 'react'
@@ -80,9 +88,12 @@ export function ChatConversation({
   // whether to yank the user down to a new message.
   const isAtBottomRef = useRef(true)
 
-  // Track previous messages length + scroll height to detect prepend
-  // vs append + preserve scroll position on prepend.
-  const prevMessagesLenRef = useRef(0)
+  // Track previous boundary message ids + scroll height to detect
+  // prepend vs append + preserve scroll position on prepend. Length
+  // deltas alone can't: both cases grow the array (the old `delta < 0`
+  // "prepend" branch was dead code — prepends are also `delta > 0`).
+  const prevFirstIdRef = useRef<string | null>(null)
+  const prevLastIdRef = useRef<string | null>(null)
   const prevScrollHeightRef = useRef(0)
 
   // ── Scroll listener: track bottom position + trigger infinite scroll ─
@@ -113,50 +124,49 @@ export function ChatConversation({
 
   // ── Auto-scroll + scroll-position preservation ───────────────────
   //
-  // Runs after every render where `messages.length` or `typing`
-  // changed. Handles three cases:
-  //   1. Append (new message at the bottom) — auto-scroll only if at bottom.
-  //   2. Initial load — scroll to the bottom.
-  //   3. Prepend (older messages added at the top) — preserve scroll position
-  //      by adding the new content's height to scrollTop.
+  // Runs (pre-paint, in a layout effect) whenever the messages array
+  // or `typing` changed. Detects the update mode from the BOUNDARY
+  // MESSAGE IDS (not length deltas) + handles three cases:
+  //   1. Initial load (no previous boundaries) — scroll to the bottom.
+  //   2. PREPEND — first id changed, last id unchanged (older page at
+  //      the head): keep the user's anchor by shifting scrollTop by
+  //      the height the DOM grew above the viewport.
+  //   3. APPEND — last id changed (new message at the tail): auto-
+  //      scroll only if the user was already at (or near) the bottom.
   useLayoutEffect(() => {
     const el = scrollRef.current
     if (!el) return
 
-    const prevLen = prevMessagesLenRef.current
-    const newLen = messages.length
-    const delta = newLen - prevLen
+    const firstId = messages[0]?.id ?? null
+    const lastId = messages.length > 0 ? messages[messages.length - 1].id : null
+    const prevFirst = prevFirstIdRef.current
+    const prevLast = prevLastIdRef.current
 
-    if (delta === 0) {
-      // No messages change — but the typing indicator may have
-      // appeared/disappeared. Auto-scroll to bottom if at bottom.
-      if (isAtBottomRef.current && typing) {
-        el.scrollTop = el.scrollHeight
-      }
-      return
-    }
-
-    if (delta > 0 && prevLen > 0) {
-      // ── Append (new message at the bottom) ─────────────────────
+    if (prevFirst == null || prevLast == null || firstId == null) {
+      // ── Initial load / channel switch ─────────────────────────
+      el.scrollTop = el.scrollHeight
+      isAtBottomRef.current = true
+    } else if (firstId !== prevFirst && lastId === prevLast) {
+      // ── Prepend (older messages added at the top) ───────────────
+      // The DOM grew at the top by `addedHeight` px. The browser
+      // keeps scrollTop numerically stable, which visually shifts the
+      // view forward — compensate so the anchor message stays put.
+      const addedHeight = el.scrollHeight - prevScrollHeightRef.current
+      el.scrollTop = el.scrollTop + Math.max(addedHeight, 0)
+    } else if (lastId !== prevLast) {
+      // ── Append (new message at the bottom) ──────────────────────
       // Only auto-scroll if the user was at the bottom.
       if (isAtBottomRef.current) {
         el.scrollTop = el.scrollHeight
       }
-    } else if (delta > 0 && prevLen === 0) {
-      // ── Initial load ───────────────────────────────────────────
+    } else if (isAtBottomRef.current && typing) {
+      // No boundary change — the typing indicator may have appeared;
+      // stay glued to the bottom if we were there.
       el.scrollTop = el.scrollHeight
-      isAtBottomRef.current = true
-    } else if (delta < 0) {
-      // ── Prepend (older messages added at the top) ───────────────
-      // The DOM grew at the top by `|delta|` messages. Preserve the
-      // user's scroll position by adding the new content's height
-      // to scrollTop.
-      const newScrollHeight = el.scrollHeight
-      const addedHeight = newScrollHeight - prevScrollHeightRef.current
-      el.scrollTop = el.scrollTop + addedHeight
     }
 
-    prevMessagesLenRef.current = newLen
+    prevFirstIdRef.current = firstId
+    prevLastIdRef.current = lastId
     prevScrollHeightRef.current = el.scrollHeight
   }, [messages, typing, scrollRef])
 

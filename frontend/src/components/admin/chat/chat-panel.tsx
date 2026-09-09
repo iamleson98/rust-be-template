@@ -335,9 +335,9 @@ export function ChatPanel({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
-  // Aligned height for the channel list + chat workspace. Both use
-  // the same FIXED height so the split-view looks symmetric + both
-  // panes scroll independently when content overflows.
+  // Aligned height for the channel list + chat workspace. Both panes
+  // are capped so the split view looks symmetric + each pane scrolls
+  // internally when content overflows.
   //
   // IMPORTANT: use `h-[32rem]` (fixed height), NOT `max-h-[32rem]`.
   // `max-h` on the ScrollArea root doesn't propagate to the Viewport
@@ -346,6 +346,21 @@ export function ChatPanel({
   // a fixed height → the viewport constrains to that height →
   // overflow scrolls. This was the "channel list doesn't scroll
   // when overflow" bug.
+  //
+  // On base screens the two cards stack (grid-cols-1) + their heights
+  // are indefinite (content-driven), so BOTH panes need the definite
+  // `h-[32rem]`. At `xl` BOTH cards get the same definite height
+  // (`xl:h-[40rem]` on each Card) — the panes then FILL their card's
+  // remaining space (`xl:h-full` / `xl:flex-1 + xl:min-h-0`), which is
+  // what keeps the chat box + its header capped to the same total
+  // height as the channel-list card (Slack/Intercom-style symmetric
+  // split view). A `flex-1` pane inside an INDEFINITE-height card
+  // would instead grow the card to the FULL message history height —
+  // the "chat box much larger than the channel list" bug — so
+  // `flex-1` is xl-only, never at base. (The definite height must
+  // live on the CARDS: an `auto` grid row still sizes to the items'
+  // content, so a height on the grid container alone doesn't cap
+  // anything.)
   const PANES_HEIGHT = 'h-[32rem]'
 
   // ── Channel-list infinite scroll (scroll DOWN = load more) ────
@@ -422,54 +437,70 @@ export function ChatPanel({
     }
   }, [hasMoreMessages, isFetchingMoreMessages, onFetchMoreMessages])
 
-  // Auto-scroll to the bottom on new messages + typing (only if at
-  // bottom). Also preserve scroll position when prepending older
-  // messages (so the user sees the same message they were viewing).
-  // We capture the scroll height before the DOM update + adjust
-  // scrollTop after to keep the view stable.
+  // ── Auto-scroll + scroll-anchor preservation ───────────────────
+  //
+  // Runs (pre-paint, in a layout effect) whenever the messages array
+  // or the typing indicator changes. Distinguishes the three chat
+  // scroll cases by the BOUNDARY MESSAGE IDS, not by length deltas —
+  // both prepends (older page at the head) and appends (new message
+  // at the tail) GROW the array, so `delta > 0` can't tell them apart:
+  //
+  //   1. Initial load (or channel switch) → jump to the newest message.
+  //   2. PREPEND — first id changed, last id UNCHANGED: an older page
+  //      was prepended at the head. The DOM grew ABOVE the viewport;
+  //      keep the user's anchor (the message they were reading) by
+  //      shifting scrollTop forward by the height the DOM grew.
+  //      Without this the view visibly jumps (the classic infinite-
+  //      scroll-up bug).
+  //   3. APPEND — last id changed: a new message was saved to the DB
+  //      and landed at the tail (sent or received). Auto-scroll to it
+  //      ONLY if the user was already at/near the bottom — never yank
+  //      someone down while they're reading history.
+  //
+  // All scroll writes happen before the browser paints (layout
+  // effect), so no flicker is visible in any case.
   const prevScrollHeightRef = useRef(0)
-  const prevMessagesLenRef = useRef(0)
+  const prevFirstIdRef = useRef<string | null>(null)
+  const prevLastIdRef = useRef<string | null>(null)
   useLayoutEffect(() => {
     const root = chatScrollRef.current
     if (!root) return
     const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
     if (!viewport) return
 
-    const prevLen = prevMessagesLenRef.current
-    const newLen = chatMessages.length
-    const delta = newLen - prevLen
+    const firstId = chatMessages[0]?.id ?? null
+    const lastId = chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].id : null
+    const prevFirst = prevFirstIdRef.current
+    const prevLast = prevLastIdRef.current
 
-    if (delta === 0) {
-      // No messages change — but the typing indicator may have
-      // appeared/disappeared. Auto-scroll to bottom if at bottom.
-      if (isAtBottomRef.current) {
-        viewport.scrollTop = viewport.scrollHeight
-      }
-      return
-    }
-
-    if (delta > 0 && prevLen > 0) {
-      // ── Append (new message at the bottom) ─────────────────────
-      // Only auto-scroll if the user was at the bottom. If they had
-      // scrolled up to read older messages, leave them where they are.
-      if (isAtBottomRef.current) {
-        viewport.scrollTop = viewport.scrollHeight
-      }
-    } else if (delta > 0 && prevLen === 0) {
-      // ── Initial load ───────────────────────────────────────────
+    if (prevFirst == null || prevLast == null || firstId == null) {
+      // ── Initial load / channel switch / cleared list ───────────
       viewport.scrollTop = viewport.scrollHeight
       isAtBottomRef.current = true
-    } else if (delta < 0) {
-      // ── Prepend (older messages added at the top) ───────────────
-      // The DOM grew at the top by `|delta|` messages. Preserve the
-      // user's scroll position by adding the new content's height
-      // to scrollTop.
-      const newScrollHeight = viewport.scrollHeight
-      const addedHeight = newScrollHeight - prevScrollHeightRef.current
-      viewport.scrollTop = viewport.scrollTop + addedHeight
+    } else if (firstId !== prevFirst && lastId === prevLast) {
+      // ── Prepend (older messages at the head) ──────────────────
+      // The DOM grew at the TOP by `addedHeight` px. The browser keeps
+      // scrollTop numerically stable across content prepends, which
+      // visually shifts the view FORWARD — compensate by moving
+      // scrollTop down by the same amount so the user's anchor message
+      // stays under their eyes.
+      const addedHeight = viewport.scrollHeight - prevScrollHeightRef.current
+      viewport.scrollTop = viewport.scrollTop + Math.max(addedHeight, 0)
+    } else if (lastId !== prevLast) {
+      // ── Append (new message at the tail) ───────────────────────
+      // Only auto-scroll if the user was at (or near) the bottom. If
+      // they had scrolled up to read older messages, leave them.
+      if (isAtBottomRef.current) {
+        viewport.scrollTop = viewport.scrollHeight
+      }
+    } else if (isAtBottomRef.current) {
+      // No boundary change (identical refetch / typing indicator
+      // toggled) — stay glued to the bottom if we were there.
+      viewport.scrollTop = viewport.scrollHeight
     }
 
-    prevMessagesLenRef.current = newLen
+    prevFirstIdRef.current = firstId
+    prevLastIdRef.current = lastId
     prevScrollHeightRef.current = viewport.scrollHeight
   }, [chatMessages, typingUser])
 
@@ -531,13 +562,16 @@ export function ChatPanel({
       )}
 
       {/* Chat queue + workspace split view.
-          Both panes share the same fixed height so they align — the
-          channel list scrolls independently when it overflows, and the
-          chat area scrolls independently too. This avoids the previous
-          bug where long message threads were covered by the footer. */}
+          BOTH cards get the same definite height at xl — the chat box
+          (+ its header + input) is capped to the same total height as
+          the channel-list card, never growing with the message
+          history. Each pane scrolls internally when content overflows.
+          (Height must live on the CARDS, not on the grid container:
+          an `auto` grid row still sizes to the items' content, so a
+          container-only height would not stop the overflow.) */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
         {/* Channel list */}
-        <Card className="xl:col-span-2 flex flex-col">
+        <Card className="xl:col-span-2 flex flex-col xl:h-[40rem]">
           <CardHeader className="pb-2 shrink-0 space-y-2">
             <CardTitle className="text-base flex items-center gap-2">
               <MessageSquare className="h-4 w-4 text-blue-600" />
@@ -606,7 +640,7 @@ export function ChatPanel({
             </div>
           </CardHeader>
           <CardContent className="p-0 flex-1 min-h-0">
-            <ScrollArea ref={channelScrollRef} className={PANES_HEIGHT}>
+            <ScrollArea ref={channelScrollRef} className={`${PANES_HEIGHT} xl:h-full`}>
               <div className="divide-y">
                 {channelsLoading ? (
                   <ChatChannelListSkeleton count={6} />
@@ -710,7 +744,7 @@ export function ChatPanel({
         </Card>
 
         {/* Chat workspace */}
-        <Card className="xl:col-span-3 flex flex-col">
+        <Card className="xl:col-span-3 flex flex-col xl:h-[40rem]">
           {activeChannel ? (
             <>
               <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between shrink-0">
@@ -827,13 +861,16 @@ export function ChatPanel({
               </div>
 
               {/* Chat messages scroll area.
-                  Uses the same fixed height as the channel list so
-                  both panes align. The flex column layout ensures the
-                  input area sticks to the bottom (the scroll area
-                  takes the remaining space).
+                  At xl it fills the space between the chat header + the
+                  input (the card has a definite height from the grid row,
+                  so `flex-1` can never grow it beyond the row — that was
+                  the "chat box much larger than the channel list" bug:
+                  `flex-1` inside an auto-height card made the card as
+                  tall as the whole history). At base (stacked cards) it
+                  falls back to the fixed `h-[32rem]`.
                   The `ref` is used by the auto-scroll effect above to
                   scroll to the bottom on new messages + typing events. */}
-              <ScrollArea ref={chatScrollRef} className={`flex-1 ${PANES_HEIGHT} overflow-y-auto p-4`}>
+              <ScrollArea ref={chatScrollRef} className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 xl:min-h-0 p-4`}>
                 <div className="space-y-2.5">
                   {/* ── "Load more" spinner (top of chat) ─────────────────
                       Shown when the infinite-scroll hook is fetching the
@@ -910,7 +947,7 @@ export function ChatPanel({
               </ScrollArea>
 
               {/* Quick replies + input — sticks to the bottom because
-                  the scroll area is `flex-1` (takes remaining space). */}
+                  the scroll area is `xl:flex-1` (takes remaining space). */}
               <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
                 <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
                   {['Xin chào, tôi có thể giúp gì?', 'Vui lòng cho mã đặt vé.', 'Chuyến đi đã xác nhận.', 'Tôi cần kiểm tra lại.'].map((t, i) => (
@@ -943,7 +980,7 @@ export function ChatPanel({
               </div>
             </>
           ) : (
-            <div className={`flex-1 flex items-center justify-center p-8 ${PANES_HEIGHT}`}>
+            <div className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 flex items-center justify-center p-8`}>
               <div className="text-center">
                 <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
                   <Headset className="h-8 w-8 text-slate-400" />

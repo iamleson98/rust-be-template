@@ -267,6 +267,66 @@ export type AdminBookingFilter = {
 };
 
 // ─────────────────────────────────────────────────────────────
+// Chat — infinite message pagination helper
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * `flattenInfiniteMessagePages` — pure helper that turns
+ * `useInfiniteQuery` pages of chat messages into the chronological
+ * display list. Extracted from `useChatMessagesInfinite` so it can be
+ * unit-tested directly.
+ *
+ * ## Contract
+ *
+ * Each page is the API response of
+ * `GET /channels/{id}/messages?limit=N&offset=M` — the SQL is
+ * `SELECT * FROM messages WHERE channel_id = ? ORDER BY created_at
+ * DESC LIMIT N OFFSET M`:
+ *   - page 0 (offset 0)  = the N NEWEST messages, DESC (newest first)
+ *   - page 1 (offset N)  = the next N OLDER messages, DESC
+ *
+ * `fetchNextPage` appends pages in fetch order [page0, page1, ...].
+ *
+ * ## What this helper guarantees
+ *
+ *   1. OLDER pages are PREPENDED to the head of the list (walk pages
+ *      in reverse), each page internally reversed (DESC → ASC) — the
+ *      final array is strictly chronological: oldest first, newest
+ *      last. The newest message at the TAIL means a newly sent message
+ *      (page 0 refetch after the save) renders at the BOTTOM, appended
+ *      after the existing messages.
+ *   2. DEDUPE by message id: offset pagination SHIFTS when new
+ *      messages land (page 1's window moves forward + overlaps page
+ *      0). Each id renders exactly once — the copy from the NEWEST
+ *      page wins (freshest).
+ */
+export function flattenInfiniteMessagePages(
+  pages: Array<{ items?: Array<{ id: string; [k: string]: unknown }> } | undefined | null>,
+): Array<{ id: string; [k: string]: unknown }> {
+  const byId = new Map<string, { id: string; [k: string]: unknown }>();
+  for (let p = 0; p < pages.length; p++) {
+    // Newer pages come first — first occurrence of an id wins (freshest).
+    for (const m of pages[p]?.items ?? []) {
+      if (m && m.id != null && !byId.has(m.id)) byId.set(m.id, m);
+    }
+  }
+  const emitted = new Set<string>();
+  const messages: Array<{ id: string; [k: string]: unknown }> = [];
+  // Walk pages oldest→newest + reverse each page (DESC → ASC), so older
+  // pages are prepended at the head of the display list.
+  for (let p = pages.length - 1; p >= 0; p--) {
+    const items = pages[p]?.items ?? [];
+    for (let i = items.length - 1; i >= 0; i--) {
+      const id = items[i]?.id;
+      if (id == null || emitted.has(id)) continue;
+      emitted.add(id);
+      messages.push(byId.get(id)!);
+    }
+  }
+  return messages;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Brands
 // ─────────────────────────────────────────────────────────────
 
@@ -1105,24 +1165,10 @@ export function useChatMessagesInfinite(
     // No polling — WS delivers new messages instantly.
   });
 
-  // Flatten + reverse each page for chronological display.
-  //
-  // The backend returns each page as DESC (newest first). We reverse
-  // each page independently so the display order is:
-  //   [oldest_of_oldest_page, ..., newest_of_oldest_page, oldest_of_newest_page, ..., newest_of_newest_page]
-  //
-  // The newest message ends up at the END of the array — correct for
-  // rendering (bottom of the chat).
+  // Flatten into the chronological display list — see
+  // `flattenInfiniteMessagePages` (the pure, unit-tested helper).
   const pages = query.data?.pages ?? [];
-  const messages: any[] = [];
-  for (const page of pages) {
-    const items = page?.items ?? [];
-    // Reverse the page (DESC → ASC) + push to the messages array.
-    // This preserves chronological order across pages.
-    for (let i = items.length - 1; i >= 0; i--) {
-      messages.push(items[i]);
-    }
-  }
+  const messages = flattenInfiniteMessagePages(pages as any);
 
   return {
     // The chronological messages array (oldest first, newest last).
