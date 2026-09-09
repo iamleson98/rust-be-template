@@ -1,0 +1,8 @@
+# Gitleaks ignore list.
+#
+# src/push/fcm.rs:274 — TEST_PKCS8_KEY is a THROWAWAY 2048-bit RSA key
+# generated in this repo's CI-sandbox (`openssl genrsa | openssl pkcs8`)
+# purely to unit-test that the FCM service-account key format (PKCS#8)
+# parses. It unlocks nothing (no certificate, no account, never
+# registered anywhere) and exists only inside a #[cfg(test)] block.
+7520a398d4db2aa4e5f5227dee0e23bc8afb2096:src/push/fcm.rs:private-key:274
