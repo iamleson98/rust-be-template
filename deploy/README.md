@@ -75,6 +75,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 9. [Direct mode (Caddy)](#direct-mode-caddy--profile-direct)
 10. [Troubleshooting](#troubleshooting)
 11. [TURN relay (WebRTC calls)](#turn-relay-webrtc-calls)
+12. [Push (FCM) — ring when the app is closed](#push-fcm--ring-when-the-app-is-closed)
 
 ---
 
@@ -101,6 +102,64 @@ cause of the "call stuck on connecting, dies after ~25 s" reports).
   bash /opt/vexevn/turn.sh            # (re)create + verify
   docker logs coturn-vexevn           # allocations + errors
   ```
+
+### ⚠️ Provider firewall check (the silent TURN killer)
+
+coturn can be perfectly healthy ON the server while unreachable from
+the internet — cloud-provider firewall groups (Vultr/Contabo console,
+etc.) silently drop everything except the ports you explicitly listed
+(usually just 22/80/443). Symptoms: `stun` probes to `:3478` time out
+from outside while `docker logs coturn-vexevn` shows zero errors and
+the server answers itself locally. UFW rules are NOT enough — verify
+from an external machine:
+
+```bash
+# From ANY external box — expect a "reply" line, not timeout:
+python3 - <<'PY'
+import socket, struct, secrets
+txn = secrets.token_bytes(12)
+req = struct.pack('!HHI', 0x0001, 0, 0x2112A442) + txn
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM); s.settimeout(4)
+s.sendto(req, ('YOUR_SERVER_IP', 3478))
+try:
+    d, _ = s.recvfrom(2048); print('reply', len(d))
+except socket.timeout:
+    print('TIMEOUT — open 3478/udp+tcp and 49160-49200/udp in the PROVIDER console')
+PY
+```
+
+Open these in the **provider console firewall group** (in addition to
+UFW, which `turn.sh`/deploy already manage): `3478/udp`, `3478/tcp`,
+`49160-49200/udp`.
+
+## Push (FCM) — ring when the app is closed
+
+The `/ws-call` WebSocket ring only reaches apps whose process is
+alive. Two layers close that gap:
+
+1. **Android duty mode (works today, no Firebase needed)** — the
+   support app ships a native foreground service
+   (`mobile/.../DutyModeService.kt`, `Chế độ trực` in settings) that
+   keeps the process — and with it the signaling WebSocket + the
+   local call-ring notification (full-screen intent) — alive after
+   the app is swiped away. No server config needed.
+2. **FCM data push (belt-and-braces + the only iOS path)** — the
+   backend relays every ring (`incoming-call`) / cancellation
+   (`call-ended`) to the agent's registered devices as high-priority
+   FCM data messages. Stale tokens self-prune on 404/410.
+
+Activating FCM:
+
+- Create a Firebase project + Android app entry, download the
+  service-account JSON (Project settings → Service accounts →
+  Generate new private key).
+- Add the whole JSON as ONE line to `/opt/vexevn/.env`:
+  `FCM_CREDENTIALS_JSON=$(jq -c . service-account.json)` then
+  `docker stack deploy` again (or the next release).
+- Register devices: the app calls `POST /api/push/devices`
+  `{ "token": "<fcm token>", "platform": "android" }` (mobile FCM
+  wiring lands with the Firebase app id — see
+  `mobile/README.md#push-notifications`).
 
 ## Prerequisites
 

@@ -6,6 +6,7 @@ import 'package:forui/forui.dart';
 
 import '../../core/audio/sound_service.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../core/duty_mode.dart';
 import '../../core/env.dart';
 import '../../core/router.dart';
 import '../../core/settings.dart';
@@ -107,6 +108,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final alerts = ref.watch(alertsEnabledProvider);
     final sound = ref.watch(soundEnabledProvider);
     final vibrate = ref.watch(vibrateEnabledProvider);
+    final dutySupported =
+        ref.watch(dutyModeSupportedProvider).value ?? false;
+    final duty = ref.watch(dutyModeProvider);
 
     final modeLabel = switch (mode) {
       ThemeMode.light => 'Sáng',
@@ -250,6 +254,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     description:
                         'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
                   ),
+                  if (dutySupported) ...[
+                    const FDivider(),
+                    _switchTile(
+                      theme: theme,
+                      icon: FLucideIcons.phoneCall,
+                      value: duty,
+                      onChange: (v) =>
+                          ref.read(dutyModeProvider.notifier).set(v),
+                      label: 'Chế độ trực',
+                      description:
+                          'Giữ kết nối khi đóng app — điện thoại vẫn reng khi có cuộc gọi mới',
+                    ),
+                  ],
                 ],
               ),
             ),

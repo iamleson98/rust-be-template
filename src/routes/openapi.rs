@@ -72,6 +72,8 @@ use utoipa::OpenApi;
         crate::routes::presence::get_staff_presence,
         // notifications
         crate::routes::notifications::list,
+        crate::routes::push_devices::register_device,
+        crate::routes::push_devices::unregister_device,
         crate::routes::notifications::mark_read,
         // wishlist
         crate::routes::wishlist::list,
@@ -285,6 +287,9 @@ use utoipa::OpenApi;
         crate::dto::notification::NotificationOut,
         crate::dto::notification::NotificationListResponse,
         crate::dto::notification::MarkNotificationsReadRequest,
+        crate::dto::push_device::RegisterDeviceRequest,
+        crate::dto::push_device::RegisterDeviceResponse,
+        crate::dto::push_device::UnregisterDeviceResponse,
         crate::dto::notification::MarkNotificationsReadResponse,
         // wishlist
         crate::dto::wishlist::WishlistItemOut,

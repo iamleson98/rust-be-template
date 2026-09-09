@@ -17,6 +17,7 @@
 //! | 8 | `create_chat`            | chat_channel, chat_message, chat_assignment, chat_channel_member, nullclaw_exchange |
 //! | 9 | `create_engagement_jobs` | wishlist_item, price_alert, scheduled_job, job_run |
 //! | 10 | `seed_defaults`         | RBAC roles/permissions/grants + vehicle-type catalogue |
+//! | 11 | `create_push_devices`    | push_device |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -44,6 +45,7 @@ mod m20260905_000007_create_bookings;
 mod m20260905_000008_create_chat;
 mod m20260905_000009_create_engagement_jobs;
 mod m20260905_000010_seed_defaults;
+mod m20260905_000011_create_push_devices;
 
 pub struct Migrator;
 
@@ -61,6 +63,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260905_000008_create_chat::Migration),
             Box::new(m20260905_000009_create_engagement_jobs::Migration),
             Box::new(m20260905_000010_seed_defaults::Migration),
+            Box::new(m20260905_000011_create_push_devices::Migration),
         ]
     }
 }

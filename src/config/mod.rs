@@ -466,6 +466,10 @@ impl NullClawConfig {
 pub struct AudioCallConfig {
     pub enabled: bool,
     pub ice_servers: String,
+    /// Firebase service-account JSON for FCM push ("ring when the app
+    /// is closed"). Empty → device push disabled (WS ring + Android
+    /// duty mode still cover backgrounded apps).
+    pub fcm_credentials_json: String,
 }
 
 impl Default for AudioCallConfig {
@@ -473,6 +477,7 @@ impl Default for AudioCallConfig {
         Self {
             enabled: env_parse("AUDIO_CALL_ENABLED").unwrap_or(true),
             ice_servers: env_var("AUDIO_CALL_ICE_SERVERS").unwrap_or_default(),
+            fcm_credentials_json: env_var("FCM_CREDENTIALS_JSON").unwrap_or_default(),
         }
     }
 }

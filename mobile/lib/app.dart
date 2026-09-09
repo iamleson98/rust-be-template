@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
 import 'core/design.dart';
+import 'core/duty_mode.dart';
 import 'core/router.dart';
 import 'core/theme_mode.dart';
 import 'features/call/call_controller.dart';
@@ -32,6 +33,11 @@ class _DatXeVuiAppState extends ConsumerState<DatXeVuiApp>
       final notifications = ref.read(notificationServiceProvider);
       await notifications.init();
       notifications.onTap = _onNotificationTap;
+      // Eagerly touch duty mode: reading the provider runs its
+      // _restore(), which re-starts the Android foreground service if
+      // the agent had it on (the service dies on force-stop/reboot —
+      // this is the boot-time resurrection path).
+      ref.read(dutyModeProvider.notifier);
     });
   }
 

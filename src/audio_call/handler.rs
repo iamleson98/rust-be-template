@@ -361,6 +361,8 @@ pub async fn handle_socket(
                             "reason": "peer-offline",
                         }),
                     );
+                    // Push-ring phones stop too.
+                    crate::push::push().notify_call_ended(&agent_id, &uid);
                 }
             }
         }
@@ -597,7 +599,12 @@ fn relay_offer(customer_id: &str, agent_id: &str) {
             "kind": "offer",
         }),
     );
-    if !sent {
+    if sent {
+        // Fire-and-forget device push: wakes backgrounded/frozen apps
+        // (and force-stopped apps once FCM is configured). The WS ring
+        // above remains the source of truth — push only accelerates.
+        crate::push::push().notify_incoming_call(agent_id, customer_id, s.channel_id.as_deref());
+    } else {
         // Roll the session back so the customer isn't stuck "ringing"
         // against a dead socket.
         let _ = sessions().on_customer_hangup(customer_id);
@@ -648,6 +655,9 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
                         "reason": reason,
                     }),
                 );
+                // A phone still ringing from the FCM/push ring UI must
+                // stop when the customer cancels.
+                crate::push::push().notify_call_ended(&agent_id, &uid);
             }
             Ok(())
         }

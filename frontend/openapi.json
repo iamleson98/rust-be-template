@@ -4266,6 +4266,79 @@
         }
       }
     },
+    "/api/push/devices": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "`POST /api/push/devices` — register the caller's device token.",
+        "description": "Idempotent: re-registering a known (user, token) pair only\nrefreshes its timestamp. Any authenticated user may register; the\ncall-ring push only ever targets staff (agents), so employee\ntokens are the ones that matter in practice.",
+        "operationId": "register_device",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterDeviceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Device registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterDeviceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid token"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/push/devices/{token}": {
+      "delete": {
+        "tags": [
+          "push"
+        ],
+        "summary": "`DELETE /api/push/devices/{token}` — remove one device (logout,\ntoken rotation).",
+        "operationId": "unregister_device",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "description": "The device token to remove",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Device removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnregisterDeviceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
     "/api/recommendations": {
       "get": {
         "tags": [
@@ -9925,6 +9998,40 @@
           }
         }
       },
+      "RegisterDeviceRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/push/devices`.",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "platform": {
+            "type": "string",
+            "description": "`android` | `ios` | `web`."
+          },
+          "token": {
+            "type": "string",
+            "description": "FCM (or APNs-bridged) registration token."
+          }
+        }
+      },
+      "RegisterDeviceResponse": {
+        "type": "object",
+        "description": "Response of `POST /api/push/devices`.",
+        "required": [
+          "ok",
+          "pushEnabled"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "pushEnabled": {
+            "type": "boolean",
+            "description": "Whether the FCM transport itself is configured server-side\n(`FCM_CREDENTIALS_JSON`). `false` = the token is stored but no\npush will be sent yet — clients may surface this to staff."
+          }
+        }
+      },
       "RegisterRequest": {
         "type": "object",
         "required": [
@@ -11322,6 +11429,25 @@
             "items": {
               "$ref": "#/components/schemas/TripSeat"
             }
+          }
+        }
+      },
+      "UnregisterDeviceResponse": {
+        "type": "object",
+        "description": "Response of `DELETE /api/push/devices/{token}`.",
+        "required": [
+          "ok",
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Number of device rows removed (0 if unknown token).",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean"
           }
         }
       },

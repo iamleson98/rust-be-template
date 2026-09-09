@@ -141,6 +141,14 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let price_alert_store = Arc::new(DbPriceAlertStore::new(db.clone()));
     let audit_store = Arc::new(DbAuditStore::new(db.clone()));
     let notification_store = Arc::new(DbNotificationStore::new(db.clone()));
+
+    // Push hub (FCM device push for incoming-call wake-ups) — must be
+    // initialised before the first /ws-call upgrade arrives.
+    crate::push::init(
+        db.clone(),
+        std::option::Option::from(config.audio_call.fcm_credentials_json.as_str())
+            .filter(|s| !s.is_empty()),
+    );
     let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
     let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
     let address_store = Arc::new(DbAddressStore::new(db.clone()));

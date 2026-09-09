@@ -21,6 +21,7 @@ pub mod pickup_point;
 pub mod place;
 pub mod posts;
 pub mod price_alert;
+pub mod push_device;
 pub mod refresh_tokens;
 pub mod review;
 pub mod role_permissions;

@@ -189,6 +189,13 @@ class NotificationService {
           vibrationPattern: _kCallVibration,
           ongoing: true,
           autoCancel: true,
+          // Full-screen intent: the incoming call rings OVER the
+          // lockscreen / on top of any app (needs
+          // USE_FULL_SCREEN_INTENT, granted by default for
+          // call-style channels on most OEMs; Android 14+ asks
+          // unless the app is the default dialer — the notification
+          // still heads-up-rings when denied).
+          fullScreenIntent: true,
         ),
         iOS: const DarwinNotificationDetails(
           sound: 'ring.mp3',

@@ -32,6 +32,7 @@ pub mod nullclaw;
 pub mod payment;
 pub mod place;
 pub mod public;
+pub mod push_device;
 pub mod review;
 pub mod routing;
 pub mod system;

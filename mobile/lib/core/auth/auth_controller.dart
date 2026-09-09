@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../duty_mode.dart';
 import '../env.dart';
 import '../net/api_client.dart';
 import 'models.dart';
@@ -130,6 +131,10 @@ class AuthController extends Notifier<AuthState> {
   void _reset() {
     _restoreToken++;
     state = AuthState.signedOut;
+    // Off duty: no point holding the foreground service (and its
+    // notification) alive for a signed-out agent — the sockets are
+    // about to drop anyway.
+    ref.read(dutyModeProvider.notifier).set(false);
   }
 }
 

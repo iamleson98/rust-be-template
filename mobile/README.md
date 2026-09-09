@@ -173,18 +173,40 @@ in-app playback (`audioplayers`), Android raw resources
 (`android/app/src/main/res/raw/`) for notification-channel sounds, and iOS
 bundle resources (`ios/Runner/*.mp3`) for `DarwinNotificationDetails`.
 
-## Push notifications (upgrade path)
+## Ringing when the app is closed
 
-Local notifications fire while the app process is alive (foreground or
-recently backgrounded). For true killed-app push (FCM/APNs):
+Two complementary layers:
 
-1. `flutterfire configure` and add `firebase_messaging`;
-2. Add a `POST /api/devices` endpoint storing FCM registration tokens per
-   user;
-3. Fan out `channel_message` / incoming-call push from the backend WS
-   handlers (the payload/route contract used by the local notifications —
-   `{"type":"chat","channelId":...}` / `{"type":"call"}` — is already FCM-
-   shaped).
+### Android duty mode (built-in, no setup)
 
-The repository layout and `NotificationService.onTap` wiring are ready for
-that addition; no app restructure needed.
+`Chế độ trực` in Settings starts a native foreground service
+(`DutyModeService.kt`, `dataSync` type, `stopWithTask=false` + partial
+wake lock). Swiping the app away no longer kills the process — the
+chat + `/ws-call` WebSockets keep running, so incoming calls keep
+ringing (full-screen-intent call notification, ringtone + vibration).
+The toggle persists and re-applies itself on every app start; logout
+turns it off automatically. Force-stop from App Settings still kills
+everything (only FCM covers that).
+
+### FCM push (upgrade path)
+
+The backend now ships the server half: `push_device` table,
+`POST /api/push/devices` registration endpoint, and an FCM HTTP v1
+sender that relays every ring (`incoming-call`) and cancellation
+(`call-ended`) to registered devices — gated on
+`FCM_CREDENTIALS_JSON` server-side (see `deploy/README.md` "Push
+(FCM)"). The mobile wiring left for activation:
+
+1. `flutterfire configure` (creates the Firebase app + injects
+   `google-services.json` / `GoogleService-Info.plist`);
+2. Add `firebase_messaging`, request the notification + (Android 13+)
+   POST_NOTIFICATIONS permission, forward the FCM token to
+   `POST /api/push/devices`;
+3. In the background handler for `incoming-call` data messages, show
+   the same full-screen call notification the local path already
+   renders; `call-ended` dismisses it.
+
+The payload contract (`{"type":"incoming-call","customerId":...}` /
+`{"type":"call-ended",...}` with `collapseKey = call-<customerId>`)
+matches the WS frames, and `NotificationService.onTap` already routes
+`{"type":"call"}` taps to the call screen.

@@ -18,6 +18,7 @@ mod posts;
 mod presence;
 mod price_alerts;
 mod public;
+mod push_devices;
 mod reviews;
 mod router;
 mod routing;
