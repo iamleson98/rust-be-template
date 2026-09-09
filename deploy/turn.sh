@@ -115,7 +115,14 @@ fi
 # loopback + multicast peers by DEFAULT (the allow-* flags opt in).
 # --Verbose: log TURN allocations / permissions / session events — the
 # only way to answer "did the phone ever allocate a relay?" from the logs.
-desired_cmd="-n --Verbose --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-tls --no-dtls"
+# --realm: MUST be non-empty. With lt-cred-mech but no -r, coturn
+# challenges 401 with realm="" — libwebrtc (Chrome + flutter_webrtc)
+# REJECTS an empty realm ("Setting realm to the empty string, this is
+# not supported") and aborts every TURN allocation → no relay
+# candidates → calls behind CGNAT stuck on "connecting" (production
+# incident 2026-09-09: server-side TURN tests passed because a
+# hand-rolled client tolerates the empty realm; the phone did not).
+desired_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-tls --no-dtls"
 
 running_cmd=$(docker inspect --format '{{join .Config.Cmd " "}}' "$CONTAINER" 2>/dev/null || true)
 running_state=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
