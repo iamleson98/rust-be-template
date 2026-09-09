@@ -99,9 +99,19 @@ final chatLiveServiceProvider = Provider<ChatLiveService?>((ref) {
 
   final service = ChatLiveService(
     wsUrl: () {
-      // Fresh token at every connect.
-      final t = ref.read(authControllerProvider).accessToken;
-      return cfg.wsUri('/ws', t == null ? null : {'token': t});
+      // Fresh token at every connect — read from the LIVE token store
+      // (kept current by the ApiClient refresh flow), not the
+      // login-time auth-state snapshot which goes stale after the
+      // first rotation.
+      final store = ref.read(globalTokenStore);
+      // Proactive rotation when the access JWT is (about to be)
+      // expired: rotate NOW so the backoff retry carries a fresh
+      // token instead of waiting for repeated handshake failures.
+      if (store.accessIsStale) {
+        unawaited(ref.read(apiClientProvider).refreshNow());
+      }
+      final t = store.cachedAccess;
+      return cfg.wsUri('/ws', t == null || t.isEmpty ? null : {'token': t});
     },
     onHandshakeTrouble: () async {
       try {

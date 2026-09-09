@@ -108,6 +108,14 @@ class ApiClient {
     return _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
   }
 
+  /// Public, single-flight token rotation — used by the WebSocket
+  /// connect loops: when the (soon-to-)expired access token would fail
+  /// the upgrade handshake, this proactively rotates it so the NEXT
+  /// reconnect attempt carries a fresh JWT. The current attempt still
+  /// proceeds with the cached token (fail fast is fine — the 1s..30s
+  /// backoff retry picks up the new one).
+  Future<bool> refreshNow() => _refreshTokens();
+
   Future<bool> _doRefresh() async {
     final refresh = tokens.cachedRefresh;
     if (refresh == null || refresh.isEmpty) return false;
@@ -169,10 +177,20 @@ class ApiClient {
     return SessionUser.fromJson(res.data['user'] as Map<String, dynamic>);
   }
 
-  /// `POST /api/auth/logout` — revokes refresh tokens server-side.
+  /// `POST /api/auth/logout` — revokes THIS device's session server-side
+  /// (multi-session aware: the user's other logins — web + phone — are
+  /// untouched unless `all: true` is sent). The refresh token rides in
+  /// the body (non-browser flow) so the backend can revoke exactly the
+  /// row this device holds; the access token goes as the Bearer header.
   Future<void> logout() async {
+    final refresh = tokens.cachedRefresh;
     try {
-      await dio.post('/api/auth/logout');
+      await dio.post(
+        '/api/auth/logout',
+        data: {
+          if (refresh != null && refresh.isNotEmpty) 'refresh_token': refresh,
+        },
+      );
     } finally {
       await tokens.clear();
     }

@@ -313,3 +313,180 @@ async fn root_serves_spa_index_when_built() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+// ─────────────────────────────────────────────────────────────────
+//  On-demand trip generation (the "web trip finding" fix)
+// ─────────────────────────────────────────────────────────────────
+
+/// Boot the AppState DIRECTLY (not via the router — the router path is
+/// covered by the other smoke tests, and `/api/*` is rate-limited which
+/// needs ConnectInfo the oneshot harness can't provide).
+async fn boot_state() -> anyhow::Result<backend::state::AppState> {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = dotenvy::dotenv();
+        std::env::set_var("DATABASE_URL", "sqlite::memory:");
+        std::env::set_var("JWT_SECRET", "test-secret-at-least-32-bytes-long-aaaaaaaa");
+        std::env::set_var("COOKIE_SECURE", "false");
+        std::env::set_var("COOKIE_DOMAIN", "localhost");
+        std::env::set_var("CACHE_BACKEND", "moka");
+        std::env::set_var("WORKER_BACKEND", "db");
+        std::env::set_var("SCHEDULER_ENABLED", "false");
+        std::env::set_var("SEARCH_INDEX_DIR", "");
+        std::env::set_var("AUDIO_CALL_ENABLED", "false");
+        std::env::set_var("NULLCLAW_ENABLED", "false");
+        std::env::set_var("VNPAY_ENABLED", "false");
+        std::env::set_var("MOMO_ENABLED", "false");
+        std::env::set_var("ZALOPAY_ENABLED", "false");
+        std::env::set_var("VIETQR_ENABLED", "false");
+        std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
+        std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
+        std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
+    });
+    backend::server::bootstrap().await
+}
+
+/// Search with NO pre-existing trip_session rows must MATERALIZE trips
+/// from the schedules on demand and return them — this is the exact
+/// "trip finding doesn't work on the web client" regression: previously
+/// trips only existed if somebody inserted them by hand, so a fresh
+/// deployment with schedules but no trips returned an empty result.
+#[tokio::test]
+async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    // A seeded vehicle type (migration seeds the catalogue).
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    // Route Hà Nội → Đà Nẵng (name carries the searchable from/to).
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+
+    // A daily schedule with a vehicle type (layout-less capacity path).
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    st.admin
+        .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+            route_id: Some(route.id),
+            departure_time: Some("08:30".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: Some("1111111".into()),
+            bus_layout_id: None,
+            vehicle_type_id: Some(vt_id),
+            base_price_adult: Some(350_000),
+            base_price_child: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+
+    // Search TODAY with no trips inserted — the generator must create
+    // the trip and the search must return it.
+    let res = st
+        .public
+        .search_trips("hà nội", "đà nẵng", &today, 20, vec![], "departure", 1)
+        .await?;
+    assert_eq!(
+        res.items.len(),
+        1,
+        "on-demand generation must produce exactly one trip for the schedule"
+    );
+    let trip = &res.items[0];
+    assert_eq!(trip.route_name, "Hà Nội - Đà Nẵng");
+    assert_eq!(trip.available_seats, 11, "limousine capacity fallback");
+    assert_eq!(trip.min_price, 350_000);
+    assert_eq!(trip.vehicle_type, "limousine");
+
+    // Idempotency: a SECOND search for the same date must not duplicate.
+    let res2 = st
+        .public
+        .search_trips("hà nội", "đà nẵng", &today, 20, vec![], "departure", 1)
+        .await?;
+    assert_eq!(
+        res2.items.len(),
+        1,
+        "generator must be idempotent per (schedule, date)"
+    );
+
+    // A past date must NOT be generated (search serves what exists → empty).
+    let yesterday = (chrono::Utc::now() - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string();
+    let res_past = st
+        .public
+        .search_trips("hà nội", "đà nẵng", &yesterday, 20, vec![], "departure", 1)
+        .await?;
+    assert!(res_past.items.is_empty(), "past dates are never generated");
+
+    Ok(())
+}
+
+/// The homepage recommendations endpoint self-heals: with schedules in
+/// place but zero trip rows, it materializes the next 7 days and returns
+/// up to 4 upcoming trips instead of an empty carousel.
+#[tokio::test]
+async fn recommendations_self_heal_with_generated_trips() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("sleeper"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hồ Chí Minh - Vũng Tàu".into()),
+            brand_id: None,
+            start_location_id: Some("ho-chi-minh".into()),
+            end_location_id: Some("vung-tau".into()),
+            status: None,
+        })
+        .await?;
+
+    st.admin
+        .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+            route_id: Some(route.id),
+            departure_time: Some("06:00".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: None, // no mask → daily
+            bus_layout_id: None,
+            vehicle_type_id: Some(vt_id),
+            base_price_adult: Some(120_000),
+            base_price_child: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+
+    let recs = st.public.recommendations().await?;
+    assert!(
+        !recs.items.is_empty(),
+        "recommendations must self-heal by generating upcoming trips"
+    );
+    assert!(recs.items.iter().all(|t| t.available_seats > 0));
+    Ok(())
+}

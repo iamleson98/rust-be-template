@@ -21,7 +21,9 @@ use crate::dto::public::{
     TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
     TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
-use crate::entity::{brand, bus_layout, route, schedule, seat_inventory, vehicle_type};
+use crate::entity::{
+    brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
+};
 use crate::error::{AppError, AppResult};
 use crate::service::place_service::haversine_km;
 use crate::store::CompositeStore;
@@ -134,11 +136,19 @@ fn amenity_label(key: &str) -> &'static str {
 
 pub struct PublicService {
     store: Arc<CompositeStore>,
+    /// Serializes on-demand trip generation. The generator is
+    /// check-then-insert (idempotent by `(schedule_id, date)`); the lock
+    /// closes the concurrent-search duplicate window inside this
+    /// process — the backend runs as a single replica.
+    trip_gen_lock: tokio::sync::Mutex<()>,
 }
 
 impl PublicService {
     pub fn new(store: Arc<CompositeStore>) -> Self {
-        Self { store }
+        Self {
+            store,
+            trip_gen_lock: tokio::sync::Mutex::new(()),
+        }
     }
 
     // ── Brands ──────────────────────────────────────────────────
@@ -294,6 +304,193 @@ impl PublicService {
 
     // ── Trips ───────────────────────────────────────────────────
 
+    /// Does this schedule operate on `date`?
+    ///
+    /// Rules (matching the admin UI semantics):
+    /// * `effective_from` / `effective_to` (optional `YYYY-MM-DD`)
+    ///   bound the operating window — lexicographic compare is safe
+    ///   for this fixed format.
+    /// * `days_of_week` is a 7-char `0`/`1` mask, index 0 = Monday
+    ///   (`T2`), index 6 = Sunday (`CN`) — the same order as the
+    ///   admin form. `None` (or a malformed mask) means DAILY, the
+    ///   form's default `1111111`.
+    fn schedule_runs_on(s: &schedule::Model, date: chrono::NaiveDate) -> bool {
+        use chrono::Datelike;
+        let d = date.format("%Y-%m-%d").to_string();
+        if let Some(from) = s.effective_from.as_deref() {
+            if d.as_str() < from {
+                return false;
+            }
+        }
+        if let Some(to) = s.effective_to.as_deref() {
+            if d.as_str() > to {
+                return false;
+            }
+        }
+        match s.days_of_week.as_deref() {
+            Some(mask) if mask.len() == 7 && mask.bytes().all(|c| c == b'0' || c == b'1') => {
+                // chrono: Mon=0 … Sun=6 — exactly the mask's index order.
+                let idx = date.weekday().number_from_monday() as usize - 1;
+                mask.as_bytes()[idx] == b'1'
+            }
+            // No (valid) mask → runs every day.
+            _ => true,
+        }
+    }
+
+    /// Materialize trips for every schedule that runs on `date`
+    /// (idempotent): for each schedule matching the date that has no
+    /// `trip_session` row yet, insert the trip + its per-seat
+    /// inventory. Returns how many trips were created.
+    ///
+    /// Capacity resolution (in order):
+    ///   1. `schedule.bus_layout_id` → the layout's `seat` rows (also
+    ///      produce the bookable seat inventory),
+    ///   2. `schedule.vehicle_type_id` → `vehicle_type.total_seats`
+    ///      (display-only fallback: the trip appears in search, but has
+    ///      no seat map until an admin attaches a layout),
+    ///   3. otherwise the schedule is skipped (no bookable capacity at
+    ///      all).
+    ///
+    /// Generation never throws to the caller's request path — the
+    /// search falls back to serving whatever rows already exist.
+    async fn ensure_trips_for_schedules_on_date(
+        &self,
+        schedules: &[schedule::Model],
+        date: &str,
+    ) -> AppResult<usize> {
+        // Validate the date format — a garbage date must not 500 the
+        // search (the trip query would simply match nothing anyway).
+        let parsed_date = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .map_err(|e| AppError::Validation(format!("invalid date: {e}")))?;
+
+        // Past dates are never generated (searches for them serve
+        // whatever exists). Lexicographic compare works for YYYY-MM-DD.
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        if date < today.as_str() {
+            return Ok(0);
+        }
+
+        // Batch-load vehicle-type capacities for layout-less schedules.
+        let vt_ids: Vec<Uuid> = schedules
+            .iter()
+            .filter(|s| s.bus_layout_id.is_none())
+            .filter_map(|s| s.vehicle_type_id)
+            .collect();
+        let vt_map: HashMap<Uuid, vehicle_type::Model> = if vt_ids.is_empty() {
+            HashMap::new()
+        } else {
+            self.store
+                .vehicle_type_store()
+                .find_vehicle_types_by_ids(vt_ids)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?
+                .into_iter()
+                .map(|v| (v.id, v))
+                .collect()
+        };
+
+        let mut created = 0usize;
+        let trip_store = self.store.trip_store();
+        // Serialize concurrent searches: the check-then-insert pair is
+        // not atomic; the mutex keeps parallel requests from racing the
+        // same (schedule, date) pair into duplicates.
+        let _guard = self.trip_gen_lock.lock().await;
+
+        for s in schedules {
+            if !Self::schedule_runs_on(s, parsed_date) {
+                continue;
+            }
+            if trip_store
+                .find_trip_by_schedule_and_date(s.id, date)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?
+                .is_some()
+            {
+                continue; // already materialized
+            }
+
+            // Resolve capacity + seats.
+            let seats: Vec<crate::entity::seat::Model> = match s.bus_layout_id {
+                Some(lid) => trip_store
+                    .list_seats_by_bus_layout_id(&lid.to_string())
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
+                None => Vec::new(),
+            };
+            let capacity: i64 = if !seats.is_empty() {
+                seats.len() as i64
+            } else {
+                s.vehicle_type_id
+                    .as_ref()
+                    .and_then(|vt| vt_map.get(vt))
+                    .and_then(|v| v.total_seats)
+                    .map(i64::from)
+                    .unwrap_or(0)
+            };
+            if capacity <= 0 {
+                // No bookable capacity at all — nothing to sell.
+                continue;
+            }
+
+            let now = crate::store::now_iso();
+            let trip_id = Uuid::new_v4();
+            let trip_model = trip_session::ActiveModel {
+                id: sea_orm::Set(trip_id),
+                schedule_id: sea_orm::Set(s.id),
+                departure_date: sea_orm::Set(date.to_string()),
+                actual_departure_at: sea_orm::Set(None),
+                driver_name: sea_orm::Set(None),
+                driver_phone: sea_orm::Set(None),
+                status: sea_orm::Set("scheduled".into()),
+                total_seats: sea_orm::Set(capacity),
+                available_seats: sea_orm::Set(capacity),
+                created_at: sea_orm::Set(now.clone()),
+                updated_at: sea_orm::Set(now),
+            };
+            trip_store
+                .insert_trip_session(trip_model)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+
+            // Per-seat inventory (only when actual seat rows exist —
+            // the vehicle-type fallback has no seat map).
+            if !seats.is_empty() {
+                let price = s.base_price_adult;
+                let inv: Vec<seat_inventory::ActiveModel> = seats
+                    .iter()
+                    .map(|seat| seat_inventory::ActiveModel {
+                        id: sea_orm::Set(Uuid::new_v4()),
+                        trip_session_id: sea_orm::Set(trip_id),
+                        seat_id: sea_orm::Set(seat.id),
+                        status: sea_orm::Set("available".into()),
+                        base_price: sea_orm::Set(price),
+                        final_price: sea_orm::Set(price),
+                        currency: sea_orm::Set("VND".into()),
+                        held_until: sea_orm::Set(None),
+                        held_by_booking_id: sea_orm::Set(None),
+                        created_at: sea_orm::Set(crate::store::now_iso()),
+                        updated_at: sea_orm::Set(crate::store::now_iso()),
+                    })
+                    .collect();
+                trip_store
+                    .insert_seat_inventories_batch(inv)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+            }
+
+            created += 1;
+            tracing::info!(
+                schedule_id = %s.id,
+                date = %date,
+                capacity,
+                seats = seats.len(),
+                "materialized trip session on demand"
+            );
+        }
+        Ok(created)
+    }
+
     /// Search trips by from/to/date with optional vehicle-type filter.
     ///
     /// This is a simplified version that uses SeaORM queries instead of
@@ -356,6 +553,17 @@ impl PublicService {
             .list_schedules_by_routes(route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Materialize trips for the searched date (idempotent — trips
+        // are generated on demand from schedules, so the search works
+        // the moment a schedule exists). Failures degrade gracefully:
+        // the query below serves whatever rows already exist.
+        if let Err(error) = self
+            .ensure_trips_for_schedules_on_date(&schedules, date)
+            .await
+        {
+            tracing::warn!(?error, %date, "on-demand trip generation failed — serving existing rows");
+        }
 
         let schedule_ids: Vec<String> = schedules.iter().map(|s| s.id.to_string()).collect();
         let schedule_uuids: Vec<Uuid> = schedule_ids
@@ -1131,12 +1339,38 @@ impl PublicService {
     /// Recommended trips (up to 4) — upcoming trips with available seats.
     pub async fn recommendations(&self) -> AppResult<TripSearchResponse> {
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        let trips = self
+        let mut trips = self
             .store
             .trip_store()
             .list_upcoming_trips(&today, 4)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Self-healing homepage: when no upcoming trips exist at all,
+        // materialize the next 7 days from every schedule (idempotent)
+        // and re-query. Without this the carousel stays empty until
+        // somebody happens to run a search for a specific date.
+        if trips.is_empty() {
+            if let Ok(all_schedules) = self.store.schedule_store().list_all_schedules(1000).await {
+                for offset in 0..7 {
+                    if let Some(d) = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d")
+                        .ok()
+                        .and_then(|t| t.checked_add_signed(chrono::Duration::days(offset)))
+                    {
+                        let date = d.format("%Y-%m-%d").to_string();
+                        let _ = self
+                            .ensure_trips_for_schedules_on_date(&all_schedules, &date)
+                            .await;
+                    }
+                }
+            }
+            trips = self
+                .store
+                .trip_store()
+                .list_upcoming_trips(&today, 4)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+        }
 
         // Reuse search_trips serialization logic
         let items: Vec<TripResult> = {
@@ -1336,6 +1570,92 @@ impl PublicService {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Bare-minimum schedule model for `schedule_runs_on` tests — only
+    /// the effective-window + days-of-week fields matter.
+    fn sched(
+        effective_from: Option<&str>,
+        effective_to: Option<&str>,
+        days_of_week: Option<&str>,
+    ) -> schedule::Model {
+        schedule::Model {
+            id: Uuid::new_v4(),
+            route_id: Uuid::new_v4(),
+            departure_time: "08:00".into(),
+            effective_from: effective_from.map(String::from),
+            effective_to: effective_to.map(String::from),
+            days_of_week: days_of_week.map(String::from),
+            bus_layout_id: None,
+            base_price_adult: 100_000,
+            base_price_child: None,
+            amenities: None,
+            created_at: "2026-01-01T00:00:00Z".into(),
+            vehicle_type_id: None,
+        }
+    }
+
+    /// 2026-09-09 is a Wednesday (T4 — mask index 2).
+    fn d(s: &str) -> chrono::NaiveDate {
+        chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+    }
+
+    #[test]
+    fn schedule_runs_on_daily_when_mask_missing() {
+        // No mask, no window → runs EVERY day.
+        let s = sched(None, None, None);
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-01-01")));
+    }
+
+    #[test]
+    fn schedule_runs_on_respects_monday_first_mask() {
+        // '1111111' — every day.
+        let s = sched(None, None, Some("1111111"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09"))); // Wed
+                                                                       // '1000000' — Monday only. 2026-09-07 is a Monday.
+        let s = sched(None, None, Some("1000000"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-07"))); // Mon
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-09"))); // Wed
+                                                                        // '0000001' — Sunday only. 2026-09-13 is a Sunday.
+        let s = sched(None, None, Some("0000001"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-13"))); // Sun
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-12"))); // Sat
+                                                                        // '0100000' — Tuesday only. 2026-09-08 is a Tuesday.
+        let s = sched(None, None, Some("0100000"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-08"))); // Tue
+    }
+
+    #[test]
+    fn schedule_runs_on_bounds_effective_window() {
+        // Window [2026-09-01, 2026-09-10].
+        let s = sched(Some("2026-09-01"), Some("2026-09-10"), None);
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-01"))); // inclusive start
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-10"))); // inclusive end
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-08-31"))); // before
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-11"))); // after
+    }
+
+    #[test]
+    fn schedule_runs_on_open_ended_windows() {
+        // From-only window.
+        let s = sched(Some("2026-09-01"), None, None);
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-08-31")));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-12-31")));
+        // To-only window.
+        let s = sched(None, Some("2026-09-10"), None);
+        assert!(PublicService::schedule_runs_on(&s, d("2026-01-01")));
+        assert!(!PublicService::schedule_runs_on(&s, d("2026-09-11")));
+    }
+
+    #[test]
+    fn schedule_runs_on_ignores_malformed_mask() {
+        // Malformed masks (wrong length / bad chars) degrade to daily
+        // instead of silently blacking out the schedule.
+        let s = sched(None, None, Some("1111"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
+        let s = sched(None, None, Some("12x4567"));
+        assert!(PublicService::schedule_runs_on(&s, d("2026-09-09")));
+    }
 
     #[test]
     fn parse_amenities_handles_json_array() {

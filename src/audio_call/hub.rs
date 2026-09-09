@@ -1,9 +1,19 @@
 //! In-memory presence registry for the WebRTC audio-call signaling server.
 //!
 //! Built on [`DashMap`] for lock-free concurrent reads/writes — same
-//! pattern as `ws/hub.rs` but far simpler: there are no rooms, no
-//! broadcast fan-out, no idempotency cache. Just `userId → Peer` and a
-//! monotonic socket-id counter.
+//! pattern as `ws/hub.rs`.
+//!
+//! ## Multi-session peers (one user, many devices)
+//!
+//! A user may hold SEVERAL live sockets at once — e.g. logged in on the
+//! web console AND on the phone app. Every frame routed "to a user" is
+//! fanned out to ALL of that user's sockets, so an inbound call rings on
+//! every device simultaneously. Sessions are keyed per-user in
+//! [`crate::audio_call::session`]; which socket actually picked up is
+//! remembered there (`agent_sid` / `customer_sid`) so a socket drop only
+//! ends the call when the socket that carried it disappears, and a call
+//! answered on one device sends `answered-elsewhere` to the others so
+//! they stop ringing.
 //!
 //! ## Concurrency
 //!
@@ -14,7 +24,7 @@
 //! * `DashMap` shards internally — `insert`/`remove`/`get` are all O(1)
 //!   and lock-free for readers.
 //! * The hub is a process-local singleton (`OnceLock`); for horizontal
-//!   scaling behind multiple instances, swap this for Redis Pub/Sub.
+//!   scaling across instances, swap this for Redis Pub/Sub.
 //!
 //! ## Multi-agent routing
 //!
@@ -44,7 +54,6 @@ use std::time::Instant;
 use dashmap::DashMap;
 
 use crate::presence::presence;
-use serde_json::json;
 use tokio::sync::mpsc;
 
 use crate::auth::SessionUser;
@@ -80,7 +89,8 @@ pub struct Peer {
     /// Socket generation id (from `next_socket_id`). Used to guard
     /// `unregister`: when a stale socket finally times out, it must NOT
     /// delete the hub entry of the same user's newer socket (e.g. after a
-    /// mobile network switch or a multi-tab "replaced" boot).
+    /// mobile network switch), and multi-session routing uses it to
+    /// exclude the answering device from `answered-elsewhere` fan-out.
     pub sid: u64,
     /// Whether this peer is currently in an active audio call.
     /// For agents: when `true`, customers see "employees are busy" +
@@ -114,11 +124,17 @@ pub fn call_hub() -> &'static CallHub {
 }
 
 /// The audio-call presence registry.
+///
+/// Peers are keyed by socket id (`sid`); a secondary index maps
+/// `user_id → Vec<sid>` so every user-level operation fans out to all
+/// of that user's devices (web + phone + extra tabs all ring at once).
 pub struct CallHub {
-    /// `userId → Peer`. Agents are keyed by their user id (several
-    /// agents can be online simultaneously — availability routing is
-    /// handled by the session manager + presence registry).
-    peers: DashMap<String, Peer>,
+    /// `sid → Peer` (the authoritative registry).
+    peers: DashMap<u64, Peer>,
+    /// `userId → socket ids` — the multi-device index. Kept in lock-step
+    /// with `peers` by `register` / `unregister` (both O(1) amortised;
+    /// the vec is tiny — one entry per connected device).
+    by_user: DashMap<String, Vec<u64>>,
     /// Monotonic socket id (used for logging/tracing only).
     next_sid: AtomicU64,
     /// Total connections accepted (for metrics).
@@ -129,6 +145,7 @@ impl CallHub {
     fn new() -> Self {
         Self {
             peers: DashMap::new(),
+            by_user: DashMap::new(),
             next_sid: AtomicU64::new(1),
             total_accepted: AtomicU64::new(0),
         }
@@ -139,12 +156,25 @@ impl CallHub {
         self.next_sid.fetch_add(1, Ordering::Relaxed)
     }
 
-    /// Total peers currently registered (customers + agents).
+    /// Total peers currently registered (customers + agents, one entry
+    /// per SOCKET — a user with web + phone counts twice).
     pub fn peer_count(&self) -> usize {
         self.peers.len()
     }
 
-    /// Number of agents currently online.
+    /// Number of distinct users with at least one socket connected.
+    pub fn user_count(&self) -> usize {
+        self.by_user.len()
+    }
+
+    /// Number of sockets a user currently holds (web + phone + …).
+    pub fn user_socket_count(&self, user_id: &str) -> usize {
+        self.by_user.get(user_id).map(|v| v.len()).unwrap_or(0)
+    }
+
+    /// Number of agents currently online (sockets, one per device —
+    /// an agent on two devices counts once per device for presence
+    /// gauges; availability routing de-dupes by user id).
     pub fn online_agent_count(&self) -> usize {
         self.peers
             .iter()
@@ -165,8 +195,9 @@ impl CallHub {
     }
 
     /// Register a peer. Multi-agent: every staff member may be an agent
-    /// at once. Multiple tabs from the same user are still booted (the
-    /// relay logic is per-user, not per-tab).
+    /// at once, and ONE user may hold several sockets simultaneously
+    /// (web console + phone app) — a new socket never boots the user's
+    /// other devices; inbound calls ring on all of them.
     ///
     /// Agent registrations also feed the shared presence registry so
     /// chat routing sees the same person as online.
@@ -177,26 +208,16 @@ impl CallHub {
         channel_id: Option<String>,
         tx: PeerTx,
         sid: u64,
-    ) -> Vec<String> {
+    ) -> usize {
         self.total_accepted.fetch_add(1, Ordering::Relaxed);
-        let mut booted = Vec::new();
-
-        // Boot a previous session of the SAME user (multi-tab guard).
-        if let Some((_, prev)) = self.peers.remove(&user.id.to_string()) {
-            let _ = prev.send(&json!({
-                "type": "hangup",
-                "from": "system",
-                "reason": "replaced",
-            }));
-            booted.push(user.id.to_string());
-        }
+        let user_id = user.id.to_string();
 
         if role == CallRole::Agent {
             presence().call_socket_connected(&user, sid);
         }
 
         self.peers.insert(
-            user.id.to_string(),
+            sid,
             Peer {
                 user,
                 role,
@@ -207,60 +228,129 @@ impl CallHub {
                 in_call: false,
             },
         );
-
-        booted
+        let socket_count = {
+            let mut entry = self.by_user.entry(user_id).or_default();
+            entry.push(sid);
+            entry.len()
+        };
+        socket_count
     }
 
-    /// Remove a peer — guarded by socket generation id `sid`.
+    /// Remove a peer — keyed by socket generation id `sid`.
     ///
-    /// Returns the role if (and only if) the hub entry still belongs to
-    /// THIS socket. A stale socket that finally times out must not delete
-    /// a NEWER entry for the same user (created by a reconnect / multi-tab
-    /// boot while the old socket was still lingering) — otherwise the live
-    /// socket would become unreachable ("zombie peer"). The `sid` check is
-    /// what makes that safe.
+    /// Returns `Some(role)` when this was the user's LAST socket (the
+    /// user as a whole went offline — the caller should run session
+    /// cleanup / agent-offline handling), and `None` when the user still
+    /// has other live sockets (e.g. the phone dropped but the web
+    /// console stays online — their sessions must survive).
     ///
-    /// Returning `Some(Agent)` tells the caller to broadcast agent-offline
-    /// to all waiting customers.
+    /// A stale socket that finally times out can never delete a NEWER
+    /// entry for the same user (the sid key makes that impossible).
     pub fn unregister(&self, user_id: &str, sid: u64) -> Option<CallRole> {
-        let removed = self.peers.remove_if(user_id, |_, p| p.sid == sid);
+        let removed = self.peers.remove(&sid).map(|(_, p)| p.role);
+
+        // Maintain the user index: drop the sid; remove the whole index
+        // entry when the vec is empty (avoids leaking empty vecs).
+        let mut user_has_sockets = false;
+        if let Some(mut v) = self.by_user.get_mut(user_id) {
+            v.retain(|s| *s != sid);
+            let now_empty = v.is_empty();
+            user_has_sockets = !now_empty;
+            drop(v);
+            if now_empty {
+                self.by_user.remove(user_id);
+            }
+        }
+
         if removed.is_some() {
             presence().call_socket_disconnected(user_id, sid);
+            // Only the LAST socket reports the user as offline — earlier
+            // sockets dropping leave the user reachable on their other
+            // devices, so their sessions must survive.
+            if user_has_sockets {
+                return None;
+            }
         }
-        removed.map(|(_, p)| p.role)
+        removed
     }
 
     /// Mark a peer as in-call (or not). Used when an agent accepts a call
     /// (`answer` kind → `in_call=true`) or hangs up (`hangup` → `in_call=false`).
+    /// Applies to every socket of the user (their availability is a
+    /// per-USER property, not per-device).
     ///
-    /// Returns `true` if the peer was found and updated. After updating,
-    /// the caller should broadcast presence so all customers see the new state.
+    /// Returns `true` if at least one peer was found and updated. After
+    /// updating, the caller should broadcast presence so all customers
+    /// see the new state.
     pub fn set_in_call(&self, user_id: &str, in_call: bool) -> bool {
-        if let Some(mut p) = self.peers.get_mut(user_id) {
-            p.in_call = in_call;
-            drop(p);
+        let sids: Vec<u64> = self
+            .by_user
+            .get(user_id)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        let mut updated = false;
+        for sid in sids {
+            if let Some(mut p) = self.peers.get_mut(&sid) {
+                p.in_call = in_call;
+                updated = true;
+            }
+        }
+        if updated {
             // Mirror into the shared presence registry (chat routing
             // must see this agent as busy/unavailable).
             presence().set_in_call(user_id, in_call);
-            true
-        } else {
-            false
         }
+        updated
     }
 
-    /// Send a pre-serialised JSON string to a specific peer by user id.
-    /// Returns `false` if the peer isn't online or their queue is full.
+    /// Send a pre-serialised JSON string to EVERY socket of a user
+    /// (web + phone ring / hang up together). Returns `true` if at
+    /// least one socket accepted the message.
     pub fn send_raw_to(&self, user_id: &str, payload: &str) -> bool {
-        if let Some(p) = self.peers.get(user_id) {
-            p.send_raw(payload)
-        } else {
-            false
+        let sids: Vec<u64> = self
+            .by_user
+            .get(user_id)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        let mut sent = false;
+        for sid in sids {
+            if let Some(p) = self.peers.get(&sid) {
+                if p.send_raw(payload) {
+                    sent = true;
+                }
+            }
         }
+        sent
     }
 
-    /// Serialise + send a `serde_json::Value` to a specific peer.
+    /// Serialise + send a `serde_json::Value` to every socket of a user.
     pub fn send_to(&self, user_id: &str, msg: &serde_json::Value) -> bool {
         self.send_raw_to(user_id, &msg.to_string())
+    }
+
+    /// Send to every socket of a user EXCEPT one (e.g. the socket that
+    /// just answered the call — the agent's OTHER devices get a
+    /// `answered-elsewhere` hangup so they stop ringing without killing
+    /// the live call on the answering device).
+    pub fn send_to_except(&self, user_id: &str, except_sid: u64, msg: &serde_json::Value) -> bool {
+        let payload = msg.to_string();
+        let sids: Vec<u64> = self
+            .by_user
+            .get(user_id)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        let mut sent = false;
+        for sid in sids {
+            if sid == except_sid {
+                continue;
+            }
+            if let Some(p) = self.peers.get(&sid) {
+                if p.send_raw(&payload) {
+                    sent = true;
+                }
+            }
+        }
+        sent
     }
 
     /// Broadcast a presence update to every connected peer. Called whenever
@@ -313,10 +403,17 @@ impl CallHub {
             .collect()
     }
 
-    /// Look up the role of a registered peer. Used by the handler to
-    /// route `call` messages correctly (customer → agent vs. agent → customer).
+    /// Look up the role of a registered peer (any of their sockets).
+    /// Used by the handler to route `call` messages correctly
+    /// (customer → agent vs. agent → customer).
     pub fn role_of(&self, user_id: &str) -> Option<CallRole> {
-        self.peers.get(user_id).map(|p| p.role)
+        let sids: Vec<u64> = self
+            .by_user
+            .get(user_id)
+            .map(|v| v.clone())
+            .unwrap_or_default();
+        let first = sids.first()?;
+        self.peers.get(first).map(|p| p.role)
     }
 
     /// Pick the best agent for a NEW customer call: the staff member
@@ -335,13 +432,21 @@ impl CallHub {
         // Candidate = registered HERE as an agent + available in the
         // shared presence registry + not excluded. Ranked with the SAME
         // ordering the chat router uses (chat load → recency → employees
-        // first).
-        let mut candidates: Vec<(String, crate::presence::StaffEntry)> = self
-            .peers
-            .iter()
-            .filter(|p| p.role == CallRole::Agent)
-            .filter(|p| !exclude.contains(p.key()))
-            .filter_map(|p| presence().get(p.key()).map(|s| (p.key().clone(), s)))
+        // first). De-duped per user (a user on two devices is one agent).
+        // Collect the agent user ids FIRST (no nested same-map access —
+        // DashMap guards don't nest across an `iter()`).
+        let mut agent_ids: Vec<String> = Vec::new();
+        for p in self.peers.iter() {
+            if p.value().role == CallRole::Agent {
+                let uid = p.value().user.id.to_string();
+                if !agent_ids.contains(&uid) && !exclude.contains(&uid) {
+                    agent_ids.push(uid);
+                }
+            }
+        }
+        let mut candidates: Vec<(String, crate::presence::StaffEntry)> = agent_ids
+            .into_iter()
+            .filter_map(|id| presence().get(&id).map(|s| (id, s)))
             .filter(|(_, s)| s.available())
             .collect();
         candidates.sort_by(|a, b| crate::presence::StaffEntry::availability_cmp(&a.1, &b.1));
@@ -358,10 +463,12 @@ impl CallHub {
 
     /// Find any online agent's user id (busy or not).
     pub fn any_online_agent_id(&self) -> Option<String> {
-        self.peers
-            .iter()
-            .find(|p| p.role == CallRole::Agent)
-            .map(|p| p.key().clone())
+        for p in self.peers.iter() {
+            if p.value().role == CallRole::Agent {
+                return Some(p.value().user.id.to_string());
+            }
+        }
+        None
     }
 }
 
@@ -417,14 +524,14 @@ mod tests {
         // (assert relative to a baseline, not absolute zero — the hub is a
         // process-wide singleton).
         let agents_before = h.online_agent_count();
-        let booted = h.register(fake_user(&id, "user"), CallRole::Customer, None, tx, sid);
-        assert!(booted.is_empty());
+        h.register(fake_user(&id, "user"), CallRole::Customer, None, tx, sid);
         assert!(h.peer_count() >= 1);
         assert_eq!(h.online_agent_count(), agents_before);
 
         let role = h.unregister(&id, sid);
         assert_eq!(role, Some(CallRole::Customer));
         assert_eq!(h.online_agent_count(), agents_before);
+        assert_eq!(h.user_socket_count(&id), 0);
     }
 
     #[tokio::test]
@@ -448,21 +555,110 @@ mod tests {
             sid1,
         );
         let sid2 = h.next_socket_id();
-        let booted = h.register(
+        h.register(
             fake_user(&id2, "employee"),
             CallRole::Agent,
             None,
             tx2,
             sid2,
         );
-        // Multi-agent: the second registration does NOT boot the first.
-        assert!(booted.is_empty(), "no other agent gets replaced");
+        // Multi-agent: the second registration does NOT disturb the first.
         assert_eq!(h.online_agent_count(), agents_before + 2);
 
         // Clean up.
         h.unregister(&id1, sid1);
         h.unregister(&id2, sid2);
         assert_eq!(h.online_agent_count(), agents_before);
+    }
+
+    /// The core multi-session behaviour: the SAME user registers TWO
+    /// sockets (web + phone). Neither boots the other; sends fan out to
+    /// both; only the LAST unregister reports the user offline.
+    #[tokio::test]
+    async fn same_user_two_sockets_both_live() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx_web, mut rx_web) = mpsc::channel::<bytes::Bytes>(8);
+        let (tx_phone, mut rx_phone) = mpsc::channel::<bytes::Bytes>(8);
+        let h = hub();
+        let sid_web = h.next_socket_id();
+        h.register(
+            fake_user(&id, "employee"),
+            CallRole::Agent,
+            None,
+            tx_web,
+            sid_web,
+        );
+        let sid_phone = h.next_socket_id();
+        h.register(
+            fake_user(&id, "employee"),
+            CallRole::Agent,
+            None,
+            tx_phone,
+            sid_phone,
+        );
+        assert_eq!(h.user_socket_count(&id), 2);
+        assert_eq!(h.role_of(&id), Some(CallRole::Agent));
+
+        // A frame to the user reaches BOTH devices.
+        let sent = h.send_to(&id, &serde_json::json!({ "type": "incoming" }));
+        assert!(sent);
+        assert!(rx_web.try_recv().is_ok());
+        assert!(rx_phone.try_recv().is_ok());
+
+        // The phone socket dropping does NOT report the user offline
+        // (the web console is still connected).
+        let role = h.unregister(&id, sid_phone);
+        assert_eq!(role, None, "user still has a live web socket");
+        assert_eq!(h.user_socket_count(&id), 1);
+        assert_eq!(h.role_of(&id), Some(CallRole::Agent));
+
+        // The LAST socket dropping reports the user offline.
+        let role = h.unregister(&id, sid_web);
+        assert_eq!(role, Some(CallRole::Agent));
+        assert_eq!(h.role_of(&id), None);
+    }
+
+    /// `send_to_except` — the answered-elsewhere fan-out skips the
+    /// answering device but reaches the rest.
+    #[tokio::test]
+    async fn send_to_except_skips_one_socket() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx_a, mut rx_a) = mpsc::channel::<bytes::Bytes>(8);
+        let (tx_b, mut rx_b) = mpsc::channel::<bytes::Bytes>(8);
+        let h = hub();
+        let sid_a = h.next_socket_id();
+        h.register(
+            fake_user(&id, "user"),
+            CallRole::Customer,
+            None,
+            tx_a,
+            sid_a,
+        );
+        let sid_b = h.next_socket_id();
+        h.register(
+            fake_user(&id, "user"),
+            CallRole::Customer,
+            None,
+            tx_b,
+            sid_b,
+        );
+
+        let sent = h.send_to_except(
+            &id,
+            sid_a,
+            &serde_json::json!({ "type": "hangup", "reason": "answered-elsewhere" }),
+        );
+        assert!(sent);
+        assert!(
+            rx_a.try_recv().is_err(),
+            "the answering socket must be skipped"
+        );
+        assert!(rx_b.try_recv().is_ok());
+
+        h.unregister(&id, sid_a);
+        h.unregister(&id, sid_b);
     }
 
     #[tokio::test]
@@ -496,7 +692,7 @@ mod tests {
     }
 
     /// A stale socket timing out must NOT delete a newer entry for the same
-    /// user (reconnect / multi-tab boot). The sid guard prevents the zombie.
+    /// user (reconnect). The sid key prevents the zombie.
     #[tokio::test]
     async fn stale_unregister_does_not_evict_newer_socket() {
         let _guard = TEST_LOCK.lock().unwrap();
@@ -514,7 +710,7 @@ mod tests {
             sid_old,
         );
 
-        // Same user reconnects with a NEW socket (boots the old entry).
+        // Same user reconnects with a NEW socket.
         let (tx_new, _rx_new) = mpsc::channel::<bytes::Bytes>(8);
         let sid_new = h.next_socket_id();
         h.register(
@@ -526,10 +722,11 @@ mod tests {
         );
 
         // The OLD socket now times out and tries to unregister — this must
-        // be a no-op because the hub entry belongs to sid_new, not sid_old.
+        // not take the user offline (the newer socket still lives).
         let removed = h.unregister(&id, sid_old);
         assert_eq!(removed, None, "stale sid must not evict the live entry");
         assert_eq!(h.role_of(&id), Some(CallRole::Customer));
+        assert_eq!(h.user_socket_count(&id), 1);
 
         // The NEW socket unregistering does remove the entry.
         let removed = h.unregister(&id, sid_new);

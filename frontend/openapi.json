@@ -2245,8 +2245,25 @@
         "tags": [
           "auth"
         ],
-        "summary": "`POST /api/auth/logout` — revoke all refresh tokens + clear cookies.",
+        "summary": "`POST /api/auth/logout` — revoke the CURRENT session (default) or all\nsessions (`{\"all\": true}`) + clear cookies.",
+        "description": "Multi-session semantics: one user may be logged in on several devices\nsimultaneously (web console + phone app). Logging out on one device\nmust NOT kill the others — the phone would otherwise silently lose\nits push/call connectivity. Only an explicit `all: true` revokes\neverywhere.",
         "operationId": "logout",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LogoutRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Logged out"
@@ -9056,6 +9073,25 @@
           },
           "password": {
             "type": "string"
+          }
+        }
+      },
+      "LogoutRequest": {
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`true` = revoke EVERY session of this user (\"log out on all\ndevices\"). Default `false`: only the session the requesting\ndevice holds is revoked, so the user's other logins (web +\nphone at the same time) stay alive and keep auto-refreshing."
+          },
+          "refresh_token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional refresh token in the body — non-browser clients (the\nmobile app) keep raw tokens in secure storage rather than\ncookies. Browsers rely on the httpOnly `refresh_token` cookie."
           }
         }
       },

@@ -50,6 +50,11 @@ pub trait ScheduleStore: Send + Sync {
         &self,
         route_ids: Vec<Uuid>,
     ) -> StoreResult<Vec<schedule::Model>>;
+
+    /// Every schedule in the catalog (bounded by `limit`). Used by the
+    /// on-demand trip generator to materialize upcoming trips for the
+    /// homepage recommendations.
+    async fn list_all_schedules(&self, limit: u64) -> StoreResult<Vec<schedule::Model>>;
     async fn insert_schedule(&self, model: schedule::ActiveModel) -> StoreResult<()>;
     async fn update_schedule(&self, model: schedule::ActiveModel) -> StoreResult<schedule::Model>;
     async fn delete_schedule(&self, id: Uuid) -> StoreResult<()>;
@@ -172,6 +177,13 @@ impl ScheduleStore for DbScheduleStore {
     ) -> StoreResult<Vec<schedule::Model>> {
         Ok(schedule::Entity::find()
             .filter(schedule::Column::RouteId.is_in(route_ids))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_all_schedules(&self, limit: u64) -> StoreResult<Vec<schedule::Model>> {
+        Ok(schedule::Entity::find()
+            .limit(limit)
             .all(self.db.as_ref())
             .await?)
     }

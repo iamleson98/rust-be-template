@@ -75,6 +75,30 @@ pub trait TripStore: Send + Sync {
         &self,
         model: trip_session::ActiveModel,
     ) -> StoreResult<trip_session::Model>;
+
+    /// Find the materialized trip for a (schedule, departure-date) pair.
+    /// Used by the on-demand trip generator to decide whether a trip
+    /// already exists for that day.
+    async fn find_trip_by_schedule_and_date(
+        &self,
+        schedule_id: Uuid,
+        date: &str,
+    ) -> StoreResult<Option<trip_session::Model>>;
+
+    /// Insert a newly materialized trip row (the generator path).
+    /// Returns the model as-inserted (the caller sets every field, so
+    /// no RETURNING round-trip is needed).
+    async fn insert_trip_session(
+        &self,
+        model: trip_session::ActiveModel,
+    ) -> StoreResult<trip_session::Model>;
+
+    /// Batch-insert seat-inventory rows for a fresh trip in one statement.
+    async fn insert_seat_inventories_batch(
+        &self,
+        models: Vec<seat_inventory::ActiveModel>,
+    ) -> StoreResult<()>;
+
     async fn update_campaign(&self, model: campaign::ActiveModel) -> StoreResult<campaign::Model>;
     async fn list_trips_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<trip_session::Model>>;
     async fn find_campaign_by_id(&self, id: Uuid) -> StoreResult<Option<campaign::Model>>;
@@ -271,6 +295,49 @@ impl TripStore for DbTripStore {
         Ok(trip_session::Entity::update(model)
             .exec(self.db.as_ref())
             .await?)
+    }
+
+    async fn find_trip_by_schedule_and_date(
+        &self,
+        schedule_id: Uuid,
+        date: &str,
+    ) -> StoreResult<Option<trip_session::Model>> {
+        Ok(trip_session::Entity::find()
+            .filter(trip_session::Column::ScheduleId.eq(schedule_id))
+            .filter(trip_session::Column::DepartureDate.eq(date.to_string()))
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    async fn insert_trip_session(
+        &self,
+        model: trip_session::ActiveModel,
+    ) -> StoreResult<trip_session::Model> {
+        // Materialize the returned Model from the ActiveModel BEFORE the
+        // insert — the generator sets every field, so no RETURNING
+        // round-trip is needed (the rust-sql engine's RETURNING support
+        // is untested).
+        let inserted: trip_session::Model = model
+            .clone()
+            .try_into()
+            .map_err(|e| StoreError::Validation(format!("incomplete trip model: {e}")))?;
+        trip_session::Entity::insert(model)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(inserted)
+    }
+
+    async fn insert_seat_inventories_batch(
+        &self,
+        models: Vec<seat_inventory::ActiveModel>,
+    ) -> StoreResult<()> {
+        if models.is_empty() {
+            return Ok(());
+        }
+        seat_inventory::Entity::insert_many(models)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
     }
 
     async fn update_campaign(&self, model: campaign::ActiveModel) -> StoreResult<campaign::Model> {

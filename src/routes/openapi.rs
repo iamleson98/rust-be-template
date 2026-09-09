@@ -173,6 +173,7 @@ use utoipa::OpenApi;
         // auth
         crate::routes::auth::RegisterRequest,
         crate::routes::auth::LoginRequest,
+        crate::routes::auth::LogoutRequest,
         crate::routes::auth::AuthResponse,
         // users
         crate::routes::users::UserOut,

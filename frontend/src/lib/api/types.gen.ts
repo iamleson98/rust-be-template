@@ -1471,6 +1471,22 @@ export type LoginRequest = {
     password: string;
 };
 
+export type LogoutRequest = {
+    /**
+     * `true` = revoke EVERY session of this user ("log out on all
+     * devices"). Default `false`: only the session the requesting
+     * device holds is revoked, so the user's other logins (web +
+     * phone at the same time) stay alive and keep auto-refreshing.
+     */
+    all?: boolean | null;
+    /**
+     * Optional refresh token in the body — non-browser clients (the
+     * mobile app) keep raw tokens in secure storage rather than
+     * cookies. Browsers rely on the httpOnly `refresh_token` cookie.
+     */
+    refresh_token?: string | null;
+};
+
 /**
  * Response of `POST /api/chat/channels/{id}/read`.
  */
@@ -1880,6 +1896,33 @@ export type RefreshRequest = {
      * can't use cookies.
      */
     refresh_token?: string | null;
+};
+
+/**
+ * Request body for `POST /api/push/devices`.
+ */
+export type RegisterDeviceRequest = {
+    /**
+     * `android` | `ios` | `web`.
+     */
+    platform?: string;
+    /**
+     * FCM (or APNs-bridged) registration token.
+     */
+    token: string;
+};
+
+/**
+ * Response of `POST /api/push/devices`.
+ */
+export type RegisterDeviceResponse = {
+    ok: boolean;
+    /**
+     * Whether the FCM transport itself is configured server-side
+     * (`FCM_CREDENTIALS_JSON`). `false` = the token is stored but no
+     * push will be sent yet — clients may surface this to staff.
+     */
+    pushEnabled: boolean;
 };
 
 export type RegisterRequest = {
@@ -2379,6 +2422,17 @@ export type TripSeatMap = {
 export type TripSeatRow = {
     row: number;
     seats: Array<TripSeat>;
+};
+
+/**
+ * Response of `DELETE /api/push/devices/{token}`.
+ */
+export type UnregisterDeviceResponse = {
+    /**
+     * Number of device rows removed (0 if unknown token).
+     */
+    deleted: number;
+    ok: boolean;
 };
 
 /**
@@ -4269,7 +4323,7 @@ export type LoginResponses = {
 export type LoginResponse = LoginResponses[keyof LoginResponses];
 
 export type LogoutData = {
-    body?: never;
+    body?: null | LogoutRequest;
     path?: never;
     query?: never;
     url: '/api/auth/logout';
@@ -5607,6 +5661,61 @@ export type RemoveResponses = {
 };
 
 export type RemoveResponse = RemoveResponses[keyof RemoveResponses];
+
+export type RegisterDeviceData = {
+    body: RegisterDeviceRequest;
+    path?: never;
+    query?: never;
+    url: '/api/push/devices';
+};
+
+export type RegisterDeviceErrors = {
+    /**
+     * Invalid token
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type RegisterDeviceResponses = {
+    /**
+     * Device registered
+     */
+    200: RegisterDeviceResponse;
+};
+
+export type RegisterDeviceResponse2 = RegisterDeviceResponses[keyof RegisterDeviceResponses];
+
+export type UnregisterDeviceData = {
+    body?: never;
+    path: {
+        /**
+         * The device token to remove
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/api/push/devices/{token}';
+};
+
+export type UnregisterDeviceErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type UnregisterDeviceResponses = {
+    /**
+     * Device removed
+     */
+    200: UnregisterDeviceResponse;
+};
+
+export type UnregisterDeviceResponse2 = UnregisterDeviceResponses[keyof UnregisterDeviceResponses];
 
 export type RecommendationsData = {
     body?: never;

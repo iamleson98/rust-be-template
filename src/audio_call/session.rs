@@ -94,6 +94,15 @@ pub struct CallSession {
     /// Re-route never re-rings a member of this set.
     pub tried: HashSet<String>,
     pub created_at: Instant,
+    /// The socket that SENT the offer (the calling side's device). While
+    /// ringing, that socket going away means the caller vanished — the
+    /// call dies instead of ringing into a void.
+    pub offerer_sid: Option<u64>,
+    /// The socket that ACCEPTED the call (`answer`). While active, this
+    /// socket + `offerer_sid` carry the media PCs — either dropping ends
+    /// the call even when the user still has other live sockets (multi-
+    /// session: web + phone).
+    pub answered_on: Option<u64>,
 }
 
 /// Result of trying to place a call (customer- or agent-initiated).
@@ -141,6 +150,20 @@ pub enum CustomerHangup {
     NoSession,
 }
 
+/// A call ENDED because one of its carrying sockets dropped.
+/// The handler notifies the counterpart + clears in-call state.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SocketEndedCall {
+    /// The user still online whose peer vanished (notify them).
+    pub notify_user_id: String,
+    /// The user whose socket dropped (cleanup their in-call flag).
+    pub dropped_user_id: String,
+    /// Customer of the ended session (logging + push).
+    pub customer_id: String,
+    /// Agent of the ended session (cleanup + push).
+    pub agent_id: String,
+}
+
 /// The process-wide session registry.
 pub struct SessionManager {
     /// `customer_id → session`. ONE call per customer — the busy guard
@@ -170,6 +193,42 @@ impl SessionManager {
 
     pub fn is_empty(&self) -> bool {
         self.sessions.is_empty()
+    }
+
+    /// A call ENDED because one of its carrying sockets dropped.
+    /// The handler notifies the counterpart + clears in-call state.
+    pub fn end_sessions_of_socket(&self, user_id: &str, sid: u64) -> Vec<SocketEndedCall> {
+        let mut ended = Vec::new();
+        // Sessions where this user is either side.
+        let keys: Vec<String> = self
+            .sessions
+            .iter()
+            .filter(|s| s.customer_id == user_id || s.agent_id == user_id)
+            .map(|s| s.customer_id.clone())
+            .collect();
+        for key in keys {
+            let Some((_, s)) = self.sessions.remove(&key) else {
+                continue;
+            };
+            let carries = s.offerer_sid == Some(sid)
+                || (s.state == CallState::Active && s.answered_on == Some(sid));
+            if carries {
+                ended.push(SocketEndedCall {
+                    notify_user_id: if s.customer_id == user_id {
+                        s.agent_id.clone()
+                    } else {
+                        s.customer_id.clone()
+                    },
+                    dropped_user_id: user_id.to_string(),
+                    customer_id: s.customer_id,
+                    agent_id: s.agent_id,
+                });
+            } else {
+                // Not carried by this socket — put it back untouched.
+                self.sessions.insert(key, s);
+            }
+        }
+        ended
     }
 
     /// Is this user (customer OR agent) currently in a call session?
@@ -206,6 +265,7 @@ impl SessionManager {
         customer_id: &str,
         offer: Value,
         channel_id: Option<String>,
+        offerer_sid: Option<u64>,
         pick_agent: impl FnOnce(&HashSet<String>) -> Option<String>,
     ) -> OfferOutcome {
         // Busy guard: this customer is already in (or placing) a call.
@@ -228,6 +288,8 @@ impl SessionManager {
                         initiator: Initiator::Customer,
                         tried,
                         created_at: Instant::now(),
+                        offerer_sid,
+                        answered_on: None,
                     },
                 );
                 OfferOutcome::Ringing { agent_id }
@@ -244,6 +306,7 @@ impl SessionManager {
         customer_id: &str,
         offer: Value,
         channel_id: Option<String>,
+        offerer_sid: Option<u64>,
     ) -> OfferOutcome {
         if self.sessions.contains_key(customer_id) {
             return OfferOutcome::PeerBusy;
@@ -264,6 +327,8 @@ impl SessionManager {
                 initiator: Initiator::Agent,
                 tried,
                 created_at: Instant::now(),
+                offerer_sid,
+                answered_on: None,
             },
         );
         OfferOutcome::Ringing {
@@ -274,10 +339,21 @@ impl SessionManager {
     /// Agent accepted (`answer`): validate the session is ringing with
     /// THIS agent, then promote it to Active. Returns the customer id
     /// to relay the answer to; `None` = stale/invalid answer (drop it).
-    pub fn on_answer(&self, agent_id: &str, customer_id: &str) -> Option<String> {
+    ///
+    /// `answerer_sid` records WHICH socket accepted (multi-session:
+    /// web + phone both ring; the one that answers carries the call —
+    /// its drop ends the session, and the others get an
+    /// `answered-elsewhere` hangup so they stop ringing).
+    pub fn on_answer(
+        &self,
+        agent_id: &str,
+        customer_id: &str,
+        answerer_sid: Option<u64>,
+    ) -> Option<String> {
         if let Some(mut s) = self.sessions.get_mut(customer_id) {
             if s.agent_id == agent_id && s.state == CallState::Ringing {
                 s.state = CallState::Active;
+                s.answered_on = answerer_sid;
                 Some(customer_id.to_string())
             } else {
                 None
@@ -432,7 +508,13 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        let out = m.begin_customer_offer("cust-1", offer(), Some("ch-1".into()), picker_pick("a1"));
+        let out = m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            Some("ch-1".into()),
+            None,
+            picker_pick("a1"),
+        );
         assert_eq!(
             out,
             OfferOutcome::Ringing {
@@ -451,12 +533,12 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // Same customer tries again (double-tap, second tab, …).
-        let out = m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        let out = m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         assert_eq!(out, OfferOutcome::CustomerBusy);
         // Another AGENT calling that busy customer is rejected too.
-        let out = m.begin_agent_offer("a2", "cust-1", offer(), None);
+        let out = m.begin_agent_offer("a2", "cust-1", offer(), None, None);
         assert_eq!(out, OfferOutcome::PeerBusy);
         m.clear();
     }
@@ -466,7 +548,7 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        let out = m.begin_customer_offer("cust-1", offer(), None, picker_none());
+        let out = m.begin_customer_offer("cust-1", offer(), None, None, picker_none());
         assert_eq!(out, OfferOutcome::NoAgent);
         assert!(m.is_empty());
     }
@@ -476,14 +558,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // A late answer from an agent the call was re-routed AWAY from.
-        assert_eq!(m.on_answer("a2", "cust-1"), None);
+        assert_eq!(m.on_answer("a2", "cust-1", None), None);
         // The real agent answers.
-        assert_eq!(m.on_answer("a1", "cust-1"), Some("cust-1".into()));
+        assert_eq!(m.on_answer("a1", "cust-1", Some(7)), Some("cust-1".into()));
         assert_eq!(m.get("cust-1").unwrap().state, CallState::Active);
         // Duplicate answer is ignored (session already Active).
-        assert_eq!(m.on_answer("a1", "cust-1"), None);
+        assert_eq!(m.on_answer("a1", "cust-1", None), None);
         m.clear();
     }
 
@@ -492,7 +574,7 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // a1 declines; a2 is free → re-route.
         let out = m.on_agent_hangup("a1", "declined", picker_pick("a2"));
         assert_eq!(
@@ -522,7 +604,7 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // The only agent available is a1 again (already tried) → no
         // re-route, the queue is dry.
         let out = m.on_agent_hangup("a1", "busy", picker_pick("a1"));
@@ -541,8 +623,8 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
-        m.on_answer("a1", "cust-1");
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.on_answer("a1", "cust-1", None);
         let out = m.on_agent_hangup("a1", "remote", picker_none());
         assert_eq!(
             out,
@@ -559,8 +641,8 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
-        m.on_answer("a1", "cust-1");
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.on_answer("a1", "cust-1", None);
         assert_eq!(
             m.on_customer_hangup("cust-1"),
             CustomerHangup::NotifyAgent {
@@ -577,7 +659,7 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_agent_offer("a1", "cust-1", offer(), Some("ch-9".into()));
+        m.begin_agent_offer("a1", "cust-1", offer(), Some("ch-9".into()), None);
         // Agent cancels their own outbound offer — even though other
         // agents exist, re-route doesn't apply (there is exactly one
         // intended callee).
@@ -597,7 +679,7 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         assert!(m.is_user_in_call("cust-1"));
         assert!(m.is_user_in_call("a1"));
         assert!(!m.is_user_in_call("a2"));
@@ -612,8 +694,8 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
-        m.begin_customer_offer("cust-2", offer(), None, picker_pick("a2"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer("cust-2", offer(), None, None, picker_pick("a2"));
         // Agent a1's socket drops: their session goes, cust-2/a2 stays.
         let dropped = m.drop_sessions_of("a1");
         assert_eq!(dropped.len(), 1);
@@ -630,9 +712,9 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // a1 is mid-call and tries to START a call to another customer.
-        let out = m.begin_agent_offer("a1", "cust-2", offer(), None);
+        let out = m.begin_agent_offer("a1", "cust-2", offer(), None, None);
         assert_eq!(out, OfferOutcome::AgentBusy);
         // No session was created for cust-2.
         assert!(m.get("cust-2").is_none());
@@ -644,13 +726,42 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, picker_pick("a1"));
+        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
         // Customer's ICE → their session's agent.
         assert_eq!(m.agent_for("cust-1").as_deref(), Some("a1"));
         // Agent's ICE with an explicit `to` → validated against the session.
         assert_eq!(m.agent_target("a1", "cust-1").as_deref(), Some("cust-1"));
         // Wrong pairing is rejected.
         assert_eq!(m.agent_target("a2", "cust-1"), None);
+        m.clear();
+    }
+
+    #[test]
+    fn socket_drop_ends_only_carried_sessions() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+        // Customer sockets 1 (offerer) and agent socket 9 (answerer) carry
+        // an ACTIVE call; agent's OTHER socket 10 must not affect it.
+        m.begin_customer_offer("cust-1", offer(), None, Some(1), picker_pick("a1"));
+        assert!(m.on_answer("a1", "cust-1", Some(9)).is_some());
+
+        // An unrelated socket of the agent drops → call survives.
+        assert!(m.end_sessions_of_socket("a1", 10).is_empty());
+        assert!(m.is_user_in_call("cust-1"));
+
+        // The ANSWERING socket drops → the active call ends.
+        let ended = m.end_sessions_of_socket("a1", 9);
+        assert_eq!(ended.len(), 1);
+        assert_eq!(ended[0].notify_user_id, "cust-1");
+        assert_eq!(ended[0].agent_id, "a1");
+        assert!(!m.is_user_in_call("cust-1"));
+
+        // A RINGING call whose offerer socket drops dies with it.
+        m.begin_customer_offer("cust-2", offer(), None, Some(5), picker_pick("a1"));
+        let ended = m.end_sessions_of_socket("cust-2", 5);
+        assert_eq!(ended.len(), 1);
+        assert_eq!(ended[0].notify_user_id, "a1");
         m.clear();
     }
 }

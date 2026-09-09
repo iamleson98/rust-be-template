@@ -226,22 +226,77 @@ impl AuthService {
         self.issue_session(user).await
     }
 
-    /// Logout: revoke all refresh tokens + invalidate the cached JWT so
-    /// the access token stops working immediately.
-    pub async fn logout(&self, user_id: Uuid) -> AppResult<()> {
-        self.store
-            .refresh_token_store()
-            .revoke_all_refresh_tokens_for_user(user_id)
-            .await?;
-        self.jwt_validator.revoke_all_for_user(user_id).await;
+    /// Logout — multi-session aware.
+    ///
+    /// Default (`all = false`): revoke ONLY the session the requesting
+    /// device presented — its refresh token (cookie or body) and its
+    /// access token (cookie or Bearer header). The user's OTHER devices
+    /// (e.g. web console + phone app logged in at the same time) keep
+    /// working: their refresh tokens stay valid, so the mobile app keeps
+    /// auto-logging in after session expiry.
+    ///
+    /// `all = true` ("log out on all devices"): revoke every refresh
+    /// token for the user AND kill all outstanding access tokens.
+    pub async fn logout(
+        &self,
+        user_id: Uuid,
+        refresh_token: Option<&str>,
+        access_token: Option<&str>,
+        all: bool,
+    ) -> AppResult<()> {
+        if all {
+            self.store
+                .refresh_token_store()
+                .revoke_all_refresh_tokens_for_user(user_id)
+                .await?;
+            self.jwt_validator.revoke_all_for_user(user_id).await;
+            return Ok(());
+        }
+
+        // Current session only.
+        if let Some(rt) = refresh_token {
+            if let Some(value) = RefreshTokenValue::parse(rt) {
+                // Atomic conditional revoke; ownership check so a client
+                // can't revoke someone ELSE's session by posting a token
+                // that isn't theirs.
+                match self
+                    .store
+                    .refresh_token_store()
+                    .try_revoke_refresh_token(value.id)
+                    .await?
+                {
+                    Some(owner) if owner == user_id => {}
+                    Some(_) => tracing::warn!(
+                        %user_id,
+                        "logout: refresh token belongs to another user — not revoked"
+                    ),
+                    // None = already rotated/revoked — fine.
+                    None => {}
+                }
+            }
+        }
+        if let Some(at) = access_token {
+            self.jwt_validator.revoke(at).await;
+        }
         Ok(())
     }
 
     /// Logout when the access token is missing/expired but the browser still
-    /// has a refresh cookie. The token is verified before its user id is used.
+    /// has a refresh cookie. The token is verified before its user id is
+    /// used. Revokes ONLY that one session (the cookie's token).
     pub async fn logout_by_refresh_token(&self, refresh_token: String) -> AppResult<()> {
-        let (_value, model) = self.verified_refresh_token(&refresh_token).await?;
-        self.logout(model.user_id).await
+        let (value, model) = self.verified_refresh_token(&refresh_token).await?;
+        let owner = self
+            .store
+            .refresh_token_store()
+            .try_revoke_refresh_token(value.id)
+            .await?;
+        if let Some(owner) = owner {
+            if owner != model.user_id {
+                tracing::warn!(user = %model.user_id, "logout: token owner mismatch — not revoked");
+            }
+        }
+        Ok(())
     }
 
     async fn verified_refresh_token(

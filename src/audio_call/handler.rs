@@ -280,6 +280,7 @@ pub async fn handle_socket(
                                     &user_r,
                                     registered_role.unwrap(),
                                     &v,
+                                    sid,
                                 ) {
                                     let _ = tx.try_send(bytes::Bytes::from(
                                         json!({ "type": "error", "message": e }).to_string(),
@@ -328,11 +329,33 @@ pub async fn handle_socket(
     let _ = close_tx.send(()).await;
 
     // ── Session cleanup for the disconnecting user ───────────────────
-    // A dropped socket ends every call the user was part of: the other
-    // side is notified, the agent's in-call flag clears, and a ringing
-    // customer-initiated call re-routes (ring escalation) to the next
-    // available agent instead of dying with the socket.
+    // A dropped socket ends every call it was CARRYING: the offer it
+    // sent (caller vanished) or the answer it gave (its PC is gone).
+    // With multi-session users (web + phone) an unrelated device
+    // dropping must NOT kill the live call — `end_sessions_of_socket`
+    // is socket-aware, then the last-socket block below handles the
+    // user going fully offline (incl. ring escalation to the next
+    // available agent).
     let uid = user_id.to_string();
+    for ended in sessions().end_sessions_of_socket(&uid, sid) {
+        tracing::info!(
+            user = %ended.dropped_user_id,
+            socket = sid,
+            customer = %ended.customer_id,
+            notify = %ended.notify_user_id,
+            "call-carrying socket dropped — session ended"
+        );
+        agent_session_cleanup(&ended.agent_id);
+        let _ = call_hub().send_to(
+            &ended.notify_user_id,
+            &json!({
+                "type": "hangup",
+                "from": "system",
+                "reason": "peer-offline",
+            }),
+        );
+        crate::push::push().notify_call_ended(&ended.agent_id, &ended.customer_id);
+    }
     let role = call_hub().unregister(&uid, sid);
     if let Some(role) = role {
         match role {
@@ -444,25 +467,28 @@ fn do_register(
     };
 
     let booted = call_hub().register(user.clone(), role, channel_id, tx, sid);
-    if !booted.is_empty() {
-        tracing::info!(
-            user_id = %user.id,
-            booted = ?booted,
-            "register booted previous peers"
-        );
-    }
+    tracing::info!(
+        user_id = %user.id,
+        role = role.as_str(),
+        user_sockets = booted,
+        "ws-call peer registered (multi-session: user devices can ring together)"
+    );
     Ok(role)
 }
 
-/// Dispatch a post-registration signal (`call` / `hangup`).
+/// Dispatch a post-registration signal (`call` / `hangup`). `sid` is
+/// the sending socket's id — the session manager records it so calls
+/// are pinned to the device that actually carries them (multi-session
+/// users: web + phone at once).
 fn handle_post_register_signal(
     user: &SessionUser,
     role: CallRole,
     msg: &Value,
+    sid: u64,
 ) -> Result<(), String> {
     let ty = msg.get("type").and_then(|v| v.as_str()).unwrap_or("");
     match ty {
-        "call" => handle_call(user, role, msg),
+        "call" => handle_call(user, role, msg, sid),
         "hangup" => handle_hangup(user, role, msg),
         _ => Err(format!("unknown message type: {ty}")),
     }
@@ -470,7 +496,7 @@ fn handle_post_register_signal(
 
 /// `call` — route an SDP offer / answer / ICE candidate through the
 /// session state machine (see `audio_call::session`).
-fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), String> {
+fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Result<(), String> {
     let to = msg.get("to").and_then(|v| v.as_str()).unwrap_or("");
     let kind = msg.get("kind").and_then(|v| v.as_str()).unwrap_or("");
     let sdp = msg.get("sdp");
@@ -498,6 +524,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                         &uid,
                         offer,
                         channel_id.map(str::to_string),
+                        Some(sid),
                         pick_agent,
                     ) {
                         OfferOutcome::Ringing { agent_id } => relay_offer(&uid, &agent_id),
@@ -543,6 +570,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                         to,
                         offer,
                         channel_id.map(str::to_string),
+                        Some(sid),
                     ) {
                         // The session is keyed by the CUSTOMER id (`to`).
                         OfferOutcome::Ringing { agent_id } => relay_offer(to, &agent_id),
@@ -568,11 +596,12 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                 CallRole::Agent => (user.id.to_string(), to.to_string()),
                 CallRole::Customer => (to.to_string(), user.id.to_string()),
             };
-            match sessions().on_answer(&agent_id, &customer_id) {
+            match sessions().on_answer(&agent_id, &customer_id, Some(sid)) {
                 Some(_) => {
                     tracing::info!(
                         agent = %agent_id,
                         customer = %customer_id,
+                        socket = sid,
                         "call answered — session ACTIVE"
                     );
                     // The agent of the session is now in a call — other
@@ -588,6 +617,19 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
                             "type": "answer",
                             "from": user.id,
                             "sdp": sdp,
+                        }),
+                    );
+                    // Multi-session: the answerer's OTHER devices are
+                    // still ringing — tell them the call was taken
+                    // elsewhere so they stop (the answering socket is
+                    // excluded; its call must survive).
+                    call_hub().send_to_except(
+                        &user.id.to_string(),
+                        sid,
+                        &json!({
+                            "type": "hangup",
+                            "from": "system",
+                            "reason": "answered-elsewhere",
                         }),
                     );
                 }

@@ -252,32 +252,86 @@ pub async fn refresh(
     ))
 }
 
-/// `POST /api/auth/logout` — revoke all refresh tokens + clear cookies.
+#[derive(Debug, Default, Deserialize, ToSchema)]
+pub struct LogoutRequest {
+    /// Optional refresh token in the body — non-browser clients (the
+    /// mobile app) keep raw tokens in secure storage rather than
+    /// cookies. Browsers rely on the httpOnly `refresh_token` cookie.
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    /// `true` = revoke EVERY session of this user ("log out on all
+    /// devices"). Default `false`: only the session the requesting
+    /// device holds is revoked, so the user's other logins (web +
+    /// phone at the same time) stay alive and keep auto-refreshing.
+    #[serde(default)]
+    pub all: Option<bool>,
+}
+
+/// `POST /api/auth/logout` — revoke the CURRENT session (default) or all
+/// sessions (`{"all": true}`) + clear cookies.
+///
+/// Multi-session semantics: one user may be logged in on several devices
+/// simultaneously (web console + phone app). Logging out on one device
+/// must NOT kill the others — the phone would otherwise silently lose
+/// its push/call connectivity. Only an explicit `all: true` revokes
+/// everywhere.
 #[utoipa::path(
     post,
     path = "/api/auth/logout",
     tag = "auth",
+    request_body = Option<LogoutRequest>,
     responses((status = 204, description = "Logged out"))
 )]
 pub async fn logout(
     State(state): State<AppState>,
     jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
     MaybeAuthUser(user_id): MaybeAuthUser,
+    body: axum::body::Bytes,
 ) -> AppResult<(axum_extra::extract::CookieJar, StatusCode)> {
+    // The body is optional (browsers POST /logout with no payload) —
+    // parse it leniently.
+    let req: LogoutRequest = if body.is_empty() {
+        LogoutRequest::default()
+    } else {
+        serde_json::from_slice(&body).unwrap_or_default()
+    };
+
+    // Refresh token: body (mobile) → cookie (browser).
+    use crate::auth::cookies::extract_tokens;
+    let (_, cookie_refresh) = extract_tokens(&jar);
+    let refresh_token = req.refresh_token.or(cookie_refresh);
+
+    // Access token: Authorization Bearer (mobile) → cookie (browser).
+    let bearer_access = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|v| v.trim().to_string());
+    let (cookie_access, _) = extract_tokens(&jar);
+    let access_token = bearer_access.or(cookie_access);
+
     if let Some(user_id) = user_id {
-        if let Err(error) = state.auth.logout(user_id).await {
+        if let Err(error) = state
+            .auth
+            .logout(
+                user_id,
+                refresh_token.as_deref(),
+                access_token.as_deref(),
+                req.all.unwrap_or(false),
+            )
+            .await
+        {
             tracing::warn!(?error, %user_id, "logout token revocation failed; clearing cookies anyway");
         }
-    } else {
-        use crate::auth::cookies::extract_tokens;
-        let (_, refresh_token) = extract_tokens(&jar);
-        if let Some(refresh_token) = refresh_token {
-            if let Err(error) = state.auth.logout_by_refresh_token(refresh_token).await {
-                tracing::debug!(
-                    ?error,
-                    "logout refresh-token fallback failed; clearing cookies anyway"
-                );
-            }
+    } else if let Some(refresh_token) = refresh_token {
+        // Access token missing/expired but the client still holds a
+        // refresh token — verify it and revoke just that session.
+        if let Err(error) = state.auth.logout_by_refresh_token(refresh_token).await {
+            tracing::debug!(
+                ?error,
+                "logout refresh-token fallback failed; clearing cookies anyway"
+            );
         }
     }
     Ok((state.auth.clear_cookies(jar), StatusCode::NO_CONTENT))

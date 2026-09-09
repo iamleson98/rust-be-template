@@ -121,8 +121,22 @@ final callSignalingProvider = Provider<CallSignalingService?>((ref) {
 
   final service = CallSignalingService(
     wsUrl: () {
-      final t = ref.read(authControllerProvider).accessToken;
-      return cfg.wsUri('/ws-call', t == null ? null : {'token': t});
+      // Read from the LIVE token store, not the auth-state snapshot:
+      // the ApiClient rotates the access token on 401 (refresh flow)
+      // but AuthState.accessToken keeps the login-time token. A stale
+      // token here would make every reconnect fail auth forever —
+      // the phone would silently stop receiving calls.
+      final store = ref.read(globalTokenStore);
+      // Proactive rotation: in duty mode there is no REST traffic to
+      // trigger the 401 interceptor, so an expired access token would
+      // fail every WS handshake until something else refreshes it.
+      // Kick a single-flight refresh NOW; this attempt may still 401
+      // but the backoff retry (1s..30s) picks up the fresh JWT.
+      if (store.accessIsStale) {
+        unawaited(ref.read(apiClientProvider).refreshNow());
+      }
+      final t = store.cachedAccess;
+      return cfg.wsUri('/ws-call', t == null || t.isEmpty ? null : {'token': t});
     },
     userId: () => ref.read(authControllerProvider).user?.id ?? '',
   );

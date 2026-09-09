@@ -32,6 +32,40 @@ class TokenStore {
   String? get cachedAccess => _cachedAccess;
   String? get cachedRefresh => _cachedRefresh;
 
+  /// Unix-seconds expiry of the cached access JWT, or `null` when the
+  /// token is missing or unparseable.
+  ///
+  /// The JWT payload is base64url-encoded JSON with a standard `exp`
+  /// claim (seconds since epoch) — decoding it needs no crypto and no
+  /// server round-trip, which is exactly what a background WebSocket
+  /// reconnect loop needs to decide "this token is about to die".
+  int? get accessExpiresAt {
+    final token = _cachedAccess;
+    if (token == null || token.isEmpty) return null;
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      // JWT uses base64url WITHOUT padding; normalize before decoding.
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is! Map<String, dynamic>) return null;
+      final exp = payload['exp'];
+      return exp is int ? exp : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Whether the access token is expired or expires within the next
+  /// 60 seconds (a WS handshake + ICE setup can easily take that long,
+  /// so "just barely valid" is treated as stale).
+  bool get accessIsStale {
+    final exp = accessExpiresAt;
+    if (exp == null) return false; // unparseable → let the server decide
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return exp - now < 60;
+  }
+
   Future<(SessionUser?, String?, String?)> load() async {
     final access = await _storage.read(key: _kAccess);
     final refresh = await _storage.read(key: _kRefresh);
