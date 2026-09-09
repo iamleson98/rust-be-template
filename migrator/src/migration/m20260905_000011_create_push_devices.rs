@@ -8,11 +8,6 @@
 //!
 //! One row per (user, token); a user may hold several devices (phone +
 //! tablet). `platform` is `android` / `ios` / `web`.
-//!
-//! Deliberately NO foreign key on `user_id` — mirrors
-//! `chat_assignment.employee_id`'s TEXT design: FCM must never block
-//! call setup on a FK mismatch, and stale rows are pruned lazily via
-//! the 404/410 UNREGISTERED response path in the FCM sender.
 
 use sea_orm_migration::{prelude::*, schema::*};
 
@@ -38,6 +33,14 @@ impl MigrationTrait for Migration {
                     .col(text(PushDevice::CreatedAt))
                     .col(text_null(PushDevice::UpdatedAt))
                     .col(text_null(PushDevice::LastSeenAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_push_device_user")
+                            .from(PushDevice::Table, PushDevice::UserId)
+                            .to(User::Table, User::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -96,4 +99,11 @@ enum PushDevice {
     CreatedAt,
     UpdatedAt,
     LastSeenAt,
+}
+
+/// Minimal reference to the table created by the users migration.
+#[derive(DeriveIden)]
+enum User {
+    Table,
+    Id,
 }

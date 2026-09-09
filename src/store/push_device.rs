@@ -98,7 +98,7 @@ impl PushDeviceStore for DbPushDeviceStore {
 
         let model = if let Some(m) = existing {
             let mut am = m.into_active_model();
-            am.platform = Set(Some(platform.to_string()));
+            am.platform = Set(platform.to_string());
             am.updated_at = Set(Some(now));
             am.update(self.db.as_ref()).await?
         } else {
@@ -106,7 +106,7 @@ impl PushDeviceStore for DbPushDeviceStore {
                 id: Set(Uuid::new_v4()),
                 user_id: Set(uid),
                 token: Set(token.to_string()),
-                platform: Set(Some(platform.to_string())),
+                platform: Set(platform.to_string()),
                 created_at: Set(now),
                 updated_at: Set(None),
                 last_seen_at: Set(None),

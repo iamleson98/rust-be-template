@@ -56,6 +56,8 @@ pub enum Relation {
     Payment,
     #[sea_orm(has_many = "super::posts::Entity")]
     Posts,
+    #[sea_orm(has_many = "super::push_device::Entity")]
+    PushDevice,
     #[sea_orm(has_many = "super::refresh_tokens::Entity")]
     RefreshTokens,
     #[sea_orm(has_many = "super::review::Entity")]
@@ -101,6 +103,12 @@ impl Related<super::payment::Entity> for Entity {
 impl Related<super::posts::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Posts.def()
+    }
+}
+
+impl Related<super::push_device::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::PushDevice.def()
     }
 }
 
