@@ -39,27 +39,42 @@ IMAGE=coturn/coturn:4.6-alpine
 # ── 1. Ensure TURN secrets exist in .env ─────────────────────────────
 changed=0
 ensure_env() {
-  # ensure_env KEY VALUE — set (or replace) KEY=VALUE in .env, WITHOUT
+  # ensure_env KEY VALUE — set (or replace) KEY='VALUE' in .env, WITHOUT
   # sed (the ICE JSON contains backslashes + quotes that sed would
   # mangle): delete the line, re-append, rewrite the file in place.
+  #
+  # QUOTING (production bug, 2026-09-09): the value is stored WRAPPED IN
+  # SINGLE QUOTES. deploy.sh does `set -a; . ./.env; set +a` before
+  # `docker stack deploy` — bash `source` strips double quotes from an
+  # UNQUOTED value, so `AUDIO_CALL_ICE_SERVERS=[{"urls":…}]` reached the
+  # container as `[{urls:…}]` → serde_json parse failed → backend pushed
+  # iceServers:[] → every peer fell back to public STUN → calls behind
+  # CGNAT stuck on "connecting" forever. Single quotes survive `source`
+  # (bash removes only the outer pair) and docker stack interpolation,
+  # keeping the inner double quotes intact. The comparison below strips
+  # the wrapper so a re-run doesn't rewrite a correct line.
   local key="$1" value="$2"
+  local raw=""
   if grep -q "^${key}=" .env 2>/dev/null; then
-    local current
-    current=$(grep "^${key}=" .env | head -n1 | cut -d= -f2-)
-    if [ "$current" != "$value" ]; then
-      local tmp
-      tmp=$(mktemp)
-      grep -v "^${key}=" .env > "$tmp"
-      cat "$tmp" > .env   # in-place rewrite — same inode
-      rm -f "$tmp"
-      printf '%s=%s\n' "$key" "$value" >> .env
-      changed=1
-      echo ".env: ${key} updated"
-    fi
-  else
-    printf '%s=%s\n' "$key" "$value" >> .env
+    raw=$(grep "^${key}=" .env | head -n1 | cut -d= -f2-)
+  fi
+  # strip one pair of surrounding single (or double) quotes for compare
+  local current="$raw"
+  current="${current#\'}"; current="${current%\'}"
+  current="${current#\"}"; current="${current%\"}"
+  # Rewrite when the VALUE differs OR when the stored form is not
+  # single-quoted (a bare JSON value is exactly the foot-gun: it sits
+  # valid in the file but gets its inner double quotes stripped by
+  # `source`, arriving in the container mangled).
+  if [ "$current" != "$value" ] || [ "${raw:0:1}" != "'" ]; then
+    local tmp
+    tmp=$(mktemp)
+    grep -v "^${key}=" .env > "$tmp"
+    cat "$tmp" > .env   # in-place rewrite — same inode
+    rm -f "$tmp"
+    printf "%s='%s'\n" "$key" "$value" >> .env
     changed=1
-    echo ".env: ${key} added"
+    echo ".env: ${key} updated (single-quoted)"
   fi
 }
 
@@ -85,6 +100,14 @@ ensure_env PUBLIC_IP "$PUBLIC_IP"
 # inside the `registered` frame over the authed WS (never HTTP).
 ICE="[{\"urls\":[\"stun:${PUBLIC_IP}:3478\",\"turn:${PUBLIC_IP}:3478?transport=udp\",\"turn:${PUBLIC_IP}:3478?transport=tcp\"],\"username\":\"${TURN_USERNAME}\",\"credential\":\"${TURN_SECRET}\"}]"
 ensure_env AUDIO_CALL_ICE_SERVERS "$ICE"
+
+# ensure_env may have just rewritten .env (quoting fix). Re-source so
+# the stack deploy below interpolates the CLEAN values — the shell
+# still holds whatever the PRE-fix .env exported at the top of this
+# script (the original bug: mangled there, mangled in the container).
+if [ "$changed" -eq 1 ]; then
+  set -a; . ./.env; set +a
+fi
 
 # ── 3. (Re)create the coturn container ───────────────────────────────
 # The coturn image's ENTRYPOINT is `turnserver`, so Cmd = flags only.
@@ -133,6 +156,32 @@ if [ "$changed" -eq 1 ] && [ "${TURN_FROM_DEPLOY:-0}" != "1" ]; then
   else
     echo "NOTE: backend not deployed yet — the next deploy.sh run picks up the new env"
   fi
+fi
+
+# ── 6. Verify the backend actually RECEIVED parseable ICE JSON ───────
+# The value passes bash `source` + docker stack interpolation — both are
+# quoting minefields. If the container env lost its double quotes the
+# backend silently pushes iceServers:[] and every call across NAT fails.
+# Standalone runs only (TURN_FROM_DEPLOY=1 runs BEFORE the caller's
+# stack deploy — deploy.sh owns the post-deploy probe in that flow).
+if [ "${TURN_FROM_DEPLOY:-0}" != "1" ]; then
+  for _ in $(seq 1 12); do
+    CID=$(docker ps -q --filter "name=${STACK}_backend" | head -n1)
+    [ -n "$CID" ] || { sleep 5; continue; }
+    ENVVAL=$(docker exec "$CID" env 2>/dev/null | grep '^AUDIO_CALL_ICE_SERVERS=' | cut -d= -f2-)
+    if echo "$ENVVAL" | grep -q '"urls"'; then
+      echo "backend env OK — ICE JSON reached the container quoted:"
+      echo "  ${ENVVAL:0:120}…"
+      break
+    fi
+    # Only fail loudly once the rollout has settled (last attempt).
+    if [ "$_" = 12 ]; then
+      echo "WARN: backend container env does NOT contain quoted ICE JSON:"
+      echo "  got: ${ENVVAL:-<unset>}"
+      echo "  Fix .env quoting (single-quote the value) and re-run turn.sh"
+    fi
+    sleep 5
+  done
 fi
 
 echo "TURN server ready: ${PUBLIC_IP}:3478 (user: ${TURN_USERNAME})"

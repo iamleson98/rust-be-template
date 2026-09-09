@@ -487,7 +487,27 @@ impl AudioCallConfig {
         if self.ice_servers.is_empty() {
             return serde_json::Value::Array(vec![]);
         }
-        serde_json::from_str(&self.ice_servers).unwrap_or_else(|_| serde_json::Value::Array(vec![]))
+        match serde_json::from_str(&self.ice_servers) {
+            Ok(v) => v,
+            Err(e) => {
+                // NEVER fail silently: an unparseable AUDIO_CALL_ICE_SERVERS
+                // pushes iceServers:[] to every client — both peers fall
+                // back to public STUN and calls behind CGNAT never connect
+                // ("stuck on connecting"). Known cause: the .env value
+                // passing through bash `source`, which strips the inner
+                // double quotes (deploy.sh sources .env before
+                // docker stack deploy). turn.sh single-quotes the value;
+                // this warning catches any future quoting regression.
+                tracing::error!(
+                    error = %e,
+                    value_prefix = %self.ice_servers.chars().take(80).collect::<String>(),
+                    "AUDIO_CALL_ICE_SERVERS is set but NOT valid JSON — \
+                     pushing NO ice servers; calls across NAT will fail. \
+                     Check the quoting in .env"
+                );
+                serde_json::Value::Array(vec![])
+            }
+        }
     }
 }
 

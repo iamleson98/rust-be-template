@@ -234,6 +234,28 @@ if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
+# ── 7b. ICE env gate — the quoting minefield guard ──────────────────
+# AUDIO_CALL_ICE_SERVERS travels .env → bash `source` → docker stack
+# interpolation → container env. bash strips inner DOUBLE quotes from
+# unquoted values, which silently breaks the JSON → backend pushes
+# iceServers:[] → calls behind CGNAT stuck on "connecting" (production
+# incident 2026-09-09). turn.sh now stores the value single-quoted;
+# this gate fails the deploy if the running container got a mangled
+# value, so the regression can never ship silently again.
+ENVVAL=$(docker exec "$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" | head -n1)" \
+  env 2>/dev/null | grep '^AUDIO_CALL_ICE_SERVERS=' | cut -d= -f2- || true)
+if echo "$ENVVAL" | grep -q '"urls"'; then
+  echo "ICE env OK — TURN servers will be pushed to clients:"
+  echo "  ${ENVVAL:0:120}…"
+elif [ -z "$ENVVAL" ]; then
+  echo "WARN: AUDIO_CALL_ICE_SERVERS unset in the backend (TURN disabled — calls across CGNAT will fail)"
+else
+  echo "FATAL: AUDIO_CALL_ICE_SERVERS lost its JSON quoting in the container env:"
+  echo "  got: $ENVVAL"
+  echo "turn.sh should single-quote the value in .env — check deploy/turn.sh ensure_env."
+  exit 1
+fi
+
 docker stack ps "$STACK" --no-trunc --format \
   'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
 docker image prune -f >/dev/null 2>&1 || true
