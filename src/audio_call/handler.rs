@@ -31,12 +31,30 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use crate::audio_call::hub::{call_hub, CallRole};
+use crate::audio_call::session::{sessions, HangupOutcome, OfferOutcome};
 use crate::auth::cookies::ACCESS_COOKIE;
 use crate::auth::SessionUser;
 use crate::error::AppError;
 use crate::state::AppState;
 // Reuse the Origin check from the chat WS handler — same CSWSH defense.
 use crate::ws::handler::check_ws_origin;
+
+/// Agent-picker closure for the session manager: best available agent
+/// (presence: online, not in-call, lowest chat load) registered on this
+/// hub, minus the exclusion set (already-rang agents + agents ringing
+/// for someone else).
+fn pick_agent(exclude: &std::collections::HashSet<String>) -> Option<String> {
+    call_hub().pick_available_agent_id_excluding(exclude)
+}
+
+/// Session-ended cleanup: the agent is never "stuck busy" — their
+/// in-call flag clears whenever a session they were in ends, no matter
+/// which side hung up (this used to only run on agent-side hangups,
+/// leaving zombie busy agents after customer hangups).
+fn agent_session_cleanup(agent_id: &str) {
+    call_hub().set_in_call(agent_id, false);
+    call_hub().broadcast_presence();
+}
 
 /// Build the `/ws-call` WebSocket router.
 pub fn router() -> Router<AppState> {
@@ -282,17 +300,66 @@ pub async fn handle_socket(
 
     let _ = close_tx.send(()).await;
 
-    if let Some(role) = call_hub().unregister(&user_id.to_string(), sid) {
-        if role == CallRole::Agent {
-            tracing::info!(user_id = %user_id, "agent went offline");
-            // Multi-agent: only pull customers' calls when the LAST
-            // agent left; otherwise other agents keep serving.
-            if call_hub().online_agent_count() == 0 {
-                call_hub().broadcast_agent_offline();
+    // ── Session cleanup for the disconnecting user ───────────────────
+    // A dropped socket ends every call the user was part of: the other
+    // side is notified, the agent's in-call flag clears, and a ringing
+    // customer-initiated call re-routes (ring escalation) to the next
+    // available agent instead of dying with the socket.
+    let uid = user_id.to_string();
+    let role = call_hub().unregister(&uid, sid);
+    if let Some(role) = role {
+        match role {
+            CallRole::Agent => {
+                tracing::info!(user_id = %uid, "agent went offline");
+                // Multi-agent: only pull customers' calls when the LAST
+                // agent left; otherwise other agents keep serving.
+                if call_hub().online_agent_count() == 0 {
+                    call_hub().broadcast_agent_offline();
+                }
+                // Drain the agent's sessions: active ones notify the
+                // customer, ringing customer-initiated ones re-route.
+                for _ in 0..100 {
+                    match sessions().on_agent_hangup(&uid, "agent-offline", pick_agent) {
+                        HangupOutcome::NoSession => break,
+                        HangupOutcome::ReRouted { customer_id, agent_id } => {
+                            relay_offer(&customer_id, &agent_id);
+                            continue;
+                        }
+                        HangupOutcome::Notify { customer_id, reason } => {
+                            agent_session_cleanup(&uid);
+                            let _ = call_hub().send_to(
+                                &customer_id,
+                                &json!({
+                                    "type": "hangup",
+                                    "from": "system",
+                                    "reason": reason,
+                                }),
+                            );
+                        }
+                    }
+                }
+                agent_session_cleanup(&uid);
+            }
+            CallRole::Customer => {
+                // Customer socket dropped — tell the agent the call is
+                // over and free them from in-call.
+                if let crate::audio_call::session::CustomerHangup::NotifyAgent { agent_id } =
+                    sessions().on_customer_hangup(&uid)
+                {
+                    agent_session_cleanup(&agent_id);
+                    let _ = call_hub().send_to(
+                        &agent_id,
+                        &json!({
+                            "type": "hangup",
+                            "from": "system",
+                            "reason": "peer-offline",
+                        }),
+                    );
+                }
             }
         }
-        call_hub().broadcast_presence();
     }
+    call_hub().broadcast_presence();
 
     tokio::select! {
         _ = &mut write_task => { }
@@ -357,7 +424,8 @@ fn handle_post_register_signal(
     }
 }
 
-/// `call` — relay an SDP offer / answer / ICE candidate to the target.
+/// `call` — route an SDP offer / answer / ICE candidate through the
+/// session state machine (see `audio_call::session`).
 fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), String> {
     let to = msg.get("to").and_then(|v| v.as_str()).unwrap_or("");
     let kind = msg.get("kind").and_then(|v| v.as_str()).unwrap_or("");
@@ -366,116 +434,119 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
     let channel_id = msg.get("channelId").and_then(|v| v.as_str());
 
     match kind {
+        // ── Offer: the session manager owns routing + busy guards ────
         "offer" => {
-            let customer_id = user.id.to_string();
-            let target_id: Option<String> = match role {
+            let offer = sdp.cloned().unwrap_or_else(|| serde_json::json!(null));
+            match role {
                 CallRole::Customer => {
-                    // Redirect to the staff member that is logged in but
-                    // NOT busy (no active call; chat load ranks them).
-                    // Everyone busy → busy signal instead of a random
-                    // agent that would drop the call anyway.
-                    let picked = call_hub().pick_available_agent_id();
-                    match picked {
-                        Some(agent_id) => Some(agent_id),
-                        None => {
-                            let _ = call_hub().send_to(
-                                &customer_id,
-                                &json!({
-                                    "type": "error",
-                                    "code": if call_hub().online_agent_count() == 0 { "no-agent" } else { "agents-busy" },
-                                    "message": if call_hub().online_agent_count() == 0 {
-                                        "No agent online right now"
-                                    } else {
-                                        "All agents are busy right now — please try again shortly"
-                                    },
-                                }),
-                            );
-                            return Ok(());
+                    let uid = user.id.to_string();
+                    match sessions().begin_customer_offer(&uid, offer, channel_id.map(str::to_string), pick_agent) {
+                        OfferOutcome::Ringing { agent_id } => relay_offer(&uid, &agent_id),
+                        OfferOutcome::CustomerBusy => send_error(
+                            &uid,
+                            "customer-busy",
+                            "You are already in a call",
+                        ),
+                        // No agent / all busy — same split as before:
+                        // zero agents online vs. everyone busy.
+                        OfferOutcome::NoAgent => {
+                            let code = if call_hub().online_agent_count() == 0 {
+                                "no-agent"
+                            } else {
+                                "agents-busy"
+                            };
+                            let message = if code == "no-agent" {
+                                "No agent online right now"
+                            } else {
+                                "All agents are busy right now — please try again shortly"
+                            };
+                            send_error(&uid, code, message);
                         }
+                        // PeerBusy / AgentBusy can't happen for a customer.
+                        OfferOutcome::PeerBusy | OfferOutcome::AgentBusy => {}
                     }
                 }
                 CallRole::Agent => {
                     if to.is_empty() {
                         return Err("Missing `to` field".into());
                     }
+                    // The customer must be online on this hub to receive
+                    // the offer.
                     if call_hub().role_of(to) != Some(CallRole::Customer) {
-                        let _ = call_hub().send_to(
-                            &user.id.to_string(),
-                            &json!({
-                                "type": "error",
-                                "code": "peer-unavailable",
-                                "message": "Peer not online or invalid",
-                            }),
-                        );
+                        send_error(&user.id.to_string(), "peer-unavailable", "Peer not online or invalid");
                         return Ok(());
                     }
-                    Some(to.to_string())
-                }
-            };
-
-            if let Some(tid) = target_id {
-                let sent = call_hub().send_to(
-                    &tid,
-                    &json!({
-                        "type": "incoming",
-                        "from": user.id,
-                        "channelId": channel_id,
-                        "sdp": sdp,
-                        "kind": "offer",
-                    }),
-                );
-                if sent {
-                    // Pin the call so ICE + hangup reach the SAME agent.
-                    if role == CallRole::Customer {
-                        call_hub().pin_agent(&customer_id, &tid);
+                    let uid = user.id.to_string();
+                    match sessions().begin_agent_offer(&uid, to, offer, channel_id.map(str::to_string)) {
+                        // The session is keyed by the CUSTOMER id (`to`).
+                        OfferOutcome::Ringing { agent_id } => relay_offer(to, &agent_id),
+                        OfferOutcome::PeerBusy => send_error(
+                            &uid,
+                            "peer-busy",
+                            "Customer is already in a call",
+                        ),
+                        OfferOutcome::AgentBusy => send_error(
+                            &uid,
+                            "agent-busy",
+                            "You are already in a call",
+                        ),
+                        _ => {}
                     }
-                } else {
+                }
+            }
+        }
+        // ── Answer: validate the session, promote to Active ──────────
+        "answer" => {
+            if to.is_empty() {
+                return Err("Missing `to` field".into());
+            }
+            // The answerer is `user`; `to` is the offerer. The session
+            // is keyed by customer id and pairs the two.
+            let (agent_id, customer_id) = match role {
+                CallRole::Agent => (user.id.to_string(), to.to_string()),
+                CallRole::Customer => (to.to_string(), user.id.to_string()),
+            };
+            match sessions().on_answer(&agent_id, &customer_id) {
+                Some(_) => {
+                    // The agent of the session is now in a call — other
+                    // customers' offers route elsewhere.
+                    call_hub().set_in_call(&agent_id, true);
+                    call_hub().broadcast_presence();
+                    // The answer goes to the OFFERER (`to`): the customer
+                    // for customer-initiated calls, the agent for
+                    // agent-initiated ones.
                     let _ = call_hub().send_to(
-                        &user.id.to_string(),
+                        to,
                         &json!({
-                            "type": "error",
-                            "code": "peer-unavailable",
-                            "message": "Peer not online or unavailable",
+                            "type": "answer",
+                            "from": user.id,
+                            "sdp": sdp,
                         }),
+                    );
+                }
+                None => {
+                    // Stale answer (re-routed away, already answered, or
+                    // no session) — drop it so a late/dup answer can't
+                    // fabricate a call.
+                    send_error(
+                        &user.id.to_string(),
+                        "no-session",
+                        "No ringing call to answer",
                     );
                 }
             }
         }
-        "answer" => {
-            // Agent accepting the call → mark as in-call so other customers
-            // see "employees are busy" + their call buttons disable.
-            if role == CallRole::Agent {
-                call_hub().set_in_call(&user.id.to_string(), true);
-                call_hub().broadcast_presence();
-            }
-            if to.is_empty() {
-                return Err("Missing `to` field".into());
-            }
-            let _ = call_hub().send_to(
-                to,
-                &json!({
-                    "type": "answer",
-                    "from": user.id,
-                    "sdp": sdp,
-                }),
-            );
-        }
+        // ── ICE: route to the session counterpart ────────────────────
         "ice" => {
             let target_id: Option<String> = match role {
-                // ICE MUST reach the agent that received the offer —
-                // re-picking here could relay to a different agent and
-                // break the WebRTC connection mid-negotiation.
-                CallRole::Customer => call_hub()
-                    .pinned_agent(&user.id.to_string())
-                    .or_else(|| call_hub().pick_available_agent_id_or_any()),
+                // Customers may address `to: 'agent'` (web legacy) — the
+                // SESSION decides the real target, never a re-pick.
+                CallRole::Customer => sessions().agent_for(&user.id.to_string()),
                 CallRole::Agent => {
                     if to.is_empty() {
                         return Err("Missing `to` field".into());
                     }
-                    if call_hub().role_of(to) != Some(CallRole::Customer) {
-                        return Ok(());
-                    }
-                    Some(to.to_string())
+                    sessions().agent_target(&user.id.to_string(), to)
                 }
             };
             if let Some(tid) = target_id {
@@ -494,46 +565,108 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), St
     Ok(())
 }
 
-/// `hangup` — notify the other side.
+/// Relay a stored (or fresh) offer to `agent_id` as an `incoming` frame.
+/// `from` is the customer's user id. If the agent's queue is full / they
+/// vanished between pick + send, a customer-initiated session is aborted
+/// with `peer-unavailable` (the next offer attempt will re-pick).
+fn relay_offer(customer_id: &str, agent_id: &str) {
+    let Some(s) = sessions().get(customer_id) else { return };
+    let sent = call_hub().send_to(
+        agent_id,
+        &json!({
+            "type": "incoming",
+            "from": s.customer_id,
+            "channelId": s.channel_id,
+            "sdp": s.offer,
+            "kind": "offer",
+        }),
+    );
+    if !sent {
+        // Roll the session back so the customer isn't stuck "ringing"
+        // against a dead socket.
+        let _ = sessions().on_customer_hangup(customer_id);
+        send_error(
+            customer_id,
+            "peer-unavailable",
+            "Peer not online or unavailable",
+        );
+    }
+}
+
+/// Send an error frame to a peer (best-effort).
+fn send_error(to: &str, code: &str, message: &str) {
+    let _ = call_hub().send_to(
+        to,
+        &json!({
+            "type": "error",
+            "code": code,
+            "message": message,
+        }),
+    );
+}
+
+/// `hangup` — end (or re-route) the session.
 fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), String> {
-    let to = msg.get("to").and_then(|v| v.as_str()).unwrap_or("");
+    // NOTE: the routing target is implied by the live session (validated
+    // there) — the client's `to` field is advisory only.
     let reason = msg
         .get("reason")
         .and_then(|v| v.as_str())
         .filter(|r| matches!(*r, "busy" | "declined" | "timeout"))
         .unwrap_or("remote");
 
-    // Agent hanging up → clear in-call status + broadcast presence so
-    // other customers see "employees available" again.
-    if role == CallRole::Agent {
-        call_hub().set_in_call(&user.id.to_string(), false);
-        // Customers pinned to this agent end their call too.
-        call_hub().unpin_agents_of(&user.id.to_string());
-        call_hub().broadcast_presence();
-    }
-
-    let target_id: Option<String> = match role {
+    match role {
         CallRole::Customer => {
-            let agent = call_hub().pinned_agent(&user.id.to_string());
-            call_hub().unpin_agent(&user.id.to_string());
-            agent
+            // Customer ends the call: the agent learns + their in-call
+            // flag clears (they are NOT stuck busy).
+            let uid = user.id.to_string();
+            if let crate::audio_call::session::CustomerHangup::NotifyAgent { agent_id } =
+                sessions().on_customer_hangup(&uid)
+            {
+                agent_session_cleanup(&agent_id);
+                let _ = call_hub().send_to(
+                    &agent_id,
+                    &json!({
+                        "type": "hangup",
+                        "from": user.id,
+                        "reason": reason,
+                    }),
+                );
+            }
+            Ok(())
         }
         CallRole::Agent => {
-            if to.is_empty() {
-                return Ok(());
+            // Agent declines / ends. A ringing customer-initiated call
+            // escalates to the NEXT free agent instead of dying; an
+            // active call (or the agent's own outbound offer) just ends.
+            let uid = user.id.to_string();
+            // Keep draining sessions this agent holds (paranoia: at
+            // most a couple — one active call + ringing leftovers).
+            for _ in 0..100 {
+                match sessions().on_agent_hangup(&uid, reason, pick_agent) {
+                    HangupOutcome::NoSession => break,
+                    HangupOutcome::ReRouted { customer_id, agent_id } => {
+                        relay_offer(&customer_id, &agent_id);
+                        // Continue: the agent may hold more sessions.
+                        continue;
+                    }
+                    HangupOutcome::Notify { customer_id, reason } => {
+                        agent_session_cleanup(&uid);
+                        let _ = call_hub().send_to(
+                            &customer_id,
+                            &json!({
+                                "type": "hangup",
+                                "from": user.id,
+                                "reason": reason,
+                            }),
+                        );
+                    }
+                }
             }
-            Some(to.to_string())
+            // Agent hanging up also clears their own in-call status +
+            // broadcasts presence so customers see "employees available".
+            agent_session_cleanup(&uid);
+            Ok(())
         }
-    };
-    if let Some(tid) = target_id {
-        let _ = call_hub().send_to(
-            &tid,
-            &json!({
-                "type": "hangup",
-                "from": user.id,
-                "reason": reason,
-            }),
-        );
     }
-    Ok(())
 }

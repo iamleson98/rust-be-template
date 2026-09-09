@@ -19,21 +19,24 @@
 //! ## Multi-agent routing
 //!
 //! Every staff member (employee OR admin) may register as an agent
-//! simultaneously. Customers' calls are redirected to the agent that
-//! is logged in but NOT busy — availability comes from the shared
-//! presence registry (`crate::presence`) so chat load + call state are
-//! considered together. A customer's call is PINNED to the agent that
-//! received their offer so ICE candidates + hangups can't be relayed
-//! to a different agent mid-call.
+//! simultaneously. Customers' calls are routed by the session manager
+//! (`crate::audio_call::session`) to the agent that is logged in but
+//! NOT busy — availability comes from the shared presence registry
+//! (`crate::presence`) so chat load + call state are considered
+//! together. The session manager OWNS the call lifecycle (ringing →
+//! active → ended); this hub is only the peer/socket registry.
 //!
 //! ## In-call tracking
 //!
 //! When an agent accepts a call (`answer` kind), they're marked as
 //! `in_call=true`. The presence broadcast now includes `agentInCall`
 //! so customers can see "employees are busy" and their call buttons
-//! are disabled. When the call ends (hangup), `in_call` is cleared +
-//! a new presence update is broadcast.
+//! are disabled. Session end — EITHER side hanging up, a socket drop,
+//! or the ring queue exhausting — clears `in_call` via the session
+//! manager's handler hooks (a customer-side hangup used to leave the
+//! agent stuck busy forever).
 
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -114,13 +117,8 @@ pub fn call_hub() -> &'static CallHub {
 pub struct CallHub {
     /// `userId → Peer`. Agents are keyed by their user id (several
     /// agents can be online simultaneously — availability routing is
-    /// handled by the presence registry).
+    /// handled by the session manager + presence registry).
     peers: DashMap<String, Peer>,
-    /// `customerUserId → agentUserId` — pins an in-flight call so ICE
-    /// candidates + hangups always reach the agent that got the offer
-    /// (previously a second `any_online_agent_id` lookup could pick a
-    /// DIFFERENT agent and silently misroute mid-call signalling).
-    customer_agent: DashMap<String, String>,
     /// Monotonic socket id (used for logging/tracing only).
     next_sid: AtomicU64,
     /// Total connections accepted (for metrics).
@@ -131,7 +129,6 @@ impl CallHub {
     fn new() -> Self {
         Self {
             peers: DashMap::new(),
-            customer_agent: DashMap::new(),
             next_sid: AtomicU64::new(1),
             total_accepted: AtomicU64::new(0),
         }
@@ -227,12 +224,8 @@ impl CallHub {
     /// to all waiting customers.
     pub fn unregister(&self, user_id: &str, sid: u64) -> Option<CallRole> {
         let removed = self.peers.remove_if(user_id, |_, p| p.sid == sid);
-        if let Some((_, p)) = &removed {
-            presence().call_socket_disconnected(user_id, p.sid);
-            // Any customer pinned to this agent is unpinned (their
-            // in-flight signalling can't reach the agent anymore — the
-            // hangup broadcast below tells them the call ended).
-            self.customer_agent.retain(|_, agent| agent != user_id);
+        if removed.is_some() {
+            presence().call_socket_disconnected(user_id, sid);
         }
         removed.map(|(_, p)| p.role)
     }
@@ -326,42 +319,28 @@ impl CallHub {
         self.peers.get(user_id).map(|p| p.role)
     }
 
-    /// Pin a customer's call to an agent (set when the offer is relayed).
-    pub fn pin_agent(&self, customer_id: &str, agent_id: &str) {
-        self.customer_agent
-            .insert(customer_id.to_string(), agent_id.to_string());
-    }
-
-    /// The agent a customer's in-flight call is pinned to.
-    pub fn pinned_agent(&self, customer_id: &str) -> Option<String> {
-        self.customer_agent
-            .get(customer_id)
-            .map(|a| a.value().clone())
-    }
-
-    /// Unpin a customer (call ended).
-    pub fn unpin_agent(&self, customer_id: &str) {
-        self.customer_agent.remove(customer_id);
-    }
-
-    /// Unpin every customer whose call was routed to `agent_id` (the
-    /// agent left / hung up — their calls are dead).
-    pub fn unpin_agents_of(&self, agent_id: &str) {
-        self.customer_agent.retain(|_, agent| agent != agent_id);
-    }
-
     /// Pick the best agent for a NEW customer call: the staff member
     /// the presence registry considers most available (online, not in
     /// a call, lowest chat load) who is ALSO registered on this call
     /// hub. Falls back to `None` when every agent is busy.
     pub fn pick_available_agent_id(&self) -> Option<String> {
+        self.pick_available_agent_id_excluding(&HashSet::new())
+    }
+
+    /// Same as [`pick_available_agent_id`], but never picks a member of
+    /// `exclude` — the session manager passes the agents a call already
+    /// rang (ring escalation) + agents currently ringing for someone
+    /// else so one phone is never stacked with two callers.
+    pub fn pick_available_agent_id_excluding(&self, exclude: &HashSet<String>) -> Option<String> {
         // Candidate = registered HERE as an agent + available in the
-        // shared presence registry. Ranked with the SAME ordering the
-        // chat router uses (chat load → recency → employees first).
+        // shared presence registry + not excluded. Ranked with the SAME
+        // ordering the chat router uses (chat load → recency → employees
+        // first).
         let mut candidates: Vec<(String, crate::presence::StaffEntry)> = self
             .peers
             .iter()
             .filter(|p| p.role == CallRole::Agent)
+            .filter(|p| !exclude.contains(p.key()))
             .filter_map(|p| presence().get(p.key()).map(|s| (p.key().clone(), s)))
             .filter(|(_, s)| s.available())
             .collect();
@@ -487,26 +466,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn customer_call_gets_pinned_to_agent() {
+    async fn pick_available_excludes_agents() {
         let _guard = TEST_LOCK.lock().unwrap();
         let agent = uuid::Uuid::new_v4().to_string();
-        let customer = uuid::Uuid::new_v4().to_string();
-        let h = hub();
-        assert!(h.pinned_agent(&customer).is_none());
-        h.pin_agent(&customer, &agent);
-        assert_eq!(h.pinned_agent(&customer).as_deref(), Some(agent.as_str()));
-        // Unpinning a DIFFERENT agent's customers doesn't touch this pin.
-        h.unpin_agents_of(&uuid::Uuid::new_v4().to_string());
-        assert_eq!(h.pinned_agent(&customer).as_deref(), Some(agent.as_str()));
-        h.unpin_agent(&customer);
-        assert!(h.pinned_agent(&customer).is_none());
-    }
-
-    #[tokio::test]
-    async fn unregister_unpins_customers_of_agent() {
-        let _guard = TEST_LOCK.lock().unwrap();
-        let agent = uuid::Uuid::new_v4().to_string();
-        let customer = uuid::Uuid::new_v4().to_string();
         let (tx_a, _rx_a) = mpsc::channel::<bytes::Bytes>(8);
         let h = hub();
         let sid = h.next_socket_id();
@@ -517,12 +479,20 @@ mod tests {
             tx_a,
             sid,
         );
-        h.pin_agent(&customer, &agent);
-        h.unregister(&agent, sid);
-        assert!(
-            h.pinned_agent(&customer).is_none(),
-            "agent leaving unpins its customers"
+        // The agent is online + available → picked normally.
+        assert_eq!(
+            h.pick_available_agent_id_excluding(&HashSet::new()),
+            Some(agent.clone())
         );
+        // …but excluded (already rang for this call / ringing for
+        // someone else) → no candidate.
+        let mut exclude = HashSet::new();
+        exclude.insert(agent.clone());
+        assert_eq!(h.pick_available_agent_id_excluding(&exclude), None);
+
+        // Agent leaving drops them from candidacy entirely.
+        h.unregister(&agent, sid);
+        assert_eq!(h.pick_available_agent_id(), None);
     }
 
     /// A stale socket timing out must NOT delete a newer entry for the same

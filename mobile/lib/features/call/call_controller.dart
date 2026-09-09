@@ -24,13 +24,24 @@ class CallController extends Notifier<CallUiState> {
   /// Outbound call timeout — nobody picked up.
   Timer? _callTimer;
 
+  /// Post-answer ICE timeout — the call answered but media never
+  /// connected (symmetric NAT with no TURN, captive portal, …). Ends
+  /// the call with a network-flavoured error instead of sitting on
+  /// "connecting" forever until some other timer fires.
+  Timer? _connectTimer;
+
   /// "Call ended" flash duration before returning to idle.
   Timer? _endedTimer;
 
   Timer? _iceRecoveryTimer;
 
+  /// Set once `RTCPeerConnectionStateConnected` fires — the connect
+  /// timeout only applies while this is false.
+  bool _mediaConnected = false;
+
   static const _ringTimeout = Duration(seconds: 30);
   static const _callTimeout = Duration(seconds: 30);
+  static const _connectTimeout = Duration(seconds: 20);
 
   @override
   CallUiState build() {
@@ -39,6 +50,7 @@ class CallController extends Notifier<CallUiState> {
       _sigSub?.cancel();
       _ringTimer?.cancel();
       _callTimer?.cancel();
+      _connectTimer?.cancel();
       _endedTimer?.cancel();
       _iceRecoveryTimer?.cancel();
       _teardownEngine();
@@ -123,6 +135,7 @@ class CallController extends Notifier<CallUiState> {
         clearOffer: true,
         clearError: true,
       );
+      _startConnectTimeout();
     } catch (_) {
       state = state.copyWith(
         error: 'Không truy cập được micro — kiểm tra quyền ứng dụng',
@@ -228,6 +241,9 @@ class CallController extends Notifier<CallUiState> {
     );
     unawaited(ref.read(soundServiceProvider).playCallJoined());
     _engine?.setRemoteAnswer(Map<String, dynamic>.from(sdp)).catchError((_) {});
+    // The caller jumps straight to `active` on the answer — media may
+    // still be negotiating. Same guard as the callee's `connecting`.
+    _startConnectTimeout();
   }
 
   void _onIce(Map<String, dynamic> msg) {
@@ -247,11 +263,27 @@ class CallController extends Notifier<CallUiState> {
   void _onServerError(Map<String, dynamic> msg) {
     final code = msg['code'] as String? ?? '';
     // Terminal call-setup errors — stop ringing and release the mic.
-    const terminal = {'no-agent', 'agents-busy', 'peer-unavailable'};
+    // `customer-busy`/`agent-busy`: the server-side session guard rejected
+    // a second call for someone already in one. `no-session`: the call was
+    // re-routed away before this answer arrived.
+    const terminal = {
+      'no-agent',
+      'agents-busy',
+      'peer-unavailable',
+      'customer-busy',
+      'agent-busy',
+      'peer-busy',
+      'no-session',
+    };
     if (terminal.contains(code) && state.status != CallStatus.idle) {
-      final text = code == 'peer-unavailable'
-          ? 'Khách hàng không trực tuyến'
-          : 'Không kết nối được — thử lại sau';
+      final text = switch (code) {
+        'peer-unavailable' => 'Khách hàng không trực tuyến',
+        'customer-busy' => 'Bạn đang trong cuộc gọi khác',
+        'agent-busy' => 'Bạn đang trong cuộc gọi khác',
+        'peer-busy' => 'Khách đang trong cuộc gọi khác',
+        'no-agent' => 'Không có nhân viên trực — thử lại sau',
+        _ => 'Không kết nối được — thử lại sau',
+      };
       _endCallInternal(reason: null, error: text);
     }
   }
@@ -268,6 +300,7 @@ class CallController extends Notifier<CallUiState> {
 
   CallEngine _freshEngine() {
     _teardownEngine();
+    _mediaConnected = false;
     final engine = CallEngine()
       ..onLocalCandidate = (candidate) {
         final peer = state.peerId;
@@ -282,9 +315,11 @@ class CallController extends Notifier<CallUiState> {
 
   void _onConnectionState(RTCPeerConnectionState s) {
     if (s == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+      _mediaConnected = true;
       // The answering side never gets an `answer` frame — the connection
       // state is its only "call is live" signal.
       if (state.status == CallStatus.connecting) {
+        _connectTimer?.cancel();
         state = state.copyWith(
           status: CallStatus.active,
           startedAt: DateTime.now(),
@@ -321,9 +356,34 @@ class CallController extends Notifier<CallUiState> {
     );
   }
 
+  /// Post-answer guard: media must connect within [_connectTimeout] —
+  /// otherwise the call is dead ("connecting…" forever) and we end it
+  /// with a clear network error. Applies to BOTH sides: the callee sits
+  /// in `connecting`, the caller jumps to `active` before media flows.
+  void _startConnectTimeout() {
+    _connectTimer?.cancel();
+    _connectTimer = Timer(_connectTimeout, () {
+      if (!_mediaConnected &&
+          (state.status == CallStatus.connecting ||
+              state.status == CallStatus.active)) {
+        _endCallInternal(
+          reason: null,
+          error: 'Không kết nối được âm thanh — kiểm tra mạng và thử lại',
+        );
+        // Tell the peer we're gone so their side doesn't ring on.
+        final sig = ref.read(callSignalingProvider);
+        final peer = state.peerId;
+        if (peer != null && peer.isNotEmpty) {
+          sig?.hangup(peer, 'timeout');
+        }
+      }
+    });
+  }
+
   void _endCallInternal({String? reason, String? error, bool flashEnded = true}) {
     _callTimer?.cancel();
     _ringTimer?.cancel();
+    _connectTimer?.cancel();
     _iceRecoveryTimer?.cancel();
     // Kill the ring/ringback + haptics before anything else.
     unawaited(ref.read(soundServiceProvider).stopAll());

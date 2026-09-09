@@ -383,12 +383,48 @@ impl ChatService {
         //
         // Best-effort: assignment failures never break channel
         // creation.
-        if let Err(e) = self.route_user_message(&channel.id.to_string()).await {
-            tracing::warn!(
-                channel_id = %channel_id_v4,
-                error = %e,
-                "creation-time assignment failed — channel stays in the open queue"
-            );
+        match self.route_user_message(&channel.id.to_string()).await {
+            Ok(outcome) => {
+                // "If admin is away and not online, the server should auto
+                // add another employee who is online" — the routing
+                // already ASSIGNS them; mirror it into the channel
+                // membership roster too (role="employee") so the
+                // channel's participant list reflects the real assignee
+                // from the first message on.
+                if let crate::service::chat_service::RoutingOutcome::NewlyAssigned {
+                    employee_id,
+                } = &outcome
+                {
+                    if let Ok(emp_uuid) = Uuid::parse_str(employee_id) {
+                        if let Err(e) = self
+                            .store
+                            .chat_store()
+                            .add_channel_member(NewChannelMember {
+                                channel_id: channel_id_v4,
+                                user_id: emp_uuid,
+                                role: "employee".into(),
+                            })
+                            .await
+                        {
+                            // Already a member (duplicate) is fine — only
+                            // real failures are logged.
+                            tracing::debug!(
+                                channel_id = %channel_id_v4,
+                                employee_id = %employee_id,
+                                error = %e,
+                                "online-employee member row skipped"
+                            );
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    channel_id = %channel_id_v4,
+                    error = %e,
+                    "creation-time assignment failed — channel stays in the open queue"
+                );
+            }
         }
 
         Ok(channel)

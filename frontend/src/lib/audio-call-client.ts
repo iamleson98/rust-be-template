@@ -84,6 +84,25 @@ const DEFAULT_ICE_SERVERS: IceServerConfig[] = [
 const CALL_TIMEOUT_MS = 30_000
 /** How long an inbound call rings before we auto-reject as busy (ms). */
 const RING_TIMEOUT_MS = 30_000
+/** How long media (ICE) may take to connect after the SDP exchange —
+ * covers BOTH sides: the callee sits in `connecting`, the caller jumps
+ * to `active` before any audio flows. Without TURN on symmetric NATs
+ * this is the difference between a quick clear error and "connecting…"
+ * forever until something else times out. */
+const CONNECT_TIMEOUT_MS = 20_000
+
+/** Terminal call-setup error codes — any of these ends the local call
+ * immediately (the server-side session guard rejected it; ringing on
+ * would be pointless). */
+const TERMINAL_ERROR_CODES = new Set([
+  'no-agent',
+  'agents-busy',
+  'peer-unavailable',
+  'customer-busy',
+  'agent-busy',
+  'peer-busy',
+  'no-session',
+])
 
 export class AudioCallClient {
   private cfg: AudioCallConfig
@@ -105,6 +124,8 @@ export class AudioCallClient {
   private peerId: string | null = null
   private callTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   private ringTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+  private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+  private mediaConnected = false
 
   public state: CallState = 'idle'
   public onlineAgents = 0
@@ -203,6 +224,7 @@ export class AudioCallClient {
     this.stopHeartbeat()
     this.clearCallTimeout()
     this.clearRingTimeout()
+    this.clearConnectTimeout()
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
     this.hangup()
     if (this.ws) { try { this.ws.close() } catch { }; this.ws = null }
@@ -256,6 +278,8 @@ export class AudioCallClient {
           this.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp))
             .then(() => this.setState('active'))
             .catch((e) => this.emit('error', { code: 'set-remote-desc', message: String(e) }))
+          // Caller side: 'active' already, but media may never connect.
+          this.startConnectTimeout()
         }
         break
       case 'ice':
@@ -279,12 +303,12 @@ export class AudioCallClient {
       case 'error':
         // Terminal call-setup errors — stop ringing and release the mic.
         if (
-          (msg.code === 'no-agent' ||
-            msg.code === 'agents-busy' ||
-            msg.code === 'peer-unavailable') &&
-          (this.state === 'calling' || this.state === 'connecting')
+          TERMINAL_ERROR_CODES.has(msg.code) &&
+          (this.state === 'calling' || this.state === 'incoming' ||
+            this.state === 'connecting' || this.state === 'active')
         ) {
           this.clearCallTimeout()
+          this.clearRingTimeout()
           this.cleanupCall()
           this.setState('idle')
         }
@@ -366,6 +390,7 @@ export class AudioCallClient {
       sdp: answer,
     })
     this.setState('connecting')
+    this.startConnectTimeout()
   }
 
   /** Reject an inbound call. */
@@ -439,6 +464,23 @@ export class AudioCallClient {
     if (this.ringTimeoutTimer) { clearTimeout(this.ringTimeoutTimer); this.ringTimeoutTimer = null }
   }
 
+  /** Media must connect within CONNECT_TIMEOUT_MS of the SDP exchange —
+   * otherwise end the call with a clear network error (both sides). */
+  private startConnectTimeout(): void {
+    this.clearConnectTimeout()
+    this.connectTimeoutTimer = setTimeout(() => {
+      this.connectTimeoutTimer = null
+      if (!this.mediaConnected && (this.state === 'connecting' || this.state === 'active')) {
+        this.emit('error', { code: 'media-timeout', message: 'Không kết nối được âm thanh — kiểm tra mạng và thử lại' })
+        this.hangup('timeout')
+      }
+    }, CONNECT_TIMEOUT_MS)
+  }
+
+  private clearConnectTimeout(): void {
+    if (this.connectTimeoutTimer) { clearTimeout(this.connectTimeoutTimer); this.connectTimeoutTimer = null }
+  }
+
   // ── Peer connection plumbing ───────────────────────────────
 
   private setupPeerConnection(): void {
@@ -484,10 +526,14 @@ export class AudioCallClient {
     }
     this.pc.onconnectionstatechange = () => {
       if (this.pc) this.emit('connection-state', { state: this.pc.connectionState })
-      // The ANSWERING side never receives an `answer` message, so 'connected'
-      // is its only signal that the call is live → promote to 'active'.
-      if (this.pc?.connectionState === 'connected' && this.state === 'connecting') {
-        this.setState('active')
+      if (this.pc?.connectionState === 'connected') {
+        this.mediaConnected = true
+        this.clearConnectTimeout()
+        // The ANSWERING side never receives an `answer` message, so 'connected'
+        // is its only signal that the call is live → promote to 'active'.
+        if (this.state === 'connecting') {
+          this.setState('active')
+        }
       }
       if (this.pc?.connectionState === 'failed' || this.pc?.connectionState === 'disconnected') {
         // ICE failed — give it a moment to recover, then hangup.

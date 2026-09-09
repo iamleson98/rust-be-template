@@ -10,6 +10,7 @@
 #
 # What it does:
 #   1. first-run .env           (JWT_SECRET via openssl)
+#   1b. TURN env + coturn       (turn.sh — STUN/TURN relay for calls)
 #   2. optional GHCR login      (private packages only)
 #   3. docker stack deploy      (pulls $IMAGE, volumes persist)
 #   4. guarantees exactly ONE datxevui.com site block in the shared
@@ -32,6 +33,7 @@ SHARED_CADDYFILE=/opt/pdf-tts/Caddyfile
 
 [ -f stack.yml ]          || { echo "FATAL: stack.yml missing in $(pwd)"; exit 1; }
 [ -f Caddyfile.datxevui ] || { echo "FATAL: Caddyfile.datxevui missing in $(pwd)"; exit 1; }
+[ -f turn.sh ]            || { echo "FATAL: turn.sh missing in $(pwd)"; exit 1; }
 
 # ── 1. First-run .env (secrets generated ON the server) ──────────────
 if [ ! -f .env ]; then
@@ -46,6 +48,18 @@ fi
 
 # Export .env values so stack.yml ${VAR} interpolation picks them up.
 set -a; . ./.env; set +a
+
+# ── 1b. TURN relay (coturn) — BEFORE the stack deploy so the backend
+# container is created with AUDIO_CALL_ICE_SERVERS already set. turn.sh
+# is idempotent: first run generates TURN_SECRET + public-IP detection,
+# later runs are no-ops unless the credentials change. Calls between
+# peers on 5G/CGNAT and home WiFi NEED this relay to connect.
+if TURN_FROM_DEPLOY=1 bash turn.sh; then
+  # turn.sh may have appended vars — re-source so THIS deploy sees them.
+  set -a; . ./.env; set +a
+else
+  echo "WARN: turn.sh failed — deploying without TURN changes (calls behind CGNAT may fail)"
+fi
 
 # The CD pipeline passes the exact image ref; manual runs may set it too.
 : "${IMAGE:?IMAGE=<image-ref> env var is required (set by the CD pipeline)}"

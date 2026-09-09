@@ -74,8 +74,33 @@ Production runbook for the single-image stack. **Two supported topologies:**
 8. [Operations (logs, restart, rollback, backups)](#operations)
 9. [Direct mode (Caddy)](#direct-mode-caddy--profile-direct)
 10. [Troubleshooting](#troubleshooting)
+11. [TURN relay (WebRTC calls)](#turn-relay-webrtc-calls)
 
 ---
+
+## TURN relay (WebRTC calls)
+
+`turn.sh` (run by every `deploy.sh`, also safe standalone) keeps a
+**coturn** STUN/TURN relay alive as a host-networked container
+(`coturn-vexevn`). WebRTC audio calls between a customer and a staff
+phone frequently involve one side on 5G (CGNAT) and the other behind
+home-NAT — those paths can rarely hole-punch with STUN alone, so the
+TURN relay is what makes calls actually connect (this was the root
+cause of the "call stuck on connecting, dies after ~25 s" reports).
+
+- Ports: `3478/tcp` + `3478/udp` (STUN+TURN) and `49160-49200/udp`
+  (relay range) — open them in any edge firewall.
+- Credentials: `TURN_USERNAME` (default `vexevn`) + `TURN_SECRET`
+  (random hex, generated on the server into `/opt/vexevn/.env`, never
+  committed).
+- The backend picks up `AUDIO_CALL_ICE_SERVERS` from the same `.env`
+  and pushes the STUN/TURN list to every peer in the `registered`
+  frame over the authed WebSocket.
+- Manual ops:
+  ```bash
+  bash /opt/vexevn/turn.sh            # (re)create + verify
+  docker logs coturn-vexevn           # allocations + errors
+  ```
 
 ## Prerequisites
 

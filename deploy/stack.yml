@@ -42,6 +42,14 @@ services:
       - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-6000}
       - RATE_LIMIT_BURST=${RATE_LIMIT_BURST:-1000}
 
+      # ── WebRTC calls ───────────────────────────────────────────
+      # STUN/TURN list pushed to every peer in the WS `registered`
+      # frame. Managed by turn.sh (coturn runs as a sibling host-
+      # networked container). WITHOUT a TURN relay, peers behind
+      # CGNAT (5G ↔ home WiFi) can almost never connect — calls sit
+      # on "connecting" until they time out.
+      - AUDIO_CALL_ICE_SERVERS=${AUDIO_CALL_ICE_SERVERS:-}
+
       # ── Payments / contact ──────────────────────────────────────
       - PAYMENT_PUBLIC_BASE_URL=${PAYMENT_PUBLIC_BASE_URL:-https://datxevui.com}
 
