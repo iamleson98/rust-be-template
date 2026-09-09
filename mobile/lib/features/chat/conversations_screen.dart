@@ -309,18 +309,17 @@ class _FilterTabs extends ConsumerWidget {
             LayoutBuilder(
               builder: (context, constraints) {
                 final w = constraints.maxWidth / _filters.length;
+                final pillWidth = w * 0.94;
                 final index =
                     _filters.indexWhere((f) => f.$1 == selected).clamp(0, 2);
-                return AnimatedAlign(
-                  duration: AppMotion.page,
-                  curve: AppMotion.overshoot,
-                  alignment: Alignment(
-                    -1 + (2 * index + 1) / _filters.length,
-                    0,
-                  ),
-                  child: Center(
-                    child: SizedBox(
-                      width: w * 0.94,
+                return Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: AppMotion.page,
+                      curve: AppMotion.overshoot,
+                      left: index * w + (w - pillWidth) / 2,
+                      top: 3,
+                      width: pillWidth,
                       height: 34,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -336,7 +335,7 @@ class _FilterTabs extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 );
               },
             ),
@@ -349,11 +348,9 @@ class _FilterTabs extends ConsumerWidget {
                       onTap: () =>
                           ref.read(queueFilterProvider.notifier).set(filter),
                       child: Center(
-                        child: Text(
-                          filter == QueueFilter.unassigned && waitingCount > 0
-                              ? 'Chờ xử lý · $waitingCount'
-                              : label,
-                          maxLines: 1,
+                        child: AnimatedDefaultTextStyle(
+                          duration: AppMotion.page,
+                          curve: Curves.easeOut,
                           style: theme.typography.body.sm.copyWith(
                             color: selected == filter
                                 ? theme.colors.primaryForeground
@@ -361,6 +358,13 @@ class _FilterTabs extends ConsumerWidget {
                             fontWeight: selected == filter
                                 ? FontWeight.w700
                                 : FontWeight.w500,
+                          ),
+                          child: Text(
+                            filter == QueueFilter.unassigned &&
+                                    waitingCount > 0
+                                ? 'Chờ xử lý · $waitingCount'
+                                : label,
+                            maxLines: 1,
                           ),
                         ),
                       ),

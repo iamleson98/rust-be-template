@@ -197,6 +197,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SizedBox(height: 12),
 
           // ── Connection ─────────────────────────────────────────────
+          _sectionLabel(theme, 'Kết nối'),
           _tile(
             icon: FLucideIcons.wifi,
             title: 'Máy chủ',
@@ -209,40 +210,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             details: modeLabel,
             onTap: _pickTheme,
           ),
+
           // ── Alerts ────────────────────────────────────────────────
+          _sectionLabel(theme, 'Thông báo'),
           FCard(
-            child: Column(
-              children: [
-                FSwitch(
-                  value: alerts,
-                  onChange: (v) =>
-                      ref.read(alertsEnabledProvider.notifier).set(v),
-                  label: const Text('Thông báo'),
-                  description: const Text(
-                    'Hiện thông báo khi có tin nhắn hoặc cuộc gọi mới',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                children: [
+                  _switchTile(
+                    theme: theme,
+                    icon: FLucideIcons.bell,
+                    value: alerts,
+                    onChange: (v) =>
+                        ref.read(alertsEnabledProvider.notifier).set(v),
+                    label: 'Thông báo',
+                    description:
+                        'Hiện thông báo khi có tin nhắn hoặc cuộc gọi mới',
                   ),
-                ),
-                const FDivider(),
-                FSwitch(
-                  value: sound && alerts,
-                  onChange: (v) =>
-                      ref.read(soundEnabledProvider.notifier).set(v),
-                  label: const Text('Âm thanh'),
-                  description: const Text(
-                    'Phát nhạc chuông và âm báo thật (Google AOSP + Jitsi)',
+                  const FDivider(),
+                  _switchTile(
+                    theme: theme,
+                    icon: FLucideIcons.volume2,
+                    value: sound && alerts,
+                    onChange: (v) =>
+                        ref.read(soundEnabledProvider.notifier).set(v),
+                    label: 'Âm thanh',
+                    description:
+                        'Phát nhạc chuông và âm báo thật (Google AOSP + Jitsi)',
                   ),
-                ),
-                const FDivider(),
-                FSwitch(
-                  value: vibrate && alerts,
-                  onChange: (v) =>
-                      ref.read(vibrateEnabledProvider.notifier).set(v),
-                  label: const Text('Rung'),
-                  description: const Text(
-                    'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
+                  const FDivider(),
+                  _switchTile(
+                    theme: theme,
+                    icon: FLucideIcons.smartphone,
+                    value: vibrate && alerts,
+                    onChange: (v) =>
+                        ref.read(vibrateEnabledProvider.notifier).set(v),
+                    label: 'Rung',
+                    description:
+                        'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -271,6 +280,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 .copyWith(color: theme.colors.mutedForeground),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Small uppercase group label above a settings section.
+  Widget _sectionLabel(FThemeData theme, String text) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 14, 10, 8),
+      child: Text(
+        text.toUpperCase(),
+        style: theme.typography.body.xs.copyWith(
+          color: theme.colors.mutedForeground,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+        ),
+      ),
+    );
+  }
+
+  /// One switch row: icon, title + description, and the toggle — evenly
+  /// padded so the group reads as an organized list rather than a
+  /// cramped stack of controls.
+  Widget _switchTile({
+    required FThemeData theme,
+    required IconData icon,
+    required bool value,
+    required ValueChanged<bool> onChange,
+    required String label,
+    required String description,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      child: FSwitch(
+        value: value,
+        onChange: onChange,
+        label: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: theme.colors.primary),
+            const SizedBox(width: 8),
+            Text(label),
+          ],
+        ),
+        description: Padding(
+          padding: const EdgeInsets.only(top: 2, left: 24),
+          child: Text(description),
+        ),
       ),
     );
   }

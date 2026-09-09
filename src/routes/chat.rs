@@ -1,4 +1,5 @@
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
 use utoipa::IntoParams;
@@ -338,7 +339,7 @@ pub async fn post_message(
     AuthUser(uid): AuthUser,
     Path(id): Path<Uuid>,
     Json(body): Json<CreateMessageRequest>,
-) -> Result<Json<CreateMessageResponse>, AppError> {
+) -> Result<(StatusCode, Json<CreateMessageResponse>), AppError> {
     body.validate()
         .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
     let channel_id = id.to_string();
@@ -359,9 +360,12 @@ pub async fn post_message(
                 .find_message_by_client_id(&channel_id, client_msg_id)
                 .await?
             {
-                return Ok(Json(CreateMessageResponse {
-                    message: message_to_dto(stored),
-                }));
+                return Ok((
+                    StatusCode::CREATED,
+                    Json(CreateMessageResponse {
+                        message: message_to_dto(stored),
+                    }),
+                ));
             }
         }
     }
@@ -506,9 +510,12 @@ pub async fn post_message(
         }
     }
 
-    Ok(Json(CreateMessageResponse {
-        message: message_to_dto(msg),
-    }))
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateMessageResponse {
+            message: message_to_dto(msg),
+        }),
+    ))
 }
 
 // ────────────────────────────────────────────────────────────────

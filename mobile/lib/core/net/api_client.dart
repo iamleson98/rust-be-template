@@ -269,7 +269,8 @@ class ApiClient {
   }
 
   void _throwIfNotOk(Response<dynamic> res, int expected, String fallback) {
-    if (res.statusCode == expected) return;
+    final code = res.statusCode ?? 0;
+    if (code >= 200 && code < 300) return;
     throw ApiException(_extractMessage(res) ?? fallback, res.statusCode);
   }
 
