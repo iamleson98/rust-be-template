@@ -102,8 +102,9 @@ final chatLiveServiceProvider = Provider<ChatLiveService?>((ref) {
       // Fresh token at every connect — read from the LIVE token store
       // (kept current by the ApiClient refresh flow), not the
       // login-time auth-state snapshot which goes stale after the
-      // first rotation.
-      final store = ref.read(globalTokenStore);
+      // first rotation. (`globalTokenStore` is a plain process-global
+      // — no ref.read.)
+      final store = globalTokenStore;
       // Proactive rotation when the access JWT is (about to be)
       // expired: rotate NOW so the backoff retry carries a fresh
       // token instead of waiting for repeated handshake failures.

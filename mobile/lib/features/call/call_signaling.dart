@@ -126,7 +126,8 @@ final callSignalingProvider = Provider<CallSignalingService?>((ref) {
       // but AuthState.accessToken keeps the login-time token. A stale
       // token here would make every reconnect fail auth forever —
       // the phone would silently stop receiving calls.
-      final store = ref.read(globalTokenStore);
+      // (`globalTokenStore` is a plain process-global — no ref.read.)
+      final store = globalTokenStore;
       // Proactive rotation: in duty mode there is no REST traffic to
       // trigger the 401 interceptor, so an expired access token would
       // fail every WS handshake until something else refreshes it.
