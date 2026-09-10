@@ -1012,54 +1012,6 @@ export const AdminStatsCardsSkeleton = memo(function AdminStatsCardsSkeleton({
   )
 })
 
-/* ─── Admin Reviews List Skeleton — review moderation items ───
- * Mirrors the reviews panel's list rows: avatar + author line +
- * status badge + star row, then 3 review-content lines, then the
- * reply/action footer. Replaces the old "Đang tải đánh giá…" text.
- */
-export const AdminReviewsListSkeleton = memo(function AdminReviewsListSkeleton({
-  count = 4,
-}: {
-  count?: number
-}) {
-  return (
-    <div className="divide-y" aria-hidden data-testid="admin-reviews-skeleton">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="p-4 space-y-2.5">
-          {/* Header row: avatar + author + badge + time */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <Shimmer className="h-9 w-9 rounded-full shrink-0" />
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Shimmer className="h-4 w-28" />
-                  <Shimmer className="h-4 w-16 rounded-full" />
-                </div>
-                <Shimmer className="h-3 w-24" />
-              </div>
-            </div>
-            <div className="flex gap-0.5">
-              {Array.from({ length: 5 }).map((_, j) => (
-                <Shimmer key={j} className="h-4 w-4 rounded" />
-              ))}
-            </div>
-          </div>
-          {/* Content lines */}
-          <Shimmer className="h-3 w-full" />
-          <Shimmer className="h-3 w-5/6" />
-          <Shimmer className="h-3 w-2/3" style={{ opacity: 1 - i * 0.15 }} />
-          {/* Action footer */}
-          <div className="flex items-center gap-2 pt-1">
-            <Shimmer className="h-6 w-20 rounded-md" />
-            <Shimmer className="h-6 w-20 rounded-md" />
-            <Shimmer className="ml-auto h-6 w-14 rounded-md" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-})
-
 /* ─── Cron Job Cards Skeleton — job card grid ───
  * Mirrors a cron JobCard: title + code chip row, schedule subline,
  * action buttons + switch, and the two "next run / last run" boxes.

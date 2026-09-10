@@ -2166,6 +2166,31 @@ export type SetUserRoleResponse = {
 };
 
 /**
+ * One OFFLINE entry of the team roster — a staff member who was
+ * recently active (durable `last seen` from the DB backstop) but has
+ * no live socket right now. Rendered dimmed below the online roster
+ * so an admin can see who just dropped (flaky network) instead of an
+ * empty board.
+ */
+export type StaffPresenceOfflineOut = {
+    brandId?: string | null;
+    /**
+     * RFC3339 — the start of their most recent online stint.
+     */
+    lastOnlineAt?: string | null;
+    /**
+     * RFC3339 — when they were last seen.
+     */
+    lastSeenAt: string;
+    name: string;
+    /**
+     * `"employee"` or `"admin"`.
+     */
+    role: string;
+    userId: string;
+};
+
+/**
  * Staff presence entry for `GET /api/presence/staff` + the
  * `staff_presence` WS broadcast.
  */
@@ -2184,6 +2209,12 @@ export type StaffPresenceOut = {
      */
     busy: boolean;
     inCall: boolean;
+    /**
+     * RFC3339 wall-clock of the last presence activity (connect,
+     * disconnect, assignment, call state change). Displayed by the
+     * team board as "hoạt động x phút trước".
+     */
+    lastSeenAt?: string | null;
     name: string;
     online: boolean;
     /**
@@ -2202,6 +2233,10 @@ export type StaffPresenceResponse = {
      * True when NO staff is online — the NullClaw bot owns support.
      */
     botActive: boolean;
+    /**
+     * Recently-active-but-offline members (DB-backed, brand-scoped).
+     */
+    offline: Array<StaffPresenceOfflineOut>;
     onlineCount: number;
     staff: Array<StaffPresenceOut>;
 };
@@ -5854,7 +5889,7 @@ export type GetStaffPresenceErrors = {
 
 export type GetStaffPresenceResponses = {
     /**
-     * Staff presence snapshot
+     * Staff presence snapshot (live + recently offline)
      */
     200: StaffPresenceResponse;
 };
@@ -6047,8 +6082,6 @@ export type List15Data = {
     query?: {
         brand_id?: string | null;
         route_id?: string | null;
-        user_id?: string | null;
-        status?: string | null;
         limit?: number | null;
         offset?: number | null;
     };
@@ -6057,7 +6090,7 @@ export type List15Data = {
 
 export type List15Responses = {
     /**
-     * Review list
+     * Approved reviews for the given scope
      */
     200: ReviewListResponse;
 };
@@ -6126,7 +6159,7 @@ export type TagsData = {
 
 export type TagsResponses = {
     /**
-     * Tags index
+     * Tags index (approved reviews)
      */
     200: ReviewTagsResponse;
 };

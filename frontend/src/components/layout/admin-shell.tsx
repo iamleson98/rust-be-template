@@ -33,7 +33,6 @@ import {
   LayoutDashboard,
   Ticket,
   MessageSquare,
-  Star,
   MessageSquareWarning,
   Building2,
   Route as RouteIcon,
@@ -65,7 +64,6 @@ const NAV_GROUPS = [
     items: [
       { title: 'Vé đã bán', icon: Ticket, url: '/admin/tickets' },
       { title: 'Hỗ trợ trực tuyến', icon: MessageSquare, url: '/admin/chat' },
-      { title: 'Đánh giá', icon: Star, url: '/admin/reviews' },
       { title: 'Phản hồi', icon: MessageSquareWarning, url: '/admin/feedback' },
     ],
   },

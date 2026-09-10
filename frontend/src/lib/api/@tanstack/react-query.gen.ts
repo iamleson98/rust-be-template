@@ -2579,7 +2579,19 @@ export const recommendationsOptions = (options?: Options<RecommendationsData>) =
 export const list15QueryKey = (options?: Options<List15Data>) => createQueryKey('list15', options);
 
 /**
- * `GET /api/reviews` — list reviews with optional filters.
+ * `GET /api/reviews` — public list of APPROVED reviews with optional
+ * brand/route filters.
+ *
+ * Moderation policy (fail-closed):
+ * * `status` is NOT accepted — the public list ALWAYS serves
+ * `approved` rows only. Callers must never be able to enumerate
+ * `pending`/`rejected`/`hidden` feedback via the public API
+ * (rejected feedback may contain content the moderation team
+ * deliberately suppressed).
+ * * `user_id` is NOT accepted — that filter exists only on the
+ * authenticated `/api/reviews/mine` (forced to the caller) and
+ * the admin list. A public `user_id` filter would let anyone
+ * enumerate any user's review history.
  */
 export const list15Options = (options?: Options<List15Data>) => queryOptions<List15Response, DefaultError, List15Response, ReturnType<typeof list15QueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -2597,7 +2609,19 @@ export const list15Options = (options?: Options<List15Data>) => queryOptions<Lis
 export const list15InfiniteQueryKey = (options?: Options<List15Data>): QueryKey<Options<List15Data>> => createQueryKey('list15', options, true);
 
 /**
- * `GET /api/reviews` — list reviews with optional filters.
+ * `GET /api/reviews` — public list of APPROVED reviews with optional
+ * brand/route filters.
+ *
+ * Moderation policy (fail-closed):
+ * * `status` is NOT accepted — the public list ALWAYS serves
+ * `approved` rows only. Callers must never be able to enumerate
+ * `pending`/`rejected`/`hidden` feedback via the public API
+ * (rejected feedback may contain content the moderation team
+ * deliberately suppressed).
+ * * `user_id` is NOT accepted — that filter exists only on the
+ * authenticated `/api/reviews/mine` (forced to the caller) and
+ * the admin list. A public `user_id` filter would let anyone
+ * enumerate any user's review history.
  */
 export const list15InfiniteOptions = (options?: Options<List15Data>) => {
     const opts = infiniteQueryOptions<List15Response, DefaultError, InfiniteData<List15Response>, QueryKey<Options<List15Data>>, number | null | Pick<QueryKey<Options<List15Data>>[0], 'body' | 'headers' | 'path' | 'query'>>(
@@ -2698,7 +2722,9 @@ export const mineInfiniteOptions = (options?: Options<MineData>) => {
 export const tagsQueryKey = (options?: Options<TagsData>) => createQueryKey('tags', options);
 
 /**
- * `GET /api/reviews/tags` — get the review tags index.
+ * `GET /api/reviews/tags` — public tag index over APPROVED reviews
+ * only (a tag surfacing exclusively on rejected feedback would leak
+ * that the moderation queue handled that topic).
  */
 export const tagsOptions = (options?: Options<TagsData>) => queryOptions<TagsResponse, DefaultError, TagsResponse, ReturnType<typeof tagsQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

@@ -202,6 +202,7 @@ class StaffEntry {
     required this.busy,
     required this.inCall,
     required this.activeChats,
+    this.lastSeenAt,
   });
 
   final String userId;
@@ -215,6 +216,10 @@ class StaffEntry {
   final bool inCall;
   final int activeChats;
 
+  /// RFC3339 — the last presence activity (connect / disconnect /
+  /// assignment / call state change). Rendered as "x phút trước".
+  final String? lastSeenAt;
+
   factory StaffEntry.fromJson(Map<String, dynamic> json) => StaffEntry(
         userId: json['userId'] as String,
         name: (json['name'] ?? '') as String,
@@ -224,6 +229,45 @@ class StaffEntry {
         busy: json['busy'] as bool? ?? false,
         inCall: json['inCall'] as bool? ?? false,
         activeChats: (json['activeChats'] as num?)?.toInt() ?? 0,
+        lastSeenAt: json['lastSeenAt'] as String?,
+      );
+}
+
+/// A RECENTLY-ACTIVE but offline staff row (`StaffPresenceOfflineOut`
+/// DTO / the `offline` array of the `staff_presence` broadcast). Comes
+/// from the DB backstop, so it survives backend restarts.
+@immutable
+class OfflineStaffEntry {
+  const OfflineStaffEntry({
+    required this.userId,
+    required this.name,
+    required this.role,
+    required this.lastSeenAt,
+    this.brandId,
+    this.lastOnlineAt,
+  });
+
+  final String userId;
+  final String name;
+
+  /// `employee` | `admin`.
+  final String role;
+  final String? brandId;
+
+  /// RFC3339 — when they were last seen.
+  final String lastSeenAt;
+
+  /// RFC3339 — the start of their most recent online stint.
+  final String? lastOnlineAt;
+
+  factory OfflineStaffEntry.fromJson(Map<String, dynamic> json) =>
+      OfflineStaffEntry(
+        userId: json['userId'] as String,
+        name: (json['name'] ?? '') as String,
+        role: (json['role'] ?? 'employee') as String,
+        brandId: json['brandId'] as String?,
+        lastSeenAt: (json['lastSeenAt'] ?? '') as String,
+        lastOnlineAt: json['lastOnlineAt'] as String?,
       );
 }
 
@@ -234,11 +278,15 @@ class StaffSnapshot {
     required this.onlineCount,
     required this.availableCount,
     required this.botActive,
+    this.offline = const [],
   });
 
   final List<StaffEntry> staff;
   final int onlineCount;
   final int availableCount;
+
+  /// Recently-active-but-offline members (DB-backed last-seen).
+  final List<OfflineStaffEntry> offline;
 
   /// True when NO staff is online — the NullClaw bot owns support.
   final bool botActive;
@@ -247,6 +295,10 @@ class StaffSnapshot {
         staff: (json['staff'] as List? ?? [])
             .whereType<Map<String, dynamic>>()
             .map((e) => StaffEntry.fromJson(e))
+            .toList(),
+        offline: (json['offline'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map((e) => OfflineStaffEntry.fromJson(e))
             .toList(),
         onlineCount: (json['onlineCount'] as num?)?.toInt() ?? 0,
         availableCount: (json['availableCount'] as num?)?.toInt() ?? 0,

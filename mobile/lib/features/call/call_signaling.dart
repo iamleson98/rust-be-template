@@ -16,12 +16,20 @@ import '../../core/net/ws_client.dart';
 ///
 /// Protocol (JSON frames):
 ///   → `register {role, userId, channelId?}`
-///   ← `registered {role, userId, onlineAgents, iceServers}`
+///   ← `registered {role, userId, onlineAgents, iceServers, activeCall}`
 ///   → `call {to, kind: offer|answer|ice, sdp?, candidate?, channelId?}`
 ///   ← `incoming {from, channelId, sdp, kind}`
 ///   ← `answer {from, sdp}` / `ice {from, candidate}` / `hangup {from, reason}`
 ///   → `hangup {to, reason}` (reason ∈ busy|declined|timeout|remote)
 ///   ← `presence {onlineAgents}` / `error {code, message}` / `pong`
+///
+/// Renegotiation (ICE restart — network resilience):
+///   → `call {to, kind: offer, iceRestart: true, sdp}` — offerer re-offers
+///     with fresh candidates after the media path failed
+///   ← `renegotiate {from, sdp, kind: offer}` — apply to the EXISTING peer
+///     connection, answer, then:
+///   → `call {to, kind: answer, iceRestart: true, sdp}`
+///   ← `renegotiate {from, sdp, kind: answer}` — setRemoteDescription.
 class CallSignalingService {
   CallSignalingService({
     required Uri Function() wsUrl,
@@ -71,6 +79,14 @@ class CallSignalingService {
         'userId': _userId(),
         'channelId': contextChannel,
       });
+      // Candidates buffered while the socket was down ride along with
+      // the register: the server relays them to the live session's peer
+      // (addIceCandidate on the peer tolerates duplicates). Without this,
+      // every WS blip during ICE negotiation silently dropped our half
+      // of the candidate set — the peer can never connect and the call
+      // UI sits on "connecting" until the timeout fires (the exact
+      // office-network failure mode).
+      _flushPendingIce();
     }
   }
 
@@ -92,19 +108,71 @@ class CallSignalingService {
         {'to': to, 'from': _userId(), 'kind': 'answer', 'sdp': sdp},
       );
 
-  /// Trickle ICE to the peer we're negotiating with.
-  bool sendIce(String to, Map<String, dynamic>? candidate) =>
-      _client.send('call', {
-        'to': to,
-        'from': _userId(),
-        'kind': 'ice',
-        'candidate': candidate,
-      });
+  /// Trickle ICE to the peer we're negotiating with. When the socket is
+  /// down and a call is live, the candidate is BUFFERED (bounded) instead
+  /// of dropped — flushed by `_onStatus` on the next reconnect.
+  bool sendIce(String to, Map<String, dynamic>? candidate) {
+    final msg = <String, dynamic>{
+      'to': to,
+      'from': _userId(),
+      'kind': 'ice',
+      'candidate': candidate,
+    };
+    if (_client.isConnected) {
+      return _client.send('call', msg);
+    }
+    if (hasLiveCall() && _pendingIce.length < _maxPendingIce) {
+      _pendingIce.add(msg);
+    }
+    return false;
+  }
 
   bool hangup(String to, [String reason = 'remote']) => _client.send(
         'hangup',
         {'to': to, 'from': _userId(), 'reason': reason},
       );
+
+  // ── Renegotiation (ICE restart) ──────────────────────────────────
+
+  /// OFFERER only: re-offer with fresh candidates after the media path
+  /// failed. Relayed by the server as `renegotiate` (kind: offer).
+  bool sendRenegotiateOffer(String to, Map<String, dynamic> sdp) =>
+      _client.send('call', {
+        'to': to,
+        'from': _userId(),
+        'kind': 'offer',
+        'iceRestart': true,
+        'sdp': sdp,
+      });
+
+  /// ANSWERER only: reply to a `renegotiate` offer on the EXISTING peer
+  /// connection (never a new call / new ring).
+  bool sendRenegotiateAnswer(String to, Map<String, dynamic> sdp) =>
+      _client.send('call', {
+        'to': to,
+        'from': _userId(),
+        'kind': 'answer',
+        'iceRestart': true,
+        'sdp': sdp,
+      });
+
+  // ── Pending-ICE buffer ─────────────────────────────────────────
+
+  static const _maxPendingIce = 64;
+  final List<Map<String, dynamic>> _pendingIce = [];
+
+  /// Set by the call controller: candidates are only worth buffering
+  /// while a call is live (otherwise they are stale noise).
+  bool Function() hasLiveCall = () => false;
+
+  void _flushPendingIce() {
+    if (_pendingIce.isEmpty) return;
+    final queued = List<Map<String, dynamic>>.from(_pendingIce);
+    _pendingIce.clear();
+    for (final msg in queued) {
+      _client.send('call', msg);
+    }
+  }
 
   /// Immediate reconnect (app resumed from background).
   void reconnectNow() => _client.reconnectNow();

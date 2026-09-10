@@ -56,6 +56,13 @@ class CallController extends Notifier<CallUiState> {
   /// timeout only applies while this is false.
   bool _mediaConnected = false;
 
+  /// Did WE create the initial offer (mobile-initiated calls)? Only the
+  /// offerer may drive an ICE restart (WebRTC glare rule).
+  bool _isOfferer = false;
+
+  /// ICE restarts attempted this call (capped at 1).
+  int _iceRestarts = 0;
+
   static const _ringTimeout = Duration(seconds: 30);
   static const _callTimeout = Duration(seconds: 30);
   static const _connectTimeout = Duration(seconds: 20);
@@ -77,6 +84,11 @@ class CallController extends Notifier<CallUiState> {
     });
     if (sig == null) return const CallUiState();
     _sigSub = sig.signals.listen(_onSignal, onError: (_) {});
+    // The signaling service only buffers ICE candidates while a call is
+    // live — give it the predicate (avoids buffering stale noise between
+    // calls).
+    sig.hasLiveCall = () =>
+        state.status != CallStatus.idle && state.status != CallStatus.ended;
     // Signaling-socket loss = call death (server invariant: a dropped
     // socket ends every session it carries). Without this, an employee
     // whose phone lost the socket mid-call (OS froze the app, network
@@ -123,6 +135,8 @@ class CallController extends Notifier<CallUiState> {
       _teardownEngine();
       return;
     }
+    _isOfferer = true;
+    _iceRestarts = 0;
 
     // The mic is open and an offer is out — keep the process alive
     // through screen-blanks from here on (see CallKeepAlive).
@@ -150,6 +164,8 @@ class CallController extends Notifier<CallUiState> {
       return;
     }
     _ringTimer?.cancel();
+    _isOfferer = false;
+    _iceRestarts = 0;
     // Picking up silences the ring + vibration immediately.
     unawaited(ref.read(soundServiceProvider).stopRinging());
     final sig = ref.read(callSignalingProvider);
@@ -217,12 +233,50 @@ class CallController extends Notifier<CallUiState> {
         _onIncoming(msg);
       case 'answer':
         _onAnswer(msg);
+      case 'renegotiate':
+        _onRenegotiate(msg);
       case 'ice':
         _onIce(msg);
       case 'hangup':
         _onRemoteHangup(msg);
       case 'error':
         _onServerError(msg);
+    }
+  }
+
+  /// ICE restart from the peer (always the original OFFERER — the web
+  /// customer, or us for mobile-initiated calls): apply the re-offer to
+  /// the EXISTING engine and answer, or apply their answer to our restart.
+  /// Never re-rings, never a new call — this is the recovery path for
+  /// corporate NATs / IP churn that invalidated the original candidates.
+  void _onRenegotiate(Map<String, dynamic> msg) {
+    final sdp = msg['sdp'];
+    if (sdp is! Map) return;
+    final engine = _engine;
+    if (engine == null || !state.inCall) return;
+    final from = msg['from'] as String? ?? state.peerId;
+    final kind = msg['kind'] as String?;
+    final sig = ref.read(callSignalingProvider);
+    if (from == null || sig == null) return;
+
+    if (kind == 'offer') {
+      unawaited(
+        engine
+            .acceptRenegotiateOffer(Map<String, dynamic>.from(sdp))
+            .then((answer) {
+          sig.sendRenegotiateAnswer(from, answer);
+          // Fresh candidates are coming — extend the media deadline so a
+          // slow restart isn't killed by the old timer.
+          _startConnectTimeout();
+        }).catchError((_) {
+          _hangup('remote');
+        }),
+      );
+    } else if (kind == 'answer') {
+      engine
+          .setRemoteAnswer(Map<String, dynamic>.from(sdp))
+          .catchError((_) {});
+      _startConnectTimeout();
     }
   }
 
@@ -424,16 +478,55 @@ class CallController extends Notifier<CallUiState> {
       _iceRecoveryTimer?.cancel();
     } else if (s == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
         s == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
-      // ICE hiccup — give it 3s to recover, then hang up.
+      // ICE hiccup — give it 3s to recover, then either restart ICE
+      // (once, OFFERER-only — the office-network case where the media
+      // path never came up or died mid-negotiation) or hang up.
       _iceRecoveryTimer?.cancel();
       _iceRecoveryTimer = Timer(const Duration(seconds: 3), () {
         final current = state;
         if (current.status == CallStatus.active ||
             current.status == CallStatus.connecting) {
-          _hangup('remote');
+          if (_isOfferer && _iceRestarts < 1) {
+            _restartIce();
+          } else {
+            _hangup('remote');
+          }
         }
       });
     }
+  }
+
+  /// OFFERER-only ICE restart: re-offer with `iceRestart: true` on the
+  /// SAME engine; the server relays it as `renegotiate`, the peer
+  /// re-answers, and a fresh candidate set + media deadline get a second
+  /// chance. This is the recovery path for corporate NATs that block the
+  /// original candidate pair — without it the call dies at the first ICE
+  /// failure even though a TURN relay path exists.
+  void _restartIce() {
+    final engine = _engine;
+    final peer = state.peerId;
+    final sig = ref.read(callSignalingProvider);
+    if (engine == null || peer == null || peer.isEmpty || sig == null) {
+      _hangup('remote');
+      return;
+    }
+    _iceRestarts++;
+    _connectTimer?.cancel();
+    unawaited(
+      engine.createRestartOffer().then((offer) {
+        if (state.status != CallStatus.active &&
+            state.status != CallStatus.connecting) {
+          return; // call ended while re-offering
+        }
+        if (!sig.sendRenegotiateOffer(peer, offer)) {
+          _hangup('remote');
+          return;
+        }
+        _startConnectTimeout();
+      }).catchError((_) {
+        _hangup('remote');
+      }),
+    );
   }
 
   // ── Teardown ───────────────────────────────────────────────────────
@@ -463,7 +556,8 @@ class CallController extends Notifier<CallUiState> {
               state.status == CallStatus.active)) {
         _endCallInternal(
           reason: null,
-          error: 'Không kết nối được âm thanh — kiểm tra mạng và thử lại',
+          error:
+              'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
         );
         // Tell the peer we're gone so their side doesn't ring on.
         final sig = ref.read(callSignalingProvider);
@@ -481,6 +575,8 @@ class CallController extends Notifier<CallUiState> {
     _connectTimer?.cancel();
     _iceRecoveryTimer?.cancel();
     _sigLossTimer?.cancel();
+    _isOfferer = false;
+    _iceRestarts = 0;
     // Kill the ring/ringback + haptics before anything else.
     unawaited(ref.read(soundServiceProvider).stopAll());
     _teardownEngine();

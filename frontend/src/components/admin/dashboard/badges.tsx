@@ -24,8 +24,6 @@ import {
   DollarSign,
   Star,
   Activity,
-  EyeOff,
-  Flag,
 } from 'lucide-react'
 import { formatNum } from '@/lib/types'
 
@@ -126,45 +124,7 @@ export function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={`text-[10px] ${s.cls} border-0 gap-0.5`}>{s.icon}{s.label}</Badge>
 }
 
-/* ─── Reviews moderation badges ─── */
 
-export const REVIEW_TAG_LABELS: Record<string, string> = {
-  on_time: 'Đúng giờ',
-  clean: 'Sạch sẽ',
-  friendly_driver: 'Tài xế thân thiện',
-  comfortable: 'Thoải mái',
-  value: 'Đáng đồng tiền',
-  easy_booking: 'Đặt dễ',
-}
-
-export function ReviewStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    pending: { label: 'Chờ duyệt', cls: 'bg-amber-100 text-amber-700', icon: <Clock className="h-3 w-3" /> },
-    published: { label: 'Đã đăng', cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3 w-3" /> },
-    hidden: { label: 'Đã ẩn', cls: 'bg-slate-100 text-slate-600', icon: <EyeOff className="h-3 w-3" /> },
-    flagged: { label: 'Báo cáo', cls: 'bg-rose-100 text-rose-700', icon: <Flag className="h-3 w-3" /> },
-  }
-  const s = map[status] ?? map.pending
-  return (
-    <Badge variant="outline" className={`text-[10px] ${s.cls} border-0 gap-0.5 font-semibold`}>
-      {s.icon}
-      {s.label}
-    </Badge>
-  )
-}
-
-export function StarsRow({ rating, size = 'h-3 w-3' }: { rating: number; size?: string }) {
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={`${size} ${i < rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-100 text-slate-200'}`}
-        />
-      ))}
-    </div>
-  )
-}
 
 /* ─── Customer Segmentation Donut ─── */
 /* Generic version — accepts segments with `{ label, count, color }` so it

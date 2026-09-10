@@ -16,6 +16,18 @@ enum WsStatus { disconnected, connecting, connected, backoff }
 /// backend restarts), capped at 30s. Unlike the browser client, an
 /// always-on support console retries indefinitely — the agent should not
 /// have to pull-to-refresh after a server blip.
+///
+/// ## Half-open socket detection (pong watchdog)
+///
+/// Office / corporate networks rotate the public IP (NAT rebinding),
+/// which kills long-lived TCP WITHOUT a FIN/RST — the socket LOOKS open
+/// but every byte vanishes into a dead NAT mapping. Protocol-level pings
+/// catch this eventually, but the app-level heartbeat (`/ws-call`
+/// answers `heartbeat` with `pong`) lets us detect it deterministically:
+/// if no frame of ANY kind arrives for `2.5x` the heartbeat interval
+/// while we're heartbeating, the socket is declared dead and reconnected
+/// immediately — presence + call reconciliation then converge to the
+/// server's truth instead of the UI freezing on a ghost connection.
 class WsClient {
   WsClient(
     Uri Function() uriBuilder, {
@@ -42,6 +54,10 @@ class WsClient {
   Timer? _heartbeater;
   int _attempts = 0;
   bool _disposed = false;
+
+  /// Last time ANY frame arrived (data, pong, anything). Drives the
+  /// half-open watchdog — see the class docs.
+  DateTime _lastFrameAt = DateTime.now();
 
   static const _maxBackoffMs = 30_000;
   static const _baseBackoffMs = 1_000;
@@ -101,6 +117,7 @@ class WsClient {
 
   void _onFrame(dynamic raw) {
     if (_disposed || raw is! String) return;
+    _lastFrameAt = DateTime.now();
     Map<String, dynamic> msg;
     try {
       final decoded = jsonDecode(raw);
@@ -155,10 +172,20 @@ class WsClient {
     _stopHeartbeater();
     final type = _appHeartbeatType;
     if (type == null) return;
+    _lastFrameAt = DateTime.now();
     _heartbeater = Timer.periodic(_pingInterval, (_) {
       // App-level heartbeat (server answers with `pong`); complements the
       // protocol-level pings by keeping NAT mappings warm on mobile radios.
       send(type, {'__client_ts': DateTime.now().millisecondsSinceEpoch});
+      // Pong watchdog: no frame at all for 2.5 intervals while we're
+      // clearly heartbeating means the socket is a ghost (dead NAT
+      // mapping). Reconnect NOW instead of waiting for TCP to notice —
+      // which, without a FIN/RST, can take 15+ minutes.
+      final silentFor =
+          DateTime.now().difference(_lastFrameAt);
+      if (silentFor > _pingInterval * 2.5) {
+        _onDone();
+      }
     });
   }
 

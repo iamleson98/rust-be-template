@@ -49,8 +49,23 @@ class TeamScreen extends ConsumerWidget {
                           ),
                         _SummaryRow(snapshot: snapshot),
                         const SizedBox(height: 12),
-                        ...snapshot.staff.map((s) =>
-                            _StaffCard(entry: s, isMe: s.userId == myId)),
+                        ...snapshot.staff
+                            .map((s) => _StaffCard(entry: s, isMe: s.userId == myId)),
+                        if (snapshot.offline.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                            child: Text(
+                              'Hoạt động gần đây',
+                              style: context.theme.typography.body.sm.copyWith(
+                                color: context.theme.colors.mutedForeground,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          ...snapshot.offline
+                              .map((s) => _OfflineStaffCard(entry: s)),
+                        ],
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -261,6 +276,16 @@ class _StaffCard extends StatelessWidget {
                     style: theme.typography.body.sm
                         .copyWith(color: theme.colors.mutedForeground),
                   ),
+                  if (entry.lastSeenAt != null && entry.lastSeenAt!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        'Hoạt động ${relativeTimeVi(entry.lastSeenAt!)}',
+                        style: theme.typography.body.xs.copyWith(
+                          color: theme.colors.mutedForeground.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -311,4 +336,96 @@ class _StaffCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// One recently-active-but-OFFLINE member: dimmed row with a durable
+/// "last seen" (DB backstop — survives backend restarts). Lets an admin
+/// see who just dropped (flaky network) instead of an empty board.
+class _OfflineStaffCard extends StatelessWidget {
+  const _OfflineStaffCard({required this.entry});
+
+  final OfflineStaffEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.theme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colors.card.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: theme.colors.border.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            Opacity(opacity: 0.55, child: AgentAvatar(name: entry.name, size: 44)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entry.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.typography.body.md.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                      color: theme.colors.foreground.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${entry.role == 'admin' ? 'Quản trị' : 'Nhân viên hỗ trợ'} · ${relativeTimeVi(entry.lastSeenAt)}',
+                    style: theme.typography.body.sm.copyWith(
+                      color: theme.colors.mutedForeground,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _chipOffline(theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chipOffline(FThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: theme.colors.mutedForeground.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        'Ngoại tuyến',
+        style: theme.typography.body.xs.copyWith(
+          color: theme.colors.mutedForeground,
+          fontWeight: FontWeight.w600,
+          fontSize: 10.5,
+        ),
+      ),
+    );
+  }
+}
+
+/// "5 phút trước" / "2 giờ trước" / "—". Input: RFC3339 string.
+String relativeTimeVi(String rfc3339) {
+  if (rfc3339.isEmpty) return '—';
+  final dt = DateTime.tryParse(rfc3339);
+  if (dt == null) return '—';
+  final diff = DateTime.now().difference(dt);
+  if (diff.isNegative) return 'vừa xong';
+  final mins = diff.inMinutes;
+  if (mins < 1) return 'vừa xong';
+  if (mins < 60) return '$mins phút trước';
+  final hours = diff.inHours;
+  if (hours < 24) return '$hours giờ trước';
+  final days = diff.inDays;
+  if (days < 7) return '$days ngày trước';
+  return '—';
 }

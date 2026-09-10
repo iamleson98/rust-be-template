@@ -76,32 +76,4 @@ export type AdminChatMessage = {
   attachments?: string | null
 }
 
-export type AdminReview = {
-  id: string
-  rating: number
-  title: string
-  content: string
-  tags: string[]
-  authorName: string
-  authorPhone: string | null
-  status: string
-  helpfulCount: number
-  reply: string | null
-  repliedAt: string | null
-  createdAt: string
-  updatedAt: string
-  brand: { id: string; name: string; accentColor: string } | null
-  route: { id: string; name: string; slug: string } | null
-}
-
-export type AdminReviewStats = {
-  total: number
-  pending: number
-  published: number
-  hidden: number
-  flagged: number
-  avgRating: number
-  responseRate: number
-}
-
 export type DateRange = '7d' | '30d' | '90d'

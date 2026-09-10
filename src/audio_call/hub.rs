@@ -361,6 +361,15 @@ impl CallHub {
     /// - `agentInCall`: whether any agent is in an active call (customers
     ///   use this to show "employees are busy" + disable their call buttons)
     pub fn broadcast_presence(&self) {
+        // CHAT-HUB FAN-OUT (production staleness bug): call events used
+        // to update the shared presence registry + this hub's own
+        // `presence` frames, but NEVER re-broadcast `staff_presence` on
+        // the chat WS. The web admin chat roster + the mobile team
+        // board listen on `/ws` — so an agent joining a call stayed
+        // "available" there until some unrelated chat event happened.
+        // One choke point covers every call-side presence change
+        // (register, unregister, socket drop, answer → in_call).
+        crate::ws::hub::hub().broadcast_staff_presence(None);
         let n = self.online_agent_count();
         let in_call = self.is_agent_in_call();
         // Availability from the shared presence registry — customers'

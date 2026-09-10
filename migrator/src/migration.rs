@@ -48,6 +48,7 @@ mod m20260905_000009_create_engagement_jobs;
 mod m20260905_000010_seed_defaults;
 mod m20260905_000011_create_push_devices;
 mod m20260910_000012_create_route_pictures;
+mod m20260912_000013_create_staff_presence_state;
 
 pub struct Migrator;
 
@@ -67,6 +68,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260905_000010_seed_defaults::Migration),
             Box::new(m20260905_000011_create_push_devices::Migration),
             Box::new(m20260910_000012_create_route_pictures::Migration),
+            Box::new(m20260912_000013_create_staff_presence_state::Migration),
         ]
     }
 }

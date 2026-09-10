@@ -17,20 +17,30 @@ use crate::state::AppState;
 pub struct ListQuery {
     pub brand_id: Option<String>,
     pub route_id: Option<String>,
-    pub user_id: Option<String>,
-    pub status: Option<String>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
 }
 
-/// `GET /api/reviews` — list reviews with optional filters.
+/// `GET /api/reviews` — public list of APPROVED reviews with optional
+/// brand/route filters.
+///
+/// Moderation policy (fail-closed):
+///   * `status` is NOT accepted — the public list ALWAYS serves
+///     `approved` rows only. Callers must never be able to enumerate
+///     `pending`/`rejected`/`hidden` feedback via the public API
+///     (rejected feedback may contain content the moderation team
+///     deliberately suppressed).
+///   * `user_id` is NOT accepted — that filter exists only on the
+///     authenticated `/api/reviews/mine` (forced to the caller) and
+///     the admin list. A public `user_id` filter would let anyone
+///     enumerate any user's review history.
 #[utoipa::path(
     get,
     path = "/api/reviews",
     tag = "reviews",
     params(ListQuery),
     responses(
-        (status = 200, description = "Review list", body = ReviewListResponse),
+        (status = 200, description = "Approved reviews for the given scope", body = ReviewListResponse),
     )
 )]
 pub async fn list(
@@ -44,7 +54,6 @@ pub async fn list(
     for (name, v) in [
         ("brand_id", q.brand_id.as_deref()),
         ("route_id", q.route_id.as_deref()),
-        ("user_id", q.user_id.as_deref()),
     ] {
         if let Some(s) = v {
             if Uuid::parse_str(s).is_err() {
@@ -52,16 +61,24 @@ pub async fn list(
             }
         }
     }
-    let filter = ReviewListFilter {
-        brand_id: q.brand_id,
-        route_id: q.route_id,
-        user_id: q.user_id,
-        status: q.status,
+    Ok(Json(st.reviews.list(&public_list_filter(&q)).await?))
+}
+
+/// Build the public list filter. Kept as a pure function so the
+/// moderation policy is unit-testable: whatever arrives in the query
+/// string, the public list is approved-only, caller-agnostic and
+/// search-less (admin-only features).
+fn public_list_filter(q: &ListQuery) -> ReviewListFilter {
+    ReviewListFilter {
+        brand_id: q.brand_id.clone(),
+        route_id: q.route_id.clone(),
+        user_id: None,
+        // Public surface: approved-only, hardcoded.
+        status: Some("approved".to_string()),
         search: None,
         limit: q.limit.unwrap_or(20).min(200),
         offset: q.offset.unwrap_or(0),
-    };
-    Ok(Json(st.reviews.list(&filter).await?))
+    }
 }
 
 #[derive(Deserialize, utoipa::IntoParams)]
@@ -195,13 +212,15 @@ pub async fn remove(
     Ok(Json(ReviewDeleteResponse { ok: true }))
 }
 
-/// `GET /api/reviews/tags` — get the review tags index.
+/// `GET /api/reviews/tags` — public tag index over APPROVED reviews
+/// only (a tag surfacing exclusively on rejected feedback would leak
+/// that the moderation queue handled that topic).
 #[utoipa::path(
     get,
     path = "/api/reviews/tags",
     tag = "reviews",
     responses(
-        (status = 200, description = "Tags index", body = ReviewTagsResponse),
+        (status = 200, description = "Tags index (approved reviews)", body = ReviewTagsResponse),
     )
 )]
 pub async fn tags(State(st): State<AppState>) -> Result<Json<ReviewTagsResponse>, AppError> {
@@ -219,4 +238,46 @@ pub fn router() -> axum::Router<crate::state::AppState> {
         .route("/mine", rget(mine))
         .route("/", rget(list).post(create))
         .route("/{id}", rget(get).patch(update).delete(remove))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The public list is APPROVED-only regardless of what the caller
+    /// sends — `pending`/`rejected`/`hidden` feedback must never be
+    /// enumerable through `/api/reviews`.
+    #[test]
+    fn public_filter_is_approved_only() {
+        let q = ListQuery {
+            brand_id: Some("b".repeat(36)),
+            route_id: None,
+            limit: Some(500),
+            offset: Some(40),
+        };
+        let f = public_list_filter(&q);
+        assert_eq!(f.status.as_deref(), Some("approved"));
+        assert_eq!(f.user_id, None);
+        assert_eq!(f.search, None);
+        assert_eq!(f.brand_id, Some("b".repeat(36)));
+        assert_eq!(f.limit, 200, "limit must be capped at 200");
+        assert_eq!(f.offset, 40);
+    }
+
+    /// `user_id` / `status` are not fields of `ListQuery` any more —
+    /// serde drops unknown keys, so a caller probing with
+    /// `?user_id=…&status=rejected` gets the approved-only list, not a
+    /// per-user or unmoderated enumeration.
+    #[test]
+    fn query_deser_drops_user_id_and_status() {
+        let q: ListQuery = serde_json::from_str(
+            r#"{"user_id":"00000000-0000-0000-0000-000000000000","status":"rejected"}"#,
+        )
+        .expect("unknown fields must be ignored");
+        let f = public_list_filter(&q);
+        assert_eq!(f.status.as_deref(), Some("approved"));
+        assert_eq!(f.user_id, None);
+        assert_eq!(f.limit, 20, "default limit");
+        assert_eq!(f.offset, 0, "default offset");
+    }
 }

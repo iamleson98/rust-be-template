@@ -33,7 +33,6 @@ import {
   Building2,
   MessageSquare,
   TrendingUp,
-  Star,
   Ticket,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -44,7 +43,6 @@ import { downloadCSV } from './helpers'
 import { StatsOverview } from './stats-overview'
 import { ChatPanel } from '@/components/admin/chat/chat-panel'
 import { CampaignsPanel } from './campaigns-panel'
-import { ReviewsModerationPanel } from '@/components/admin/reviews/reviews-panel'
 import { TicketsPanel } from '@/components/admin/tickets/tickets-panel'
 
 export const AdminDashboard = memo(function AdminDashboard() {
@@ -125,7 +123,6 @@ export const AdminDashboard = memo(function AdminDashboard() {
               <TabsTrigger value="crud" className="gap-1.5"><Building2 className="h-4 w-4" /> Hãng xe &amp; Tuyến</TabsTrigger>
               <TabsTrigger value="chat" className="gap-1.5"><MessageSquare className="h-4 w-4" /> Hỗ trợ trực tuyến</TabsTrigger>
               <TabsTrigger value="campaigns" className="gap-1.5"><TrendingUp className="h-4 w-4" /> Khuyến mãi</TabsTrigger>
-              <TabsTrigger value="reviews" className="gap-1.5"><Star className="h-4 w-4" /> Đánh giá</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tickets">
@@ -171,9 +168,6 @@ export const AdminDashboard = memo(function AdminDashboard() {
               <CampaignsPanel />
             </TabsContent>
 
-            <TabsContent value="reviews">
-              <ReviewsModerationPanel />
-            </TabsContent>
           </Tabs>
         </div>
 

@@ -548,7 +548,9 @@ fn broadcast_channel_update(
         "status": channel.status,
     }));
     // Presence load changed for the assignee — refresh staff panels.
-    hub.broadcast_staff_presence(channel.brand_id.map(|b| b.to_string()).as_deref());
+    // Global scope — see the chat-WS connect handler for why the
+    // staff_presence broadcast is never brand-scoped.
+    hub.broadcast_staff_presence(None);
 }
 
 /// `POST /api/chat/channels/{id}/claim` — a staff member takes over the

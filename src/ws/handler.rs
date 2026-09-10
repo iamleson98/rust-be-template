@@ -205,11 +205,14 @@ pub async fn handle_socket(
 
     // If this is staff (employee OR admin), register their presence
     // socket and let every staff dashboard know availability changed.
-    let brand_id = user.brand_id.map(|id| id.to_string());
+    // Broadcast scope is GLOBAL (None): every staff client renders the
+    // same roster the REST endpoint returns — a brand-scoped broadcast
+    // here previously made the roster flap depending on WHO connected
+    // last (a brand-A connect hid brand-B staff from everyone).
     let is_staff = user.is_staff();
     if is_staff {
         presence().chat_socket_connected(&user, sid);
-        hub().broadcast_staff_presence(brand_id.as_deref());
+        hub().broadcast_staff_presence(None);
     }
 
     tracing::debug!(
@@ -305,7 +308,7 @@ pub async fn handle_socket(
     // (unregister also drops the presence socket for staff).
     hub().unregister(sid);
     if is_staff {
-        hub().broadcast_staff_presence(brand_id.as_deref());
+        hub().broadcast_staff_presence(None);
     }
     hub().release_ip(&ip);
     hub().release_global();

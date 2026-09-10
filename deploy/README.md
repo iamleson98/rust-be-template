@@ -104,6 +104,37 @@ cause of the "call stuck on connecting, dies after ~25 s" reports).
   docker logs coturn-vexevn           # allocations + errors
   ```
 
+### Corporate-network calls (TLS TURN, optional)
+
+Office firewalls that only allow outbound HTTPS (`443`/`8443`-ish TCP)
+kill EVERY plain-TURN path: UDP 3478, TCP 3478 and the whole
+49160-49200 relay range. Symptom: calls work from home wifi but die
+at "connecting" from an office (the same networks that rotate your
+public IP and log you out of provider consoles).
+
+Enable TURN/TLS to give those clients a relay path that looks like
+ordinary TLS traffic:
+
+1. Issue a cert for a dedicated hostname (e.g. `turn.datxevui.com`)
+   pointing at this server — a **DNS-only** (grey-cloud) record,
+   because Cloudflare's proxy does not pass non-HTTP TLS.
+2. Drop the cert + key on the server (e.g. under
+   `/opt/vexevn/certs/`).
+3. Add to `/opt/vexevn/.env`:
+   ```bash
+   TURN_TLS_CERT=/opt/vexevn/certs/turn.datxevui.com.fullchain.pem
+   TURN_TLS_KEY=/opt/vexevn/certs/turn.datxevui.com.key
+   ```
+4. Re-run `bash /opt/vexevn/turn.sh` — coturn then also listens TLS
+   on `5349/tcp`, and `AUDIO_CALL_ICE_SERVERS` gains a
+   `turns:<ip>:5349?transport=tcp` entry pushed to every client.
+5. Open `5349/tcp` in the provider firewall.
+
+The application-side recovery (ICE restart renegotiation + ICE
+candidate buffering across signaling reconnects) is already in the
+clients; TLS TURN removes the last network class where no media path
+exists at all.
+
 ### ⚠️ Provider firewall check (the silent TURN killer)
 
 coturn can be perfectly healthy ON the server while unreachable from

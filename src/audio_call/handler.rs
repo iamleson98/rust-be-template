@@ -561,7 +561,87 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
         );
     }
 
+    // Renegotiation (ICE restart) frames carry `iceRestart: true`.
+    // They never mutate session state — the pair is validated, then the
+    // SDP is relayed as a `renegotiate` frame for the peer's client to
+    // apply to its EXISTING peer connection. This is the recovery path
+    // for calls whose media path died (restrictive NATs, corporate
+    // firewalls, IP churn mid-negotiation) without tearing the call
+    // down and re-ringing.
+    let ice_restart = msg
+        .get("iceRestart")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
     match kind {
+        // ── Renegotiation offer: the OFFERER re-offers with fresh
+        //    candidates (WebRTC `iceRestart` offer). Relay only.
+        "offer" if ice_restart => {
+            let uid = user.id.to_string();
+            let peer: Option<String> = match role {
+                CallRole::Customer => sessions().agent_for(&uid),
+                CallRole::Agent => {
+                    if to.is_empty() {
+                        return Err("Missing `to` field".into());
+                    }
+                    sessions().agent_target(&uid, to)
+                }
+            };
+            match peer {
+                Some(peer_id) => {
+                    tracing::info!(
+                        from = %user.id,
+                        role = role.as_str(),
+                        to = %peer_id,
+                        "renegotiation offer relayed (ICE restart)"
+                    );
+                    let _ = call_hub().send_to(
+                        &peer_id,
+                        &json!({
+                            "type": "renegotiate",
+                            "from": user.id,
+                            "sdp": sdp,
+                            "kind": "offer",
+                        }),
+                    );
+                }
+                None => send_error(&uid, "no-session", "No live call to renegotiate"),
+            }
+        }
+        // ── Renegotiation answer: the original ANSWERER applied the
+        //    restart offer and replies. The normal `answer` path only
+        //    accepts RINGING sessions (an initial answer) — this arm
+        //    relays the restart answer for an already-ACTIVE pair.
+        "answer" if ice_restart => {
+            let uid = user.id.to_string();
+            if to.is_empty() {
+                return Err("Missing `to` field".into());
+            }
+            let peer: Option<String> = match role {
+                CallRole::Customer => sessions().agent_for(&uid),
+                CallRole::Agent => sessions().agent_target(&uid, to),
+            };
+            match peer {
+                Some(peer_id) => {
+                    tracing::info!(
+                        from = %user.id,
+                        role = role.as_str(),
+                        to = %peer_id,
+                        "renegotiation answer relayed (ICE restart)"
+                    );
+                    let _ = call_hub().send_to(
+                        &peer_id,
+                        &json!({
+                            "type": "renegotiate",
+                            "from": user.id,
+                            "sdp": sdp,
+                            "kind": "answer",
+                        }),
+                    );
+                }
+                None => send_error(&uid, "no-session", "No live call to renegotiate"),
+            }
+        }
         // ── Offer: the session manager owns routing + busy guards ────
         "offer" => {
             let offer = sdp.cloned().unwrap_or(serde_json::Value::Null);
@@ -886,5 +966,218 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
             agent_session_cleanup(&uid);
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod renegotiate_tests {
+    use super::*;
+    use crate::audio_call::session::CallState;
+    use crate::auth::SessionUser;
+    use uuid::Uuid;
+
+    /// Serialise against the OTHER global-singleton tests (hub tests).
+    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn fake_user(id: &str, actor: &str) -> SessionUser {
+        SessionUser {
+            id: Uuid::parse_str(id).expect("test user id must be a UUID string"),
+            actor_type: actor.into(),
+            role: "customer".into(),
+            name: id.into(),
+            email: None,
+            phone: None,
+            avatar_url: None,
+            brand_id: None,
+            brand_name: None,
+            employee_role: None,
+        }
+    }
+
+    /// Boot a customer↔agent pair with live sockets + a RINGING session
+    /// (customer-initiated), then promote it to ACTIVE the way the real
+    /// flow does (`on_answer`). Returns the two receiving ends.
+    #[allow(clippy::type_complexity)]
+    fn live_call() -> (
+        String,
+        String,
+        u64,
+        u64,
+        mpsc::Receiver<bytes::Bytes>,
+        mpsc::Receiver<bytes::Bytes>,
+    ) {
+        let customer_id = Uuid::new_v4().to_string();
+        let agent_id = Uuid::new_v4().to_string();
+        let (ctx, crx) = mpsc::channel::<bytes::Bytes>(8);
+        let (atx, arx) = mpsc::channel::<bytes::Bytes>(8);
+        let h = call_hub();
+        let csid = h.next_socket_id();
+        let asid = h.next_socket_id();
+        h.register(
+            fake_user(&customer_id, "user"),
+            CallRole::Customer,
+            None,
+            ctx,
+            csid,
+        );
+        h.register(
+            fake_user(&agent_id, "employee"),
+            CallRole::Agent,
+            None,
+            atx,
+            asid,
+        );
+
+        // Session: customer offers, the picker selects our agent.
+        sessions().clear();
+        let offer = json!({"type": "offer", "sdp": "v=0 fake"});
+        let outcome =
+            sessions().begin_customer_offer(&customer_id, offer, None, Some(csid), |exclude| {
+                (exclude.is_empty() || !exclude.contains(&agent_id)).then(|| agent_id.clone())
+            });
+        assert!(matches!(outcome, OfferOutcome::Ringing { .. }));
+
+        // Agent answers → ACTIVE.
+        assert!(sessions()
+            .on_answer(&agent_id, &customer_id, Some(asid))
+            .is_some());
+        (customer_id, agent_id, csid, asid, crx, arx)
+    }
+
+    /// Drain a receiver until a JSON frame of the wanted type arrives
+    /// (skipping presence/registered fan-out noise on the same socket).
+    fn next_frame(
+        rx: &mut mpsc::Receiver<bytes::Bytes>,
+        want_ty: &str,
+    ) -> Option<serde_json::Value> {
+        for _ in 0..16 {
+            match rx.try_recv() {
+                Ok(bytes) => {
+                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                        if v.get("type").and_then(|t| t.as_str()) == Some(want_ty) {
+                            return Some(v);
+                        }
+                    }
+                }
+                Err(_) => return None,
+            }
+        }
+        None
+    }
+
+    #[tokio::test]
+    async fn renegotiate_offer_relays_to_live_peer_without_state_change() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let (customer_id, agent_id, csid, _asid, mut crx, mut arx) = live_call();
+
+        // Customer (the offerer) restarts ICE mid-call.
+        let msg = json!({
+            "type": "call",
+            "to": agent_id,
+            "kind": "offer",
+            "iceRestart": true,
+            "sdp": {"type": "offer", "sdp": "v=0 restart"},
+        });
+        handle_call(
+            &fake_user(&customer_id, "user"),
+            CallRole::Customer,
+            &msg,
+            csid,
+        )
+        .expect("renegotiate offer must be accepted");
+
+        let frame = next_frame(&mut arx, "renegotiate").expect("agent must receive renegotiate");
+        assert_eq!(frame["kind"], "offer");
+        assert_eq!(frame["from"], customer_id);
+        assert_eq!(frame["sdp"]["sdp"], "v=0 restart");
+
+        // State untouched: the session is still Active with the same pair.
+        let s = sessions()
+            .get(&customer_id)
+            .expect("session survives renegotiation");
+        assert_eq!(s.agent_id, agent_id);
+        assert_eq!(s.state, CallState::Active);
+
+        // No renegotiate echoed to the sender.
+        assert!(next_frame(&mut crx, "renegotiate").is_none());
+
+        // Teardown: the call hub is a process-wide singleton — leaving
+        // test sockets registered breaks other tests' agent-count
+        // assertions (observed as a PoisonError cascade in the hub
+        // tests, which lock on their own mutex and never expect
+        // foreign agents).
+        call_hub().unregister(&customer_id, csid);
+        call_hub().unregister(&agent_id, _asid);
+        sessions().clear();
+        let _ = agent_id;
+    }
+
+    #[tokio::test]
+    async fn renegotiate_answer_relays_to_offerer() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let (customer_id, agent_id, _csid, asid, mut crx, _arx) = live_call();
+
+        // The agent (original answerer) replies to a restart offer.
+        let msg = json!({
+            "type": "call",
+            "to": customer_id,
+            "kind": "answer",
+            "iceRestart": true,
+            "sdp": {"type": "answer", "sdp": "v=0 restart-answer"},
+        });
+        handle_call(
+            &fake_user(&agent_id, "employee"),
+            CallRole::Agent,
+            &msg,
+            asid,
+        )
+        .expect("renegotiate answer must be accepted");
+
+        let frame = next_frame(&mut crx, "renegotiate").expect("customer must receive renegotiate");
+        assert_eq!(frame["kind"], "answer");
+        assert_eq!(frame["from"], agent_id);
+        assert_eq!(frame["sdp"]["sdp"], "v=0 restart-answer");
+
+        // Teardown (see the offer test).
+        call_hub().unregister(&customer_id, _csid);
+        call_hub().unregister(&agent_id, asid);
+        sessions().clear();
+    }
+
+    #[tokio::test]
+    async fn renegotiate_without_live_session_is_rejected() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        sessions().clear();
+        let customer_id = Uuid::new_v4().to_string();
+        let (ctx, mut crx) = mpsc::channel::<bytes::Bytes>(8);
+        let csid = call_hub().next_socket_id();
+        call_hub().register(
+            fake_user(&customer_id, "user"),
+            CallRole::Customer,
+            None,
+            ctx,
+            csid,
+        );
+
+        let msg = json!({
+            "type": "call",
+            "to": "agent",
+            "kind": "offer",
+            "iceRestart": true,
+            "sdp": {"type": "offer", "sdp": "v=0 ghost"},
+        });
+        handle_call(
+            &fake_user(&customer_id, "user"),
+            CallRole::Customer,
+            &msg,
+            csid,
+        )
+        .expect("handler returns Ok; the error rides the socket");
+        let frame = next_frame(&mut crx, "error").expect("must receive an error frame");
+        assert_eq!(frame["code"], "no-session");
+
+        // Teardown (see the offer test).
+        call_hub().unregister(&customer_id, csid);
+        sessions().clear();
     }
 }

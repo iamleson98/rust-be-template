@@ -82,10 +82,26 @@ export type StaffPresenceEntry = {
   busy: boolean
   inCall: boolean
   activeChats: number
+  /** RFC3339 — last presence activity (connect / disconnect / call
+   * state change). Undefined on older payloads — render conditionally. */
+  lastSeenAt?: string | null
+}
+
+/** Recently-active-but-OFFLINE staff member (DB-backed `last seen`,
+ * survives backend restarts). Rendered dimmed so an admin can see who
+ * just dropped on a flaky network instead of an empty board. */
+export type OfflineStaffPresenceEntry = {
+  userId: string
+  name: string
+  role: 'employee' | 'admin' | string
+  brandId?: string | null
+  lastSeenAt: string
+  lastOnlineAt?: string | null
 }
 
 export type StaffPresenceSnapshot = {
   staff: StaffPresenceEntry[]
+  offline?: OfflineStaffPresenceEntry[]
   onlineCount: number
   availableCount: number
   botActive: boolean
@@ -254,6 +270,7 @@ export function useAdminChatWs(
       if (!Array.isArray(d?.staff)) return
       setStaffPresence({
         staff: d.staff,
+        offline: Array.isArray(d?.offline) ? d.offline : [],
         onlineCount: d.onlineCount ?? d.staff.filter((x) => x.online).length,
         availableCount: d.availableCount ?? d.staff.filter((x) => x.available).length,
         botActive: !!d.botActive,

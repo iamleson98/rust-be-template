@@ -73,7 +73,6 @@ const AdminSchedulesPage = lazy(() => import('./routes/admin/schedules').then((m
 const AdminCronJobsPage = lazy(() => import('./routes/admin/cron-jobs').then((m) => ({ default: m.AdminCronJobsPage })))
 const AdminTicketsPage = lazy(() => import('./routes/admin/tickets').then((m) => ({ default: m.AdminTicketsPage })))
 const AdminChatPage = lazy(() => import('./routes/admin/chat').then((m) => ({ default: m.AdminChatPage })))
-const AdminReviewsPage = lazy(() => import('./routes/admin/reviews').then((m) => ({ default: m.AdminReviewsPage })))
 const AdminFeedbackPage = lazy(() => import('./routes/admin/feedback').then((m) => ({ default: m.AdminFeedbackPage })))
 const AdminBusLayoutsPage = lazy(() => import('./routes/admin/bus-layouts').then((m) => ({ default: m.AdminBusLayoutsPage })))
 const AdminVehicleTypesPage = lazy(() => import('./routes/admin/vehicle-types').then((m) => ({ default: m.AdminVehicleTypesPage })))
@@ -132,7 +131,6 @@ const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/admin/cron-jobs': { title: 'Cron jobs — Quản trị DatXeVui', description: 'Quản lý tác vụ nền định kỳ.' },
   '/admin/tickets': { title: 'Vé đã bán — Quản trị DatXeVui', description: 'Quản lý vé đã bán.' },
   '/admin/chat': { title: 'Chat hỗ trợ — Quản trị DatXeVui', description: 'Hỗ trợ khách hàng qua chat.' },
-  '/admin/reviews': { title: 'Đánh giá — Quản trị DatXeVui', description: 'Kiểm duyệt đánh giá.' },
   '/admin/feedback': { title: 'Phản hồi — Quản trị DatXeVui', description: 'Quản lý phản hồi khách hàng.' },
   '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị DatXeVui', description: 'Quản lý sơ đồ ghế xe.' },
   '/admin/vehicle-types': { title: 'Loại xe — Quản trị DatXeVui', description: 'Quản lý danh mục loại xe.' },
@@ -653,15 +651,6 @@ const adminChatRoute = createRoute({
   ),
 })
 
-const adminReviewsRoute = createRoute({
-  getParentRoute: () => adminLayoutRoute,
-  path: '/reviews',
-  component: () => (
-    <Suspense fallback={<AdminContentSkeleton />}>
-      <AdminReviewsPage />
-    </Suspense>
-  ),
-})
 
 const adminFeedbackRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
@@ -830,7 +819,6 @@ const routeTree = rootRoute.addChildren([
     adminCronJobsRoute,
     adminTicketsRoute,
     adminChatRoute,
-    adminReviewsRoute,
     adminFeedbackRoute,
     adminBusLayoutsRoute,
     adminSystemRoute,

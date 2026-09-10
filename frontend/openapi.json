@@ -4376,7 +4376,7 @@
         "operationId": "get_staff_presence",
         "responses": {
           "200": {
-            "description": "Staff presence snapshot",
+            "description": "Staff presence snapshot (live + recently offline)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4662,7 +4662,8 @@
         "tags": [
           "reviews"
         ],
-        "summary": "`GET /api/reviews` — list reviews with optional filters.",
+        "summary": "`GET /api/reviews` — public list of APPROVED reviews with optional\nbrand/route filters.",
+        "description": "Moderation policy (fail-closed):\n  * `status` is NOT accepted — the public list ALWAYS serves\n    `approved` rows only. Callers must never be able to enumerate\n    `pending`/`rejected`/`hidden` feedback via the public API\n    (rejected feedback may contain content the moderation team\n    deliberately suppressed).\n  * `user_id` is NOT accepted — that filter exists only on the\n    authenticated `/api/reviews/mine` (forced to the caller) and\n    the admin list. A public `user_id` filter would let anyone\n    enumerate any user's review history.",
         "operationId": "list",
         "parameters": [
           {
@@ -4678,28 +4679,6 @@
           },
           {
             "name": "route_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "user_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "status",
             "in": "query",
             "required": false,
             "schema": {
@@ -4738,7 +4717,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Review list",
+            "description": "Approved reviews for the given scope",
             "content": {
               "application/json": {
                 "schema": {
@@ -4842,11 +4821,11 @@
         "tags": [
           "reviews"
         ],
-        "summary": "`GET /api/reviews/tags` — get the review tags index.",
+        "summary": "`GET /api/reviews/tags` — public tag index over APPROVED reviews\nonly (a tag surfacing exclusively on rejected feedback would leak\nthat the moderation queue handled that topic).",
         "operationId": "tags",
         "responses": {
           "200": {
-            "description": "Tags index",
+            "description": "Tags index (approved reviews)",
             "content": {
               "application/json": {
                 "schema": {
@@ -10953,6 +10932,45 @@
           }
         }
       },
+      "StaffPresenceOfflineOut": {
+        "type": "object",
+        "description": "One OFFLINE entry of the team roster — a staff member who was\nrecently active (durable `last seen` from the DB backstop) but has\nno live socket right now. Rendered dimmed below the online roster\nso an admin can see who just dropped (flaky network) instead of an\nempty board.",
+        "required": [
+          "userId",
+          "name",
+          "role",
+          "lastSeenAt"
+        ],
+        "properties": {
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastOnlineAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC3339 — the start of their most recent online stint."
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "description": "RFC3339 — when they were last seen."
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "description": "`\"employee\"` or `\"admin\"`."
+          },
+          "userId": {
+            "type": "string"
+          }
+        }
+      },
       "StaffPresenceOut": {
         "type": "object",
         "description": "Staff presence entry for `GET /api/presence/staff` + the\n`staff_presence` WS broadcast.",
@@ -10990,6 +11008,13 @@
           "inCall": {
             "type": "boolean"
           },
+          "lastSeenAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC3339 wall-clock of the last presence activity (connect,\ndisconnect, assignment, call state change). Displayed by the\nteam board as \"hoạt động x phút trước\"."
+          },
           "name": {
             "type": "string"
           },
@@ -11010,6 +11035,7 @@
         "description": "Response of `GET /api/presence/staff`.",
         "required": [
           "staff",
+          "offline",
           "onlineCount",
           "availableCount",
           "botActive"
@@ -11022,6 +11048,13 @@
           "botActive": {
             "type": "boolean",
             "description": "True when NO staff is online — the NullClaw bot owns support."
+          },
+          "offline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StaffPresenceOfflineOut"
+            },
+            "description": "Recently-active-but-offline members (DB-backed, brand-scoped)."
           },
           "onlineCount": {
             "type": "integer",

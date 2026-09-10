@@ -961,7 +961,19 @@ export const unregisterDevice = <ThrowOnError extends boolean = false>(options: 
 export const recommendations = <ThrowOnError extends boolean = false>(options?: Options<RecommendationsData, ThrowOnError>): RequestResult<RecommendationsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<RecommendationsResponses, unknown, ThrowOnError>({ url: '/api/recommendations', ...options });
 
 /**
- * `GET /api/reviews` — list reviews with optional filters.
+ * `GET /api/reviews` — public list of APPROVED reviews with optional
+ * brand/route filters.
+ *
+ * Moderation policy (fail-closed):
+ * * `status` is NOT accepted — the public list ALWAYS serves
+ * `approved` rows only. Callers must never be able to enumerate
+ * `pending`/`rejected`/`hidden` feedback via the public API
+ * (rejected feedback may contain content the moderation team
+ * deliberately suppressed).
+ * * `user_id` is NOT accepted — that filter exists only on the
+ * authenticated `/api/reviews/mine` (forced to the caller) and
+ * the admin list. A public `user_id` filter would let anyone
+ * enumerate any user's review history.
  */
 export const list15 = <ThrowOnError extends boolean = false>(options?: Options<List15Data, ThrowOnError>): RequestResult<List15Responses, unknown, ThrowOnError> => (options?.client ?? client).get<List15Responses, unknown, ThrowOnError>({ url: '/api/reviews', ...options });
 
@@ -986,7 +998,9 @@ export const create8 = <ThrowOnError extends boolean = false>(options: Options<C
 export const mine = <ThrowOnError extends boolean = false>(options?: Options<MineData, ThrowOnError>): RequestResult<MineResponses, MineErrors, ThrowOnError> => (options?.client ?? client).get<MineResponses, MineErrors, ThrowOnError>({ url: '/api/reviews/mine', ...options });
 
 /**
- * `GET /api/reviews/tags` — get the review tags index.
+ * `GET /api/reviews/tags` — public tag index over APPROVED reviews
+ * only (a tag surfacing exclusively on rejected feedback would leak
+ * that the moderation queue handled that topic).
  */
 export const tags = <ThrowOnError extends boolean = false>(options?: Options<TagsData, ThrowOnError>): RequestResult<TagsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<TagsResponses, unknown, ThrowOnError>({ url: '/api/reviews/tags', ...options });
 

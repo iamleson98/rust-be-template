@@ -33,6 +33,7 @@ pub mod schedule_point;
 pub mod scheduled_job;
 pub mod seat;
 pub mod seat_inventory;
+pub mod staff_presence_state;
 pub mod trip_session;
 pub mod user;
 pub mod user_roles;

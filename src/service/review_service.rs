@@ -533,8 +533,14 @@ impl ReviewService {
     pub async fn tags_index(&self) -> AppResult<ReviewTagsResponse> {
         // Single SQL projection (only the `tags` column) instead of loading
         // every review row in full. At 10k reviews this saves several MB
-        // of allocation per call.
-        let tags = self.store.review_store().list_distinct_tags(None).await?;
+        // of allocation per call. APPROVED-only: the tag index feeds the
+        // public product pages — tags that exist solely on pending or
+        // rejected feedback must not surface there.
+        let tags = self
+            .store
+            .review_store()
+            .list_distinct_tags(Some("approved"))
+            .await?;
         Ok(ReviewTagsResponse { items: tags })
     }
 

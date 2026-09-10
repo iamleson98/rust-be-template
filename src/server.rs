@@ -31,9 +31,9 @@ use crate::store::{
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
     DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
     DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
-    DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore,
-    DbVehicleTypeStore, DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore,
-    RoutePictureStore, UserStore,
+    DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore, DbStaffPresenceStore,
+    DbTripStore, DbUserStore, DbVehicleTypeStore, DbWishlistStore, JobStore, PostStore, RbacStore,
+    RefreshTokenStore, RoutePictureStore, StaffPresenceStore, UserStore,
 };
 use crate::worker::WorkerRunner;
 use crate::ws;
@@ -141,6 +141,8 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let route_store_for_media = route_store.clone();
     let route_picture_store: Arc<dyn RoutePictureStore> =
         Arc::new(DbRoutePictureStore::new(db.clone()));
+    let staff_presence_store: Arc<dyn StaffPresenceStore> =
+        Arc::new(DbStaffPresenceStore::new(db.clone()));
     let schedule_store = Arc::new(DbScheduleStore::new(db.clone()));
     let trip_store = Arc::new(DbTripStore::new(db.clone()));
     let place_store = Arc::new(DbPlaceStore::new(db.clone()));
@@ -171,6 +173,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         booking_store,
         review_store,
         route_store,
+        staff_presence_store,
         schedule_store,
         trip_store,
         place_store,
@@ -217,6 +220,13 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // Staff-presence sweeper — purges leaked entries (missed WS
     // disconnects) so availability routing never trusts stale state.
     crate::presence::spawn_sweeper();
+
+    // Staff-presence journal — the DB backstop behind the in-memory
+    // registry: debounced write-through of presence transitions + a
+    // slow `last_seen` heartbeat, plus the offline-roster cache the
+    // team board renders (survives restarts). See
+    // `crate::presence::spawn_journal` for the batching design.
+    crate::presence::spawn_journal(store.staff_presence_store());
 
     // ---- Domain services (pre-built, shared via Arc) -----------------
     // Each service holds its deps directly — no back-reference to

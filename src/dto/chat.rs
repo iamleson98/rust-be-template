@@ -182,6 +182,32 @@ pub struct StaffPresenceOut {
     pub in_call: bool,
     /// Channels currently assigned to this staff member.
     pub active_chats: u64,
+    /// RFC3339 wall-clock of the last presence activity (connect,
+    /// disconnect, assignment, call state change). Displayed by the
+    /// team board as "hoạt động x phút trước".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_seen_at: Option<String>,
+}
+
+/// One OFFLINE entry of the team roster — a staff member who was
+/// recently active (durable `last seen` from the DB backstop) but has
+/// no live socket right now. Rendered dimmed below the online roster
+/// so an admin can see who just dropped (flaky network) instead of an
+/// empty board.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct StaffPresenceOfflineOut {
+    pub user_id: String,
+    pub name: String,
+    /// `"employee"` or `"admin"`.
+    pub role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_id: Option<String>,
+    /// RFC3339 — when they were last seen.
+    pub last_seen_at: String,
+    /// RFC3339 — the start of their most recent online stint.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_online_at: Option<String>,
 }
 
 /// Response of `GET /api/presence/staff`.
@@ -189,6 +215,8 @@ pub struct StaffPresenceOut {
 #[serde(rename_all = "camelCase")]
 pub struct StaffPresenceResponse {
     pub staff: Vec<StaffPresenceOut>,
+    /// Recently-active-but-offline members (DB-backed, brand-scoped).
+    pub offline: Vec<StaffPresenceOfflineOut>,
     pub online_count: usize,
     pub available_count: usize,
     /// True when NO staff is online — the NullClaw bot owns support.

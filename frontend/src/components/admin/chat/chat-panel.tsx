@@ -307,6 +307,14 @@ export function ChatPanel({
       busy: boolean
       inCall: boolean
       activeChats: number
+      lastSeenAt?: string | null
+    }[]
+    offline?: {
+      userId: string
+      name: string
+      role: string
+      lastSeenAt: string
+      lastOnlineAt?: string | null
     }[]
     onlineCount: number
     availableCount: number
@@ -594,7 +602,9 @@ export function ChatPanel({
             </CardTitle>
             {/* Staff presence strip — live availability (WS pushes).
                 Employees + admins with online/busy/available state;
-                the bot chip shows when nobody is online. */}
+                recently-offline staff render dimmed with a durable
+                "last seen" (DB backstop); the bot chip shows when nobody
+                is online. */}
             <div className="flex flex-wrap items-center gap-1.5">
               {staffPresence ? (
                 <>
@@ -607,7 +617,7 @@ export function ChatPanel({
                             ? 'border-amber-200 bg-amber-50 text-amber-700'
                             : 'border-emerald-200 bg-emerald-50 text-emerald-700'
                         }`}
-                      title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ${st.online ? (st.busy ? 'đang gọi điện' : 'sẵn sàng') : 'ngoại tuyến'} · ${st.activeChats} kênh`}
+                      title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ${st.online ? (st.busy ? 'đang gọi điện' : 'sẵn sàng') : 'ngoại tuyến'} · ${st.activeChats} kênh${st.lastSeenAt ? ` · hoạt động ${relativeTime(st.lastSeenAt)}` : ''}`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${!st.online ? 'bg-slate-300' : st.busy ? 'bg-amber-500' : 'bg-emerald-500'
@@ -615,6 +625,17 @@ export function ChatPanel({
                       />
                       {st.name}
                       {st.role === 'admin' && <span className="text-[8px] uppercase">admin</span>}
+                    </span>
+                  ))}
+                  {(staffPresence.offline ?? []).map((st) => (
+                    <span
+                      key={`off-${st.userId}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 border-dashed bg-slate-50/50 px-2 py-0.5 text-[10px] font-medium text-slate-400"
+                      title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ngoại tuyến · hoạt động lần cuối ${relativeTime(st.lastSeenAt)}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-300/70" />
+                      {st.name}
+                      <span className="text-slate-300">{relativeTime(st.lastSeenAt)}</span>
                     </span>
                   ))}
                   <span

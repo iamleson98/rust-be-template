@@ -94,11 +94,29 @@ fi
 ensure_env TURN_USERNAME "$TURN_USERNAME"
 ensure_env TURN_SECRET "$TURN_SECRET"
 ensure_env PUBLIC_IP "$PUBLIC_IP"
+if [ -n "${TURN_TLS_CERT:-}" ]; then ensure_env TURN_TLS_CERT "$TURN_TLS_CERT"; fi
+if [ -n "${TURN_TLS_KEY:-}" ]; then ensure_env TURN_TLS_KEY "$TURN_TLS_KEY"; fi
 
 # ── 2. AUDIO_CALL_ICE_SERVERS → this TURN server ─────────────────────
 # The backend reads this env at boot and pushes it to every WebRTC peer
 # inside the `registered` frame over the authed WS (never HTTP).
-ICE="[{\"urls\":[\"stun:${PUBLIC_IP}:3478\",\"turn:${PUBLIC_IP}:3478?transport=udp\",\"turn:${PUBLIC_IP}:3478?transport=tcp\"],\"username\":\"${TURN_USERNAME}\",\"credential\":\"${TURN_SECRET}\"}]"
+# TURN/TLS (corporate-network escape hatch): many office firewalls
+# allow ONLY outbound 443/8443-style TCP and kill every UDP flow —
+# plain TURN (udp or tcp 3478) never gets through and calls die at
+# "connecting" (production symptom: works on home wifi, dead at the
+# office). Set TURN_TLS_CERT + TURN_TLS_KEY (a real cert for
+# turn.<domain>, DNS-only record → this host) to enable `turns:` on
+# 5349; libwebrtc then has a TCP+TLS relay path that middleboxes
+# treat as ordinary HTTPS-ish traffic. Optional — absent certs keep
+# the legacy stun/turn set.
+TLS_URLS=""
+if [ -n "${TURN_TLS_CERT:-}" ] && [ -n "${TURN_TLS_KEY:-}" ] && [ -f "${TURN_TLS_CERT}" ] && [ -f "${TURN_TLS_KEY}" ]; then
+  TLS_URLS=",\"turns:${PUBLIC_IP}:5349?transport=tcp\""
+  echo "coturn: TLS TURN enabled (turns:...:5349, cert ${TURN_TLS_CERT})"
+else
+  echo "coturn: TLS TURN not configured (set TURN_TLS_CERT + TURN_TLS_KEY for corporate-network media)"
+fi
+ICE="[{\"urls\":[\"stun:${PUBLIC_IP}:3478\",\"turn:${PUBLIC_IP}:3478?transport=udp\",\"turn:${PUBLIC_IP}:3478?transport=tcp\"${TLS_URLS}],\"username\":\"${TURN_USERNAME}\",\"credential\":\"${TURN_SECRET}\"}]"
 ensure_env AUDIO_CALL_ICE_SERVERS "$ICE"
 
 # ensure_env may have just rewritten .env (quoting fix). Re-source so
@@ -122,7 +140,17 @@ fi
 # candidates → calls behind CGNAT stuck on "connecting" (production
 # incident 2026-09-09: server-side TURN tests passed because a
 # hand-rolled client tolerates the empty realm; the phone did not).
-desired_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-tls --no-dtls"
+# TLS flags: default stays --no-tls/--no-dtls (plain TURN); with certs
+# provided we instead LISTEN TLS on 5349 (plain 3478 stays on). The
+# cert/key are bind-mounted read-only.
+if [ -n "${TURN_TLS_CERT:-}" ] && [ -n "${TURN_TLS_KEY:-}" ] && [ -f "${TURN_TLS_CERT}" ] && [ -f "${TURN_TLS_KEY}" ]; then
+  TLS_FLAGS="--tls-listening-port=5349 --cert=${TURN_TLS_CERT} --pkey=${TURN_TLS_KEY}"
+  TLS_MOUNTS="-v ${TURN_TLS_CERT}:${TURN_TLS_CERT}:ro -v ${TURN_TLS_KEY}:${TURN_TLS_KEY}:ro"
+else
+  TLS_FLAGS="--no-tls --no-dtls"
+  TLS_MOUNTS=""
+fi
+desired_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} ${TLS_FLAGS}"
 
 running_cmd=$(docker inspect --format '{{join .Config.Cmd " "}}' "$CONTAINER" 2>/dev/null || true)
 running_state=$(docker inspect --format '{{.State.Status}}' "$CONTAINER" 2>/dev/null || true)
@@ -143,8 +171,9 @@ if [ -z "$running_cmd" ] || [ "$running_cmd" != "$desired_cmd" ] || [ "$running_
     --restart unless-stopped \
     --log-driver json-file --log-opt max-size=20m --log-opt max-file=3 \
     --memory 512m --memory-swap 512m \
+    $TLS_MOUNTS \
     $IMAGE $desired_cmd
-  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp, logs capped 3x20m, mem 512m)"
+  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp${TLS_URLS:+ + TLS 5349/tcp}, logs capped 3x20m, mem 512m)"
 else
   echo "coturn: container already correct (running)"
 fi

@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use super::{
     AddressStore, AuditStore, BookingStore, BrandStore, ChatStore, NotificationStore, PaymentStore,
     PlaceStore, PostStore, PriceAlertStore, RbacStore, RefreshTokenStore, ReviewStore, RouteStore,
-    ScheduleStore, TripStore, UserStore, VehicleTypeStore, WishlistStore,
+    ScheduleStore, StaffPresenceStore, TripStore, UserStore, VehicleTypeStore, WishlistStore,
 };
 
 #[derive(Clone)]
@@ -20,6 +20,7 @@ pub struct CompositeStore {
     bookings: Arc<dyn BookingStore>,
     reviews: Arc<dyn ReviewStore>,
     routes: Arc<dyn RouteStore>,
+    staff_presence: Arc<dyn StaffPresenceStore>,
     schedules: Arc<dyn ScheduleStore>,
     trips: Arc<dyn TripStore>,
     places: Arc<dyn PlaceStore>,
@@ -45,6 +46,7 @@ impl CompositeStore {
         bookings: Arc<dyn BookingStore>,
         reviews: Arc<dyn ReviewStore>,
         routes: Arc<dyn RouteStore>,
+        staff_presence: Arc<dyn StaffPresenceStore>,
         schedules: Arc<dyn ScheduleStore>,
         trips: Arc<dyn TripStore>,
         places: Arc<dyn PlaceStore>,
@@ -67,6 +69,7 @@ impl CompositeStore {
             bookings,
             reviews,
             routes,
+            staff_presence,
             schedules,
             trips,
             places,
@@ -126,6 +129,10 @@ impl CompositeStore {
         self.routes.clone()
     }
 
+    pub fn staff_presence_store(&self) -> Arc<dyn StaffPresenceStore> {
+        self.staff_presence.clone()
+    }
+
     pub fn schedule_store(&self) -> Arc<dyn ScheduleStore> {
         self.schedules.clone()
     }
@@ -179,7 +186,7 @@ impl CompositeStore {
             DbAddressStore, DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore,
             DbNotificationStore, DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore,
             DbRbacStore, DbRefreshTokenStore, DbReviewStore, DbRouteStore, DbScheduleStore,
-            DbTripStore, DbUserStore, DbVehicleTypeStore, DbWishlistStore,
+            DbStaffPresenceStore, DbTripStore, DbUserStore, DbVehicleTypeStore, DbWishlistStore,
         };
         Arc::new(Self::new(
             db.clone(),
@@ -192,6 +199,7 @@ impl CompositeStore {
             Arc::new(DbBookingStore::new(db.clone())),
             Arc::new(DbReviewStore::new(db.clone())),
             Arc::new(DbRouteStore::new(db.clone())),
+            Arc::new(DbStaffPresenceStore::new(db.clone())),
             Arc::new(DbScheduleStore::new(db.clone())),
             Arc::new(DbTripStore::new(db.clone())),
             Arc::new(DbPlaceStore::new(db.clone())),

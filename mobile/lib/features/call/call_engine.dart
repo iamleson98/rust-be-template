@@ -80,6 +80,33 @@ class CallEngine {
     return <String, dynamic>{'type': offer.type, 'sdp': offer.sdp};
   }
 
+  /// OFFERER path: re-offer with `iceRestart: true` after the media path
+  /// failed — regenerates the candidate set on the SAME peer connection.
+  /// The server relays it as a `renegotiate` frame; the peer re-answers.
+  Future<Map<String, dynamic>> createRestartOffer() async {
+    final pc = _pc!;
+    final offer = await pc.createOffer(<String, dynamic>{
+      'offerToReceiveAudio': 1,
+      'offerToReceiveVideo': 0,
+      'iceRestart': true,
+    });
+    await pc.setLocalDescription(offer);
+    return <String, dynamic>{'type': offer.type, 'sdp': offer.sdp};
+  }
+
+  /// ANSWERER path: apply a `renegotiate` offer (ICE restart from the
+  /// peer) to the EXISTING peer connection and produce the new answer.
+  Future<Map<String, dynamic>> acceptRenegotiateOffer(
+      Map<String, dynamic> sdpJson) async {
+    final pc = _pc!;
+    await pc.setRemoteDescription(
+      RTCSessionDescription(sdpJson['sdp'] as String?, sdpJson['type'] as String?),
+    );
+    final answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    return <String, dynamic>{'type': answer.type, 'sdp': answer.sdp};
+  }
+
   /// Callee path: apply the remote offer and answer it.
   Future<Map<String, dynamic>> acceptOffer(Map<String, dynamic> sdpJson) async {
     final pc = _pc!;

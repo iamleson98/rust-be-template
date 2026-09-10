@@ -38,6 +38,19 @@
  *
  *   * The remote audio is rendered via a hidden `<audio>` element with
  *     `autoplay` + `playsInline` (iOS won't autoplay otherwise).
+ *
+ * ## Network-resilience features (corporate NAT / IP churn)
+ *
+ *   * **ICE candidate buffering** — candidates generated while the
+ *     signaling WS is down (an IP-rotating office network kills it
+ *     silently) are buffered and re-flushed on reconnect; a lost
+ *     candidate leaves the peer with an incomplete set = the
+ *     "stuck on connecting" failure.
+ *   * **ICE restart (renegotiation)** — when the media path fails, the
+ *     ORIGINAL OFFERER re-offers with `iceRestart: true` once per call;
+ *     the server relays it as a `renegotiate` frame and the answerer
+ *     re-answers on its EXISTING peer connection. Fresh candidates
+ *     without re-ringing. The mobile client speaks the same protocol.
  */
 
 export type CallRole = 'customer' | 'agent'
@@ -126,6 +139,21 @@ export class AudioCallClient {
   private ringTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   private mediaConnected = false
+  /** Did WE create the initial offer? Only the offerer may drive an ICE
+   * restart (WebRTC glare rule: an answerer cannot unilaterally re-offer
+   * on an existing negotiation). Set by startCall/acceptCall. */
+  private isOfferer = false
+  /** ICE restarts attempted this call (capped at 1 — a second restart on
+   * the same dead path is noise, the call should end instead). */
+  private iceRestarts = 0
+  /** ICE candidates generated while the signaling WS was down. The
+   * browser's onicecandidate fires once per candidate and is NOT retried —
+   * a candidate lost to a WS blip leaves the peer with an incomplete
+   * candidate set, which is exactly the "stuck on connecting" signature
+   * on networks that rotate IPs (corporate NAT). Buffered and re-flushed
+   * on every (re)connect; bounded so a pathological case cannot grow it. */
+  private pendingIce: Array<Record<string, unknown>> = []
+  private static readonly MAX_PENDING_ICE = 64
 
   public state: CallState = 'idle'
   public onlineAgents = 0
@@ -174,6 +202,10 @@ export class AudioCallClient {
     this.ws.onopen = () => {
       this.reconnectAttempts = 0
       this.send({ type: 'register', role: this.cfg.role, userId: this.cfg.userId, channelId: this.cfg.channelId })
+      // Candidates buffered while the socket was down ride along with
+      // the register — the server relays them to the live session's
+      // peer, whose addIceCandidate tolerates duplicates.
+      this.flushPendingIce()
       this.startHeartbeat()
     }
 
@@ -235,6 +267,23 @@ export class AudioCallClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try { this.ws.send(JSON.stringify(msg)) } catch { }
     }
+  }
+
+  /** Send an ICE candidate, or buffer it when the socket is down and the
+   * call is live (see `pendingIce`). */
+  private sendOrBufferIce(to: string, candidate: any): void {
+    const msg: Record<string, unknown> = { type: 'call', to, from: this.cfg.userId, kind: 'ice', candidate }
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try { this.ws.send(JSON.stringify(msg)) } catch { }
+    } else if (this.isCallLive() && this.pendingIce.length < AudioCallClient.MAX_PENDING_ICE) {
+      this.pendingIce.push(msg)
+    }
+  }
+
+  private flushPendingIce(): void {
+    if (this.pendingIce.length === 0) return
+    const queued = this.pendingIce.splice(0)
+    for (const msg of queued) this.send(msg)
   }
 
   // ── Signal handling ────────────────────────────────────────
@@ -312,6 +361,34 @@ export class AudioCallClient {
             .catch((e) => this.emit('error', { code: 'add-ice', message: String(e) }))
         }
         break
+      case 'renegotiate': {
+        // ICE restart: the peer (always the original OFFERER) re-offered
+        // with fresh candidates after the media path failed. Apply it to
+        // the EXISTING peer connection — never re-ring, never a new call.
+        const sdp = msg.sdp ? new RTCSessionDescription(msg.sdp) : null
+        if (!sdp || !this.pc || !this.isCallLive()) break
+        if (typeof msg.from === 'string' && !this.peerId) this.peerId = msg.from
+        if (msg.kind === 'offer') {
+          this.pc.setRemoteDescription(sdp)
+            .then(async () => {
+              const answer = await this.pc!.createAnswer()
+              await this.pc!.setLocalDescription(answer)
+              this.send({
+                type: 'call',
+                to: this.peerId ?? msg.from,
+                from: this.cfg.userId,
+                kind: 'answer',
+                iceRestart: true,
+                sdp: answer,
+              })
+            })
+            .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
+        } else if (msg.kind === 'answer') {
+          this.pc.setRemoteDescription(sdp)
+            .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
+        }
+        break
+      }
       case 'hangup':
         this.clearCallTimeout()
         this.clearRingTimeout()
@@ -362,6 +439,7 @@ export class AudioCallClient {
     // Agent-initiated calls know their peer up front; customer-initiated
     // calls learn the agent's real userId from the `answer`/`ice` messages.
     this.peerId = this.cfg.role === 'agent' ? (targetUserId ?? null) : null
+    this.isOfferer = true
 
     this.pc = new RTCPeerConnection({ iceServers: this.cfg.iceServers })
     this.setupPeerConnection()
@@ -387,6 +465,7 @@ export class AudioCallClient {
     if (this.state !== 'incoming') return
     this.clearRingTimeout()
     this.peerId = fromUserId
+    this.isOfferer = false
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -494,7 +573,11 @@ export class AudioCallClient {
     this.connectTimeoutTimer = setTimeout(() => {
       this.connectTimeoutTimer = null
       if (!this.mediaConnected && (this.state === 'connecting' || this.state === 'active')) {
-        this.emit('error', { code: 'media-timeout', message: 'Không kết nối được âm thanh — kiểm tra mạng và thử lại' })
+        this.emit('error', {
+          code: 'media-timeout',
+          message:
+            'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
+        })
         this.hangup('timeout')
       }
     }, CONNECT_TIMEOUT_MS)
@@ -521,13 +604,7 @@ export class AudioCallClient {
       if (ev.candidate) {
         const to = this.peerId ?? (this.cfg.role === 'customer' ? 'agent' : '')
         if (!to) return
-        this.send({
-          type: 'call',
-          to,
-          from: this.cfg.userId,
-          kind: 'ice',
-          candidate: ev.candidate,
-        })
+        this.sendOrBufferIce(to, ev.candidate)
       }
     }
     // Remote track → attach to audio element.
@@ -559,13 +636,53 @@ export class AudioCallClient {
         }
       }
       if (this.pc?.connectionState === 'failed' || this.pc?.connectionState === 'disconnected') {
-        // ICE failed — give it a moment to recover, then hangup.
+        // ICE hiccup — give it a moment to recover, then either restart
+        // ICE (once, offerer-only — the office-network case where the
+        // media path never came up or died mid-negotiation) or hang up.
         setTimeout(() => {
           if (this.pc && (this.pc.connectionState === 'failed' || this.pc.connectionState === 'disconnected')) {
-            this.hangup()
+            if (this.isOfferer && this.iceRestarts < 1 && this.isCallLive()) {
+              void this.restartIce()
+            } else {
+              this.hangup()
+            }
           }
         }, 3000)
       }
+    }
+  }
+
+  /** Offerer-only ICE restart: re-offer with `iceRestart: true`, relayed
+   * by the server as a `renegotiate` frame; the peer re-answers on its
+   * EXISTING peer connection. Fresh candidates + a fresh media deadline —
+   * the recovery path for restrictive NATs / corporate firewalls / IP
+   * churn that invalidated the original candidate set. */
+  private async restartIce(): Promise<void> {
+    if (!this.pc || !this.isOfferer) return
+    this.iceRestarts++
+    this.clearConnectTimeout()
+    try {
+      const offer = await this.pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: false,
+        iceRestart: true,
+      })
+      await this.pc.setLocalDescription(offer)
+      const to = this.peerId ?? (this.cfg.role === 'customer' ? 'agent' : '')
+      if (!to) throw new Error('no peer to restart toward')
+      this.send({
+        type: 'call',
+        to,
+        from: this.cfg.userId,
+        kind: 'offer',
+        iceRestart: true,
+        sdp: offer,
+      })
+      this.startConnectTimeout()
+      this.emit('ice-restart', { attempts: this.iceRestarts })
+    } catch (e) {
+      this.emit('error', { code: 'ice-restart', message: String(e) })
+      this.hangup()
     }
   }
 
@@ -581,6 +698,9 @@ export class AudioCallClient {
     this.remoteStream = null
     this.micEnabled = true
     this.peerId = null
+    this.isOfferer = false
+    this.iceRestarts = 0
+    this.pendingIce = []
     this.clearCallTimeout()
     this.clearRingTimeout()
     if (this.remoteAudioElement) {
