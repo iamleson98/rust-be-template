@@ -87,10 +87,20 @@ services:
         constraints:
           - node.role == manager
       resources:
-        # Tuned for the shared 4 vCPU / 8 GB node (pdf-tts lives here too).
-        limits:
-          memory: ${APP_MEM_LIMIT:-2g}
-          cpus: "${APP_CPU_LIMIT:-1.5}"
+        # NO hard limits (operator decision 2026-09-10): the backend may
+        # burst to whatever the 4 vCPU / 8 GB shared node can give, and
+        # pdf-tts (co-tenant) is uncapped the same way. Two side effects
+        # of the old 1.5-cpu cap, both fixed by removing it:
+        #   1. tokio sized its worker pool from the cgroup value
+        #      (2 workers) — a single blocked task could stall the whole
+        #      runtime and fail /health (the "unreachable after hangup"
+        #      incidents of 2026-09-09); with all 4 vCPUs visible the
+        #      pool grows to 4 workers and a one-task hang cannot take
+        #      the server down with it.
+        #   2. memory headroom for the Tantivy import / search paths is
+        #      no longer clipped at 2g.
+        # The 192m reservation is scheduling-only metadata (single-node
+        # swarm — no effect); keep it for documentation value.
         reservations:
           memory: 192m
       # One replica + single-writer engine: never two containers on the same DB file.
