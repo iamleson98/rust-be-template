@@ -62,6 +62,8 @@ pub enum Relation {
     RefreshTokens,
     #[sea_orm(has_many = "super::review::Entity")]
     Review,
+    #[sea_orm(has_one = "super::staff_presence_state::Entity")]
+    StaffPresenceState,
     #[sea_orm(has_many = "super::user_roles::Entity")]
     UserRoles,
     #[sea_orm(has_many = "super::user_verification::Entity")]
@@ -121,6 +123,12 @@ impl Related<super::refresh_tokens::Entity> for Entity {
 impl Related<super::review::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Review.def()
+    }
+}
+
+impl Related<super::staff_presence_state::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::StaffPresenceState.def()
     }
 }
 

@@ -14,15 +14,12 @@ pub struct Model {
     pub storage_key: String,
     #[sea_orm(column_type = "Text")]
     pub thumb_key: String,
-    #[sea_orm(column_len = 64, unique)]
     pub content_hash: String,
-    #[sea_orm(column_len = 30)]
     pub mime_type: String,
     pub size_bytes: i64,
     pub thumb_bytes: i64,
     pub width: i64,
     pub height: i64,
-    #[sea_orm(column_type = "Text", nullable)]
     pub alt_text: Option<String>,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,

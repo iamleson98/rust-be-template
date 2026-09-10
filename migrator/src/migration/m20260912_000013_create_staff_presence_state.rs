@@ -44,6 +44,14 @@ impl MigrationTrait for Migration {
                     .col(integer(StaffPresenceState::Online).default(0))
                     .col(text(StaffPresenceState::LastSeenAt))
                     .col(text_null(StaffPresenceState::LastOnlineAt))
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_staff_presence_state_user")
+                            .from(StaffPresenceState::Table, StaffPresenceState::UserId)
+                            .to(User::Table, User::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -68,4 +76,11 @@ enum StaffPresenceState {
     Online,
     LastSeenAt,
     LastOnlineAt,
+}
+
+/// Minimal reference to the table created by the users migration.
+#[derive(DeriveIden)]
+enum User {
+    Table,
+    Id,
 }
