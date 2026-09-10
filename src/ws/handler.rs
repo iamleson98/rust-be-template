@@ -879,11 +879,17 @@ pub async fn drain_all_connections(grace_ms: u64) {
 }
 
 /// Periodic GC for the idempotency + channel-exists caches (every 60s).
+///
+/// The sweeps are sync `DashMap::retain` calls (no awaits inside) and must
+/// stay non-blocking: a task that blocks here parks its worker thread, and
+/// if that worker holds the I/O driver the whole runtime freezes (see
+/// `ChatHub::idem_gc` docs for the 2026-09-10 incident).
 pub fn spawn_idem_gc() {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
             hub().idem_gc();
+            hub().channel_cache_gc();
         }
     });
 }

@@ -521,20 +521,25 @@ impl ChatHub {
     }
 
     /// Garbage-collect idempotency entries older than `IDEM_TTL`.
-    /// Iterates the map and drops expired entries; runs every 60s from a
-    /// background task. Uses DashMap's iterator (lock-per-shard) so it
-    /// doesn't block concurrent `idem_claim` callers.
+    /// Runs every 60s from a background task.
+    ///
+    /// Uses `DashMap::retain`, which takes each shard's write lock once and
+    /// erases expired buckets in place. **Never** do `remove()` while
+    /// holding an `iter()` guard on the same map: `Iter` keeps the current
+    /// shard's read lock alive across the loop body, so a `remove()` inside
+    /// the loop blocks the same thread forever (write waits on the read lock
+    /// that only this thread can release). That self-deadlock took down the
+    /// whole runtime in production (2026-09-10 "dies after a call"
+    /// incidents): the GC task blocked its worker thread, that worker was
+    /// the one holding the tokio I/O driver, and without `tokio_unstable`
+    /// eager driver handoff no other worker ever polled epoll again —
+    /// `/health` stopped answering and Swarm killed the container.
     pub fn idem_gc(&self) {
         let now = Instant::now();
-        let mut removed = 0usize;
-        for entry in self.idempotency.iter() {
-            let (stored_at, _) = entry.value();
-            if now.duration_since(*stored_at) > Self::IDEM_TTL
-                && self.idempotency.remove(entry.key()).is_some()
-            {
-                removed += 1;
-            }
-        }
+        let before = self.idempotency.len();
+        self.idempotency
+            .retain(|_, (stored_at, _)| now.duration_since(*stored_at) <= Self::IDEM_TTL);
+        let removed = before - self.idempotency.len();
         if removed > 0 {
             tracing::debug!(
                 removed,
@@ -569,17 +574,16 @@ impl ChatHub {
     }
 
     /// Purge expired channel-cache entries. Called from the idem_gc sweep.
+    ///
+    /// Same `retain` discipline as `idem_gc` — never `remove()` under an
+    /// `iter()` guard on the same map (self-deadlock; see `idem_gc`).
     pub fn channel_cache_gc(&self) {
         let now = Instant::now();
         let ttl = self.channel_cache_ttl;
-        let mut purged = 0;
-        for entry in self.channel_exists_cache.iter() {
-            if now.duration_since(*entry.value()) >= ttl
-                && self.channel_exists_cache.remove(entry.key()).is_some()
-            {
-                purged += 1;
-            }
-        }
+        let before = self.channel_exists_cache.len();
+        self.channel_exists_cache
+            .retain(|_, stored_at| now.duration_since(*stored_at) < ttl);
+        let purged = before - self.channel_exists_cache.len();
         if purged > 0 {
             tracing::debug!(
                 purged,
@@ -1069,11 +1073,80 @@ mod tests {
         assert!(r.is_none(), "in-flight");
     }
 
+    /// Backdate an idempotency entry past IDEM_TTL so the next GC sweep
+    /// sees it as expired — without sleeping for 5 real minutes.
+    fn insert_backdated_idem(h: &ChatHub, key: &str, age: Duration) {
+        let stored_at = Instant::now()
+            .checked_sub(age)
+            .expect("CI host uptime exceeds the backdate age");
+        h.idempotency.insert(key.to_string(), (stored_at, None));
+    }
+
+    /// Run `f` on a helper thread and fail fast (instead of hanging the
+    /// whole test binary) if it doesn't complete within 5s. The pre-retain
+    /// `idem_gc` self-deadlocked (remove under an iter read-guard) and
+    /// would otherwise stall CI until the job timeout.
+    fn run_with_deadlock_watchdog<F: FnOnce() + Send + 'static>(ctx: &str, f: F) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            f();
+            let _ = tx.send(());
+        });
+        match rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(()) => {}
+            Err(_) => panic!("{ctx} deadlocked (blocked > 5s) — remove() under iter() guard?"),
+        }
+    }
+
     #[test]
-    #[ignore = "requires time manipulation; TTL-based idem_gc is covered by integration tests"]
-    fn idem_gc_runs_when_entries_expired() {
-        // Placeholder — would need a mock clock to test TTL expiry
-        // without sleeping for 5 minutes in unit tests.
+    fn idem_gc_sweeps_expired_entries_without_deadlocking() {
+        // Regression (2026-09-10 "dies after a call"): idem_gc used to
+        // `remove()` while iterating, self-deadlocking the GC task's
+        // worker thread. The worker held the tokio I/O driver, so the
+        // runtime stopped polling epoll entirely and /health timed out
+        // until Swarm killed the container.
+        let h = std::sync::Arc::new(fresh_hub());
+        h.idem_claim("fresh-claim");
+        h.idem_store("fresh-store", "srv-1");
+        insert_backdated_idem(&h, "expired-1", ChatHub::IDEM_TTL + Duration::from_secs(1));
+        insert_backdated_idem(&h, "expired-2", ChatHub::IDEM_TTL + Duration::from_secs(60));
+
+        let h2 = h.clone();
+        run_with_deadlock_watchdog("idem_gc", move || h2.idem_gc());
+
+        assert!(
+            h.idem_claim("expired-1").is_none(),
+            "expired entry must be swept (a new claim returns None)"
+        );
+        assert!(!h.idempotency.contains_key("expired-2"));
+        let stored = h.idem_claim("fresh-claim").expect("Some");
+        assert!(stored.is_none(), "in-flight entry must survive the sweep");
+        assert_eq!(
+            h.idem_claim("fresh-store"),
+            Some(Some("srv-1".to_string())),
+            "stored entry must survive the sweep"
+        );
+    }
+
+    #[test]
+    fn channel_cache_gc_sweeps_expired_entries_without_deadlocking() {
+        // fresh_hub uses channel_cache_ttl = 60s.
+        let h = std::sync::Arc::new(fresh_hub());
+        h.cache_channel_exists("fresh-channel");
+        let stale_at = Instant::now()
+            .checked_sub(Duration::from_secs(61))
+            .expect("CI host uptime exceeds 61s");
+        h.channel_exists_cache
+            .insert("stale-channel".into(), stale_at);
+        h.channel_exists_cache
+            .insert("stale-channel-2".into(), stale_at);
+
+        let h2 = h.clone();
+        run_with_deadlock_watchdog("channel_cache_gc", move || h2.channel_cache_gc());
+
+        assert!(h.channel_exists_cached("fresh-channel"));
+        assert!(!h.channel_exists_cached("stale-channel"));
+        assert!(!h.channel_exists_cache.contains_key("stale-channel-2"));
     }
 
     // ── user_of / channel_of /    // ── user_of / channel_of ────────────────────────────────────
