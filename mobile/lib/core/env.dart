@@ -57,6 +57,8 @@ const _kDartDefineUrl = String.fromEnvironment('API_BASE_URL');
 const _kDefaultUrl = 'http://10.0.2.2:8080';
 
 class AppConfigNotifier extends Notifier<AppConfig> {
+  int _changeVersion = 0;
+
   @override
   AppConfig build() {
     _load();
@@ -67,14 +69,19 @@ class AppConfigNotifier extends Notifier<AppConfig> {
   }
 
   Future<void> _load() async {
+    final versionAtStart = _changeVersion;
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getString(_kServerUrlKey);
-    if (saved != null && saved.isNotEmpty && _kDartDefineUrl.isEmpty) {
+    if (versionAtStart == _changeVersion &&
+        saved != null &&
+        saved.isNotEmpty &&
+        _kDartDefineUrl.isEmpty) {
       if (saved != state.baseUrl) state = AppConfig(baseUrl: saved);
     }
   }
 
   Future<void> setServerUrl(String url) async {
+    _changeVersion++;
     state = AppConfig(baseUrl: url);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kServerUrlKey, url);
