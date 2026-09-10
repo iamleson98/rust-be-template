@@ -147,10 +147,12 @@ services:
   # (:9001) is reachable over an SSH tunnel to the task's container
   # IP (see deploy/README.md § route media).
   # One-time setup (bucket + public-read policy so GETs — and only
-  # GETs — work without signatures):
-  #   docker run --rm --network pdf-tts_pdf-tts minio/mc \
-  #     alias set r http://datxevui_rustfs:9000 $RUSTFS_ACCESS_KEY $RUSTFS_SECRET_KEY && \
-  #   mc mb r/datxevui-media && mc anonymous set download r/datxevui-media
+  # GETs — work without signatures). NOTE: minio/mc's ENTRYPOINT is
+  # `mc`, so the shell MUST be selected via --entrypoint:
+  #   docker run --rm --network pdf-tts_pdf-tts --entrypoint sh \
+  #     -e RUSTFS_ACCESS_KEY -e RUSTFS_SECRET_KEY minio/mc -c '
+  #     mc alias set r http://datxevui_rustfs:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" &&
+  #     mc mb r/datxevui-media && mc anonymous set download r/datxevui-media'
   rustfs:
     image: rustfs/rustfs:latest
     environment:

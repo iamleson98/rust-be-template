@@ -284,11 +284,17 @@ docker stack ps "$STACK" --no-trunc --format \
 # next deploy retries). `mc mb` is a no-op for an existing bucket; the
 # `anonymous set download` policy makes GETs (CDN origin reads) work
 # without signatures while writes stay signed.
+# NOTE: the minio/mc image has ENTRYPOINT ["mc"], so `sh` MUST be passed
+# via --entrypoint — otherwise mc receives `sh` as its subcommand and
+# the whole ensure silently fails. BUCKET must also be exported for
+# `-e BUCKET` to forward it into the container.
 BUCKET="${STORAGE_S3_BUCKET:-datxevui-media}"
+export BUCKET
 for i in 1 2 3 4 5 6; do
   if docker run --rm --network "${CADDY_NET:-pdf-tts_pdf-tts}" \
+      --entrypoint sh \
       -e RUSTFS_ACCESS_KEY -e RUSTFS_SECRET_KEY -e BUCKET \
-      minio/mc sh -c '
+      minio/mc -c '
         mc alias set r http://datxevui_rustfs:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" &&
         mc mb "r/$BUCKET" && mc anonymous set download "r/$BUCKET"' 2>/dev/null; then
     echo "route media: bucket '$BUCKET' ready (public-read for GETs)"
