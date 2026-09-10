@@ -13,7 +13,6 @@ use crate::error::AppError;
 use crate::middleware::AdminUser;
 use crate::rbac::model::consts as rbac;
 use crate::state::AppState;
-
 /// `GET /api/admin/routes` — list routes (admin), with optional brand
 /// filter, search and offset pagination.
 #[utoipa::path(
@@ -99,6 +98,10 @@ pub async fn update(
 }
 
 /// `DELETE /api/admin/routes/{id}` — delete a route.
+///
+/// Garbage-collects the route's picture objects FIRST — the FK
+/// cascade would drop the rows (the only index of which objects
+/// exist) and orphan the objects with no way to find them again.
 #[utoipa::path(
     delete,
     path = "/api/admin/routes/{id}",
@@ -119,6 +122,12 @@ pub async fn delete(
     st.rbac
         .require(admin.user_id(), rbac::ADMIN_ROUTES_WRITE)
         .await?;
+    // Purge picture objects best-effort BEFORE the row cascade makes
+    // their keys unrecoverable. A storage hiccup logs a warning but
+    // does not block the route deletion — the rows cascade either way.
+    if let Err(e) = st.media.purge_route(id).await {
+        tracing::warn!(route_id = %id, error = %e, "route-picture GC failed");
+    }
     Ok(Json(st.admin.delete_route(id).await?))
 }
 
@@ -126,4 +135,8 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{id}", put(update).delete(delete))
+        // Gallery: full-path patterns (axum `nest` doesn't accept path
+        // parameters) + a route-scoped raised body limit for the
+        // multipart upload.
+        .merge(super::route_pictures::router())
 }

@@ -18,6 +18,7 @@
 //! | 9 | `create_engagement_jobs` | wishlist_item, price_alert, scheduled_job, job_run |
 //! | 10 | `seed_defaults`         | RBAC roles/permissions/grants + vehicle-type catalogue |
 //! | 11 | `create_push_devices`    | push_device |
+//! | 12 | `create_route_pictures`  | route_picture |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -46,6 +47,7 @@ mod m20260905_000008_create_chat;
 mod m20260905_000009_create_engagement_jobs;
 mod m20260905_000010_seed_defaults;
 mod m20260905_000011_create_push_devices;
+mod m20260910_000012_create_route_pictures;
 
 pub struct Migrator;
 
@@ -64,6 +66,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260905_000009_create_engagement_jobs::Migration),
             Box::new(m20260905_000010_seed_defaults::Migration),
             Box::new(m20260905_000011_create_push_devices::Migration),
+            Box::new(m20260910_000012_create_route_pictures::Migration),
         ]
     }
 }

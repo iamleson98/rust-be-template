@@ -34,6 +34,7 @@ pub mod place;
 pub mod public;
 pub mod push_device;
 pub mod review;
+pub mod route_media;
 pub mod routing;
 pub mod system;
 pub mod wishlist;

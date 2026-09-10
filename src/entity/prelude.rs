@@ -24,6 +24,7 @@ pub use super::review::Entity as Review;
 pub use super::role_permissions::Entity as RolePermissions;
 pub use super::roles::Entity as Roles;
 pub use super::route::Entity as Route;
+pub use super::route_picture::Entity as RoutePicture;
 pub use super::schedule::Entity as Schedule;
 pub use super::seat::Entity as Seat;
 pub use super::seat_inventory::Entity as SeatInventory;

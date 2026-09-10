@@ -65,6 +65,24 @@ fi
 : "${IMAGE:?IMAGE=<image-ref> env var is required (set by the CD pipeline)}"
 : "${JWT_SECRET:?JWT_SECRET missing — check .env}"
 
+# ── 1c. RustFS credentials (route media) — idempotent backfill ──────
+# stack.yml hard-requires RUSTFS_ACCESS_KEY/SECRET_KEY; generate them
+# on FIRST need (existing .env from before the media feature has no
+# such keys) and re-source so THIS deploy sees them.
+if ! grep -q '^RUSTFS_ACCESS_KEY=' .env 2>/dev/null; then
+  umask 077
+  {
+    echo ""
+    echo "# ── Route media (RustFS object storage) — added by deploy.sh ──"
+    echo "RUSTFS_ACCESS_KEY=$(openssl rand -hex 16)"
+    echo "RUSTFS_SECRET_KEY=$(openssl rand -hex 32)"
+    echo "# Set after DNS + Cloudflare proxying for media.datxevui.com:"
+    echo "#STORAGE_PUBLIC_BASE_URL=https://media.datxevui.com"
+  } >> .env
+  echo ".env: generated fresh RUSTFS_ACCESS_KEY/RUSTFS_SECRET_KEY"
+fi
+set -a; . ./.env; set +a
+
 # ── 2. Optional GHCR login (private packages only) ───────────────────
 # The node usually already has ghcr.io credentials (stored by pdf-tts);
 # --with-registry-auth below passes them to the swarm. This explicit
@@ -258,6 +276,27 @@ fi
 
 docker stack ps "$STACK" --no-trunc --format \
   'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
+
+# ── 9. Route media: ensure the RustFS bucket exists (idempotent) ────
+# The rustfs task needs a few seconds after `stack deploy` before its
+# S3 API answers; retry briefly, then best-effort (a missing bucket
+# only breaks picture UPLOADS — not the rest of the site — and the
+# next deploy retries). `mc mb` is a no-op for an existing bucket; the
+# `anonymous set download` policy makes GETs (CDN origin reads) work
+# without signatures while writes stay signed.
+BUCKET="${STORAGE_S3_BUCKET:-datxevui-media}"
+for i in 1 2 3 4 5 6; do
+  if docker run --rm --network "${CADDY_NET:-pdf-tts_pdf-tts}" \
+      -e RUSTFS_ACCESS_KEY -e RUSTFS_SECRET_KEY -e BUCKET \
+      minio/mc sh -c '
+        mc alias set r http://datxevui_rustfs:9000 "$RUSTFS_ACCESS_KEY" "$RUSTFS_SECRET_KEY" &&
+        mc mb "r/$BUCKET" && mc anonymous set download "r/$BUCKET"' 2>/dev/null; then
+    echo "route media: bucket '$BUCKET' ready (public-read for GETs)"
+    break
+  fi
+  [ "$i" = 6 ] && echo "WARN: bucket ensure failed (rustfs still starting?); picture uploads will 500 until the next deploy retries" || sleep 5
+done
+
 docker image prune -f >/dev/null 2>&1 || true
 echo "deployed: $IMAGE"
 echo "e2e (needs DNS): curl -I https://datxevui.com/health"

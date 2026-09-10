@@ -23,7 +23,7 @@ use crate::routes::build_router;
 use crate::service::{
     AdminService, AuthService, BookingService, ChatService, JobService, NotificationService,
     PaymentService, PlaceService, PostService, PriceAlertService, PublicService, ReviewService,
-    RoutingService, UserService, WishlistService,
+    RouteMediaService, RoutingService, UserService, WishlistService,
 };
 use crate::state::AppState;
 use crate::store::{
@@ -31,8 +31,9 @@ use crate::store::{
     CacheRefreshTokenStore, CacheUserStore, ChatStore, CompositeStore, DbAddressStore,
     DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
     DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
-    DbReviewStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore, DbVehicleTypeStore,
-    DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore, UserStore,
+    DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore, DbTripStore, DbUserStore,
+    DbVehicleTypeStore, DbWishlistStore, JobStore, PostStore, RbacStore, RefreshTokenStore,
+    RoutePictureStore, UserStore,
 };
 use crate::worker::WorkerRunner;
 use crate::ws;
@@ -135,6 +136,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let booking_store = Arc::new(DbBookingStore::new(db.clone()));
     let review_store = Arc::new(DbReviewStore::new(db.clone()));
     let route_store = Arc::new(DbRouteStore::new(db.clone()));
+    // Clone for the media service — `route_store` itself is moved into
+    // `CompositeStore::new` below.
+    let route_store_for_media = route_store.clone();
+    let route_picture_store: Arc<dyn RoutePictureStore> =
+        Arc::new(DbRoutePictureStore::new(db.clone()));
     let schedule_store = Arc::new(DbScheduleStore::new(db.clone()));
     let trip_store = Arc::new(DbTripStore::new(db.clone()));
     let place_store = Arc::new(DbPlaceStore::new(db.clone()));
@@ -301,6 +307,22 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // deployments whose broker is down keep serving the API).
     let job_store: Arc<dyn JobStore> = Arc::new(DbJobStore::new(db.clone()));
     let mut job_service = Arc::new(JobService::new(job_store.clone(), config_arc.clone()));
+
+    // ---- Route media (picture gallery) ───────────────────────────────
+    // The ONLY consumer of the file-storage layer. `storage::build`
+    // selects local / RustFS / MinIO / S3 from `STORAGE_BACKEND`.
+    // NOTE: the aws-sdk S3 client is lazy — construction does NOT
+    // contact the endpoint, so a slow-starting RustFS container can't
+    // wedge the backend boot; first real PUT/GET pays the connection.
+    let storage: Arc<dyn crate::storage::FileStorage> =
+        Arc::from(crate::storage::build(&config.storage).await?);
+    let media_service = Arc::new(RouteMediaService::new(
+        route_picture_store,
+        route_store_for_media,
+        storage,
+        config.storage.public_base_url.clone(),
+        config.storage.s3_bucket.clone(),
+    ));
     if config.scheduler.enabled {
         match crate::worker::build_shared(&config.worker, db.clone()).await {
             Ok(broker) => {
@@ -370,6 +392,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         payment_service,
         chat_service,
         job_service,
+        media_service,
     );
 
     Ok(state)

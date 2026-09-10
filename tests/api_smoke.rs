@@ -37,18 +37,28 @@ use axum::http::{Request, StatusCode};
 use tower::ServiceExt;
 
 /// Helper: build a minimal AppState with a SQLite in-memory DB.
+/// (Env-init + bootstrap live in [`boot_test_state`]; the full env
+/// contract is documented there.)
 async fn boot_test_app() -> anyhow::Result<axum::Router> {
+    let state = boot_test_state().await?;
+    Ok(backend::routes::build_router(state))
+}
+
+/// Env-init + full bootstrap, returning the [`AppState`] so tests can
+/// seed data through the real service graph before hitting the router
+/// ([`boot_test_app`] builds on this and discards the state).
+async fn boot_test_state() -> anyhow::Result<backend::state::AppState> {
     use std::sync::Once;
 
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
+    static STATE_INIT: Once = Once::new();
+    STATE_INIT.call_once(|| {
         let _ = dotenvy::dotenv();
         // ⚠️  Config keys use SINGLE UNDERSCORE (e.g. `DATABASE_URL`).
         // The previous double-underscore form (`DATABASE__URL`,
         // `JWT__SECRET`, etc.) silently fell through to `.env.example`
         // defaults — so tests would silently write to `./app.db` on
         // disk instead of in-memory, and use the leaked example JWT
-        // secret. Fixed in this audit pass.
+        // secret. Fixed in a prior audit pass.
         std::env::set_var("DATABASE_URL", "sqlite::memory:");
         std::env::set_var("JWT_SECRET", "test-secret-at-least-32-bytes-long-aaaaaaaa");
         std::env::set_var("COOKIE_SECURE", "false");
@@ -69,10 +79,27 @@ async fn boot_test_app() -> anyhow::Result<axum::Router> {
         std::env::set_var("OAUTH_GOOGLE_ENABLED", "false");
         std::env::set_var("OAUTH_FACEBOOK_ENABLED", "false");
         std::env::set_var("OAUTH_TWITTER_ENABLED", "false");
+        // Route-media tests: local storage backend rooted at a fresh
+        // tempdir (never `./storage` in the repo working tree).
+        std::env::set_var("STORAGE_BACKEND", "local");
+        std::env::set_var(
+            "STORAGE_LOCAL_ROOT",
+            std::env::temp_dir()
+                .join(format!("api-smoke-storage-{}", uuid::Uuid::new_v4()))
+                .to_str()
+                .unwrap(),
+        );
+        std::env::remove_var("STORAGE_PUBLIC_BASE_URL");
     });
 
-    let state = backend::server::bootstrap().await?;
-    Ok(backend::routes::build_router(state))
+    backend::server::bootstrap().await
+}
+
+/// [`boot_test_state`] + the built router, for tests that seed data
+/// through the service graph and then exercise HTTP.
+async fn boot_test_app_with_state() -> anyhow::Result<(axum::Router, backend::state::AppState)> {
+    let state = boot_test_state().await?;
+    Ok((backend::routes::build_router(state.clone()), state))
 }
 
 #[tokio::test]
@@ -488,5 +515,154 @@ async fn recommendations_self_heal_with_generated_trips() -> anyhow::Result<()> 
         "recommendations must self-heal by generating upcoming trips"
     );
     assert!(recs.items.iter().all(|t| t.available_seats > 0));
+    Ok(())
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  Media proxy (`/api/media/{key}`) — mounted OUTSIDE the rate-limited
+//  `/api` nest, so the one-shot harness can exercise it directly.
+// ══════════════════════════════════════════════════════════════════
+
+/// Deterministic small PNG for media-flow tests.
+fn media_test_png() -> bytes::Bytes {
+    let img = image::RgbImage::from_fn(90, 60, |x, _y| image::Rgb([(x % 251) as u8, 90, 160]));
+    let mut buf = Vec::new();
+    image::DynamicImage::ImageRgb8(img)
+        .write_to(&mut std::io::Cursor::new(&mut buf), image::ImageFormat::Png)
+        .expect("test PNG encodes");
+    bytes::Bytes::from(buf)
+}
+
+#[tokio::test]
+async fn media_proxy_rejects_hostile_keys_with_404() -> anyhow::Result<()> {
+    let app = boot_test_app().await?;
+
+    for uri in [
+        "/api/media/../../etc/passwd",
+        // URL-encoded traversal survives routing decode: the serve
+        // handler's strict key parser must still 404 it.
+        "/api/media/%2e%2e/%2e%2e/etc/passwd",
+        "/api/media/secrets/00000000-0000-0000-0000-000000000000/0123456789abcdef.jpg",
+        "/api/media/routes/not-a-uuid/0123456789abcdef.jpg",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .header(
+                        "User-Agent",
+                        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0",
+                    )
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "uri: {uri}");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn media_proxy_serves_upload_with_etag_and_304() -> anyhow::Result<()> {
+    let (app, st) = boot_test_app_with_state().await?;
+
+    // Seed a route + picture through the real service graph.
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Smoke Test Express".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: Some("active".into()),
+        })
+        .await?;
+    let route_id: uuid::Uuid = route.id;
+
+    let uploaded = st
+        .media
+        .upload(route_id, media_test_png(), Some("smoke test bus".into()))
+        .await?;
+    assert!(!uploaded.deduped);
+
+    // No CDN base in tests → relative proxy URL.
+    let path = uploaded.picture.url.clone();
+    assert!(path.starts_with("/api/media/routes/"), "url: {path}");
+
+    // 1st GET: 200 + immutable cache headers + ETag.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(path.as_str())
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0",
+                )
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
+        Some("image/png")
+    );
+    let cache_control = response
+        .headers()
+        .get("cache-control")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    assert!(
+        cache_control.contains("max-age=31536000") && cache_control.contains("immutable"),
+        "cache-control: {cache_control}"
+    );
+    let etag = response
+        .headers()
+        .get("etag")
+        .and_then(|v| v.to_str().ok())
+        .expect("ETag present")
+        .to_string();
+    let body = axum::body::to_bytes(response.into_body(), 1 << 20).await?;
+    assert!(!body.is_empty());
+
+    // 2nd GET with If-None-Match: 304, empty body, headers preserved.
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(path.as_str())
+                .header("If-None-Match", etag.as_str())
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0",
+                )
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_MODIFIED);
+    assert_eq!(
+        response.headers().get("etag").and_then(|v| v.to_str().ok()),
+        Some(etag.as_str())
+    );
+    let body = axum::body::to_bytes(response.into_body(), 1 << 20).await?;
+    assert!(body.is_empty(), "304 must have no body");
+
+    // Well-formed key, missing object → 404 (not 500).
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/media/routes/00000000-0000-0000-0000-000000000000/0123456789abcdef.jpg")
+                .header(
+                    "User-Agent",
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) api-smoke/1.0",
+                )
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
     Ok(())
 }

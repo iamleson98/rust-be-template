@@ -8,18 +8,42 @@
 # Let's Encrypt certs on :443 (HTTP-01 via :80) — no manual cert steps.
 
 datxevui.com, www.datxevui.com {
-	# Compress responses in transit. Caddy skips responses that are
-	# already Content-encoded, so the backend's own gzip isn't doubled.
-	encode zstd gzip
+        # Compress responses in transit. Caddy skips responses that are
+        # already Content-encoded, so the backend's own gzip isn't doubled.
+        encode zstd gzip
 
-	# SPA + API + WebSocket (chat) + SSE all live on the backend's one
-	# origin (:8080). `datxevui_backend` is the swarm DNS name of the
-	# datxevui stack's backend service on the shared overlay network.
-	reverse_proxy datxevui_backend:8080 {
-		# Disable response buffering so SSE/chat streams flush immediately.
-		flush_interval -1
-		transport http {
-			response_header_timeout 120s
-		}
-	}
+        # SPA + API + WebSocket (chat) + SSE all live on the backend's one
+        # origin (:8080). `datxevui_backend` is the swarm DNS name of the
+        # datxevui stack's backend service on the shared overlay network.
+        reverse_proxy datxevui_backend:8080 {
+                # Disable response buffering so SSE/chat streams flush immediately.
+                flush_interval -1
+                transport http {
+                        response_header_timeout 120s
+                }
+        }
+}
+
+# media.datxevui.com — CDN origin for route pictures (immutable objects).
+#
+# DNS prerequisite: A record for media.datxevui.com → this server's IP,
+# PROXIED (orange cloud) through Cloudflare — it is the CDN tier and
+# caches every image at the edge (objects are served with
+# `Cache-Control: public, max-age=31536000, immutable` + ETag, set by
+# the backend at upload time; content-addressed keys never change, so
+# no purge machinery is needed). With Cloudflare proxying enabled the
+# VPS only sees cache misses.
+#
+# `datxevui_rustfs` is the swarm DNS name of the datxevui stack's
+# rustfs service (S3 API on :9000, path-style addressing:
+# /{bucket}/{key} — this vhost is the bucket root).
+media.datxevui.com {
+        # RustFS already stores compressed-form-appropriate responses
+        # (JPEG/PNG/WebP don't benefit); pass through without re-encoding.
+
+        reverse_proxy datxevui_rustfs:9000 {
+                transport http {
+                        response_header_timeout 30s
+                }
+        }
 }

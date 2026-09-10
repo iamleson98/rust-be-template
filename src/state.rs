@@ -7,7 +7,7 @@ use crate::rbac::RbacChecker;
 use crate::service::{
     AdminService, AuthService, BookingService, ChatService, JobService, NotificationService,
     PaymentService, PlaceService, PostService, PriceAlertService, PublicService, ReviewService,
-    RoutingService, UserService, WishlistService,
+    RouteMediaService, RoutingService, UserService, WishlistService,
 };
 
 /// The single application state object shared across handlers.
@@ -81,6 +81,10 @@ pub struct AppState {
     pub chats: Arc<ChatService>,
     /// Recurring background jobs (admin cron-jobs page + scheduler).
     pub jobs: Arc<JobService>,
+    /// Route picture gallery (upload / serve / GC) on the pluggable
+    /// file-storage backends. The ONLY service that touches object
+    /// storage.
+    pub media: Arc<RouteMediaService>,
 }
 
 impl AppState {
@@ -115,6 +119,7 @@ impl AppState {
         payments: Arc<PaymentService>,
         chats: Arc<ChatService>,
         jobs: Arc<JobService>,
+        media: Arc<RouteMediaService>,
     ) -> Self {
         Self {
             config,
@@ -134,6 +139,7 @@ impl AppState {
             payments,
             chats,
             jobs,
+            media,
         }
     }
 }

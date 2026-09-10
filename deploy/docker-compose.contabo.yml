@@ -56,9 +56,21 @@ services:
       # Single-node production defaults: no Redis sidecar required.
       CACHE_BACKEND: ${CACHE_BACKEND:-moka}
       WORKER_BACKEND: ${WORKER_BACKEND:-db}
+      # ── Route media (RustFS object storage) ────────────────────
+      # Pictures for routes: validated/thumbnail'd by the backend,
+      # stored in RustFS, served from the CDN origin. Until
+      # STORAGE_PUBLIC_BASE_URL is set the backend proxies bytes at
+      # /api/media/{key} itself.
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-rustfs}
+      STORAGE_S3_BUCKET: ${STORAGE_S3_BUCKET:-datxevui-media}
+      STORAGE_S3_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://rustfs:9000}
+      STORAGE_S3_FORCE_PATH_STYLE: "true"
+      STORAGE_PUBLIC_BASE_URL: ${STORAGE_PUBLIC_BASE_URL:-}
     volumes:
       - app-data:/app/data      # rust-sql DB file + OSM PBF downloads
-      - app-storage:/app/storage # local uploads
+      - app-storage:/app/storage # local uploads (dev / fallback backend)
       - osm-index:/app/index     # Tantivy index (survives redeploys)
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
@@ -146,6 +158,38 @@ services:
     networks:
       - vexevn-net
 
+  # ── RustFS (S3-compatible object storage for route media) ─────────
+  # Rust-native, Apache-2.0 MinIO alternative (rustfs.com). The
+  # backend stores route pictures here (signed PUT/DELETE); reads go
+  # through the media origin. In tunnel mode add a Cloudflare public
+  # hostname media.datxevui.com → http://rustfs:9000 (then set
+  # STORAGE_PUBLIC_BASE_URL). In `direct` mode the Caddyfile handles
+  # it (see deploy/Caddyfile.cloudflare). No ports published — only
+  # the compose network reaches it; console (:9001) via SSH tunnel:
+  #   ssh -L 9001:$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  #       $(docker compose -f deploy/docker-compose.contabo.yml ps -q rustfs)):9001 <vps>
+  # One-time bucket + public-read policy:
+  #   docker run --rm --network datxevui_vexevn-net minio/mc sh -c \
+  #     'mc alias set r http://rustfs:9000 $RUSTFS_ACCESS_KEY $RUSTFS_SECRET_KEY && \
+  #      mc mb r/datxevui-media && mc anonymous set download r/datxevui-media'
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+    volumes:
+      - rustfs-data:/data
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - vexevn-net
+
 networks:
   vexevn-net:
     driver: bridge
@@ -154,5 +198,6 @@ volumes:
   app-data:
   app-storage:
   osm-index:
+  rustfs-data:
   caddy_data:
   caddy_config:

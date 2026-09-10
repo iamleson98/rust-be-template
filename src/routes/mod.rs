@@ -8,6 +8,7 @@ mod auth;
 mod bookings;
 mod chat;
 mod health;
+mod media;
 mod notifications;
 mod nullclaw;
 mod oauth;

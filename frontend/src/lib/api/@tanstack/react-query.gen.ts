@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, mine, moderate, momoIpn, oauthCallback, oauthStart, type Options, postMessage, ready, recommendations, refresh, register, registerDevice, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routes, search, searchTrips, setUserRole, sitemap, stats, stats2, status, summary, systemMetrics, systemStatus, tags, toggle, trigger, tripDetail, unregisterDevice, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteData, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, MineData, MineResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterDeviceData, RegisterDeviceResponse2, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SummaryData, SummaryResponse, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deleteAllPictures, deletePicture, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPictures, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, mine, moderate, momoIpn, oauthCallback, oauthStart, type Options, patchPicture, postMessage, ready, recommendations, refresh, register, registerDevice, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routePictures, routes, search, searchTrips, serve, setUserRole, sitemap, stats, stats2, status, summary, systemMetrics, systemStatus, tags, toggle, trigger, tripDetail, unregisterDevice, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, uploadPicture, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteAllPicturesData, DeleteAllPicturesResponse, DeleteData, DeletePictureData, DeletePictureResponse, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPicturesData, ListPicturesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, MineData, MineResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PatchPictureData, PatchPictureResponse, PostMessageData, PostMessageResponse, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterDeviceData, RegisterDeviceResponse2, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutePicturesData, RoutePicturesResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, ServeData, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SummaryData, SummaryResponse, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, UploadPictureData, UploadPictureResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -894,6 +894,10 @@ export const create4Mutation = (options?: Partial<Options<Create4Data>>): UseMut
 
 /**
  * `DELETE /api/admin/routes/{id}` — delete a route.
+ *
+ * Garbage-collects the route's picture objects FIRST — the FK
+ * cascade would drop the rows (the only index of which objects
+ * exist) and orphan the objects with no way to find them again.
  */
 export const delete5Mutation = (options?: Partial<Options<Delete5Data>>): UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> => {
     const mutationOptions: UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> = {
@@ -916,6 +920,104 @@ export const update5Mutation = (options?: Partial<Options<Update5Data>>): UseMut
     const mutationOptions: UseMutationOptions<Update5Response, DefaultError, Options<Update5Data>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await update5({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/routes/{id}/pictures` — clear the whole gallery.
+ */
+export const deleteAllPicturesMutation = (options?: Partial<Options<DeleteAllPicturesData>>): UseMutationOptions<DeleteAllPicturesResponse, DefaultError, Options<DeleteAllPicturesData>> => {
+    const mutationOptions: UseMutationOptions<DeleteAllPicturesResponse, DefaultError, Options<DeleteAllPicturesData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteAllPictures({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listPicturesQueryKey = (options: Options<ListPicturesData>) => createQueryKey('listPictures', options);
+
+/**
+ * `GET /api/admin/routes/{id}/pictures` — the ordered gallery
+ * (admin view; same payload as the public endpoint).
+ */
+export const listPicturesOptions = (options: Options<ListPicturesData>) => queryOptions<ListPicturesResponse, DefaultError, ListPicturesResponse, ReturnType<typeof listPicturesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPictures({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPicturesQueryKey(options)
+});
+
+/**
+ * `POST /api/admin/routes/{id}/pictures` — upload one picture.
+ *
+ * Multipart fields:
+ * * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by
+ * magic bytes AND fully decoded server-side (rejects polyglot /
+ * corrupt files); the client-declared Content-Type is ignored.
+ * * `alt_text` (optional) — accessible description, ≤ 255 chars.
+ *
+ * Idempotent on content: re-uploading the exact same bytes for the
+ * same route returns the existing row with `deduped: true`.
+ */
+export const uploadPictureMutation = (options?: Partial<Options<UploadPictureData>>): UseMutationOptions<UploadPictureResponse, DefaultError, Options<UploadPictureData>> => {
+    const mutationOptions: UseMutationOptions<UploadPictureResponse, DefaultError, Options<UploadPictureData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadPicture({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/routes/{id}/pictures/{pictureId}` — remove one
+ * picture (row + both objects).
+ */
+export const deletePictureMutation = (options?: Partial<Options<DeletePictureData>>): UseMutationOptions<DeletePictureResponse, DefaultError, Options<DeletePictureData>> => {
+    const mutationOptions: UseMutationOptions<DeletePictureResponse, DefaultError, Options<DeletePictureData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deletePicture({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PATCH /api/admin/routes/{id}/pictures/{pictureId}` — reorder
+ * (`sortOrder`) and/or edit `altText`.
+ */
+export const patchPictureMutation = (options?: Partial<Options<PatchPictureData>>): UseMutationOptions<PatchPictureResponse, DefaultError, Options<PatchPictureData>> => {
+    const mutationOptions: UseMutationOptions<PatchPictureResponse, DefaultError, Options<PatchPictureData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await patchPicture({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1777,6 +1879,24 @@ export const releaseChannelMutation = (options?: Partial<Options<ReleaseChannelD
     };
     return mutationOptions;
 };
+
+export const serveQueryKey = (options: Options<ServeData>) => createQueryKey('serve', options);
+
+/**
+ * `GET /api/media/{*key}` — serve one media object.
+ */
+export const serveOptions = (options: Options<ServeData>) => queryOptions<unknown, DefaultError, unknown, ReturnType<typeof serveQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await serve({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: serveQueryKey(options)
+});
 
 export const list12QueryKey = (options?: Options<List12Data>) => createQueryKey('list12', options);
 
@@ -2661,6 +2781,29 @@ export const routesOptions = (options?: Options<RoutesData>) => queryOptions<Rou
         return data;
     },
     queryKey: routesQueryKey(options)
+});
+
+export const routePicturesQueryKey = (options: Options<RoutePicturesData>) => createQueryKey('routePictures', options);
+
+/**
+ * `GET /api/routes/{id}/pictures` — a route's picture gallery
+ * (ordered; `sortOrder` 0 is the cover). Public read: URLs are
+ * absolute against the CDN origin when configured, backend-proxied
+ * otherwise. Returns an empty list for unknown routes (a route with
+ * no pictures and a route that doesn't exist are the same to a
+ * gallery renderer).
+ */
+export const routePicturesOptions = (options: Options<RoutePicturesData>) => queryOptions<RoutePicturesResponse, DefaultError, RoutePicturesResponse, ReturnType<typeof routePicturesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await routePictures({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: routePicturesQueryKey(options)
 });
 
 export const directionsQueryKey = (options: Options<DirectionsData>) => createQueryKey('directions', options);

@@ -1721,6 +1721,7 @@
           "admin"
         ],
         "summary": "`DELETE /api/admin/routes/{id}` — delete a route.",
+        "description": "Garbage-collects the route's picture objects FIRST — the FK\ncascade would drop the rows (the only index of which objects\nexist) and orphan the objects with no way to find them again.",
         "operationId": "delete",
         "parameters": [
           {
@@ -1753,6 +1754,254 @@
           },
           "404": {
             "description": "Not found"
+          }
+        }
+      }
+    },
+    "/api/admin/routes/{id}/pictures": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/routes/{id}/pictures` — the ordered gallery\n(admin view; same payload as the public endpoint).",
+        "operationId": "list_pictures",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Picture list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePictureListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/routes/{id}/pictures` — upload one picture.",
+        "description": "Multipart fields:\n  * `file` (required) — JPEG / PNG / WebP, ≤ 10 MiB. Validated by\n    magic bytes AND fully decoded server-side (rejects polyglot /\n    corrupt files); the client-declared Content-Type is ignored.\n  * `alt_text` (optional) — accessible description, ≤ 255 chars.\n\nIdempotent on content: re-uploading the exact same bytes for the\nsame route returns the existing row with `deduped: true`.",
+        "operationId": "upload_picture",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "multipart/form-data: `file` (image), optional `alt_text`",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Stored picture (or existing row when deduped)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePictureUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (format / size / count cap)"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Route not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`DELETE /api/admin/routes/{id}/pictures` — clear the whole gallery.",
+        "operationId": "delete_all_pictures",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePicturesBulkDeleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/routes/{id}/pictures/{pictureId}": {
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`DELETE /api/admin/routes/{id}/pictures/{pictureId}` — remove one\npicture (row + both objects).",
+        "operationId": "delete_picture",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pictureId",
+            "in": "path",
+            "description": "Picture ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePictureDeleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Picture not found on this route"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PATCH /api/admin/routes/{id}/pictures/{pictureId}` — reorder\n(`sortOrder`) and/or edit `altText`.",
+        "operationId": "patch_picture",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "pictureId",
+            "in": "path",
+            "description": "Picture ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutePictureInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated picture",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePictureOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Picture not found on this route"
           }
         }
       }
@@ -3234,6 +3483,37 @@
           },
           "404": {
             "description": "Channel not found"
+          }
+        }
+      }
+    },
+    "/api/media/{key}": {
+      "get": {
+        "tags": [
+          "media"
+        ],
+        "summary": "`GET /api/media/{*key}` — serve one media object.",
+        "operationId": "serve",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "Storage key: routes/{routeId}/{hash16}.{ext}",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes (immutable, ETag-cached)"
+          },
+          "304": {
+            "description": "Not modified (If-None-Match hit)"
+          },
+          "404": {
+            "description": "Unknown or malformed key"
           }
         }
       }
@@ -4738,6 +5018,39 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RouteListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/routes/{id}/pictures": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "`GET /api/routes/{id}/pictures` — a route's picture gallery\n(ordered; `sortOrder` 0 is the cover). Public read: URLs are\nabsolute against the CDN origin when configured, backend-proxied\notherwise. Returns an empty list for unknown routes (a route with\nno pictures and a route that doesn't exist are the same to a\ngallery renderer).",
+        "operationId": "route_pictures",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Route ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ordered gallery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePictureListResponse"
                 }
               }
             }
@@ -10413,6 +10726,146 @@
           }
         }
       },
+      "RoutePictureDeleteResponse": {
+        "type": "object",
+        "description": "`DELETE .../pictures/{pictureId}` response.",
+        "required": [
+          "ok",
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RoutePictureListResponse": {
+        "type": "object",
+        "description": "`GET /api/routes/{id}/pictures` — the ordered gallery.",
+        "required": [
+          "routeId",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutePictureOut"
+            }
+          },
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "RoutePictureOut": {
+        "type": "object",
+        "description": "One picture of a route, as shown on the route detail page.\n\n`url` / `thumbUrl` are ABSOLUTE when `STORAGE_PUBLIC_BASE_URL` is\nconfigured (CDN origin, e.g. `https://media.datxevui.com/...`) and\nbackend-relative (`/api/media/...`) otherwise — clients just set\nthem on an `<img src>` either way.",
+        "required": [
+          "id",
+          "routeId",
+          "sortOrder",
+          "url",
+          "thumbUrl",
+          "width",
+          "height",
+          "mimeType",
+          "sizeBytes",
+          "createdAt"
+        ],
+        "properties": {
+          "altText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accessible description; `null` when the admin didn't provide one."
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Display order; `0` is the cover picture."
+          },
+          "thumbUrl": {
+            "type": "string",
+            "description": "Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this\nin lists/grids, `url` in the detail gallery."
+          },
+          "url": {
+            "type": "string",
+            "description": "Public URL of the ORIGINAL image (content-addressed, immutable)."
+          },
+          "width": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Original dimensions in pixels (for layout before load)."
+          }
+        }
+      },
+      "RoutePictureUploadResponse": {
+        "type": "object",
+        "description": "`POST /api/admin/routes/{id}/pictures` — upload result.\n\n`deduped=true` means the exact same bytes were already attached to\nthis route and the EXISTING row is returned (idempotent re-upload).",
+        "required": [
+          "ok",
+          "deduped",
+          "picture"
+        ],
+        "properties": {
+          "deduped": {
+            "type": "boolean"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "picture": {
+            "$ref": "#/components/schemas/RoutePictureOut"
+          }
+        }
+      },
+      "RoutePicturesBulkDeleteResponse": {
+        "type": "object",
+        "description": "`DELETE /api/admin/routes/{id}/pictures` — bulk delete response.",
+        "required": [
+          "ok",
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
       "SessionUser": {
         "type": "object",
         "description": "Identity of an authenticated actor, derived from the `user` row.\n\n`actor_type` mirrors the `user.role` column and is one of:\n  - `\"user\"`      — customer (book trips, feedback, ticket status)\n  - `\"employee\"`  — support staff (bookings, tickets, chat, calls, promos)\n  - `\"admin\"`     — full-access superuser (the first registered account)\n\nThe distinction matters for the chat / call hubs (only staff — employees\nOR admins — may register as agents) and for nullclaw (the human-fallback\nthreshold counts online staff).",
@@ -11672,6 +12125,27 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpdateRoutePictureInput": {
+        "type": "object",
+        "description": "`PATCH /api/admin/routes/{id}/pictures/{pictureId}` — reorder or\nedit the alt text of one picture. Both fields optional; omitting a\nfield leaves it unchanged.\n\nReorder semantics: `sortOrder = S` MOVES the picture to display\nposition S — the others shift to close the gap and make room, and\npositions stay dense 0..n-1. `0` makes it the cover. Out-of-range\npositions clamp to the last slot.",
+        "properties": {
+          "altText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New alt text. `null` CLEARS it; omitting the field keeps it."
+          },
+          "sortOrder": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "New display position (`0` = cover). Must be `>= 0`."
           }
         }
       },

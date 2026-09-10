@@ -150,6 +150,44 @@ impl FileStorage for MinioStorage {
     }
 }
 
+/// RustFS (rustfs.com) is S3-compatible — same protocol, different
+/// defaults. Thin preset pointing the S3 client at a RustFS node with
+/// path-style addressing, mirroring [`MinioStorage`]. Used in
+/// production (Contabo VPS, swarm service `rustfs:9000`) behind the
+/// shared Caddy edge; the media bucket is public-read so the CDN /
+/// `STORAGE_PUBLIC_BASE_URL` origin serves GETs without signatures.
+///
+/// Writes (admin upload/delete) always go through this preset with the
+/// configured access keys — the public-read policy only exposes GET.
+pub struct RustFsStorage(S3Storage);
+
+impl RustFsStorage {
+    pub async fn new(cfg: &StorageConfig) -> anyhow::Result<Self> {
+        let mut cfg = cfg.clone();
+        cfg.s3_force_path_style = true;
+        if cfg.s3_endpoint.is_none() {
+            cfg.s3_endpoint = Some("http://localhost:9000".into());
+        }
+        Ok(Self(S3Storage::new(&cfg).await?))
+    }
+}
+
+#[async_trait]
+impl FileStorage for RustFsStorage {
+    async fn put(&self, key: &str, data: Bytes, opts: PutOptions) -> anyhow::Result<String> {
+        self.0.put(key, data, opts).await
+    }
+    async fn get(&self, key: &str) -> anyhow::Result<Bytes> {
+        self.0.get(key).await
+    }
+    async fn delete(&self, key: &str) -> anyhow::Result<()> {
+        self.0.delete(key).await
+    }
+    async fn head(&self, key: &str) -> anyhow::Result<FileMeta> {
+        self.0.head(key).await
+    }
+}
+
 /// Wrapper shared between backends that need pre-signed URLs in future.
 #[allow(dead_code)]
 async fn _presign(c: Arc<S3Client>, bucket: &str, key: &str, secs: u64) -> anyhow::Result<String> {

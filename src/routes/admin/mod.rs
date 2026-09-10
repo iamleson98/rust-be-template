@@ -35,6 +35,7 @@ pub mod bus_layouts;
 pub mod jobs;
 pub mod pickup_points;
 pub mod reviews;
+pub mod route_pictures;
 pub mod routes;
 pub mod schedules;
 pub mod vehicle_types;

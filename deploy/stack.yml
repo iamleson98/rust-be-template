@@ -21,6 +21,20 @@ services:
       - SERVER_HOST=0.0.0.0
       - RUST_LOG=${RUST_LOG:-info,backend=info,tower_http=warn}
 
+      # ── Route media (RustFS object storage) ─────────────────────
+      # Pictures for routes: uploaded/validated/thumbnail'd by the
+      # backend, served straight from the CDN origin (media host →
+      # Caddy → rustfs) in production. Until STORAGE_PUBLIC_BASE_URL
+      # is set (DNS + CDN for the media host), the backend falls back
+      # to proxying bytes itself at /api/media/{key}.
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-rustfs}
+      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-datxevui-media}
+      - STORAGE_S3_ACCESS_KEY_ID=${RUSTFS_ACCESS_KEY:?RUSTFS_ACCESS_KEY is required in .env}
+      - STORAGE_S3_SECRET_ACCESS_KEY=${RUSTFS_SECRET_KEY:?RUSTFS_SECRET_KEY is required in .env}
+      - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT:-http://rustfs:9000}
+      - STORAGE_S3_FORCE_PATH_STYLE=true
+      - STORAGE_PUBLIC_BASE_URL=${STORAGE_PUBLIC_BASE_URL:-}
+
       # ── Database (rust-sql engine file on the data volume) ──────
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/app.db?mode=rwc}
 
@@ -125,11 +139,55 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ── RustFS (S3-compatible object storage for route media) ───────
+  # Rust-native, Apache-2.0, drop-in MinIO alternative (rustfs.com).
+  # Single node is fine for route pictures. NO published ports: the
+  # backend reaches it at rustfs:9000 (stack-local alias), the shared
+  # Caddy at datxevui_rustfs:9000 (overlay DNS). The web console
+  # (:9001) is reachable over an SSH tunnel to the task's container
+  # IP (see deploy/README.md § route media).
+  # One-time setup (bucket + public-read policy so GETs — and only
+  # GETs — work without signatures):
+  #   docker run --rm --network pdf-tts_pdf-tts minio/mc \
+  #     alias set r http://datxevui_rustfs:9000 $RUSTFS_ACCESS_KEY $RUSTFS_SECRET_KEY && \
+  #   mc mb r/datxevui-media && mc anonymous set download r/datxevui-media
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY:?RUSTFS_ACCESS_KEY is required in .env}
+      - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY:?RUSTFS_SECRET_KEY is required in .env}
+    volumes:
+      - rustfs-data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        # Media objects are small (route pictures + thumbnails);
+        # 256m reservation documents the working set, NO hard limit
+        # (same operator policy as backend + pdf-tts).
+        reservations:
+          memory: 256m
+      restart_policy:
+        condition: any
+        delay: 5s
+        window: 30s
+    stop_grace_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pdf-tts
+
 networks:
   pdf-tts:
     # The overlay network created by the pdf-tts stack (attachable,
     # swarm-scoped). External so this stack attaches to it instead of
-    # creating its own — the shared Caddy proxies to datxevui_backend:8080.
+    # creating its own — the shared Caddy proxies to
+    # datxevui_backend:8080 (app) and datxevui_rustfs:9000 (media).
     external: true
     name: pdf-tts_pdf-tts
 
@@ -143,3 +201,7 @@ volumes:
   vexevn-data:
   vexevn-index:
   vexevn-storage:
+  # Route-picture objects (originals + JPEG thumbnails). Content-
+  # addressed keys — safe to wipe ONLY together with the route_picture
+  # table (the rows are the only index of these objects).
+  rustfs-data:

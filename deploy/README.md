@@ -76,6 +76,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 10. [Troubleshooting](#troubleshooting)
 11. [TURN relay (WebRTC calls)](#turn-relay-webrtc-calls)
 12. [Push (FCM) — ring when the app is closed](#push-fcm--ring-when-the-app-is-closed)
+13. [Route media (RustFS object storage + CDN)](#route-media-rustfs-object-storage--cdn)
 
 ---
 
@@ -131,6 +132,50 @@ PY
 Open these in the **provider console firewall group** (in addition to
 UFW, which `turn.sh`/deploy already manage): `3478/udp`, `3478/tcp`,
 `49160-49200/udp`.
+
+## Route media (RustFS object storage + CDN)
+
+Route pictures (gallery per bus route: vehicle, stations, scenery)
+live in **RustFS** — a Rust-native, Apache-2.0, S3-compatible object
+store (rustfs.com) — deployed as a `rustfs` service in the stack, on
+the shared overlay network, data on the `rustfs-data` volume. No ports
+published: the backend reaches it at `rustfs:9000`, the shared Caddy
+at `datxevui_rustfs:9000`.
+
+Flow: admins upload through the backend (`POST /api/admin/routes/{id}/pictures`)
+which validates (magic bytes + full decode), thumbnails (640px JPEG),
+and stores content-addressed objects (`routes/{routeId}/{sha256-16}.{ext}`)
+with `Cache-Control: immutable`. Reads go through
+`https://media.datxevui.com` (Cloudflare-proxied A record → shared
+Caddy → RustFS): the CDN caches every image at the edge and the VPS
+only serves misses. Until `STORAGE_PUBLIC_BASE_URL` is set, the
+backend proxies image bytes itself at `/api/media/{key}` — no CDN
+required to start using the feature.
+
+- Credentials: `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` in
+  `/opt/vexevn/.env` (generate with `openssl rand -hex 16`); the
+  backend reuses them as its S3 keys for signed writes.
+- DNS: A record `media.datxevui.com` → server IP, **proxied** (orange
+  cloud) so Cloudflare is the CDN tier; then set
+  `STORAGE_PUBLIC_BASE_URL=https://media.datxevui.com` in
+  `/opt/vexevn/.env` and redeploy.
+- One-time bucket setup (public-read for GETs, signed everything else):
+  ```bash
+  docker run --rm --network pdf-tts_pdf-tts -e MC_HOST_r=     minio/mc sh -c 'mc alias set r http://datxevui_rustfs:9000       $RUSTFS_ACCESS_KEY $RUSTFS_SECRET_KEY &&       mc mb r/datxevui-media && mc anonymous set download r/datxevui-media'
+  ```
+  (export `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` first; `MC_HOST_r=`
+  keeps mc from warning about an empty host env.)
+- Web console (browse objects, buckets): SSH tunnel to :9001 —
+  ```bash
+  ssh -L 9001:$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'       $(docker ps -q -f name=datxevui_rustfs.1)):9001 root@<server>
+  # then open http://localhost:9001 (login = the RUSTFS_ keys)
+  ```
+- Ops:
+  ```bash
+  docker service ls | grep rustfs                       # running?
+  docker exec $(docker ps -q -f name=datxevui_backend.1)     wget -qO- http://rustfs:9000/minio/health/live      # S3 API alive
+  docker volume inspect datxevui_rustfs-data            # disk usage
+  ```
 
 ## Push (FCM) — ring when the app is closed
 

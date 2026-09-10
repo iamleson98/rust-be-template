@@ -7,6 +7,7 @@ use crate::dto::public::{
     BrandDetailOut, BrandListResponse, CampaignListResponse, CampaignValidateResponse,
     RouteListResponse, SearchTripsQuery, StatsResponse, TripDetail, TripSearchResponse,
 };
+use crate::dto::route_media::RoutePictureListResponse;
 use crate::error::AppError;
 use crate::state::AppState;
 
@@ -79,6 +80,28 @@ pub async fn routes(
             .list_routes(q.brand_id.as_deref(), q.limit.unwrap_or(50))
             .await?,
     ))
+}
+
+/// `GET /api/routes/{id}/pictures` — a route's picture gallery
+/// (ordered; `sortOrder` 0 is the cover). Public read: URLs are
+/// absolute against the CDN origin when configured, backend-proxied
+/// otherwise. Returns an empty list for unknown routes (a route with
+/// no pictures and a route that doesn't exist are the same to a
+/// gallery renderer).
+#[utoipa::path(
+    get,
+    path = "/api/routes/{id}/pictures",
+    tag = "public",
+    params(("id" = Uuid, Path, description = "Route ID")),
+    responses(
+        (status = 200, description = "Ordered gallery", body = RoutePictureListResponse),
+    )
+)]
+pub async fn route_pictures(
+    State(st): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<RoutePictureListResponse>, AppError> {
+    Ok(Json(st.media.list(id).await?))
 }
 
 /// `GET /api/trips/{id}` — get trip detail.
@@ -223,7 +246,9 @@ pub fn brands_router() -> axum::Router<crate::state::AppState> {
 /// route CRUD at `/api/admin/routes`).
 pub fn routes_router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get;
-    axum::Router::new().route("/", get(routes))
+    axum::Router::new()
+        .route("/", get(routes))
+        .route("/{id}/pictures", get(route_pictures))
 }
 
 /// `/api/trips/{id}`.

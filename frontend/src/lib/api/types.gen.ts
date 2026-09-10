@@ -2050,6 +2050,80 @@ export type RouteOut = {
 };
 
 /**
+ * `DELETE .../pictures/{pictureId}` response.
+ */
+export type RoutePictureDeleteResponse = {
+    id: string;
+    ok: boolean;
+};
+
+/**
+ * `GET /api/routes/{id}/pictures` — the ordered gallery.
+ */
+export type RoutePictureListResponse = {
+    items: Array<RoutePictureOut>;
+    routeId: string;
+};
+
+/**
+ * One picture of a route, as shown on the route detail page.
+ *
+ * `url` / `thumbUrl` are ABSOLUTE when `STORAGE_PUBLIC_BASE_URL` is
+ * configured (CDN origin, e.g. `https://media.datxevui.com/...`) and
+ * backend-relative (`/api/media/...`) otherwise — clients just set
+ * them on an `<img src>` either way.
+ */
+export type RoutePictureOut = {
+    /**
+     * Accessible description; `null` when the admin didn't provide one.
+     */
+    altText?: string | null;
+    createdAt: string;
+    height: number;
+    id: string;
+    mimeType: string;
+    routeId: string;
+    sizeBytes: number;
+    /**
+     * Display order; `0` is the cover picture.
+     */
+    sortOrder: number;
+    /**
+     * Public URL of the JPEG thumbnail (long edge ≤ 640px) — use this
+     * in lists/grids, `url` in the detail gallery.
+     */
+    thumbUrl: string;
+    /**
+     * Public URL of the ORIGINAL image (content-addressed, immutable).
+     */
+    url: string;
+    /**
+     * Original dimensions in pixels (for layout before load).
+     */
+    width: number;
+};
+
+/**
+ * `POST /api/admin/routes/{id}/pictures` — upload result.
+ *
+ * `deduped=true` means the exact same bytes were already attached to
+ * this route and the EXISTING row is returned (idempotent re-upload).
+ */
+export type RoutePictureUploadResponse = {
+    deduped: boolean;
+    ok: boolean;
+    picture: RoutePictureOut;
+};
+
+/**
+ * `DELETE /api/admin/routes/{id}/pictures` — bulk delete response.
+ */
+export type RoutePicturesBulkDeleteResponse = {
+    deleted: number;
+    ok: boolean;
+};
+
+/**
  * Identity of an authenticated actor, derived from the `user` row.
  *
  * `actor_type` mirrors the `user.role` column and is one of:
@@ -2512,6 +2586,27 @@ export type UpdateReviewInput = {
     rating?: number | null;
     tags?: Array<string> | null;
     title?: string | null;
+};
+
+/**
+ * `PATCH /api/admin/routes/{id}/pictures/{pictureId}` — reorder or
+ * edit the alt text of one picture. Both fields optional; omitting a
+ * field leaves it unchanged.
+ *
+ * Reorder semantics: `sortOrder = S` MOVES the picture to display
+ * position S — the others shift to close the gap and make room, and
+ * positions stay dense 0..n-1. `0` makes it the cover. Out-of-range
+ * positions clamp to the last slot.
+ */
+export type UpdateRoutePictureInput = {
+    /**
+     * New alt text. `null` CLEARS it; omitting the field keeps it.
+     */
+    altText?: string | null;
+    /**
+     * New display position (`0` = cover). Must be `>= 0`.
+     */
+    sortOrder?: number | null;
 };
 
 /**
@@ -3935,6 +4030,193 @@ export type Update5Responses = {
 
 export type Update5Response = Update5Responses[keyof Update5Responses];
 
+export type DeleteAllPicturesData = {
+    body?: never;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}/pictures';
+};
+
+export type DeleteAllPicturesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type DeleteAllPicturesResponses = {
+    /**
+     * Cleared
+     */
+    200: RoutePicturesBulkDeleteResponse;
+};
+
+export type DeleteAllPicturesResponse = DeleteAllPicturesResponses[keyof DeleteAllPicturesResponses];
+
+export type ListPicturesData = {
+    body?: never;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}/pictures';
+};
+
+export type ListPicturesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ListPicturesResponses = {
+    /**
+     * Picture list
+     */
+    200: RoutePictureListResponse;
+};
+
+export type ListPicturesResponse = ListPicturesResponses[keyof ListPicturesResponses];
+
+export type UploadPictureData = {
+    /**
+     * multipart/form-data: `file` (image), optional `alt_text`
+     */
+    body: Array<number>;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}/pictures';
+};
+
+export type UploadPictureErrors = {
+    /**
+     * Validation failed (format / size / count cap)
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Route not found
+     */
+    404: unknown;
+};
+
+export type UploadPictureResponses = {
+    /**
+     * Stored picture (or existing row when deduped)
+     */
+    201: RoutePictureUploadResponse;
+};
+
+export type UploadPictureResponse = UploadPictureResponses[keyof UploadPictureResponses];
+
+export type DeletePictureData = {
+    body?: never;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+        /**
+         * Picture ID
+         */
+        pictureId: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}/pictures/{pictureId}';
+};
+
+export type DeletePictureErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Picture not found on this route
+     */
+    404: unknown;
+};
+
+export type DeletePictureResponses = {
+    /**
+     * Deleted
+     */
+    200: RoutePictureDeleteResponse;
+};
+
+export type DeletePictureResponse = DeletePictureResponses[keyof DeletePictureResponses];
+
+export type PatchPictureData = {
+    body: UpdateRoutePictureInput;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+        /**
+         * Picture ID
+         */
+        pictureId: string;
+    };
+    query?: never;
+    url: '/api/admin/routes/{id}/pictures/{pictureId}';
+};
+
+export type PatchPictureErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Picture not found on this route
+     */
+    404: unknown;
+};
+
+export type PatchPictureResponses = {
+    /**
+     * Updated picture
+     */
+    200: RoutePictureOut;
+};
+
+export type PatchPictureResponse = PatchPictureResponses[keyof PatchPictureResponses];
+
 export type List9Data = {
     body?: never;
     path?: never;
@@ -4962,6 +5244,32 @@ export type ReleaseChannelResponses = {
 
 export type ReleaseChannelResponse = ReleaseChannelResponses[keyof ReleaseChannelResponses];
 
+export type ServeData = {
+    body?: never;
+    path: {
+        /**
+         * Storage key: routes/{routeId}/{hash16}.{ext}
+         */
+        key: string;
+    };
+    query?: never;
+    url: '/api/media/{key}';
+};
+
+export type ServeErrors = {
+    /**
+     * Unknown or malformed key
+     */
+    404: unknown;
+};
+
+export type ServeResponses = {
+    /**
+     * Image bytes (immutable, ETag-cached)
+     */
+    200: unknown;
+};
+
 export type List12Data = {
     body?: never;
     path?: never;
@@ -5935,6 +6243,27 @@ export type RoutesResponses = {
 };
 
 export type RoutesResponse = RoutesResponses[keyof RoutesResponses];
+
+export type RoutePicturesData = {
+    body?: never;
+    path: {
+        /**
+         * Route ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/routes/{id}/pictures';
+};
+
+export type RoutePicturesResponses = {
+    /**
+     * Ordered gallery
+     */
+    200: RoutePictureListResponse;
+};
+
+export type RoutePicturesResponse = RoutePicturesResponses[keyof RoutePicturesResponses];
 
 export type DirectionsData = {
     body?: never;

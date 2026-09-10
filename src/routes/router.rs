@@ -222,6 +222,13 @@ pub fn build_router(state: AppState) -> Router<()> {
     // Capture timeout + body limit before state is moved into the router.
     let request_timeout_secs = state.config.server.request_timeout_secs;
     let max_body_bytes = state.config.server.max_request_body_bytes;
+    // The global tower_http cap must let the admin picture-upload
+    // route through (10 MiB picture + multipart framing). JSON routes
+    // stay protected at axum's extractor-level default (2 MiB) — only
+    // the upload route raises it via a route-scoped `DefaultBodyLimit`
+    // (see routes/admin/route_pictures.rs).
+    let media_upload_cap = crate::service::route_media_service::MAX_PICTURE_BYTES + 64 * 1024;
+    let global_body_bytes = max_body_bytes.max(media_upload_cap);
 
     // ---- Swagger UI -----------------------------------------------------
     let swagger: Router<AppState> = utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
@@ -270,6 +277,12 @@ pub fn build_router(state: AppState) -> Router<()> {
             }),
         )
         .nest("/api", api_routes)
+        // Media proxy (`/api/media/{key}`) — mounted at the root, NOT
+        // under the rate-limited `/api` nest: a route-detail page fans
+        // out one request per picture, and these are immutable,
+        // ETag-cacheable static reads — they must not burn rate-limit
+        // tokens needed by real API traffic.
+        .nest("/api/media", crate::routes::media::router())
         // Chat WebSocket hub (`/ws`) — mounted at the root (not under /api)
         // so the frontend can connect to `/ws` directly. JWT auth via
         // `?token=` query param.
@@ -282,7 +295,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         .merge(static_router)
         // Request body size limit — protects against memory DoS.
         .layer(tower_http::limit::RequestBodyLimitLayer::new(
-            max_body_bytes,
+            global_body_bytes,
         ))
         // Per-request timeout — protects against slowloris + slow handlers.
         .layer(axum::middleware::from_fn(

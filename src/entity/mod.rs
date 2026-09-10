@@ -27,6 +27,7 @@ pub mod review;
 pub mod role_permissions;
 pub mod roles;
 pub mod route;
+pub mod route_picture;
 pub mod schedule;
 pub mod schedule_point;
 pub mod scheduled_job;

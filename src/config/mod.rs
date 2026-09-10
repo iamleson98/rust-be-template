@@ -250,6 +250,10 @@ pub enum StorageBackend {
     Local,
     S3,
     Minio,
+    /// RustFS (rustfs.com) — Rust-native S3-compatible object store.
+    /// Same wire protocol as the `S3` backend; this variant only pins
+    /// S3-compatible defaults (path-style addressing, local endpoint).
+    Rustfs,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -262,6 +266,13 @@ pub struct StorageConfig {
     pub s3_secret_access_key: String,
     pub s3_endpoint: Option<String>,
     pub s3_force_path_style: bool,
+    /// Public origin for read access to bucket objects (CDN base URL).
+    /// When set (e.g. `https://media.datxevui.com`), the API resolves
+    /// media URLs against it and clients fetch straight from the CDN —
+    /// the backend never proxies image bytes. When unset, media URLs
+    /// point at the backend's own `/api/media/{key}` proxy endpoint
+    /// (dev / local-storage mode).
+    pub public_base_url: Option<String>,
 }
 
 impl Default for StorageConfig {
@@ -269,6 +280,7 @@ impl Default for StorageConfig {
         let backend = match env_var("STORAGE_BACKEND").as_deref() {
             Some("s3") => StorageBackend::S3,
             Some("minio") => StorageBackend::Minio,
+            Some("rustfs") => StorageBackend::Rustfs,
             _ => StorageBackend::Local,
         };
 
@@ -283,6 +295,9 @@ impl Default for StorageConfig {
             s3_secret_access_key: env_var("STORAGE_S3_SECRET_ACCESS_KEY").unwrap_or_default(),
             s3_endpoint: env_var("STORAGE_S3_ENDPOINT"),
             s3_force_path_style: env_parse("STORAGE_S3_FORCE_PATH_STYLE").unwrap_or(false),
+            public_base_url: env_var("STORAGE_PUBLIC_BASE_URL")
+                .map(|s| s.trim_end_matches('/').to_string())
+                .filter(|s| !s.is_empty()),
         }
     }
 }

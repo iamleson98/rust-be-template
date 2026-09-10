@@ -53,7 +53,8 @@ futures = "0.3"
 async-trait = "0.1"
 
 # Web framework
-axum = { version = "0.8", features = ["ws", "macros", "tokio"] }
+# "multipart" powers the admin picture-upload endpoint (route media).
+axum = { version = "0.8", features = ["ws", "macros", "tokio", "multipart"] }
 axum-extra = { version = "0.10", features = ["typed-header", "cookie"] }
 tower = { version = "0.5", features = ["util", "limit", "timeout"] }
 tower-http = { version = "0.6", features = ["compression-gzip", "compression-br", "cors", "fs", "trace", "set-header", "limit"] }
@@ -138,7 +139,7 @@ sysinfo = "0.32"
 # - `crc` computes the CRC-16/CCITT required at the end of every EMV
 #   QR payload (VietQR / NAPAS MPC QR Code standard).
 qrcode = { version = "0.14", default-features = false, features = ["image"] }
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 crc = "3"
 
 # Vietnamese text helpers
