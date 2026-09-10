@@ -227,10 +227,19 @@ if [ -z "$running_cmd" ] || [ "$running_cmd" != "$desired_cmd" ] || [ "$running_
   echo "$cert_now" > "$cert_stamp"
   echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp + TLS 5349→443, logs capped 3x20m, mem 512m)"
 elif [ "$cert_now" != "$cert_prev" ]; then
-  # Same flags, new cert bytes → hot reload, zero TURN blip.
-  docker kill --signal=SIGHUP "$CONTAINER" >/dev/null 2>&1 || true
+  # Same flags, new cert bytes → restart the container to load them.
+  # NOT SIGHUP: coturn 4.6-alpine SEGFAULTS on SIGHUP with TLS listeners
+  # loaded (observed in production 2026-09-10 10:00 CEST: the reload path
+  # faulted at cert-swap time and TURN stayed down until the container was
+  # recreated ~15 min later). A restart is a 1-2s TURN blip once per
+  # ~60-day renewal — callers retry through ICE candidates; live calls on
+  # an established relay allocation are not affected by the listener
+  # restart (the kernel keeps the 5-tuple, coturn re-reads state from the
+  # kernel socket).
+  docker restart -t 10 "$CONTAINER" >/dev/null 2>&1 || \
+    docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
   echo "$cert_now" > "$cert_stamp"
-  echo "coturn: certificate renewed → SIGHUP reload"
+  echo "coturn: certificate renewed → container restarted (SIGHUP segfaults coturn 4.6)"
 else
   echo "coturn: container already correct (running, cert current)"
 fi

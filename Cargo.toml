@@ -194,4 +194,9 @@ libsqlite3-sys = { path = "rust-sql/compat/libsqlite3-sys" }
 opt-level = 3
 lto = "thin"
 codegen-units = 1
-strip = true
+# Line tables only (no full DWARF vars): `thread apply all bt` under gdb
+# shows real frame names + file:line for every tokio worker — the freeze
+# watchdog captures them when /health hangs (see deploy/freeze-watchdog).
+# This is what made the 2026-09 runtime-freeze post-mortem possible;
+# `strip = true` turned every backtrace into bare addresses.
+debug = "line-tables-only"
