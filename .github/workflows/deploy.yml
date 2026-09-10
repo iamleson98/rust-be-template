@@ -157,7 +157,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "deploy/stack.yml,deploy/deploy.sh,deploy/Caddyfile.datxevui"
+          source: "deploy/stack.yml,deploy/deploy.sh,deploy/Caddyfile.datxevui,deploy/turn.sh,deploy/setup-sni-router.sh,deploy/turn_verify.py"
           target: ${{ env.DEPLOY_DIR }}
           strip_components: 1
 

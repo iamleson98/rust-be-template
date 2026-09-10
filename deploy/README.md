@@ -104,36 +104,66 @@ cause of the "call stuck on connecting, dies after ~25 s" reports).
   docker logs coturn-vexevn           # allocations + errors
   ```
 
-### Corporate-network calls (TLS TURN, optional)
+### Corporate-network calls (TURN/TLS on 443 — LIVE since 2026-09-10)
 
-Office firewalls that only allow outbound HTTPS (`443`/`8443`-ish TCP)
-kill EVERY plain-TURN path: UDP 3478, TCP 3478 and the whole
-49160-49200 relay range. Symptom: calls work from home wifi but die
-at "connecting" from an office (the same networks that rotate your
-public IP and log you out of provider consoles).
+Office firewalls that only allow outbound HTTPS (`443`-ish TCP) kill
+EVERY plain-TURN path: UDP 3478, TCP 3478 and the whole 49160-49200
+relay range. Symptom: calls work from home wifi but die at
+"connecting" from an office.
 
-Enable TURN/TLS to give those clients a relay path that looks like
-ordinary TLS traffic:
+The production node now serves `turns:turn.datxevui.com:443` — TURN
+over TLS on TCP 443, indistinguishable from HTTPS to a middlebox. The
+moving parts (all deployed 2026-09-10, all idempotent):
 
-1. Issue a cert for a dedicated hostname (e.g. `turn.datxevui.com`)
-   pointing at this server — a **DNS-only** (grey-cloud) record,
-   because Cloudflare's proxy does not pass non-HTTP TLS.
-2. Drop the cert + key on the server (e.g. under
-   `/opt/vexevn/certs/`).
-3. Add to `/opt/vexevn/.env`:
-   ```bash
-   TURN_TLS_CERT=/opt/vexevn/certs/turn.datxevui.com.fullchain.pem
-   TURN_TLS_KEY=/opt/vexevn/certs/turn.datxevui.com.key
-   ```
-4. Re-run `bash /opt/vexevn/turn.sh` — coturn then also listens TLS
-   on `5349/tcp`, and `AUDIO_CALL_ICE_SERVERS` gains a
-   `turns:<ip>:5349?transport=tcp` entry pushed to every client.
-5. Open `5349/tcp` in the provider firewall.
+1. **Host nginx SNI router** owns public TCP 443
+   (`deploy/setup-sni-router.sh`, config
+   `/etc/nginx/conf.stream.d/turn-sni-router.conf`): routes by TLS
+   SNI — `turn.datxevui.com` → coturn's TLS listener on
+   `127.0.0.1:5349`, everything else → the shared Caddy, which moved
+   its published TCP port to **8443** (see the pdf-tts repo's
+   `deploy/swarm/stack.yml`). TLS passes through untouched; Caddy
+   keeps `:80` (HTTP-01 ACME) and `443/udp` (HTTP/3).
+2. **Certificate lifecycle is fully automatic**: Caddy auto-issues and
+   renews the cert for `turn.datxevui.com` (site block in
+   `Caddyfile.datxevui`, HTTP-01 on `:80`; DNS: **grey-cloud** A
+   record — Cloudflare's proxy doesn't pass non-HTTP TLS).
+   `turn.sh` copies the cert into `/opt/vexevn/turn-certs/` and a
+   15-minute cron (`/etc/cron.d/turn-cert-sync.sh`, embedded+installed
+   by turn.sh) SIGHUPs coturn on renewal. Until the LE cert exists
+   (DNS not pointed yet) coturn runs a self-signed placeholder so the
+   listener is always up.
+3. **ICE list** (`AUDIO_CALL_ICE_SERVERS`, managed by `turn.sh`):
+   `turns:turn.datxevui.com:443?transport=tcp` FIRST, then hostname +
+   raw-IP entries for plain TURN/STUN on 3478 — phones on hostile
+   corporate networks get the 443 TLS path; everyone else keeps the
+   cheaper UDP path.
+4. ufw (already in place): `443/tcp`, `3478` tcp+udp,
+   `49160:49200/udp` open; `5349` and `8443` stay loopback-only.
+
+Manual ops + verification:
+
+```bash
+bash /opt/vexevn/turn.sh                 # (re)create + verify + sync cert
+docker logs coturn-vexevn                # allocations + errors
+systemctl status nginx                   # the 443 SNI router
+tail /var/log/nginx/sni-router.log       # who hit 443 + where routed
+tail /var/log/turn-cert-sync.log         # cert renewals (silent = no-op)
+
+# Full end-to-end test from ANY external box (STUN + authenticated
+# TURN allocate over TLS through the public 443 path):
+python3 turn_verify.py 169.58.249.26 443 turn.datxevui.com <user> <secret>
+```
+
+DNS prerequisite: `turn.datxevui.com` A record → this server,
+**not proxied** (grey cloud). Until DNS points here Caddy keeps
+retrying issuance (harmless log noise) and coturn serves the
+placeholder cert — `turns:` clients will fail TLS validation, plain
+`turn:3478` entries keep working.
 
 The application-side recovery (ICE restart renegotiation + ICE
 candidate buffering across signaling reconnects) is already in the
-clients; TLS TURN removes the last network class where no media path
-exists at all.
+clients; TLS TURN on 443 removes the last network class where no
+media path exists at all.
 
 ### ⚠️ Provider firewall check (the silent TURN killer)
 

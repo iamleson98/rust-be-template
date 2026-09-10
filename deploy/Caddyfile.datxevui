@@ -1,4 +1,4 @@
-# datxevui-datxevui — site block appended to the SHARED Caddyfile
+# datxevui-datxevui — site blocks appended to the SHARED Caddyfile
 # (/opt/pdf-tts/Caddyfile) by /opt/vexevn/deploy.sh. Idempotent: the
 # marker comment above makes re-runs skip; if a pdf-tts redeploy ever
 # replaces the shared Caddyfile, the next datxevui deploy re-appends it.
@@ -6,6 +6,23 @@
 # DNS prerequisite: A records for datxevui.com AND www.datxevui.com →
 # this server's public IP. Caddy then automatically issues/renews
 # Let's Encrypt certs on :443 (HTTP-01 via :80) — no manual cert steps.
+#
+# 2026-09-10 additions:
+#  - turn.datxevui.com: exists so Caddy AUTO-ISSUES the TURN cert
+#    (HTTP-01 on :80). Real TURN-TLS traffic on public TCP 443 never
+#    reaches Caddy: host nginx (stream/ssl_preread, see
+#    /etc/nginx/conf.stream.d/turn-sni-router.conf) SNI-routes it to
+#    coturn's TLS listener on 127.0.0.1:5349. /opt/vexevn/turn.sh +
+#    turn-cert-sync.sh (cron) copy the issued cert into coturn.
+#    DNS: turn.datxevui.com A record → this server, NOT proxied (grey
+#    cloud — Cloudflare proxies HTTP only, TURN relay needs direct).
+#  - replace_status: the backend serves the SPA shell for unknown
+#    NON-API routes but with HTTP 404. PWA service workers (and some
+#    browsers' offline heuristics) treat that as a failed navigation →
+#    the app shows its offline page ("no network") on /login even
+#    though the body IS the app. Only text/html 404s (the SPA shell)
+#    are rewritten to 200; /api/* is exempted (JSON 404s keep their
+#    real status — the app's error handling depends on them).
 
 datxevui.com, www.datxevui.com {
         # Compress responses in transit. Caddy skips responses that are
@@ -15,13 +32,40 @@ datxevui.com, www.datxevui.com {
         # SPA + API + WebSocket (chat) + SSE all live on the backend's one
         # origin (:8080). `datxevui_backend` is the swarm DNS name of the
         # datxevui stack's backend service on the shared overlay network.
-        reverse_proxy datxevui_backend:8080 {
-                # Disable response buffering so SSE/chat streams flush immediately.
-                flush_interval -1
-                transport http {
-                        response_header_timeout 120s
+        #
+        # TWO handles: /api/* gets the raw proxy (real statuses);
+        # everything else gets the SPA fallback status fix (see header).
+        handle /api/* {
+                reverse_proxy datxevui_backend:8080 {
+                        # Disable response buffering so SSE/chat streams flush immediately.
+                        flush_interval -1
+                        transport http {
+                                response_header_timeout 120s
+                        }
                 }
         }
+        handle {
+                reverse_proxy datxevui_backend:8080 {
+                        # SPA fallback status fix (see header comment): text/html 404 → 200.
+                        @spa_fallback {
+                                status 404
+                                header Content-Type text/html*
+                        }
+                        replace_status @spa_fallback 200
+                        flush_interval -1
+                        transport http {
+                                response_header_timeout 120s
+                        }
+                }
+        }
+}
+
+# turn.datxevui.com — certificate-issuance site for the TURN server
+# (see header comment). Only direct HTTPS hits land here (SNI-routed
+# TURN traffic goes to coturn); browsers hitting it get a one-line
+# status answer. DNS must be a NON-proxied A record at this server.
+turn.datxevui.com {
+        respond "TURN endpoint healthy. WebRTC: turns:turn.datxevui.com:443" 200
 }
 
 # media.datxevui.com — CDN origin for route pictures (immutable objects).
@@ -37,6 +81,11 @@ datxevui.com, www.datxevui.com {
 # `datxevui_rustfs` is the swarm DNS name of the datxevui stack's
 # rustfs service (S3 API on :9000, path-style addressing:
 # /{bucket}/{key} — this vhost is the bucket root).
+#
+# NOTE (2026-09-10): until the rustfs stack rolls out, the LIVE
+# server proxies media.datxevui.com → datxevui_backend:8080 (backend
+# proxy fallback mode). This repo version takes over with the next
+# tag deploy that includes the rustfs service.
 media.datxevui.com {
         # RustFS already stores compressed-form-appropriate responses
         # (JPEG/PNG/WebP don't benefit); pass through without re-encoding.
