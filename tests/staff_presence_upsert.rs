@@ -22,6 +22,7 @@ use sea_orm::{ConnectionTrait, EntityTrait};
 use sea_orm_migration::MigratorTrait;
 
 use backend::entity::staff_presence_state;
+use backend::entity::user;
 use backend::store::{DbStaffPresenceStore, StaffPresenceStore, StaffPresenceUpsert};
 
 /// In-memory: the happy path (also what a same-session create+use sees).
@@ -76,6 +77,27 @@ async fn presence_upsert_after_file_reopen() -> anyhow::Result<()> {
 async fn exercise_store(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
     let store = DbStaffPresenceStore::new(std::sync::Arc::new(db.clone()));
     let uid = uuid::Uuid::new_v4();
+
+    // m20260912_000013 added FK `fk_staff_presence_state_user` → user.id
+    // (ON DELETE CASCADE), so the presence row needs a real parent user.
+    // Seeded through the typed path (sea-orm binds Uuid as a 16-byte BLOB
+    // through the compat layer — the exact shape the FK compares against).
+    let parent = user::ActiveModel {
+        id: sea_orm::Set(uid),
+        full_name: sea_orm::Set("Presence Probe".into()),
+        email: sea_orm::Set(format!("{uid}@presence-test.invalid")),
+        status: sea_orm::Set("active".into()),
+        locale: sea_orm::Set("vi".into()),
+        is_guest: sea_orm::Set(false),
+        role: sea_orm::Set("employee".into()),
+        failed_login_attempts: sea_orm::Set(0),
+        created_at: sea_orm::Set(chrono::Utc::now()),
+        updated_at: sea_orm::Set(chrono::Utc::now()),
+        is_bot: sea_orm::Set(false),
+        ..Default::default()
+    };
+    user::Entity::insert(parent).exec(db).await?;
+
     let mk = |name: &str, online: bool| StaffPresenceUpsert {
         user_id: uid,
         name: name.to_string(),
