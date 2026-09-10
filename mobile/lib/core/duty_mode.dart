@@ -25,6 +25,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class DutyModeNotifier extends Notifier<bool> {
   static const _kKey = 'vexevn.duty_mode_enabled';
   static const _kChannel = MethodChannel('datxevui/duty');
+  int _changeVersion = 0;
 
   @override
   bool build() {
@@ -33,8 +34,10 @@ class DutyModeNotifier extends Notifier<bool> {
   }
 
   Future<void> _restore() async {
+    final versionAtStart = _changeVersion;
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_kKey) ?? false;
+    if (versionAtStart != _changeVersion) return;
     if (enabled && !state) state = enabled;
     // Re-apply to the platform: the service dies on force-stop /
     // reboot, so every app start re-starts it if the agent was on
@@ -45,6 +48,7 @@ class DutyModeNotifier extends Notifier<bool> {
   }
 
   Future<void> set(bool enabled) async {
+    _changeVersion++;
     state = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kKey, enabled);

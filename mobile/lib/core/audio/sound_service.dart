@@ -166,6 +166,13 @@ class SoundService {
     _ringMode = mode;
     try {
       await _ringPlayer.stop();
+      await _ringPlayer.setAudioContext(
+        AudioContext(
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+          ),
+        ),
+      );
       await _ringPlayer.setReleaseMode(ReleaseMode.loop);
       await _ringPlayer.play(AssetSource(asset), volume: 1.0);
     } catch (e) {

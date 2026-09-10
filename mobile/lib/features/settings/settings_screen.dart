@@ -78,7 +78,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
     if (result != null) {
-      unawaited(ref.read(themeModeProvider.notifier).set(result));
+      await ref.read(themeModeProvider.notifier).set(result);
     }
   }
 
@@ -236,7 +236,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _switchTile(
                     theme: theme,
                     icon: FLucideIcons.volume2,
-                    value: sound && alerts,
+                    value: sound,
                     onChange: (v) =>
                         ref.read(soundEnabledProvider.notifier).set(v),
                     label: 'Âm thanh',
@@ -247,7 +247,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   _switchTile(
                     theme: theme,
                     icon: FLucideIcons.smartphone,
-                    value: vibrate && alerts,
+                    value: vibrate,
                     onChange: (v) =>
                         ref.read(vibrateEnabledProvider.notifier).set(v),
                     label: 'Rung',
