@@ -95,13 +95,32 @@ dump_once() {
           # Attaching briefly PTRACE-stops the process — the runtime is
           # already frozen (health failing), so this cannot make things
           # meaningfully worse; Swarm's replacement is minutes away.
+          # The binary is docker-cp'd out as a separate symbol file:
+          # the container's /app/backend is not openable from the host
+          # mount namespace, and the image is built with
+          # `debug = "line-tables-only"` exactly for this.
           if command -v gdb >/dev/null 2>&1; then
+            SYMS="$DUMPS/backend-symbols"
+            IMG=$(docker inspect -f '{{.Image}}' "$cid" 2>/dev/null)
+            STAMP="$DUMPS/backend-symbols.image"
+            if [ ! -f "$SYMS" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$IMG" ]; then
+              docker cp "$cid:/app/backend" "$SYMS" 2>/dev/null \
+                && echo "$IMG" > "$STAMP" \
+                || SYMS=""
+            fi
             echo
             echo "── gdb: thread apply all bt ──"
-            timeout 40 gdb -p "$bpid" -batch \
-              -ex 'set pagination off' \
-              -ex 'set print thread-events off' \
-              -ex 'thread apply all bt' 2>&1 | head -700
+            if [ -n "$SYMS" ]; then
+              timeout 40 gdb -p "$bpid" "$SYMS" -batch \
+                -ex 'set pagination off' \
+                -ex 'set print thread-events off' \
+                -ex 'thread apply all bt' 2>&1 | head -700
+            else
+              timeout 40 gdb -p "$bpid" -batch \
+                -ex 'set pagination off' \
+                -ex 'set print thread-events off' \
+                -ex 'thread apply all bt' 2>&1 | head -700
+            fi
             echo "── gdb done ──"
           else
             echo "!! gdb not installed — backtraces skipped (apt-get install -y gdb)"
