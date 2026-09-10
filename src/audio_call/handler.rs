@@ -976,8 +976,11 @@ mod renegotiate_tests {
     use crate::auth::SessionUser;
     use uuid::Uuid;
 
-    /// Serialise against the OTHER global-singleton tests (hub tests).
-    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// Serialise against ALL other global-singleton tests (hub +
+    /// session modules) — the SHARED `crate::audio_call::TEST_LOCK`
+    /// (three private locks used to let cross-module tests interleave
+    /// on the same singletons and race on CI's smaller runners).
+    use crate::audio_call::TEST_LOCK;
 
     fn fake_user(id: &str, actor: &str) -> SessionUser {
         SessionUser {

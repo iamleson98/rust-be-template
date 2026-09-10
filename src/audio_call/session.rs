@@ -546,8 +546,11 @@ mod tests {
     use serde_json::json;
 
     /// SessionManager is a process-global singleton and the tests make
-    /// absolute assertions — serialise them (same pattern as the hub).
-    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    /// absolute assertions — serialise them. The lock is SHARED with the
+    /// hub + handler test modules via `crate::audio_call::TEST_LOCK`
+    /// (private per-module locks used to let cross-module tests
+    /// interleave on the same singletons).
+    use crate::audio_call::TEST_LOCK;
 
     fn offer() -> Value {
         json!({ "type": "offer", "sdp": "v=0..." })

@@ -494,7 +494,11 @@ mod tests {
     /// (e.g. one test's live agent breaks another test's `count == 0`
     /// assertion). Locking this mutex at the top of each test serialises
     /// them without needing an external `serial_test` dependency.
-    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ///
+    /// The lock is SHARED with the session + handler test modules via
+    /// `crate::audio_call::TEST_LOCK` — private per-module locks used to
+    /// let cross-module tests interleave on the same singletons.
+    use crate::audio_call::TEST_LOCK;
 
     fn fake_user(id: &str, actor: &str) -> SessionUser {
         SessionUser {

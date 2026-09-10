@@ -70,3 +70,15 @@ pub mod session;
 pub use handler::router;
 pub use hub::{call_hub, CallHub};
 pub use session::{sessions, CallSession, CallState, SessionManager};
+
+/// THE single lock that serializes every test touching the process-global
+/// call hub or session manager.
+///
+/// `hub`, `session` and `handler` tests each used to declare their own
+/// private `TEST_LOCK` — three independent mutexes guarding the SAME
+/// singletons, so tests from different modules interleaved and raced
+/// (CI, 2-core runner: the renegotiate tests' live agents broke the
+/// hub tests' absolute agent-count assertions). All audio_call test
+/// modules must take THIS lock for the whole body of each test.
+#[cfg(test)]
+pub(crate) static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
