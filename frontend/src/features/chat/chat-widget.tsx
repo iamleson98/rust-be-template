@@ -18,6 +18,10 @@
  *   - ChatConversation       — conversation view (messages, banners)
  *   - ChatInput             — input bar + quick-action chips
  *
+ * The WS wiring + panel a11y live in sibling hooks:
+ *   - useChatWidgetWs       — WS connection + all hub event handlers
+ *   - useChatFocusTrap      — ESC close + focus trap (WCAG 2.1.2/2.4.3)
+ *
  * The widget returns `null` for employees (they use the admin workspace).
  *
  * ## Data flow
@@ -43,9 +47,7 @@ import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
-import { playSound } from '@/lib/sound-effects'
-import { notifyChatMessage } from '@/lib/notifications'
-import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
+import { stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   useAuthMe,
@@ -62,12 +64,13 @@ import {
   type CustomerChannel as Channel,
   type Message,
   type View,
-  normalizeWsMessage,
 } from './_shared'
 import { ChatHeader } from './chat-header'
 import { ChatList } from './chat-list'
 import { ChatConversation } from './chat-conversation'
 import { ChatInput } from './chat-input'
+import { useChatFocusTrap } from './use-chat-focus-trap'
+import { useChatWidgetWs } from './use-chat-widget-ws'
 import { isStaffUser } from '@/lib/store'
 
 export function ChatWidget() {
@@ -150,252 +153,30 @@ export function ChatWidget() {
   const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)
 
   // ─── ESC to close + focus trap (WCAG 2.1.2 + 2.4.3) ───
-  useEffect(() => {
-    if (!chatOpen) return
-    triggerRef.current = document.activeElement as HTMLButtonElement | null
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        e.stopPropagation()
-        setCallOpen(false)
-        setChatOpen(false)
-        return
-      }
-      if (e.key !== 'Tab') return
-      const panel = panelRef.current
-      if (!panel) return
-      const focusable = panel.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )
-      const visible = Array.from(focusable).filter((el) => {
-        const rect = el.getBoundingClientRect()
-        return rect.width > 0 && rect.height > 0
-      })
-      if (visible.length === 0) return
-      const first = visible[0]
-      const last = visible[visible.length - 1]
-      const active = document.activeElement as HTMLElement | null
-      if (e.shiftKey) {
-        if (active === first || !panel.contains(active)) {
-          e.preventDefault()
-          last.focus()
-        }
-      } else {
-        if (active === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown, true)
-    const t = setTimeout(() => {
-      const panel = panelRef.current
-      if (!panel) return
-      const first = panel.querySelector<HTMLElement>(
-        'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )
-      first?.focus()
-    }, 50)
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown, true)
-      clearTimeout(t)
-      triggerRef.current?.focus()
-    }
-  }, [chatOpen, setCallOpen, setChatOpen])
+  useChatFocusTrap({ chatOpen, panelRef, triggerRef, setCallOpen, setChatOpen })
 
   // ─── Connect native WebSocket (cookie-based auth) ─────
-  useEffect(() => {
-    if (!chatOpen || !chatUser) return
-    let disposed = false
-
-    // Create the WsClient — it auto-connects in the constructor.
-    // In React StrictMode (dev), effects are double-invoked:
-    //   mount → unmount → mount.
-    // The unmount calls ws.close() which may close a still-CONNECTING
-    // socket. WsClient.close() handles this gracefully (see ws-client.ts).
-    const ws = new WsClient()
-    socketRef.current = ws
-
-    ws.on('_open', () => {
-      if (!disposed) setConnected(true)
-    })
-    ws.on('_close', () => {
-      if (!disposed) setConnected(false)
-    })
-
-    ws.on('_giveup', (data: Record<string, unknown>) => {
-      if (disposed) return
-      if (!data.everOpened) {
-        setConnected(false)
-        // Force a refetch of /api/auth/me — if it errors, the
-        // session has expired and the user must re-login.
-        qc.invalidateQueries({ queryKey: ['me'] })
-      }
-    })
-
-    ws.on('message', (msg: Record<string, unknown>) => {
-      const m = normalizeWsMessage(msg)
-      if (activeChannelRef.current && m.channelId === activeChannelRef.current.id) {
-        if (m.senderType === 'employee') {
-          setWaitingForAgent(false)
-          setAgentJoinedName(m.senderName ?? null)
-        }
-        // Browser push notification when page is in background.
-        if (m.senderType !== 'user') {
-          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
-          // Flash the page title (messenger-style) so the user notices
-          // the new message even when the tab is in the background.
-          startTitleNotification(1)
-        }
-        // Sound effect on new message.
-        playSound('message')
-      } else {
-        // Message from a different channel — show a notification.
-        if (m.senderType !== 'user') {
-          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
-          startTitleNotification(1)
-          playSound('message')
-        }
-      }
-      // Invalidate the messages query using the CORRECT query key.
-      // The old code used ['listMessages'] (a string) but the actual
-      // key is a complex object from listMessagesQueryKey(). Using
-      // the partial key `{ _id: 'listMessages' }` matches all
-      // listMessages queries regardless of the path/query params.
-      qc.invalidateQueries({
-        queryKey: [{ _id: 'listMessages' }],
-      })
-      qc.invalidateQueries({
-        queryKey: [{ _id: 'listChannels' }],
-      })
-    })
-
-    ws.on('typing', (data: Record<string, unknown>) => {
-      const d = data as unknown as {
-        channelId: string
-        name: string
-        isTyping: boolean
-        userId?: string
-      }
-      // Filter out typing events from OUR OWN user id — the backend
-      // already excludes our socket via `broadcast_to_room_except`,
-      // but if the user has multiple tabs open (each with its own
-      // socket in the room), tab A's typing would otherwise bounce
-      // back to tab B. Filtering by userId catches that case.
-      if (chatUser && d.userId && d.userId === chatUser.id) return
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setTyping(d.isTyping ? { name: d.name } : null)
-      }
-    })
-
-    ws.on('joined', (data: Record<string, unknown>) => {
-      const d = data as unknown as {
-        channelId: string
-        onlineEmployees?: number
-        availableEmployees?: number
-        botActive?: boolean
-      }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setEmployeesOnline(d.onlineEmployees ?? 0)
-        setBotActive(!!d.botActive)
-        setWaitingForAgent(false)
-      }
-    })
-
-    // ── Assignment events (three-role routing) ──────────────────
-    //
-    // `channel_assigned` fires when the router picks a staff member
-    // for this channel (first message) or someone claims it. Show
-    // who's handling the conversation in the header.
-    ws.on('channel_assigned', (data: Record<string, unknown>) => {
-      const d = data as unknown as {
-        channelId: string
-        employeeId?: string
-        employeeName?: string
-        role?: string
-      }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        if (d.employeeId && d.employeeName) {
-          setAssignee({ id: d.employeeId, name: d.employeeName, role: d.role ?? 'employee' })
-        } else {
-          setAssignee(null)
-        }
-        // A human taking over means the bot isn't the responder.
-        setBotActive(false)
-      }
-    })
-
-    ws.on('channel_released', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setAssignee(null)
-      }
-    })
-
-    ws.on('channel_closed', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id) {
-        setAssignee(null)
-      }
-    })
-
-    // Customer-side presence snapshot: the hub only sends
-    // staff_presence to staff sockets, but the per-channel
-    // `joined`/assignment events above cover the customer's needs
-    // (who handles my chat). Keep bot status in sync via
-    // presence events from the room.
-    ws.on('staff_presence', (data: Record<string, unknown>) => {
-      const d = data as unknown as { botActive?: boolean }
-      if (typeof d?.botActive === 'boolean') setBotActive(d.botActive)
-    })
-
-    ws.on('presence', (data: Record<string, unknown>) => {
-      const d = data as unknown as { channelId: string; online: boolean }
-      if (activeChannelRef.current && d.channelId === activeChannelRef.current.id && d.online) {
-        setWaitingForAgent(false)
-      }
-    })
-
-    ws.on('error', (data: Record<string, unknown>) => {
-      const d = data as unknown as { code?: string; message?: string }
-      if (d?.message) toast.error(d.message)
-    })
-
-    // ── Abuse-guard events ──────────────────────────────────────
-    ws.on('abuse:warned', (data: Record<string, unknown>) => {
-      const d = data as unknown as { reason?: string }
-      if (d?.reason) {
-        toast.warning(`Cảnh báo: ${d.reason}`, { duration: 6000 })
-      }
-    })
-
-    ws.on('abuse:banned', (data: Record<string, unknown>) => {
-      const d = data as unknown as { reason?: string }
-      const reason = d?.reason ?? 'Tài khoản tạm khóa do vi phạm quy định chat.'
-      toast.error(reason, { duration: 12000 })
-      setInput('')
-    })
-
-    return () => {
-      disposed = true
-      ws.close()
-      socketRef.current = null
-      setConnected(false)
-      // Clear the typing throttle timer so it doesn't fire against a
-      // closed socket (would log a warning + do nothing useful).
-      if (typingTimerRef.current) {
-        clearTimeout(typingTimerRef.current)
-        typingTimerRef.current = null
-      }
-      isCurrentlyTypingRef.current = false
-    }
-    // qc is intentionally excluded from deps — it's a stable reference
-    // (useQueryClient returns the same instance for the app's lifetime).
-    // Including it would cause the effect to re-run unnecessarily (e.g.
-    // when React StrictMode double-invokes effects in dev).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatOpen, chatUser])
+  //
+  // All hub-event subscriptions (message/typing/assignment/presence/
+  // abuse-guard) live in the sibling `use-chat-widget-ws.ts` hook —
+  // it receives the state setters it drives and the refs it shares
+  // with the send/typing handlers below.
+  useChatWidgetWs({
+    chatOpen,
+    chatUser,
+    socketRef,
+    activeChannelRef,
+    typingTimerRef,
+    isCurrentlyTypingRef,
+    setConnected,
+    setTyping,
+    setWaitingForAgent,
+    setAgentJoinedName,
+    setEmployeesOnline,
+    setBotActive,
+    setAssignee,
+    setInput,
+  })
 
   // ── Channels list via TanStack Query ──────────────────────────────
   const channelsQuery = useChatChannels(50)

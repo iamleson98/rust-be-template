@@ -4,70 +4,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
-import {
-  Navigation,
-  Radar,
-  PhoneCall,
-  Star,
-  Gauge,
-  MapPin,
-  Clock,
-  RefreshCw,
-  CircleDot,
-  CheckCircle2,
-  Timer,
-  Flag,
-} from 'lucide-react'
-import { formatDuration, formatTimeVN } from '@/lib/types'
-
-// Minimal TripDetail type for live tracking (kept local to avoid circular imports)
-type TripDetail = {
-  trip: {
-    id: string
-    departureAt: string
-    arrivalAt: string
-    departureTime: string
-    arrivalTime: string
-    driverName: string | null
-  }
-  route: {
-    id: string
-    name: string
-    geometry: [number, number][]
-  }
-  brand: {
-    id: string
-    name: string
-    accentColor: string
-    contactPhone: string | null
-  }
-  from: { name: string; lat: number; lon: number }
-  to: { name: string; lat: number; lon: number }
-  busLayout: {
-    name: string
-    capacity: number
-    vehicleType: string
-    vehicleTypeLabel: string
-  }
-  pickupPoints: {
-    id: string
-    name: string
-    stopOrder: number
-    etaOffsetMin: number
-    lat: number
-    lon: number
-    pickupType: string
-    address: string | null
-  }[]
-}
-
-type TrackingStatus =
-  | 'not_departed'
-  | 'running'
-  | 'stopped'
-  | 'arriving_soon'
-  | 'arrived'
+import { Radar, RefreshCw } from 'lucide-react'
+import { LiveTrackingMap } from './live-tracking-map'
+import { LiveTrackingSidePanel } from './live-tracking-side-panel'
+import type { TripDetail, TrackingStatus } from './live-tracking-types'
 
 const STATUS_META: Record<
   TrackingStatus,
@@ -103,51 +43,6 @@ const STATUS_META: Record<
     bg: 'bg-blue-100',
     dot: 'bg-blue-500',
   },
-}
-
-// Deterministic hash for seed-based mock data
-function hashString(s: string): number {
-  let h = 0
-  for (let i = 0; i < s.length; i++) {
-    h = (s.charCodeAt(i) + ((h << 5) - h)) | 0
-  }
-  return Math.abs(h)
-}
-
-// Format seconds as HH:MM:SS countdown
-function formatCountdown(sec: number): string {
-  if (sec <= 0) return '00:00:00'
-  const h = Math.floor(sec / 3600)
-  const m = Math.floor((sec % 3600) / 60)
-  const s = sec % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
-
-// Find position at progress (0-1) along the path (pure function)
-function positionAt(
-  progress: number,
-  points: [number, number][],
-  totalLength: number,
-  cumLengths: number[]
-): [number, number] {
-  if (points.length === 0) return [300, 180]
-  if (progress <= 0) return points[0]
-  if (progress >= 1) return points[points.length - 1]
-  if (totalLength === 0) return points[0]
-  const targetDist = progress * totalLength
-  for (let i = 1; i < cumLengths.length; i++) {
-    if (cumLengths[i] >= targetDist) {
-      const segStart = cumLengths[i - 1]
-      const segEnd = cumLengths[i]
-      const segLen = segEnd - segStart
-      if (segLen === 0) return points[i]
-      const t = (targetDist - segStart) / segLen
-      const [x1, y1] = points[i - 1]
-      const [x2, y2] = points[i]
-      return [x1 + t * (x2 - x1), y1 + t * (y2 - y1)]
-    }
-  }
-  return points[points.length - 1]
 }
 
 export function LiveTracking({ detail }: { detail: TripDetail }) {
@@ -187,71 +82,6 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     }, 4000)
     return () => clearInterval(t)
   }, [])
-
-  // Project geometry (lat/lon) → SVG (x,y) coordinates
-  const { points, viewBox, totalLength, cumLengths, stops, pathD } = useMemo(() => {
-    const geometry = detail.route.geometry ?? []
-    const pickupPoints = detail.pickupPoints ?? []
-    if (!geometry || geometry.length === 0) {
-      return {
-        points: [] as [number, number][],
-        viewBox: '0 0 600 360',
-        totalLength: 0,
-        cumLengths: [0],
-        stops: [] as (TripDetail['pickupPoints'][number] & { xy: [number, number] })[],
-        pathD: '',
-      }
-    }
-    const allPts = [
-      ...geometry,
-      ...pickupPoints.map((p) => [p.lat, p.lon] as [number, number]),
-    ]
-    const lats = allPts.map((p) => p[0])
-    const lons = allPts.map((p) => p[1])
-    const minLat = Math.min(...lats)
-    const maxLat = Math.max(...lats)
-    const minLon = Math.min(...lons)
-    const maxLon = Math.max(...lons)
-    const latRange = Math.max(maxLat - minLat, 0.01)
-    const lonRange = Math.max(maxLon - minLon, 0.01)
-
-    const W = 600
-    const H = 360
-    const pad = 40
-    const project = ([lat, lon]: [number, number]): [number, number] => [
-      pad + ((lon - minLon) / lonRange) * (W - 2 * pad),
-      pad + ((maxLat - lat) / latRange) * (H - 2 * pad),
-    ]
-
-    const routePoints = geometry.map(project)
-    const stopPts = pickupPoints.map((p) => ({ ...p, xy: project([p.lat, p.lon]) }))
-
-    // Cumulative segment lengths along the path
-    const cumLengths = [0]
-    let totalLength = 0
-    for (let i = 1; i < routePoints.length; i++) {
-      const dx = routePoints[i][0] - routePoints[i - 1][0]
-      const dy = routePoints[i][1] - routePoints[i - 1][1]
-      totalLength += Math.sqrt(dx * dx + dy * dy)
-      cumLengths.push(totalLength)
-    }
-
-    const pathD = routePoints
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`)
-      .join(' ')
-
-    return {
-      points: routePoints,
-      viewBox: `0 0 ${W} ${H}`,
-      totalLength,
-      cumLengths,
-      stops: stopPts,
-      pathD,
-    }
-  }, [detail.route.geometry, detail.pickupPoints])
-
-  // Find position at progress (0-1) along the path (pure function)
-  // (Moved outside the component as `positionAt`.)
 
   // Compute status + progress + derived values based on departure/arrival time
   const {
@@ -351,32 +181,6 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     return detail.pickupPoints.find((p) => p.etaOffsetMin > elapsedMin) ?? null
   }, [status, elapsedMin, detail.pickupPoints])
 
-  // Bus position on the SVG (interpolated along path based on progress)
-  // Note: positionAt is a pure module-level function — calling it directly (no memo)
-  // is cheap and avoids a React Compiler manual-memoization mismatch.
-  const busPos = positionAt(progress, points, totalLength, cumLengths)
-  const busX = busPos[0]
-  const busY = busPos[1]
-
-  // Traveled path (start → bus position)
-  const traveledPathD = useMemo(() => {
-    if (points.length < 2 || progress <= 0) return ''
-    if (progress >= 1) return pathD
-    const targetDist = progress * totalLength
-    let endIdx = 1
-    for (let i = 1; i < cumLengths.length; i++) {
-      if (cumLengths[i] >= targetDist) {
-        endIdx = i
-        break
-      }
-    }
-    const segPts = points.slice(0, endIdx + 1)
-    segPts[segPts.length - 1] = busPos
-    return segPts
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`)
-      .join(' ')
-  }, [points, progress, totalLength, cumLengths, busPos, pathD])
-
   const handleRefresh = () => {
     setRefreshing(true)
     setTimeout(() => {
@@ -386,22 +190,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     }, 700)
   }
 
-  // Mock driver + vehicle data derived from trip id (deterministic)
-  const seed = useMemo(() => hashString(detail.trip.id), [detail.trip.id])
-  const driverName =
-    detail.trip.driverName ??
-    ['Nguyễn Văn Minh', 'Trần Quốc Bảo', 'Lê Hoàng Nam', 'Phạm Đức Anh'][seed % 4]
-  const driverPhone = `09${String(10000000 + (seed % 89999999)).padStart(8, '0')}`
-  const driverRating = (4.5 + (seed % 5) * 0.1).toFixed(1)
-  const plateNumber = useMemo(() => {
-    const regions = ['51A', '29A', '30A', '51B', '47A', '60C', '77A', '59A']
-    const region = regions[seed % regions.length]
-    const num = 10000 + (seed % 89999)
-    return `${region}-${num}`
-  }, [seed])
-
   const statusMeta = STATUS_META[status]
-  const accentColor = detail.brand.accentColor || '#2563eb'
 
   // Relative "last updated" text
   const lastUpdatedText = (() => {
@@ -410,8 +199,6 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     if (diff < 60) return `${diff} giây trước`
     return `${Math.floor(diff / 60)} phút trước`
   })()
-
-  const hasGeometry = points.length >= 2
 
   return (
     <div className="space-y-4">
@@ -452,375 +239,26 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       {/* Main grid: SVG map + side panel */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
         {/* SVG Map */}
-        <div className="rounded-xl overflow-hidden border bg-linear-to-br from-blue-50 to-blue-50 relative">
-          {hasGeometry ? (
-            <svg
-              viewBox={viewBox}
-              className="w-full h-auto block"
-              style={{ background: 'linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%)' }}
-            >
-              <defs>
-                <pattern id="lt-grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path
-                    d="M 40 0 L 0 0 0 40"
-                    fill="none"
-                    stroke="#cbd5e1"
-                    strokeWidth="0.5"
-                    opacity="0.4"
-                  />
-                </pattern>
-                <linearGradient id="lt-traveled" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#2563eb" stopOpacity="0.6" />
-                  <stop offset="100%" stopColor="#2563eb" stopOpacity="1" />
-                </linearGradient>
-                <filter id="lt-bus-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.3" />
-                </filter>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#lt-grid)" />
-
-              {/* Full route (light + dashed) */}
-              {pathD && (
-                <>
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke={accentColor}
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity="0.15"
-                    transform="translate(2,2)"
-                  />
-                  <path
-                    d={pathD}
-                    fill="none"
-                    stroke={accentColor}
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity="0.3"
-                    strokeDasharray="3 6"
-                  />
-                </>
-              )}
-
-              {/* Traveled portion (solid highlight) */}
-              {traveledPathD && (
-                <path
-                  d={traveledPathD}
-                  fill="none"
-                  stroke="url(#lt-traveled)"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-
-              {/* Stops */}
-              {stops.map((s, i) => {
-                const isFirst = i === 0
-                const isLast = i === stops.length - 1
-                const [x, y] = s.xy
-                const stopStatus = stopsWithStatus[i]?.status
-                const isCurrent = stopStatus === 'current'
-                return (
-                  <g key={s.id}>
-                    {(isFirst || isLast || isCurrent) && (
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r="14"
-                        fill={isFirst ? '#2563eb' : isLast ? '#ef4444' : accentColor}
-                        opacity="0.2"
-                      >
-                        <animate
-                          attributeName="r"
-                          values="10;16;10"
-                          dur="2s"
-                          repeatCount="indefinite"
-                        />
-                      </circle>
-                    )}
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={isFirst || isLast ? 8 : 5}
-                      fill={
-                        stopStatus === 'passed'
-                          ? isFirst
-                            ? '#2563eb'
-                            : isLast
-                              ? '#ef4444'
-                              : accentColor
-                          : isCurrent
-                            ? accentColor
-                            : 'white'
-                      }
-                      stroke={isFirst ? '#059669' : isLast ? '#dc2626' : accentColor}
-                      strokeWidth="2.5"
-                    />
-                    <text
-                      x={x}
-                      y={y - 14}
-                      textAnchor="middle"
-                      className="fill-slate-700"
-                      style={{ fontSize: '13px', fontWeight: 600 }}
-                    >
-                      {s.name.length > 22 ? s.name.slice(0, 20) + '…' : s.name}
-                    </text>
-                  </g>
-                )
-              })}
-
-              {/* Bus icon — bobbing via declarative SVG <animateTransform>
-                  (no rAF, no React re-renders; runs in the SVG compositor). */}
-              {points.length > 0 && (
-                <g transform={`translate(${busX}, ${busY})`} filter="url(#lt-bus-shadow)">
-                  <g>
-                    {status === 'running' && (
-                      <animateTransform
-                        attributeName="transform"
-                        type="translate"
-                        values="0 0; 0 -1.5; 0 0"
-                        dur="1.2s"
-                        repeatCount="indefinite"
-                        calcMode="spline"
-                        keyTimes="0; 0.5; 1"
-                        keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"
-                      />
-                    )}
-                    <circle
-                      r="13"
-                      fill="white"
-                      stroke={accentColor}
-                      strokeWidth="2.5"
-                    />
-                    <text
-                      textAnchor="middle"
-                      dy="5"
-                      style={{ fontSize: '16px' }}
-                      aria-label="Vị trí xe buýt"
-                    >
-                      🚌
-                    </text>
-                  </g>
-                </g>
-              )}
-            </svg>
-          ) : (
-            <div className="p-12 text-center text-sm text-muted-foreground">
-              Chưa có dữ liệu lộ trình để hiển thị vị trí xe.
-            </div>
-          )}
-
-          {/* Overlay: speed + ETA (top-left) */}
-          <div className="absolute top-3 left-3 rounded-lg bg-white/90 backdrop-blur px-3 py-2 flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <Gauge className="h-4 w-4 text-blue-600" />
-              <div>
-                <div className="text-[10px] text-muted-foreground leading-none">Tốc độ</div>
-                <div className="font-bold text-sm leading-tight">
-                  {status === 'running' || status === 'arriving_soon'
-                    ? speed
-                    : status === 'stopped'
-                      ? '0'
-                      : status === 'arrived'
-                        ? '0'
-                        : '—'}
-                  <span className="text-[10px] font-normal text-muted-foreground ml-0.5">
-                    km/h
-                  </span>
-                </div>
-              </div>
-            </div>
-            <Separator orientation="vertical" className="h-7" />
-            <div className="flex items-center gap-1.5">
-              <Timer className="h-4 w-4 text-amber-600" />
-              <div>
-                <div className="text-[10px] text-muted-foreground leading-none">
-                  {status === 'arrived'
-                    ? 'Đã đến'
-                    : status === 'not_departed'
-                      ? 'Khởi hành sau'
-                      : 'Còn'}
-                </div>
-                <div className="font-bold text-sm font-mono leading-tight">
-                  {status === 'arrived' ? '✓' : formatCountdown(etaSeconds)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Overlay: last updated (bottom-right) */}
-          <div className="absolute bottom-3 right-3 rounded-lg bg-white/90 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5">
-            <Navigation className="h-3 w-3 text-blue-600" />
-            <span>Cập nhật {lastUpdatedText}</span>
-          </div>
-
-          {/* Overlay: current location (bottom-left) */}
-          {status !== 'arrived' && (
-            <div className="absolute bottom-3 left-3 rounded-lg bg-white/90 backdrop-blur px-3 py-1.5 text-xs max-w-[60%]">
-              <div className="text-[10px] text-muted-foreground leading-none mb-0.5">
-                Vị trí hiện tại
-              </div>
-              <div className="font-medium text-slate-800 truncate flex items-center gap-1">
-                <MapPin className="h-3 w-3 text-blue-600 shrink-0" />
-                {currentLocationName}
-              </div>
-            </div>
-          )}
-        </div>
+        <LiveTrackingMap
+          detail={detail}
+          progress={progress}
+          status={status}
+          stopsWithStatus={stopsWithStatus}
+          speed={speed}
+          etaSeconds={etaSeconds}
+          lastUpdatedText={lastUpdatedText}
+          currentLocationName={currentLocationName}
+        />
 
         {/* Side panel */}
-        <div className="space-y-3">
-          {/* Driver info */}
-          <div className="rounded-xl border bg-white p-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-              Thông tin tài xế
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div className="h-10 w-10 rounded-full bg-linear-to-br from-blue-100 to-blue-100 text-blue-700 inline-flex items-center justify-center font-bold shrink-0">
-                {driverName.split(' ').slice(-1)[0]?.[0] ?? '?'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-sm truncate">{driverName}</div>
-                <div className="flex items-center gap-1 text-xs text-amber-600">
-                  <Star className="h-3 w-3 fill-current" />
-                  {driverRating}
-                  <span className="text-muted-foreground ml-1">• 5+ năm KN</span>
-                </div>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full mt-2.5 gap-1.5 text-xs h-8"
-              asChild
-            >
-              <a href={`tel:${driverPhone}`}>
-                <PhoneCall className="h-3.5 w-3.5" /> {driverPhone}
-              </a>
-            </Button>
-          </div>
-
-          {/* Bus info */}
-          <div className="rounded-xl border bg-white p-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-              Thông tin xe
-            </div>
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Biển số</span>
-                <span className="font-mono font-bold">{plateNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Loại xe</span>
-                <span className="font-medium">{detail.busLayout.vehicleTypeLabel}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Số chỗ</span>
-                <span className="font-medium">{detail.busLayout.capacity} chỗ</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Đội xe</span>
-                <span className="font-medium truncate ml-2">{detail.brand.name}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Next stop highlight */}
-          {nextStop ? (
-            <div
-              key={nextStop.id}
-              className="rounded-xl bg-linear-to-br from-blue-50 to-blue-50 ring-1 ring-blue-200 p-3"
-            >
-              <div className="text-[10px] uppercase tracking-wide text-blue-600 font-semibold mb-1">
-                Trạm dừng tiếp theo
-              </div>
-              <div className="font-bold text-sm text-blue-800 truncate flex items-center gap-1">
-                <Flag className="h-3.5 w-3.5 shrink-0" />
-                {nextStop.name}
-              </div>
-              <div className="text-xs text-blue-600 mt-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                <span>
-                  Đến sau{' '}
-                  {(() => {
-                    const depTs = new Date(detail.trip.departureAt).getTime()
-                    const stopTs = depTs + nextStop.etaOffsetMin * 60_000
-                    const secToStop = Math.max(0, Math.floor((stopTs - now) / 1000))
-                    return formatCountdown(secToStop)
-                  })()}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl bg-slate-50 ring-1 ring-slate-200 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
-                {status === 'arrived' ? 'Trạm đến' : 'Trạm xuất phát'}
-              </div>
-              <div className="font-bold text-sm text-slate-800 truncate flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {status === 'arrived' ? detail.to.name : detail.from.name}
-              </div>
-              <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {status === 'arrived'
-                  ? `Đã đến lúc ${formatTimeVN(detail.trip.arrivalAt)}`
-                  : `Khởi hành lúc ${formatTimeVN(detail.trip.departureAt)}`}
-              </div>
-            </div>
-          )}
-
-          {/* Stop list with statuses */}
-          <div className="rounded-xl border bg-white p-3">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-              Lịch trình các trạm
-            </div>
-            <div className="space-y-0 max-h-72 overflow-y-auto pr-1 custom-scroll">
-              {stopsWithStatus.map((s, i) => {
-                const isCurrent = s.status === 'current'
-                const isPassed = s.status === 'passed'
-                const isLast = i === stopsWithStatus.length - 1
-                return (
-                  <div key={s.id} className="flex items-start gap-2">
-                    <div className="flex flex-col items-center pt-0.5">
-                      {isPassed ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-blue-500" />
-                      ) : isCurrent ? (
-                        <CircleDot className="h-3.5 w-3.5 text-blue-600" />
-                      ) : (
-                        <div className="h-3 w-3 rounded-full border-2 border-slate-300" />
-                      )}
-                      {!isLast && <div className="w-px h-5 bg-slate-200 mt-0.5" />}
-                    </div>
-                    <div className="flex-1 min-w-0 pb-1.5">
-                      <div
-                        className={`text-xs font-medium truncate ${
-                          isPassed
-                            ? 'text-slate-500 line-through'
-                            : isCurrent
-                              ? 'text-blue-700'
-                              : 'text-slate-700'
-                        }`}
-                      >
-                        {s.name}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {isPassed
-                          ? 'Đã đi qua'
-                          : isCurrent
-                            ? 'Đang tại đây'
-                            : `Còn ${formatDuration(Math.max(0, s.etaOffsetMin - elapsedMin))}`}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
+        <LiveTrackingSidePanel
+          detail={detail}
+          nextStop={nextStop}
+          status={status}
+          now={now}
+          stopsWithStatus={stopsWithStatus}
+          elapsedMin={elapsedMin}
+        />
       </div>
 
       {/* Progress bar */}

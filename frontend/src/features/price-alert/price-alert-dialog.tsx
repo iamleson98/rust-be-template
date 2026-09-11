@@ -18,8 +18,6 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   Form,
   FormField,
@@ -28,7 +26,6 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { phoneSchema } from '@/lib/forms'
 import { toast } from 'sonner'
 import {
   Bell,
@@ -37,51 +34,17 @@ import {
   Mail,
   Loader2,
   CheckCircle2,
-  TrendingDown,
-  Clock,
-  Calendar,
-  Trash2,
 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-
-type Frequency = 'immediate' | 'daily' | 'weekly'
-
-const FREQUENCY_OPTIONS: { value: Frequency; label: string; description: string; icon: React.ReactNode }[] = [
-  {
-    value: 'immediate',
-    label: 'Ngay lập tức',
-    description: 'Thông báo ngay khi giá giảm',
-    icon: <Clock className="h-4 w-4" />,
-  },
-  {
-    value: 'daily',
-    label: 'Hàng ngày',
-    description: 'Tổng hợp mỗi sáng (8:00)',
-    icon: <Calendar className="h-4 w-4" />,
-  },
-  {
-    value: 'weekly',
-    label: 'Hàng tuần',
-    description: 'Tổng hợp mỗi thứ Hai',
-    icon: <Calendar className="h-4 w-4" />,
-  },
-]
+import {
+  priceAlertSchema,
+  type PriceAlertFormValues,
+} from './price-alert-schema'
+import { PriceAlertFrequencyField } from './price-alert-frequency-field'
+import { PriceAlertTargetField } from './price-alert-target-field'
+import { PriceAlertExistingList } from './price-alert-existing-list'
 
 type ExistingAlert = PriceAlert
-
-const priceAlertSchema = z.object({
-  phone: phoneSchema,
-  email: z
-    .string()
-    .trim()
-    .refine(
-      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-      'Email không hợp lệ',
-    ),
-  targetPrice: z.coerce.number().positive('Mức giá mục tiêu phải lớn hơn 0'),
-  frequency: z.enum(['immediate', 'daily', 'weekly']),
-})
-type PriceAlertFormValues = z.infer<typeof priceAlertSchema>
 
 export function PriceAlertDialog() {
   const {
@@ -206,14 +169,6 @@ export function PriceAlertDialog() {
     }
   }
 
-  const suggestedPrices = minPrice > 0
-    ? [
-      { pct: 10, label: '-10%', value: Math.round((minPrice * 0.9) / 1000) * 1000 },
-      { pct: 20, label: '-20%', value: Math.round((minPrice * 0.8) / 1000) * 1000 },
-      { pct: 30, label: '-30%', value: Math.round((minPrice * 0.7) / 1000) * 1000 },
-    ]
-    : []
-
   return (
     <Dialog open={priceAlertOpen} onOpenChange={(o) => setPriceAlertOpen(o)}>
       <DialogContent className="max-w-lg w-[95vw] max-h-[92vh] overflow-y-auto">
@@ -291,52 +246,10 @@ export function PriceAlertDialog() {
               </div>
 
               {/* Target price */}
-              <FormField
-                control={control}
-                name="targetPrice"
-                render={({ field }) => (
-                  <FormItem className="space-y-1.5">
-                    <FormLabel htmlFor="target-price" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Mức giá mục tiêu (VND) <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <div className="relative">
-                      <TrendingDown className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 z-10" />
-                      <FormControl>
-                        <Input
-                          id="target-price"
-                          type="number"
-                          inputMode="numeric"
-                          min={1000}
-                          step={1000}
-                          value={typeof field.value === 'number' && Number.isFinite(field.value) && field.value > 0 ? field.value : ''}
-                          onChange={(e) => field.onChange(Math.max(0, Math.floor(Number(e.target.value))))}
-                          onBlur={field.onBlur}
-                          placeholder="VD: 250000"
-                          className="pl-9"
-                        />
-                      </FormControl>
-                    </div>
-                    {suggestedPrices.length > 0 && (
-                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                        <span className="text-[11px] text-muted-foreground mr-1">Gợi ý:</span>
-                        {suggestedPrices.map((s) => (
-                          <button
-                            key={s.pct}
-                            type="button"
-                            onClick={() => setValue('targetPrice', s.value, { shouldValidate: true })}
-                            className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${targetPrice === s.value
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
-                              }`}
-                          >
-                            {s.label} ({formatVND(s.value)})
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <FormMessage />
-                  </FormItem>
-                )}
+              <PriceAlertTargetField
+                form={form}
+                minPrice={minPrice}
+                targetPrice={targetPrice}
               />
 
               {/* Phone (required) */}
@@ -392,91 +305,14 @@ export function PriceAlertDialog() {
               />
 
               {/* Frequency */}
-              <FormField
-                control={control}
-                name="frequency"
-                render={({ field }) => (
-                  <FormItem className="space-y-1.5">
-                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Tần suất thông báo
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        className="grid grid-cols-1 gap-2"
-                      >
-                        {FREQUENCY_OPTIONS.map((opt) => (
-                          <label
-                            key={opt.value}
-                            htmlFor={`freq-${opt.value}`}
-                            className={`flex items-start gap-3 rounded-lg border p-2.5 cursor-pointer transition-all ${frequency === opt.value
-                                ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/30'
-                                : 'border-slate-200 hover:border-blue-300'
-                              }`}
-                          >
-                            <RadioGroupItem
-                              id={`freq-${opt.value}`}
-                              value={opt.value}
-                              className="mt-0.5"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`text-blue-600 ${frequency === opt.value ? '' : 'text-slate-400'}`}>
-                                  {opt.icon}
-                                </span>
-                                <span className="text-sm font-medium">{opt.label}</span>
-                              </div>
-                              <div className="text-[11px] text-muted-foreground mt-0.5">
-                                {opt.description}
-                              </div>
-                            </div>
-                          </label>
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <PriceAlertFrequencyField form={form} frequency={frequency} />
 
               {/* Existing alerts (if any) */}
               {existingAlerts.length > 0 && (
-                <div className="space-y-1.5 pt-2 border-t">
-                  <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cảnh báo đã tạo ({existingAlerts.length})
-                  </Label>
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                    {existingAlerts.map((a) => (
-                      <div
-                        key={a.id}
-                        className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5"
-                      >
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${a.status === 'active'
-                              ? 'bg-blue-50 text-blue-700 border-blue-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
-                            }`}
-                        >
-                          {a.status === 'active' ? 'Đang theo dõi' : 'Đã kích hoạt'}
-                        </Badge>
-                        <div className="text-xs flex-1 min-w-0 truncate">
-                          <span className="font-medium">{a.fromName} → {a.toName}</span>
-                          <span className="text-muted-foreground"> ≤ {formatVND(a.targetPrice ?? 0)}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAlert(a.id)}
-                          className="text-rose-500 hover:text-rose-700 p-1 rounded"
-                          aria-label="Xoá"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <PriceAlertExistingList
+                  existingAlerts={existingAlerts}
+                  handleDeleteAlert={handleDeleteAlert}
+                />
               )}
 
               <DialogFooter className="pt-2 gap-2">

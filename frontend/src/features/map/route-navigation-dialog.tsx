@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react'
+import { lazy, Suspense } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,8 @@ import {
   Navigation2,
 } from 'lucide-react'
 import { formatDuration } from '@/lib/types'
+import { useRouteNavigation } from './route-navigation-state'
+import { StatusBanner, StatTile } from './route-navigation-dialog-parts'
 
 // ── Leaflet is loaded client-side only (it touches `window`).
 //    We render a spinner via <Suspense> until the lazy import resolves.
@@ -32,14 +34,6 @@ const DirectionsMapFallback = (
     <Loader2 className="h-7 w-7 animate-spin text-blue-600" />
   </div>
 )
-
-type RouteResponse = {
-  coordinates: [number, number][] // [lat, lon] pairs
-  distanceKm: number
-  durationMin: number
-  fallback: boolean
-  note?: string
-}
 
 export type RouteNavigationDialogProps = {
   open: boolean
@@ -51,18 +45,6 @@ export type RouteNavigationDialogProps = {
   pickupLat: number
   pickupLon: number
 }
-
-type GeoState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'denied'; message: string }
-  | { status: 'ok'; lat: number; lon: number }
-
-type RouteState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ok'; data: RouteResponse }
-  | { status: 'error'; message: string }
 
 /**
  * RouteNavigationDialog
@@ -84,93 +66,11 @@ export function RouteNavigationDialog({
   pickupLat,
   pickupLon,
 }: RouteNavigationDialogProps) {
-  const [geo, setGeo] = useState<GeoState>({ status: 'idle' })
-  const [route, setRoute] = useState<RouteState>({ status: 'idle' })
-
-  // Reset state every time the dialog opens, so the user always sees a
-  // fresh "locating you…" state instead of stale data from last time.
-  useEffect(() => {
-    if (!open) return
-    setGeo({ status: 'idle' })
-    setRoute({ status: 'idle' })
-  }, [open])
-
-  // ── Step 1: get the user's geolocation ──
-  const requestLocation = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeo({ status: 'denied', message: 'Trình duyệt không hỗ trợ định vị' })
-      return
-    }
-    setGeo({ status: 'loading' })
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setGeo({ status: 'ok', lat: pos.coords.latitude, lon: pos.coords.longitude })
-      },
-      (err) => {
-        const message =
-          err.code === err.PERMISSION_DENIED
-            ? 'Bạn đã từ chối quyền truy cập vị trí. Bật lại trong cài đặt trình duyệt để xem đường đi.'
-            : err.code === err.POSITION_UNAVAILABLE
-              ? 'Không xác định được vị trí hiện tại.'
-              : err.code === err.TIMEOUT
-                ? 'Hết giờ xác định vị trí. Thử lại trong khu vực thoáng.'
-                : 'Lỗi không xác định khi định vị.'
-        setGeo({ status: 'denied', message })
-      },
-      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
-    )
-  }, [])
-
-  // Auto-trigger geolocation when the dialog opens.
-  useEffect(() => {
-    if (open && geo.status === 'idle') {
-      requestLocation()
-    }
-  }, [open, geo.status, requestLocation])
-
-  // ── Step 2: fetch the route polyline once we have a fix ──
-  const fetchedFor = useRef<string>('')
-  useEffect(() => {
-    if (geo.status !== 'ok') return
-    const key = `${geo.lat.toFixed(5)},${geo.lon.toFixed(5)}→${pickupLat.toFixed(5)},${pickupLon.toFixed(5)}`
-    if (fetchedFor.current === key) return // already fetched for this pair
-    fetchedFor.current = key
-
-    let cancelled = false
-    const run = async () => {
-      setRoute({ status: 'loading' })
-      try {
-        const url =
-          `/api/map/route?fromLat=${geo.lat}&fromLon=${geo.lon}` +
-          `&toLat=${pickupLat}&toLon=${pickupLon}&profile=driving`
-        const res = await fetch(url)
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}))
-          throw new Error(body?.error?.message ?? `HTTP ${res.status}`)
-        }
-        const data = (await res.json()) as RouteResponse
-        if (!cancelled) setRoute({ status: 'ok', data })
-      } catch (e) {
-        if (cancelled) return
-        const msg = e instanceof Error ? e.message : 'Lỗi không xác định'
-        setRoute({ status: 'error', message: msg })
-      }
-    }
-    run()
-    return () => {
-      cancelled = true
-    }
-  }, [geo, pickupLat, pickupLon])
-
-  // ── Derived display values ──
-  const googleMapsUrl = useMemo(() => {
-    if (geo.status !== 'ok') {
-      // If we don't have the user's location, just open directions
-      // with the destination only — Google Maps will prompt for "from".
-      return `https://www.google.com/maps/dir/?api=1&destination=${pickupLat},${pickupLon}`
-    }
-    return `https://www.google.com/maps/dir/?api=1&origin=${geo.lat},${geo.lon}&destination=${pickupLat},${pickupLon}&travelmode=driving`
-  }, [geo, pickupLat, pickupLon])
+  const { geo, route, requestLocation, googleMapsUrl } = useRouteNavigation(
+    open,
+    pickupLat,
+    pickupLon
+  )
 
   const hasRoute = route.status === 'ok' && route.data.coordinates.length >= 2
   const showFallbackNotice = route.status === 'ok' && route.data.fallback === true
@@ -361,63 +261,6 @@ export function RouteNavigationDialog({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
-
-// ── Small presentational helpers ─────────────────────────────
-
-function StatusBanner({
-  icon,
-  text,
-  tone,
-}: {
-  icon: React.ReactNode
-  text: string
-  tone: 'info' | 'warn' | 'error'
-}) {
-  const toneCls =
-    tone === 'warn'
-      ? 'ring-amber-200 bg-amber-50 text-amber-900'
-      : tone === 'error'
-        ? 'ring-rose-200 bg-rose-50 text-rose-900'
-        : 'ring-blue-200 bg-blue-50 text-blue-900'
-  return (
-    <div className={`rounded-xl ring-1 ${toneCls} p-3 flex items-center gap-2.5 text-sm`}>
-      {icon}
-      <span>{text}</span>
-    </div>
-  )
-}
-
-function StatTile({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  tone: 'blue' | 'amber' | 'emerald' | 'slate'
-}) {
-  const toneCls =
-    tone === 'blue'
-      ? 'bg-blue-50 text-blue-700'
-      : tone === 'amber'
-        ? 'bg-amber-50 text-amber-700'
-        : tone === 'emerald'
-          ? 'bg-blue-50 text-blue-700'
-          : 'bg-slate-100 text-slate-700'
-  return (
-    <div className="rounded-lg ring-1 ring-black/5 bg-white p-3">
-      <div className={`h-7 w-7 rounded-md ${toneCls} inline-flex items-center justify-center mb-1.5`}>
-        {icon}
-      </div>
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="text-sm font-bold text-foreground tabular-nums">{value}</div>
-    </div>
   )
 }
 

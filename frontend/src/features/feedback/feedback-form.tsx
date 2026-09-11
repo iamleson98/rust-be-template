@@ -1,40 +1,37 @@
 'use client'
 
-import { memo, useState, useRef, useCallback } from 'react'
+import { memo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import {
   Form,
-  FormControl,
   FormField,
   FormItem,
   FormLabel,
+  FormControl,
   FormMessage,
 } from '@/components/ui/form'
 import {
-  Star,
   Send,
   Loader2,
   Check,
   Sparkles,
   Bus,
   Route as RouteIcon,
-  Upload,
-  X,
-  Image as ImageIcon,
-  Pencil,
-  AlertCircle,
-  Quote,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCreateReview, useUpdateReview } from '@/lib/queries'
-import { BookingItem, ReviewSummary, REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
+import { BookingItem, ReviewSummary } from '@/features/booking/history/booking-types'
+import { feedbackSchema, type FeedbackValues } from './feedback-schema'
+import { ExistingReviewCard } from './existing-review-card'
+import { FeedbackRatingField } from './feedback-rating-field'
+import { FeedbackTagPickerField } from './feedback-tag-picker-field'
+import { FeedbackCommentField } from './feedback-comment-field'
+import { FeedbackPhotoField } from './feedback-photo-field'
 
 type Props = {
   booking: BookingItem
@@ -46,44 +43,6 @@ type Props = {
   onClose?: () => void
 }
 
-const MAX_PHOTOS = 3
-const MAX_PHOTO_SIZE = 2 * 1024 * 1024 // 2MB
-
-const TAG_OPTIONS = Object.entries(REVIEW_TAG_LABELS).map(([key, v]) => ({
-  key,
-  label: v.label,
-  emoji: v.emoji,
-}))
-
-/**
- * Zod schema for the review form.
- *   - rating 1-5 (required, must be > 0)
- *   - title ≤ 80 chars (optional)
- *   - content ≤ 2000 chars, ≥ 20 chars if non-empty (optional but recommended)
- *   - tags: optional array of strings
- *   - photos: optional array of data-URL/HTTP strings
- */
-const feedbackSchema = z.object({
-  rating: z
-    .number()
-    .min(1, 'Vui lòng chọn số sao đánh giá')
-    .max(5, 'Đánh giá tối đa 5 sao'),
-  title: z.string().trim().max(255, 'Tiêu đề tối đa 255 ký tự'),
-  content: z
-    .string()
-    .trim()
-    .max(10000, 'Nhận xét quá dài')
-    .refine(
-      (val) => val.length === 0 || val.length >= 20,
-      'Nội dung đánh giá cần ít nhất 20 ký tự để gửi',
-    ),
-  // Backend enforces max 20 tags + max 10 photos.
-  tags: z.array(z.string()).max(20, 'Tối đa 20 thẻ'),
-  photos: z.array(z.string()).max(10, 'Tối đa 10 ảnh'),
-})
-
-type FeedbackValues = z.infer<typeof feedbackSchema>
-
 /**
  * FeedbackForm — inline review form rendered below a completed BookingCard.
  *
@@ -92,13 +51,14 @@ type FeedbackValues = z.infer<typeof feedbackSchema>
  * - Otherwise: renders an empty form (POST /api/reviews).
  *
  * Validation mirrors the server and is enforced by zod via react-hook-form.
+ * Field controls live in the sibling `feedback-*-field.tsx` files; the
+ * read-only view in `existing-review-card.tsx`.
  */
 export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview, onSubmitted, onClose }: Props) {
   const isEditingExisting = !!existingReview
   const [editMode, setEditMode] = useState(!isEditingExisting)
   const [hoverRating, setHoverRating] = useState(0)
   const [submitted, setSubmitted] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Two mutations defined at HOOK CREATION — each carries its own
   // onSuccess/onError. mutate() takes only the params.
@@ -145,51 +105,6 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   const rating = form.watch('rating')
   const comment = form.watch('content')
 
-  const handlePickPhotos = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return
-      const current = form.getValues('photos')
-      const slotsLeft = MAX_PHOTOS - current.length
-      if (slotsLeft <= 0) {
-        toast.error(`Chỉ được đính kèm tối đa ${MAX_PHOTOS} ảnh`)
-        return
-      }
-      const picked = Array.from(files).slice(0, slotsLeft)
-      const next: string[] = []
-      for (const f of picked) {
-        if (!f.type.startsWith('image/')) {
-          toast.error(`"${f.name}" không phải ảnh`)
-          continue
-        }
-        if (f.size > MAX_PHOTO_SIZE) {
-          toast.error(`"${f.name}" vượt quá 2MB`)
-          continue
-        }
-        try {
-          const dataUrl = await readAsDataURL(f)
-          next.push(dataUrl)
-        } catch {
-          toast.error(`Không thể đọc "${f.name}"`)
-        }
-      }
-      if (next.length > 0) {
-        const updated = [...current, ...next].slice(0, MAX_PHOTOS)
-        form.setValue('photos', updated, { shouldDirty: true, shouldValidate: true })
-      }
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    },
-    [form],
-  )
-
-  const removePhoto = (idx: number) => {
-    const current = form.getValues('photos')
-    form.setValue(
-      'photos',
-      current.filter((_, i) => i !== idx),
-      { shouldDirty: true, shouldValidate: true },
-    )
-  }
-
   const onSubmit = (values: FeedbackValues) => {
     if (!booking.trip?.routeId || !booking.trip?.brandId) {
       toast.error('Thiếu thông tin tuyến/hãng để gửi đánh giá')
@@ -224,10 +139,6 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
     setSubmitted(false)
   }
 
-  const displayRating = hoverRating || rating
-  const ratingLabels = ['', 'Rất tệ', 'Tệ', 'Bình thường', 'Tốt', 'Rất tốt']
-  const ratingEmojis = ['', '😣', '😕', '😐', '🙂', '🤩']
-
   const accent = booking.trip?.brandAccent ?? '#2563eb'
   const isShortComment =
     comment.trim().length > 0 && comment.trim().length < 20
@@ -235,105 +146,11 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   // ─── "Read-only" view for an existing review ─────────────────
   if (isEditingExisting && !editMode) {
     return (
-      <Card className="ring-1 ring-amber-200 overflow-hidden">
-        <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
-        <CardContent className="p-4 md:p-5 space-y-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-              <Sparkles className="h-3.5 w-3.5" />
-              Đánh giá của bạn về chuyến này
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-7 text-xs"
-              onClick={() => setEditMode(true)}
-            >
-              <Pencil className="h-3 w-3" />
-              Chỉnh sửa
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <Star
-                key={s}
-                className={`h-4 w-4 ${s <= (existingReview?.rating ?? 0)
-                  ? 'fill-amber-400 text-amber-400'
-                  : 'fill-slate-100 text-slate-200'
-                  }`}
-              />
-            ))}
-            <span className="ml-1.5 text-xs font-bold text-amber-600">
-              {(existingReview?.rating ?? 0).toFixed(1)}
-            </span>
-          </div>
-
-          {existingReview?.title && (
-            <div className="flex items-start gap-2">
-              <Quote className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-              <h4 className="font-bold text-sm md:text-base text-foreground leading-snug">
-                {existingReview.title}
-              </h4>
-            </div>
-          )}
-
-          {existingReview?.content && (
-            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line pl-6">
-              {existingReview.content}
-            </p>
-          )}
-
-          {existingReview && existingReview.tags.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {existingReview.tags.map((t, i) => {
-                const meta = REVIEW_TAG_LABELS[t]
-                return (
-                  <Badge
-                    key={`${t}-${i}`}
-                    variant="outline"
-                    className="text-[11px] gap-1 px-2 py-0.5 bg-amber-50/60 border-amber-200/60 text-amber-800 font-medium"
-                  >
-                    {meta ? (
-                      <>
-                        <span>{meta.emoji}</span>
-                        {meta.label}
-                      </>
-                    ) : (
-                      t.replace(/_/g, ' ')
-                    )}
-                  </Badge>
-                )
-              })}
-            </div>
-          )}
-
-          {existingReview && existingReview.photos.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              {existingReview.photos.map((src, i) => (
-                <a
-                  key={i}
-                  href={src}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 hover:ring-amber-400 transition-all"
-                >
-                  <img src={src} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
-                </a>
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
-              Đóng
-            </Button>
-            <span className="text-[11px] text-muted-foreground">
-              Cảm ơn bạn đã chia sẻ trải nghiệm!
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <ExistingReviewCard
+        existingReview={existingReview}
+        setEditMode={setEditMode}
+        onClose={onClose}
+      />
     )
   }
 
@@ -410,86 +227,16 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Star rating — custom control */}
-            <FormField
-              control={form.control}
-              name="rating"
-              render={({ field }) => (
-                <FormItem className="space-y-1.5">
-                  <div className="flex flex-col items-center gap-1.5 py-2 bg-linear-to-b from-amber-50/60 to-transparent rounded-lg">
-                    <div className="text-3xl">{ratingEmojis[displayRating] ?? '🚌'}</div>
-                    <div className="flex items-center gap-1.5">
-                      {[1, 2, 3, 4, 5].map((n) => (
-                        <button
-                          key={n}
-                          onMouseEnter={() => setHoverRating(n)}
-                          onMouseLeave={() => setHoverRating(0)}
-                          onClick={() => field.onChange(n)}
-                          className="transition-transform hover:scale-110"
-                          aria-label={`Đánh giá ${n} sao`}
-                          type="button"
-                        >
-                          <Star
-                            className={`h-8 w-8 transition-colors ${n <= displayRating
-                              ? 'fill-amber-400 text-amber-400 drop-'
-                              : 'fill-slate-100 text-slate-300'
-                              }`}
-                          />
-                        </button>
-                      ))}
-                    </div>
-                    {displayRating > 0 && (
-                      <span
-                        key={displayRating}
-                        className="text-sm font-semibold text-amber-600"
-                        style={{ color: accent }}
-                      >
-                        {ratingLabels[displayRating]}
-                      </span>
-                    )}
-                  </div>
-                  <FormMessage className="text-center" />
-                </FormItem>
-              )}
+            <FeedbackRatingField
+              form={form}
+              setHoverRating={setHoverRating}
+              hoverRating={hoverRating}
+              rating={rating}
+              accent={accent}
             />
 
             {/* Tag picker — custom control */}
-            <FormField
-              control={form.control}
-              name="tags"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Điểm nổi bật (chọn nhiều)
-                  </FormLabel>
-                  <div className="flex flex-wrap gap-1.5">
-                    {TAG_OPTIONS.map((t) => {
-                      const active = (field.value ?? []).includes(t.key)
-                      return (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() =>
-                            field.onChange(
-                              (field.value ?? []).includes(t.key)
-                                ? (field.value ?? []).filter((k) => k !== t.key)
-                                : [...(field.value ?? []), t.key],
-                            )
-                          }
-                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${active
-                            ? 'bg-amber-500 text-white scale-105'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                            }`}
-                        >
-                          <span>{t.emoji}</span>
-                          {t.label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FeedbackTagPickerField form={form} />
 
             {/* Title */}
             <FormField
@@ -517,112 +264,10 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
             />
 
             {/* Comment */}
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem className="space-y-1.5">
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Nhận xét chi tiết (tuỳ chọn, tối thiểu 20 ký tự)
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={field.value ?? ''}
-                      placeholder="Chia sẻ trải nghiệm của bạn về chuyến đi: thái độ tài xế, độ sạch sẽ, tiện nghi..."
-                      rows={4}
-                      className="resize-none"
-                      maxLength={2000}
-                    />
-                  </FormControl>
-                  <div className="text-[10px] text-right text-muted-foreground">
-                    {(field.value ?? '').length}/2000
-                  </div>
-                  {isShortComment && !form.formState.errors.content && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-amber-700">
-                      <AlertCircle className="h-3 w-3" />
-                      Nội dung đánh giá cần ít nhất 20 ký tự để gửi.
-                    </div>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FeedbackCommentField form={form} isShortComment={isShortComment} />
 
             {/* Photo upload */}
-            <FormField
-              control={form.control}
-              name="photos"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Ảnh đi kèm (tuỳ chọn)
-                    </FormLabel>
-                    <span className="text-[10px] text-muted-foreground">
-                      {(field.value ?? []).length}/{MAX_PHOTOS} ảnh · tối đa 2MB/ảnh
-                    </span>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => handlePickPhotos(e.target.files)}
-                  />
-                  {(field.value ?? []).length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors py-4 flex flex-col items-center justify-center gap-1 text-muted-foreground"
-                    >
-                      <Upload className="h-5 w-5" />
-                      <span className="text-xs font-medium">Thêm ảnh</span>
-                      <span className="text-[10px]">
-                        Nhấn để chọn tối đa {MAX_PHOTOS} ảnh từ thiết bị
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {(field.value ?? []).map((src, i) => (
-                        <div
-                          key={i}
-                          className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 group"
-                        >
-                          <img
-                            src={src}
-                            alt={`Ảnh ${i + 1}`}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removePhoto(i)}
-                            className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-rose-600 text-white inline-flex items-center justify-center transition-colors"
-                            aria-label="Xoá ảnh"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                      {(field.value ?? []).length < MAX_PHOTOS && (
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                          <span className="text-[10px] font-medium">Thêm</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FeedbackPhotoField form={form} />
 
             {/* Submit */}
             <div className="flex items-center gap-2 pt-1">
@@ -655,12 +300,3 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
     </Card>
   )
 })
-
-function readAsDataURL(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
-}
