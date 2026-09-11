@@ -10,7 +10,8 @@
  * and gives us full control over styling.
  *
  * Features:
- *   - Fixed app layout: the shell fills the viewport (h-dvh) and the
+ *   - Fixed app layout: the shell fills the viewport below the global
+ *     4rem header and the
  *     CONTENT pane is the scroll container — the sidebar (and the top
  *     bar) stay pinned in place no matter how far the page content
  *     scrolls (they never scroll out of view).
@@ -249,7 +250,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex w-full h-dvh overflow-hidden bg-background">
+    <div className="flex w-full h-[calc(100dvh-4rem)] overflow-hidden bg-background">
       {/* Desktop sidebar — in-flow but full viewport height (the shell is
        * h-dvh and only the content pane scrolls), so it stays pinned to
        * the left edge for the entire page. */}

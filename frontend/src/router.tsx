@@ -280,13 +280,9 @@ function RootComponent() {
 
   const hideFooter = pathname === '/login'
 
-  // /admin + /account render their own full-viewport shells (sidebar +
-  // top bar, h-dvh with an internal scroll pane). The customer header /
-  // footer / bottom-nav would stack extra chrome ABOVE the shell, break
-  // its viewport-height math, and scroll the "fixed" sidebar away — same
-  // rule MobileNav + SupportFab already follow.
-  const isAppShellRoute =
-    pathname.startsWith('/admin') || pathname.startsWith('/account')
+  const isAdminRoute = pathname.startsWith('/admin')
+  const isAccountRoute = pathname.startsWith('/account')
+  const isAppShellRoute = isAdminRoute || isAccountRoute
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -294,7 +290,7 @@ function RootComponent() {
       <ScrollRestoration />
       <AuthBootstrap />
 
-      {!isAppShellRoute && <Header />}
+      {!isAccountRoute && <Header />}
 
       <main
         className={cn(
