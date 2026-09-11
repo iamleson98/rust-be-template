@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, lazy, Suspense, useCallback } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useApp } from '@/lib/store'
 import { useNavigate, useRouterState } from '@/router'
 import { useT } from '@/lib/i18n'
@@ -27,7 +28,20 @@ const WishlistButton = lazy(() => import('@/features/wishlist/wishlist-button').
 const LoyaltyWidget = lazy(() => import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 
 export const Header = memo(function Header() {
-  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp()
+  // useShallow: re-render only when one of the picked fields actually
+  // changes — not on every unrelated store write (perf: the header sits
+  // above every customer page; chat typing, booking steps, etc. must not
+  // re-render it).
+  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp(useShallow((s) => ({
+    setChatOpen: s.setChatOpen,
+    compareList: s.compareList,
+    setCompareOpen: s.setCompareOpen,
+    setLoyaltyOpen: s.setLoyaltyOpen,
+    lang: s.lang,
+    setLang: s.setLang,
+    user: s.user,
+    setUser: s.setUser,
+  })))
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()

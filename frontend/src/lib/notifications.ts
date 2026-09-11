@@ -191,7 +191,7 @@ export function showNotification(
   try {
     const n = new Notification(title, {
       body,
-      icon: '/icon-192.png',
+      icon: '/icons/icon-192.png',
       badge: '/icon-96.png',
       tag: options?.tag,
       // silent: false — we want the OS to ring.
