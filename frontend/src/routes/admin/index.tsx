@@ -3,7 +3,7 @@
  * The persistent AdminShell comes from the router's admin layout route;
  * this file renders ONLY the dashboard panel into the shell's outlet.
  */
-import { AdminDashboard } from '@/components/admin/dashboard'
+import { AdminDashboard } from '@/features/admin/dashboard'
 
 export function AdminPage() {
   return (

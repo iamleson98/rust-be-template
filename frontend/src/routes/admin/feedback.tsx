@@ -4,7 +4,7 @@
  * cards + a server-side paginated moderation table. The persistent
  * AdminShell comes from the router's admin layout route.
  */
-import { FeedbackPanel } from '@/components/admin/feedback/feedback-panel'
+import { FeedbackPanel } from '@/features/admin/feedback/feedback-panel'
 
 export function AdminFeedbackPage() {
   return (

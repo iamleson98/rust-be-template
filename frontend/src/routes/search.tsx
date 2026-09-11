@@ -14,7 +14,7 @@
 import { useSearch, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useApp, type SearchParams } from '@/lib/store'
-import { SearchResults } from '@/components/search/search-results'
+import { SearchResults } from '@/features/search/search-results'
 
 export type RouteSearch = {
   from: string

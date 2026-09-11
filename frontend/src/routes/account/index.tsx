@@ -1,5 +1,5 @@
 /** Account route — `/account` (user profile + settings) */
-import { ProfileContent } from '@/components/account/profile-content'
+import { ProfileContent } from '@/features/account/profile-content'
 
 export function AccountPage() {
   return (

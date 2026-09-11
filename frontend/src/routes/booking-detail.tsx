@@ -31,7 +31,7 @@ import {
   XCircle,
   CreditCard,
 } from 'lucide-react'
-import { PaymentDialog } from '@/components/booking/payment-dialog'
+import { PaymentDialog } from '@/features/booking/flow/payment-dialog'
 import { useBookingPayments } from '@/lib/queries/payments'
 
 export function BookingDetailPage() {

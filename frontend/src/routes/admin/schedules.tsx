@@ -64,9 +64,9 @@ import type {
   AdminScheduleOut,
 } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
-import { ScheduleFormDialog } from '@/components/admin/schedules/schedule-form'
+import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'
 import { formatVND } from '@/lib/types'
-import { DAY_LABELS } from '@/components/admin/types'
+import { DAY_LABELS } from '@/features/admin/types'
 import { VEHICLE_TYPE_LABELS as VEHICLE_LABELS } from '@/lib/types'
 import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
 import { Skeleton } from '@/components/ui/skeleton'

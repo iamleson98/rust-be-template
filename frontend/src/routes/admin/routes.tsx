@@ -38,7 +38,7 @@ import { toast } from 'sonner'
 import { useAdminBrands, useAdminRoutes, useDeleteAdminRoute } from '@/lib/queries'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { AdminBrandOut, AdminRouteOut } from '@/lib/api/types.gen'
-import { RouteFormDialog } from '@/components/admin/routes/route-form'
+import { RouteFormDialog } from '@/features/admin/routes/route-form'
 import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
 
 const CITY_NAME_BY_ID = new Map<string, string>(VIETNAMESE_CITIES.map((c) => [c.id, c.name]))

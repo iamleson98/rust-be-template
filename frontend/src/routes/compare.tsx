@@ -1,5 +1,5 @@
 /** Compare route — `/compare` */
-import { TripCompare } from '@/components/search/trip-compare'
+import { TripCompare } from '@/features/search/trip-compare'
 
 export function ComparePage() {
   return <TripCompare />

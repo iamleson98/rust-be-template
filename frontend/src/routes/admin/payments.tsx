@@ -1,5 +1,5 @@
 /** Admin payments route — `/admin/payments` */
-import { AdminPaymentsPanel } from '@/components/admin/payments/payments-panel'
+import { AdminPaymentsPanel } from '@/features/admin/payments/payments-panel'
 
 export function AdminPaymentsPage() {
   return (

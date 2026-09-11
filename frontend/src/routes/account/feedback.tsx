@@ -4,7 +4,7 @@
  * Persistent AccountShell comes from the router's account layout route;
  * this file renders the feedback content into the shell's outlet.
  */
-import { AccountFeedbackContent } from '@/components/account/feedback-content'
+import { AccountFeedbackContent } from '@/features/account/feedback-content'
 
 export function AccountFeedbackPage() {
   return (

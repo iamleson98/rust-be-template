@@ -1,6 +1,6 @@
 /** Admin route — `/admin/chat` — chat support management page. */
-import { ChatPanel } from '@/components/admin/chat/chat-panel'
-import { useAdminChatWorkspace } from '@/components/admin/chat/use-admin-chat-workspace'
+import { ChatPanel } from '@/features/admin/chat/chat-panel'
+import { useAdminChatWorkspace } from '@/features/admin/chat/use-admin-chat-workspace'
 import { useApp } from '@/lib/store'
 
 export function AdminChatPage() {

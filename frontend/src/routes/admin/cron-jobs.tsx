@@ -1,5 +1,5 @@
 /** Admin route — `/admin/cron-jobs` — recurring background job management. */
-import { CronJobsPanel } from '@/components/admin/cron-jobs/cron-jobs-panel'
+import { CronJobsPanel } from '@/features/admin/cron-jobs/cron-jobs-panel'
 
 export function AdminCronJobsPage() {
   return (

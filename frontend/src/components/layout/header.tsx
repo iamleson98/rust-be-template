@@ -22,9 +22,9 @@ import { isStaffUser } from '@/lib/store'
 
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
-const NotificationBell = lazy(() => import('@/components/notifications/notification-bell').then((m) => ({ default: m.NotificationBell })))
-const WishlistButton = lazy(() => import('@/components/wishlist/wishlist-button').then((m) => ({ default: m.WishlistButton })))
-const LoyaltyWidget = lazy(() => import('@/components/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
+const NotificationBell = lazy(() => import('@/features/notifications/notification-bell').then((m) => ({ default: m.NotificationBell })))
+const WishlistButton = lazy(() => import('@/features/wishlist/wishlist-button').then((m) => ({ default: m.WishlistButton })))
+const LoyaltyWidget = lazy(() => import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 
 export const Header = memo(function Header() {
   const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp()

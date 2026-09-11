@@ -10,7 +10,7 @@
  * (browser history).
  */
 import { useParams, useNavigate } from '@tanstack/react-router'
-import { TripDetailDialog } from '@/components/trips/trip-detail-dialog'
+import { TripDetailDialog } from '@/features/trips/trip-detail-dialog'
 
 export function TripDetailPage() {
   const { tripId } = useParams({ from: '/trips/$tripId' })

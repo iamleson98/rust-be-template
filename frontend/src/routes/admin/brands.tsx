@@ -1,5 +1,5 @@
 /** Admin route — `/admin/brands` — brand management page. */
-import { AdminBrandManagement } from '@/components/admin/brands'
+import { AdminBrandManagement } from '@/features/admin/brands'
 
 export function AdminBrandsPage() {
   return (

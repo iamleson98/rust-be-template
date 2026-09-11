@@ -130,9 +130,9 @@ export async function render(url: string = '/'): Promise<string> {
     import('./components/layout/footer'),
     import('./components/layout/mobile-nav'),
     import('./components/layout/support-fab'),
-    import('./components/notifications/notification-bell'),
-    import('./components/wishlist/wishlist-button'),
-    import('./components/home/loyalty-widget'),
+    import('./features/notifications/notification-bell'),
+    import('./features/wishlist/wishlist-button'),
+    import('./features/home/loyalty-widget'),
   ])
 
   // ── PASS 1: streaming render to warm React.lazy's cache ─────────

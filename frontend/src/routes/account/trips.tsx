@@ -5,7 +5,7 @@
  * for completed trips. This is a convenience page under the /account
  * sidebar that wraps the existing MyBookings component.
  */
-import { MyBookings } from '@/components/bookings/my-bookings'
+import { MyBookings } from '@/features/booking/history/my-bookings'
 
 export function AccountTripsPage() {
   return (

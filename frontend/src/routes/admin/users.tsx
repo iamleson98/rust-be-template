@@ -4,7 +4,7 @@
  * the dashboard; the backend additionally enforces the
  * `admin:users:manage-roles` permission on the PATCH endpoint.
  */
-import { UsersPanel } from '@/components/admin/users/users-panel'
+import { UsersPanel } from '@/features/admin/users/users-panel'
 
 export function AdminUsersPage() {
   return (
