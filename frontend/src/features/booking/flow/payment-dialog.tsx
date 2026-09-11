@@ -22,9 +22,14 @@
  *
  * Usage: parent opens the dialog with an optional `paymentId` (resumes an
  * in-flight payment) + the booking id (used to create a new payment).
+ *
+ * The provider-specific bodies live in sibling files: `ProviderPicker`
+ * (payment-provider-picker.tsx), `GatewayRedirect` (gateway-redirect.tsx),
+ * `VietQrDisplay` (vietqr-display.tsx); the small `StatusPill` and
+ * `CodDisplay` stay here.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -33,16 +38,11 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import {
+  Banknote,
   CheckCircle2,
   Clock,
-  Copy,
-  ExternalLink,
   Loader2,
-  QrCode,
   ShieldCheck,
-  Wallet,
-  Building2,
-  Banknote,
   XCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -54,6 +54,9 @@ import {
   usePayment,
 } from '@/lib/queries/payments'
 import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
+import { ProviderPicker } from './payment-provider-picker'
+import { GatewayRedirect } from './gateway-redirect'
+import { VietQrDisplay } from './vietqr-display'
 
 export function PaymentDialog({
   paymentId,
@@ -207,91 +210,6 @@ export function PaymentDialog({
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Provider picker
-// ─────────────────────────────────────────────────────────────
-
-const PROVIDER_OPTIONS: {
-  key: PaymentProvider
-  label: string
-  icon: string
-  sub: string
-}[] = [
-  { key: 'vnpay', label: 'VNPay QR', icon: '🔵', sub: 'Ngân hàng / QR' },
-  { key: 'momo', label: 'Ví MoMo', icon: '🟣', sub: 'Quét mã QR' },
-  { key: 'zalopay', label: 'ZaloPay', icon: '🟢', sub: 'Ví Zalo' },
-  { key: 'vietqr', label: 'VietQR', icon: '🏦', sub: 'Chuyển khoản' },
-  { key: 'cod', label: 'Tiền mặt', icon: '💵', sub: 'Tại xe' },
-]
-
-function ProviderPicker({
-  onPick,
-  creating,
-  amount,
-  currency,
-  priorFailureReason,
-}: {
-  onPick: (p: PaymentProvider) => void
-  creating: boolean
-  amount: number
-  currency: Currency
-  priorFailureReason?: string
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
-        <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-          Số tiền
-        </div>
-        <div className="text-2xl font-extrabold text-slate-900">
-          {formatCurrency(amount, currency)}
-        </div>
-      </div>
-
-      {priorFailureReason && (
-        <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3 py-2">
-          Giao dịch trước thất bại: {priorFailureReason}. Vui lòng chọn phương thức khác.
-        </div>
-      )}
-
-      <div>
-        <h3 className="font-semibold text-sm mb-3">Phương thức thanh toán</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {PROVIDER_OPTIONS.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              disabled={creating}
-              onClick={() => onPick(m.key)}
-              className="rounded-lg border p-3 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-slate-200 hover:border-primary/40"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{m.icon}</span>
-                <div>
-                  <div className="font-medium text-sm">{m.label}</div>
-                  <div className="text-[11px] text-muted-foreground">{m.sub}</div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-slate-50 rounded-lg p-3">
-        <ShieldCheck className="h-4 w-4 text-primary shrink-0" />
-        Thông tin của bạn được mã hoá SSL 256-bit. Vé điện tử sẽ gửi qua SMS &amp; email sau khi thanh toán.
-      </div>
-
-      {creating && (
-        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Đang tạo giao dịch...
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────
 //  Sub-components
 // ─────────────────────────────────────────────────────────────
 
@@ -315,188 +233,6 @@ function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
     >
       <Icon className="h-3.5 w-3.5" />
       {cfg.label}
-    </div>
-  )
-}
-
-function providerMeta(provider: PaymentProvider): { label: string; icon: React.ReactNode } {
-  switch (provider) {
-    case 'vnpay':
-      return { label: 'VNPay QR', icon: <Wallet className="h-5 w-5 text-primary" /> }
-    case 'momo':
-      return { label: 'Ví MoMo', icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> }
-    case 'zalopay':
-      return { label: 'ZaloPay', icon: <Wallet className="h-5 w-5 text-primary" /> }
-    case 'vietqr':
-      return { label: 'VietQR / Chuyển khoản', icon: <QrCode className="h-5 w-5 text-emerald-600" /> }
-    case 'cod':
-      return { label: 'Thanh toán tại xe', icon: <Banknote className="h-5 w-5 text-amber-600" /> }
-    default:
-      return { label: provider, icon: <Wallet className="h-5 w-5" /> }
-  }
-}
-
-function GatewayRedirect({
-  provider,
-  gatewayUrl,
-  status,
-}: {
-  provider: PaymentProvider
-  gatewayUrl?: string | null
-  status: PaymentOut['status']
-}) {
-  const meta = providerMeta(provider)
-  if (status === 'completed') {
-    return (
-      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
-        <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
-        <div className="text-sm font-medium text-emerald-800">
-          Cảm ơn bạn! Thanh toán đã thành công.
-        </div>
-      </div>
-    )
-  }
-  if (!gatewayUrl) {
-    return (
-      <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center text-sm text-amber-800">
-        Đang chờ cổng thanh toán phản hồi...
-      </div>
-    )
-  }
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        {meta.icon}
-        <span className="font-medium text-sm">{meta.label}</span>
-      </div>
-      <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
-        <Button
-          className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Mở trang thanh toán
-        </Button>
-      </a>
-      <p className="text-[11px] text-muted-foreground text-center">
-        Sau khi hoàn tất trên trang của {meta.label}, hệ thống sẽ tự động xác nhận trong vài giây.
-      </p>
-    </div>
-  )
-}
-
-function VietQrDisplay({
-  payment,
-  currency,
-}: {
-  payment: PaymentOut
-  currency: Currency
-}) {
-  const inst = payment.bankTransferInstructions
-  const qrSrc = useMemo(() => {
-    if (payment.qrImageDataUri) return payment.qrImageDataUri
-    if (payment.qrPayload) {
-      // Fallback: encode the payload string with a client-side QR generator.
-      // We use the public `api.qrserver.com` endpoint to avoid pulling a JS
-      // QR library — but this requires network access. The pre-rendered
-      // `qrImageDataUri` from the server is preferred (offline + no tracking).
-      const url = new URL('https://api.qrserver.com/v1/create-qr-code/')
-      url.searchParams.set('size', '300x300')
-      url.searchParams.set('data', payment.qrPayload)
-      return url.toString()
-    }
-    return null
-  }, [payment.qrImageDataUri, payment.qrPayload])
-
-  if (!inst) {
-    return (
-      <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-        Thông tin VietQR chưa sẵn sàng.
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Building2 className="h-5 w-5 text-emerald-600" />
-        <span className="font-medium text-sm">{inst.bankName}</span>
-      </div>
-
-      {/* QR image */}
-      {qrSrc && (
-        <div className="flex justify-center">
-          <div className="rounded-lg border-2 border-slate-200 bg-white p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrSrc} alt="VietQR" width={240} height={240} />
-          </div>
-        </div>
-      )}
-
-      {/* Bank-transfer instructions */}
-      <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-        <CopyRow label="Ngân hàng" value={inst.bankName} />
-        <CopyRow label="Số tài khoản" value={inst.accountNo} />
-        <CopyRow label="Chủ tài khoản" value={inst.accountName} />
-        <CopyRow
-          label="Số tiền"
-          value={formatCurrency(inst.amount, currency)}
-          highlight
-        />
-        <CopyRow label="Nội dung CK" value={inst.memo} highlight />
-      </div>
-
-      <p className="text-[11px] text-muted-foreground text-center">
-        Quét mã QR bằng app ngân hàng hoặc chuyển khoản theo thông tin trên. Hệ thống tự xác nhận
-        sau khi nhận được tiền.
-      </p>
-    </div>
-  )
-}
-
-function CopyRow({
-  label,
-  value,
-  highlight,
-}: {
-  label: string
-  value: string
-  highlight?: boolean
-}) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value)
-      setCopied(true)
-      toast.success('Đã sao chép')
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      toast.error('Không sao chép được')
-    }
-  }
-  return (
-    <div className="flex items-center justify-between px-3 py-2">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <span
-          className={`text-sm font-medium ${
-            highlight ? 'text-primary font-bold' : 'text-slate-900'
-          }`}
-        >
-          {value}
-        </span>
-        <button
-          type="button"
-          onClick={copy}
-          className="text-slate-400 hover:text-primary transition-colors"
-          aria-label={`Sao chép ${label}`}
-        >
-          {copied ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </div>
     </div>
   )
 }

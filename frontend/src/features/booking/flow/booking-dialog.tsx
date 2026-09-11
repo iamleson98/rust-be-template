@@ -5,59 +5,11 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
 import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
-import { formatDateTimeVN, normalizePhone, SEAT_CLASS_LABELS } from '@/lib/types'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Form } from '@/components/ui/form'
+import { normalizePhone } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
-import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { toast } from 'sonner'
-import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Tag,
-  X,
-  User,
-  Phone,
-  Mail,
-  Shield,
-  ShieldCheck,
-  ShieldAlert,
-  Copy,
-  Ticket,
-  Calendar,
-  Bus,
-  // Group booking icons
-  Plus,
-  Trash2,
-  Armchair,
-  GripVertical,
-  Sparkles,
-  Users,
-} from 'lucide-react'
 import {
   type TripDetail,
   type BookingValues,
@@ -65,9 +17,7 @@ import {
   type SelectedSeat,
   bookingSchema,
   getPassengerType,
-  PASSENGER_TYPE_META,
 } from './booking-form'
-import { SeatSelector } from './seat-selector'
 import {
   type InsuranceLevel,
 } from './price-summary'
@@ -76,9 +26,9 @@ import {
   type PaymentMethodKey,
 } from './payment-method'
 import { BookingSuccess, type LastBooking } from './booking-success'
-import {
-  PassengerSummary,
-} from './passenger-list'
+import { BookingStepHeader } from './booking-step-header'
+import { BookingPassengerStep } from './booking-passenger-step'
+import { BookingContactStep } from './booking-contact-step'
 
 export function BookingDialog() {
   const {
@@ -433,493 +383,58 @@ export function BookingDialog() {
     setBookingStep('payment')
   }
 
-  const stepIndex = ((bookingStep: string): number => {
-    if (bookingStep === 'contact') return 1
-    if (bookingStep === 'payment') return 2
-    if (bookingStep === 'success') return 3
-    return 0 // 'idle' or 'passengers'
-  })(bookingStep)
-  const steps = ['Hành khách', 'Liên hệ', 'Thanh toán', 'Hoàn tất']
-
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
       <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
         {/* Header */}
-        <div className="px-5 py-4 border-b bg-linear-to-r from-blue-50 to-blue-50">
-          <DialogTitle className="text-lg font-extrabold flex items-center gap-2">
-            <Ticket className="h-5 w-5 text-blue-600" />
-            {bookingStep === 'success' ? 'Đặt vé thành công!' : 'Hoàn tất đặt vé'}
-          </DialogTitle>
-          <DialogDescription className="text-xs mt-1">
-            {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : 'Đang tải...'}
-          </DialogDescription>
-
-          {/* Stepper */}
-          {bookingStep !== 'success' && (
-            <div className="flex items-center gap-1 mt-3">
-              {steps.slice(0, 3).map((s, i) => (
-                <div key={s} className="flex items-center gap-1 flex-1">
-                  <div
-                    className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${i < stepIndex
-                        ? 'bg-blue-600 text-white'
-                        : i === stepIndex
-                          ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                          : 'bg-slate-200 text-slate-500'
-                      }`}
-                  >
-                    {i < stepIndex ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-                  </div>
-                  <span className={`text-xs ${i === stepIndex ? 'font-semibold text-blue-700' : 'text-muted-foreground'}`}>{s}</span>
-                  {i < 2 && <div className={`h-px flex-1 mx-1 ${i < stepIndex ? 'bg-blue-400' : 'bg-slate-200'}`} />}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Trip summary bar */}
-        {trip && bookingStep !== 'success' && (
-          <div className="px-5 py-2.5 bg-slate-50 border-b flex items-center gap-3 text-xs">
-            <Bus className="h-4 w-4 text-blue-600" />
-            <span className="font-medium">{trip.from.name} → {trip.to.name}</span>
-            <span className="text-muted-foreground flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {formatDateTimeVN(trip.trip.departureAt)}
-            </span>
-            <div className="ml-auto flex items-center gap-1">
-              {selectedSeatCodes.map((s) => (
-                <Badge key={s.id} variant="outline" className="font-mono text-[10px]">
-                  {s.code}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
+        <BookingStepHeader
+          bookingStep={bookingStep}
+          trip={trip}
+          selectedSeatCodes={selectedSeatCodes}
+        />
 
         <div className="overflow-y-auto max-h-[calc(92vh-220px)]">
           <Form {...form}>
             {/* Step: passengers */}
             {bookingStep === 'passengers' && (
-              <div className="p-5 space-y-4">
-                {/* Header + actions */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <div>
-                    <h3 className="font-semibold text-sm flex items-center gap-1.5">
-                      <Users className="h-4 w-4 text-blue-600" />
-                      Thông tin hành khách
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {passengers.length}/{selectedSeatCodes.length} hành khách • {selectedSeatCodes.length} ghế đã chọn
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyContactToFirst}
-                      disabled={!form.getValues('contactName') && !guestName}
-                      className="gap-1.5 h-8 text-xs"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Sao chép từ liên hệ
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={autoAssignSeats}
-                      disabled={unassignedCount === 0}
-                      className="gap-1.5 h-8 text-xs"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Tự ghép ghế
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Mini seat preview — color-coded by passenger */}
-                {selectedSeatCodes.length > 0 && (
-                  <SeatSelector
-                    selectedSeats={selectedSeatCodes}
-                    passengers={passengers}
-                  />
-                )}
-
-                {/* Passenger cards */}
-                <div className="space-y-3">
-                  {passengerFields.map((p, i) => {
-                    const passenger = passengers[i] ?? (p as PassengerFormValue)
-                    const typeMeta = PASSENGER_TYPE_META[getPassengerType(passenger.age)]
-                    const assignedSeat = selectedSeatCodes.find((s) => s.id === passenger.seatId)
-                    return (
-                      <div
-                        key={p.id}
-                        className={`rounded-xl border-2 bg-linear-to-br ${typeMeta.gradient} ${typeMeta.border} p-3 space-y-2.5`}
-                      >
-                        {/* Card header */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" aria-hidden />
-                            <div className={`h-7 w-7 rounded-full ${typeMeta.pill} inline-flex items-center justify-center text-xs font-bold shrink-0`}>
-                              {i + 1}
-                            </div>
-                            <span className="text-xs font-medium text-slate-700 shrink-0 hidden sm:inline">
-                              Hành khách {i + 1}
-                            </span>
-                            <Badge className={`${typeMeta.pill} border-0 text-[10px] gap-1 shrink-0`}>
-                              {typeMeta.icon}
-                              {typeMeta.label}
-                              {getPassengerType(passenger.age) === 'infant' && <span className="opacity-70">(miễn phí)</span>}
-                            </Badge>
-                          </div>
-                          {passengerFields.length > 1 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 shrink-0"
-                              onClick={() => removePassenger(i)}
-                              aria-label="Xoá hành khách"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Inputs: name + age + gender */}
-                        <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_120px] gap-2">
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${i}.name`}
-                            render={({ field }) => (
-                              <FormItem className="relative space-y-0">
-                                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                                <FormControl>
-                                  <Input
-                                    {...field}
-                                    placeholder="Họ và tên (như CCCD)"
-                                    className="pl-8 bg-white"
-                                  />
-                                </FormControl>
-                                <FormMessage className="mt-1" />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${i}.age`}
-                            render={({ field }) => (
-                              <FormItem className="space-y-0">
-                                <FormControl>
-                                  <Input
-                                    type="number"
-                                    min={0}
-                                    max={120}
-                                    value={field.value ?? 0}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
-                                    onBlur={field.onBlur}
-                                    name={field.name}
-                                    ref={field.ref}
-                                    placeholder="Tuổi"
-                                    className="bg-white"
-                                  />
-                                </FormControl>
-                                <FormMessage className="mt-1" />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${i}.gender`}
-                            render={({ field }) => (
-                              <FormItem className="space-y-0">
-                                <Select value={field.value} onValueChange={field.onChange}>
-                                  <FormControl>
-                                    <SelectTrigger className="bg-white">
-                                      <SelectValue placeholder="Giới tính" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    <SelectItem value="male">Nam</SelectItem>
-                                    <SelectItem value="female">Nữ</SelectItem>
-                                    <SelectItem value="other">Khác</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage className="mt-1" />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-
-                        {/* Seat assignment dropdown */}
-                        <div className="flex items-center gap-2">
-                          <Armchair className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <FormField
-                            control={form.control}
-                            name={`passengers.${i}.seatId`}
-                            render={({ field }) => (
-                              <FormItem className="flex-1 space-y-0">
-                                <Select value={field.value} onValueChange={field.onChange}>
-                                  <FormControl>
-                                    <SelectTrigger className="bg-white">
-                                      <SelectValue placeholder="Chọn ghế cho hành khách này" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {selectedSeatCodes.map((s) => {
-                                      const assignedTo = passengers.find((pp, j) => pp.seatId === s.id && j !== i)
-                                      const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null
-                                      return (
-                                        <SelectItem
-                                          key={s.id}
-                                          value={s.id}
-                                          disabled={!!assignedTo}
-                                          textValue={`${s.code} • ${SEAT_CLASS_LABELS[s.class] ?? s.class} • ${formatCurrency(s.price, currency)}${assignedTo ? ` • đã ghép HP${assignedToIdx}` : ''}`}
-                                        >
-                                          <div className="flex items-center gap-2 w-full">
-                                            <span className="font-mono font-bold text-xs">{s.code}</span>
-                                            <span className="text-[10px] text-muted-foreground">
-                                              {SEAT_CLASS_LABELS[s.class] ?? s.class}
-                                            </span>
-                                            <span className="text-[10px] text-muted-foreground ml-auto">
-                                              {formatCurrency(s.price, currency)}
-                                            </span>
-                                            {assignedTo && (
-                                              <span className="text-[10px] text-rose-500 ml-1 shrink-0">
-                                                • HP{assignedToIdx}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </SelectItem>
-                                      )
-                                    })}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage className="mt-1" />
-                              </FormItem>
-                            )}
-                          />
-                          {assignedSeat && (
-                            <Badge variant="outline" className="font-mono text-[10px] shrink-0 gap-1">
-                              {formatCurrency(assignedSeat.price, currency)}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Add passenger button */}
-                {passengerFields.length < selectedSeatCodes.length && (
-                  <Button
-                    variant="outline"
-                    onClick={addPassenger}
-                    className="w-full gap-1.5 border-dashed"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Thêm hành khách (còn {selectedSeatCodes.length - passengerFields.length} ghế)
-                  </Button>
-                )}
-
-                {/* Summary section */}
-                <PassengerSummary
-                  passengers={passengers}
-                  selectedSeatCount={selectedSeatCodes.length}
-                  subtotal={subtotal}
-                  currency={currency}
-                  unassignedCount={unassignedCount}
-                  hasDuplicateSeats={hasDuplicateSeats}
-                />
-
-                {error && <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">{error}</div>}
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={gotoContact}
-                    disabled={!canContinueStep1}
-                    className="gap-1 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
-                  >
-                    Tiếp tục <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+              <BookingPassengerStep
+                form={form}
+                passengers={passengers}
+                passengerFields={passengerFields}
+                selectedSeatCodes={selectedSeatCodes}
+                currency={currency}
+                guestName={guestName}
+                subtotal={subtotal}
+                unassignedCount={unassignedCount}
+                hasDuplicateSeats={hasDuplicateSeats}
+                canContinueStep1={canContinueStep1}
+                error={error}
+                addPassenger={addPassenger}
+                removePassenger={removePassenger}
+                autoAssignSeats={autoAssignSeats}
+                copyContactToFirst={copyContactToFirst}
+                gotoContact={gotoContact}
+              />
             )}
 
             {/* Step: contact + campaign */}
             {bookingStep === 'contact' && (
-              <div className="p-5 space-y-5">
-                {/* Privacy trust signal — affirms data protection */}
-                <PrivacyNotice />
-
-                <div>
-                  <h3 className="font-semibold text-sm mb-3">Thông tin liên hệ</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="contactName"
-                      render={({ field }) => (
-                        <FormItem className="space-y-1.5 sm:col-span-2">
-                          <FormLabel>
-                            Họ tên người liên hệ{' '}
-                            <span className="text-destructive" aria-hidden="true">*</span>
-                          </FormLabel>
-                          <div className="relative">
-                            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                            <FormControl>
-                              <Input {...field} placeholder="Nguyễn Văn A" className="pl-8" />
-                            </FormControl>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactPhone"
-                      render={({ field }) => (
-                        <FormItem className="space-y-1.5">
-                          <FormLabel>
-                            Số điện thoại{' '}
-                            <span className="text-destructive" aria-hidden="true">*</span>
-                          </FormLabel>
-                          <div className="relative">
-                            <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                            <FormControl>
-                              <Input
-                                {...field}
-                                placeholder="09xx xxx xxx"
-                                className="pl-8"
-                                inputMode="tel"
-                                autoComplete="tel"
-                              />
-                            </FormControl>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactEmail"
-                      render={({ field }) => (
-                        <FormItem className="space-y-1.5">
-                          <FormLabel>Email (tùy chọn)</FormLabel>
-                          <div className="relative">
-                            <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-                            <FormControl>
-                              <Input
-                                {...field}
-                                type="email"
-                                placeholder="email@example.com"
-                                className="pl-8"
-                                autoComplete="email"
-                              />
-                            </FormControl>
-                          </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-
-                {/* Travel Insurance */}
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <ShieldCheck className="h-4 w-4 text-blue-600" />
-                    <span className="font-semibold text-sm">Bảo hiểm chuyến đi</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {([
-                      {
-                        key: 'none' as const,
-                        label: 'Không bảo hiểm',
-                        cost: 0,
-                        desc: 'Không bao gồm bảo hiểm',
-                        icon: <Shield className="h-5 w-5" />,
-                      },
-                      {
-                        key: 'basic' as const,
-                        label: 'Bảo hiểm cơ bản',
-                        cost: 5000,
-                        desc: 'Hoàn hủy lên tới 50%',
-                        icon: <ShieldCheck className="h-5 w-5" />,
-                      },
-                      {
-                        key: 'comprehensive' as const,
-                        label: 'Bảo hiểm toàn diện',
-                        cost: 15000,
-                        desc: 'Hoàn 100%, trễ 2h+, mất hành lý',
-                        icon: <ShieldAlert className="h-5 w-5" />,
-                      },
-                    ]).map((opt) => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() => setInsuranceLevel(opt.key)}
-                        className={`rounded-lg border p-3 text-left transition-all ${insuranceLevel === opt.key
-                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
-                            : 'border-slate-200 hover:border-blue-300 bg-white'
-                          }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={insuranceLevel === opt.key ? 'text-blue-600' : 'text-slate-400'}>{opt.icon}</span>
-                          <span className="font-medium text-xs">{opt.label}</span>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">{opt.desc}</div>
-                        <div className="mt-1.5 font-bold text-sm text-blue-700">{opt.cost === 0 ? formatCurrency(0, currency) : `${formatCurrency(opt.cost, currency)}/chuyến`}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Campaign */}
-                <div className="rounded-lg border bg-amber-50/50 p-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Tag className="h-4 w-4 text-amber-600" />
-                    <span className="font-medium text-sm">Mã khuyến mãi</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={campaignCode}
-                      onChange={(e) => { setCampaignCode(e.target.value); setCampaignResult(null) }}
-                      placeholder="VD: TET2025, LIMO20, PT50K..."
-                      className="bg-white"
-                    />
-                    <Button variant="outline" onClick={checkCampaign} disabled={checkingCampaign || !campaignCode.trim()}>
-                      {checkingCampaign ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Áp dụng'}
-                    </Button>
-                  </div>
-                  {campaignResult?.valid && campaignResult.campaign && (
-                    <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                        <div>
-                          <div className="font-medium text-blue-800">{campaignResult.campaign.name}</div>
-                          <div className="text-xs text-blue-600">{campaignResult.campaign.message}</div>
-                        </div>
-                      </div>
-                      <div className="font-bold text-blue-700">-{formatCurrency(discount, currency)}</div>
-                    </div>
-                  )}
-                  {campaignResult?.valid === false && campaignResult.error && (
-                    <div className="mt-2 rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 flex items-center gap-2">
-                      <X className="h-4 w-4" />
-                      {campaignResult.error}
-                    </div>
-                  )}
-                </div>
-
-                {error && <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">{error}</div>}
-
-                <div className="flex justify-between">
-                  <Button variant="outline" onClick={() => setBookingStep('passengers')} className="gap-1">
-                    <ChevronLeft className="h-4 w-4" /> Quay lại
-                  </Button>
-                  <Button onClick={gotoPayment} className="gap-1">
-                    Tiếp tục <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+              <BookingContactStep
+                form={form}
+                setBookingStep={setBookingStep}
+                insuranceLevel={insuranceLevel}
+                setInsuranceLevel={setInsuranceLevel}
+                currency={currency}
+                campaignCode={campaignCode}
+                setCampaignCode={setCampaignCode}
+                setCampaignResult={setCampaignResult}
+                checkingCampaign={checkingCampaign}
+                checkCampaign={checkCampaign}
+                campaignResult={campaignResult}
+                discount={discount}
+                error={error}
+                gotoPayment={gotoPayment}
+              />
             )}
 
             {/* Step: payment */}
