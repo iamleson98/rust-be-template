@@ -39,6 +39,18 @@ jobs:
           # the [patch.crates-io] libsqlite3-sys → rustqlite-compat path.
           submodules: recursive
 
+      - name: Pull latest rust-sql engine (master)
+        # The submodule pin records the last human-reviewed engine commit,
+        # but the engine evolves independently — CI must exercise the
+        # NEWEST master so integration breakage surfaces here (type
+        # errors, clippy lints, test failures), not in production.
+        # rust-sql is a public repo → anonymous fetch needs no credentials.
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote rust-sql
+          echo "Building against rust-sql master:"
+          git -C rust-sql log --oneline -1
+
       - name: Install Rust toolchain (stable + clippy + rustfmt)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -99,6 +111,14 @@ jobs:
           # Submodule needed: the audit must resolve the patched
           # libsqlite3-sys path dependency.
           submodules: recursive
+
+      - name: Pull latest rust-sql engine (master)
+        # Same rationale as the backend job: audit the dependency tree we
+        # would actually ship, including the newest engine's deps.
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote rust-sql
+          git -C rust-sql log --oneline -1
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -240,6 +260,15 @@ jobs:
         with:
           # The engine submodule is part of the build context.
           submodules: recursive
+
+      - name: Pull latest rust-sql engine (master)
+        # The Docker build context is the WORKING TREE — updating the
+        # submodule before `docker build` bakes the newest engine source
+        # into the image, matching what deploy.yml ships.
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote rust-sql
+          git -C rust-sql log --oneline -1
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

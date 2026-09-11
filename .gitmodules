@@ -1,3 +1,6 @@
 [submodule "rust-sql"]
 	path = rust-sql
 	url = https://github.com/iamleson98/rust-sql.git
+	# Track master so `git submodule update --remote` (used by CI/CD to
+	# always build the newest engine) resolves to the right branch.
+	branch = master

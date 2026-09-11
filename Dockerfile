@@ -146,12 +146,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ARG VERSION=dev
 ARG CREATED=1970-01-01T00:00:00Z
+ARG ENGINE_SHA=unknown
 
 # OCI labels — `docker inspect` shows exactly which git tag built this.
 LABEL org.opencontainers.image.title="datxevui" \
       org.opencontainers.image.description="DatXeVui — Rust/Axum backend serving the React frontend, API, WebSocket, and Tantivy place search" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${CREATED}" \
+      com.datxevui.rust-sql.sha="${ENGINE_SHA}" \
       org.opencontainers.image.source="https://github.com/iamleson98/rust-be-template" \
       org.opencontainers.image.licenses="MIT"
 

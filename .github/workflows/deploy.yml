@@ -72,6 +72,22 @@ jobs:
           # image via [patch.crates-io] — the build context needs it.
           submodules: recursive
 
+      - name: Pull latest rust-sql engine (master)
+        # RELEASES ALWAYS SHIP THE NEWEST ENGINE: the submodule pin only
+        # records the last human-reviewed commit, but the engine evolves
+        # independently — updating to origin/master here means every
+        # deployed image exercises the latest rust-sql, and the sha below
+        # is baked into the image label for production traceability.
+        # (Trade-off, accepted deliberately: a tag is no longer a bit-for-bit
+        # reproducible build — the engine sha label records what shipped.)
+        id: engine
+        run: |
+          git submodule update --init --recursive
+          git submodule update --remote rust-sql
+          echo "sha=$(git -C rust-sql rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Deploying with rust-sql master:"
+          git -C rust-sql log --oneline -1
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -118,12 +134,15 @@ jobs:
           platforms: linux/amd64   # Contabo VPSes are x86_64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            com.datxevui.rust-sql.sha=${{ steps.engine.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ steps.meta.outputs.version }}
             CREATED=${{ steps.image.outputs.created }}
+            ENGINE_SHA=${{ steps.engine.outputs.sha }}
 
   deploy:
     name: Deploy (Swarm + shared Caddy)
