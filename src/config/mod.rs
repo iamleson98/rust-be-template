@@ -45,6 +45,17 @@ fn env_parse<T: std::str::FromStr>(key: &str) -> Option<T> {
     env_var(key).and_then(|v| v.parse().ok())
 }
 
+/// `n` seconds as a `Duration`, or `Duration::MAX` when `n == 0` —
+/// the "0 disables this timeout" convention shared by the call-janitor
+/// knobs (`ring_timeout`, `max_call_duration`).
+fn secs_or_max(n: u64) -> std::time::Duration {
+    if n == 0 {
+        std::time::Duration::MAX
+    } else {
+        std::time::Duration::from_secs(n)
+    }
+}
+
 // ────────────────────────────────────────────────────────────────
 // Struct Definitions & Defaults
 // ────────────────────────────────────────────────────────────────
@@ -517,6 +528,25 @@ pub struct AudioCallConfig {
     /// is closed"). Empty → device push disabled (WS ring + Android
     /// duty mode still cover backgrounded apps).
     pub fcm_credentials_json: String,
+    /// Server-side ring timeout: how long a session may stay RINGING
+    /// (per agent attempt — every ring-escalation re-arms the clock)
+    /// before the janitor expires it. The client's own ring timer
+    /// (sends `hangup reason:"timeout"`) is the primary path; this is
+    /// the safety net for frozen/killed clients whose socket stays
+    /// alive. Without it a zombie RINGING session locks the customer
+    /// into `customer-busy` and excludes the ringing agent from new
+    /// offers — forever. 0 disables the ring expiry.
+    pub ring_timeout_sec: u64,
+    /// Hard cap on a session's TOTAL lifetime (ringing + active) — the
+    /// safety net for zombie ACTIVE calls where both clients' call UIs
+    /// died without sending `hangup` (the agent would stay `in_call`
+    /// forever and be invisible to routing). Generously beyond any
+    /// legitimate support call. 0 = uncapped.
+    pub max_call_duration_sec: u64,
+    /// How often the call-session janitor sweeps. Cheap when idle
+    /// (one DashMap scan of a usually-empty map). 0 disables the
+    /// janitor entirely (both expiries above stop working).
+    pub janitor_interval_sec: u64,
 }
 
 impl Default for AudioCallConfig {
@@ -525,11 +555,36 @@ impl Default for AudioCallConfig {
             enabled: env_parse("AUDIO_CALL_ENABLED").unwrap_or(true),
             ice_servers: env_var("AUDIO_CALL_ICE_SERVERS").unwrap_or_default(),
             fcm_credentials_json: env_var("FCM_CREDENTIALS_JSON").unwrap_or_default(),
+            // 60s matches the mobile app's own ring timer; the janitor
+            // only fires when that timer failed to (frozen app, dead
+            // client, reconnect-race).
+            ring_timeout_sec: env_parse("AUDIO_CALL_RING_TIMEOUT_SECS").unwrap_or(60),
+            // 4h is far beyond any support call, while still bounding
+            // a zombie ACTIVE session's agent-busy leak to one shift.
+            max_call_duration_sec: env_parse("AUDIO_CALL_MAX_CALL_DURATION_SECS").unwrap_or(14_400),
+            janitor_interval_sec: env_parse("AUDIO_CALL_JANITOR_INTERVAL_SECS").unwrap_or(15),
         }
     }
 }
 
 impl AudioCallConfig {
+    /// Ring timeout as a `Duration`; `Duration::MAX` when disabled (0).
+    pub fn ring_timeout(&self) -> std::time::Duration {
+        secs_or_max(self.ring_timeout_sec)
+    }
+
+    /// Max call duration as a `Duration`; `Duration::MAX` when
+    /// disabled (0).
+    pub fn max_call_duration(&self) -> std::time::Duration {
+        secs_or_max(self.max_call_duration_sec)
+    }
+
+    /// Janitor sweep interval as a `Duration`; `Duration::ZERO` when
+    /// disabled (0) — `spawn_janitor` treats that as "don't spawn".
+    pub fn janitor_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.janitor_interval_sec)
+    }
+
     pub fn ice_servers_json(&self) -> serde_json::Value {
         if self.ice_servers.is_empty() {
             return serde_json::Value::Array(vec![]);

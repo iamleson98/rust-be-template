@@ -19,7 +19,7 @@ import { Activity } from 'lucide-react'
 import { DatabaseEngineSection } from '@/features/admin/system/database-engine-section'
 import { SystemMetricsSection } from '@/features/admin/system/system-metrics-section'
 import { SystemStatusSkeleton } from '@/features/admin/system/system-status-skeleton'
-import { DatabaseCard, UptimeCard, WebSocketCard } from '@/features/admin/system/system-status-cards'
+import { CallCard, DatabaseCard, UptimeCard, WebSocketCard } from '@/features/admin/system/system-status-cards'
 import { useSystemStatus } from '@/lib/queries'
 
 export function AdminSystemPage() {
@@ -37,9 +37,10 @@ export function AdminSystemPage() {
         ) : !data ? (
           <p className="text-sm text-muted-foreground">Failed to load system status</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <UptimeCard data={data} />
             <WebSocketCard data={data} />
+            <CallCard data={data} />
             <DatabaseCard data={data} />
           </div>
         )}

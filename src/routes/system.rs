@@ -21,6 +21,9 @@ use axum::Json;
 use serde::Serialize;
 use utoipa::ToSchema;
 
+use crate::audio_call::hub::call_hub;
+use crate::audio_call::janitor::janitor_stats;
+use crate::audio_call::session::{sessions, CallState};
 use crate::dto::chat::ChatStatsResponse;
 use crate::dto::system::SystemMetrics;
 use crate::error::AppResult;
@@ -33,8 +36,37 @@ use crate::state::AppState;
 pub struct SystemStatusResponse {
     pub uptime: SystemUptime,
     pub websocket: WebsocketStats,
+    /// Audio-call subsystem: live sessions + the janitor's release
+    /// counters ("how often did the safety net fire").
+    pub calls: CallSystemStats,
     pub database: DatabaseStats,
     pub process: ProcessStats,
+}
+
+/// Audio-call subsystem stats — live sessions plus the janitor's
+/// cumulative resource-release counters. The janitor counters answer
+/// "are calls being left dangling?" without grepping logs: anything
+/// above zero means the server (not a client) had to end a call.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CallSystemStats {
+    /// Live call sessions (ringing + active).
+    pub sessions: usize,
+    /// Sessions currently RINGING (waiting for an answer).
+    pub ringing: usize,
+    /// Sessions currently ACTIVE (media negotiated).
+    pub active: usize,
+    /// Agent sockets registered on the call hub (one per device).
+    pub agent_sockets: usize,
+    /// Ringing sessions the janitor expired since boot (frozen
+    /// callers, dead ring timers) — each one released the agent's
+    /// busy flag and the customer's busy lock.
+    pub janitor_ring_expired: u64,
+    /// Of those, how many were re-routed to another agent.
+    pub janitor_ring_rerouted: u64,
+    /// Active sessions the janitor tore down at the hard lifetime cap
+    /// since boot (both call UIs died without hanging up).
+    pub janitor_active_expired: u64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -367,6 +399,26 @@ pub async fn system_status(
     let ws_stats = crate::ws::hub::hub().stats();
     let online_employees = crate::ws::hub::hub().count_online_staff_total();
 
+    // ── Audio-call subsystem stats ────────────────────────────────
+    // Live sessions split by state + the janitor's release counters.
+    let (mut call_ringing, mut call_active) = (0usize, 0usize);
+    for s in sessions().sessions_iter() {
+        match s.state {
+            CallState::Ringing => call_ringing += 1,
+            CallState::Active => call_active += 1,
+        }
+    }
+    let (ring_expired, ring_rerouted, active_expired) = janitor_stats();
+    let calls = CallSystemStats {
+        sessions: call_ringing + call_active,
+        ringing: call_ringing,
+        active: call_active,
+        agent_sockets: call_hub().online_agent_count(),
+        janitor_ring_expired: ring_expired,
+        janitor_ring_rerouted: ring_rerouted,
+        janitor_active_expired: active_expired,
+    };
+
     // ── Process info (cross-platform via `sysinfo`) ───────────────
     //
     // `sysinfo` works on Linux, macOS, + Windows. It refreshes the
@@ -415,6 +467,7 @@ pub async fn system_status(
             online_employees,
             distinct_ips: ws_stats.distinct_ips,
         },
+        calls,
         database: DatabaseStats {
             backend: db_backend,
             url_masked: db_url_masked,

@@ -1,8 +1,9 @@
 'use client'
 
 /**
- * System Status cards (platform runtime): uptime, the WebSocket hub
- * and the database (pool or embedded engine).
+ * System Status cards (platform runtime): uptime, the WebSocket hub,
+ * the audio-call subsystem (live sessions + janitor releases) and the
+ * database (pool or embedded engine).
  *
  * From the previous page, minus the CPU & Memory and Host info cards —
  * superseded by the Server Metrics section's CpuCard / ProcessCard /
@@ -11,7 +12,7 @@
  * Extracted from the original 'src/routes/admin/system.tsx'.
  */
 
-import { Clock, Database, Wifi } from 'lucide-react'
+import { Clock, Database, PhoneCall, Wifi } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSystemStatus } from '@/lib/queries'
@@ -70,6 +71,51 @@ export function WebSocketCard({ data }: { data: NonNullable<StatusData> }) {
           </div>
           <div>Rooms: {ws.rooms}</div>
           <div>Distinct IPs: {ws.distinctIps}</div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export function CallCard({ data }: { data: NonNullable<StatusData> }) {
+  const calls = data.calls
+  // Janitor counters: any release above zero means the SERVER had to
+  // end a call no client hung up (frozen caller / dead call UI) — the
+  // "resource auto release after call" safety net doing its job.
+  const janitorTotal =
+    (calls?.janitorRingExpired ?? 0) + (calls?.janitorActiveExpired ?? 0)
+
+  return (
+    <Card data-testid="status-call-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2 text-muted-foreground">
+          <PhoneCall className="h-4 w-4" aria-hidden /> Audio Calls
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">
+          {calls?.sessions ?? 0}
+          <span className="text-sm text-muted-foreground"> live session{calls?.sessions === 1 ? '' : 's'}</span>
+        </div>
+        <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
+          <div>
+            Ringing: <span className="font-medium text-amber-600">{calls?.ringing ?? 0}</span> · Active:{' '}
+            <span className="font-medium text-emerald-600">{calls?.active ?? 0}</span>
+          </div>
+          <div>Agent sockets online: {calls?.agentSockets ?? 0}</div>
+          <div title="Sessions the server janitor had to end because no client sent a hangup (frozen callers, dead call UIs). Each one released the agent's busy flag and the customer's busy lock.">
+            {janitorTotal > 0 ? (
+              <>
+                Janitor released:{' '}
+                <span className="font-medium tabular-nums">{janitorTotal}</span>
+                {calls?.janitorRingExpired ? ` (${calls.janitorRingExpired} ring` : ''}
+                {calls?.janitorRingExpired && calls?.janitorActiveExpired ? ' + ' : ''}
+                {calls?.janitorActiveExpired ? `${calls.janitorActiveExpired} active)` : ''}
+              </>
+            ) : (
+              <>Janitor released: 0 (clean)</>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>

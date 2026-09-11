@@ -236,6 +236,21 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // 650 MB idle-RSS report, 2026-09). See src/memory.rs.
     crate::memory::spawn_sweeper(config.memory.interval());
 
+    // Call-session janitor — the server-side guarantee that call state
+    // is ALWAYS released, even when no client ever sends a hangup:
+    // zombie RINGING sessions (frozen caller) expire + escalate, zombie
+    // ACTIVE sessions (both call UIs died) hit the hard lifetime cap —
+    // agents are freed from in_call instead of being stuck busy
+    // forever. Cheap when idle (one DashMap scan). See
+    // src/audio_call/janitor.rs.
+    if config.audio_call.enabled {
+        crate::audio_call::janitor::spawn_janitor(
+            config.audio_call.ring_timeout(),
+            config.audio_call.max_call_duration(),
+            config.audio_call.janitor_interval(),
+        );
+    }
+
     // ---- Domain services (pre-built, shared via Arc) -----------------
     // Each service holds its deps directly — no back-reference to
     // AppState, avoiding circular Arc references.

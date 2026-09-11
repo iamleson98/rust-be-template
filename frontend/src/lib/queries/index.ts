@@ -929,6 +929,19 @@ export type SystemStatus = {
     onlineEmployees: number;
     distinctIps: number;
   };
+  /** Audio-call subsystem: live sessions + janitor release counters. */
+  calls: {
+    sessions: number;
+    ringing: number;
+    active: number;
+    agentSockets: number;
+    /** Ringing sessions the server janitor had to expire since boot. */
+    janitorRingExpired: number;
+    /** Of those, how many were re-routed to another agent. */
+    janitorRingRerouted: number;
+    /** Active sessions torn down at the hard lifetime cap since boot. */
+    janitorActiveExpired: number;
+  };
   database: {
     backend: string;
     urlMasked: string;

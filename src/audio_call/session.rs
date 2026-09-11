@@ -57,6 +57,8 @@
 
 use std::collections::HashSet;
 use std::sync::OnceLock;
+#[cfg(test)]
+use std::time::Duration;
 use std::time::Instant;
 
 use dashmap::DashMap;
@@ -95,6 +97,11 @@ pub struct CallSession {
     /// Agents this call already rang (declined / busy / unreachable).
     /// Re-route never re-rings a member of this set.
     pub tried: HashSet<String>,
+    /// When the CURRENT ring attempt started. Re-armed on every ring
+    /// escalation (each agent gets a full ring window) and used by the
+    /// janitor as the base for both expiry clocks: `RINGING` sessions
+    /// older than the ring timeout are expired (re-routed or notified),
+    /// and the total lifetime caps the `ACTIVE` hard limit.
     pub created_at: Instant,
     /// The socket that SENT the offer (the calling side's device). While
     /// ringing, that socket going away means the caller vanished — the
@@ -208,6 +215,12 @@ impl SessionManager {
     /// Live session count (metrics / health).
     pub fn len(&self) -> usize {
         self.sessions.len()
+    }
+
+    /// Iterate every live session (janitor scan + admin metrics).
+    /// Read-locked shard-by-shard — cheap on a usually-small map.
+    pub(crate) fn sessions_iter(&self) -> dashmap::iter::Iter<'_, String, CallSession> {
+        self.sessions.iter()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -466,6 +479,12 @@ impl SessionManager {
             if let Some(next) = pick_agent(&exclude) {
                 s.tried.insert(next.clone());
                 s.agent_id = next.clone();
+                // Re-arm the ring clock: the NEXT agent gets a full
+                // ring window too (the janitor expires per-attempt,
+                // not against the original offer time — otherwise a
+                // re-routed offer would be re-expired every sweep
+                // until the queue burned through all agents).
+                s.created_at = Instant::now();
                 self.sessions.insert(customer_id.clone(), s);
                 return HangupOutcome::ReRouted {
                     customer_id,
@@ -498,6 +517,73 @@ impl SessionManager {
                 agent_id: s.agent_id,
             },
             None => CustomerHangup::NoSession,
+        }
+    }
+
+    /// Janitor entry for a RINGING session that outlived the ring
+    /// timeout: expires it ONLY if it is still `Ringing` with `agent_id`
+    /// (verified atomically at removal — the janitor's snapshot may be
+    /// stale if the agent answered in the same instant, and killing a
+    /// just-answered call would be a false positive). Behaviour mirrors
+    /// [`SessionManager::on_agent_hangup`] with `reason = "timeout"`:
+    /// customer-initiated sessions re-route to the next untried agent,
+    /// everything else (or an exhausted queue) notifies the customer.
+    pub fn expire_ringing(
+        &self,
+        customer_id: &str,
+        agent_id: &str,
+        pick_agent: impl FnOnce(&HashSet<String>) -> Option<String>,
+    ) -> Option<HangupOutcome> {
+        let mut s = match self.sessions.remove(customer_id) {
+            Some((_, s)) => s,
+            None => return None,
+        };
+        if s.state != CallState::Ringing || s.agent_id != agent_id {
+            // Answered / re-routed / already ended between the
+            // janitor's snapshot and now — put it back untouched.
+            self.sessions.insert(customer_id.to_string(), s);
+            return None;
+        }
+        // Same escalation-vs-notify decision as `on_agent_hangup`.
+        if s.initiator == Initiator::Customer {
+            let mut exclude = s.tried.clone();
+            exclude.extend(self.ringing_agents());
+            if let Some(next) = pick_agent(&exclude) {
+                s.tried.insert(next.clone());
+                s.agent_id = next.clone();
+                s.created_at = Instant::now();
+                self.sessions.insert(customer_id.to_string(), s);
+                return Some(HangupOutcome::ReRouted {
+                    customer_id: customer_id.to_string(),
+                    agent_id: next,
+                });
+            }
+            let why = "timeout";
+            return Some(HangupOutcome::Notify {
+                customer_id: customer_id.to_string(),
+                reason: why.to_string(),
+            });
+        }
+        // Agent-initiated ring that the customer never answered.
+        Some(HangupOutcome::Notify {
+            customer_id: customer_id.to_string(),
+            reason: "timeout".to_string(),
+        })
+    }
+
+    /// Janitor entry for an ACTIVE session that outlived the hard
+    /// lifetime cap: removes it ONLY if still `Active` (a call that
+    /// ended on its own between snapshot and sweep must not generate
+    /// phantom hangups). Returns the removed session so the janitor can
+    /// notify both parties + release the agent's in-call state.
+    pub fn expire_active(&self, customer_id: &str) -> Option<CallSession> {
+        match self.sessions.remove(customer_id) {
+            Some((_, s)) if s.state == CallState::Active => Some(s),
+            Some((_, s)) => {
+                self.sessions.insert(customer_id.to_string(), s);
+                None
+            }
+            None => None,
         }
     }
 
@@ -537,6 +623,15 @@ impl SessionManager {
     #[cfg(test)]
     pub fn clear(&self) {
         self.sessions.clear();
+    }
+
+    /// Test helper: age a session's ring/lifetime clock by `age` so the
+    /// janitor's expiry budgets see it as old without sleeping.
+    #[cfg(test)]
+    pub(crate) fn backdate_for_tests(&self, customer_id: &str, age: Duration) {
+        if let Some(mut s) = self.sessions.get_mut(customer_id) {
+            s.created_at = Instant::now() - age;
+        }
     }
 }
 

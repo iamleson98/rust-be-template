@@ -43,15 +43,17 @@ use crate::ws::handler::check_ws_origin;
 /// (presence: online, not in-call, lowest chat load) registered on this
 /// hub, minus the exclusion set (already-rang agents + agents ringing
 /// for someone else).
-fn pick_agent(exclude: &std::collections::HashSet<String>) -> Option<String> {
+pub(crate) fn pick_agent(exclude: &std::collections::HashSet<String>) -> Option<String> {
     call_hub().pick_available_agent_id_excluding(exclude)
 }
 
 /// Session-ended cleanup: the agent is never "stuck busy" — their
 /// in-call flag clears whenever a session they were in ends, no matter
 /// which side hung up (this used to only run on agent-side hangups,
-/// leaving zombie busy agents after customer hangups).
-fn agent_session_cleanup(agent_id: &str) {
+/// leaving zombie busy agents after customer hangups). Shared by the
+/// WS handler's hangup/drop paths AND the janitor's expiry paths so
+/// every session end releases state through the exact same door.
+pub(crate) fn agent_session_cleanup(agent_id: &str) {
     call_hub().set_in_call(agent_id, false);
     call_hub().broadcast_presence();
 }
@@ -827,7 +829,9 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
 /// `from` is the customer's user id. If the agent's queue is full / they
 /// vanished between pick + send, a customer-initiated session is aborted
 /// with `peer-unavailable` (the next offer attempt will re-pick).
-fn relay_offer(customer_id: &str, agent_id: &str) {
+/// `pub(crate)` so the janitor's ring-escalation reuses the identical
+/// relay (offer SDP + push ring + rollback) the handler uses.
+pub(crate) fn relay_offer(customer_id: &str, agent_id: &str) {
     let Some(s) = sessions().get(customer_id) else {
         return;
     };

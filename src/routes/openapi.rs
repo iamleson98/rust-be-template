@@ -360,6 +360,7 @@ use utoipa::OpenApi;
         crate::routes::system::SystemStatusResponse,
         crate::routes::system::SystemUptime,
         crate::routes::system::WebsocketStats,
+        crate::routes::system::CallSystemStats,
         crate::routes::system::DatabaseStats,
         crate::routes::system::ProcessStats,
         // admin — vehicle types (appended last, same ordering rule)

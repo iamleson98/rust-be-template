@@ -7924,6 +7924,59 @@
           }
         }
       },
+      "CallSystemStats": {
+        "type": "object",
+        "description": "Audio-call subsystem stats — live sessions plus the janitor's\ncumulative resource-release counters. The janitor counters answer\n\"are calls being left dangling?\" without grepping logs: anything\nabove zero means the server (not a client) had to end a call.",
+        "required": [
+          "sessions",
+          "ringing",
+          "active",
+          "agentSockets",
+          "janitorRingExpired",
+          "janitorRingRerouted",
+          "janitorActiveExpired"
+        ],
+        "properties": {
+          "active": {
+            "type": "integer",
+            "description": "Sessions currently ACTIVE (media negotiated).",
+            "minimum": 0
+          },
+          "agentSockets": {
+            "type": "integer",
+            "description": "Agent sockets registered on the call hub (one per device).",
+            "minimum": 0
+          },
+          "janitorActiveExpired": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Active sessions the janitor tore down at the hard lifetime cap\nsince boot (both call UIs died without hanging up).",
+            "minimum": 0
+          },
+          "janitorRingExpired": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Ringing sessions the janitor expired since boot (frozen\ncallers, dead ring timers) — each one released the agent's\nbusy flag and the customer's busy lock.",
+            "minimum": 0
+          },
+          "janitorRingRerouted": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Of those, how many were re-routed to another agent.",
+            "minimum": 0
+          },
+          "ringing": {
+            "type": "integer",
+            "description": "Sessions currently RINGING (waiting for an answer).",
+            "minimum": 0
+          },
+          "sessions": {
+            "type": "integer",
+            "description": "Live call sessions (ringing + active).",
+            "minimum": 0
+          }
+        }
+      },
       "CampaignListResponse": {
         "type": "object",
         "description": "Response of `GET /api/campaigns`.",
@@ -11331,10 +11384,15 @@
         "required": [
           "uptime",
           "websocket",
+          "calls",
           "database",
           "process"
         ],
         "properties": {
+          "calls": {
+            "$ref": "#/components/schemas/CallSystemStats",
+            "description": "Audio-call subsystem: live sessions + the janitor's release\ncounters (\"how often did the safety net fire\")."
+          },
           "database": {
             "$ref": "#/components/schemas/DatabaseStats"
           },

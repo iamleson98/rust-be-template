@@ -5,12 +5,13 @@ import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── Admin System Status Skeleton ───
  * Mirrors the /admin/system "System Status" card row (Uptime /
- * WebSocket / Database). Shown while the first status snapshot loads.
+ * WebSocket / Audio Calls / Database). Shown while the first status
+ * snapshot loads.
  */
 export const SystemStatusSkeleton = memo(function SystemStatusSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" aria-hidden data-testid="system-status-skeleton">
-      {[0, 1, 2].map((i) => (
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" aria-hidden data-testid="system-status-skeleton">
+      {[0, 1, 2, 3].map((i) => (
         <div key={i} className="rounded-xl border bg-card py-6">
           <div className="space-y-3 px-6">
             <Shimmer className="h-4 w-28" />
