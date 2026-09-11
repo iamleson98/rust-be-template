@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
 import { useAdminBookings, type AdminBookingFilter } from '@/lib/queries'
 import type { AdminBookingOut } from '@/lib/api/types.gen'
-import { BookingStatusBadge } from '@/features/admin/dashboard/badges'
+import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { PAGE_SIZE, formatVND } from './tickets-helpers'
 
 export function TicketsBookingsTable({

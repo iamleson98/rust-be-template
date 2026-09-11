@@ -1,93 +1,13 @@
 'use client'
 
+// Extracted from the original 'booking-stats.tsx'.
+
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { TabsTrigger } from '@/components/ui/tabs'
 import { Bus, ArrowRightLeft, Clock, Star, Quote } from 'lucide-react'
 import { formatDateVN, formatDateTimeVN } from '@/lib/types'
 import { ReviewItem, REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
-
-/* ───────────────────────────────────────────────────────────────────────
- * StatCard / StatsRow — small KPI cards used at the top of each tab.
- * Extracted so my-bookings.tsx can stay focused on state + tab orchestration.
- * ─────────────────────────────────────────────────────────────────────── */
-
-type StatProps = {
-  icon: React.ReactNode
-  label: string
-  value: string
-  accent: string
-  subtitle: string
-}
-
-export const StatCard = memo(function StatCard({ icon, label, value, accent, subtitle }: StatProps) {
-  return (
-    <Card className="ring-1 ring-black/5 overflow-hidden">
-      <CardContent className="p-0">
-        <div className={`h-1 bg-linear-to-r ${accent}`} />
-        <div className="p-4 md:p-5 flex items-center gap-3.5">
-          <div className={`h-11 w-11 rounded-xl bg-linear-to-br ${accent} text-white inline-flex items-center justify-center shrink-0`}>
-            {icon}
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
-              {label}
-            </div>
-            <div className="text-lg md:text-xl font-extrabold truncate">{value}</div>
-            <div className="text-[10px] text-muted-foreground">{subtitle}</div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-})
-
-export const StatsRow = memo(function StatsRow({ stats }: { stats: StatProps[] }) {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
-      {stats.map((s, i) => (
-        <StatCard key={i} {...s} />
-      ))}
-    </div>
-  )
-})
-
-/* ───────────────────────────────────────────────────────────────────────
- * UserTabTrigger — a TabsTrigger with a count badge. Extracted for reuse
- * across the 4 tabs in MyBookings.
- * ─────────────────────────────────────────────────────────────────────── */
-
-export const UserTabTrigger = memo(function UserTabTrigger({
-  value,
-  icon,
-  label,
-  count,
-  activeClass,
-  badgeClass = 'bg-blue-100 text-blue-700',
-}: {
-  value: string
-  icon: React.ReactNode
-  label: string
-  count: number
-  activeClass: string
-  badgeClass?: string
-}) {
-  return (
-    <TabsTrigger
-      value={value}
-      className={`gap-2 px-4 py-2 rounded-lg ${activeClass} font-semibold`}
-    >
-      {icon}
-      <span>{label}</span>
-      {count > 0 && (
-        <Badge className={`ml-0.5 ${badgeClass} border-0 text-[10px] px-1.5 py-0 font-bold`}>
-          {count}
-        </Badge>
-      )}
-    </TabsTrigger>
-  )
-})
 
 /* ───────────────────────────────────────────────────────────────────────
  * ReviewCard — single review written by the logged-in user. Display-only.

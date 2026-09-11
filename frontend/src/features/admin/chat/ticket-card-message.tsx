@@ -10,7 +10,7 @@ import {
   User as UserIcon,
 } from 'lucide-react'
 import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
-import { BookingStatusBadge } from '@/features/admin/dashboard/badges'
+import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import type { CreatedTicketPayload } from '@/features/admin/tickets/chat-ticket-picker'
 
 export function parseTicketPayload(m: ChatMessage): CreatedTicketPayload | null {

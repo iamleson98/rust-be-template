@@ -34,12 +34,10 @@ import type {
   AdminScheduleOut,
   PlaceOut,
 } from '@/lib/api/types.gen'
-import {
-  BrandListPanel,
-  RouteListPanel,
-  ScheduleAndPickupPanel,
-  BrandManagementBreadcrumb,
-} from './panels'
+import { BrandListPanel } from './brand-list-panel'
+import { RouteListPanel } from './route-list-panel'
+import { ScheduleAndPickupPanel } from './schedule-and-pickup-panel'
+import { BrandManagementBreadcrumb } from './brand-management-breadcrumb'
 import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'

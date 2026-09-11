@@ -33,15 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Form,
   FormField,
@@ -54,12 +46,9 @@ import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText } from '@/lib/forms'
 import { useUpsertAdminRoute } from '@/lib/queries'
-import {
-  VIETNAMESE_CITIES,
-  type VietnameseCity,
-} from '@/lib/vietnamese-cities'
 import type { AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
+import { CitySelectContent, cityLabel } from './city-select-content'
 
 const routeSchema = z
   .object({
@@ -74,63 +63,6 @@ const routeSchema = z
     path: ['endLocationId'],
   })
 type RouteFormValues = z.infer<typeof routeSchema>
-
-// Group cities by region for the Select dropdown.
-const NORTH = VIETNAMESE_CITIES.filter((c) => c.region === 'north')
-const CENTRAL = VIETNAMESE_CITIES.filter((c) => c.region === 'central')
-const SOUTH = VIETNAMESE_CITIES.filter((c) => c.region === 'south')
-
-// Map city id (slug) → display name. Used by the SelectValue render-prop
-// so the trigger shows "Hà Nội" instead of the raw slug "ha-noi" — Base
-// UI unmounts SelectContent (and thus the SelectItems) when the popover
-// closes, so it can no longer look up the label by matching the value.
-// The slug is the only stable identifier we have, so we look it up in
-// this side table instead.
-const CITY_NAME_BY_ID = new Map<string, string>(
-  VIETNAMESE_CITIES.map((c) => [c.id, c.name]),
-)
-
-function cityLabel(value: string | null | undefined): string | null {
-  if (!value) return null
-  return CITY_NAME_BY_ID.get(value) ?? null
-}
-
-function CitySelectContent() {
-  return (
-    <SelectContent className="max-h-80">
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-blue-600">
-          Miền Bắc
-        </SelectLabel>
-        {NORTH.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-amber-600">
-          Miền Trung
-        </SelectLabel>
-        {CENTRAL.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-emerald-600">
-          Miền Nam
-        </SelectLabel>
-        {SOUTH.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-    </SelectContent>
-  )
-}
 
 export function RouteFormDialog({
   open,

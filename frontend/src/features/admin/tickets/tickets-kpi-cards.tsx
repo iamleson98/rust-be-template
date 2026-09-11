@@ -8,7 +8,7 @@ import {
   Ban,
 } from 'lucide-react'
 import type { AdminBookingTotals } from '@/lib/api/types.gen'
-import { KpiCard } from '@/features/admin/dashboard/badges'
+import { KpiCard } from '@/features/admin/dashboard/kpi-card'
 import { formatVND } from './tickets-helpers'
 
 /**

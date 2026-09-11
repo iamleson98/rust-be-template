@@ -15,87 +15,24 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
-  Star,
-  Phone,
-  Mail,
-  Bus,
-  Route as RouteIcon,
-  Clock,
-  MessageSquareQuote,
-  Calendar,
-  Navigation,
-  ArrowRight,
-  CheckCircle2,
-  Loader2,
-  Quote,
-  ThumbsUp,
-  Sparkles,
-  Smile,
-  Armchair,
-  ShieldCheck,
-  Wallet,
-  Wifi,
-  Snowflake,
-  Ticket as TicketIcon,
   AlertCircle,
-  type LucideIcon,
+  Bus,
+  Loader2,
+  MessageSquareQuote,
+  Quote,
+  Route as RouteIcon,
+  Star,
+  ThumbsUp,
 } from 'lucide-react'
 import {
   formatDateTimeVN,
 } from '@/lib/types'
 import { buildSearchInput } from '@/lib/search-params'
-
-// Extended Brand type — the centralized `Brand` type doesn't include the
-// contact fields the `/api/brands/:slug` endpoint returns, so we extend it
-// locally rather than mutating the shared type definition.
-type BrandDetail = {
-  id: string
-  slug: string
-  name: string
-  logoUrl: string | null
-  description: string | null
-  contactPhone: string | null
-  contactEmail: string | null
-  accentColor: string
-  rating: number
-  totalTrips?: number
-  routeCount?: number
-  status?: string
-}
-
-// Tag icon mapping — aligned to actual DB tag keys.
-const TAG_ICONS: Record<string, LucideIcon> = {
-  on_time: Clock,
-  clean: Sparkles,
-  friendly_driver: Smile,
-  comfortable: Armchair,
-  safe_drive: ShieldCheck,
-  value: Wallet,
-  good_wifi: Wifi,
-  ac: Snowflake,
-  easy_booking: TicketIcon,
-}
-
-type TagStat = {
-  tag: string
-  label: string
-  emoji: string
-  count: number
-  percentage: number
-}
-
-type Review = {
-  id: string
-  rating: number
-  title: string
-  content: string
-  tags: string[]
-  authorName: string
-  helpfulCount: number
-  reply: string | null
-  repliedAt: string | null
-  createdAt: string
-}
+import { renderStars, type BrandDetail, type TagStat, type Review } from './brand-detail-helpers'
+import { EmptyState } from './brand-dialog-parts'
+import { BrandTagStats } from './brand-tag-stats'
+import { BrandDialogHeader } from './brand-dialog-header'
+import { BrandRoutesTab } from './brand-routes-tab'
 
 const TAG_LABELS: Record<string, string> = {
   on_time: 'Đúng giờ',
@@ -106,28 +43,6 @@ const TAG_LABELS: Record<string, string> = {
   easy_booking: 'Đặt dễ',
   good_wifi: 'Wifi mạnh',
   safe_drive: 'Lái xe an toàn',
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
-}
-
-function renderStars(rating: number, size = 'h-3.5 w-3.5') {
-  const full = Math.floor(rating)
-  const hasHalf = rating - full >= 0.3
-  const stars = []
-  for (let i = 0; i < 5; i++) {
-    if (i < full) {
-      stars.push(<Star key={i} className={`${size} fill-amber-400 text-amber-400`} />)
-    } else if (i === full && hasHalf) {
-      stars.push(<Star key={i} className={`${size} fill-amber-400/50 text-amber-400`} />)
-    } else {
-      stars.push(<Star key={i} className={`${size} text-muted-foreground/30`} />)
-    }
-  }
-  return stars
 }
 
 type TagStatsResponse = { items: TagStat[] }
@@ -232,120 +147,12 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
         ) : (
           <>
             {/* Header — brand identity with accent color theming */}
-            <div className="relative overflow-hidden">
-              <div
-                className="absolute inset-0 opacity-10"
-                style={{
-                  background: `linear-gradient(135deg, ${accent} 0%, transparent 60%)`,
-                }}
-              />
-              {/* Accent color bar */}
-              <div
-                className="h-1.5 w-full"
-                style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
-              />
-              <div className="px-5 py-4 relative">
-                <div className="flex items-start gap-4">
-                  {/* Logo / initials */}
-                  <div
-                    className="h-16 w-16 rounded-xl flex items-center justify-center text-white font-extrabold text-xl shrink-0"
-                    style={{ background: accent }}
-                  >
-                    {brand.logoUrl ? (
-                      <img
-                        src={brand.logoUrl}
-                        alt={brand.name}
-                        className="h-11 w-11 object-contain"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      getInitials(brand.name)
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <DialogTitle className="text-xl font-extrabold tracking-tight">
-                        {brand.name}
-                      </DialogTitle>
-                      {brand.status === 'active' && (
-                        <Badge
-                          className="text-[10px] gap-1 bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-100"
-                          variant="outline"
-                        >
-                          <CheckCircle2 className="h-3 w-3" />
-                          Đang hoạt động
-                        </Badge>
-                      )}
-                    </div>
-                    <DialogDescription className="sr-only">
-                      Chi tiết hãng xe {brand.name}
-                    </DialogDescription>
-
-                    <div className="flex items-center gap-3 mt-1.5 text-sm flex-wrap">
-                      <span className="flex items-center gap-1.5">
-                        <span className="flex items-center gap-0.5">
-                          {renderStars(brand.rating)}
-                        </span>
-                        <span className="font-semibold text-amber-600">
-                          {brand.rating.toFixed(1)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          ({reviewCount} đánh giá)
-                        </span>
-                      </span>
-                      {brand.contactPhone && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          {brand.contactPhone}
-                        </span>
-                      )}
-                      {brand.contactEmail && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Mail className="h-3 w-3" />
-                          {brand.contactEmail}
-                        </span>
-                      )}
-                    </div>
-
-                    {brand.description && (
-                      <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-                        {brand.description}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Stats row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-5 py-3 bg-slate-50/70 border-b">
-              <StatCard
-                icon={<RouteIcon className="h-4 w-4" />}
-                label="Tuyến đường"
-                value={routes.length}
-                color={accent}
-              />
-              <StatCard
-                icon={<Bus className="h-4 w-4" />}
-                label="Chuyến / ngày"
-                value={brand.totalTrips ?? 0}
-                color={accent}
-              />
-              <StatCard
-                icon={<Star className="h-4 w-4" />}
-                label="Đánh giá TB"
-                value={brand.rating.toFixed(1)}
-                color="#f59e0b"
-              />
-              <StatCard
-                icon={<MessageSquareQuote className="h-4 w-4" />}
-                label="Lượt đánh giá"
-                value={reviewCount}
-                color="#2563eb"
-              />
-            </div>
+            <BrandDialogHeader
+              brand={brand}
+              accent={accent}
+              reviewCount={reviewCount}
+              routesCount={routes.length}
+            />
 
             {/* Tabs */}
             <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col min-h-0">
@@ -372,60 +179,12 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
 
               <ScrollArea className="flex-1 max-h-[55vh]">
                 {/* Routes tab */}
-                <TabsContent value="routes" className="p-4 m-0">
-                  {routesQuery.isLoading ? (
-                    <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
-                      <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm">Đang tải tuyến đường...</p>
-                    </div>
-                  ) : routes.length === 0 ? (
-                    <EmptyState
-                      icon={<RouteIcon className="h-7 w-7 text-slate-400" />}
-                      title="Chưa có tuyến đường"
-                      subtitle="Hãng chưa mở tuyến nào hoặc đang cập nhật."
-                    />
-                  ) : (
-                    <div className="space-y-2.5">
-                      {routes.map((r) => (
-                        <div
-                          key={r.id}
-                          className="group rounded-xl border bg-white hover:border-blue-400 transition-all p-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            {/* Route name */}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 font-semibold text-sm">
-                                <span className="truncate">{r.from.name}</span>
-                                <ArrowRight
-                                  className="h-3.5 w-3.5 text-blue-600 shrink-0"
-                                  style={{ color: accent }}
-                                />
-                                <span className="truncate">{r.to.name}</span>
-                              </div>
-                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  {r.scheduleCount} chuyến/ngày
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Quick search button */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="shrink-0 gap-1 border-blue-300 text-blue-700 hover:bg-blue-600 hover:text-white hover:border-blue-600"
-                              onClick={() => quickSearch(r.from.name, r.to.name)}
-                            >
-                              <Navigation className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline">Tìm chuyến</span>
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
+                <BrandRoutesTab
+                  isLoading={routesQuery.isLoading}
+                  routes={routes}
+                  accent={accent}
+                  onQuickSearch={quickSearch}
+                />
 
                 {/* Reviews tab */}
                 <TabsContent value="reviews" className="p-4 m-0">
@@ -608,104 +367,5 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
         )}
       </DialogContent>
     </Dialog>
-  )
-}
-
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string | number
-  color: string
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-white ring-1 ring-black/5 px-3 py-2">
-      <div
-        className="h-8 w-8 rounded-md flex items-center justify-center text-white shrink-0"
-        style={{ background: color }}
-      >
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-base font-bold leading-tight tabular-nums">{value}</div>
-        <div className="text-[10px] text-muted-foreground uppercase tracking-wide truncate">
-          {label}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function EmptyState({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ReactNode
-  title: string
-  subtitle: string
-}) {
-  return (
-    <div className="text-center py-10">
-      <div className="inline-flex h-14 w-14 rounded-full bg-slate-100 items-center justify-center mb-3">
-        {icon}
-      </div>
-      <h4 className="font-semibold mb-1">{title}</h4>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto">{subtitle}</p>
-    </div>
-  )
-}
-
-// ── Tag aggregate stats section (brand-wide, shown in reviews tab) ──
-function BrandTagStats({ tagStats, accentColor }: { tagStats: TagStat[]; accentColor: string }) {
-  return (
-    <div className="rounded-xl bg-linear-to-br from-blue-50 to-blue-50 ring-1 ring-blue-200/50 p-4">
-      <div className="flex items-center gap-1.5 mb-3">
-        <Sparkles className="h-4 w-4 text-blue-600" />
-        <h4 className="text-sm font-semibold text-blue-800">Đặc điểm được khen nhiều</h4>
-        <span className="text-[11px] text-muted-foreground ml-auto">
-          Top {tagStats.length} nổi bật nhất
-        </span>
-      </div>
-      <div className="space-y-2.5">
-        {tagStats.map((t) => {
-          const Icon = TAG_ICONS[t.tag] ?? Star
-          return (
-            <div key={t.tag} className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 w-40 sm:w-48 shrink-0">
-                <div
-                  className="h-7 w-7 rounded-md flex items-center justify-center text-white shrink-0"
-                  style={{ background: accentColor }}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-semibold truncate text-slate-700">{t.label}</div>
-                  <div className="text-[10px] text-muted-foreground">{t.count} lượt nhắc</div>
-                </div>
-              </div>
-              <div className="flex-1 h-2.5 bg-white/70 rounded-full overflow-hidden ring-1 ring-blue-100">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`,
-                  }}
-                />
-              </div>
-              <span
-                className="text-xs font-bold tabular-nums w-10 text-right"
-                style={{ color: accentColor }}
-              >
-                {t.percentage}%
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
   )
 }

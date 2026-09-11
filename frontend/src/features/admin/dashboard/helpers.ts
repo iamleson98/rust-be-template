@@ -61,3 +61,18 @@ export function downloadCSV(filename: string, content: string) {
   document.body.removeChild(link)
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
+
+/* ── Compact VND formatters for the dashboard chart cards ────────
+ * Extracted from the original 'stats-overview.tsx'. */
+
+export function formatVNDShort(n: number | null | undefined): string {
+  if (n == null) return '—'
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)} tỷ₫`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)} triệu₫`
+  return new Intl.NumberFormat('vi-VN').format(n) + '₫'
+}
+
+export function formatVNDMillions(n: number | null | undefined): string {
+  if (n == null) return '0'
+  return (n / 1_000_000).toFixed(1)
+}

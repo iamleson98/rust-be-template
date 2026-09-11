@@ -19,7 +19,11 @@ import { SystemMetricsSkeleton } from '@/features/admin/system/system-metrics-sk
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useSystemMetrics } from '@/lib/queries'
-import { CpuCard, DisksCard, HostCard, MemoryCard, ProcessCard } from './metric-cards'
+import { CpuCard } from './cpu-card'
+import { DisksCard } from './disks-card'
+import { HostCard } from './host-card'
+import { MemoryCard } from './memory-card'
+import { ProcessCard } from './process-card'
 
 const POLL_SECONDS = 5;
 

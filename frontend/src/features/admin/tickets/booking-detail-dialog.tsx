@@ -28,7 +28,7 @@ import {
   useAdminBookingDetail,
   useUpdateBookingStatus,
 } from '@/lib/queries'
-import { BookingStatusBadge } from '@/features/admin/dashboard/badges'
+import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { TicketDetailSkeleton } from './ticket-detail-skeleton'
 import { formatVND, formatDepartureDate } from './tickets-helpers'
 

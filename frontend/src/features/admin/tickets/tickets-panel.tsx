@@ -40,7 +40,7 @@ import type {
 } from '@/lib/queries'
 import type { AdminBookingOut } from '@/lib/api/types.gen'
 
-import { BookingStatusBadge } from '@/features/admin/dashboard/badges'
+import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { downloadCSV } from '@/features/admin/dashboard/helpers'
 import { PAGE_SIZE, formatVND, timeAgo } from './tickets-helpers'
 import { TicketsKpiCards } from './tickets-kpi-cards'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
@@ -11,26 +11,8 @@ import {
   useGuestBookings,
   useCancelBooking,
 } from '@/lib/queries'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsContent } from '@/components/ui/tabs'
-import {
-  Search,
-  Ticket,
-  Bus,
-  User,
-  ChevronDown,
-  ShieldCheck,
-  RefreshCw,
-  History,
-  X,
-  CalendarCheck,
-  Wallet,
-  Star,
-  MessageSquare,
-  TrendingUp,
-  LogIn,
-} from 'lucide-react'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { Ticket, CalendarCheck, Wallet } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import { lookupSchema, type LookupValues } from '@/features/booking/history/guest-lookup-form'
 
@@ -48,50 +30,14 @@ import {
   isBookingReviewable,
 } from '@/features/booking/history/booking-types'
 import { BookingList } from '@/features/booking/history/booking-list'
-import { GuestLookupForm } from '@/features/booking/history/guest-lookup-form'
-import { StatsRow, UserTabTrigger, ReviewCard } from '@/features/booking/history/booking-stats'
-import { MyBookingsSkeleton } from '@/features/booking/history/my-bookings-skeleton'
-import { NoBookingsYet } from '@/features/booking/history/no-bookings-yet'
-import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
-import { NoResultsFound } from '@/features/search/no-results-found'
-import { Card as UiCard } from '@/components/ui/card'
-
-// Lazy-load the FeedbackForm so its star-rating + photo-upload code only
-// loads when a user actually opens the form on a completed booking.
-const FeedbackForm = lazy(() => import('@/features/feedback/feedback-form').then((m) => ({ default: m.FeedbackForm })))
-const FeedbackFormFallback = <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
-
-const RECENT_SEARCHES_KEY = 'vexevn_booking_recent_searches'
-const MAX_RECENT = 3
-
-function getRecentSearches(): string[] {
-  if (typeof window === 'undefined') return []
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || '[]')
-  } catch {
-    return []
-  }
-}
-
-function addRecentSearch(term: string) {
-  if (!term.trim()) return
-  try {
-    const existing = getRecentSearches().filter((s) => s !== term.trim())
-    const updated = [term.trim(), ...existing].slice(0, MAX_RECENT)
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated))
-  } catch {
-    // noop
-  }
-}
-
-function removeRecentSearch(term: string) {
-  try {
-    const existing = getRecentSearches().filter((s) => s !== term)
-    localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(existing))
-  } catch {
-    // noop
-  }
-}
+import { StatsRow } from './stats-row'
+import { FeedbackForm, FeedbackFormFallback } from './feedback-form-lazy'
+import { getRecentSearches, addRecentSearch, removeRecentSearch } from './recent-searches'
+import { BookingsHero } from './bookings-hero'
+import { BookingsTabBar } from './bookings-tab-bar'
+import { ReviewsTabContent } from './reviews-tab-content'
+import { GuestLookupPanel } from './guest-lookup-panel'
+import { GuestLookupView } from './guest-lookup-view'
 
 type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
@@ -294,107 +240,21 @@ export function MyBookings() {
     />
   )
 
-  const totalBookings = results.length
-  const totalAmount = results
-    .filter((b) => b.status === 'paid' || b.status === 'confirmed')
-    .reduce((s, b) => s + b.total, 0)
-  const upcoming = results.filter(
-    (b) => b.trip && b.status !== 'cancelled' && new Date(b.trip.departureAt).getTime() > Date.now(),
-  ).length
-
   // ── Render ─────────────────────────────────────────────
   return (
     <div className="min-h-[60vh] bg-linear-to-b from-slate-50 via-white to-slate-50">
       {/* Hero Header */}
-      <div className="relative overflow-hidden bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
-        <div className="absolute inset-0 opacity-[0.06]">
-          <div className="absolute top-4 left-[10%]"><Bus className="h-16 w-16 rotate-[-15deg]" /></div>
-          <div className="absolute top-20 right-[15%]"><Bus className="h-12 w-12 rotate-10" /></div>
-          <div className="absolute bottom-8 left-[30%]"><Bus className="h-10 w-10 rotate-[-5deg]" /></div>
-          <div className="absolute top-2 right-[45%]"><Bus className="h-8 w-8 rotate-20" /></div>
-          <div className="absolute bottom-4 right-[8%]"><Bus className="h-14 w-14 rotate-[-10deg]" /></div>
-          <div className="absolute top-16 left-[60%]"><Bus className="h-9 w-9 rotate-15" /></div>
-        </div>
-        <div
-          className="absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              'radial-gradient(circle at 20% 50%, white 0, transparent 50%), radial-gradient(circle at 85% 70%, white 0, transparent 50%)',
-          }}
-        />
-        <div className="container mx-auto px-4 py-12 md:py-16 relative">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold ring-1 ring-white/20 mb-5">
-              {isUserLoggedIn ? (
-                <>
-                  <User className="h-3.5 w-3.5" />
-                  Xin chào, {user?.name}
-                </>
-              ) : (
-                <>
-                  <Ticket className="h-3.5 w-3.5" />
-                  Tra cứu vé xe trực tuyến
-                </>
-              )}
-            </div>
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3 leading-tight">
-              {isUserLoggedIn ? 'Lịch sử đặt vé của tôi' : 'Tra cứu vé đã đặt'}
-            </h1>
-            <p className="text-blue-100 text-sm md:text-base leading-relaxed max-w-lg">
-              {isUserLoggedIn
-                ? 'Xem lại các chuyến đi sắp đi, đã đi, đã hủy và để lại đánh giá cho từng chuyến hoàn thành.'
-                : 'Nhập mã vé hoặc số điện thoại để xem chi tiết đặt vé, trạng thái chuyến đi và thông tin hành khách'}
-            </p>
-          </div>
-        </div>
-        <svg
-          className="absolute bottom-0 left-0 w-full"
-          viewBox="0 0 1440 60"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          preserveAspectRatio="none"
-        >
-          <path d="M0 60V30C240 0 480 0 720 30C960 60 1200 60 1440 30V60H0Z" fill="white" fillOpacity="0.06" />
-          <path d="M0 60V40C360 10 720 10 1080 40C1260 55 1350 55 1440 40V60H0Z" fill="white" fillOpacity="0.04" />
-        </svg>
-      </div>
+      <BookingsHero isUserLoggedIn={isUserLoggedIn} user={user} />
 
       <div className="container mx-auto px-4 -mt-8 relative z-10">
         {isUserLoggedIn ? (
           <Tabs value={userTab} onValueChange={(v) => setUserTab(v as UserTab)} className="w-full">
-            <div className="flex justify-center">
-              <TabsList className="bg-white ring-1 ring-black/5 backdrop-blur h-auto p-1.5 rounded-xl gap-1 flex-wrap">
-                <UserTabTrigger
-                  value="upcoming"
-                  icon={<CalendarCheck className="h-4 w-4" />}
-                  label="Sắp đi"
-                  count={upcomingBookings.length}
-                  activeClass="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
-                />
-                <UserTabTrigger
-                  value="past"
-                  icon={<History className="h-4 w-4" />}
-                  label="Đã đi"
-                  count={pastBookings.length}
-                  activeClass="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
-                />
-                <UserTabTrigger
-                  value="cancelled"
-                  icon={<X className="h-4 w-4" />}
-                  label="Đã hủy"
-                  count={cancelledBookings.length}
-                  activeClass="data-[state=active]:bg-rose-50 data-[state=active]:text-rose-700"
-                />
-                <UserTabTrigger
-                  value="reviews"
-                  icon={<Star className="h-4 w-4" />}
-                  label="Đánh giá"
-                  count={reviewableBookings.length}
-                  activeClass="data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700"
-                  badgeClass="bg-amber-100 text-amber-700"
-                />
-              </TabsList>
-            </div>
+            <BookingsTabBar
+              upcomingCount={upcomingBookings.length}
+              pastCount={pastBookings.length}
+              cancelledCount={cancelledBookings.length}
+              reviewableCount={reviewableBookings.length}
+            />
 
             {/* ─── Sắp đi tab ─── */}
             <TabsContent value="upcoming" className="mt-6 outline-none">
@@ -460,250 +320,81 @@ export function MyBookings() {
             </TabsContent>
 
             {/* ─── Đánh giá tab ─── */}
-            <TabsContent value="reviews" className="mt-6 outline-none space-y-6">
-              {reviewableBookings.length > 0 && (
-                <div className="space-y-3">
-                  <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-                    <MessageSquare className="h-3.5 w-3.5" />
-                    {reviewableBookings.length} chuyến đang chờ đánh giá của bạn
-                  </div>
-                  {reviewableBookings.map((b) => (
-                    <BookingList
-                      key={b.id}
-                      variant="past"
-                      bookings={[b]}
-                      currency={currency}
-                      loading={false}
-                      loaded
-                      expandedId={expandedId}
-                      onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
-                      onExploreOther={() => navigate({ to: '/' })}
-                      onLeaveFeedback={(id) => setFeedbackOpenId(feedbackOpenId === id ? null : id)}
-                      feedbackOpenId={feedbackOpenId}
-                    >
-                      {feedbackOpenId === b.id && (
-                        <Suspense fallback={FeedbackFormFallback}>
-                          <FeedbackForm
-                            booking={b}
-                            existingReview={null}
-                            onSubmitted={(review) => handleFeedbackSubmitted(b.id, review)}
-                            onClose={() => setFeedbackOpenId(null)}
-                          />
-                        </Suspense>
-                      )}
-                    </BookingList>
-                  ))}
-                </div>
-              )}
-
-              {/* Already-written reviews */}
-              {reviewsLoading && !reviewsData ? (
-                <MyBookingsSkeleton count={3} />
-              ) : userReviews.length === 0 ? (
-                <UiCard className="ring-1 ring-black/5 overflow-hidden">
-                  <NoReviewsYet onWrite={() => navigate({ to: '/' })} />
-                  <div className="border-t bg-slate-50/50 px-6 py-4">
-                    <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
-                      <Star className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
-                      <p>
-                        Mẹo: Sau khi hoàn thành chuyến đi, mở chi tiết vé ở tab{' '}
-                        <span className="font-semibold text-foreground">"Đã đi"</span> →{' '}
-                        <span className="font-semibold text-foreground">"Viết đánh giá"</span> để
-                        chia sẻ trải nghiệm của bạn về nhà xe.
-                      </p>
-                    </div>
-                  </div>
-                </UiCard>
-              ) : (
-                <div className="space-y-5">
-                  <StatsRow
-                    stats={[
-                      { icon: <MessageSquare className="h-5 w-5" />, label: 'Số đánh giá', value: String(userReviews.length), accent: 'from-amber-500 to-orange-500', subtitle: 'đánh giá đã viết' },
-                      { icon: <Star className="h-5 w-5" />, label: 'Điểm trung bình', value: userAvgRating > 0 ? userAvgRating.toFixed(1) : '—', accent: 'from-yellow-400 to-amber-500', subtitle: 'trên 5 sao' },
-                      { icon: <TrendingUp className="h-5 w-5" />, label: 'Nhà xe đã đi', value: String(new Set(userReviews.map((r) => r.brand?.name ?? r.brandId ?? 'unknown')).size), accent: 'from-blue-500 to-blue-500', subtitle: 'hãng khác nhau' },
-                    ]}
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-bold text-foreground">{userReviews.length}</span> đánh giá
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                      onClick={() => refetchReviews()}
-                      disabled={reviewsLoading}
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${reviewsLoading ? 'animate-spin' : ''}`} />
-                      Tải lại
-                    </Button>
-                  </div>
-                  {userReviews.map((r) => (
-                    <ReviewCard key={r.id} r={r} />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
+            <ReviewsTabContent
+              reviewableBookings={reviewableBookings}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              feedbackOpenId={feedbackOpenId}
+              setFeedbackOpenId={setFeedbackOpenId}
+              onFeedbackSubmitted={handleFeedbackSubmitted}
+              reviewsLoading={reviewsLoading}
+              reviewsData={reviewsData}
+              userReviews={userReviews}
+              userAvgRating={userAvgRating}
+              currency={currency}
+              onReloadReviews={refetchReviews}
+            />
 
             {/* Secondary: manual lookup for other bookings */}
-            <div className="mt-8">
-              <div className="rounded-xl ring-1 ring-black/5 bg-white overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setShowGuestLookup((s) => !s)}
-                  className="w-full flex items-center justify-between gap-2 px-4 md:px-5 py-3.5 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-slate-50 transition-colors"
-                  aria-expanded={showGuestLookup}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Search className="h-4 w-4 text-blue-600" />
-                    Tra cứu vé khác bằng mã vé hoặc SĐT
-                  </span>
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${showGuestLookup ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                {showGuestLookup && (
-                  <div className="border-t bg-slate-50/50 px-4 md:px-5 py-4 space-y-4">
-                    <GuestLookupForm
-                      searchCode={searchCode}
-                      setSearchCode={setSearchCode}
-                      searchPhone={searchPhone}
-                      setSearchPhone={setSearchPhone}
-                      loading={loading}
-                      doSearch={doSearch}
-                      recentSearches={recentSearches}
-                      onRecentClick={handleRecentClick}
-                      onRemoveRecent={(term) => {
-                        removeRecentSearch(term)
-                        setRecentSearches(getRecentSearches())
-                      }}
-                    />
-                    {loading ? (
-                      <MyBookingsSkeleton count={2} />
-                    ) : searched && results.length === 0 ? (
-                      <UiCard className="ring-1 ring-black/5 overflow-hidden">
-                        <NoResultsFound
-                          onReset={() => {
-                            setSearchCode('')
-                            setSearchPhone('')
-                            setSearched(false)
-                            setSubmittedLookup(null)
-                          }}
-                          onExplore={() => navigate({ to: '/' })}
-                        />
-                      </UiCard>
-                    ) : searched ? (
-                      <BookingList
-                        variant="search"
-                        bookings={results}
-                        currency={currency}
-                        loading={loading}
-                        loaded
-                        expandedId={expandedId}
-                        onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
-                        onCancelClick={cancelBooking}
-                        cancellingId={cancelling}
-                        onExploreOther={() => navigate({ to: '/' })}
-                      />
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
+            <GuestLookupPanel
+              showGuestLookup={showGuestLookup}
+              setShowGuestLookup={setShowGuestLookup}
+              searchCode={searchCode}
+              setSearchCode={setSearchCode}
+              searchPhone={searchPhone}
+              setSearchPhone={setSearchPhone}
+              loading={loading}
+              doSearch={doSearch}
+              recentSearches={recentSearches}
+              onRecentClick={handleRecentClick}
+              onRemoveRecent={(term) => {
+                removeRecentSearch(term)
+                setRecentSearches(getRecentSearches())
+              }}
+              results={results}
+              searched={searched}
+              onReset={() => {
+                setSearchCode('')
+                setSearchPhone('')
+                setSearched(false)
+                setSubmittedLookup(null)
+              }}
+              expandedId={expandedId}
+              setExpandedId={setExpandedId}
+              onCancelBooking={cancelBooking}
+              cancelling={cancelling}
+              currency={currency}
+            />
           </Tabs>
         ) : (
           /* ── Guest view ── */
-          <>
-            <Card className="ring-1 ring-black/5 overflow-hidden backdrop-blur">
-              <CardContent className="p-5 md:p-7">
-                <GuestLookupForm
-                  searchCode={searchCode}
-                  setSearchCode={setSearchCode}
-                  searchPhone={searchPhone}
-                  setSearchPhone={setSearchPhone}
-                  loading={loading}
-                  doSearch={doSearch}
-                  recentSearches={recentSearches}
-                  onRecentClick={handleRecentClick}
-                  onRemoveRecent={(term) => {
-                    removeRecentSearch(term)
-                    setRecentSearches(getRecentSearches())
-                  }}
-                />
-                <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-                  Thông tin đặt vé của bạn được bảo mật. Vui lòng không chia sẻ mã vé với người lạ.
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="mt-6 pb-10">
-              {loading ? (
-                <MyBookingsSkeleton count={3} />
-              ) : searched && results.length === 0 ? (
-                <UiCard className="ring-1 ring-black/5 overflow-hidden">
-                  <NoResultsFound
-                    onReset={() => {
-                      setSearchCode('')
-                      setSearchPhone('')
-                      setSearched(false)
-                      setSubmittedLookup(null)
-                    }}
-                    onExplore={() => navigate({ to: '/' })}
-                  />
-                </UiCard>
-              ) : searched ? (
-                <div className="space-y-5">
-                  <StatsRow
-                    stats={[
-                      { icon: <Ticket className="h-5 w-5" />, label: 'Tổng số vé', value: String(totalBookings), accent: 'from-blue-500 to-blue-500', subtitle: 'vé đã đặt' },
-                      { icon: <CalendarCheck className="h-5 w-5" />, label: 'Sắp khởi hành', value: String(upcoming), accent: 'from-blue-500 to-blue-500', subtitle: 'chuyến sắp đi' },
-                      { icon: <Wallet className="h-5 w-5" />, label: 'Tổng chi phí', value: formatCurrency(totalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: 'đã thanh toán' },
-                    ]}
-                  />
-                  <BookingList
-                    variant="search"
-                    bookings={results}
-                    currency={currency}
-                    loading={loading}
-                    loaded
-                    expandedId={expandedId}
-                    onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
-                    onCancelClick={cancelBooking}
-                    cancellingId={cancelling}
-                    onExploreOther={() => navigate({ to: '/' })}
-                  />
-                </div>
-              ) : (
-                <UiCard className="ring-1 ring-black/5 overflow-hidden">
-                  <NoBookingsYet onSearch={() => navigate({ to: '/' })} />
-                  <div className="border-t bg-blue-50/60 px-6 py-4">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-600 inline-flex items-center justify-center shrink-0">
-                        <LogIn className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-foreground">
-                          Đăng nhập để xem toàn bộ lịch sử đặt vé & đánh giá
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          Chỉ cần số điện thoại — vé và đánh giá của bạn sẽ tự động hiển thị.
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white shrink-0"
-                        onClick={() => navigate({ to: '/login' })}
-                      >
-                        <LogIn className="h-4 w-4" />
-                        Đăng nhập
-                      </Button>
-                    </div>
-                  </div>
-                </UiCard>
-              )}
-            </div>
-          </>
+          <GuestLookupView
+            searchCode={searchCode}
+            setSearchCode={setSearchCode}
+            searchPhone={searchPhone}
+            setSearchPhone={setSearchPhone}
+            loading={loading}
+            doSearch={doSearch}
+            recentSearches={recentSearches}
+            onRecentClick={handleRecentClick}
+            onRemoveRecent={(term) => {
+              removeRecentSearch(term)
+              setRecentSearches(getRecentSearches())
+            }}
+            results={results}
+            searched={searched}
+            onReset={() => {
+              setSearchCode('')
+              setSearchPhone('')
+              setSearched(false)
+              setSubmittedLookup(null)
+            }}
+            expandedId={expandedId}
+            setExpandedId={setExpandedId}
+            onCancelBooking={cancelBooking}
+            cancelling={cancelling}
+            currency={currency}
+          />
         )}
       </div>
     </div>
