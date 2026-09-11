@@ -162,7 +162,11 @@ echo "Caddyfile: exactly one datxevui.com site block (validated, in-place write)
 # pdf-tts_caddy_data volume); the cost is a brief blip on :80/:443.
 reload_caddy() {
   local task
-  task=$(docker ps -q --filter name=pdf-tts_caddy | head -n1)
+  # `|| true`: docker ps can take SIGPIPE when head exits after the
+  # first line — under `set -euo pipefail` that 141 would abort the
+  # deploy (seen in production 2026-09-11: exit code 141 AFTER the
+  # health gate had already passed, reporting a false deploy failure).
+  task=$(docker ps -q --filter name=pdf-tts_caddy | head -n1 || true)
   if [ -n "$task" ] && docker exec "$task" caddy reload --config /etc/caddy/Caddyfile 2>&1; then
     echo "caddy reloaded (hot)"
     return 0
@@ -201,7 +205,7 @@ reload_caddy
 wait_for_healthy() {
   for i in $(seq 1 90); do
     local t spec_img task_img
-    t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1)
+    t=$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" 2>/dev/null | head -n1 || true)
     if [ -n "$t" ] && docker exec "$t" curl -sf http://localhost:8080/health >/dev/null 2>&1; then
       spec_img=$(docker service inspect --format \
         '{{.Spec.TaskTemplate.ContainerSpec.Image}}' "${STACK}_backend" 2>/dev/null)
@@ -260,7 +264,7 @@ fi
 # incident 2026-09-09). turn.sh now stores the value single-quoted;
 # this gate fails the deploy if the running container got a mangled
 # value, so the regression can never ship silently again.
-ENVVAL=$(docker exec "$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" | head -n1)" \
+ENVVAL=$(docker exec "$(docker ps -q --filter "name=${STACK}_backend" --filter "health=healthy" | head -n1 || true)" \
   env 2>/dev/null | grep '^AUDIO_CALL_ICE_SERVERS=' | cut -d= -f2- || true)
 if echo "$ENVVAL" | grep -q '"urls"'; then
   echo "ICE env OK — TURN servers will be pushed to clients:"
@@ -274,8 +278,13 @@ else
   exit 1
 fi
 
+# `|| true` — SIGPIPE-proof: the no-trunc table is WIDE (long image
+# SHAs); when head exits after 5 lines docker takes SIGPIPE and, under
+# pipefail + set -e, the script aborts with 141 skipping the bucket
+# ensure + final exit 0. This exact race shipped v0.4.9 as a false
+# "Deploy failure" while the stack was healthy.
 docker stack ps "$STACK" --no-trunc --format \
-  'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5
+  'table {{.Name}}\t{{.Image}}\t{{.CurrentState}}' | head -5 || true
 
 # ── 9. Route media: ensure the RustFS bucket exists (idempotent) ────
 # The rustfs task needs a few seconds after `stack deploy` before its
