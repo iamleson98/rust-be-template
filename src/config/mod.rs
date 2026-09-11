@@ -27,6 +27,7 @@ pub struct Config {
     pub search: SearchConfig,
     pub ws: WsConfig,
     pub payment: PaymentConfig,
+    pub memory: MemoryConfig,
     #[allow(dead_code)]
     pub contact: ContactConfig,
     pub oauth: OAuthConfig,
@@ -101,8 +102,14 @@ impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
             url: env_var("DATABASE_URL").unwrap_or_else(|| "sqlite://./app.db?mode=rwc".into()),
-            max_connections: env_parse("DATABASE_MAX_CONNECTIONS").unwrap_or(20),
-            min_connections: env_parse("DATABASE_MIN_CONNECTIONS").unwrap_or(5),
+            // 8 pooled connections (min 2), not 20: every sqlx-sqlite
+            // connection is a separate rustqlite engine instance with
+            // its own page cache, and SQLite is single-writer anyway —
+            // a big pool just multiplies per-connection caches and lock
+            // contention for zero throughput. See apply_sqlite_pragmas
+            // in server.rs for what each connection actually runs.
+            max_connections: env_parse("DATABASE_MAX_CONNECTIONS").unwrap_or(8),
+            min_connections: env_parse("DATABASE_MIN_CONNECTIONS").unwrap_or(2),
             connect_timeout_secs: env_parse("DATABASE_CONNECT_TIMEOUT_SECS").unwrap_or(10),
             idle_timeout_secs: env_parse("DATABASE_IDLE_TIMEOUT_SECS").unwrap_or(600),
             max_lifetime_secs: env_parse("DATABASE_MAX_LIFETIME_SECS").unwrap_or(1800),
@@ -231,7 +238,11 @@ impl Default for CacheConfig {
         Self {
             backend,
             ttl_secs: env_parse("CACHE_TTL_SECS").unwrap_or(300),
-            max_capacity: env_parse("CACHE_MAX_CAPACITY").unwrap_or(100_000),
+            // With the moka weigher in place (cache::moka) this counts
+            // BYTES of cached values, not entries — a byte budget is
+            // the honest cap: 100k entries of arbitrary size had no
+            // upper bound at all. 64 MiB default.
+            max_capacity: env_parse("CACHE_MAX_CAPACITY").unwrap_or(64 * 1024 * 1024),
             redis_url: env_var("CACHE_REDIS_URL")
                 .unwrap_or_else(|| "redis://127.0.0.1:6379/0".into()),
         }
@@ -241,6 +252,27 @@ impl Default for CacheConfig {
 impl CacheConfig {
     pub fn ttl(&self) -> Duration {
         Duration::from_secs(self.ttl_secs)
+    }
+}
+
+/// Periodic mimalloc collection + footprint logging (src/memory.rs).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MemoryConfig {
+    /// Seconds between forced mimalloc collects. 0 disables the sweeper.
+    pub trim_interval_secs: u64,
+}
+
+impl Default for MemoryConfig {
+    fn default() -> Self {
+        Self {
+            trim_interval_secs: env_parse("MEMORY_TRIM_INTERVAL_SECS").unwrap_or(60),
+        }
+    }
+}
+
+impl MemoryConfig {
+    pub fn interval(&self) -> Duration {
+        Duration::from_secs(self.trim_interval_secs)
     }
 }
 
@@ -824,6 +856,7 @@ impl Config {
             search: SearchConfig::from_env(),
             ws: WsConfig::default(),
             payment: PaymentConfig::default(),
+            memory: MemoryConfig::default(),
             contact: ContactConfig::from_env(),
             oauth: OAuthConfig::from_env(),
         };

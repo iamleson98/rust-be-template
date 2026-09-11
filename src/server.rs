@@ -228,6 +228,14 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // `crate::presence::spawn_journal` for the batching design.
     crate::presence::spawn_journal(store.staff_presence_store());
 
+    // Memory sweeper — periodic forced mimalloc collect. The engine's
+    // allocator keeps freed pages resident (purge_delay=-1) and only
+    // drains at its own SQL write-burst boundaries; without this the
+    // service's transient peaks (HTTP/WS/tantivy/moka churn) ratchet
+    // RSS up to the historical watermark and keep it there (the
+    // 650 MB idle-RSS report, 2026-09). See src/memory.rs.
+    crate::memory::spawn_sweeper(config.memory.interval());
+
     // ---- Domain services (pre-built, shared via Arc) -----------------
     // Each service holds its deps directly — no back-reference to
     // AppState, avoiding circular Arc references.
@@ -499,18 +507,37 @@ fn init_tracing(directive: &str) {
 /// Apply SQLite performance pragmas to the connection pool.
 async fn apply_sqlite_pragmas(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
     use sea_orm::ConnectionTrait;
+    // What every POOLED connection actually runs, and where it comes from:
+    //
+    // * `foreign_keys=ON` + `busy_timeout=5000` — sqlx-sqlite applies
+    //   these itself on EVERY connection (SqliteConnectOptions defaults;
+    //   see sqlx-sqlite src/options/mod.rs). Listed here anyway so the
+    //   intent is explicit and not silently dependent on a sqlx default.
+    // * `journal_mode=WAL` — persisted in the database file header: the
+    //   first connection that sets it flips the file for everyone.
+    // * `synchronous=NORMAL` / `temp_store=MEMORY` — per-connection;
+    //   this call reaches ONE pooled connection (whichever the pool
+    //   hands out), the rest run sqlx defaults (sync FULL is slower but
+    //   safe; temp files go to disk). sea-orm 1.1 offers no per-connection
+    //   pragma hook, and the sqlx URL parser REJECTS unknown query
+    //   params, so the URL cannot carry them either — accepted trade.
+    // * REMOVED 2026-09: `cache_size=-65536` — also only ever reached ONE
+    //   connection (giving it a 64 MB page cache while the rest kept
+    //   SQLite's 2 MB default — an accidental lottery, not a policy) and
+    //   `mmap_size=268435456` — a silent no-op: the rustqlite engine has
+    //   no mmap support at all.
     let pragmas = [
         "PRAGMA journal_mode=WAL;",
         "PRAGMA synchronous=NORMAL;",
         "PRAGMA busy_timeout=5000;",
-        "PRAGMA cache_size=-65536;",
         "PRAGMA temp_store=MEMORY;",
-        "PRAGMA mmap_size=268435456;",
         "PRAGMA foreign_keys=ON;",
     ];
     for stmt in pragmas {
         db.execute_unprepared(stmt).await?;
     }
-    tracing::info!("applied SQLite performance pragmas (WAL, sync=NORMAL, 64MB cache, FK on)");
+    tracing::info!(
+        "applied SQLite pragmas (WAL persisted; sync=NORMAL/temp_store best-effort on one pooled connection; per-connection FK + busy_timeout come from sqlx defaults)"
+    );
     Ok(())
 }

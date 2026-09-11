@@ -844,6 +844,7 @@ dependencies = [
  "http-body-util",
  "image",
  "jsonwebtoken",
+ "libmimalloc-sys",
  "libsqlite3-sys",
  "migrator",
  "mime",

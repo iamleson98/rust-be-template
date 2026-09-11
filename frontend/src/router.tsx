@@ -47,6 +47,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { useApp, hydrateFromStorage } from '@/lib/store'
 import { useAuthMe } from '@/lib/queries'
 import { trackPageView } from '@/lib/analytics'
+import { cn } from '@/lib/utils'
 import { Header } from '@/components/layout/header'
 import { IslandFallback } from '@/routes/_fallback'
 // Persistent shells — imported EAGERLY (not lazy) so the sidebar /
@@ -281,19 +282,34 @@ function RootComponent() {
 
   const hideFooter = pathname === '/login'
 
+  // /admin + /account render their own full-viewport shells (sidebar +
+  // top bar, h-dvh with an internal scroll pane). The customer header /
+  // footer / bottom-nav would stack extra chrome ABOVE the shell, break
+  // its viewport-height math, and scroll the "fixed" sidebar away — same
+  // rule MobileNav + SupportFab already follow.
+  const isAppShellRoute =
+    pathname.startsWith('/admin') || pathname.startsWith('/account')
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <RouteMeta />
       <ScrollRestoration />
       <AuthBootstrap />
 
-      <Header />
+      {!isAppShellRoute && <Header />}
 
-      <main className="flex-1 pb-16 md:pb-0">
+      <main
+        className={cn(
+          'flex-1',
+          // Bottom padding clears the customer MobileNav bar — only
+          // needed on routes that actually render it.
+          !isAppShellRoute && 'pb-16 md:pb-0',
+        )}
+      >
         <Outlet />
       </main>
 
-      {!hideFooter && (
+      {!hideFooter && !isAppShellRoute && (
         <Suspense fallback={null}>
           <Footer />
         </Suspense>

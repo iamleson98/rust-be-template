@@ -199,11 +199,12 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex w-full overflow-hidden bg-background">
-      {/* Desktop sidebar */}
+    <div className="flex w-full h-dvh overflow-hidden bg-background">
+      {/* Desktop sidebar — pinned for the full viewport height (only the
+       * content pane scrolls). */}
       <aside
         className={cn(
-          'hidden md:flex flex-col shrink-0 border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
+          'hidden md:flex flex-col shrink-0 h-full border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
           collapsed ? 'w-14' : 'w-64',
         )}
       >
@@ -222,9 +223,9 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <header className="flex h-14 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4 shrink-0">
+      {/* Main content — only this pane's content area scrolls */}
+      <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4">
           <Button
             variant="ghost"
             size="icon"
@@ -246,7 +247,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
             {user?.name || 'Tài khoản'}
           </span>
         </header>
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {children}
         </div>
       </div>

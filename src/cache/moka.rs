@@ -38,7 +38,15 @@ impl MokaBackend {
     pub fn new(max_capacity: u64, default_ttl: Duration) -> Self {
         let expiry = PerEntryExpiry { default_ttl };
         let inner = MokaCache::<String, CacheValue>::builder()
+            // `max_capacity` counts WEIGHT units once a weigher is set —
+            // with `CacheValue::estimated_bytes` that is BYTES of cached
+            // data (config default 64 MiB). The old entry-count cap
+            // (100_000 entries × unbounded entry size) had no real
+            // upper bound on cache memory at all.
             .max_capacity(max_capacity)
+            .weigher(|_key, value: &CacheValue| -> u32 {
+                value.estimated_bytes().min(u32::MAX as usize) as u32
+            })
             // Per-entry expiry. Falls back to `default_ttl` for entries
             // without an explicit TTL.
             .expire_after(expiry)

@@ -22,6 +22,35 @@ impl CacheValue {
             CacheValue::Bytes(b) => Ok(serde_json::from_slice(&b)?),
         }
     }
+
+    /// Rough in-memory size of the value (bytes), used by the moka
+    /// weigher so `CACHE_MAX_CAPACITY` caps total cached BYTES. Exact
+    /// accounting (re-serializing every JSON value) would cost more
+    /// than it is worth; string bytes + a per-node overhead estimate
+    /// is well within "honest budget" territory for eviction.
+    pub fn estimated_bytes(&self) -> usize {
+        const NODE_OVERHEAD: usize = 48;
+        fn json_size(v: &serde_json::Value) -> usize {
+            match v {
+                serde_json::Value::Null => 8,
+                serde_json::Value::Bool(_) => 8,
+                serde_json::Value::Number(_) => 16,
+                serde_json::Value::String(s) => s.capacity() + NODE_OVERHEAD,
+                serde_json::Value::Array(a) => {
+                    a.capacity().wrapping_mul(NODE_OVERHEAD)
+                        + a.iter().map(json_size).sum::<usize>()
+                }
+                serde_json::Value::Object(o) => o
+                    .iter()
+                    .map(|(k, val)| k.capacity() + NODE_OVERHEAD + json_size(val))
+                    .sum(),
+            }
+        }
+        match self {
+            CacheValue::Json(v) => json_size(v),
+            CacheValue::Bytes(b) => b.capacity() + NODE_OVERHEAD,
+        }
+    }
 }
 
 /// Abstract cache backend. Both `MokaBackend` and `RedisBackend` implement

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/design.dart';
 import '../features/chat/conversations_screen.dart';
 import '../features/chat/room_screen.dart';
+import '../features/call/call_network_doctor.dart';
 import '../features/login/login_screen.dart';
 import '../features/call/call_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -159,9 +160,41 @@ final routerProvider = Provider<GoRouter>((ref) {
           child: CallScreen(),
         ),
       ),
+      // Call-network doctor — pushed above the shell so it works from
+      // any branch; pure diagnostics (DNS/TCP/TLS/STUN probes against
+      // the server-pushed ICE list). The office-network
+      // "stuck on connecting" companion: run it on the failing network
+      // and it names the blocked hop.
+      GoRoute(
+        path: '/settings/call-doctor',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const CallNetworkDoctorScreen(),
+          transitionDuration: AppMotion.page,
+          transitionsBuilder: _slideFromRight,
+        ),
+      ),
     ],
   );
 });
+
+/// iOS-style slide-from-right push (used for the doctor screen).
+Widget _slideFromRight(
+  BuildContext context,
+  Animation<double> animation,
+  Animation<double> secondaryAnimation,
+  Widget child,
+) {
+  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
+  return SlideTransition(
+    position: Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(curved),
+    child: child,
+  );
+}
 
 /// Fade-through (Material You tab-switch motion): outgoing fades out,
 /// incoming fades in with a subtle scale settle.

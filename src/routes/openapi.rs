@@ -157,6 +157,7 @@ use utoipa::OpenApi;
         crate::routes::nullclaw::list_exchanges,
         // system monitoring
         crate::routes::system::system_status,
+        crate::routes::system::process_memory,
         crate::routes::system::chat_stats,
         // admin — vehicle types (schedule form's "Loại xe" catalog).
         // Registered LAST on purpose (see the addresses comment above):

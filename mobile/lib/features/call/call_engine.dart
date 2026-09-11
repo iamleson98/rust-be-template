@@ -42,6 +42,14 @@ class CallEngine {
     final pc = await createPeerConnection(<String, dynamic>{
       'iceServers': iceServers,
       'sdpSemantics': 'unified-plan',
+      // Pre-allocate TURN sockets (relayed-candidate pool) BEFORE the
+      // SDP exchange instead of during it. On corporate networks the
+      // usable path is TURN-over-TLS on TCP 443 — that handshake
+      // (TCP + TLS + TURN allocate + auth) can take seconds when the
+      // firewall throttles it; starting it up-front shrinks the gap
+      // between "answered" and "connected" instead of racing the
+      // 20 s media deadline.
+      'iceCandidatePoolSize': 2,
     });
     _pc = pc;
 

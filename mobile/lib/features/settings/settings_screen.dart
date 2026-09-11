@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/audio/sound_service.dart';
 import '../../core/auth/auth_controller.dart';
@@ -207,6 +208,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: 'Máy chủ',
             details: cfg.baseUrl,
             onTap: _editServer,
+          ),
+          _tile(
+            icon: FLucideIcons.activity,
+            title: 'Kiểm tra mạng cuộc gọi',
+            details: 'Thử DNS, TCP/TLS 443, STUN — chẩn đoán mạng công ty',
+            onTap: () => context.push('/settings/call-doctor'),
           ),
           _tile(
             icon: FLucideIcons.settings,

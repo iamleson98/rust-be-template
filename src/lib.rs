@@ -32,6 +32,7 @@ pub mod entity;
 pub mod error;
 pub mod guard;
 pub mod jobs;
+pub mod memory;
 pub mod middleware;
 pub mod nullclaw;
 pub mod osm;

@@ -217,6 +217,12 @@ impl PlaceSearcher {
         let reader = index
             .reader_builder()
             .reload_policy(ReloadPolicy::OnCommitWithDelay)
+            // Default is 100 decompressed docstore blocks per segment
+            // reader; the Vietnam index has dozens of segments and the
+            // doc-retrieval path (`search` materializes every hit's doc)
+            // never needs that depth — 25 keeps the search page fast
+            // while shaving per-segment reader memory.
+            .doc_store_cache_num_blocks(25)
             .try_into()
             .context("build tantivy IndexReader")?;
 

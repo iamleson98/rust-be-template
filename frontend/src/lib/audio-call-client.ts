@@ -441,7 +441,14 @@ export class AudioCallClient {
     this.peerId = this.cfg.role === 'agent' ? (targetUserId ?? null) : null
     this.isOfferer = true
 
-    this.pc = new RTCPeerConnection({ iceServers: this.cfg.iceServers })
+    this.pc = new RTCPeerConnection({
+      iceServers: this.cfg.iceServers,
+      // Pre-open TURN relay sockets before the SDP exchange — on
+      // corporate networks the TURN-over-TLS/TCP-443 handshake takes
+      // seconds; starting it up-front keeps "answered → connected"
+      // inside the media deadline.
+      iceCandidatePoolSize: 2,
+    })
     this.setupPeerConnection()
 
     // Create offer.
@@ -477,7 +484,10 @@ export class AudioCallClient {
       return
     }
 
-    this.pc = new RTCPeerConnection({ iceServers: this.cfg.iceServers })
+    this.pc = new RTCPeerConnection({
+      iceServers: this.cfg.iceServers,
+      iceCandidatePoolSize: 2,
+    })
     this.setupPeerConnection()
 
     await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp))

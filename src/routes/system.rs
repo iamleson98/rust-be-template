@@ -278,6 +278,62 @@ pub fn init_start_time() {
     let _ = START_TIME.set(std::time::Instant::now());
 }
 
+/// `GET /api/admin/system/memory?collect=true` — process-memory
+/// breakdown.
+///
+/// Surfaces the split the "why is it using 650 MB" question needs:
+/// anonymous heap (the part the mimalloc sweeper actually returns)
+/// vs file-backed pages (tantivy's mmap'd OSM index + binary —
+/// reclaimable page cache, not heap). `?collect=true` first forces a
+/// full mimalloc collect so the reading reflects the live set, not
+/// the retained watermark.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessMemoryResponse {
+    /// `/proc/self/status` + `/proc/self/smaps_rollup` reading.
+    pub snapshot: crate::memory::MemorySnapshot,
+    /// True when a forced collect ran before reading (the `collect`
+    /// query param was set).
+    pub collected: bool,
+    /// Configured sweeper interval in seconds (0 = disabled).
+    pub sweeper_interval_secs: u64,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/admin/system/memory",
+    tag = "admin",
+    params(
+        ("collect" = Option<bool>, Query, description = "Force a full mimalloc collect before reading (default: false)"),
+    ),
+    responses(
+        (status = 200, description = "Process memory breakdown", body = ProcessMemoryResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+    )
+)]
+pub async fn process_memory(
+    State(st): State<AppState>,
+    admin: AdminUser,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> AppResult<Json<ProcessMemoryResponse>> {
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .await?;
+
+    let collected = params
+        .get("collect")
+        .is_some_and(|v| v == "true" || v == "1");
+    if collected {
+        crate::memory::collect();
+    }
+    Ok(Json(ProcessMemoryResponse {
+        snapshot: crate::memory::MemorySnapshot::read(),
+        collected,
+        sweeper_interval_secs: st.config.memory.trim_interval_secs,
+    }))
+}
+
 /// `GET /api/admin/system` — system monitoring dashboard data.
 #[utoipa::path(
     get,
@@ -659,5 +715,6 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     axum::Router::new()
         .route("/", get(system_status))
         .route("/metrics", get(system_metrics))
+        .route("/memory", get(process_memory))
         .route("/chat/stats", get(chat_stats))
 }

@@ -1562,6 +1562,37 @@ export type MatrixResponse = {
 };
 
 /**
+ * One process-memory reading (best-effort; every field is `None` on
+ * non-Linux or when the proc files are unreadable).
+ */
+export type MemorySnapshot = {
+    /**
+     * Private data segments (heap/stack growth) per smaps_rollup, in KiB.
+     */
+    anon_kib?: number | null;
+    /**
+     * File-backed resident pages (mmap'd index, binary text) in KiB.
+     */
+    file_backed_kib?: number | null;
+    /**
+     * OS thread count.
+     */
+    threads?: number | null;
+    /**
+     * Peak resident set size since process start, in KiB.
+     */
+    vm_hwm_kib?: number | null;
+    /**
+     * Resident set size (pages currently in RAM), in KiB.
+     */
+    vm_rss_kib?: number | null;
+    /**
+     * Total program size (VSZ) per /proc/self/status, in KiB.
+     */
+    vm_size_kib?: number | null;
+};
+
+/**
  * Request body for `PATCH /api/admin/reviews/{id}` (moderation).
  */
 export type ModerateReviewRequest = {
@@ -1851,6 +1882,33 @@ export type PriceAlertOut = {
     status: string;
     targetPrice?: number | null;
     toName?: string | null;
+};
+
+/**
+ * `GET /api/admin/system/memory?collect=true` — process-memory
+ * breakdown.
+ *
+ * Surfaces the split the "why is it using 650 MB" question needs:
+ * anonymous heap (the part the mimalloc sweeper actually returns)
+ * vs file-backed pages (tantivy's mmap'd OSM index + binary —
+ * reclaimable page cache, not heap). `?collect=true` first forces a
+ * full mimalloc collect so the reading reflects the live set, not
+ * the retained watermark.
+ */
+export type ProcessMemoryResponse = {
+    /**
+     * True when a forced collect ran before reading (the `collect`
+     * query param was set).
+     */
+    collected: boolean;
+    /**
+     * `/proc/self/status` + `/proc/self/smaps_rollup` reading.
+     */
+    snapshot: MemorySnapshot;
+    /**
+     * Configured sweeper interval in seconds (0 = disabled).
+     */
+    sweeperIntervalSecs: number;
 };
 
 export type ProcessStats = {
@@ -4406,6 +4464,38 @@ export type SystemStatusResponses = {
 };
 
 export type SystemStatusResponse2 = SystemStatusResponses[keyof SystemStatusResponses];
+
+export type ProcessMemoryData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Force a full mimalloc collect before reading (default: false)
+         */
+        collect?: boolean;
+    };
+    url: '/api/admin/system/memory';
+};
+
+export type ProcessMemoryErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type ProcessMemoryResponses = {
+    /**
+     * Process memory breakdown
+     */
+    200: ProcessMemoryResponse;
+};
+
+export type ProcessMemoryResponse2 = ProcessMemoryResponses[keyof ProcessMemoryResponses];
 
 export type SystemMetricsData = {
     body?: never;

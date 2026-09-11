@@ -10,9 +10,12 @@
  * and gives us full control over styling.
  *
  * Features:
+ *   - Fixed app layout: the shell fills the viewport (h-dvh) and the
+ *     CONTENT pane is the scroll container — the sidebar (and the top
+ *     bar) stay pinned in place no matter how far the page content
+ *     scrolls (they never scroll out of view).
  *   - Fixed-width sidebar (16rem) on desktop, collapsible to 3rem
  *   - Mobile: sidebar hidden, opens as a Sheet drawer
- *   - Gradient brand header
  *   - Grouped nav items with active state
  *   - User card + logout in footer
  *   - Ctrl+B keyboard shortcut to toggle collapse
@@ -246,11 +249,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex w-full overflow-hidden bg-background">
-      {/* Desktop sidebar — fixed width, hidden on mobile */}
+    <div className="flex w-full h-dvh overflow-hidden bg-background">
+      {/* Desktop sidebar — in-flow but full viewport height (the shell is
+       * h-dvh and only the content pane scrolls), so it stays pinned to
+       * the left edge for the entire page. */}
       <aside
         className={cn(
-          'hidden md:flex flex-col shrink-0 border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
+          'hidden md:flex flex-col shrink-0 h-full border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
           collapsed ? 'w-14' : 'w-64',
         )}
       >
@@ -269,9 +274,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
-        <header className="flex h-14 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4 shrink-0">
+      {/* Main content — also viewport-height; only this pane's content
+       * area scrolls (overflow-y-auto), so the header + sidebar remain
+       * fixed on screen while the page data scrolls beneath them. */}
+      <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4">
           {/* Mobile hamburger */}
           <Button
             variant="ghost"
@@ -295,7 +302,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {user?.name || 'Admin'} · DatXeVui Admin
           </span>
         </header>
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {children}
         </div>
       </div>

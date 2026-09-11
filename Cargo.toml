@@ -45,6 +45,15 @@ migrator = { path = "migrator" }
 # (rlib link mode — see .cargo/config.toml.) Unconditional: rust-sql
 # is the only database engine in this project.
 rustqlite-compat = { path = "rust-sql/compat/rustqlite-compat" }
+# Direct FFI to the ONE mimalloc instance the engine links as the
+# global allocator (rustqlite default feature). Version + features
+# mirror rust-sql's own pin so cargo resolves both to a single copy.
+# Used by `memory::collect()` — the engine sets purge_delay=-1 (never
+# auto-return freed pages) and only drains at its own write-burst
+# boundaries; the SERVICE's transient peaks (axum/serde/tantivy/moka
+# churn) need the periodic mi_collect in src/memory.rs or RSS sticks
+# at the historical watermark forever.
+libmimalloc-sys = { version = "0.1", features = ["extended"] }
 
 # Async runtime — explicit features instead of "full" to keep compile + binary lean.
 # Add "process" only if you need to spawn child processes (currently not used).
