@@ -120,13 +120,15 @@ int _defaultPort(String scheme) => switch (scheme) {
 
 enum ProbeStatus { waiting, running, ok, fail }
 
-class ProbeResult {
+/// File-private result record (the analyzer forbids private types in
+/// public APIs — `_Endpoint` is an implementation detail).
+class _ProbeResult {
   final _Endpoint endpoint;
   ProbeStatus status = ProbeStatus.waiting;
   String detail = '';
   int elapsedMs = 0;
 
-  ProbeResult(this.endpoint);
+  _ProbeResult(this.endpoint);
 }
 
 /// Runs one probe for [e]; returns a short human detail string, throws
@@ -216,7 +218,7 @@ Future<String> _probe(_Endpoint e) async {
     if (dg == null) {
       throw const SocketException('không nhận được gói tin');
     }
-    final parsed = _parseStun(dg, txid);
+    final parsed = _parseStun(dg.data, txid);
     if (parsed == null || !parsed.txMatch) {
       throw const SocketException('đáp ứng không phải STUN');
     }
@@ -239,10 +241,10 @@ class CallNetworkDoctorScreen extends ConsumerStatefulWidget {
 
 class _CallNetworkDoctorScreenState
     extends ConsumerState<CallNetworkDoctorScreen> {
-  final List<ProbeResult> _results = [];
+  final List<_ProbeResult> _results = [];
   bool _running = false;
 
-  List<ProbeResult> get _usable => _results
+  List<_ProbeResult> get _usable => _results
       .where((r) => r.status == ProbeStatus.ok && r.endpoint.scheme != 'stun')
       .toList(growable: false);
 
@@ -288,7 +290,7 @@ class _CallNetworkDoctorScreenState
 
     setState(() {
       for (final e in endpoints) {
-        _results.add(ProbeResult(e));
+        _results.add(_ProbeResult(e));
       }
     });
 
@@ -430,7 +432,7 @@ class _CallNetworkDoctorScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            ok ? FLucideIcons.dns : FLucideIcons.triangleAlert,
+            ok ? FLucideIcons.server : FLucideIcons.triangleAlert,
             color: ok ? theme.colors.primary : Colors.amber.shade800,
           ),
           const SizedBox(width: 12),
@@ -442,7 +444,7 @@ class _CallNetworkDoctorScreenState
                   ok
                       ? 'Đang kiểm tra đường kết nối do máy chủ đẩy xuống'
                       : 'Máy chủ chưa đẩy cấu hình TURN',
-                  style: theme.typography.base.copyWith(
+                  style: theme.typography.body.md.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -451,7 +453,7 @@ class _CallNetworkDoctorScreenState
                   ok
                       ? 'Mỗi đường dẫn được thử đúng như cuộc gọi thật: DNS → TCP/TLS → STUN. Nếu mọi đường đều lỗi trên mạng này, cuộc gọi sẽ kẹt ở "đang kết nối".'
                       : 'Đang thử danh sách STUN công khai (Google). Với mạng công ty, hãy kiểm tra lại kết nối tới máy chủ.',
-                  style: theme.typography.sm.copyWith(
+                  style: theme.typography.body.sm.copyWith(
                     color: theme.colors.mutedForeground,
                   ),
                 ),
@@ -463,7 +465,7 @@ class _CallNetworkDoctorScreenState
     );
   }
 
-  Widget _probeTile(FThemeData theme, ProbeResult r) {
+  Widget _probeTile(FThemeData theme, _ProbeResult r) {
     final (color, icon, label) = switch (r.status) {
       ProbeStatus.waiting => (theme.colors.mutedForeground, FLucideIcons.hourglass, 'Chờ'),
       ProbeStatus.running => (theme.colors.primary, FLucideIcons.loader, 'Đang kiểm tra…'),
@@ -487,7 +489,7 @@ class _CallNetworkDoctorScreenState
               children: [
                 Text(
                   r.endpoint.raw,
-                  style: theme.typography.base.copyWith(
+                  style: theme.typography.body.md.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
@@ -499,7 +501,7 @@ class _CallNetworkDoctorScreenState
                       ? label
                       : '$label — ${r.detail}'
                           '${r.elapsedMs > 0 ? ' (${r.elapsedMs} ms)' : ''}',
-                  style: theme.typography.sm.copyWith(
+                  style: theme.typography.body.sm.copyWith(
                     color: r.status == ProbeStatus.fail
                         ? Colors.red.shade700
                         : theme.colors.mutedForeground,
@@ -563,14 +565,14 @@ class _CallNetworkDoctorScreenState
               children: [
                 Text(
                   title,
-                  style: theme.typography.base.copyWith(
+                  style: theme.typography.body.md.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   body,
-                  style: theme.typography.sm.copyWith(
+                  style: theme.typography.body.sm.copyWith(
                     color: theme.colors.mutedForeground,
                   ),
                 ),

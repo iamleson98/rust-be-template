@@ -172,29 +172,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const CallNetworkDoctorScreen(),
           transitionDuration: AppMotion.page,
+          // Reuses the queue→room slide-from-right (see its definition
+          // near the bottom of this file).
           transitionsBuilder: _slideFromRight,
         ),
       ),
     ],
   );
 });
-
-/// iOS-style slide-from-right push (used for the doctor screen).
-Widget _slideFromRight(
-  BuildContext context,
-  Animation<double> animation,
-  Animation<double> secondaryAnimation,
-  Widget child,
-) {
-  final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutCubic);
-  return SlideTransition(
-    position: Tween<Offset>(
-      begin: const Offset(1, 0),
-      end: Offset.zero,
-    ).animate(curved),
-    child: child,
-  );
-}
 
 /// Fade-through (Material You tab-switch motion): outgoing fades out,
 /// incoming fades in with a subtle scale settle.
