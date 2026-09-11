@@ -19,12 +19,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  BrandListSkeleton,
-  PickupPointsSkeleton,
-  RouteListSkeleton,
-  ScheduleMiniSkeleton,
-} from '@/components/layout/skeletons'
+import { BrandListSkeleton } from '@/features/admin/brands/brand-list-skeleton'
+import { ScheduleMiniSkeleton } from '@/features/admin/brands/schedule-mini-skeleton'
+import { PickupPointsSkeleton } from '@/features/admin/pickup-points/pickup-points-skeleton'
+import { RouteListSkeleton } from '@/features/admin/routes/route-list-skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Building2,

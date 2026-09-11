@@ -28,7 +28,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { AdminScheduleCardsSkeleton } from '@/components/layout/skeletons'
+import { AdminScheduleCardsSkeleton } from '@/features/admin/schedules/schedule-cards-skeleton'
 import {
   Select,
   SelectContent,

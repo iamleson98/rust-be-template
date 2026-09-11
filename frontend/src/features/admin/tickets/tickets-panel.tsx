@@ -50,7 +50,7 @@ import {
 import { Calendar } from '@/components/ui/calendar'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { TicketDetailSkeleton } from '@/components/layout/skeletons'
+import { TicketDetailSkeleton } from '@/features/admin/tickets/ticket-detail-skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'

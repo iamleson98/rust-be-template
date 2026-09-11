@@ -28,7 +28,8 @@ import {
   Filter,
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
-import { AdminStatsCardsSkeleton, ChatChannelListSkeleton } from '@/components/layout/skeletons'
+import { AdminStatsCardsSkeleton } from '@/features/admin/dashboard/stats-cards-skeleton'
+import { ChatChannelListSkeleton } from '@/features/admin/chat/chat-channel-list-skeleton'
 import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
 import { PriorityBadge, StatusBadge, BookingStatusBadge } from '@/features/admin/dashboard/badges'
 import {

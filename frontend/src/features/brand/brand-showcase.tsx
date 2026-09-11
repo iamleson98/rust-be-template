@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Star, Bus, ChevronRight } from 'lucide-react'
 import { useBrands, type Brand } from '@/lib/queries'
 import { useNavigate } from '@/router'
-import { ErrorState } from '@/components/layout/empty-states'
-import { BrandShowcaseSkeleton } from '@/components/layout/skeletons'
+import { ErrorState } from '@/components/layout/error-state'
+import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcase-skeleton'
 
 export const BrandShowcase = memo(function BrandShowcase() {
   const { data, isLoading, isError, refetch } = useBrands()

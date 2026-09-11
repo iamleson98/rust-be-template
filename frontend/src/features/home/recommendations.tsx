@@ -5,7 +5,7 @@ import { useNavigate } from '@/router'
 import { useRecommendations, type RecommendationItem } from '@/lib/queries'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/layout/empty-states'
+import { ErrorState } from '@/components/layout/error-state'
 import { formatCurrency } from '@/lib/currency'
 import {
   Sparkles,

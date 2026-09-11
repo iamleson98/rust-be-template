@@ -29,7 +29,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { SeatMap, type SeatInv } from '@/features/trips/seat-map'
 import { RouteMapPreview } from '@/features/map/route-map-preview'
 import { ReviewsList } from '@/features/reviews/reviews-list'
-import { TripDetailSkeleton } from '@/components/layout/skeletons'
+import { TripDetailSkeleton } from './trip-detail-skeleton'
 import { LiveTracking } from '@/features/map/live-tracking'
 import { formatCurrency } from '@/lib/currency'
 import {

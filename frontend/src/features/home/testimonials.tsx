@@ -3,7 +3,7 @@
 import { memo, useEffect, useRef, useState, useCallback } from 'react'
 import { Star, Quote, BadgeCheck } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
-import { TestimonialsSkeleton } from '@/components/layout/skeletons'
+import { TestimonialsSkeleton } from '@/features/home/components/testimonials-skeleton'
 
 interface Testimonial {
   name: string

@@ -15,7 +15,7 @@
 
 import { AlertCircle, RefreshCw, Server } from 'lucide-react'
 
-import { SystemMetricsSkeleton } from '@/components/layout/skeletons'
+import { SystemMetricsSkeleton } from '@/features/admin/system/system-metrics-skeleton'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useSystemMetrics } from '@/lib/queries'

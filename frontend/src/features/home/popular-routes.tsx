@@ -9,10 +9,10 @@ import { queryKeys } from '@/lib/query-client'
 import { searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/layout/empty-states'
+import { ErrorState } from '@/components/layout/error-state'
 import { formatCurrency } from '@/lib/currency'
 import { ArrowRight, Star, Bus, ChevronRight, TrendingUp } from 'lucide-react'
-import { PopularRoutesSkeleton } from '@/components/layout/skeletons'
+import { PopularRoutesSkeleton } from '@/features/home/components/popular-routes-skeleton'
 import { buildSearchInput } from '@/lib/search-params'
 
 export const PopularRoutes = memo(function PopularRoutes() {

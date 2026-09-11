@@ -36,7 +36,7 @@ import {
   Ticket,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { AdminDashboardSkeleton } from '@/components/layout/skeletons'
+import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
 import { AdminBrandManagement } from '@/features/admin/brands'
 import type { DateRange } from './types'
 import { downloadCSV } from './helpers'

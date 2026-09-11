@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { relativeTime } from '@/lib/types'
-import { NoWishlistItems } from '@/components/layout/empty-states'
+import { NoWishlistItems } from '@/features/wishlist/no-wishlist-items'
 import { buildSearchInput } from '@/lib/search-params'
 
 type Props = {

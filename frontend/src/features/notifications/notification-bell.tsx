@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
 import { toast } from 'sonner'
-import { NoNotifications } from '@/components/layout/empty-states'
+import { NoNotifications } from '@/features/notifications/no-notifications'
 
 const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
   booking_confirmed: { icon: <Ticket className="h-4 w-4" />, cls: 'bg-blue-100 text-blue-700' },

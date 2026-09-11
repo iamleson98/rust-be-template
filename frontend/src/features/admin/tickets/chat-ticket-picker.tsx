@@ -40,7 +40,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { SeatMapSkeleton, TripResultsSkeleton } from '@/components/layout/skeletons'
+import { SeatMapSkeleton } from '@/features/trips/seat-map-skeleton'
+import { TripResultsSkeleton } from '@/features/search/trip-results-skeleton'
 import { toast } from 'sonner'
 import {
   Select,

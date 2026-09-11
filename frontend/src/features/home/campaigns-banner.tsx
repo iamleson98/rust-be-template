@@ -4,10 +4,10 @@ import { memo, useEffect, useState, useRef, useCallback } from 'react'
 import { useCampaigns, type Campaign } from '@/lib/queries'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ErrorState } from '@/components/layout/empty-states'
+import { ErrorState } from '@/components/layout/error-state'
 import { Tag, Copy, Check, Zap, Timer, Flame } from 'lucide-react'
 import { toast } from 'sonner'
-import { CampaignsSkeleton } from '@/components/layout/skeletons'
+import { CampaignsSkeleton } from '@/features/home/components/campaigns-skeleton'
 
 /* Countdown timer for campaigns */
 function CampaignCountdown({ endTime }: { endTime: number }) {

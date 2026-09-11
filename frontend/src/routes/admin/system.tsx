@@ -16,7 +16,7 @@ import { Activity, Clock, Database, Wifi } from 'lucide-react'
 
 import { DatabaseEngineSection } from '@/features/admin/system/database-engine-section'
 import { SystemMetricsSection } from '@/features/admin/system/system-metrics-section'
-import { SystemStatusSkeleton } from '@/components/layout/skeletons'
+import { SystemStatusSkeleton } from '@/features/admin/system/system-status-skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSystemStatus } from '@/lib/queries'
 

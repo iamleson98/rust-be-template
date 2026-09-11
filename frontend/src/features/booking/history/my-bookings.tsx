@@ -50,8 +50,10 @@ import {
 import { BookingList } from '@/features/booking/history/booking-list'
 import { GuestLookupForm } from '@/features/booking/history/guest-lookup-form'
 import { StatsRow, UserTabTrigger, ReviewCard } from '@/features/booking/history/booking-stats'
-import { NoResultsFound, NoBookingsYet, NoReviewsYet } from '@/components/layout/empty-states'
-import { MyBookingsSkeleton } from '@/components/layout/skeletons'
+import { MyBookingsSkeleton } from '@/features/booking/history/my-bookings-skeleton'
+import { NoBookingsYet } from '@/features/booking/history/no-bookings-yet'
+import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
+import { NoResultsFound } from '@/features/search/no-results-found'
 import { Card as UiCard } from '@/components/ui/card'
 
 // Lazy-load the FeedbackForm so its star-rating + photo-upload code only

@@ -56,7 +56,8 @@ import { IslandFallback } from '@/routes/_fallback'
 // eliminates the old full-page white-flash spinner.
 import { AdminShell } from '@/components/layout/admin-shell'
 import { AccountShell } from '@/components/layout/account-shell'
-import { AdminContentSkeleton, AccountContentSkeleton } from '@/components/layout/skeletons'
+import { AccountContentSkeleton } from '@/components/layout/account-content-skeleton'
+import { AdminContentSkeleton } from '@/components/layout/admin-content-skeleton'
 
 // ── Lazy route components (code-split per route) ────────────────
 const HomePage = lazy(() => import('./routes/home').then((m) => ({ default: m.HomePage })))

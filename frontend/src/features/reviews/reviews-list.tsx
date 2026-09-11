@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { formatDateTimeVN } from '@/lib/types'
-import { NoReviewsYet } from '@/components/layout/empty-states'
+import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
 import { Lightbox } from '@/components/icons/lightbox'
 
 type Review = {
