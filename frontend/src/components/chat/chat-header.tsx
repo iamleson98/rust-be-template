@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   WifiOff,
   CircleCheck,
+  Phone,
 } from 'lucide-react'
 import type { CustomerChannel as Channel, View } from './_shared'
 
@@ -26,6 +27,8 @@ export function ChatHeader({
   employeesOnline,
   assigneeName,
   botActive,
+  showBack,
+  onCall,
   onMinimize,
   onClose,
   onBackToList,
@@ -38,6 +41,9 @@ export function ChatHeader({
   assigneeName?: string | null
   /** True when no staff is online — the AI bot owns support. */
   botActive?: boolean
+  /** The back action is reserved for returning from the embedded call. */
+  showBack?: boolean
+  onCall?: () => void
   onMinimize: () => void
   onClose: () => void
   onBackToList: () => void
@@ -47,7 +53,7 @@ export function ChatHeader({
   return (
     <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-2.5 min-w-0">
-        {view === 'conversation' && (
+        {showBack && (
           <button
             onClick={onBackToList}
             className="hover:bg-white/10 rounded p-1 -ml-1"
@@ -92,6 +98,17 @@ export function ChatHeader({
         </div>
       </div>
       <div className="flex items-center gap-1">
+        {onCall && (
+          <button
+            type="button"
+            onClick={onCall}
+            className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            aria-label="Gọi nhân viên hỗ trợ"
+            title="Gọi nhân viên hỗ trợ"
+          >
+            <Phone className="h-4 w-4" />
+          </button>
+        )}
         <button onClick={onMinimize} className="hover:bg-white/10 rounded p-1.5" aria-label="Thu nhỏ">
           <Minus className="h-4 w-4" />
         </button>

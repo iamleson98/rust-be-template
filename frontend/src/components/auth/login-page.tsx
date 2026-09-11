@@ -5,9 +5,8 @@
  *
  * Owns the page-level layout (background, header, tab switcher, trust
  * note) and delegates each form to its own file under `auth/`:
- *   - CustomerLogin   → `./customer-login`
+ *   - CustomerLogin   → `./customer-login` (customers and employees)
  *   - RegisterForm    → `./register-form`
- *   - EmployeeLogin   → `./employee-login`
  *
  * The shared zod schemas, the password-strength meter helper and the
  * `TabButton` presentational component live in `./_shared`.
@@ -20,14 +19,12 @@ import {
   ShieldCheck,
   Bus,
   User,
-  Briefcase,
   ArrowLeft,
   UserPlus,
 } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
-import { EmployeeLogin } from './employee-login'
 import { isStaffUser } from '@/lib/store'
 
 export function LoginPage() {
@@ -93,7 +90,7 @@ export function LoginPage() {
               active={tab === 'customer'}
               onClick={() => setTab('customer')}
               icon={<User className="h-4 w-4" />}
-              label="Khách hàng"
+              label="Đăng nhập"
             />
             <TabButton
               active={tab === 'register'}
@@ -101,19 +98,12 @@ export function LoginPage() {
               icon={<UserPlus className="h-4 w-4" />}
               label="Đăng ký"
             />
-            <TabButton
-              active={tab === 'employee'}
-              onClick={() => setTab('employee')}
-              icon={<Briefcase className="h-4 w-4" />}
-              label="Nhân viên"
-            />
           </div>
 
           {/* Content */}
           <div className="p-6">
             {tab === 'customer' && <CustomerLogin />}
             {tab === 'register' && <RegisterForm />}
-            {tab === 'employee' && <EmployeeLogin />}
           </div>
         </div>
 

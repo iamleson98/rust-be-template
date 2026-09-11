@@ -5,8 +5,8 @@
  *
  * ## UX
  *
- *   * Floating action button (FAB) in the bottom-right corner, above the
- *     existing support chat FAB. Click → opens the call panel.
+ *   * Customers open the call panel from the support-chat header.
+ *     Staff retain a standalone control for incoming calls.
  *
  *   * Call panel states:
  *       - idle: shows "Call support" button + agent online status
@@ -35,15 +35,16 @@
  *     don't keep a socket alive for users who never use the feature.
  */
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useApp } from '@/lib/store'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2, Signal } from 'lucide-react'
 import type { AudioCallClient } from '@/lib/audio-call-client'
 import { playSound, startRingTone } from '@/lib/sound-effects'
 import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
 import { isStaffUser } from '@/lib/store'
+import { toast } from 'sonner'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
 
@@ -57,15 +58,26 @@ function buildSignalingUrl(): string {
   return `${proto}//${window.location.host}/ws-call`
 }
 
+function CallSurface({ embedded, children }: { embedded: boolean; children: ReactNode }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null)
+
+  useEffect(() => {
+    setTarget(embedded ? document.getElementById('customer-call-surface') : null)
+  }, [embedded])
+
+  if (!embedded) return children
+  return target ? createPortal(children, target) : null
+}
+
 export function AudioCallWidget() {
-  const { user, chatOpen } = useApp()
+  const { user, callOpen: open, setCallOpen: setOpen } = useApp()
   const isAgent = isStaffUser(user)
-  const [open, setOpen] = useState(false)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
   const [agentInCall, setAgentInCall] = useState(false)
   /** At least one agent online AND not in a call (multi-agent). */
   const [agentsAvailable, setAgentsAvailable] = useState(false)
+  const [presenceKnown, setPresenceKnown] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
@@ -81,6 +93,7 @@ export function AudioCallWidget() {
   // Ring tone stop function — clears the repeating interval when the
   // call transitions out of 'calling' or 'incoming'.
   const stopRingRef = useRef<(() => void) | null>(null)
+  const autoStartRef = useRef(false)
 
   // ── Wake Lock helpers ──────────────────────────────────────────
   // Keeps the screen on during an active call. The wake lock is released
@@ -132,6 +145,7 @@ export function AudioCallWidget() {
     clientRef.current?.dispose()
     clientRef.current = null
     clientOwnerRef.current = null
+    setPresenceKnown(false)
     const { AudioCallClient } = await import('@/lib/audio-call-client')
     const client = new AudioCallClient({
       signalingUrl: buildSignalingUrl(),
@@ -143,6 +157,9 @@ export function AudioCallWidget() {
     if (audioRef.current) client.remoteAudioElement = audioRef.current
     client.on('state', (s: CallState) => {
       setState(s)
+      if (!isAgent && (s === 'ended' || (s === 'idle' && autoStartRef.current))) {
+        setOpen(false)
+      }
       if (s === 'active' && callTimerRef.current === null) {
         callTimerRef.current = setInterval(() => setCallDuration((d) => d + 1), 1000)
         requestWakeLock()
@@ -184,6 +201,7 @@ export function AudioCallWidget() {
       }
     })
     client.on('presence', ({ onlineAgents, agentInCall, agentsAvailable }: { onlineAgents: number; agentInCall?: boolean; agentsAvailable?: boolean }) => {
+      setPresenceKnown(true)
       setOnlineAgents(onlineAgents)
       setAgentInCall(agentInCall ?? false)
       // Multi-agent availability: agents may be online but all busy.
@@ -192,6 +210,7 @@ export function AudioCallWidget() {
     // When the signaling WS closes (agent logged out, network drop),
     // reset onlineAgents to 0 so the call button disables immediately.
     client.on('_close', () => {
+      setPresenceKnown(false)
       setOnlineAgents(0)
       setAgentInCall(false)
       setAgentsAvailable(false)
@@ -214,7 +233,7 @@ export function AudioCallWidget() {
     clientRef.current = client
     clientOwnerRef.current = owner
     return client
-  }, [user])
+  }, [user, isAgent, setOpen, releaseWakeLock, requestWakeLock])
 
   // Start a call (customer → agent, or agent → customer).
   const startCall = useCallback(async () => {
@@ -222,6 +241,34 @@ export function AudioCallWidget() {
     const client = await ensureClient()
     await client.startCall()
   }, [ensureClient])
+
+  // Clicking the phone in chat is the call action itself. Once signaling
+  // reports an available agent, start immediately instead of showing a
+  // second confirmation button inside the call surface.
+  useEffect(() => {
+    if (!open || isAgent) {
+      autoStartRef.current = false
+      return
+    }
+    if (state !== 'idle' || !agentsAvailable || autoStartRef.current) return
+    autoStartRef.current = true
+    startCall().catch((reason) => {
+      autoStartRef.current = false
+      toast.error('Không thể bắt đầu cuộc gọi. Bạn vẫn có thể tiếp tục nhắn tin.')
+      setOpen(false)
+    })
+  }, [open, isAgent, state, agentsAvailable, startCall])
+
+  useEffect(() => {
+    if (!open || isAgent || !presenceKnown || state !== 'idle') return
+    if (onlineAgents === 0) {
+      toast.info('Hiện không có nhân viên trực tuyến. Bạn vẫn có thể tiếp tục nhắn tin.')
+      setOpen(false)
+    } else if (!agentsAvailable) {
+      toast.info('Nhân viên đang bận. Bạn vẫn có thể tiếp tục nhắn tin.')
+      setOpen(false)
+    }
+  }, [open, isAgent, presenceKnown, state, onlineAgents, agentsAvailable, setOpen])
 
   // Accept inbound call. (The duration timer is NOT started here — it starts
   // when the call actually reaches 'active', which for the answering side is
@@ -265,6 +312,13 @@ export function AudioCallWidget() {
     stopRingRef.current?.()
     stopRingRef.current = null
   }, [])
+
+  useEffect(() => {
+    if (open || isAgent) return
+    if (state === 'calling' || state === 'connecting' || state === 'active') {
+      hangup()
+    }
+  }, [open, isAgent, state, hangup])
 
   // Toggle mic.
   const toggleMic = useCallback(() => {
@@ -316,8 +370,6 @@ export function AudioCallWidget() {
     return () => { cancelled = true }
   }, [open, ensureClient, isAgent, user])
 
-  if (!user) return null
-
   // Agent status text. isAgent is already declared above (for the
   // auto-connect effect). Reuse it here.
   const agentsOnline = onlineAgents > 0
@@ -339,58 +391,51 @@ export function AudioCallWidget() {
           be present in the DOM with autoplay + playsInline. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
-      {/* Floating action button — only when panel is closed. Sits to the
-          left of the support-chat FAB so they don't overlap. */}
-      {!open && (
+      {/* Staff need a persistent control to notice and answer incoming calls.
+          Customers enter both chat and calling through the support widget. */}
+      {!open && isAgent && (
         <button
+          type="button"
           onClick={() => setOpen(true)}
           aria-label="Gọi hỗ trợ"
           className={cn(
             'fixed z-40 right-4 md:right-6 flex items-center justify-center',
-            'h-12 w-12 rounded-full',
+            'h-10 w-10 md:h-12 md:w-12 rounded-full',
             agentInCall
               ? 'bg-amber-600 hover:bg-amber-700 border-amber-400/30'
               : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-400/30',
             'text-white',
             'transition-all hover:scale-105 active:scale-95',
             'border',
-            // Sit above the chat FAB (which is at bottom-24) — 56px above.
-            chatOpen ? 'bottom-36 md:bottom-36' : 'bottom-24 md:bottom-24',
+            'bottom-20 md:bottom-6',
             // Safe area on iOS.
             'mb-[env(safe-area-inset-bottom)]',
           )}
         >
-          <Phone className="h-5 w-5" />
+          <Phone className="h-4 w-4 md:h-5 md:w-5" />
           {/* Incoming call — ring badge visible even when the panel is closed
               (critical for the agent, who must notice inbound calls). */}
           {state === 'incoming' && (
             <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white animate-ping" />
           )}
-          {onlineAgents > 0 && !isAgent && state !== 'incoming' && agentsAvailable && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 border-2 border-white animate-pulse" />
-          )}
-          {onlineAgents > 0 && !isAgent && !agentsAvailable && (
-            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-amber-400 border-2 border-white" />
-          )}
         </button>
       )}
 
-      {/* Call panel — floating card. */}
+      {/* Staff use a floating receiver panel. Customer controls are portaled
+          into the chat body so calling remains part of the conversation UI. */}
       {open && (
+        <CallSurface embedded={!isAgent}>
         <div
           className={cn(
-            'fixed z-50 right-3 left-3 md:left-auto md:w-80',
-            'bottom-3 md:bottom-6',
-            'bg-white dark:bg-zinc-900 rounded-2xl',
-            'border border-zinc-200 dark:border-zinc-800',
-            'p-4 md:p-5',
-            'mb-[env(safe-area-inset-bottom)]',
+            isAgent
+              ? 'fixed z-50 right-3 left-3 bottom-3 mb-[env(safe-area-inset-bottom)] rounded-2xl border border-zinc-200 bg-white p-4 md:left-auto md:bottom-6 md:w-80 md:p-5 dark:border-zinc-800 dark:bg-zinc-900'
+              : 'flex min-h-0 flex-1 flex-col justify-center bg-white px-6 py-8 dark:bg-zinc-900',
           )}
           role="dialog"
           aria-label="Audio call"
         >
           {/* Header */}
-          <div className="flex items-center justify-between mb-4">
+          {isAgent && <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className={cn(
                 'h-2 w-2 rounded-full',
@@ -412,7 +457,7 @@ export function AudioCallWidget() {
             >
               <X className="h-4 w-4" />
             </button>
-          </div>
+          </div>}
 
           {/* Status */}
           <div className="text-center mb-4">
@@ -488,14 +533,10 @@ export function AudioCallWidget() {
               </div>
             )}
             {state === 'idle' && !isAgent && agentsAvailable && (
-              <Button
-                onClick={startCall}
-                disabled={onlineAgents === 0}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full h-12 px-6"
-              >
-                <Phone className="h-5 w-5 mr-2" />
-                Gọi ngay
-              </Button>
+              <div className="flex items-center gap-2 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Đang bắt đầu cuộc gọi...
+              </div>
             )}
             {state === 'idle' && isAgent && (
               <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-2">
@@ -550,6 +591,7 @@ export function AudioCallWidget() {
           {/* The AudioCallClient lib is dynamically imported in ensureClient()
               so the main bundle stays small. */}
         </div>
+        </CallSurface>
       )}
     </>
   )

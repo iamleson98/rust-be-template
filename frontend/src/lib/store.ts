@@ -69,6 +69,8 @@ type AppState = {
   // ── Chat overlay ──
   chatOpen: boolean
   setChatOpen: (b: boolean) => void
+  callOpen: boolean
+  setCallOpen: (b: boolean) => void
   chatUserId: string | null
   setChatUserId: (id: string | null) => void
 
@@ -160,9 +162,6 @@ type AppState = {
   } | null
   setUser: (u: AppState['user']) => void
 
-  // ── Auth dialog (login/OTP) open state ──
-  authOpen: boolean
-  setAuthOpen: (b: boolean) => void
 }
 
 const today = new Date()
@@ -322,6 +321,8 @@ export const useApp = create<AppState>((set) => ({
 
   chatOpen: false,
   setChatOpen: (b) => set({ chatOpen: b }),
+  callOpen: false,
+  setCallOpen: (b) => set({ callOpen: b }),
   chatUserId: null,
   setChatUserId: (id) => {
     if (typeof window !== 'undefined') {
@@ -438,7 +439,4 @@ export const useApp = create<AppState>((set) => ({
     }
     set({ user: u })
   },
-
-  authOpen: false,
-  setAuthOpen: (b) => set({ authOpen: b }),
 }))

@@ -100,3 +100,15 @@ const defaultIceServers = <Map<String, dynamic>>[
   {'urls': 'stun:stun.l.google.com:19302'},
   {'urls': 'stun:stun1.l.google.com:19302'},
 ];
+
+/// Parses raw JSON or List into typed ICE server config maps.
+List<Map<String, dynamic>> parseIceServers(dynamic raw) {
+  if (raw is! List) return const [];
+  final servers = <Map<String, dynamic>>[];
+  for (final item in raw) {
+    if (item is Map) {
+      servers.add(Map<String, dynamic>.from(item));
+    }
+  }
+  return servers;
+}

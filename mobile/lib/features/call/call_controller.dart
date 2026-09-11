@@ -222,10 +222,7 @@ class CallController extends Notifier<CallUiState> {
   void _onSignal(Map<String, dynamic> msg) {
     switch (msg['type'] as String?) {
       case 'registered':
-        final servers = (msg['iceServers'] as List? ?? const [])
-            .whereType<Map<String, dynamic>>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
+        final servers = parseIceServers(msg['iceServers']);
         final sig = ref.read(callSignalingProvider);
         if (sig != null && servers.isNotEmpty) sig.iceServers = servers;
         _reconcileWithServerCallState(msg['activeCall']);

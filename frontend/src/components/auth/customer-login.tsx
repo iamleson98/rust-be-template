@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * CustomerLogin — email + password login form for end-customers.
+ * CustomerLogin — unified email + password login form for all users.
  *
  * Extracted from the original `login-page.tsx`. Uses the shared
  * `customerZodSchema` from `./_shared` so the validation rules stay
@@ -19,6 +19,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@/router'
 import { useLogin } from '@/lib/queries'
+import { isStaffUser } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -34,7 +35,6 @@ import {
   ShieldCheck,
   Loader2,
   ChevronRight,
-  Check,
   Mail,
   Lock,
   Sparkles,
@@ -45,14 +45,12 @@ import {
 import {
   customerZodSchema,
   type CustomerFormValues,
-  type CustomerStep,
 } from './_shared'
 import { SocialAuthButtons } from './social-buttons'
 
 export function CustomerLogin() {
   const { setUser, setGuestPhone } = useApp()
   const navigate = useNavigate()
-  const [step, setStep] = useState<CustomerStep>('credentials')
   const [showPwd, setShowPwd] = useState(false)
 
   const form = useForm<CustomerFormValues>({
@@ -69,8 +67,8 @@ export function CustomerLogin() {
       if (!user) return
       setUser(user)
       if (user.phone) setGuestPhone(user.phone)
-      setStep('success')
       toast.success(`Chào ${user.name ?? 'bạn'}, đăng nhập thành công!`)
+      navigate({ to: isStaffUser(user) ? '/admin' : '/bookings' })
     },
     onError: () => {
       toast.error('Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu.')
@@ -79,27 +77,6 @@ export function CustomerLogin() {
 
   const onSubmit = (values: CustomerFormValues) => {
     loginMut.mutate({ body: { email: values.email, password: values.password } } as any)
-  }
-
-  if (step === 'success') {
-    return (
-      <div className="text-center py-4">
-        <div className="inline-flex h-16 w-16 rounded-full bg-linear-to-br from-blue-400 to-blue-500 items-center justify-center mb-4">
-          <Check className="h-8 w-8 text-white" strokeWidth={3} />
-        </div>
-        <h3 className="font-bold text-lg mb-1">Đăng nhập thành công!</h3>
-        <p className="text-sm text-muted-foreground mb-5">
-          Vé và đánh giá của bạn sẽ được đồng bộ.
-        </p>
-        <Button
-          onClick={() => navigate({ to: '/bookings' })}
-          className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-        >
-          Xem vé của tôi
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-    )
   }
 
   return (

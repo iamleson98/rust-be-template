@@ -75,6 +75,21 @@ class CallEngine {
     pc.onConnectionState = (s) {
       if (!_closed) onConnectionState?.call(s);
     };
+
+    pc.onIceConnectionState = (s) {
+      if (_closed) return;
+      if (s == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          s == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        onConnectionState
+            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+      } else if (s == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        onConnectionState
+            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateFailed);
+      } else if (s == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+        onConnectionState
+            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateDisconnected);
+      }
+    };
   }
 
   /// Caller path: create the SDP offer (already has local description set).

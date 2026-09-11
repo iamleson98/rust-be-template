@@ -155,6 +155,9 @@ export class AudioCallClient {
   private pendingIce: Array<Record<string, unknown>> = []
   private static readonly MAX_PENDING_ICE = 64
 
+  private registered = false
+  private registeredResolvers: Array<() => void> = []
+
   public state: CallState = 'idle'
   public onlineAgents = 0
   public remoteAudioElement: HTMLAudioElement | null = null
@@ -166,6 +169,22 @@ export class AudioCallClient {
       ...cfg,
       iceServers: cfg.iceServers ?? DEFAULT_ICE_SERVERS,
     }
+  }
+
+  private waitForRegistered(timeoutMs = 3000): Promise<void> {
+    if (this.registered) return Promise.resolve()
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const idx = this.registeredResolvers.indexOf(done)
+        if (idx >= 0) this.registeredResolvers.splice(idx, 1)
+        resolve()
+      }, timeoutMs)
+      const done = () => {
+        clearTimeout(timer)
+        resolve()
+      }
+      this.registeredResolvers.push(done)
+    })
   }
 
   on(event: string, h: SignalHandler): () => void {
@@ -296,6 +315,7 @@ export class AudioCallClient {
   private handleSignal(msg: any): void {
     switch (msg.type) {
       case 'registered': {
+        this.registered = true
         this.onlineAgents = msg.onlineAgents ?? 0
         // Server-provided STUN/TURN config (AUDIO_CALL_ICE_SERVERS), pushed
         // over the authed WS. Empty/absent → keep the public-STUN default.
@@ -303,6 +323,8 @@ export class AudioCallClient {
         if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0) {
           this.cfg.iceServers = msg.iceServers
         }
+        for (const resolve of this.registeredResolvers) resolve()
+        this.registeredResolvers = []
         // Reconcile with server session truth: a client whose socket
         // dropped mid-call reconnects + re-registers, and the server
         // tells it (activeCall) whether a session still exists. null +
@@ -436,6 +458,10 @@ export class AudioCallClient {
       return
     }
 
+    if (!this.registered) {
+      await this.waitForRegistered(2000)
+    }
+
     // Agent-initiated calls know their peer up front; customer-initiated
     // calls learn the agent's real userId from the `answer`/`ice` messages.
     this.peerId = this.cfg.role === 'agent' ? (targetUserId ?? null) : null
@@ -482,6 +508,10 @@ export class AudioCallClient {
       this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro' })
       this.hangup()
       return
+    }
+
+    if (!this.registered) {
+      await this.waitForRegistered(2000)
     }
 
     this.pc = new RTCPeerConnection({
@@ -658,6 +688,16 @@ export class AudioCallClient {
             }
           }
         }, 3000)
+      }
+    }
+    this.pc.oniceconnectionstatechange = () => {
+      const state = this.pc?.iceConnectionState
+      if (state === 'connected' || state === 'completed') {
+        this.mediaConnected = true
+        this.clearConnectTimeout()
+        if (this.state === 'connecting') {
+          this.setState('active')
+        }
       }
     }
   }

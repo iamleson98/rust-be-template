@@ -35,7 +35,7 @@ export type Message = {
   clientMsgId?: string
 }
 
-export type View = 'list' | 'conversation' | 'auth' | 'login-required'
+export type View = 'list' | 'conversation'
 
 /**
  * Normalize a raw WS message from the Rust backend into our local `Message`

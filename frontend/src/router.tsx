@@ -27,7 +27,7 @@
  *   /admin                  Admin dashboard (employee-guarded)
  *   /login                  Login page
  *
- * Dialogs (chat, booking flow, auth, share, cancel, price-alert, loyalty)
+ * Dialogs (chat, booking flow, share, cancel, price-alert, loyalty)
  * remain in Zustand — they are transient overlays, not destinations.
  */
 
@@ -97,7 +97,6 @@ const MobileNav = lazy(() => import('@/components/layout/mobile-nav').then((m) =
 const ChatWidget = lazy(() => import('@/components/chat/chat-widget').then((m) => ({ default: m.ChatWidget })))
 const AudioCallWidget = lazy(() => import('@/components/layout/audio-call-widget').then((m) => ({ default: m.AudioCallWidget })))
 const BookingDialog = lazy(() => import('@/components/booking/booking-dialog').then((m) => ({ default: m.BookingDialog })))
-const AuthDialog = lazy(() => import('@/components/auth/auth-dialog').then((m) => ({ default: m.AuthDialog })))
 const TripCompare = lazy(() => import('@/components/search/trip-compare').then((m) => ({ default: m.TripCompare })))
 const LoyaltyWidget = lazy(() => import('@/components/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 const CancelDialog = lazy(() => import('@/components/bookings/cancel-dialog').then((m) => ({ default: m.CancelDialog })))
@@ -276,7 +275,6 @@ function RootComponent() {
     cancelDialogOpen,
     priceAlertOpen,
     shareOpen,
-    authOpen,
     bookingStep,
   } = useApp()
 
@@ -326,9 +324,8 @@ function RootComponent() {
           <ChatWidget />
         </Suspense>
       )}
-      {/* Audio-call FAB — lazy-loaded, but always mounted when authed so the
-          agent can receive inbound calls. The component returns null if no
-          user is logged in, so it's invisible for anonymous visitors. */}
+        {/* Keep call signaling mounted so staff can receive inbound calls;
+            customers open the call panel from the support-chat header. */}
       <Suspense fallback={null}>
         <AudioCallWidget />
       </Suspense>
@@ -357,12 +354,6 @@ function RootComponent() {
           <ShareDialog />
         </Suspense>
       )}
-      {authOpen && (
-        <Suspense fallback={null}>
-          <AuthDialog />
-        </Suspense>
-      )}
-
       {/* MobileNav + SupportFab are hidden on admin/account pages — those
           routes have their own sidebar drawer + top bar. */}
       {!pathname.startsWith('/admin') && !pathname.startsWith('/account') && (

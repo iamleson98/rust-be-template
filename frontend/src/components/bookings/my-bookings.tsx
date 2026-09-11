@@ -94,7 +94,7 @@ function removeRecentSearch(term: string) {
 type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
 export function MyBookings() {
-  const { setCancelDialogOpen, setCancelBookingId, currency, user, setAuthOpen } = useApp()
+  const { setCancelDialogOpen, setCancelBookingId, currency, user } = useApp()
   const navigate = useNavigate()
 
   // ── Guest lookup state ─────────────────────────────────
@@ -691,7 +691,7 @@ export function MyBookings() {
                       <Button
                         size="sm"
                         className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white shrink-0"
-                        onClick={() => setAuthOpen(true)}
+                        onClick={() => navigate({ to: '/login' })}
                       >
                         <LogIn className="h-4 w-4" />
                         Đăng nhập

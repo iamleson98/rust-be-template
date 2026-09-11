@@ -27,10 +27,9 @@ const ART = 'admin-e2e-artifacts'
 
 async function login(page: Page) {
   await page.goto('/login')
-  await page.getByRole('button', { name: 'Nhân viên' }).click()
   await page.locator('input[type="email"]').fill(EMP_EMAIL)
   await page.locator('input[type="password"]').fill(EMP_PASSWORD)
-  await page.getByRole('button', { name: 'Đăng nhập nhân viên' }).click()
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
   await expect(page).toHaveURL(/\/admin/, { timeout: 20_000 })
 }
 

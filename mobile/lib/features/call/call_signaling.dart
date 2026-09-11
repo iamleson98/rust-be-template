@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/env.dart';
 import '../../core/net/ws_client.dart';
+import 'call_state.dart' show parseIceServers;
 
 /// WebRTC signaling relay client for `/ws-call`.
 ///
@@ -41,7 +42,14 @@ class CallSignalingService {
           // `pong`); the chat `/ws` socket relies on protocol pings only.
           heartbeatType: 'heartbeat',
         ) {
-    _signals = _client.events;
+    _signals = _client.events.map((msg) {
+      if (msg['type'] == 'registered') {
+        final servers = parseIceServers(msg['iceServers']);
+        if (servers.isNotEmpty) iceServers = servers;
+        if (msg['onlineAgents'] is int) onlineAgents = msg['onlineAgents'] as int;
+      }
+      return msg;
+    }).asBroadcastStream();
     _statusSub = _client.connectionStates.listen(_onStatus);
     _client.connect();
   }

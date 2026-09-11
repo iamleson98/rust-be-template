@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'call_signaling.dart';
+import 'call_state.dart' show defaultIceServers;
 
 /// Call-connectivity doctor: tests, from THIS device and THIS network,
 /// every path a WebRTC call could use — the exact list the server
@@ -262,30 +263,26 @@ class _CallNetworkDoctorScreenState
     });
 
     final sig = ref.read(callSignalingProvider);
-    // De-duplicated URL list pushed by the server (`registered.iceServers`
-    // may list one server with several URLs — probe each URL once).
+    // De-duplicated URL list pushed by the server or fallback default STUN.
     final pushedUrls = <String>{};
-    for (final server in sig?.iceServers ?? const <Map<String, dynamic>>[]) {
-      for (final url in (server['urls'] as List?) ?? const []) {
-        if (url is String) pushedUrls.add(url);
+    final configuredServers = (sig?.iceServers.isNotEmpty ?? false)
+        ? sig!.iceServers
+        : defaultIceServers;
+    for (final server in configuredServers) {
+      final rawUrls = server['urls'];
+      if (rawUrls is List) {
+        for (final url in rawUrls) {
+          if (url is String) pushedUrls.add(url);
+        }
+      } else if (rawUrls is String) {
+        pushedUrls.add(rawUrls);
       }
     }
-    // Fallback list (used by the engine when the server pushed none).
-    const fallback = [
-      'stun:stun.l.google.com:19302',
-      'stun:stun1.l.google.com:19302',
-    ];
 
     final endpoints = <_Endpoint>[];
     for (final url in pushedUrls) {
       final e = _parseIceUrl(url);
       if (e != null) endpoints.add(e);
-    }
-    if (endpoints.isEmpty) {
-      for (final url in fallback) {
-        final e = _parseIceUrl(url);
-        if (e != null) endpoints.add(e);
-      }
     }
 
     setState(() {

@@ -34,7 +34,7 @@ const newsletterSchema = z.object({
 type NewsletterValues = z.infer<typeof newsletterSchema>
 
 export const Footer = memo(function Footer() {
-  const { setChatOpen } = useApp()
+  const { setChatOpen, user } = useApp()
   const navigate = useNavigate()
   const t = useT()
 
@@ -223,7 +223,7 @@ export const Footer = memo(function Footer() {
             <h4 className="font-semibold text-white text-sm mb-3">Hỗ trợ</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <button onClick={() => setChatOpen(true)} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
+                <button onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
                   <HelpCircle className="h-3.5 w-3.5" /> Chat trực tuyến
                 </button>
               </li>

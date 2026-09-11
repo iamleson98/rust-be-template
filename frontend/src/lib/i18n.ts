@@ -135,7 +135,6 @@ const vi: TranslationMap = {
   // ── Auth ────────────────────────────────────────────────────
   'auth.login': 'Đăng nhập',
   'auth.register': 'Đăng ký',
-  'auth.employeeLogin': 'Đăng nhập nhân viên',
   'auth.logout': 'Đăng xuất',
   'auth.email': 'Email',
   'auth.password': 'Mật khẩu',
@@ -424,7 +423,6 @@ const en: TranslationMap = {
   // ── Auth ────────────────────────────────────────────────────
   'auth.login': 'Login',
   'auth.register': 'Register',
-  'auth.employeeLogin': 'Employee login',
   'auth.logout': 'Logout',
   'auth.email': 'Email',
   'auth.password': 'Password',

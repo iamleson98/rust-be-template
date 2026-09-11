@@ -1,6 +1,6 @@
 /**
  * Shared types, schemas and small presentational helpers used by the
- * customer login, registration and employee login forms.
+ * login and registration forms.
  *
  * Extracted from the original `login-page.tsx` so each form can live
  * in its own file without duplicating the zod schemas or the
@@ -12,10 +12,7 @@ import { z } from 'zod'
 import { cn } from '@/lib/utils'
 import { emailSchema, fullNameSchema } from '@/lib/forms'
 
-export type Tab = 'customer' | 'register' | 'employee'
-
-/** The customer login flow used to be OTP-based but now uses email+password. */
-export type CustomerStep = 'credentials' | 'success'
+export type Tab = 'customer' | 'register'
 
 // ── Customer login schema ─────────────────────────────────
 // Backend route: `POST /api/auth/login` with body `{ email, password }`.
@@ -52,13 +49,6 @@ export const registerZodSchema = z
     path: ['confirm'],
   })
 export type RegisterFormValues = z.infer<typeof registerZodSchema>
-
-// ── Employee login schema ─────────────────────────────────
-export const employeeZodSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự').max(128, 'Mật khẩu tối đa 128 ký tự'),
-})
-export type EmployeeFormValues = z.infer<typeof employeeZodSchema>
 
 // ── Helpers ───────────────────────────────────────────────
 /** Heuristic password-strength scorer used by the registration meter. */

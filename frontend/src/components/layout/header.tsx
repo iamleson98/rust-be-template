@@ -276,7 +276,7 @@ export const Header = memo(function Header() {
                   <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.admin')}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => setChatOpen(true)}>
+              <DropdownMenuItem onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })}>
                 <Headset className="h-4 w-4 mr-2" /> {t('nav.support')}
               </DropdownMenuItem>
             </DropdownMenuContent>

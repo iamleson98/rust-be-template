@@ -15,10 +15,12 @@ const tabs: { key: TabKey; icon: React.ElementType; labelKey: string }[] = [
 ]
 
 export function MobileNav() {
-  const { setChatOpen } = useApp()
+  const { chatOpen, setChatOpen, user } = useApp()
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()
+
+  if (chatOpen) return null
 
   // Derive the active tab from the current URL path — the router is now
   // the source of truth for the active view (was `view` in the Zustand store).
@@ -42,7 +44,8 @@ export function MobileNav() {
         navigate({ to: '/bookings' })
         break
       case 'support':
-        setChatOpen(true)
+        if (user) setChatOpen(true)
+        else navigate({ to: '/login' })
         break
     }
   }

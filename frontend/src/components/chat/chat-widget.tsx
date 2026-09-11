@@ -8,8 +8,8 @@
  *   - The WebSocket connection (via `WsClient`)
  *   - The channels list + active channel + messages state — all backed
  *     by TanStack Query (`useChatChannels`, `useChatMessages`).
- *   - Guest registration + message send/typing handlers (mutations
- *     via TanStack Query: `useRegister`, `useCreateChatChannel`,
+ *   - Message send/typing handlers (mutations
+ *     via TanStack Query: `useCreateChatChannel`,
  *     `usePostChatMessage`, `useMarkChatRead`).
  *
  * Rendering is delegated to dedicated sub-components under `chat/`:
@@ -17,7 +17,6 @@
  *   - ChatList              — channel list view
  *   - ChatConversation       — conversation view (messages, banners)
  *   - ChatInput             — input bar + quick-action chips
- *   - ChatAuthView / ChatLoginRequiredView — auth gate views
  *
  * The widget returns `null` for employees (they use the admin workspace).
  *
@@ -31,7 +30,6 @@
  *   usePostChatMessage.mutate() ─────► POST + invalidate → REST refetch
  *   useCreateChatChannel.mutate() ───► POST + invalidate → REST refetch
  *   useMarkChatRead.mutate() ────────► POST + invalidate → REST refetch
- *   useRegister.mutate() ────────────► POST → set chatUser
  * ```
  *
  * TanStack Query handles loading/error/refetch states. The widget
@@ -42,15 +40,15 @@ import { useEffect, useState, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
+import { useNavigate } from '@/router'
 import { toast } from 'sonner'
-import { Headset } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { playSound } from '@/lib/sound-effects'
 import { notifyChatMessage } from '@/lib/notifications'
 import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
 import {
   useAuthMe,
-  useRegister,
   useChatChannels,
   useChatMessagesInfinite,
   useCreateChatChannel,
@@ -70,11 +68,11 @@ import { ChatHeader } from './chat-header'
 import { ChatList } from './chat-list'
 import { ChatConversation } from './chat-conversation'
 import { ChatInput } from './chat-input'
-import { ChatAuthView, ChatLoginRequiredView } from './chat-auth'
 import { isStaffUser } from '@/lib/store'
 
 export function ChatWidget() {
-  const { chatOpen, setChatOpen, user: storeUser, setUser: setStoreUser } = useApp()
+  const { chatOpen, setChatOpen, callOpen, setCallOpen, user: storeUser, setUser: setStoreUser } = useApp()
+  const navigate = useNavigate()
   const qc = useQueryClient()
 
   // The chat session user. Initialised from storeUser so the first
@@ -83,17 +81,12 @@ export function ChatWidget() {
     (storeUser as SessionUser | null) ?? null,
   )
 
-  // Pre-chat registration form
-  const [regName, setRegName] = useState('')
-  const [regPhone, setRegPhone] = useState('')
-  const [regEmail, setRegEmail] = useState('')
-  const [regError, setRegError] = useState<string | null>(null)
-
   const [connected, setConnected] = useState(false)
   const [activeChannel, setActiveChannel] = useState<Channel | null>(null)
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState<{ name: string } | null>(null)
   const [view, setView] = useState<View>('list')
+  const [initializingChannel, setInitializingChannel] = useState(true)
   const [showQuickActions, setShowQuickActions] = useState(false)
 
   // Agent presence / waiting-for-agent UI
@@ -141,16 +134,17 @@ export function ChatWidget() {
     if (authMe.isLoading) return
     if (authMe.error) {
       setChatUser(null)
-      setView('login-required')
+      setCallOpen(false)
+      setChatOpen(false)
+      navigate({ to: '/login' })
       return
     }
     if (authMe.data?.user) {
       const u = authMe.data.user as unknown as SessionUser
       setChatUser(u)
       if (!storeUser) setStoreUser(u as any)
-      setView('list')
     }
-  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser])
+  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, navigate])
 
   // Hide the chat button entirely for employees (they have the admin workspace)
   const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)
@@ -164,6 +158,7 @@ export function ChatWidget() {
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
+        setCallOpen(false)
         setChatOpen(false)
         return
       }
@@ -207,7 +202,7 @@ export function ChatWidget() {
       clearTimeout(t)
       triggerRef.current?.focus()
     }
-  }, [chatOpen, setChatOpen])
+  }, [chatOpen, setCallOpen, setChatOpen])
 
   // ─── Connect native WebSocket (cookie-based auth) ─────
   useEffect(() => {
@@ -433,27 +428,6 @@ export function ChatWidget() {
   // version in ChatConversation.
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const registerMut = useRegister({
-    onSuccess: (data: any) => {
-      const u = data?.user as SessionUser | undefined
-      if (!u) return
-      setChatUser(u)
-      if (!storeUser) setStoreUser(u as any)
-      setView('list')
-      toast.success(`Chào ${u.name}, bạn đã có thể bắt đầu trò chuyện!`)
-    },
-    onError: (err: any) => {
-      const code = err?.code
-      if (code === 'PHONE_EXISTS') {
-        setRegError('Số điện thoại đã đăng ký. Vui lòng đăng nhập.')
-      } else if (code === 'EMAIL_EXISTS') {
-        setRegError('Email đã đăng ký. Vui lòng đăng nhập.')
-      } else {
-        setRegError(err?.message || 'Không thể tạo tài khoản. Vui lòng thử lại.')
-      }
-    },
-  })
-
   const createChannelMut = useCreateChatChannel({
     onError: (err: any) => {
       toast.error(err?.message ?? 'Không thể tạo kênh chat')
@@ -467,35 +441,6 @@ export function ChatWidget() {
   })
 
   const markReadMut = useMarkChatRead()
-
-  // ─── Pre-chat registration form submit ─────────────────────────────
-  const submitGuestRegistration = () => {
-    setRegError(null)
-    const name = regName.trim()
-    const phone = regPhone.trim()
-    const email = regEmail.trim().toLowerCase()
-    if (name.length < 2) {
-      setRegError('Vui lòng nhập họ tên (ít nhất 2 ký tự).')
-      return
-    }
-    if (!phone && !email) {
-      setRegError('Vui lòng cung cấp số điện thoại hoặc email.')
-      return
-    }
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setRegError('Email không hợp lệ.')
-      return
-    }
-    registerMut.mutate({
-      body: {
-        fullName: name,
-        email: email || undefined,
-        phone: phone || undefined,
-        password:
-          Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2),
-      },
-    } as any)
-  }
 
   const openChannel = async (ch: Channel) => {
     setActiveChannel(ch)
@@ -538,6 +483,17 @@ export function ChatWidget() {
       },
     )
   }
+
+  // Resume the most recently active conversation on every fresh widget
+  // mount. The channel endpoint is ordered by lastMessageAt descending,
+  // so the first item is the conversation the customer last used.
+  useEffect(() => {
+    if (!chatUser || authMe.isLoading || channelsQuery.isLoading || !initializingChannel) return
+
+    const latestChannel = channels[0]
+    if (latestChannel) void openChannel(latestChannel)
+    setInitializingChannel(false)
+  }, [chatUser, authMe.isLoading, channelsQuery.isLoading, channelsQuery.data, initializingChannel])
 
   const startNewChat = async () => {
     if (!chatUser) return
@@ -668,29 +624,6 @@ export function ChatWidget() {
   if (isEmployee && !chatOpen) return null
   if (isEmployee) return null
 
-  // ─── Render: closed (floating button) ──────────────────────────────
-  if (!chatOpen) {
-    return (
-      <button
-        onClick={() => {
-          setChatOpen(true)
-          // Stop the title-flash notification — the user is now
-          // opening the chat widget, so the attention signal is no
-          // longer needed.
-          stopTitleNotification()
-        }}
-        className="fixed bottom-5 right-5 z-50 h-14 w-14 rounded-full bg-linear-to-br from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 text-white flex items-center justify-center transition-transform group"
-        aria-label="Mở chat hỗ trợ"
-      >
-        <Headset className="h-6 w-6" />
-        <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
-        <span className="absolute right-16 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-lg bg-slate-900 text-white text-xs px-2.5 py-1.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          Hỗ trợ trực tuyến
-        </span>
-      </button>
-    )
-  }
-
   // ─── Render: open chat panel ───────────────────────────────────────
   return (
     <div
@@ -707,34 +640,27 @@ export function ChatWidget() {
         employeesOnline={employeesOnline}
         assigneeName={assignee?.name ?? null}
         botActive={botActive}
-        onMinimize={() => setChatOpen(false)}
-        onClose={() => setChatOpen(false)}
+        showBack={callOpen}
+        onCall={chatUser && !callOpen ? () => setCallOpen(true) : undefined}
+        onMinimize={() => {
+          setCallOpen(false)
+          setChatOpen(false)
+        }}
+        onClose={() => {
+          setCallOpen(false)
+          setChatOpen(false)
+        }}
         onBackToList={() => {
-          setView('list')
-          setActiveChannel(null)
+          setCallOpen(false)
         }}
       />
 
-      {view === 'auth' || authMe.isLoading ? (
-        <ChatAuthView
-          authChecking={authMe.isLoading}
-          regName={regName}
-          regPhone={regPhone}
-          regEmail={regEmail}
-          regError={regError}
-          regSubmitting={registerMut.isPending}
-          onSetName={setRegName}
-          onSetPhone={setRegPhone}
-          onSetEmail={setRegEmail}
-          onSubmit={submitGuestRegistration}
-        />
-      ) : view === 'login-required' ? (
-        <ChatLoginRequiredView
-          onLogin={() => {
-            useApp.getState().setAuthOpen(true)
-            setChatOpen(false)
-          }}
-        />
+      {callOpen && chatUser ? (
+        <div id="customer-call-surface" className="flex min-h-0 flex-1 flex-col" />
+      ) : authMe.isLoading || initializingChannel ? (
+        <div className="flex flex-1 items-center justify-center" aria-label="Đang kiểm tra đăng nhập">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
       ) : view === 'list' ? (
         <ChatList
           channels={channels}
