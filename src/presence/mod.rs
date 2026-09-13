@@ -119,7 +119,16 @@ pub struct OfflineStaff {
 
 /// Journal channel — `None` until `spawn_journal` runs (unit tests that
 /// construct a bare `PresenceHub` simply never emit).
-static JOURNAL: OnceLock<tokio::sync::mpsc::UnboundedSender<JournalEvent>> = OnceLock::new();
+static JOURNAL: OnceLock<tokio::sync::mpsc::Sender<JournalEvent>> = OnceLock::new();
+
+/// Capacity of the bounded journal channel. Hub mutations `try_send`
+/// into it (never blocking a socket handler); when the journal task
+/// falls behind by more than this many coalescable events, the OLDEST
+/// transitions are dropped with a warning — presence durability is
+/// best-effort by design, and a stuck consumer must never turn into an
+/// unbounded in-memory backlog (the old `unbounded_channel` shape could
+/// grow forever if the journal task stalled on a slow/locked DB).
+const JOURNAL_CAPACITY: usize = 1024;
 
 /// Offline-roster cache, refreshed by the journal task. Empty until the
 /// first refresh — callers treat "no cache yet" as "no offline entries"
@@ -247,14 +256,15 @@ impl PresenceHub {
     }
 
     /// Mirror a mutation to the DB journal (best-effort, never blocks:
-    /// tokio's unbounded sender is a lock-free enqueue; `send` only
-    /// fails once the receiver is dropped, i.e. during shutdown).
+    /// `try_send` on a bounded channel — a full journal drops the event
+    /// with a warning rather than blocking the socket handler or piling
+    /// onto an unbounded backlog; `Closed` only happens at shutdown).
     fn journal_emit(user_id: &str, entry: &StaffEntry, online: bool) {
         let Some(tx) = JOURNAL.get() else { return };
         let Ok(uid) = Uuid::parse_str(user_id) else {
             return;
         };
-        let _ = tx.send(JournalEvent {
+        let ev = JournalEvent {
             user_id: uid,
             name: entry.name.clone(),
             role: entry.role.clone(),
@@ -268,7 +278,18 @@ impl PresenceHub {
             // when `None` (a heartbeat / offline bump does not erase
             // the last online stint); a fresh online transition sets it.
             last_online_at: online.then(|| entry.last_seen_at.clone()),
-        });
+        };
+        if let Err(tokio::sync::mpsc::error::TrySendError::Full(_)) = tx.try_send(ev) {
+            // The journal is > JOURNAL_CAPACITY events behind — the DB
+            // flush (or the store) is stalled. The next transition or
+            // heartbeat re-writes this user's state anyway, so dropping
+            // is safe; it must be VISIBLE though (a silent presence
+            // stall is a routing bug hunting session).
+            tracing::warn!(
+                user_id,
+                "presence journal backlog full — dropping transition event"
+            );
+        }
     }
 
     /// A staff member connected a chat-WS socket. Only call for
@@ -619,8 +640,9 @@ async fn refresh_offline_cache(store: &dyn StaffPresenceStore) {
 /// Spawn the DB journal (called once from `server.rs` bootstrap).
 ///
 /// Design (bounded DB traffic, "cache + db" reliability):
-///   * every hub mutation lands on a lock-free channel (never blocks
-///     a socket handler);
+///   * every hub mutation lands on a bounded channel (`try_send`,
+///     never blocks a socket handler; a full backlog drops with a
+///     warning instead of growing without bound);
 ///   * a 5s flush coalesces pending events per user (keep-latest —
 ///     the last state in the window wins) and upserts them;
 ///   * a 60s heartbeat bumps `last_seen_at` for members still online
@@ -629,12 +651,15 @@ async fn refresh_offline_cache(store: &dyn StaffPresenceStore) {
 ///   * a 30s DB read refreshes the offline-roster cache.
 pub fn spawn_journal(store: std::sync::Arc<dyn StaffPresenceStore>) {
     use std::collections::HashMap;
-    use tokio::sync::mpsc::unbounded_channel;
+    use tokio::sync::mpsc;
 
-    let (tx, mut rx) = unbounded_channel::<JournalEvent>();
+    let (tx, mut rx) = mpsc::channel::<JournalEvent>(JOURNAL_CAPACITY);
     // First initializer wins; a second bootstrap (tests) reuses the
-    // existing channel — events then flow to THIS task, which holds a
-    // fresh store handle.
+    // EXISTING channel — its fresh `tx` is dropped here, so this new
+    // task's `rx` sees Closed immediately and exits, while events keep
+    // flowing to the FIRST task's (store, rx) pair. Bootstrap must
+    // therefore happen exactly once per process — which `server.rs`
+    // guarantees.
     let _ = JOURNAL.set(tx);
 
     tokio::spawn(async move {

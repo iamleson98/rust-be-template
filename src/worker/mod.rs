@@ -51,7 +51,13 @@ pub async fn build_shared(
     db: Arc<DatabaseConnection>,
 ) -> anyhow::Result<Arc<dyn WorkerBroker>> {
     match cfg.backend {
-        WorkerBackendCfg::Db => Ok(Arc::new(DbBroker::with_db(db).await?)),
+        // Pass the poll tuning through (the hardcoded 1s previously
+        // ignored WORKER_POLL_INTERVAL_MS entirely): base poll from the
+        // config + the adaptive idle-backoff cap. Enqueue still wakes
+        // sleeping workers instantly via the broker's Notify.
+        WorkerBackendCfg::Db => Ok(Arc::new(
+            DbBroker::with_db_opts(db, cfg.poll_interval(), cfg.idle_poll_max()).await?,
+        )),
         _ => Ok(Arc::from(build(cfg).await?)),
     }
 }

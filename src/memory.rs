@@ -165,7 +165,14 @@ pub fn spawn_sweeper(interval: Duration) {
     tokio::spawn(async move {
         // Drop the pages the boot sequence churned before the first
         // scheduled sweep — migrations, index opening, store warm-up.
-        collect();
+        // Off the runtime: a forced collect walks every mimalloc heap
+        // and can park its thread for tens of ms — on a worker thread
+        // that also holds the I/O driver that freezes the whole
+        // runtime (the same failure class as the 2026-09-10 idem_gc
+        // incident, see `ChatHub::idem_gc` docs).
+        if let Err(e) = tokio::task::spawn_blocking(collect).await {
+            tracing::warn!(error = %e, "initial memory collect join failed");
+        }
         let mut last = MemorySnapshot::read();
         tracing::info!(footprint = %last, "memory sweeper started (initial collect done)");
         let mut ticker = tokio::time::interval(interval);
@@ -173,8 +180,22 @@ pub fn spawn_sweeper(interval: Duration) {
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            collect();
-            let now = MemorySnapshot::read();
+            // `collect` + the two /proc reads are blocking work — keep
+            // them off the async worker threads (see the comment above).
+            let now = match tokio::task::spawn_blocking(|| {
+                collect();
+                MemorySnapshot::read()
+            })
+            .await
+            {
+                Ok(snap) => snap,
+                Err(e) => {
+                    // JoinError only happens at runtime shutdown —
+                    // stop the sweeper instead of spinning on it.
+                    tracing::warn!(error = %e, "memory sweep join failed — stopping sweeper");
+                    break;
+                }
+            };
             tracing::debug!(footprint = %now, "memory swept");
             const INFO_DELTA_KIB: u64 = 16 * 1024;
             let moved = match (now.vm_rss_kib, last.vm_rss_kib) {

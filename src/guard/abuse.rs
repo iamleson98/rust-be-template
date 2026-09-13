@@ -285,6 +285,39 @@ impl AbuseGuard {
         false
     }
 
+    /// Remove entries that have gone inert: no violation inside the
+    /// rolling window and no active ban.
+    ///
+    /// Without this, every distinct user id / source IP that EVER tripped
+    /// a heuristic left a permanent `String → UserState` entry — the maps
+    /// only ever grew. `purge_old` empties the violation deque but never
+    /// removes the entry, so a warned-once user who never chats again (or
+    /// an IPv6-spraying attacker rotating /64s) accumulated state forever.
+    ///
+    /// `DashMap::retain` runs the predicate under each shard's write lock
+    /// — the predicate is pure (no nested map access), so the
+    /// hold-no-guard-across-another-map discipline is respected.
+    ///
+    /// Called from the WS hub's 60s GC sweep (see `ws::spawn_idem_gc`)
+    /// — the same cadence the idempotency cache is reclaimed at.
+    pub fn sweep_inert(&self) {
+        let now = Instant::now();
+        let window = self.inner.window;
+        let is_inert = |st: &UserState| -> bool {
+            let ban_expired = st.banned_until.map(|u| now >= u).unwrap_or(true);
+            // `back()` is the NEWEST violation (push_back) — if even that
+            // one fell out of the window, the whole deque has.
+            let no_recent = st
+                .recent_violations
+                .back()
+                .map(|t| now.duration_since(*t) > window)
+                .unwrap_or(true);
+            ban_expired && no_recent
+        };
+        self.inner.users.retain(|_, st| !is_inert(st));
+        self.inner.ips.retain(|_, st| !is_inert(st));
+    }
+
     #[cfg(test)]
     pub fn violation_count(&self, user_id: &str) -> usize {
         self.inner
@@ -292,6 +325,11 @@ impl AbuseGuard {
             .get(user_id)
             .map(|st| st.recent_violations.len())
             .unwrap_or(0)
+    }
+
+    #[cfg(test)]
+    pub fn tracked_entities(&self) -> (usize, usize) {
+        (self.inner.users.len(), self.inner.ips.len())
     }
 }
 
@@ -549,5 +587,60 @@ mod tests {
         let g = guard();
         let v = g.check(Some("u12"), Some("1.1.1.12"), "   ");
         assert!(matches!(v, AbuseVerdict::Ok));
+    }
+
+    // ── inert-entry eviction (the unbounded-growth regression) ──────
+
+    #[test]
+    fn sweep_inert_reclaims_expired_entries() {
+        // A user + IP that tripped a heuristic once, then went quiet:
+        // once the rolling window passes, the whole entry must be
+        // REMOVED — the maps must not retain one entry per user/IP
+        // that ever violated.
+        let g = AbuseGuard::new(Duration::from_millis(50), Duration::from_millis(80), 3);
+        let v = g.check(
+            Some("u-evict"),
+            Some("9.9.9.9"),
+            "VIỆT NAM ĐẤT NƯỚC TÔI ƠI KHOẺ KHÔNG",
+        );
+        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+        assert_eq!(g.tracked_entities().0, 1, "user entry recorded");
+        assert_eq!(g.tracked_entities().1, 1, "ip entry recorded");
+
+        // Window (50ms) + a margin pass — both entries are now inert.
+        std::thread::sleep(Duration::from_millis(150));
+        g.sweep_inert();
+        assert_eq!(
+            g.tracked_entities(),
+            (0, 0),
+            "inert entries must be reclaimed"
+        );
+
+        // The same user can trip the heuristic again afterwards.
+        let v = g.check(
+            Some("u-evict"),
+            Some("9.9.9.9"),
+            "VIỆT NAM ĐẤT NƯỚC TÔI ƠI KHOẺ KHÔNG",
+        );
+        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+    }
+
+    #[test]
+    fn sweep_inert_keeps_active_bans_and_recent_violations() {
+        // A user at the ban threshold (active ban) and a freshly-warned
+        // user must both SURVIVE the sweep.
+        let g = AbuseGuard::new(Duration::from_secs(600), Duration::from_secs(600), 2);
+        let spam = "VIỆT NAM ĐẤT NƯỚC TÔI ƠI KHOẺ KHÔNG";
+        let v = g.check(Some("u-banned"), Some("8.8.8.8"), spam);
+        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+        let v = g.check(Some("u-banned"), Some("8.8.8.8"), spam);
+        assert!(matches!(v, AbuseVerdict::Banned { .. }));
+        let v = g.check(Some("u-recent"), Some("7.7.7.7"), spam);
+        assert!(matches!(v, AbuseVerdict::Warned { .. }));
+
+        g.sweep_inert();
+        assert!(g.is_banned("u-banned").is_some(), "active ban must survive");
+        assert!(g.is_ip_banned("8.8.8.8").is_some());
+        assert_eq!(g.tracked_entities(), (2, 2), "both users + ips retained");
     }
 }

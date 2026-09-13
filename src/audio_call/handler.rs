@@ -101,7 +101,32 @@ pub async fn ws_upgrade(
         AppError::Unauthorized("ws-call handshake: missing or invalid token".into())
     })?;
 
-    let _ip = addr.ip().to_string();
+    let ip = addr.ip().to_string();
+
+    // ── Connection caps (global FIRST — cheapest rejection) ────────
+    // `/ws-call` previously had NO admission control: every
+    // authenticated account could hold unlimited signaling sockets
+    // (2 spawned tasks + a channel + hub entries each). Same caps as
+    // the chat hub (WS_MAX_CONNECTIONS / WS_MAX_PER_IP) — released in
+    // `handle_socket`'s teardown, the ONE release site.
+    if !call_hub().try_acquire_global() {
+        tracing::warn!(
+            ip = %ip,
+            connections = call_hub().connection_count(),
+            "ws-call upgrade rejected: global connection cap reached"
+        );
+        return Err(AppError::ServiceUnavailable(
+            "ws-call connection cap reached".into(),
+        ));
+    }
+    if !call_hub().try_acquire_ip(&ip) {
+        // Roll the global slot back — the per-IP cap rejected this one.
+        call_hub().release_global();
+        tracing::warn!(ip = %ip, "ws-call upgrade rejected: per-IP cap reached");
+        return Err(AppError::TooManyRequests(
+            "ws-call per-ip cap reached".into(),
+        ));
+    }
     // Client fingerprint for call diagnostics: browsers send their UA,
     // the Flutter app sends Dart's. Keeps "which build is the phone
     // running" answerable straight from the server logs.
@@ -136,6 +161,7 @@ pub async fn ws_upgrade(
         handle_socket(
             socket,
             user,
+            ip,
             heartbeat_sec,
             idle_timeout_sec,
             ice_servers,
@@ -148,6 +174,7 @@ pub async fn ws_upgrade(
 pub async fn handle_socket(
     socket: WebSocket,
     user: SessionUser,
+    ip: String,
     heartbeat_sec: u64,
     idle_timeout_sec: u64,
     ice_servers: Value,
@@ -407,6 +434,13 @@ pub async fn handle_socket(
         crate::push::push().notify_call_ended(&ended.agent_id, &ended.customer_id);
     }
     let role = call_hub().unregister(&uid, sid);
+    // Release the admission slots acquired at upgrade — THE one release
+    // site, after `unregister` (which does NOT release: a socket that
+    // never sent `register` has no peer there, so releasing inside it
+    // would leak this socket's slots). Runs exactly once per socket on
+    // EVERY teardown path, registered or not.
+    call_hub().release_ip(&ip);
+    call_hub().release_global();
     if let Some(role) = role {
         match role {
             CallRole::Agent => {

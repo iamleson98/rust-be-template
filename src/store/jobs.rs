@@ -91,6 +91,16 @@ pub trait JobStore: Send + Sync {
     /// restart, or enqueued but never picked up). Returns the number of
     /// rows swept.
     async fn sweep_stale_runs(&self, statuses: &[&str], older_than: &str) -> StoreResult<u64>;
+
+    /// Delete TERMINAL `job_run` rows (succeeded/failed/cancelled)
+    /// finished before `older_than` — run-history retention. Returns
+    /// the number of rows deleted.
+    ///
+    /// Without this the history table only ever grew: every scheduled
+    /// fire (plus every manual admin trigger) inserts a row no code
+    /// ever deletes, so the DB file, the WAL and the admin run-history
+    /// scan all grow monotonically with service lifetime.
+    async fn prune_finished_runs(&self, older_than: &str) -> StoreResult<u64>;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -418,6 +428,22 @@ impl JobStore for DbJobStore {
             .await?
             .rows_affected)
     }
+
+    async fn prune_finished_runs(&self, older_than: &str) -> StoreResult<u64> {
+        let older_than = parse_iso(older_than)?;
+        Ok(job_run::Entity::delete_many()
+            // Terminal states only — queued/running rows belong to the
+            // sweep above, never to retention pruning.
+            .filter(job_run::Column::Status.is_in([
+                status::SUCCEEDED.to_string(),
+                status::FAILED.to_string(),
+                status::CANCELLED.to_string(),
+            ]))
+            .filter(job_run::Column::FinishedAt.lt(older_than))
+            .exec(self.db.as_ref())
+            .await?
+            .rows_affected)
+    }
 }
 
 #[cfg(test)]
@@ -603,5 +629,48 @@ mod tests {
                 .to_rfc3339_opts(SecondsFormat::Secs, true),
             s
         );
+    }
+
+    #[tokio::test]
+    async fn prune_finished_runs_deletes_only_terminal_old_rows() {
+        // Retention pruning: terminal runs finished before the cutoff
+        // are deleted; fresh terminal runs, queued/running rows, and
+        // terminal rows with no finished_at are all kept.
+        let store = mem_store().await;
+        let mk = |status: &str, finished: Option<&str>| job_run::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            job_type: Set("osm.import".into()),
+            status: Set(status.into()),
+            detail: Set(None),
+            error: Set(None),
+            started_at: Set(Some("2026-07-01T18:00:00Z".into())),
+            finished_at: Set(finished.map(Into::into)),
+            created_at: Set("2026-07-01T17:59:00Z".into()),
+        };
+        let old_ok = store
+            .insert_run(mk(status::SUCCEEDED, Some("2026-07-02T00:00:00Z")))
+            .await
+            .unwrap();
+        let old_failed = store
+            .insert_run(mk(status::FAILED, Some("2026-07-02T00:00:00Z")))
+            .await
+            .unwrap();
+        let fresh_ok = store
+            .insert_run(mk(status::SUCCEEDED, Some("2099-01-01T00:00:00Z")))
+            .await
+            .unwrap();
+        let running = store.insert_run(mk(status::RUNNING, None)).await.unwrap();
+        let no_finished = store.insert_run(mk(status::FAILED, None)).await.unwrap();
+
+        let deleted = store
+            .prune_finished_runs("2026-08-01T00:00:00Z")
+            .await
+            .unwrap();
+        assert_eq!(deleted, 2, "exactly the two old terminal rows");
+        assert!(store.find_run(old_ok.id).await.unwrap().is_none());
+        assert!(store.find_run(old_failed.id).await.unwrap().is_none());
+        assert!(store.find_run(fresh_ok.id).await.unwrap().is_some());
+        assert!(store.find_run(running.id).await.unwrap().is_some());
+        assert!(store.find_run(no_finished.id).await.unwrap().is_some());
     }
 }

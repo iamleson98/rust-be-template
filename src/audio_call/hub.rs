@@ -47,7 +47,7 @@
 //! agent stuck busy forever).
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::Instant;
 
@@ -117,10 +117,30 @@ impl Peer {
 
 /// The process-local singleton hub.
 static HUB: OnceLock<CallHub> = OnceLock::new();
+static HUB_CFG: OnceLock<(usize, usize)> = OnceLock::new();
 
 /// Fetch the global hub (initialised lazily on first call).
 pub fn call_hub() -> &'static CallHub {
-    HUB.get_or_init(CallHub::new)
+    HUB.get_or_init(|| {
+        // Same fallback shape as the chat hub: a generous default until
+        // `init_with_config` wires the real `WsConfig` values in.
+        let (max, per_ip) = *HUB_CFG.get().unwrap_or(&(50_000, 20));
+        CallHub::with_limits(max, per_ip)
+    })
+}
+
+/// Wire `WsConfig.max_connections` / `WsConfig.max_per_ip` into the
+/// call hub. MUST be called before the first `call_hub()` call (the
+/// boot order in `server.rs::bootstrap` guarantees that). Second call
+/// is a no-op (`OnceLock`).
+///
+/// `/ws-call` previously had NO admission control at all — every
+/// authenticated account could hold unlimited signaling sockets (each
+/// = 2 spawned tasks + a channel + hub entries); a botnet of valid
+/// accounts could exhaust memory/threads with the chat hub none the
+/// wiser (its caps only counted `/ws`).
+pub fn init_with_config(max_global: usize, max_per_ip: usize) {
+    let _ = HUB_CFG.set((max_global, max_per_ip));
 }
 
 /// The audio-call presence registry.
@@ -139,15 +159,97 @@ pub struct CallHub {
     next_sid: AtomicU64,
     /// Total connections accepted (for metrics).
     total_accepted: AtomicU64,
+    /// Global connection cap (0 = unlimited) — mirrors the chat hub.
+    max_global_conns: usize,
+    /// Live call-WS connections (acquired on upgrade, released in
+    /// `unregister`).
+    global_conns: AtomicUsize,
+    /// Per-IP connection cap (0 = unlimited).
+    max_per_ip: usize,
+    /// Per-IP live connection counts — mirrors the chat hub.
+    ip_conns: DashMap<String, AtomicUsize>,
 }
 
 impl CallHub {
-    fn new() -> Self {
+    /// Construct with explicit connection caps (used by `call_hub()` and
+    /// by tests that want isolated limits).
+    pub fn with_limits(max_global: usize, max_per_ip: usize) -> Self {
         Self {
             peers: DashMap::new(),
             by_user: DashMap::new(),
             next_sid: AtomicU64::new(1),
             total_accepted: AtomicU64::new(0),
+            max_global_conns: max_global,
+            global_conns: AtomicUsize::new(0),
+            max_per_ip,
+            ip_conns: DashMap::new(),
+        }
+    }
+
+    // ── connection admission (mirrors the chat hub) ──────────────
+
+    /// Atomically try to acquire a GLOBAL call-WS slot. Returns `false`
+    /// when the cap is exceeded (caller rejects the upgrade).
+    pub fn try_acquire_global(&self) -> bool {
+        if self.max_global_conns == 0 {
+            self.global_conns.fetch_add(1, Ordering::AcqRel);
+            return true;
+        }
+        loop {
+            let cur = self.global_conns.load(Ordering::Acquire);
+            if cur >= self.max_global_conns {
+                return false;
+            }
+            if self
+                .global_conns
+                .compare_exchange(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                return true;
+            }
+        }
+    }
+
+    /// Release a global slot (idempotent-safe: clamps at zero).
+    pub fn release_global(&self) {
+        let prev = self.global_conns.fetch_sub(1, Ordering::AcqRel);
+        if prev == 0 {
+            self.global_conns.store(0, Ordering::Release);
+        }
+    }
+
+    /// Live call-WS connection count (metrics / caps logging).
+    pub fn connection_count(&self) -> usize {
+        self.global_conns.load(Ordering::Acquire)
+    }
+
+    /// Try to acquire a per-IP slot against the configured cap
+    /// (`WsConfig.max_per_ip`, same value the chat hub enforces).
+    pub fn try_acquire_ip(&self, ip: &str) -> bool {
+        let entry = self.ip_conns.entry(ip.to_string()).or_default();
+        loop {
+            let cur = entry.load(Ordering::Acquire);
+            if cur >= self.max_per_ip {
+                return false;
+            }
+            if entry
+                .compare_exchange(cur, cur + 1, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
+                return true;
+            }
+        }
+    }
+
+    /// Release a per-IP slot; removes the map entry when it hits zero
+    /// (so `ip_conns` cannot grow one-entry-per-IP-seen forever).
+    pub fn release_ip(&self, ip: &str) {
+        if let Some(entry) = self.ip_conns.get(ip) {
+            let prev = entry.fetch_sub(1, Ordering::AcqRel);
+            if prev <= 1 {
+                drop(entry);
+                self.ip_conns.remove(ip);
+            }
         }
     }
 
@@ -246,6 +348,11 @@ impl CallHub {
     ///
     /// A stale socket that finally times out can never delete a NEWER
     /// entry for the same user (the sid key makes that impossible).
+    ///
+    /// NOTE: admission-slot release deliberately does NOT live here —
+    /// `handle_socket`'s teardown is the ONE release site (a socket
+    /// that never sent `register` has no peer here, so a release in
+    /// this method would leak its slots).
     pub fn unregister(&self, user_id: &str, sid: u64) -> Option<CallRole> {
         let removed = self.peers.remove(&sid).map(|(_, p)| p.role);
 
@@ -776,5 +883,79 @@ mod tests {
 
         // Clean up.
         h.unregister(&id, sid);
+    }
+
+    // ── admission caps (the /ws-call no-limits regression) ─────────
+
+    /// Isolated hub (NOT the global singleton) with tight caps, so the
+    /// assertions don't depend on whatever the other singleton tests did.
+    fn capped_hub() -> CallHub {
+        CallHub::with_limits(2, 2)
+    }
+
+    #[test]
+    fn global_cap_rejects_beyond_limit() {
+        let h = capped_hub();
+        assert!(h.try_acquire_global(), "1st slot");
+        assert!(h.try_acquire_global(), "2nd slot");
+        assert!(
+            !h.try_acquire_global(),
+            "3rd socket must be rejected at the cap"
+        );
+        h.release_global();
+        assert!(
+            h.try_acquire_global(),
+            "release must free the slot for the next socket"
+        );
+        assert_eq!(h.connection_count(), 2);
+    }
+
+    #[test]
+    fn per_ip_cap_rejects_beyond_limit() {
+        let h = capped_hub();
+        let ip = "203.0.113.7";
+        assert!(h.try_acquire_ip(ip), "1st socket from ip");
+        assert!(h.try_acquire_ip(ip), "2nd socket from ip");
+        assert!(
+            !h.try_acquire_ip(ip),
+            "3rd socket from the same ip must be rejected"
+        );
+        // A different IP is unaffected.
+        assert!(h.try_acquire_ip("198.51.100.9"));
+        // Releasing to zero REMOVES the map entry — ip_conns must not
+        // accumulate one entry per IP ever seen.
+        h.release_ip(ip);
+        h.release_ip(ip);
+        assert!(h.try_acquire_ip(ip), "released ip acquires again");
+    }
+
+    #[test]
+    fn zero_global_cap_means_unlimited() {
+        // Global cap 0 = unlimited (chat-hub semantics); per-IP cap 0
+        // = nothing allowed for that IP (also chat-hub semantics — the
+        // two flags are deliberately NOT symmetric).
+        let h = CallHub::with_limits(0, 1);
+        for _ in 0..100 {
+            assert!(h.try_acquire_global(), "unlimited mode never rejects");
+        }
+        assert!(
+            h.try_acquire_ip("192.0.2.1"),
+            "first socket under per-ip cap 1"
+        );
+        assert!(
+            !h.try_acquire_ip("192.0.2.1"),
+            "per-ip cap 1 rejects the second socket"
+        );
+    }
+
+    #[test]
+    fn release_without_acquire_clamps_at_zero() {
+        // Defensive: a release path racing a missing acquire (or a test
+        // that skips the acquire) must not underflow the counter.
+        let h = capped_hub();
+        h.release_global();
+        assert_eq!(h.connection_count(), 0, "must clamp, not wrap");
+        h.release_ip("192.0.2.50");
+        assert!(h.try_acquire_ip("192.0.2.50"));
     }
 }

@@ -254,6 +254,21 @@ impl ChatHub {
         if let Some(set) = self.rooms.get(channel_id) {
             set.remove(&id);
         }
+        // Drop the read guard BEFORE touching the map again (the
+        // idem_gc deadlock discipline: never hold one `rooms` guard
+        // across another `rooms` operation). Then reclaim the entry
+        // when the room went empty: without this, every channel id
+        // ever joined leaves a `String → empty DashSet` entry in the
+        // map FOREVER — thousands of support channels later that is
+        // an unbounded, permanent RSS leak (`stats().rooms` reported
+        // the inflated count too).
+        //
+        // `remove_if` re-checks emptiness under the write lock, so a
+        // concurrent `join_room` for the same channel that lands
+        // between our remove and this call simply keeps the entry
+        // alive (or re-creates it in `join_room`'s `entry` call) —
+        // membership, not entry lifetime, is what correctness needs.
+        self.rooms.remove_if(channel_id, |_, s| s.is_empty());
     }
 
     /// Push a pre-serialised JSON string to every socket in a room.
@@ -853,6 +868,50 @@ mod tests {
             !h.user_still_in_room("room-a", &u1_id, id2),
             "u1 must be gone after leave_room"
         );
+    }
+
+    // ── room-entry reclamation (the unbounded-growth regression) ──
+
+    #[test]
+    fn leave_room_reclaims_empty_room_entry() {
+        // The last member leaving must drop the whole room entry:
+        // leaving an empty `String → DashSet` behind leaked one map
+        // entry per channel ever joined (permanent RSS growth).
+        let h = fresh_hub();
+        let (tx, _rx) = make_tx();
+        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        h.join_room("room-a", id);
+        assert_eq!(h.stats().rooms, 1, "room entry exists while occupied");
+        h.leave_room("room-a", id);
+        assert_eq!(
+            h.stats().rooms,
+            0,
+            "empty room entry must be reclaimed after the last member leaves"
+        );
+        // Leaving an already-empty (or never-existing) room is a no-op.
+        h.leave_room("room-a", id);
+        assert_eq!(h.stats().rooms, 0);
+    }
+
+    #[test]
+    fn leave_room_keeps_entry_with_remaining_member() {
+        let h = fresh_hub();
+        let (tx1, _rx1) = make_tx();
+        let (tx2, mut rx2) = make_tx();
+        let id1 = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx1);
+        let id2 = h.register(sample_user("u2", "user"), "2.2.2.2".into(), tx2);
+        h.join_room("room", id1);
+        h.join_room("room", id2);
+        h.leave_room("room", id1);
+        assert_eq!(
+            h.stats().rooms,
+            1,
+            "room with a remaining member must stay alive"
+        );
+        // The remaining member still receives broadcasts.
+        h.broadcast_to_room("room", &serde_json::json!({ "type": "ping" }));
+        let m2 = rx2.try_recv().expect("remaining member must receive");
+        assert!(std::str::from_utf8(&m2).unwrap_or("").contains("ping"));
     }
 
     // ── broadcast_to_room / broadcast_to_room_except ────────────

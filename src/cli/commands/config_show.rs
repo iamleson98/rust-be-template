@@ -74,6 +74,7 @@ pub fn run() -> anyhow::Result<()> {
     println!("  backend:            {:?}", cfg.worker.backend);
     println!("  concurrency:       {}", cfg.worker.concurrency);
     println!("  poll_int_ms:        {}", cfg.worker.poll_interval_ms);
+    println!("  idle_poll_max_ms:   {}", cfg.worker.idle_poll_max_ms);
     println!("  kafka_brokers:      {}", cfg.worker.kafka_brokers);
     println!("  kafka_group_id:     {}", cfg.worker.kafka_group_id);
     println!("  kafka_topic:        {}", cfg.worker.kafka_topic);

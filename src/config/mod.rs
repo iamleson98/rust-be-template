@@ -358,6 +358,13 @@ pub struct WorkerConfig {
     pub backend: WorkerBackend,
     pub concurrency: usize,
     pub poll_interval_ms: u64,
+    /// Upper bound (`WORKER_IDLE_POLL_MAX_MS`, default 30_000) for the
+    /// DbBroker's exponential idle-backoff: the n-th consecutive empty
+    /// poll waits `poll_interval * 2^(n-1)`, clamped here. `0` disables
+    /// the backoff (constant `poll_interval` — the pre-backoff shape).
+    /// Job latency is unaffected either way: `enqueue` wakes sleeping
+    /// workers through the broker's `Notify` immediately (PERF-005).
+    pub idle_poll_max_ms: u64,
     pub kafka_brokers: String,
     pub kafka_group_id: String,
     pub kafka_topic: String,
@@ -378,6 +385,7 @@ impl Default for WorkerConfig {
             backend,
             concurrency: env_parse("WORKER_CONCURRENCY").unwrap_or(4),
             poll_interval_ms: env_parse("WORKER_POLL_INTERVAL_MS").unwrap_or(1000),
+            idle_poll_max_ms: env_parse("WORKER_IDLE_POLL_MAX_MS").unwrap_or(30_000),
             kafka_brokers: env_var("WORKER_KAFKA_BROKERS")
                 .unwrap_or_else(|| "127.0.0.1:9092".into()),
             kafka_group_id: env_var("WORKER_KAFKA_GROUP_ID")
@@ -390,6 +398,11 @@ impl Default for WorkerConfig {
 impl WorkerConfig {
     pub fn poll_interval(&self) -> Duration {
         Duration::from_millis(self.poll_interval_ms)
+    }
+
+    /// Idle-backoff cap as a `Duration` (`ZERO` = backoff disabled).
+    pub fn idle_poll_max(&self) -> Duration {
+        Duration::from_millis(self.idle_poll_max_ms)
     }
 }
 
@@ -409,6 +422,13 @@ pub struct SchedulerConfig {
     pub tz_offset_minutes: i32,
     /// Scheduler tick cadence — how often due schedules are checked.
     pub tick_interval_secs: u64,
+    /// Run-history retention (`JOB_RUN_RETENTION_DAYS`, default 30):
+    /// terminal `job_run` rows older than this are deleted by the
+    /// scheduler tick (hourly). The table previously grew FOREVER —
+    /// every scheduled fire + manual admin trigger left a row no code
+    /// ever deleted, growing the DB file, the WAL and the admin
+    /// run-history scan monotonically. `0` disables pruning.
+    pub job_run_retention_days: u64,
 }
 
 impl Default for SchedulerConfig {
@@ -417,6 +437,7 @@ impl Default for SchedulerConfig {
             enabled: env_parse("SCHEDULER_ENABLED").unwrap_or(true),
             tz_offset_minutes: env_parse("SCHEDULER_TZ_OFFSET_MINUTES").unwrap_or(420),
             tick_interval_secs: env_parse("SCHEDULER_TICK_INTERVAL_SECS").unwrap_or(60),
+            job_run_retention_days: env_parse("JOB_RUN_RETENTION_DAYS").unwrap_or(30),
         }
     }
 }

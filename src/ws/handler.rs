@@ -304,14 +304,15 @@ pub async fn handle_socket(
     // ── Teardown ─────────────────────────────────────────────────────────
     let _ = close_tx.send(()).await;
     let _ = write_task.await;
-    // Release global + per-IP slots and remove the session from the hub
-    // (unregister also drops the presence socket for staff).
+    // Remove the session from the hub. `unregister` is the ONE release
+    // path: it leaves the joined room, drops the staff presence socket,
+    // and releases the per-IP + global connection slots (hub.rs).
+    // Calling release_ip/release_global again here would double-decrement
+    // the counters and progressively bypass WS_MAX_CONNECTIONS.
     hub().unregister(sid);
     if is_staff {
         hub().broadcast_staff_presence(None);
     }
-    hub().release_ip(&ip);
-    hub().release_global();
     tracing::debug!(socket_id = sid, "ws disconnected");
 }
 
@@ -884,12 +885,17 @@ pub async fn drain_all_connections(grace_ms: u64) {
 /// stay non-blocking: a task that blocks here parks its worker thread, and
 /// if that worker holds the I/O driver the whole runtime freezes (see
 /// `ChatHub::idem_gc` docs for the 2026-09-10 incident).
+///
+/// The same tick also reclaims INERT abuse-guard entries (users/IPs with
+/// no live violations and no active ban) — without it, every user id or
+/// IP that ever tripped a chat heuristic left a permanent map entry.
 pub fn spawn_idem_gc() {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
             hub().idem_gc();
             hub().channel_cache_gc();
+            crate::guard::AbuseGuard::shared().sweep_inert();
         }
     });
 }

@@ -213,6 +213,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // operator setting WS__MAX_CONNECTIONS=10000 had no effect.
     ws::init_with_config(config.ws.max_connections, 60);
 
+    // Same caps for the call-WS hub: `/ws-call` previously had NO
+    // admission control (every authenticated account could hold
+    // unlimited signaling sockets). Shares the chat hub's
+    // max_connections / max_per_ip values.
+    crate::audio_call::hub::init_with_config(config.ws.max_connections, config.ws.max_per_ip);
+
     // Spawn WS background maintenance tasks (idempotency GC + metrics).
     ws::spawn_idem_gc();
     ws::spawn_metrics_logger();

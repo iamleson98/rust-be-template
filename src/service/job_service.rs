@@ -51,6 +51,10 @@ const LOST_QUEUED_AFTER: Duration = Duration::from_secs(3600);
 /// import legitimately runs for hours.
 const STALE_RUNNING_AFTER: Duration = Duration::from_secs(12 * 3600);
 
+/// Cadence of the run-history retention prune (driven from the 60s
+/// scheduler tick, but only paid hourly — see `prune_run_history`).
+const HISTORY_PRUNE_INTERVAL: Duration = Duration::from_secs(3600);
+
 pub struct JobService {
     store: Arc<dyn JobStore>,
     /// Present only when the background-jobs subsystem is up in this
@@ -62,6 +66,9 @@ pub struct JobService {
     /// [`Self::cancel`] cancels a queued/running run through it.
     cancels: Arc<RunCancels>,
     config: Arc<Config>,
+    /// Last run-history prune (hourly throttle — the DELETE is cheap,
+    /// but the 60s tick has no reason to pay it every pass).
+    last_prune: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 impl JobService {
@@ -71,6 +78,7 @@ impl JobService {
             broker: None,
             cancels: Arc::new(RunCancels::new()),
             config,
+            last_prune: std::sync::Mutex::new(None),
         }
     }
 
@@ -367,6 +375,7 @@ impl JobService {
 
     async fn tick_inner(&self) -> anyhow::Result<()> {
         self.sweep_dead_runs().await;
+        self.prune_run_history().await;
 
         let now = Utc::now();
         let now_iso = now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
@@ -452,6 +461,33 @@ impl JobService {
             }
         }
     }
+
+    /// Delete terminal `job_run` rows past the retention window
+    /// (`JOB_RUN_RETENTION_DAYS`, default 30, 0 = keep forever).
+    /// Throttled to hourly: the prune DELETE runs from the 60s tick,
+    /// but only when an hour has passed since the previous prune —
+    /// the retention window is measured in days, so a tighter cadence
+    /// just burns a table scan per minute.
+    async fn prune_run_history(&self) {
+        let days = self.config.scheduler.job_run_retention_days;
+        if days == 0 {
+            return; // retention disabled — history is kept forever
+        }
+        {
+            let mut last = self.last_prune.lock().unwrap();
+            match *last {
+                Some(t) if t.elapsed() < HISTORY_PRUNE_INTERVAL => return,
+                _ => *last = Some(std::time::Instant::now()),
+            }
+        }
+        let cutoff = (Utc::now() - chrono::Duration::days(days as i64))
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        match self.store.prune_finished_runs(&cutoff).await {
+            Ok(0) => {}
+            Ok(n) => tracing::info!(n, retention_days = days, "pruned old job-run history"),
+            Err(e) => tracing::warn!(error = %e, "job-run history prune failed"),
+        }
+    }
 }
 
 /// Map a `job_run` row to its DTO, parsing `detail` JSON leniently.
@@ -513,6 +549,7 @@ mod tests {
                 enabled: true,
                 tz_offset_minutes: 420,
                 tick_interval_secs: 60,
+                job_run_retention_days: 30,
             },
             ..Default::default()
         })
@@ -695,5 +732,48 @@ mod tests {
         assert!(!out.scheduler_enabled);
         assert_eq!(out.items.len(), 1);
         assert!(out.items[0].last_run.is_none());
+    }
+
+    #[tokio::test]
+    async fn tick_prunes_old_terminal_runs_once_per_interval() {
+        // The retention prune runs on the first tick and is throttled
+        // afterwards: an immediate second prune must be a no-op. The
+        // observable contract is "old terminal rows disappear, fresh
+        // ones stay, and the throttled path returns cleanly".
+        let store = mem_store().await;
+        let svc = JobService::new(store.clone(), test_config());
+        let old = (Utc::now() - chrono::Duration::days(90))
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let fresh = (Utc::now() - chrono::Duration::days(1))
+            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+        let mk = |status: &str, finished: &str, created: &str| job_run::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            job_type: Set("prune.test".into()),
+            status: Set(status.into()),
+            detail: Set(None),
+            error: Set(None),
+            started_at: Set(Some(finished.to_string())),
+            finished_at: Set(Some(finished.to_string())),
+            created_at: Set(created.to_string()),
+        };
+        store
+            .insert_run(mk(status::SUCCEEDED, &old, &old))
+            .await
+            .unwrap();
+        store
+            .insert_run(mk(status::FAILED, &old, &old))
+            .await
+            .unwrap();
+        store
+            .insert_run(mk(status::SUCCEEDED, &fresh, &fresh))
+            .await
+            .unwrap();
+
+        svc.prune_run_history().await;
+        assert_eq!(store.count_runs("prune.test").await.unwrap(), 1);
+        // Throttled: the second immediate prune is a no-op — still 1 row
+        // (this also proves the throttle path returns without error).
+        svc.prune_run_history().await;
+        assert_eq!(store.count_runs("prune.test").await.unwrap(), 1);
     }
 }
