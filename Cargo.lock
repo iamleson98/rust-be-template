@@ -4321,11 +4321,14 @@ name = "rustqlite"
 version = "0.1.0"
 dependencies = [
  "crc32fast",
+ "libc",
  "libloading",
  "libmimalloc-sys",
  "mimalloc",
  "parking_lot",
+ "rand 0.8.8",
  "rustyline",
+ "sha2 0.10.9",
  "tempfile",
  "tiny_http",
 ]
