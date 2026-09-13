@@ -48,15 +48,15 @@ you can grep the worklog for the full detail.
 
 (see `migrator/src/migration/m20260826_000001_audit_indexes.rs` for the new migration)
 
-## Performance issues documented but not yet fixed (see worklog for full details)
+## Performance issues: fixed vs. remaining
 
-| #  | Finding | Effort |
+| #  | Finding | Status |
 |----|---------|--------|
-| PERF-001 | N+1 seat-hold loop in `booking_service::hold` — should be one bulk UPDATE | M |
-| PERF-002 | `cache::get_or_fetch` claims singleflight but isn't — needs `DashMap<String, OnceCell>` | M |
-| PERF-003 | `DbBroker::dequeue` builds `select_oldest` with `FOR UPDATE SKIP LOCKED` then throws it away (`let _ = select_oldest`) — dead code, real DELETE races | S |
-| PERF-005 | Worker polls 1s with no `Notify` on enqueue — sub-second jobs wait 1s anyway | S |
-| PERF-007 | `booking_export` uses `OFFSET` pagination — O(n²) at high row counts, switch to keyset | M |
+| PERF-001 | N+1 seat-hold loop in `booking_service::hold` — should be one bulk UPDATE | ✅ Fixed (`try_hold_seats_bulk`: one conditional UPDATE for the whole booking; rollback deletes the never-visible booking row instead of leaving ghost `pending` rows; `available_seats` / campaign `used_count` now update atomically in SQL — no lost-update races) |
+| PERF-002 | `cache::get_or_fetch` claims singleflight but isn't | ✅ Fixed (process-local in-flight registry: `DashMap` of `watch` channels; leader broadcasts the serialized result, followers share it; error broadcast + leader-vanished fallback; unit-tested) |
+| PERF-003 | `DbBroker::dequeue` built `select_oldest` then threw it away | ✅ Fixed (the subquery is now the DELETE's `IN` list) |
+| PERF-005 | Worker polls 1s with no `Notify` on enqueue | ✅ Fixed (`Notify` wake on enqueue + adaptive idle backoff, see `worker::db`) |
+| PERF-007 | `booking_export` uses `OFFSET` pagination — O(n²) at high row counts, switch to keyset | 📝 Open (low urgency — export row counts are modest) |
 
 ---
 

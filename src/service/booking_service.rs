@@ -22,7 +22,7 @@ use crate::dto::booking::{
     BookingHoldResponse, BookingListItem, BookingListResponse, BookingLookupResponse,
     BookingRoutePreview, BookingSeatOut, BookingTripPreview, HoldReq, PickupPointOut,
 };
-use crate::entity::{booking, booking_seat, campaign, seat, seat_inventory, trip_session};
+use crate::entity::{booking, booking_seat, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
 
@@ -548,14 +548,79 @@ impl BookingService {
             ..Default::default()
         };
 
+        // Write the booking row first — the schema demands it:
+        // `seat_inventory.held_by_booking_id` carries an FK to
+        // `booking.id`, so seats cannot be claimed before the booking
+        // exists. The row is still invisible to users (status `pending`,
+        // no line items); every failure path below DELETES it again, so
+        // a failed hold leaves no ghost rows behind.
         self.store
             .booking_store()
             .insert_booking(booking_model)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        // Claim ALL the seats in ONE conditional UPDATE (bulk hold).
+        //
+        // The `status = 'available'` guard closes the TOCTOU race: the
+        // engine serializes the UPDATE, so concurrent holds on
+        // overlapping seats resolve exactly one winner per seat; the
+        // loser sees `rows_affected < seat count` and rolls back. This
+        // is also the PERF-001 fix — the old per-seat loop cost one
+        // round-trip per seat; the bulk claim is one round-trip for the
+        // whole booking.
+        //
+        // The old flow's rollback released the claimed seats but never
+        // un-wrote the booking + booking_seat rows it had already
+        // inserted: every failed multi-seat hold left a `pending`
+        // booking and its line items behind forever (nothing swept
+        // `pending` rows; only a confirm/cancel attempt on that exact
+        // booking would flip it). The rollback below now removes the
+        // row entirely.
+        let booking_id_str = booking_id.to_string();
+        let trip_id_str = req.trip_id.to_string();
+        let wanted = seat_uuids.len();
+        let claimed = self
+            .store
+            .trip_store()
+            .try_hold_seats_bulk(&trip_id_str, &seat_uuids, &booking_id_str, &expires_at)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if claimed != wanted as u64 {
+            // Partial (or empty) claim — hand back whatever we did get,
+            // then drop the never-visible booking row. The bulk release
+            // is conditional on `held_by_booking_id`, so a concurrent
+            // booking's hold is never clobbered, and it must run BEFORE
+            // the delete (the seat_inventory claim FKs the booking row).
+            // On failure the seats self-heal at `expires_at` — already
+            // set by the claim — and the row stays for the same reason.
+            if claimed > 0 {
+                if let Err(e) = self
+                    .store
+                    .trip_store()
+                    .release_held_seats_for_booking(&booking_id_str)
+                    .await
+                {
+                    tracing::warn!(
+                        booking_id = %booking_id_str,
+                        claimed,
+                        error = %e,
+                        "conflict rollback failed — seats self-heal at expires_at"
+                    );
+                    return Err(AppError::Conflict(
+                        "some seats are no longer available".into(),
+                    ));
+                }
+            }
+            let _ = self.store.booking_store().delete_booking(booking_id).await;
+            return Err(AppError::Conflict(
+                "some seats are no longer available".into(),
+            ));
+        }
+
         // Batch-insert all booking_seat rows in a single INSERT.
-        // Replaces the per-seat loop (N round-trips).
+        // Replaces the per-seat loop (N round-trips). A single
+        // multi-row INSERT is atomic — no partial line items on failure.
         let bs_models: Vec<booking_seat::ActiveModel> = seat_invs
             .iter()
             .enumerate()
@@ -575,88 +640,50 @@ impl BookingService {
                 }
             })
             .collect();
-        self.store
+        if let Err(e) = self
+            .store
             .booking_store()
             .insert_booking_seats_batch(bs_models)
             .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Lock the seats atomically.
-        //
-        // We use a conditional UPDATE (`try_hold_seat`) that only flips
-        // the seat from 'available' → 'held' if it is STILL available.
-        // This closes the TOCTOU race: two concurrent holds on the same
-        // seat can no longer both succeed — the DB serializes the
-        // UPDATEs, so exactly one request gets `rows_affected == 1`.
-        //
-        // If any seat fails to claim, we roll back the seats we already
-        // claimed (release them back to 'available') and return a 409.
-        let booking_id_str = booking_id.to_string();
-        let trip_id_str = req.trip_id.to_string();
-        let mut claimed: Vec<String> = Vec::with_capacity(seat_invs.len());
-        let mut conflict = false;
-        for inv in &seat_invs {
-            let seat_id_str = inv.seat_id.to_string();
-            let ok = self
+        {
+            // Line items failed — release the claimed seats (clears the
+            // seat_inventory FK) and drop the booking row. The failed
+            // hold must leave NOTHING behind: no ghost `pending` row, no
+            // seats blocked for ten minutes.
+            let _ = self
                 .store
                 .trip_store()
-                .try_hold_seat(&trip_id_str, &seat_id_str, &booking_id_str, &expires_at)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
-            if ok {
-                claimed.push(seat_id_str);
-            } else {
-                conflict = true;
-                break;
-            }
+                .release_held_seats_for_booking(&booking_id_str)
+                .await;
+            let _ = self.store.booking_store().delete_booking(booking_id).await;
+            return Err(AppError::Internal(e.to_string()));
         }
 
-        if conflict {
-            // Roll back the seats we did claim so they're available again.
-            // Uses a conditional UPDATE (only releases seats held by THIS
-            // booking) so we never clobber a different booking's hold.
-            for seat_id in &claimed {
-                let _ = self
-                    .store
-                    .trip_store()
-                    .release_held_seat(&trip_id_str, seat_id, &booking_id_str)
-                    .await;
-            }
-            return Err(AppError::Conflict(
-                "some seats are no longer available".into(),
-            ));
-        }
-
-        // Decrement available seats on the trip session
-        let current_available = trip.available_seats;
-        let mut trip_active: trip_session::ActiveModel = trip.into();
-        trip_active.available_seats = Set(current_available - req.seat_ids.len() as i64);
+        // Decrement available seats — computed in SQL
+        // (`available_seats = available_seats - n`), closing the
+        // lost-update race the read-modify-write had: two concurrent
+        // holds both read `10`, both wrote `10 - n`, one decrement
+        // vanished. The seat_inventory claim above is the correctness
+        // gate; this maintains the trip's display/hint counter.
         self.store
             .trip_store()
-            .update_trip_session(trip_active)
+            .decrement_available_seats(&trip_id_str, wanted as i64)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // Increment campaign usage — propagate the error (previously
-        // swallowed via `let _ =`, leaving the campaign counter wrong).
+        // Increment campaign usage — also computed in SQL
+        // (`used_count = used_count + 1`) for the same lost-update
+        // reason. Errors propagate (a swallowed failure here would
+        // leave the campaign counter wrong). A campaign deleted between
+        // validation and this update reports 0 rows — a no-op, matching
+        // the previous behaviour.
         if let Some(ref cid) = applied_campaign_id {
             let c_uuid = Uuid::parse_str(cid).map_err(|e| AppError::Internal(e.to_string()))?;
-            if let Some(c) = self
-                .store
+            self.store
                 .trip_store()
-                .find_campaign_by_id(c_uuid)
+                .increment_campaign_usage(c_uuid)
                 .await
-                .map_err(|e| AppError::Internal(e.to_string()))?
-            {
-                let current_used = c.used_count;
-                let mut active: campaign::ActiveModel = c.into();
-                active.used_count = Set(current_used + 1);
-                self.store
-                    .trip_store()
-                    .update_campaign(active)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?;
-            }
+                .map_err(|e| AppError::Internal(e.to_string()))?;
         }
 
         // Build response
@@ -1415,5 +1442,257 @@ mod tests {
     #[test]
     fn parse_photos_garbage_is_empty() {
         assert!(parse_photos("not-json").is_empty());
+    }
+
+    // ── hold flow (integration-shaped, in-memory DB) ──────────────
+    //
+    // Boots the full CompositeStore over a fresh in-memory DB with the
+    // REAL migration schema, seeds the catalogue chain the hold flow
+    // walks (brand → bus_layout → seats → route → schedule → trip →
+    // seat inventory → pickup points), and exercises the booking hold
+    // state machine end-to-end.
+
+    /// Seed one trip with `n` bookable seats; returns
+    /// (trip_id, seat_ids, pickup_point_id).
+    async fn seed_trip_with_seats(
+        store: &crate::store::CompositeStore,
+        n: usize,
+    ) -> (Uuid, Vec<Uuid>, Uuid) {
+        use crate::entity::{bus_layout, pickup_point, route, schedule, seat};
+        use sea_orm::ActiveModelTrait;
+        let now = crate::store::now_iso();
+        let db = store.db();
+
+        let brand_id = Uuid::new_v4();
+        crate::entity::brand::ActiveModel {
+            id: Set(brand_id),
+            slug: Set(format!("seed-{}", brand_id.simple())),
+            name: Set("Seed Brand".into()),
+            status: Set("active".into()),
+            total_trips: Set(0),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let layout_id = Uuid::new_v4();
+        bus_layout::ActiveModel {
+            id: Set(layout_id),
+            brand_id: Set(Some(brand_id)),
+            name: Set(Some("Seed Layout".into())),
+            total_seats: Set(Some(n as i16)),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let mut seat_ids = Vec::with_capacity(n);
+        for i in 0..n {
+            let sid = Uuid::new_v4();
+            seat::ActiveModel {
+                id: Set(sid),
+                bus_layout_id: Set(layout_id),
+                seat_label: Set(format!("{}{}", char::from(b'A' + i as u8), 1)),
+                is_window: Set(false),
+                floor: Set(1),
+                created_at: Set(now.clone()),
+                ..Default::default()
+            }
+            .insert(db)
+            .await
+            .unwrap();
+            seat_ids.push(sid);
+        }
+
+        let route_id = Uuid::new_v4();
+        route::ActiveModel {
+            id: Set(route_id),
+            brand_id: Set(Some(brand_id)),
+            name: Set("Hà Nội - Đà Nẵng".into()),
+            start_location_id: Set("ha-noi".into()),
+            end_location_id: Set("da-nang".into()),
+            status: Set("active".into()),
+            created_at: Set(now.clone()),
+            updated_at: Set(now.clone()),
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let point_id = Uuid::new_v4();
+        pickup_point::ActiveModel {
+            id: Set(point_id),
+            route_id: Set(route_id),
+            name: Set(Some("Bến xe".into())),
+            stop_order: Set(1),
+            kind: Set(Some("boarding".into())),
+            created_at: Set(now.clone()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let schedule_id = Uuid::new_v4();
+        schedule::ActiveModel {
+            id: Set(schedule_id),
+            route_id: Set(route_id),
+            departure_time: Set("08:30".into()),
+            days_of_week: Set(Some("1111111".into())),
+            base_price_adult: Set(350_000),
+            created_at: Set(now.clone()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let trip_id = Uuid::new_v4();
+        trip_session::ActiveModel {
+            id: Set(trip_id),
+            schedule_id: Set(schedule_id),
+            departure_date: Set(chrono::Utc::now().format("%Y-%m-%d").to_string()),
+            status: Set("scheduled".into()),
+            total_seats: Set(n as i64),
+            available_seats: Set(n as i64),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+
+        let inv: Vec<seat_inventory::ActiveModel> = seat_ids
+            .iter()
+            .map(|&sid| seat_inventory::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                trip_session_id: Set(trip_id),
+                seat_id: Set(sid),
+                status: Set("available".into()),
+                base_price: Set(350_000),
+                final_price: Set(350_000),
+                currency: Set("VND".into()),
+                created_at: Set(crate::store::now_iso()),
+                updated_at: Set(crate::store::now_iso()),
+                ..Default::default()
+            })
+            .collect();
+        store
+            .trip_store()
+            .insert_seat_inventories_batch(inv)
+            .await
+            .unwrap();
+
+        (trip_id, seat_ids, point_id)
+    }
+
+    fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, point_id: Uuid) -> HoldReq {
+        use crate::dto::booking::PassengerReq;
+        HoldReq {
+            trip_id,
+            seat_ids: seat_ids.clone(),
+            passengers: seat_ids
+                .iter()
+                .map(|_| PassengerReq {
+                    name: "Nguyễn Văn A".into(),
+                    passenger_type: "adult".into(),
+                    age: 30,
+                })
+                .collect(),
+            boarding_point_id: point_id,
+            dropping_point_id: point_id,
+            contact_name: "Nguyễn Văn A".into(),
+            contact_phone: "0912345678".into(),
+            contact_email: None,
+            campaign_code: None,
+        }
+    }
+
+    /// THE regression: a conflicted multi-seat hold must leave NO
+    /// booking / booking_seat rows behind (the pre-bulk-fix flow inserted
+    /// them first and never un-wrote them on 409), and a partially
+    /// claimed hold must hand its claimed seats back.
+    #[tokio::test]
+    async fn hold_conflict_leaves_no_orphan_rows_and_releases_partial_claims() {
+        use crate::store::CompositeStore;
+        use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+        use sea_orm_migration::MigratorTrait;
+
+        let store = CompositeStore::in_memory().await;
+        migrator::Migrator::up(store.db(), None).await.unwrap();
+        let svc = BookingService::new(store.clone());
+
+        let (trip_id, seats, point) = seed_trip_with_seats(&store, 3).await;
+        let [a, b, c] = [seats[0], seats[1], seats[2]];
+
+        // 1) A clean two-seat hold succeeds and writes exactly one
+        //    booking with two line items.
+        let resp = svc.hold(None, &hold_req(trip_id, vec![a, b], point)).await;
+        let resp = resp.expect("first hold must succeed");
+        let booking_count = booking::Entity::find().count(store.db()).await.unwrap();
+        assert_eq!(booking_count, 1);
+        let seat_rows = seat_inventory::Entity::find()
+            .filter(seat_inventory::Column::TripSessionId.eq(trip_id))
+            .all(store.db())
+            .await
+            .unwrap();
+        let held_by_first: Vec<&seat_inventory::Model> =
+            seat_rows.iter().filter(|s| s.status == "held").collect();
+        assert_eq!(held_by_first.len(), 2, "both seats held: {:?}", seat_rows);
+        // available_seats decremented atomically by the store.
+        let trip = trip_session::Entity::find_by_id(trip_id)
+            .one(store.db())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(trip.available_seats, 1, "3 - 2 held");
+
+        // 2) The SAME seats again → 409 conflict AND no orphan rows.
+        //    The pre-fix flow inserted the second booking + seats before
+        //    discovering the conflict, leaving them forever.
+        let err = svc
+            .hold(None, &hold_req(trip_id, vec![a, b], point))
+            .await
+            .expect_err("duplicate hold must conflict");
+        assert!(matches!(err, AppError::Conflict(_)), "got: {err:?}");
+        let booking_count = booking::Entity::find().count(store.db()).await.unwrap();
+        assert_eq!(booking_count, 1, "conflicted hold must not leave rows");
+        let seat_count = booking_seat::Entity::find()
+            .count(store.db())
+            .await
+            .unwrap();
+        assert_eq!(seat_count, 2, "conflicted hold must not leave seat rows");
+
+        // 3) Partial claim: [a (held), c (free)] — the bulk claim takes
+        //    only c, sees 1 != 2, and must RELEASE c on the way out.
+        let err = svc
+            .hold(None, &hold_req(trip_id, vec![a, c], point))
+            .await
+            .expect_err("mixed hold must conflict");
+        assert!(matches!(err, AppError::Conflict(_)), "got: {err:?}");
+        let c_row = seat_inventory::Entity::find()
+            .filter(seat_inventory::Column::SeatId.eq(c))
+            .one(store.db())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            c_row.status, "available",
+            "partially claimed seat must be released back"
+        );
+        assert!(c_row.held_by_booking_id.is_none());
+        let booking_count = booking::Entity::find().count(store.db()).await.unwrap();
+        assert_eq!(booking_count, 1, "partial conflict must not leave rows");
+
+        // 4) The still-validated response from step 1 is consistent.
+        assert_eq!(resp.seats.len(), 2);
+        assert_eq!(resp.status, "pending");
     }
 }

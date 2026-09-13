@@ -74,6 +74,15 @@ pub trait BookingStore: Send + Sync {
     async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()>;
     async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model>;
 
+    /// Hard-delete a booking row by id. ONLY for the `hold` rollback
+    /// path: a hold that failed before becoming visible (seat conflict /
+    /// line-item insert failure) removes its never-seen booking row
+    /// instead of littering `pending`/`cancelled` ghosts that no sweeper
+    /// reaps. The caller MUST release the seat_inventory claim FIRST —
+    /// `seat_inventory.held_by_booking_id` carries an FK to this row.
+    /// Returns the number of rows deleted (0 = already gone).
+    async fn delete_booking(&self, id: Uuid) -> StoreResult<u64>;
+
     /// Count bookings matching an optional status filter. Uses `COUNT(*)`
     /// — does NOT load rows into memory.
     async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64>;
@@ -286,6 +295,14 @@ impl BookingStore for DbBookingStore {
         Ok(booking::Entity::update(model)
             .exec(self.db.as_ref())
             .await?)
+    }
+
+    #[store_macros::no_retry]
+    async fn delete_booking(&self, id: Uuid) -> StoreResult<u64> {
+        let res = booking::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
     }
 
     async fn count_bookings_by_status(&self, status: Option<&str>) -> StoreResult<u64> {

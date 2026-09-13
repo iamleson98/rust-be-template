@@ -71,11 +71,6 @@ pub trait TripStore: Send + Sync {
 
     // ── Write operations ───────────────────────────────────────
 
-    async fn update_trip_session(
-        &self,
-        model: trip_session::ActiveModel,
-    ) -> StoreResult<trip_session::Model>;
-
     /// Find the materialized trip for a (schedule, departure-date) pair.
     /// Used by the on-demand trip generator to decide whether a trip
     /// already exists for that day.
@@ -99,9 +94,7 @@ pub trait TripStore: Send + Sync {
         models: Vec<seat_inventory::ActiveModel>,
     ) -> StoreResult<()>;
 
-    async fn update_campaign(&self, model: campaign::ActiveModel) -> StoreResult<campaign::Model>;
     async fn list_trips_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<trip_session::Model>>;
-    async fn find_campaign_by_id(&self, id: Uuid) -> StoreResult<Option<campaign::Model>>;
     async fn list_seat_inventories_by_held_booking(
         &self,
         booking_id: &str,
@@ -111,44 +104,11 @@ pub trait TripStore: Send + Sync {
         model: seat_inventory::ActiveModel,
     ) -> StoreResult<seat_inventory::Model>;
 
-    /// Atomically claim a seat: `UPDATE seat_inventory SET status='held',
-    /// held_until=?, held_by_booking_id=? WHERE trip_session_id=? AND
-    /// seat_id=? AND status='available'`.
-    ///
-    /// Returns `Ok(true)` if the row was updated (seat claimed), or
-    /// `Ok(false)` if the seat was no longer available (another request
-    /// grabbed it between the read and the write). This closes the
-    /// TOCTOU race in the booking `hold` flow — the read-then-write
-    /// pattern in the service layer is inherently racy under concurrent
-    /// holds on the same seat.
-    ///
-    /// Marked `#[store_macros::no_retry]` because a "false" result is a
-    /// legitimate conflict, not a transient failure worth retrying.
-    async fn try_hold_seat(
-        &self,
-        trip_session_id: &str,
-        seat_id: &str,
-        held_by_booking_id: &str,
-        held_until: &str,
-    ) -> StoreResult<bool>;
-
-    /// Release a seat held by a specific booking back to 'available'.
-    /// Conditional on `held_by_booking_id` so we never clobber a
-    /// different booking's hold. Used for rollback when a multi-seat
-    /// hold partially fails.
-    async fn release_held_seat(
-        &self,
-        trip_session_id: &str,
-        seat_id: &str,
-        held_by_booking_id: &str,
-    ) -> StoreResult<()>;
-
-    /// Bulk version of `release_held_seat` — releases ALL seats held by
-    /// the given booking in a single SQL UPDATE. Used by `booking_service::cancel`
-    /// + `::confirm` (expiry-cleanup path) which previously issued N UPDATEs
-    /// (one per seat) with `let _ =` swallowing any errors. Returns the
-    /// number of seats released. Idempotent — safe to call even if no
-    /// seats are currently held.
+    /// Bulk release — flips ALL seats held by the given booking back to
+    /// 'available' in a single conditional UPDATE. Used by
+    /// `booking_service::cancel`, `::confirm` (expiry-cleanup path) and
+    /// `hold`'s conflict rollback. Returns the number of seats released.
+    /// Idempotent — safe to call even if no seats are currently held.
     async fn release_held_seats_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
 
     /// Bulk mark held seats as 'booked' for a given booking (the
@@ -156,6 +116,32 @@ pub trait TripStore: Send + Sync {
     /// loop in `booking_service::confirm`. Returns the number of seats
     /// flipped. Idempotent — safe to call on already-booked seats.
     async fn mark_seats_booked_for_booking(&self, held_by_booking_id: &str) -> StoreResult<u64>;
+
+    /// Bulk claim — flips ALL of `seat_ids` from 'available' → 'held' in a
+    /// single conditional UPDATE (the booking `hold` step). See the impl
+    /// for the TOCTOU/serialization argument.
+    async fn try_hold_seats_bulk(
+        &self,
+        trip_session_id: &str,
+        seat_ids: &[String],
+        held_by_booking_id: &str,
+        held_until: &str,
+    ) -> StoreResult<u64>;
+
+    /// Atomic `available_seats = available_seats - n` (one UPDATE, value
+    /// derived in SQL). Replaces the read-modify-write in `hold` where two
+    /// concurrent holds both read `10`, both wrote `10 - n` and one
+    /// decrement was silently lost. `no_retry` matches the other
+    /// seat-counter writes: the seat_inventory claim has already gated
+    /// correctness — this only maintains the display/hint counter.
+    async fn decrement_available_seats(&self, trip_session_id: &str, n: i64) -> StoreResult<u64>;
+
+    /// Atomic `used_count = used_count + 1` (one UPDATE). Replaces the
+    /// read-modify-write in `hold` with the same lost-update race. Returns
+    /// 0 when the campaign no longer exists (deleted concurrently) — the
+    /// caller treats that as a no-op, matching the previous behaviour.
+    async fn increment_campaign_usage(&self, campaign_id: Uuid) -> StoreResult<u64>;
+
     async fn list_trips_by_schedule_ids(
         &self,
         schedule_ids: Vec<Uuid>,
@@ -288,15 +274,6 @@ impl TripStore for DbTripStore {
 
     // ── Write operations ───────────────────────────────────────
 
-    async fn update_trip_session(
-        &self,
-        model: trip_session::ActiveModel,
-    ) -> StoreResult<trip_session::Model> {
-        Ok(trip_session::Entity::update(model)
-            .exec(self.db.as_ref())
-            .await?)
-    }
-
     async fn find_trip_by_schedule_and_date(
         &self,
         schedule_id: Uuid,
@@ -340,22 +317,10 @@ impl TripStore for DbTripStore {
         Ok(())
     }
 
-    async fn update_campaign(&self, model: campaign::ActiveModel) -> StoreResult<campaign::Model> {
-        Ok(campaign::Entity::update(model)
-            .exec(self.db.as_ref())
-            .await?)
-    }
-
     async fn list_trips_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<trip_session::Model>> {
         Ok(trip_session::Entity::find()
             .filter(trip_session::Column::Id.is_in(ids))
             .all(self.db.as_ref())
-            .await?)
-    }
-
-    async fn find_campaign_by_id(&self, id: Uuid) -> StoreResult<Option<campaign::Model>> {
-        Ok(campaign::Entity::find_by_id(id)
-            .one(self.db.as_ref())
             .await?)
     }
 
@@ -380,65 +345,72 @@ impl TripStore for DbTripStore {
     }
 
     #[store_macros::no_retry]
-    async fn try_hold_seat(
+    async fn try_hold_seats_bulk(
         &self,
         trip_session_id: &str,
-        seat_id: &str,
+        seat_ids: &[String],
         held_by_booking_id: &str,
         held_until: &str,
-    ) -> StoreResult<bool> {
+    ) -> StoreResult<u64> {
         use sea_orm::sea_query::Expr;
+        if seat_ids.is_empty() {
+            return Ok(0);
+        }
         let tid = parse_uuid(trip_session_id)?;
-        let sid = parse_uuid(seat_id)?;
         let bid = parse_uuid(held_by_booking_id)?;
-        // Atomic conditional UPDATE — only claims the seat if it is still
-        // 'available'. The `filter` on `status = 'available'` makes this
-        // safe under concurrent holds: the DB serializes the UPDATEs, so
-        // only one request can flip a given seat from 'available' to 'held'.
+        let sids: Result<Vec<uuid::Uuid>, _> = seat_ids.iter().map(|s| parse_uuid(s)).collect();
+        let sids = sids?;
+        // One conditional UPDATE for the whole request — the
+        // `status = 'available'` guard makes this safe under concurrent
+        // holds: the engine serializes the UPDATE, so only one request
+        // can flip a given seat from 'available' to 'held'; an overlapping
+        // hold simply leaves that row unclaimed (rows_affected < seat
+        // count → caller rolls back). Callers must validate duplicates
+        // BEFORE calling: an IN-list with the same seat twice would claim
+        // one row and report a false conflict.
         let res = seat_inventory::Entity::update_many()
             .col_expr(seat_inventory::Column::Status, Expr::value("held"))
             .col_expr(seat_inventory::Column::HeldUntil, Expr::value(held_until))
             .col_expr(seat_inventory::Column::HeldByBookingId, Expr::value(bid))
             .filter(seat_inventory::Column::TripSessionId.eq(tid))
-            .filter(seat_inventory::Column::SeatId.eq(sid))
+            .filter(seat_inventory::Column::SeatId.is_in(sids))
             .filter(seat_inventory::Column::Status.eq("available"))
             .exec(self.db.as_ref())
             .await?;
-        // `rows_affected` is 1 if we claimed the seat, 0 if it was already
-        // taken by a concurrent request.
-        Ok(res.rows_affected == 1)
+        Ok(res.rows_affected)
     }
 
     #[store_macros::no_retry]
-    async fn release_held_seat(
-        &self,
-        trip_session_id: &str,
-        seat_id: &str,
-        held_by_booking_id: &str,
-    ) -> StoreResult<()> {
-        use sea_orm::sea_query::Expr;
+    async fn decrement_available_seats(&self, trip_session_id: &str, n: i64) -> StoreResult<u64> {
+        use sea_orm::sea_query::{BinOper, Expr};
         let tid = parse_uuid(trip_session_id)?;
-        let sid = parse_uuid(seat_id)?;
-        let bid = parse_uuid(held_by_booking_id)?;
-        // Conditional release — only flips back to 'available' if the
-        // seat is still held by THIS booking. Prevents clobbering a
-        // different booking's hold if the seat was somehow reassigned.
-        seat_inventory::Entity::update_many()
-            .col_expr(seat_inventory::Column::Status, Expr::value("available"))
+        // `available_seats = available_seats - n`, computed by the engine —
+        // no read-modify-write window, no lost update.
+        let res = trip_session::Entity::update_many()
             .col_expr(
-                seat_inventory::Column::HeldUntil,
-                Expr::value(None::<String>),
+                trip_session::Column::AvailableSeats,
+                Expr::col(trip_session::Column::AvailableSeats)
+                    .binary(BinOper::Sub, Expr::value(n)),
             )
-            .col_expr(
-                seat_inventory::Column::HeldByBookingId,
-                Expr::value(None::<uuid::Uuid>),
-            )
-            .filter(seat_inventory::Column::TripSessionId.eq(tid))
-            .filter(seat_inventory::Column::SeatId.eq(sid))
-            .filter(seat_inventory::Column::HeldByBookingId.eq(bid))
+            .filter(trip_session::Column::Id.eq(tid))
             .exec(self.db.as_ref())
             .await?;
-        Ok(())
+        Ok(res.rows_affected)
+    }
+
+    #[store_macros::no_retry]
+    async fn increment_campaign_usage(&self, campaign_id: Uuid) -> StoreResult<u64> {
+        use sea_orm::sea_query::{BinOper, Expr};
+        // `used_count = used_count + 1`, computed by the engine.
+        let res = campaign::Entity::update_many()
+            .col_expr(
+                campaign::Column::UsedCount,
+                Expr::col(campaign::Column::UsedCount).binary(BinOper::Add, Expr::value(1)),
+            )
+            .filter(campaign::Column::Id.eq(campaign_id))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
     }
 
     #[store_macros::no_retry]
