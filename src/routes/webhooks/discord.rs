@@ -3,12 +3,18 @@
 //! ## Flow
 //!
 //! 1. Discord sends an Interaction to `POST /api/webhooks/discord`.
-//! 2. If it's a PING (type 1), respond with `{"type": 1}` immediately.
-//! 3. If it's a message command (type 2) with a text input, normalize
+//! 2. Handler verifies the Ed25519 signature in `X-Signature-Ed25519`
+//!    over `<X-Signature-Timestamp><raw body>` with the application's
+//!    public key (`DISCORD_PUBLIC_KEY`) — SEC-2026-WH: previously
+//!    unauthenticated, anyone could forge interactions.
+//! 3. If it's a PING (type 1), respond with `{"type": 1}` immediately
+//!    (verification happens BEFORE the PING answer — Discord validates
+//!    that your PING response corresponds to a signed request).
+//! 4. If it's a message command (type 2) with a text input, normalize
 //!    it into a `PlatformMessage`.
-//! 4. `handle_platform_message` creates/finds the user + channel,
+//! 5. `handle_platform_message` creates/finds the user + channel,
 //!    inserts the message, triggers NullClaw AI.
-//! 5. If AI replied, respond with the reply text in the interaction
+//! 6. If AI replied, respond with the reply text in the interaction
 //!    response body.
 //!
 //! ## Setup
@@ -16,9 +22,13 @@
 //! 1. Create a Discord Application at https://discord.com/developers/applications
 //! 2. Add a Bot + configure Interactions Endpoint URL to
 //!    `https://yourdomain.com/api/webhooks/discord`
-//! 3. Set `DISCORD_PUBLIC_KEY` + `DISCORD_BOT_TOKEN` in `.env`
+//! 3. Set `DISCORD_PUBLIC_KEY` (Application → General → Public Key)
+//!    + `DISCORD_BOT_TOKEN` in `.env`
+//!    and add `ed25519-dalek = "2"` to Cargo.toml.
 
+use axum::body::Bytes;
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use tracing;
@@ -26,6 +36,7 @@ use tracing;
 use crate::error::AppError;
 use crate::state::AppState;
 
+use super::auth;
 use super::shared::{handle_platform_message, PlatformMessage};
 
 /// Discord Interaction (partial).
@@ -69,11 +80,21 @@ pub struct DiscordUser {
 }
 
 /// `POST /api/webhooks/discord` — receive Discord interaction events.
+///
+/// Signature verification runs FIRST, on the raw bytes, before any
+/// JSON parsing or the PING fast-path.
 pub async fn webhook(
     State(st): State<AppState>,
-    Json(interaction): Json<DiscordInteraction>,
+    headers: HeaderMap,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    // PING (type 1) — Discord sends this on first setup.
+    auth::verify_discord(&headers, &body)?;
+
+    let interaction: DiscordInteraction = serde_json::from_slice(&body)
+        .map_err(|e| AppError::BadRequest(format!("discord payload parse failed: {e}")))?;
+
+    // PING (type 1) — Discord sends this on first setup. Only reached
+    // after the Ed25519 check above passed.
     if interaction.interaction_type == 1 {
         return Ok(Json(serde_json::json!({ "type": 1 })));
     }

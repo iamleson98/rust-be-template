@@ -27,15 +27,19 @@
 //!
 //! ## Authentication
 //!
-//! Each platform uses a different verification method:
+//! Each platform uses a different verification method — enforced by
+//! [`auth`] BEFORE any message is trusted (fail-closed when the
+//! platform secret is not configured):
 //! - Zalo: HMAC-SHA256 signature in `X-Zalo-Signature` header
 //! - Messenger: `X-Hub-Signature-256` HMAC + verify_token challenge
 //! - Telegram: secret token in `X-Telegram-Bot-Api-Secret-Token` header
 //! - Discord: Ed25519 signature in `X-Signature-Ed25519` header
 //!
-//! For this first iteration, Zalo is fully implemented. The other
-//! platforms have stub handlers that return 501 Not Implemented.
+//! SEC-2026-WH: before this module existed, NONE of the handlers
+//! actually verified their platform signature (the doc comment above
+//! described an intent, not reality) — see `auth.rs`.
 
+pub mod auth;
 pub mod discord;
 pub mod messenger;
 pub mod shared;

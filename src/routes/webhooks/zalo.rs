@@ -3,19 +3,26 @@
 //! ## Flow
 //!
 //! 1. Zalo sends `user_send_text` event to `POST /api/webhooks/zalo`.
-//! 2. Handler normalizes it into a `PlatformMessage`.
-//! 3. `handle_platform_message` creates/finds the user + channel,
+//! 2. Handler verifies the `X-Zalo-Signature` HMAC-SHA256 signature
+//!    over the RAW body bytes with `ZALO_OA_SECRET` (SEC-2026-WH —
+//!    previously unauthenticated despite the module docs claiming HMAC;
+//!    anyone could forge messages).
+//! 3. Handler normalizes it into a `PlatformMessage`.
+//! 4. `handle_platform_message` creates/finds the user + channel,
 //!    inserts the message, triggers NullClaw AI.
-//! 4. If AI replied, handler sends the reply back to the user via
+//! 5. If AI replied, handler sends the reply back to the user via
 //!    Zalo OA API (`POST https://openapi.zalo.me/v3.0/oa/message/text`).
 //!
 //! ## Setup
 //!
 //! 1. Create a Zalo OA at https://oa.zalo.me/
 //! 2. Set the webhook URL to `https://yourdomain.com/api/webhooks/zalo`
+//!    (Zalo signs every delivery with the OA secret in X-Zalo-Signature)
 //! 3. Set `ZALO_OA_ID` + `ZALO_OA_SECRET` in `.env`
 
+use axum::body::Bytes;
 use axum::extract::State;
+use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use tracing;
@@ -23,6 +30,7 @@ use tracing;
 use crate::error::AppError;
 use crate::state::AppState;
 
+use super::auth;
 use super::shared::{handle_platform_message, PlatformMessage};
 
 /// Incoming Zalo webhook event.
@@ -50,10 +58,19 @@ pub struct ZaloMessage {
 }
 
 /// `POST /api/webhooks/zalo` — receive Zalo OA events.
+///
+/// The body is consumed as raw `Bytes` BEFORE any JSON parsing: the
+/// X-Zalo-Signature MAC is computed over the exact bytes received.
 pub async fn webhook(
     State(st): State<AppState>,
-    Json(event): Json<ZaloEvent>,
+    headers: HeaderMap,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    auth::verify_zalo(&headers, &body)?;
+
+    let event: ZaloEvent = serde_json::from_slice(&body)
+        .map_err(|e| AppError::BadRequest(format!("zalo payload parse failed: {e}")))?;
+
     tracing::info!(
         event_name = %event.event_name,
         sender_id = %event.sender.id,

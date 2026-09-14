@@ -3,19 +3,23 @@
 //! ## Flow
 //!
 //! 1. Telegram sends an Update to `POST /api/webhooks/telegram`.
-//! 2. Handler normalizes it into a `PlatformMessage`.
-//! 3. `handle_platform_message` creates/finds the user + channel,
+//! 2. Handler verifies the `X-Telegram-Bot-Api-Secret-Token` header
+//!    against `TELEGRAM_WEBHOOK_SECRET` (SEC-2026-WH — previously
+//!    unauthenticated, anyone could forge messages).
+//! 3. Handler normalizes it into a `PlatformMessage`.
+//! 4. `handle_platform_message` creates/finds the user + channel,
 //!    inserts the message, triggers NullClaw AI.
-//! 4. If AI replied, handler sends the reply via Bot API
-//!    (`POST https://api.telegram.org/bot<TOKEN>/sendMessage`).
+//! 5. If AI replied, handler sends the reply via Bot API.
 //!
 //! ## Setup
 //!
 //! 1. Create a bot via @BotFather on Telegram
-//! 2. Set webhook URL:
-//!    `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://yourdomain.com/api/webhooks/telegram`
-//! 3. Set `TELEGRAM_BOT_TOKEN` in `.env`
+//! 2. Set webhook URL **with a secret token**:
+//!    `https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://yourdomain.com/api/webhooks/telegram&secret_token=<strong-random-value>`
+//!    The SAME value must be set as `TELEGRAM_WEBHOOK_SECRET` in `.env`.
+//! 3. Set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET` in `.env`
 
+use axum::http::HeaderMap;
 use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;
@@ -24,6 +28,7 @@ use tracing;
 use crate::error::AppError;
 use crate::state::AppState;
 
+use super::auth;
 use super::shared::{handle_platform_message, PlatformMessage};
 
 /// Telegram Update (partial — only `message` field).
@@ -52,6 +57,7 @@ pub struct TelegramUser {
     pub id: i64,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
+    #[allow(dead_code)]
     pub username: Option<String>,
 }
 
@@ -61,10 +67,19 @@ pub struct TelegramChat {
 }
 
 /// `POST /api/webhooks/telegram` — receive Telegram Bot updates.
+///
+/// Authenticity is verified FIRST (constant-time secret-token compare).
+/// Unauthenticated requests never reach the chat/AI pipeline.
 pub async fn webhook(
     State(st): State<AppState>,
-    Json(update): Json<TelegramUpdate>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    auth::verify_telegram(&headers)?;
+
+    let update: TelegramUpdate = serde_json::from_slice(&body)
+        .map_err(|e| AppError::BadRequest(format!("telegram payload parse failed: {e}")))?;
+
     if let Some(msg) = &update.message {
         if let Some(text) = &msg.text {
             let user_name = msg

@@ -3,19 +3,25 @@
 //! ## Flow
 //!
 //! 1. Messenger sends `messages` event to `POST /api/webhooks/messenger`.
-//! 2. Handler normalizes it into a `PlatformMessage`.
-//! 3. `handle_platform_message` creates/finds the user + channel,
+//! 2. Handler verifies the `X-Hub-Signature-256` HMAC-SHA256 signature
+//!    over the RAW body bytes with `MESSENGER_APP_SECRET` (SEC-2026-WH —
+//!    previously unauthenticated, anyone could forge messages).
+//! 3. Handler normalizes it into a `PlatformMessage`.
+//! 4. `handle_platform_message` creates/finds the user + channel,
 //!    inserts the message, triggers NullClaw AI.
-//! 4. If AI replied, handler sends the reply back via Graph API.
+//! 5. If AI replied, handler sends the reply back via Graph API.
 //!
 //! ## Setup
 //!
 //! 1. Create a Facebook App at https://developers.facebook.com/
 //! 2. Add Messenger product
 //! 3. Set webhook URL to `https://yourdomain.com/api/webhooks/messenger`
-//! 4. Set `MESSENGER_VERIFY_TOKEN` + `MESSENGER_PAGE_ACCESS_TOKEN` in `.env`
+//! 4. Set `MESSENGER_VERIFY_TOKEN` + `MESSENGER_PAGE_ACCESS_TOKEN` +
+//!    `MESSENGER_APP_SECRET` (App Settings → Basic → App Secret) in `.env`
 
+use axum::body::Bytes;
 use axum::extract::{Query, State};
+use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use tracing;
@@ -23,6 +29,7 @@ use tracing;
 use crate::error::AppError;
 use crate::state::AppState;
 
+use super::auth;
 use super::shared::{handle_platform_message, PlatformMessage};
 
 /// GET verification challenge — Messenger sends this when you first
@@ -41,14 +48,14 @@ pub async fn verify(
     State(_st): State<AppState>,
     Query(q): Query<VerifyQuery>,
 ) -> Result<String, AppError> {
-    // Verify the token matches our configured MESSENGER_VERIFY_TOKEN.
-    // For now, we accept any non-empty token — TODO: read from config.
-    if q.mode == "subscribe" && !q.verify_token.is_empty() {
+    // Constant-time compare against the configured MESSENGER_VERIFY_TOKEN
+    // (SEC-2026-WH: previously accepted ANY non-empty token).
+    if q.mode == "subscribe" {
+        auth::verify_messenger_challenge(&q.verify_token)?;
         tracing::info!("messenger: webhook verified");
-        Ok(q.challenge)
-    } else {
-        Err(AppError::BadRequest("invalid verify token".into()))
+        return Ok(q.challenge);
     }
+    Err(AppError::BadRequest("invalid hub.mode".into()))
 }
 
 /// Messenger webhook event shape (partial — only fields we use).
@@ -83,11 +90,21 @@ pub struct MessengerMsg {
 }
 
 /// `POST /api/webhooks/messenger` — receive Messenger events.
+///
+/// The body is consumed as raw `Bytes` BEFORE any JSON parsing: the
+/// X-Hub-Signature-256 MAC is computed over the exact bytes received,
+/// and a JSON extractor would re-serialize the body and break the MAC.
 pub async fn webhook(
     State(st): State<AppState>,
-    Json(body): Json<MessengerWebhook>,
+    headers: HeaderMap,
+    body: Bytes,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    for entry in &body.entry {
+    auth::verify_messenger(&headers, &body)?;
+
+    let payload: MessengerWebhook = serde_json::from_slice(&body)
+        .map_err(|e| AppError::BadRequest(format!("messenger payload parse failed: {e}")))?;
+
+    for entry in &payload.entry {
         for msg in &entry.messaging {
             if let Some(message) = &msg.message {
                 if let Some(text) = &message.text {
@@ -121,17 +138,17 @@ pub async fn webhook(
 }
 
 /// Send a text message to a Messenger user via the Graph API.
-async fn send_messenger_reply(_st: &AppState, recipient_psid: &str, text: &str) {
+async fn send_messenger_reply(_st: &AppState, recipient_psd: &str, text: &str) {
     // TODO: Read MESSENGER_PAGE_ACCESS_TOKEN from config.
     //
     // POST https://graph.facebook.com/v18.0/me/messages
     //   ?access_token=MESSENGER_PAGE_ACCESS_TOKEN
     // Body: {
-    //   "recipient": { "id": recipient_psid },
+    //   "recipient": { "id": recipient_psd },
     //   "message": { "text": text }
     // }
     tracing::info!(
-        recipient_psid = %recipient_psid,
+        recipient_psd = %recipient_psd,
         reply = %text,
         "messenger: reply (not sent — MESSENGER_PAGE_ACCESS_TOKEN not configured)"
     );
