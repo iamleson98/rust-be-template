@@ -17,11 +17,13 @@
 //! this is the idiomatic Axum pattern + avoids the cost of building
 //! a `GovernorLayer` per route.
 
+use axum::http::{HeaderName, HeaderValue};
 use axum::response::IntoResponse;
 use axum::Router;
 use tower::service_fn;
 use tower_governor::governor::GovernorConfigBuilder;
-use tower_governor::GovernorLayer;
+use tower_governor::key_extractor::KeyExtractor;
+use tower_governor::{GovernorError, GovernorLayer};
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::services::ServeDir;
@@ -32,6 +34,81 @@ use utoipa::OpenApi;
 use crate::middleware::anti_scraping;
 use crate::middleware::request_id::request_id_layer;
 use crate::state::AppState;
+
+/// Rate-limit key = the REAL client IP, derived right-anchored from
+/// X-Forwarded-For (SEC-2026-RL).
+///
+/// Deployment chain is Cloudflare -> Caddy -> app. Caddy (reverse_proxy)
+/// appends its immediate peer (a Cloudflare edge IP) to XFF, and
+/// Cloudflare appends the true client IP before that. The client's own
+/// XFF entries (spoofable padding) sit at the FRONT of the list. The
+/// true client IP is therefore `TRUSTED_PROXY_HOPS + 1` entries from
+/// the RIGHT — the same proven parse used by pdf-tts's limiter.
+///
+/// tower_governor's default `PeerIpKeyExtractor` keys on the socket
+/// peer, which behind Caddy is the PROXY's IP — one global bucket for
+/// the entire site: any single client could exhaust the API budget for
+/// everyone (availability), and distributed abuse was barely throttled.
+#[derive(Clone, Copy, Debug)]
+struct ClientIpKeyExtractor;
+
+impl KeyExtractor for ClientIpKeyExtractor {
+    type Key = std::net::IpAddr;
+
+    fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
+        fn parse_ip(s: &str) -> Option<std::net::IpAddr> {
+            s.trim().parse::<std::net::IpAddr>().ok()
+        }
+
+        if let Some(xff) = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+        {
+            let hops = hops();
+            if hops > 0 {
+                let ips: Vec<&str> = xff.split(',').collect();
+                // Take the entry `hops` from the right (0-based:
+                // len - hops - 1 is the entry appended by the proxy
+                // BEFORE the last `hops` trusted appends).
+                let idx = ips.len().saturating_sub(hops + 1);
+                if let Some(ip) = ips.get(idx).and_then(|s| parse_ip(s)) {
+                    return Ok(ip);
+                }
+            }
+        }
+
+        // Cloudflare sets the authoritative client IP here (cannot be
+        // spoofed through the public chain; only reachable from inside
+        // the private overlay network, which is already post-compromise).
+        if let Some(ip) = req
+            .headers()
+            .get("cf-connecting-ip")
+            .and_then(|v| v.to_str().ok())
+            .and_then(parse_ip)
+        {
+            return Ok(ip);
+        }
+
+        // Direct connection (dev, health checks): socket peer.
+        use axum::extract::ConnectInfo;
+        if let Some(ci) = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>() {
+            return Ok(ci.0.ip());
+        }
+
+        Err(GovernorError::UnableToExtractKey)
+    }
+}
+
+fn hops() -> usize {
+    static HOPS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *HOPS.get_or_init(|| {
+        std::env::var("TRUSTED_PROXY_HOPS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(1)
+    })
+}
 
 /// Build the complete app router.
 ///
@@ -50,14 +127,22 @@ pub fn build_router(state: AppState) -> Router<()> {
     anti_scraping::init_allowed_origins(state.config.cors.origin_list());
 
     // ---- Rate-limit config ------------------------------------------
+    // Keyed per REAL client IP (see ClientIpKeyExtractor above), not per
+    // socket peer — behind Caddy the peer IP is the proxy itself.
     let rpm = state.config.rate_limit.rpm.max(1) as u64;
     let interval_ms = (60_000 / rpm).max(1);
     let governor_conf = std::sync::Arc::new(
         GovernorConfigBuilder::default()
+            .key_extractor(ClientIpKeyExtractor)
             .per_millisecond(interval_ms)
             .burst_size(state.config.rate_limit.burst.max(1))
             .finish()
-            .unwrap_or_else(|| GovernorConfigBuilder::default().finish().unwrap()),
+            .unwrap_or_else(|| {
+                GovernorConfigBuilder::default()
+                    .key_extractor(ClientIpKeyExtractor)
+                    .finish()
+                    .unwrap()
+            }),
     );
     let governor_layer = GovernorLayer {
         config: governor_conf,
@@ -231,9 +316,19 @@ pub fn build_router(state: AppState) -> Router<()> {
     let global_body_bytes = max_body_bytes.max(media_upload_cap);
 
     // ---- Swagger UI -----------------------------------------------------
-    let swagger: Router<AppState> = utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
-        .url("/api-docs/openapi.json", crate::routes::ApiDoc::openapi())
-        .into();
+    // SEC-2026-SW: Swagger + /api-docs/openapi.json are full API maps
+    // (every route, schema, admin endpoint). Public by default was an
+    // info-disclosure gift to attackers — now opt-in, default OFF.
+    let swagger_enabled = std::env::var("SWAGGER_ENABLED")
+        .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+        .unwrap_or(false);
+    let swagger: Router<AppState> = if swagger_enabled {
+        utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
+            .url("/api-docs/openapi.json", crate::routes::ApiDoc::openapi())
+            .into()
+    } else {
+        Router::new()
+    };
 
     // ---- Compose --------------------------------------------------------
     Router::<AppState>::new()
@@ -337,5 +432,25 @@ pub fn build_router(state: AppState) -> Router<()> {
         // Applied after CORS so preflight OPTIONS pass through.
         .layer(axum::middleware::from_fn(anti_scraping::anti_scraping))
         .layer(axum::middleware::from_fn(request_id_layer))
+        // ---- Security headers (SEC-2026-HD) ----------------------------
+        // Browser hardening missing on every datxevui.com response
+        // (verified live: no XFO / nosniff / HSTS / Referrer-Policy).
+        // `if_not_present` so routes that set their own value still win.
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::STRICT_TRANSPORT_SECURITY,
+            HeaderValue::from_static("max-age=15552000; includeSubDomains"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            axum::http::header::REFERRER_POLICY,
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
         .with_state(state)
 }
