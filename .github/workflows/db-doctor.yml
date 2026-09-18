@@ -1,16 +1,17 @@
 name: DB Doctor
 
-# TEMPORARY incident-response workflow (read-only diagnostics on the
-# production node). DELETE after the incident is closed.
+# TEMPORARY incident-response workflow on the production node.
+# Phase A: snapshot the deleted WAL inode + back up the DB (read-only
+# for the service — no restart in this phase). DELETE after the incident.
 on: workflow_dispatch
 
 jobs:
   doctor:
-    name: Read-only prod diagnostics v4
+    name: Incident recovery phase A (snapshot)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: SSH + run diagnostics v4
+      - name: SSH + snapshot deleted WAL
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -22,24 +23,46 @@ jobs:
             set +e
             CID=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
             echo "##### container: $CID"
+            date -u
 
-            echo "##### SECTION: process cmdlines"
-            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
-              echo "PID $p: $(docker exec "$CID" sh -c "tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null")"
-            done
+            echo "##### SECTION: verify fd 14 still the deleted wal"
+            docker exec "$CID" sh -c 'ls -l /proc/6/fd 2>/dev/null | grep -iE "wal|db"'
 
-            echo "##### SECTION: fds of backend (pid 6 and all)"
-            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
-              OUT=$(docker exec "$CID" sh -c "ls -l /proc/$p/fd 2>/dev/null" | grep -iE "wal|\.db|rsql|tmp|shm|spill|deleted")
-              if [ -n "$OUT" ]; then
-                echo "--- PID $p db-related fds:"
-                echo "$OUT"
+            echo "##### SECTION: snapshot deleted WAL inode -> /app/data/wal-snapshot.bin"
+            docker exec "$CID" sh -c 'cat /proc/6/fd/14 > /app/data/wal-snapshot.bin && echo snapshot_ok'
+            docker exec "$CID" sh -c 'wc -c /app/data/wal-snapshot.bin'
+
+            echo "##### SECTION: snapshot header (32 bytes) — magic/page_size/salts"
+            docker exec "$CID" sh -c 'od -A d -t x1 -v -N 32 /app/data/wal-snapshot.bin'
+
+            echo "##### SECTION: backup main db + snapshot to host backups dir"
+            VOL=$(docker volume inspect datxevui_vexevn-data --format '{{.Mountpoint}}')
+            TS=$(date -u +%Y%m%dT%H%M%SZ)
+            BDIR=/opt/vexevn/backups/incident-$TS
+            mkdir -p "$BDIR"
+            cp -a "$VOL/app.db" "$BDIR/app.db"
+            cp -a "$VOL/wal-snapshot.bin" "$BDIR/wal-snapshot.bin" 2>/dev/null
+            ls -la "$BDIR"
+            md5sum "$BDIR"/* 2>/dev/null
+
+            echo "##### SECTION: volume state after snapshot"
+            ls -la "$VOL"
+
+            echo "##### SECTION: frame math on snapshot"
+            docker exec "$CID" sh -c '
+              sz=$(wc -c < /app/data/wal-snapshot.bin)
+              hdr=$(od -An -tx1 -j 8 -N 4 /app/data/wal-snapshot.bin | tr -d " \n")
+              psz=$((16#$hdr))
+              fs=$((24 + psz))
+              if [ "$sz" -ge 32 ] && [ "$fs" -gt 24 ]; then
+                nfr=$(( (sz - 32) / fs ))
+                echo "snapshot_size=$sz page_size=$psz frame_size=$fs frames=$nfr"
+                # last frame header
+                off=$((32 + (nfr-1)*fs))
+                od -A d -t x1 -v -N 24 -j $off /app/data/wal-snapshot.bin
+              else
+                echo "snapshot too small or invalid: $sz"
               fi
-            done
-
-            echo "##### SECTION: fd count per pid"
-            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
-              echo "PID $p: $(docker exec "$CID" sh -c "ls /proc/$p/fd 2>/dev/null | wc -l") fds"
-            done
+            '
 
             echo "##### DONE"
