@@ -18,16 +18,16 @@
 //! ## Platform schemes
 //!
 //! - Telegram:  constant-time compare of `X-Telegram-Bot-Api-Secret-Token`
-//!              against `TELEGRAM_WEBHOOK_SECRET` (set the same value as
-//!              the `secret_token` param of the `setWebhook` API call).
+//!   against `TELEGRAM_WEBHOOK_SECRET` (set the same value as the
+//!   `secret_token` param of the `setWebhook` API call).
 //! - Messenger: `X-Hub-Signature-256: sha256=<hex>` — HMAC-SHA256 over the
-//!              RAW body bytes with `MESSENGER_APP_SECRET`; plus the GET
-//!              subscription challenge must echo `MESSENGER_VERIFY_TOKEN`.
+//!   RAW body bytes with `MESSENGER_APP_SECRET`; plus the GET subscription
+//!   challenge must echo `MESSENGER_VERIFY_TOKEN`.
 //! - Zalo OA:   `X-Zalo-Signature: <hex>` — HMAC-SHA256 over the RAW body
-//!              bytes with `ZALO_OA_SECRET`.
+//!   bytes with `ZALO_OA_SECRET`.
 //! - Discord:   Ed25519 signature over `<timestamp><raw body>` with the
-//!              application's public key: headers `X-Signature-Ed25519`
-//!              and `X-Signature-Timestamp`, key from `DISCORD_PUBLIC_KEY`.
+//!   application's public key: headers `X-Signature-Ed25519` and
+//!   `X-Signature-Timestamp`, key from `DISCORD_PUBLIC_KEY`.
 //!
 //! All comparisons are constant-time. HMAC comparisons additionally
 //! verify over the raw body bytes exactly as received (handlers must use

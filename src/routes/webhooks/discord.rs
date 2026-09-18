@@ -23,8 +23,7 @@
 //! 2. Add a Bot + configure Interactions Endpoint URL to
 //!    `https://yourdomain.com/api/webhooks/discord`
 //! 3. Set `DISCORD_PUBLIC_KEY` (Application → General → Public Key)
-//!    + `DISCORD_BOT_TOKEN` in `.env`
-//!    and add `ed25519-dalek = "2"` to Cargo.toml.
+//!    + `DISCORD_BOT_TOKEN` in `.env`.
 
 use axum::body::Bytes;
 use axum::extract::State;
