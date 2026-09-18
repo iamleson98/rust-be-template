@@ -1,18 +1,16 @@
 name: DB Doctor
 
-# TEMPORARY incident-response workflow (branch incident/db-doctor).
-# Read-only diagnostics on the production node for the
-# "WAL frame salt mismatch" outage. Uses the same SERVER_* secrets
-# the deploy workflow uses. DELETE after the incident.
+# TEMPORARY incident-response workflow (read-only diagnostics on the
+# production node). DELETE after the incident is closed.
 on: workflow_dispatch
 
 jobs:
   doctor:
-    name: Read-only prod diagnostics
+    name: Read-only prod diagnostics v2
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: SSH + run diagnostics
+      - name: SSH + run diagnostics v2
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -22,84 +20,28 @@ jobs:
           command_timeout: 10m
           script: |
             set +e
-            echo "##### SECTION: host"
-            hostname; date -u; uptime
-
-            echo "##### SECTION: docker services"
-            docker service ls 2>/dev/null
-
-            echo "##### SECTION: stack ps datxevui"
-            docker stack ps datxevui --no-trunc 2>/dev/null | head -15
-
-            echo "##### SECTION: backend image + engine sha"
-            docker service inspect --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' datxevui_backend 2>/dev/null
             CID=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
-            echo "container id: $CID"
-            docker inspect --format 'started: {{.State.StartedAt}} | engine: {{index .Config.Labels "com.datxevui.rust-sql.sha"}} | image: {{.Config.Image}}' "$CID" 2>/dev/null
+            echo "##### container: $CID"
 
-            echo "##### SECTION: backend env (db-related)"
-            docker exec "$CID" sh -c 'env | grep -iE "DATABASE|RUST_LOG|JOURNAL|SYNCHRON|SQLITE"' 2>/dev/null
+            echo "##### SECTION: backend startup logs (first 80 lines of current task)"
+            docker logs "$CID" 2>&1 | head -80
 
-            echo "##### SECTION: in-container /app/data"
-            docker exec "$CID" ls -la /app/data 2>/dev/null
+            echo "##### SECTION: error context in logs (salt/store_error, with 2 lines around)"
+            docker logs "$CID" 2>&1 | grep -n -iE "salt|store_error|corrupt|engine|pragma|migrat" | head -40
 
-            echo "##### SECTION: error grep from service logs (since deploy)"
-            docker service logs datxevui_backend --since 8h --no-log-prefix 2>&1 | grep -iE "salt|corrupt|store_error|panic|fatal" | tail -30
+            echo "##### SECTION: open file descriptors of backend PID 1 (db-related)"
+            docker exec "$CID" sh -c 'ls -l /proc/1/fd 2>/dev/null | grep -iE "wal|\.db|rsql|tmp|shm|spill"; echo "--- all fd count:"; ls /proc/1/fd 2>/dev/null | wc -l'
 
-            echo "##### SECTION: last 20 raw log lines"
-            docker service logs datxevui_backend --tail 20 --no-log-prefix 2>&1 | tail -20
+            echo "##### SECTION: /app/data right now"
+            docker exec "$CID" ls -la /app/data
 
-            echo "##### SECTION: data volume on host"
-            VOL=$(docker volume inspect datxevui_vexevn-data --format '{{.Mountpoint}}' 2>/dev/null)
-            echo "mountpoint: $VOL"
-            ls -la "$VOL" 2>/dev/null
+            echo "##### SECTION: maps of deleted files"
+            docker exec "$CID" sh -c 'ls -l /proc/1/fd 2>/dev/null | grep deleted'
 
-            echo "##### SECTION: db + wal + shm headers"
-            for f in app.db app.db-wal app.db-shm; do
-              p="$VOL/$f"
-              if [ -f "$p" ]; then
-                echo "--- $f: $(stat -c '%s bytes, mtime %y' "$p")"
-                od -A d -t x1 -v -N 48 "$p" 2>/dev/null | head -4
-              else
-                echo "--- $f: MISSING"
-              fi
-            done
+            echo "##### SECTION: journal-mode related strings in process env"
+            docker exec "$CID" sh -c 'strings /proc/1/environ | grep -iE "DATABASE|POOL|LIFETIME|IDLE"'
 
-            echo "##### SECTION: WAL salt scan (bash, capped)"
-            WAL="$VOL/app.db-wal"
-            if [ -f "$WAL" ]; then
-              hsize=$(stat -c '%s' "$WAL")
-              hdr_salt1=$((16#$(od -An -tx1 -j 16 -N 4 "$WAL" | tr -d ' \n')))
-              hdr_salt2=$((16#$(od -An -tx1 -j 20 -N 4 "$WAL" | tr -d ' \n')))
-              psz=$((16#$(od -An -tx1 -j 8 -N 4 "$WAL" | tr -d ' \n')))
-              fs=$((24 + psz))
-              if [ "$fs" -gt 24 ]; then
-                nfr=$(( (hsize - 32) / fs ))
-                echo "wal_size=$hsize page_size=$psz frame_size=$fs n_frames_in_file=$nfr"
-                echo "header salts (hex): $(printf '%08x' $hdr_salt1) $(printf '%08x' $hdr_salt2)"
-                mism=0; first_m=-1; i=0
-                cap_head=800
-                [ $nfr -lt $cap_head ] && cap_head=$nfr
-                while [ $i -lt $cap_head ]; do
-                  off=$((32 + i*fs + 8))
-                  s1=$((16#$(od -An -tx1 -j $off -N 4 "$WAL" | tr -d ' \n')))
-                  s2=$((16#$(od -An -tx1 -j $((off+4)) -N 4 "$WAL" | tr -d ' \n')))
-                  if [ $s1 -ne $hdr_salt1 ] || [ $s2 -ne $hdr_salt2 ]; then
-                    if [ $first_m -lt 0 ]; then first_m=$i; echo "FIRST MISMATCH at frame $i: salts $(printf '%08x' $s1) $(printf '%08x' $s2)"; fi
-                    mism=$((mism+1))
-                  fi
-                  i=$((i+1))
-                done
-                echo "scanned head frames: $cap_head, mismatched: $mism, first mismatch index: $first_m"
-                echo "last frame ($((nfr>0 ? nfr-1 : 0))) header:"
-                off=$((32 + (nfr-1)*fs))
-                od -A d -t x1 -v -N 24 -j $off "$WAL" 2>/dev/null | head -3
-              fi
-            else
-              echo "WAL file missing"
-            fi
-
-            echo "##### SECTION: main db page0 header via engine container"
-            docker exec "$CID" sh -c 'command -v rsql && rsql /app/data/app.db "PRAGMA integrity_check" 2>&1 | head -5' 2>/dev/null
+            echo "##### SECTION: recent log tail (60)"
+            docker logs "$CID" 2>&1 | tail -60
 
             echo "##### DONE"
