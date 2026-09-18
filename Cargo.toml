@@ -84,7 +84,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # Auth
-jsonwebtoken = "9"
+jsonwebtoken = "10"
 argon2 = "0.5"
 hmac = "0.12"
 sha2 = "0.10"
