@@ -64,7 +64,9 @@ fn secrets() -> &'static WebhookSecrets {
         messenger_verify_token: std::env::var("MESSENGER_VERIFY_TOKEN")
             .ok()
             .filter(|s| !s.is_empty()),
-        zalo_oa_secret: std::env::var("ZALO_OA_SECRET").ok().filter(|s| !s.is_empty()),
+        zalo_oa_secret: std::env::var("ZALO_OA_SECRET")
+            .ok()
+            .filter(|s| !s.is_empty()),
         discord_public_key: std::env::var("DISCORD_PUBLIC_KEY")
             .ok()
             .filter(|s| !s.is_empty()),
@@ -149,10 +151,7 @@ pub fn verify_zalo(headers: &HeaderMap, raw_body: &[u8]) -> Result<(), AppError>
 ///
 /// Requires `ed25519-dalek = "2"` (see Cargo.toml patch). The signature
 /// and public key are hex-encoded (64 and 32 bytes respectively).
-pub fn verify_discord(
-    headers: &HeaderMap,
-    raw_body: &[u8],
-) -> Result<(), AppError> {
+pub fn verify_discord(headers: &HeaderMap, raw_body: &[u8]) -> Result<(), AppError> {
     let pk_hex = secrets()
         .discord_public_key
         .as_deref()
@@ -176,10 +175,10 @@ pub fn verify_discord(
         .ok_or_else(|| reject("discord", "signature must be 64 bytes of hex"))?;
 
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-    let verifying_key = VerifyingKey::from_bytes(&pk)
-        .map_err(|_| reject("discord", "invalid public key bytes"))?;
-    let signature = Signature::from_slice(&sig)
-        .map_err(|_| reject("discord", "invalid signature bytes"))?;
+    let verifying_key =
+        VerifyingKey::from_bytes(&pk).map_err(|_| reject("discord", "invalid public key bytes"))?;
+    let signature =
+        Signature::from_slice(&sig).map_err(|_| reject("discord", "invalid signature bytes"))?;
 
     // Signed message = timestamp bytes followed by the raw body.
     let mut message = timestamp.as_bytes().to_vec();
@@ -193,8 +192,8 @@ pub fn verify_discord(
 // ── helpers ──────────────────────────────────────────────────────
 
 fn hmac_sha256_hex(secret: &str, data: &[u8]) -> String {
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-        .expect("HMAC can take any key length");
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take any key length");
     mac.update(data);
     hex::encode(mac.finalize().into_bytes())
 }
