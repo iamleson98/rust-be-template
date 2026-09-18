@@ -1,77 +1,73 @@
 name: DB Doctor
 
 # TEMPORARY incident-response workflow on the production node.
-# Phase B: restart the backend with the recovered WAL in place.
-# DELETE after the incident is closed.
+# Post-recovery verification. DELETE after the incident is closed.
 on: workflow_dispatch
 
 jobs:
   doctor:
-    name: Incident recovery phase B (restart)
+    name: Post-recovery verification
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - name: SSH + recover and restart
+      - name: SSH + verify recovery
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script_stop: false
-          command_timeout: 15m
+          command_timeout: 10m
           script: |
             set +e
+            CID=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
             VOL=$(docker volume inspect datxevui_vexevn-data --format '{{.Mountpoint}}')
-            BDIR=/opt/vexevn/backups/incident-20260918T143847Z
-            echo "##### volume: $VOL"
-            echo "##### backups: $BDIR"
-            ls -la "$BDIR"
+            echo "##### container: $CID"
 
-            echo "##### SECTION: stop backend service"
-            docker service scale datxevui_backend=0
-            for i in $(seq 1 40); do
-              n=$(docker ps -q --filter "name=datxevui_backend" | wc -l)
-              [ "$n" -eq 0 ] && break
-              sleep 2
-            done
-            echo "tasks still running: $(docker ps -q --filter 'name=datxevui_backend' | wc -l)"
+            echo "##### SECTION: WAL growth + live fds (durability check)"
+            ls -la "$VOL"
+            docker exec "$CID" sh -c 'ls -l /proc/6/fd 2>/dev/null | grep -iE "wal|db"'
+            echo "--- waiting 5s, then re-check wal size (writes flow to the WAL):"
             sleep 5
+            stat -c '%n %s bytes' "$VOL/app.db-wal" "$VOL/app.db"
 
-            echo "##### SECTION: post-stop volume state"
-            ls -la "$VOL"
-            stat -c '%n %s mtime=%y' "$VOL/app.db"
+            echo "##### SECTION: recent errors since restart?"
+            docker logs "$CID" 2>&1 | grep -iE "app_error|ERROR|salt|corrupt" | head -10
+            echo "(empty above = clean)"
 
-            echo "##### SECTION: place recovered WAL"
-            cp "$BDIR/wal-snapshot.bin" "$VOL/app.db-wal"
-            chown 1000:1000 "$VOL/app.db-wal"
-            chmod 644 "$VOL/app.db-wal"
-            rm -f "$VOL/wal-snapshot.bin"
-            ls -la "$VOL"
-            echo "--- placed wal header:"
-            od -A d -t x1 -v -N 32 "$VOL/app.db-wal"
-
-            echo "##### SECTION: pool-lifetime mitigation + restart"
-            docker service update --env-add DATABASE_MAX_LIFETIME_SECS=2592000 --env-add DATABASE_IDLE_TIMEOUT_SECS=3600 datxevui_backend 2>&1 | tail -2
-            docker service scale datxevui_backend=1
-
-            echo "##### SECTION: wait for healthy task"
-            for i in $(seq 1 60); do
-              H=$(docker ps -q --filter "name=datxevui_backend" --filter "health=healthy" | wc -l)
-              [ "$H" -ge 1 ] && break
-              sleep 2
+            echo "##### SECTION: forensic — frame-salt scan of the backup snapshot"
+            B=/opt/vexevn/backups/incident-20260918T143847Z/wal-snapshot.bin
+            sz=$(wc -c < "$B")
+            hs1=$((16#$(od -An -tx1 -j 16 -N 4 "$B" | tr -d ' \n')))
+            hs2=$((16#$(od -An -tx1 -j 20 -N 4 "$B" | tr -d ' \n')))
+            psz=$((16#$(od -An -tx1 -j 8 -N 4 "$B" | tr -d ' \n' | sed 's/^0*//')))
+            [ -z "$psz" ] && psz=0
+            fs=$((24 + psz))
+            nfr=$(( (sz - 32) / fs ))
+            echo "snapshot: size=$sz page_size=$psz frames=$nfr"
+            echo "header salts: $(printf '%08x' $hs1) $(printf '%08x' $hs2)"
+            # scan ALL frames, classify salt generations
+            i=0; mism=0; firstm=-1
+            while [ $i -lt $nfr ] && [ $i -lt 2000 ]; do
+              off=$((32 + i*fs + 8))
+              s1=$((16#$(od -An -tx1 -j $off -N 4 "$B" | tr -d ' \n' | sed 's/^0*//')))
+              [ -z "$s1" ] && s1=0
+              s2=$((16#$(od -An -tx1 -j $((off+4)) -N 4 "$B" | tr -d ' \n' | sed 's/^0*//')))
+              [ -z "$s2" ] && s2=0
+              if [ $s1 -ne $hs1 ] || [ $s2 -ne $hs2 ]; then
+                mism=$((mism+1))
+                if [ $firstm -lt 0 ]; then
+                  firstm=$i
+                  echo "FIRST frame-salt mismatch at frame $i: $(printf '%08x' $s1) $(printf '%08x' $s2) (header: $(printf '%08x' $hs1) $(printf '%08x' $hs2))"
+                fi
+              fi
+              i=$((i+1))
             done
-            echo "healthy tasks: $(docker ps -q --filter 'name=datxevui_backend' --filter 'health=healthy' | wc -l)"
-            echo "running tasks: $(docker ps -q --filter 'name=datxevui_backend' | wc -l)"
-
-            echo "##### SECTION: new task inspection"
-            CID2=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
-            echo "new container: $CID2"
-            docker exec "$CID2" ls -la /app/data
-            echo "--- startup log lines:"
-            docker logs "$CID2" 2>&1 | grep -iE "error|salt|corrupt|migrat|engine|pragma|starting" | head -15
-            echo "--- backend fds:"
-            docker exec "$CID2" sh -c 'ls -l /proc/6/fd 2>/dev/null | grep -iE "wal|db"; ls -l /proc/7/fd 2>/dev/null | grep -iE "wal|db"'
-            echo "--- env check:"
-            docker exec "$CID2" sh -c 'env | grep -iE "DATABASE_MAX|DATABASE_IDLE"'
+            echo "mismatched frames: $mism / $nfr (first at $firstm)"
+            echo "--- frame 0 header (first 24 bytes at offset 32):"
+            od -A d -t x1 -v -N 24 -j 32 "$B"
+            echo "--- frame 1 header:"
+            off2=$((32 + fs))
+            od -A d -t x1 -v -N 24 -j $off2 "$B"
 
             echo "##### DONE"
