@@ -6,11 +6,11 @@ on: workflow_dispatch
 
 jobs:
   doctor:
-    name: Read-only prod diagnostics v2
+    name: Read-only prod diagnostics v3
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: SSH + run diagnostics v2
+      - name: SSH + run diagnostics v3
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -23,25 +23,31 @@ jobs:
             CID=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
             echo "##### container: $CID"
 
-            echo "##### SECTION: backend startup logs (first 80 lines of current task)"
-            docker logs "$CID" 2>&1 | head -80
+            echo "##### SECTION: processes in container"
+            docker exec "$CID" sh -c 'ps aux 2>/dev/null || ls /proc | grep -E "^[0-9]+$"'
 
-            echo "##### SECTION: error context in logs (salt/store_error, with 2 lines around)"
-            docker logs "$CID" 2>&1 | grep -n -iE "salt|store_error|corrupt|engine|pragma|migrat" | head -40
+            echo "##### SECTION: backend PID discovery + fds"
+            BPID=$(docker exec "$CID" sh -c 'ps aux 2>/dev/null | grep -E "backend serve" | grep -v grep | awk "{print \$2}" | head -n1')
+            echo "backend pid: $BPID"
+            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null" | grep -iE "wal|db|rsql|tmp|shm|spill|deleted"
+            echo "--- fd total:"
+            docker exec "$CID" sh -c "ls /proc/$BPID/fd 2>/dev/null | wc -l"
+            echo "--- deleted fds:"
+            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null | grep deleted"
 
-            echo "##### SECTION: open file descriptors of backend PID 1 (db-related)"
-            docker exec "$CID" sh -c 'ls -l /proc/1/fd 2>/dev/null | grep -iE "wal|\.db|rsql|tmp|shm|spill"; echo "--- all fd count:"; ls /proc/1/fd 2>/dev/null | wc -l'
-
-            echo "##### SECTION: /app/data right now"
+            echo "##### SECTION: /app/data + stat"
             docker exec "$CID" ls -la /app/data
+            docker exec "$CID" sh -c 'stat /app/data/app.db 2>/dev/null | head -8'
 
-            echo "##### SECTION: maps of deleted files"
-            docker exec "$CID" sh -c 'ls -l /proc/1/fd 2>/dev/null | grep deleted'
+            echo "##### SECTION: live error probe (register) while watching fds"
+            ( curl -s -o /dev/null -w "register probe: %{http_code}\n" --max-time 20 -X POST "https://datxevui.com/api/auth/register" -H "Content-Type: application/json" -H "Origin: https://datxevui.com" -A "Mozilla/5.0" -d '{"email":"probe_diag3@example.com","password":"Passw0rd!123","fullName":"Probe Diag3"}' ) &
+            sleep 1
+            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null" | grep -iE "wal|db|rsql" | head -10
+            wait
 
-            echo "##### SECTION: journal-mode related strings in process env"
-            docker exec "$CID" sh -c 'strings /proc/1/environ | grep -iE "DATABASE|POOL|LIFETIME|IDLE"'
-
-            echo "##### SECTION: recent log tail (60)"
-            docker logs "$CID" 2>&1 | tail -60
+            echo "##### SECTION: full error timeline (first + transition)"
+            docker logs "$CID" 2>&1 | grep -n "app_error\|ERROR" | head -8
+            echo "--- around transition 13:29 (context):"
+            docker logs "$CID" 2>&1 | grep -n "13:2[0-9].*ERROR\|13:3[0-3].*ERROR" | head -12
 
             echo "##### DONE"
