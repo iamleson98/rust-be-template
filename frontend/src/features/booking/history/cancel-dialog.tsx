@@ -50,9 +50,22 @@ export function CancelDialog() {
   // bookings query on success. The refund info (refundPercent,
   // refundAmount, refCode) returned by the endpoint is captured in
   // onSuccess to populate the success step.
-  const cancelMutation = useCancelBooking({
-    onSuccess: (data: any) => {
-      const d = data?.data ?? data
+  /**
+ * Structural shape of the cancel-booking result the dialog consumes
+ * (the generated SDK models it as a union; only the success payload's
+ * fields are used here).
+ */
+type CancelResult = {
+  success?: boolean
+  refundPercent?: number
+  refundAmount?: number
+  refCode?: string
+  error?: string
+}
+
+const cancelMutation = useCancelBooking({
+    onSuccess: (data) => {
+      const d = ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
       if (d?.success) {
         setRefundPercent(d.refundPercent ?? 0)
         setRefundAmount(d.refundAmount ?? 0)
@@ -122,7 +135,7 @@ export function CancelDialog() {
           otherReason:
             values.selectedReason === 'other' ? values.otherReason : undefined,
         },
-      } as any)
+      } as unknown as Parameters<typeof cancelMutation.mutate>[0])
     }
   }
 

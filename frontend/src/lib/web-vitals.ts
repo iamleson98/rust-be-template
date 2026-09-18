@@ -1,3 +1,4 @@
+import type { Metric } from 'web-vitals'
 /**
  * Web Vitals RUM — collects LCP / INP / CLS / TTFB / FCP from real
  * users and POSTs them to `/api/vitals` via `navigator.sendBeacon`.
@@ -53,11 +54,11 @@ function report(metric: WebVitalMetric): void {
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
     connection:
       typeof navigator !== 'undefined' && 'connection' in navigator
-        ? (navigator as any).connection?.effectiveType ?? ''
+        ? ((navigator as Navigator & { connection?: { effectiveType?: string } }).connection?.effectiveType ?? '')
         : '',
     deviceMemory:
       typeof navigator !== 'undefined' && 'deviceMemory' in navigator
-        ? (navigator as any).deviceMemory
+        ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory
         : 0,
     timestamp: Date.now(),
   }
@@ -82,7 +83,7 @@ export async function bootstrapWebVitals(): Promise<void> {
   if (typeof window === 'undefined') return
   try {
     const webVitals = await import('web-vitals')
-    const reportBound = () => (metric: any) =>
+    const reportBound = () => (metric: Metric) =>
       report({
         name: metric.name,
         value: metric.value,

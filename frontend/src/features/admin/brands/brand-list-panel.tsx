@@ -106,7 +106,7 @@ export function BrandListPanel({
                 >
                   <div
                     className="h-9 w-9 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                    style={{ background: b.accentColor as any }}
+                    style={{ background: b.accentColor ?? undefined }}
                   >
                     {b.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()}
                   </div>

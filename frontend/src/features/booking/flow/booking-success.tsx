@@ -23,7 +23,7 @@ import {
 import { formatDateTimeVN } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import type { TripDetail, SelectedSeat } from './booking-form'
 import { INSURANCE_LABEL_MAP, type InsuranceLevel } from './price-summary'
 
@@ -50,6 +50,12 @@ export function BookingSuccess({
   onClose: () => void
 }) {
   const [copied, setCopied] = useState(false)
+  // Decorative QR-noise pattern, generated once per mount (impure calls
+  // are not allowed in the render body; state keeps it stable so the
+  // pattern does not re-shuffle on every re-render).
+  const [qrCells] = useState(() =>
+    Array.from({ length: 64 }, () => Math.random() > 0.5),
+  )
   const navigate = useNavigate()
 
   return (
@@ -119,8 +125,8 @@ export function BookingSuccess({
           <div className="h-32 w-32 bg-linear-to-br from-slate-900 to-slate-700 rounded-lg flex items-center justify-center relative overflow-hidden">
             <QrCode className="h-20 w-20 text-white" />
             <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 gap-px opacity-30">
-              {Array.from({ length: 64 }).map((_, i) => (
-                <div key={i} className={Math.random() > 0.5 ? 'bg-white' : ''} />
+              {qrCells.map((on, i) => (
+                <div key={i} className={on ? 'bg-white' : ''} />
               ))}
             </div>
           </div>

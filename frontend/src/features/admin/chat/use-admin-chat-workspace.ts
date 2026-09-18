@@ -18,6 +18,7 @@ import type {
 } from "@/features/admin/dashboard/types";
 import { useAdminChatWs } from "./use-admin-chat-ws";
 import { useApp } from "@/lib/store";
+import { getErrorMessage } from '@/lib/error-message'
 
 const TYPING_IDLE_MS = 2000;
 const PAGE_SIZE = 30;
@@ -74,31 +75,31 @@ export function useAdminChatWorkspace() {
   const claimActiveChannel = useCallback(async () => {
     if (!activeChannel) return;
     try {
-      await claimMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      await claimMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof claimMut.mutateAsync>[0]);
       toast.success("Đã nhận kênh hỗ trợ");
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? "Không thể nhận kênh");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Không thể nhận kênh"))
     }
   }, [activeChannel, claimMut]);
 
   const releaseActiveChannel = useCallback(async () => {
     if (!activeChannel) return;
     try {
-      await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof releaseMut.mutateAsync>[0]);
       toast.success("Đã trả kênh về hàng chờ");
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? "Không thể trả kênh");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Không thể trả kênh"))
     }
   }, [activeChannel, releaseMut]);
 
   const closeActiveChannel = useCallback(async () => {
     if (!activeChannel) return;
     try {
-      await closeMut.mutateAsync({ path: { id: activeChannel.id } } as any);
+      await closeMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof closeMut.mutateAsync>[0]);
       toast.success("Đã đóng cuộc trò chuyện");
       setActiveChannel(null);
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? "Không thể đóng kênh");
+    } catch (e) {
+      toast.error(getErrorMessage(e, "Không thể đóng kênh"))
     }
   }, [activeChannel, closeMut]);
 
@@ -151,13 +152,17 @@ export function useAdminChatWorkspace() {
     postReplyMut.mutate({
       path: { id: activeChannel.id },
       body: { content: replyText.trim(), kind: "text" },
-    } as any);
+    } as unknown as Parameters<typeof postReplyMut.mutate>[0]);
   }, [replyText, activeChannel, postReplyMut, sendTyping]);
 
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCurrentlyTypingRef = useRef(false);
   const activeChannelIdRef = useRef<string | undefined>(activeChannel?.id);
-  activeChannelIdRef.current = activeChannel?.id;
+  // Update AFTER commit (writing refs during render is unsafe under
+  // concurrent React); typing handlers fire async, post-commit.
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannel?.id;
+  });
 
   const onReplyTextChange = useCallback(
     (val: string) => {
@@ -222,7 +227,7 @@ export function useAdminChatWorkspace() {
   const openChannel = useCallback(
     (channel: AdminChannel) => {
       setActiveChannel(channel);
-      markReadMut.mutate({ path: { id: channel.id } } as any);
+      markReadMut.mutate({ path: { id: channel.id } } as unknown as Parameters<typeof markReadMut.mutate>[0]);
       // Clear the pulse indicator for this channel — the admin is now
       // viewing it, so the "new message" attention signal is no longer
       // needed.
@@ -250,7 +255,7 @@ export function useAdminChatWorkspace() {
           kind: "ticket",
           attachments,
         },
-      } as any);
+      } as unknown as Parameters<typeof postTicketCardMut.mutate>[0]);
     },
     [activeChannel, postTicketCardMut],
   );

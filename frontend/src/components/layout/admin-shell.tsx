@@ -23,7 +23,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Link, useRouterState } from '@/router'
+import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -184,7 +184,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 return (
                   <Link
                     key={item.url}
-                    to={item.url as any}
+                    to={item.url as never}
                     onClick={() => setMobileOpen(false)}
                     title={collapsed ? item.title : undefined}
                     className={cn(

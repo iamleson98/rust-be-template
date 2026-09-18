@@ -10,7 +10,7 @@ import { useApp } from '@/lib/store'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
 import { tripDetailOptions } from '@/lib/api/@tanstack/react-query.gen'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { WishlistButton } from '@/features/wishlist/wishlist-button'
 import { toast } from 'sonner'
 import { TripCardAmenities, TripCardAmenitiesMobile } from './trip-card-amenities'
@@ -40,7 +40,7 @@ function isOvernight(departureAt: string, arrivalAt: string): boolean {
   return fmt(dep) !== fmt(arr)
 }
 
-export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRecommended = false }: { trip: TripResult; onSelect?: () => void; index?: number; isRecommended?: boolean }) {
+export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended = false }: { trip: TripResult; onSelect?: () => void; isRecommended?: boolean }) {
   const lowSeats = trip.availableSeats <= 5 && trip.availableSeats > 0
   const sellingFast = trip.availableSeats <= 3 && trip.availableSeats > 0
   const { toggleCompare, compareList, pushRecentlyViewed, searchParams, setPriceAlertOpen, setPriceAlertContext, currency, setShareOpen, setShareTripData } = useApp(useShallow((s) => ({
@@ -66,7 +66,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
     const opts = tripDetailOptions({ path: { id: trip.tripId } })
     queryClient.prefetchQuery({
       queryKey: opts.queryKey,
-      queryFn: opts.queryFn as any,
+      queryFn: opts.queryFn,
       staleTime: 60 * 1000,
     })
   }, [queryClient, trip.tripId])
@@ -184,7 +184,6 @@ export const TripCard = memo(function TripCard({ trip, onSelect, index = 0, isRe
             variant="icon"
             presetLabel={`${trip.fromName} → ${trip.toName}`}
             presetRouteId={trip.routeId}
-            presetBrandId={trip.brandId ?? undefined}
           />
         </div>
 

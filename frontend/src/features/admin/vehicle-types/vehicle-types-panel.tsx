@@ -41,6 +41,7 @@ import {
 import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
 
 import { VehicleTypeFormDialog } from './vehicle-type-form'
+import { getErrorMessage } from '@/lib/error-message'
 
 const PAGE_SIZE = 20
 
@@ -73,19 +74,14 @@ export function VehicleTypesPanel() {
     setDialogOpen(true)
   }
 
-  const openEdit = (t: AdminVehicleTypeOut) => {
-    setEditType(t)
-    setDialogOpen(true)
-  }
-
   const confirmDelete = async () => {
     if (!deleteTarget) return
     try {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
       toast.success(`Đã xoá loại xe «${deleteTarget.label}»`)
       setDeleteTarget(null)
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể xoá loại xe')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể xoá loại xe'))
     }
   }
 

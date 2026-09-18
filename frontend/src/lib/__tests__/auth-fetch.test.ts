@@ -5,15 +5,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAuthFetch } from '@/lib/auth-fetch'
 
 describe('createAuthFetch', () => {
-  let mockFetch: ReturnType<typeof vi.fn>
+  type FetchMock = ReturnType<typeof vi.fn> & ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>)
+  let mockFetch: FetchMock
 
   beforeEach(() => {
-    mockFetch = vi.fn() as any
+    mockFetch = vi.fn() as unknown as FetchMock
   })
 
   it('passes through non-401 responses', async () => {
     mockFetch.mockResolvedValue(new Response('ok', { status: 200 }))
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/test')
     const response = await authFetch(request)
@@ -24,7 +25,7 @@ describe('createAuthFetch', () => {
 
   it('returns the original response for auth endpoints (no retry)', async () => {
     mockFetch.mockResolvedValue(new Response('unauthorized', { status: 401 }))
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/auth/login', {
       method: 'POST',
@@ -42,7 +43,7 @@ describe('createAuthFetch', () => {
       .mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 })) // refresh
       .mockResolvedValueOnce(new Response('ok', { status: 200 })) // retry
 
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/bookings')
     const response = await authFetch(request)
@@ -57,7 +58,7 @@ describe('createAuthFetch', () => {
       .mockResolvedValueOnce(new Response('unauthorized', { status: 401 }))
       .mockResolvedValueOnce(new Response('refresh failed', { status: 401 })) // refresh fails
 
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/bookings')
     const response = await authFetch(request)
@@ -75,7 +76,7 @@ describe('createAuthFetch', () => {
       .mockResolvedValueOnce(new Response('ok', { status: 200 })) // retry 1
       .mockResolvedValueOnce(new Response('ok', { status: 200 })) // retry 2
 
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const [r1, r2] = await Promise.all([
       authFetch(new Request('https://example.com/api/bookings')),
@@ -104,7 +105,7 @@ describe('createAuthFetch', () => {
 
   it('preserves Content-Type when input is a Request and init is undefined', async () => {
     mockFetch.mockResolvedValue(new Response('ok', { status: 200 }))
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     // Mirrors what the SDK sends for a POST with a JSON body:
     //   new Request(url, { method, headers: { 'Content-Type': 'application/json' }, body })
@@ -124,7 +125,7 @@ describe('createAuthFetch', () => {
 
   it('does not overwrite an explicitly set Accept-Language', async () => {
     mockFetch.mockResolvedValue(new Response('ok', { status: 200 }))
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/bookings', {
       method: 'POST',
@@ -150,7 +151,7 @@ describe('createAuthFetch', () => {
       .mockResolvedValueOnce(new Response('{"ok":true}', { status: 200 })) // refresh
       .mockResolvedValueOnce(new Response('created', { status: 201 })) // retry
 
-    const authFetch = createAuthFetch(mockFetch as any)
+    const authFetch = createAuthFetch(mockFetch)
 
     const request = new Request('https://example.com/api/bookings', {
       method: 'POST',

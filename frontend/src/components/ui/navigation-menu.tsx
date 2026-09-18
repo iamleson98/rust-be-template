@@ -99,7 +99,7 @@ function NavigationMenuTrigger({
       data-slot="navigation-menu-trigger"
       // Emit `data-state` for backward-compat with the cva classes above and
       // the chevron rotate animation below (`group-data-[state=open]:rotate-180`).
-      render={(componentProps: any, state: any) => (
+      render={(componentProps, state) => (
         <button
           {...componentProps}
           data-state={state.open ? "open" : "closed"}
@@ -124,7 +124,7 @@ function NavigationMenuContent({
   return (
     <NavigationMenuPrimitive.Content
       data-slot="navigation-menu-content"
-      render={(componentProps: any, state: any) => (
+      render={(componentProps, state) => (
         <div
           {...componentProps}
           data-state={state.open ? "open" : "closed"}
@@ -156,10 +156,10 @@ function NavigationMenuViewport({
     <div className={cn("absolute top-full left-0 isolate z-50 flex justify-center")}>
       <NavigationMenuPrimitive.Viewport
         data-slot="navigation-menu-viewport"
-        render={(componentProps: any, state: any) => (
+        render={(componentProps) => (
           <div
             {...componentProps}
-            data-state={state.open ? "open" : "closed"}
+            data-state={'data-open' in componentProps ? 'open' : 'closed'}
           />
         )}
         className={cn(

@@ -81,5 +81,5 @@ export function useChatFocusTrap({
       clearTimeout(t)
       triggerRef.current?.focus()
     }
-  }, [chatOpen, setCallOpen, setChatOpen])
+  }, [chatOpen, setCallOpen, setChatOpen, panelRef, triggerRef])
 }

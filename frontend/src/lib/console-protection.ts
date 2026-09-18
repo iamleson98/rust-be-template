@@ -50,7 +50,7 @@ function checkDevtools(): boolean {
   const heightDelta = window.outerHeight - window.innerHeight
 
   // Also check for the Firebug console (legacy, but cheap to test).
-  const firebug = (window as any).firebug?.isEnabled
+  const firebug = window.firebug?.isEnabled
 
   return widthDelta > SIZE_THRESHOLD || heightDelta > SIZE_THRESHOLD || !!firebug
 }
@@ -75,8 +75,8 @@ function logWarning(): void {
   console.log(message)
 
   // Fire a GA4 event (if analytics is configured).
-  if (typeof window !== 'undefined' && (window as any).gtag) {
-    ;(window as any).gtag('event', 'devtools_opened', {
+  if (typeof window !== 'undefined' && window.gtag) {
+    ;window.gtag('event', 'devtools_opened', {
       event_category: 'security',
       event_label: window.location.pathname,
     })

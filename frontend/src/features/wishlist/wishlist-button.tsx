@@ -1,7 +1,7 @@
 'use client'
 
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   useWishlist,
   useToggleWishlist,
@@ -34,7 +34,6 @@ type Props = {
   /** Optional preset data when adding from a trip card. */
   presetLabel?: string
   presetRouteId?: string
-  presetBrandId?: string
 }
 
 // ────────────────────────────────────────────────────────────────────
@@ -65,7 +64,7 @@ function saveCacheLabels(labels: string[]) {
   }
 }
 
-export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId, presetBrandId }: Props) {
+export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }: Props) {
   const { user, wishlistOpen, setWishlistOpen } = useApp()
   const navigate = useNavigate()
 

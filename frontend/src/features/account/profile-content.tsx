@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Ticket,
   Gift,

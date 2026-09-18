@@ -100,7 +100,10 @@ export function BookingDetailPage() {
   const routeName = trip?.routeName ?? trip?.route?.name ?? '—'
   const departureAt = trip?.departureAt ?? null
   const passengerName = booking.seats?.[0]?.passengerName ?? booking.contactName ?? '—'
-  const seatCodes = booking.seats?.map((s: any) => s.seatCode ?? s.seatId).filter(Boolean) ?? []
+  const seatCodes =
+    booking.seats
+      ?.map((s) => (s as { seatCode?: string | null; seatId?: string | null }).seatCode ?? (s as { seatId?: string | null }).seatId)
+      .filter((x): x is string => Boolean(x)) ?? []
   const totalAmount = booking.total ?? 0
 
   return (

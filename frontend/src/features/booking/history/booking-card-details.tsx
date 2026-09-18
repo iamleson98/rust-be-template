@@ -7,7 +7,6 @@ import {
   User,
   Phone,
   Mail,
-  Clock,
   Calendar,
   XCircle,
   CheckCircle2,

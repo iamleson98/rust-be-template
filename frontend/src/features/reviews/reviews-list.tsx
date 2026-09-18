@@ -89,9 +89,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   // takes NO params — returns the global tag index. We filter client-side
   // by routeId if the items carry it.
   const tagStatsQuery = useReviewTags()
-  const tagStats: TagStat[] = ((tagStatsQuery.data as any)?.items ?? []).filter(
-    (t: any) => !('routeId' in t) || t.routeId === routeId,
-  )
+  const tagStats: TagStat[] = (
+    ((tagStatsQuery.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []
+  ).filter((t) => !('routeId' in t) || t.routeId === routeId) as TagStat[]
 
   // Total review count — the backend's ReviewListResponse only has `items`
   // (no `total` field). Fall back to the items length.
@@ -198,7 +198,7 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
             <div className="text-xs text-muted-foreground">Trang {page}/{totalPages}</div>
           </div>
           <div className="space-y-3">
-            {pageReviews.map((r, idx) => (
+            {pageReviews.map((r) => (
               <ReviewCard
                 key={r.id}
                 r={r}

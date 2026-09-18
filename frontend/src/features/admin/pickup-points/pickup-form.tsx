@@ -43,6 +43,7 @@ import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useUpsertAdminPickupPoint } from '@/lib/queries'
 import type { AdminPickupPointOut, PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
+import { getErrorMessage } from '@/lib/error-message'
 
 const pickupPointSchema = z.object({
   placeId: requiredText('Địa điểm'),
@@ -154,11 +155,11 @@ export function PickupPointFormDialog({
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as any)
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
       toast.success(isEdit ? 'Đã cập nhật điểm đón/trả' : 'Đã thêm điểm đón/trả mới')
       onSaved()
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể lưu điểm đón/trả')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu điểm đón/trả'))
     }
   }
 

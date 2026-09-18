@@ -75,6 +75,9 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   // boarding/dropping points. This replaces the old fetch-then-setState pattern.
   useEffect(() => {
     if (!detail) return
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedSeats([])
     if (detail?.pickupPoints?.length) {
       setBoardingPoint(detail.pickupPoints[0].id)

@@ -43,6 +43,9 @@ export function ScheduleEditDialog({
   // Re-seed the form each time a different job is opened.
   useEffect(() => {
     if (job && open) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIntervalDays(String(job.intervalDays))
       setAtHour(String(job.atHour))
       setAtMinute(String(job.atMinute))

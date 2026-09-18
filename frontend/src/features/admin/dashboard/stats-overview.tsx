@@ -51,6 +51,9 @@ import { BookingSegmentationCard } from './booking-segmentation-card'
 import { RecentBookingsCard } from './recent-bookings-card'
 
 // Map dashboard UI date-range preset → admin bookings filter `range` value
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 function rangeToApi(range: DateRange): string {
   if (range === '7d') return '7d'
   if (range === '30d') return '30d'
@@ -90,7 +93,7 @@ export function StatsOverview({
   )
   const { data: bookingStats } = useAdminBookingStats(filter)
   const totals: AdminBookingTotals | undefined = bookingStats?.totals
-  const byDay: AdminBookingDayBucket[] = bookingStats?.byDay ?? []
+  const byDay: AdminBookingDayBucket[] = bookingStats?.byDay ?? EMPTY_ITEMS
 
   // Recent bookings table (5 latest)
   const { data: recentBookingsResp } = useAdminBookings(filter)
@@ -203,7 +206,6 @@ export function StatsOverview({
           up={(lastVsPrev?.delta ?? 0) >= 0}
           color="#16a34a"
           gradient="from-emerald-500/10 to-emerald-600/5"
-          delay={0}
         />
         <KpiCard
           icon={<Ticket className="h-5 w-5" />}
@@ -213,7 +215,6 @@ export function StatsOverview({
           up
           color="#2563eb"
           gradient="from-blue-500/10 to-blue-600/5"
-          delay={0.05}
         />
         <KpiCard
           icon={<Bus className="h-5 w-5" />}
@@ -223,7 +224,6 @@ export function StatsOverview({
           up
           color="#7c3aed"
           gradient="from-violet-500/10 to-violet-600/5"
-          delay={0.1}
         />
         <KpiCard
           icon={<RouteIcon className="h-5 w-5" />}
@@ -233,7 +233,6 @@ export function StatsOverview({
           up
           color="#0ea5e9"
           gradient="from-sky-500/10 to-sky-600/5"
-          delay={0.15}
         />
       </div>
 

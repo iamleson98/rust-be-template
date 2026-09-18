@@ -2,7 +2,7 @@
 
 import { memo, useCallback } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { usePopularRoutes, type RouteItem } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client'
@@ -56,7 +56,10 @@ export const PopularRoutes = memo(function PopularRoutes() {
         queryFn: async () => {
           const opts = searchTripsOptions({ query: { from, to, date, sort: 'departure', minSeats: 1 } })
           if (!opts.queryFn) throw new Error('queryFn missing')
-          return opts.queryFn({ queryKey: opts.queryKey, signal: new AbortController().signal } as any)
+          return opts.queryFn({
+    queryKey: opts.queryKey,
+    signal: new AbortController().signal,
+  } as unknown as Parameters<NonNullable<typeof opts.queryFn>>[0])
         },
         staleTime: 30 * 1000,
       })

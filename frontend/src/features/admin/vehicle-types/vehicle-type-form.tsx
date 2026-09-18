@@ -45,6 +45,7 @@ import { requiredText } from '@/lib/forms'
 import { useCreateAdminVehicleType, useUpdateAdminVehicleType } from '@/lib/queries'
 import { slugify } from '@/lib/slug'
 import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
+import { getErrorMessage } from '@/lib/error-message'
 
 const vehicleTypeSchema = z.object({
   code: requiredText('Mã loại xe')
@@ -136,16 +137,19 @@ export function VehicleTypeFormDialog({
         description: values.description || null,
       }
       if (isEdit) {
-        await updateMutation.mutateAsync({ path: { id: vehicleType!.id }, body: body as any })
+        await updateMutation.mutateAsync({
+        path: { id: vehicleType!.id },
+        body,
+      } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
         toast.success('Đã cập nhật loại xe')
       } else {
         // SDK mutation hooks require { body: <payload> } (see schedule form).
-        await createMutation.mutateAsync({ body: body as any })
+        await createMutation.mutateAsync({ body } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
         toast.success('Đã thêm loại xe mới')
       }
       onSaved()
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể lưu loại xe')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu loại xe'))
     }
   }
 

@@ -84,7 +84,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
       })
       return data
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       toast.success('Đã tạo điểm đón/trả mới')
       onCreated({
         id: data?.id ?? '',
@@ -96,7 +96,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
       setPicked(null)
       onOpenChange(false)
     },
-    onError: (err: any) => {
+    onError: (err) => {
       toast.error('Không thể tạo điểm', {
         description: err?.message ?? 'Vui lòng thử lại',
       })
@@ -106,6 +106,9 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(EMPTY_FORM)
       setPicked(null)
       setFlyTarget(null)
@@ -119,7 +122,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
 
     try {
       const { data } = await sdkReverse({ query: { lat: clickLat, lon: clickLon, limit: 1 } })
-      const hits: PlaceSearchHit[] = (data as any) ?? []
+      const hits: PlaceSearchHit[] = (data ?? []) as PlaceSearchHit[]
       const hit = hits[0]
       if (hit) {
         const placeName = hit.name || `${clickLat.toFixed(3)}, ${clickLon.toFixed(3)}`

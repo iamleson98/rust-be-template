@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { usePlacesList, usePopularRoutes } from '@/lib/queries'
 import { MapPin, Search, Locate, Loader2 } from 'lucide-react'
 import { noTones } from '@/lib/types'
@@ -11,6 +11,7 @@ import type { Place, RouteItem } from './map-view-types'
 import { MapSidebar } from './map-sidebar'
 import { MapSelectedCityPopup } from './map-selected-city-popup'
 import { MapSelectedRoutePopup } from './map-selected-route-popup'
+
 
 // Real OSM map (loaded client-side only — leaflet touches `window`).
 const RouteMapInner = lazy(() => import('@/features/map/route-map-inner').then((m) => ({ default: m.RouteMapInner })))
@@ -48,16 +49,22 @@ export function MapView() {
 
   useEffect(() => {
     if (placesQuery.data) {
-      setPlaces((placesQuery.data.items ?? []) as any)
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlaces((placesQuery.data.items ?? []) as unknown as Place[])
     }
   }, [placesQuery.data])
 
   useEffect(() => {
     if (routesQuery.data) {
-      const rs: any[] = routesQuery.data.items ?? []
+      const rs = (routesQuery.data.items ?? []) as unknown as RouteItem[]
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRoutes(rs)
       const slugs = new Set<string>()
-      rs.forEach((route: any) => slugs.add(route.brand?.slug ?? ''))
+      rs.forEach((route) => slugs.add(route.brand?.slug ?? ''))
       setActiveBrandSlugs(slugs)
       setLoading(false)
     }
@@ -105,6 +112,9 @@ export function MapView() {
   useEffect(() => {
     const q = searchQuery.trim()
     if (!q) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlaceSearch([])
       return
     }

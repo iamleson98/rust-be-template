@@ -15,13 +15,13 @@ import {
 describe('analytics', () => {
   beforeEach(() => {
     // Reset window.gtag between tests
-    ;(window as any).gtag = undefined
+    ;window.gtag = undefined
   })
 
   describe('trackPageView', () => {
     it('calls window.gtag with page_view event', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackPageView('/search', 'Tìm chuyến xe')
 
@@ -39,7 +39,7 @@ describe('analytics', () => {
   describe('trackEvent', () => {
     it('calls window.gtag with custom event', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackEvent('custom_event', { param1: 'value1' })
 
@@ -54,7 +54,7 @@ describe('analytics', () => {
   describe('trackSearch', () => {
     it('fires a search event with trip params', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackSearch({
         from: 'Hà Nội',
@@ -75,7 +75,7 @@ describe('analytics', () => {
   describe('trackViewItem', () => {
     it('fires a view_item event with item data', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackViewItem({
         itemId: 'trip-123',
@@ -95,7 +95,7 @@ describe('analytics', () => {
   describe('trackBeginCheckout', () => {
     it('fires a begin_checkout event', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackBeginCheckout({
         itemId: 'trip-123',
@@ -114,7 +114,7 @@ describe('analytics', () => {
   describe('trackPurchase', () => {
     it('fires a purchase event with transaction ID', () => {
       const gtag = vi.fn()
-      ;(window as any).gtag = gtag
+      ;window.gtag = gtag
 
       trackPurchase({
         transactionId: 'VX123456',

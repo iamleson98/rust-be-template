@@ -59,8 +59,7 @@ export function VietQrDisplay({
       {qrSrc && (
         <div className="flex justify-center">
           <div className="rounded-lg border-2 border-slate-200 bg-white p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qrSrc} alt="VietQR" width={240} height={240} />
+                        <img src={qrSrc} alt="VietQR" width={240} height={240} />
           </div>
         </div>
       )}

@@ -49,13 +49,13 @@ describe('buildBreadcrumb', () => {
     ])
     expect(schema['@type']).toBe('BreadcrumbList')
     expect(schema.itemListElement).toHaveLength(2)
-    expect((schema.itemListElement as any[])[0].position).toBe(1)
-    expect((schema.itemListElement as any[])[0].name).toBe('Trang chủ')
+    expect((schema.itemListElement as Array<Record<string, unknown>>)[0].position).toBe(1)
+    expect((schema.itemListElement as Array<Record<string, unknown>>)[0].name).toBe('Trang chủ')
   })
 
   it('includes absolute URLs', () => {
     const schema = buildBreadcrumb([{ name: 'Test', path: '/test' }])
-    const item = (schema.itemListElement as any[])[0]
+    const item = (schema.itemListElement as Array<Record<string, unknown>>)[0]
     expect(item.item).toContain('https://')
     expect(item.item).toContain('/test')
   })
@@ -73,9 +73,9 @@ describe('buildTripProduct', () => {
     })
     expect(schema['@type']).toBe('Product')
     expect(schema.name).toBe('Hà Nội → Đà Nẵng')
-    expect((schema.brand as any).name).toBe('Phương Trang')
-    expect((schema.offers as any).price).toBe(350000)
-    expect((schema.offers as any).priceCurrency).toBe('VND')
-    expect((schema.offers as any).availability).toContain('InStock')
+    expect((schema.brand as Record<string, unknown>).name).toBe('Phương Trang')
+    expect((schema.offers as Record<string, unknown>).price).toBe(350000)
+    expect((schema.offers as Record<string, unknown>).priceCurrency).toBe('VND')
+    expect((schema.offers as Record<string, unknown>).availability).toContain('InStock')
   })
 })

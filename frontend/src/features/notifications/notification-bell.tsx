@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useNotifications, useMarkNotificationsRead } from '@/lib/queries'
 import type { NotificationItem } from '@/lib/queries'
 import { Button } from '@/components/ui/button'

@@ -49,6 +49,7 @@ import { useUpsertAdminRoute } from '@/lib/queries'
 import type { AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
 import { CitySelectContent, cityLabel } from './city-select-content'
+import { getErrorMessage } from '@/lib/error-message'
 
 const routeSchema = z
   .object({
@@ -121,11 +122,11 @@ export function RouteFormDialog({
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as any)
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
       toast.success(isEdit ? 'Đã cập nhật tuyến' : 'Đã thêm tuyến mới')
       onSaved()
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể lưu tuyến')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu tuyến'))
     }
   }
 
@@ -141,7 +142,7 @@ export function RouteFormDialog({
             {brand ? (
               <>
                 Thuộc hãng:{' '}
-                <span className="font-medium" style={{ color: brand.accentColor as any }}>
+                <span className="font-medium" style={{ color: brand.accentColor ?? undefined }}>
                   {brand.name}
                 </span>
               </>

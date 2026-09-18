@@ -145,7 +145,11 @@ export function useAdminChatWs(
   // activeChannelId (undefined) and never update — so the admin never
   // receives messages/typing/presence for the selected channel.
   const activeChannelIdRef = useRef(activeChannelId)
-  activeChannelIdRef.current = activeChannelId
+  // Update AFTER commit (writing refs during render is unsafe under
+  // concurrent React); WS handlers fire async, post-commit.
+  useEffect(() => {
+    activeChannelIdRef.current = activeChannelId
+  })
 
   // Create the WS connection once when the admin logs in.
   useEffect(() => {
@@ -171,7 +175,7 @@ export function useAdminChatWs(
         // Auto-mark as read — the admin is viewing this channel,
         // so the unread badge should NOT increment.
         if (m.senderType !== 'employee') {
-          markReadMut.mutate({ path: { id: activeId } } as any)
+          markReadMut.mutate({ path: { id: activeId } } as unknown as Parameters<typeof markReadMut.mutate>[0])
         }
       }
     })

@@ -2,7 +2,8 @@
 
 // Extracted from the original 'my-bookings.tsx'.
 
-import { useNavigate } from '@/router'
+import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { Ticket, CalendarCheck, Wallet, ShieldCheck, LogIn } from 'lucide-react'
 import { Card, CardContent, Card as UiCard } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -59,8 +60,11 @@ export function GuestLookupView({
   const totalAmount = results
     .filter((b) => b.status === 'paid' || b.status === 'confirmed')
     .reduce((s, b) => s + b.total, 0)
+  // Snapshot of 'now' taken once per mount — Date.now() directly in the
+  // render body is impure (breaks memoization under React Compiler).
+  const [now] = useState(Date.now)
   const upcoming = results.filter(
-    (b) => b.trip && b.status !== 'cancelled' && new Date(b.trip.departureAt).getTime() > Date.now(),
+    (b) => b.trip && b.status !== 'cancelled' && new Date(b.trip.departureAt).getTime() > now,
   ).length
 
   return (

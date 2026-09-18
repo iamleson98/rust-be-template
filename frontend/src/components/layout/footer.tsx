@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { EXCHANGE_RATE_NOTE } from '@/lib/currency'
 import {
@@ -45,13 +45,13 @@ export const Footer = memo(function Footer() {
     defaultValues: { email: '' },
   })
 
-  const onSubscribe = useCallback((values: NewsletterValues) => {
+  const onSubscribe = useCallback((_values: NewsletterValues) => {
     // Existing behavior: just confirm subscription with a toast.
     // (No dedicated newsletter API exists yet — preserving the original
     // success-only flow. The validation layer is what's been upgraded here.)
     toast.success(t('footer.newsletterSuccess'))
     form.reset({ email: '' })
-  }, [form])
+  }, [form, t])
 
   return (
     <footer className="mt-auto bg-slate-950 text-slate-300">

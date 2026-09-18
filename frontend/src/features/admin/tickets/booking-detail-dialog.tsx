@@ -31,6 +31,7 @@ import {
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { TicketDetailSkeleton } from './ticket-detail-skeleton'
 import { formatVND, formatDepartureDate } from './tickets-helpers'
+import { getErrorMessage } from '@/lib/error-message'
 
 // ── BookingDetailDialog ─────────────────────────────────────
 
@@ -65,9 +66,9 @@ export function BookingDetailDialog({
         })
         setReason('')
         setForce(false)
-      } catch (e: any) {
+      } catch (e) {
         toast.error('Không thể cập nhật trạng thái', {
-          description: e?.message ?? 'Vui lòng thử lại',
+          description: getErrorMessage(e, 'Vui lòng thử lại'),
         })
       }
     },

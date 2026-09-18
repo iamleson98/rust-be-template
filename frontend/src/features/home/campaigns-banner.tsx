@@ -11,7 +11,9 @@ import { CampaignsSkeleton } from '@/features/home/components/campaigns-skeleton
 
 /* Countdown timer for campaigns */
 function CampaignCountdown({ endTime }: { endTime: number }) {
-  const [timeLeft, setTimeLeft] = useState(endTime - Date.now())
+  // Lazy initializer: without the arrow, endTime - Date.now() would be
+  // re-evaluated on EVERY render (impure + resets the countdown).
+  const [timeLeft, setTimeLeft] = useState(() => endTime - Date.now())
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -81,7 +83,7 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
   }, [])
 
   // Deterministic "featured" flag (every 3rd card is hot)
-  const isFeatured = (id: string, i: number) => i % 3 === 0
+  const isFeatured = (_id: string, i: number) => i % 3 === 0
 
   return (
     <section className="bg-linear-to-br from-amber-50 via-orange-50 to-rose-50 border-y border-amber-100/80">

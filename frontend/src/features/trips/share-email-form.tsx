@@ -101,6 +101,10 @@ DatXeVui — Đặt vé xe khách online.`
       const mailto = `mailto:${values.recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
       // Open the user's email client. We do NOT POST to any backend —
       // mailto: is the cross-browser "share via email" primitive.
+      // Navigating away via mailto: — an event-time side effect on a
+      // global. The react-hooks/immutability rule cannot prove this
+      // runs only from the submit handler, hence the targeted disable.
+      // eslint-disable-next-line react-hooks/immutability
       window.location.href = mailto
       toast.success(`Đã mở ứng dụng email cho ${values.recipientEmail}`, {
         description: 'Hoàn tất soạn thư trong trình email của bạn',

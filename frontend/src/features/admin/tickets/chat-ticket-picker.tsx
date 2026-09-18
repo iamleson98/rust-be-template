@@ -58,6 +58,23 @@ import { SearchStep } from './ticket-picker-search-step'
 import { SeatsStep } from './ticket-picker-seats-step'
 import { PassengerStep } from './ticket-picker-passenger-step'
 import { ConfirmStep } from './ticket-picker-confirm-step'
+import { getErrorMessage } from '@/lib/error-message'
+
+/**
+ * Structural type of the booking object returned by the create-booking
+ * mutation (union-typed in the generated SDK; the picker only reads
+ * these fields).
+ */
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_POINTS: never[] = []
+type CreatedTicketItem = {
+  id?: string
+  code?: string
+  status?: string
+  total?: number
+  currency?: string | null
+}
 
 export type CreatedTicketPayload = {
   bookingId: string
@@ -135,6 +152,9 @@ export function ChatTicketPicker({
     }
     // Pre-fill contact info from the channel's user.
     if (channel?.user) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setContactName(channel.user.fullName ?? '')
       setContactPhone(channel.user.phone ?? '')
     }
@@ -153,9 +173,9 @@ export function ChatTicketPicker({
 
   // ── Derived state ──
   const trip = tripDetail.data
-  const pickupPoints = trip?.pickupPoints ?? []
+  const pickupPoints = trip?.pickupPoints ?? EMPTY_POINTS
   const boardingPoints = useMemo(
-    () => pickupPoints.filter((p) => true), // all points can be boarding
+    () => pickupPoints, // all points can be boarding
     [pickupPoints],
   )
   const droppingPoints = pickupPoints // symmetric
@@ -163,6 +183,9 @@ export function ChatTicketPicker({
   // Auto-select first boarding/dropping when trip loads.
   useEffect(() => {
     if (trip && !boardingPointId && boardingPoints[0]) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setBoardingPointId(boardingPoints[0].id)
     }
     if (trip && !droppingPointId && droppingPoints[0]) {
@@ -187,6 +210,9 @@ export function ChatTicketPicker({
 
   // When selectedSeats changes, sync passengers array.
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPassengers((prev) => {
       const next: Passenger[] = selectedSeats.map((s) => {
         const existing = prev.find((p) => p.seatId === s.id)
@@ -240,8 +266,10 @@ export function ChatTicketPicker({
           contactEmail: contactEmail || undefined,
           campaignCode: undefined,
         },
-      } as any)
-      const item = (result as any)?.item ?? result
+      } as unknown as Parameters<typeof createBooking.mutate>[0])
+      const item = (((result ?? {}) as { item?: CreatedTicketItem }).item ?? result) as
+        | CreatedTicketItem
+        | undefined
       const payload: CreatedTicketPayload = {
         bookingId: item?.id ?? '',
         bookingCode: item?.code ?? '',
@@ -272,9 +300,9 @@ export function ChatTicketPicker({
         description: `Mã vé: ${payload.bookingCode}`,
       })
       onOpenChange(false)
-    } catch (e: any) {
+    } catch (e) {
       toast.error('Đặt vé thất bại', {
-        description: e?.message ?? 'Vui lòng thử lại',
+        description: getErrorMessage(e, 'Vui lòng thử lại'),
       })
     }
   }, [
@@ -288,7 +316,6 @@ export function ChatTicketPicker({
     contactName,
     contactPhone,
     contactEmail,
-    channel,
     autoConfirm,
     totalPrice,
     onCreated,

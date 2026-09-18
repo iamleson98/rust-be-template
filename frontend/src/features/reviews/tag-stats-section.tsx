@@ -58,7 +58,7 @@ export function TagStatsSection({ tagStats, accentColor }: { tagStats: TagStat[]
         </span>
       </div>
       <div className="space-y-2.5">
-        {tagStats.map((t, idx) => {
+        {tagStats.map((t) => {
           const Icon = TAG_ICONS[t.tag] ?? Star
           return (
             <div

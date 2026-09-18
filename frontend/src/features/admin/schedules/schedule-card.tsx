@@ -129,7 +129,7 @@ export function ScheduleCard({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2.5 flex items-center gap-1.5">
               <MapPin className="h-3 w-3" /> Điểm đón — trả
             </p>
-            <PointsTimeline points={(schedule as any).points} />
+            <PointsTimeline points={(schedule as AdminScheduleOut).points} />
           </div>
         </div>
       </CardContent>

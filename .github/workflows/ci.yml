@@ -150,8 +150,7 @@ jobs:
         run: bunx tsc --noEmit
 
       - name: Lint (eslint)
-        run: bunx eslint --max-warnings 0 src
-        continue-on-error: true # TODO: tighten this once lint errors are fixed
+        run: bun run lint
 
       - name: Test (vitest)
         run: bunx vitest run

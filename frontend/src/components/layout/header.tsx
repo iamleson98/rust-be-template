@@ -3,7 +3,7 @@
 import { memo, lazy, Suspense, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useApp } from '@/lib/store'
-import { useNavigate, useRouterState } from '@/router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'

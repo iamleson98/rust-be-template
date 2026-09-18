@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Star, Bus, ChevronRight } from 'lucide-react'
 import { useBrands, type Brand } from '@/lib/queries'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { ErrorState } from '@/components/layout/error-state'
 import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcase-skeleton'
 

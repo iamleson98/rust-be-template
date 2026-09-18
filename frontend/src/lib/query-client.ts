@@ -69,7 +69,7 @@ export const queryKeys = {
   route: (slug: string) => ['routes', slug] as const,
   trips: {
     all: ['trips'] as const,
-    search: (params: Record<string, any>) => ['trips', 'search', params] as const,
+    search: (params: Record<string, unknown>) => ['trips', 'search', params] as const,
     detail: (id: string) => ['trips', 'detail', id] as const,
     seats: (tripSessionId: string) => ['trips', 'seats', tripSessionId] as const,
   },

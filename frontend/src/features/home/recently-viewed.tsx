@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { History, ChevronRight, Bus, Clock } from 'lucide-react'

@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   ShieldCheck,
   Bus,

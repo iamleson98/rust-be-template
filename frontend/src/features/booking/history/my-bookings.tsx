@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   useMyBookings,
   useMyReviews,
@@ -39,6 +39,9 @@ import { ReviewsTabContent } from './reviews-tab-content'
 import { GuestLookupPanel } from './guest-lookup-panel'
 import { GuestLookupView } from './guest-lookup-view'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
 export function MyBookings() {
@@ -98,7 +101,7 @@ export function MyBookings() {
     isLoading: bookingsLoading,
     refetch: refetchBookings,
   } = useMyBookings('all')
-  const userBookings: BookingItem[] = (bookingsData?.items ?? []) as unknown as BookingItem[]
+  const userBookings: BookingItem[] = (bookingsData?.items ?? EMPTY_ITEMS) as unknown as BookingItem[]
   const bookingsLoaded = !!bookingsData
 
   // Reviews: lazy-loaded only when the user opens the "Đánh giá" tab.
@@ -109,14 +112,14 @@ export function MyBookings() {
     isLoading: reviewsLoading,
     refetch: refetchReviews,
   } = useMyReviews({ enabled: isUserLoggedIn && userTab === 'reviews' })
-  const userReviews: ReviewItem[] = (reviewsData?.items ?? []) as unknown as ReviewItem[]
+  const userReviews: ReviewItem[] = (reviewsData?.items ?? EMPTY_ITEMS) as unknown as ReviewItem[]
 
   // Guest lookup: TanStack Query driven by `submittedLookup`.
   const {
     data: lookupData,
     isLoading: lookupLoading,
   } = useGuestBookings(submittedLookup?.phone, submittedLookup?.code)
-  const results: BookingItem[] = (lookupData?.items ?? []) as unknown as BookingItem[]
+  const results: BookingItem[] = (lookupData?.items ?? EMPTY_ITEMS) as unknown as BookingItem[]
   const loading = lookupLoading
 
   // Cancel booking mutation — invalidates the bookings cache on success
@@ -182,7 +185,7 @@ export function MyBookings() {
     }
   }
 
-  const handleFeedbackSubmitted = (bookingId: string, review: ReviewSummary) => {
+  const handleFeedbackSubmitted = (_bookingId: string, _review: ReviewSummary) => {
     // Refresh both the bookings list (so the booking's `review` field
     // updates) and the reviews list (so the new review appears).
     refetchBookings()

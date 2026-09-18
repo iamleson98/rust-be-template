@@ -5,6 +5,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { resolveNativeButton } from './resolve-native-button'
 
 /**
  * Radix-compat wrapper around Base UI's Dialog.
@@ -53,7 +54,7 @@ function DialogTrigger({
     return (
       <DialogPrimitive.Trigger
         data-slot="dialog-trigger"
-        nativeButton={false}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />
@@ -83,7 +84,7 @@ function DialogClose({
     return (
       <DialogPrimitive.Close
         data-slot="dialog-close"
-        nativeButton={false}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />

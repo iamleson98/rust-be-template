@@ -3,7 +3,7 @@
 // Extracted from the original 'my-bookings.tsx'.
 
 import { Suspense } from 'react'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { TabsContent } from '@/components/ui/tabs'
 import { MessageSquare, Star, TrendingUp, RefreshCw } from 'lucide-react'

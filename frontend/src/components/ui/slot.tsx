@@ -27,10 +27,10 @@ import {
 } from 'react'
 
 function mergeProps(
-  parentProps: Record<string, any>,
-  childProps: Record<string, any>,
-): Record<string, any> {
-  const merged: Record<string, any> = { ...parentProps }
+  parentProps: Record<string, unknown>,
+  childProps: Record<string, unknown>,
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...parentProps }
 
   for (const key in childProps) {
     const parentVal = parentProps[key]
@@ -43,9 +43,9 @@ function mergeProps(
       typeof parentVal === 'function' &&
       typeof childVal === 'function'
     ) {
-      merged[key] = (...args: any[]) => {
-        parentVal(...args)
-        childVal(...args)
+      merged[key] = (...args: unknown[]) => {
+        ;(parentVal as (...a: unknown[]) => void)(...args)
+        ;(childVal as (...a: unknown[]) => void)(...args)
       }
     } else {
       merged[key] = childVal ?? parentVal
@@ -70,10 +70,10 @@ export const Slot = forwardRef<HTMLElement, SlotProps>(
       )
     }
 
-    const child = children as ReactElement<any>
+    const child = children as ReactElement<Record<string, unknown>>
     const mergedProps = mergeProps(props, child.props)
 
-    const childRef: Ref<HTMLElement> = child.props.ref
+    const childRef = child.props.ref as Ref<HTMLElement>
     const composedRef: Ref<HTMLElement> = (node) => {
       if (typeof ref === 'function') ref(node)
       else if (ref) (ref as RefObject<HTMLElement | null>).current = node

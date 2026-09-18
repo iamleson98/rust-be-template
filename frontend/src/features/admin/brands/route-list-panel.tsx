@@ -85,7 +85,7 @@ export function RouteListPanel({
         </div>
         {selectedBrand ? (
           <div className="text-[11px] text-muted-foreground truncate">
-            Thuộc: <span className="font-medium" style={{ color: selectedBrand.accentColor as any }}>{selectedBrand.name}</span>
+            Thuộc: <span className="font-medium" style={{ color: selectedBrand.accentColor ?? undefined }}>{selectedBrand.name}</span>
           </div>
         ) : null}
         <div className="relative mt-1">

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { VEHICLE_TYPE_LABELS } from '@/lib/types'
@@ -81,7 +81,10 @@ function BookingCardImpl({
   const canCancel = b.status === 'held' || b.status === 'pending' || b.status === 'confirmed'
   const canReview = isBookingReviewable(b)
   const depTime = b.trip ? new Date(b.trip.departureAt) : null
-  const isUpcoming = depTime ? depTime.getTime() > Date.now() : false
+  // Snapshot of 'now' taken once per mount — Date.now() directly in the
+  // render body is impure (breaks memoization under React Compiler).
+  const [now] = useState(Date.now)
+  const isUpcoming = depTime ? depTime.getTime() > now : false
   const accentColor = b.trip?.brandAccent ?? '#2563eb'
 
   return (

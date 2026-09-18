@@ -79,14 +79,26 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
 
-          // React core — changes almost never; cached effectively forever.
-          if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
-            return 'vendor-react'
-          }
+          // ⚠️ ORDER MATTERS — check the most specific packages FIRST.
+          // Base UI's package path ('@base-ui/react/...') contains the
+          // substring '/react/', so a loose includes('/react/') react
+          // check swallows all ~315 Base UI modules (~230KB) into
+          // vendor-react. Base UI must be matched BEFORE react.
           // Base UI primitives — shared across most shadcn/ui components.
           if (id.includes('@base-ui/react')) {
             return 'vendor-base-ui'
           }
+
+          // React core — changes almost never; cached effectively forever.
+          // Exact segment match so react-* packages are NOT matched here.
+          if (
+            /\/node_modules\/react\//.test(id) ||
+            id.includes('/react-dom/') ||
+            id.includes('/scheduler/')
+          ) {
+            return 'vendor-react'
+          }
+
           // Form validation stack — used by every form island.
           if (
             id.includes('react-hook-form') ||
@@ -95,29 +107,45 @@ export default defineConfig({
           ) {
             return 'vendor-form'
           }
-          // TanStack Query — server state management.
-          if (id.includes('@tanstack/react-query')) {
+
+          // TanStack Query — the react bindings AND its engine core
+          // (query-core) in ONE chunk; splitting them strays the engine
+          // into vendor-misc and breaks cache stability.
+          if (
+            id.includes('@tanstack/react-query') ||
+            id.includes('@tanstack/query-core')
+          ) {
             return 'vendor-query'
           }
+
+          // TanStack app framework (router / table / virtual / store /
+          // history) — shell-critical, updates together, cache separately
+          // from the grab-bag below.
+          if (id.includes('@tanstack/')) {
+            return 'vendor-tanstack'
+          }
+
           // Leaflet map — heavy (~155KB), only needed for map views.
           // (MapLibre GL was removed with the OpenFreeMap bridge — the
           // basemap is now native CARTO raster tiles via Leaflet.)
           if (id.includes('leaflet') || id.includes('react-leaflet')) {
             return 'vendor-leaflet'
           }
-          // Charts — heavy, only needed by admin dashboard.
-          if (id.includes('recharts') || id.includes('d3-')) {
-            return 'vendor-charts'
-          }
+
           // Icons — shared by shell + all islands.
           if (id.includes('lucide-react')) {
             return 'vendor-icons'
           }
+
           // Date utilities — used by search + booking calendars.
           if (id.includes('date-fns') || id.includes('react-day-picker')) {
             return 'vendor-date'
           }
+
           // Everything else in node_modules goes to a generic vendor chunk.
+          // (No charts chunk: recharts is not a dependency — the admin
+          // dashboard renders its own SVG donut. If a chart lib is ever
+          // added, add a branch for it here.)
           return 'vendor-misc'
         },
       },

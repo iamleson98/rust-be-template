@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { CalendarIcon, UserIcon, CreditCardIcon } from 'lucide-react'
 
 import {
   Accordion,

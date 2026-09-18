@@ -63,8 +63,9 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   // Two mutations defined at HOOK CREATION — each carries its own
   // onSuccess/onError. mutate() takes only the params.
   const createMut = useCreateReview({
-    onSuccess: (data: any) => {
-      const review: ReviewSummary = data?.review ?? data?.data?.review
+    onSuccess: (data) => {
+      const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
+        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
       if (review) onSubmitted?.(review)
       setSubmitted(true)
       toast.success('Cảm ơn đánh giá của bạn!')
@@ -75,8 +76,9 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   })
 
   const updateMut = useUpdateReview({
-    onSuccess: (data: any) => {
-      const review: ReviewSummary = data?.review ?? data?.data?.review
+    onSuccess: (data) => {
+      const review = (((data ?? {}) as { review?: unknown; data?: { review?: unknown } }).review ??
+        ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
       if (review) onSubmitted?.(review)
       setSubmitted(true)
       toast.success('Đã cập nhật đánh giá!')
@@ -119,7 +121,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
         tags: values.tags,
         photos: values.photos,
       },
-    } as any
+    } as unknown as { body: Record<string, unknown> }
     if (existingReview) {
       updateMut.mutate({ path: { id: existingReview.id }, ...payload })
     } else {

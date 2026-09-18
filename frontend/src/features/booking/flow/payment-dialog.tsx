@@ -82,6 +82,9 @@ export function PaymentDialog({
   // first successful create-payment, the parent refetches the booking and
   // passes the new paymentId).
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setResumeId(paymentId)
   }, [paymentId])
 
@@ -98,7 +101,7 @@ export function PaymentDialog({
       }, 1500)
       return () => clearTimeout(t)
     }
-  }, [payment.data?.status, onPaid, onClose])
+  }, [payment.data, onPaid, onClose])
 
   const p = payment.data
   const currency = (p?.currency as Currency) ?? 'VND'

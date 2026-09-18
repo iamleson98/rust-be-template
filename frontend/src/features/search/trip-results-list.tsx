@@ -120,7 +120,7 @@ export function TripResultsList({
                     }}
                     className="pb-3"
                   >
-                    <TripCard trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} index={virtualRow.index} isRecommended={filteredResults.length > 1 && isRecommended && virtualRow.index === 0} />
+                    <TripCard trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} isRecommended={filteredResults.length > 1 && isRecommended && virtualRow.index === 0} />
                   </div>
                 )
               })}
@@ -134,7 +134,7 @@ export function TripResultsList({
               const isCheapest = t.minPrice === cheapestPrice
               const isRecommended = i === 0 || (isTopRated && isCheapest)
               return (
-                <TripCard key={t.tripId} trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} index={i} isRecommended={filteredResults.length > 1 && isRecommended && i === 0} />
+                <TripCard key={t.tripId} trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} isRecommended={filteredResults.length > 1 && isRecommended && i === 0} />
               )
             })}
           </>

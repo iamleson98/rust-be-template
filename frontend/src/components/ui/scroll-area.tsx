@@ -17,12 +17,12 @@ import { cn } from "@/lib/utils"
  * `root.querySelector('[data-slot="scroll-area-viewport"]')`.
  */
 const ScrollArea = forwardRef<
-  HTMLDivElement,
+  React.ComponentRef<typeof ScrollAreaPrimitive.Root>,
   ComponentProps<typeof ScrollAreaPrimitive.Root>
 >(function ScrollArea({ className, children, ...props }, ref) {
   return (
     <ScrollAreaPrimitive.Root
-      ref={ref as any}
+      ref={ref}
       data-slot="scroll-area"
       className={cn("relative", className)}
       {...props}

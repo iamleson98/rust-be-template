@@ -43,6 +43,7 @@ import {
 import { PriceAlertFrequencyField } from './price-alert-frequency-field'
 import { PriceAlertTargetField } from './price-alert-target-field'
 import { PriceAlertExistingList } from './price-alert-existing-list'
+import { getErrorMessage } from '@/lib/error-message'
 
 type ExistingAlert = PriceAlert
 
@@ -142,14 +143,15 @@ export function PriceAlertDialog() {
       // Use the centralized mutation — it invalidates the price-alerts
       // cache on success and (via the extended payload type) forwards
       // all the dialog's fields to the backend.
-      const data: any = await createAlertMut.mutateAsync({ body: {
+      const data = await createAlertMut.mutateAsync({ body: {
         phone: cleanPhone,
         email: values.email || null,
         fromName,
         toName,
         targetPrice: values.targetPrice,
         frequency: values.frequency,
-      } })
+      },
+      } as unknown as Parameters<typeof createAlertMut.mutateAsync>[0])
 
       // Persist phone for future use
       setGuestPhone(cleanPhone)
@@ -162,8 +164,8 @@ export function PriceAlertDialog() {
           ? 'Cảnh báo giá đã tồn tại — không tạo mới'
           : 'Đã tạo cảnh báo giá thành công',
       )
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể tạo cảnh báo giá')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể tạo cảnh báo giá'))
     } finally {
       setSubmitting(false)
     }

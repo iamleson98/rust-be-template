@@ -8,6 +8,7 @@ import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking }
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
 import { normalizePhone } from '@/lib/types'
+import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 import { formatCurrency } from '@/lib/currency'
 import { toast } from 'sonner'
 import {
@@ -29,6 +30,17 @@ import { BookingSuccess, type LastBooking } from './booking-success'
 import { BookingStepHeader } from './booking-step-header'
 import { BookingPassengerStep } from './booking-passenger-step'
 import { BookingContactStep } from './booking-contact-step'
+
+/**
+ * Structural type for the hold-booking result this dialog consumes.
+ * The generated SDK models this as a union (HoldResponses); the dialog
+ * only needs the success shape's fields.
+ */
+type HoldBookingData = {
+  bookingId: string
+  code: string
+  total: number
+}
 
 export function BookingDialog() {
   const {
@@ -57,7 +69,7 @@ export function BookingDialog() {
 
   const [selectedSeatCodes, setSelectedSeatCodes] = useState<SelectedSeat[]>([])
   const [campaignCode, setCampaignCode] = useState('')
-  const [campaignResult, setCampaignResult] = useState<{ valid: boolean; campaign?: any; error?: string } | null>(null)
+  const [campaignResult, setCampaignResult] = useState<CampaignValidateResponse | null>(null)
   const [checkingCampaign, setCheckingCampaign] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -100,10 +112,10 @@ export function BookingDialog() {
   useEffect(() => {
     if (!bookingContext || !trip) return
     // map seat ids to codes/prices
-    const seats = trip.seatMap.decks
-      .flatMap((dk) => dk.rows.flatMap((r) => r.seats.filter(Boolean) as any[]))
-      .filter((s: any) => bookingContext.seatIds.includes(s.id))
-      .map((s: any) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass }))
+    const seats: SelectedSeat[] = trip.seatMap.decks
+      .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
+      .filter((s) => bookingContext.seatIds.includes(s.id))
+      .map((s) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass ?? 'standard' }))
     setSelectedSeatCodes(seats)
 
     // init passengers — auto-assign seats sequentially
@@ -209,12 +221,12 @@ export function BookingDialog() {
   const insuranceCost = insuranceCostMap[insuranceLevel]
 
   const subtotal = selectedSeatCodes.reduce((s, x) => s + x.price, 0)
-  const discount = campaignResult?.valid && campaignResult.campaign ? campaignResult.campaign.discount ?? 0 : 0
+  const discount = campaignResult?.valid ? (campaignResult.discount ?? 0) : 0
   const fees = 0
   const total = Math.max(0, subtotal - discount + fees + insuranceCost)
 
-  const validateCampaignMut = useValidateCampaign({
-    onSuccess: (data: any) => {
+  const validateCampaignMut = useValidateCampaign<CampaignValidateResponse>({
+    onSuccess: (data) => {
       setCampaignResult(data)
       if (data?.valid) {
         toast.success('Mã khuyến mãi hợp lệ!', {
@@ -229,7 +241,7 @@ export function BookingDialog() {
       }
     },
     onError: () => {
-      setCampaignResult({ valid: false, error: 'Không thể kiểm tra mã' })
+      setCampaignResult({ valid: false, discount: 0 })
     },
     onSettled: () => {
       setCheckingCampaign(false)
@@ -251,9 +263,10 @@ export function BookingDialog() {
   // onSuccess kicks off the confirm mutation by calling mutate() with
   // only the variables.
   const confirmMut = useConfirmBooking({
-    onSuccess: (_data, vars: any) => {
-      const holdData = (holdResultRef.current ?? {}) as any
-      const holdBookingId = vars?.path?.id ?? holdData.bookingId
+    onSuccess: (_data, vars) => {
+      const v = (vars ?? {}) as { path?: { id?: string } }
+      const holdData = (holdResultRef.current ?? {}) as HoldBookingData
+      const holdBookingId = v.path?.id ?? holdData.bookingId
       setLastBooking({ id: holdBookingId, code: holdData.code, total: holdData.total })
       setGuestPhone(normalizePhone(contactPhoneRef.current))
       if (contactNameRef.current) setGuestName(contactNameRef.current)
@@ -279,14 +292,14 @@ export function BookingDialog() {
 
   // Refs to share hold-time data + form values with confirm's onSuccess
   // without re-creating the mutation hooks each render.
-  const holdResultRef = useRef<any>(null)
+  const holdResultRef = useRef<HoldBookingData | null>(null)
   const contactPhoneRef = useRef('')
   const contactNameRef = useRef('')
   const paymentMethodRef = useRef<string>('cod')
 
   const holdMut = useHoldBooking({
-    onSuccess: (holdResult: any) => {
-      const holdData = holdResult?.data ?? holdResult
+    onSuccess: (holdResult: unknown) => {
+      const holdData = ((holdResult ?? {}) as { data?: HoldBookingData }).data ?? (holdResult as HoldBookingData | undefined)
       if (!holdData?.bookingId) {
         setError('Không thể đặt chỗ')
         setSubmitting(false)
@@ -296,7 +309,7 @@ export function BookingDialog() {
       confirmMut.mutate({
         path: { id: holdData.bookingId },
         body: { paymentMethod: paymentMethodRef.current },
-      } as any)
+      } as unknown as Parameters<typeof confirmMut.mutate>[0])
     },
     onError: () => {
       setError('Không thể đặt chỗ')
@@ -341,7 +354,7 @@ export function BookingDialog() {
         contactEmail: values.contactEmail || undefined,
         campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
       },
-    } as any)
+    } as unknown as Parameters<typeof holdMut.mutate>[0])
   }
 
   const close = () => {

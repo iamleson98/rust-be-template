@@ -17,7 +17,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useLogin } from '@/lib/queries'
 import { isStaffUser } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -62,8 +62,9 @@ export function CustomerLogin() {
   const { control, handleSubmit } = form
 
   const loginMut = useLogin({
-    onSuccess: (data: any) => {
-      const user = data?.user ?? data?.data?.user
+    onSuccess: (data) => {
+      const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
+      ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as Parameters<typeof setUser>[0] | undefined
       if (!user) return
       setUser(user)
       if (user.phone) setGuestPhone(user.phone)
@@ -76,7 +77,7 @@ export function CustomerLogin() {
   })
 
   const onSubmit = (values: CustomerFormValues) => {
-    loginMut.mutate({ body: { email: values.email, password: values.password } } as any)
+    loginMut.mutate({ body: { email: values.email, password: values.password } } as unknown as Parameters<typeof loginMut.mutate>[0])
   }
 
   return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useRecommendations, type RecommendationItem } from '@/lib/queries'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'

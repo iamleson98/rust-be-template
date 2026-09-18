@@ -131,7 +131,13 @@ function useLoadMoreSentinel(
   const listRef = useRef<HTMLDivElement | null>(null)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const fetchRef = useRef(fetchNextPage)
-  fetchRef.current = fetchNextPage
+  // Keep the ref pointing at the LATEST callback without writing during
+  // render (unsafe under concurrent rendering — a discarded render would
+  // leave a stale ref). Effects run after commit, so async consumers
+  // (IntersectionObserver) always see the committed value.
+  useEffect(() => {
+    fetchRef.current = fetchNextPage
+  })
 
   useEffect(() => {
     if (!enabled) return

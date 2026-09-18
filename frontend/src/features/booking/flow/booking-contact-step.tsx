@@ -26,6 +26,7 @@ import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Tag, X, User, Phone, Mail, Shield, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { type BookingValues } from './booking-form'
+import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 
 export function BookingContactStep({
   form,
@@ -50,10 +51,10 @@ export function BookingContactStep({
   currency: Currency
   campaignCode: string
   setCampaignCode: (code: string) => void
-  setCampaignResult: (result: { valid: boolean; campaign?: any; error?: string } | null) => void
+  setCampaignResult: (result: CampaignValidateResponse | null) => void
   checkingCampaign: boolean
   checkCampaign: () => void
-  campaignResult: { valid: boolean; campaign?: any; error?: string } | null
+  campaignResult: CampaignValidateResponse | null
   discount: number
   error: string
   gotoPayment: () => void
@@ -202,22 +203,22 @@ export function BookingContactStep({
             {checkingCampaign ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Áp dụng'}
           </Button>
         </div>
-        {campaignResult?.valid && campaignResult.campaign && (
+        {campaignResult?.valid && discount > 0 && (
           <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-blue-600" />
               <div>
-                <div className="font-medium text-blue-800">{campaignResult.campaign.name}</div>
-                <div className="text-xs text-blue-600">{campaignResult.campaign.message}</div>
+                <div className="font-medium text-blue-800">Đã áp dụng mã {campaignCode.trim().toUpperCase()}</div>
+                <div className="text-xs text-blue-600">Giảm giá trực tiếp vào tổng tiền</div>
               </div>
             </div>
             <div className="font-bold text-blue-700">-{formatCurrency(discount, currency)}</div>
           </div>
         )}
-        {campaignResult?.valid === false && campaignResult.error && (
+        {campaignResult?.valid === false && (
           <div className="mt-2 rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 flex items-center gap-2">
             <X className="h-4 w-4" />
-            {campaignResult.error}
+            Mã khuyến mãi không hợp lệ
           </div>
         )}
       </div>

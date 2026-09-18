@@ -88,7 +88,7 @@ export function PassengerStep({
           </div>
         ) : (
           <div className="space-y-2">
-            {passengers.map((p, i) => (
+            {passengers.map((p) => (
               <div key={p.seatId} className="flex items-center gap-2 rounded-md bg-slate-50 p-2">
                 <Badge variant="outline" className="font-mono text-[10px] bg-white">
                   {p.seatCode}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { buildSearchInput } from '@/lib/search-params'
 import { formatCurrency } from '@/lib/currency'
 import { cn } from '@/lib/utils'
@@ -125,8 +125,8 @@ export function DatePriceCompare() {
           signal: controller.signal,
           // Send credentials so the httpOnly JWT cookie is attached.
           // (handled by the SDK's default client config)
-        } as any)
-        const items: { minPrice: number }[] = (data as any)?.items ?? []
+        })
+        const items: { minPrice: number }[] = ((data ?? {}) as { items?: Array<{ minPrice: number }> }).items ?? []
         const minPrice = items.length > 0 ? items.reduce((min, t) => Math.min(min, t.minPrice), Infinity) : null
         return { date: d.date, price: minPrice }
       } catch {
@@ -156,9 +156,12 @@ export function DatePriceCompare() {
 
     setPrices(finalPrices)
     setLoading(false)
-  }, [searchParams.from, searchParams.to, searchParams.adults, searchParams.children, buildDates])
+  }, [searchParams, buildDates])
 
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPrices()
     return () => {
       if (abortRef.current) abortRef.current.abort()

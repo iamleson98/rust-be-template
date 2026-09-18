@@ -53,6 +53,9 @@ import { PaymentDetailDialog } from './payment-detail-dialog'
 import { PaymentActionDialog } from './payment-action-dialog'
 import type { PaymentAction } from './types'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 const PAGE_SIZE = 15
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -87,7 +90,7 @@ export function AdminPaymentsPanel() {
   const { data, isLoading, isError, refetch, isFetching } = useAdminPayments(query)
   const updateStatus = useUpdatePaymentStatus()
 
-  const items = data?.items ?? []
+  const items = data?.items ?? EMPTY_ITEMS
   const total = data?.total ?? 0
 
   // Compute KPIs from current page data

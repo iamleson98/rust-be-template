@@ -11,7 +11,7 @@ import { ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 /* ─── Enhanced KPI Card ─── */
 
-export function KpiCard({ icon, label, value, change, up, color, gradient, delay }: {
+export function KpiCard({ icon, label, value, change, up, color, gradient }: {
   icon: React.ReactNode
   label: string
   value: string
@@ -19,7 +19,6 @@ export function KpiCard({ icon, label, value, change, up, color, gradient, delay
   up?: boolean
   color: string
   gradient: string
-  delay: number
 }) {
   return (
     <div>

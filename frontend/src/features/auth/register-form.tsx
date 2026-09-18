@@ -16,7 +16,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useRegister } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -76,8 +76,9 @@ export function RegisterForm() {
   const pwdStrength = scorePassword(password)
 
   const registerMut = useRegister({
-    onSuccess: (data: any) => {
-      const user = data?.user ?? data?.data?.user
+    onSuccess: (data) => {
+      const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
+      ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as Parameters<typeof setUser>[0] | undefined
       if (!user) return
       setUser(user)
       setSuccess(true)
@@ -96,7 +97,7 @@ export function RegisterForm() {
         phone: values.phone || undefined,
         password: values.password,
       },
-    } as any)
+    } as unknown as Parameters<typeof registerMut.mutate>[0])
   }
 
   if (success) {

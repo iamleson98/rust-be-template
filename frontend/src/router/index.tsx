@@ -257,6 +257,8 @@ declare module '@tanstack/react-router' {
   }
 }
 
-// Re-export navigation helpers for ergonomic usage in components.
-// (Same surface the original src/router.tsx exposed — 30+ importers.)
-export { useNavigate, useRouterState, Link } from '@tanstack/react-router'
+// NOTE: navigation helpers (useNavigate, useRouterState, Link) used to be
+// re-exported here, but that pulled the whole route-tree singleton into every
+// leaf component and created import cycles (router -> lazy-pages -> header
+// -> @/router). Components now import them from '@tanstack/react-router'
+// directly; import THIS module only for the router singleton itself.

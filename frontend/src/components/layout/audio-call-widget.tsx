@@ -62,6 +62,9 @@ function CallSurface({ embedded, children }: { embedded: boolean; children: Reac
   const [target, setTarget] = useState<HTMLElement | null>(null)
 
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTarget(embedded ? document.getElementById('customer-call-surface') : null)
   }, [embedded])
 
@@ -81,7 +84,7 @@ export function AudioCallWidget() {
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
-  const [incomingFrom, setIncomingFrom] = useState<{ from: string; sdp: any } | null>(null)
+  const [incomingFrom, setIncomingFrom] = useState<{ from: string; sdp: RTCSessionDescriptionInit } | null>(null)
 
   const clientRef = useRef<AudioCallClient | null>(null)
   const clientOwnerRef = useRef<string | null>(null)
@@ -89,7 +92,10 @@ export function AudioCallWidget() {
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // Wake Lock sentinel — keeps the screen on during an active call so
   // the proximity sensor doesn't dim/lock the screen and drop the call.
-  const wakeLockRef = useRef<any>(null)
+  const wakeLockRef = useRef<{
+    release(): Promise<void>
+    addEventListener?: (type: 'release', listener: () => void) => void
+  } | null>(null)
   // Ring tone stop function — clears the repeating interval when the
   // call transitions out of 'calling' or 'incoming'.
   const stopRingRef = useRef<(() => void) | null>(null)
@@ -102,7 +108,9 @@ export function AudioCallWidget() {
   const requestWakeLock = useCallback(async () => {
     if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
     try {
-      wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
+      wakeLockRef.current = await (navigator as Navigator & {
+        wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinel> }
+      }).wakeLock?.request('screen')
       wakeLockRef.current?.addEventListener?.('release', () => {
         wakeLockRef.current = null
       })
@@ -215,7 +223,7 @@ export function AudioCallWidget() {
       setAgentInCall(false)
       setAgentsAvailable(false)
     })
-    client.on('incoming', ({ from, sdp }: { from: string; sdp: any }) => {
+    client.on('incoming', ({ from, sdp }) => {
       setIncomingFrom({ from, sdp })
       // ── Browser push notification for incoming call (when page is hidden).
       notifyIncomingCall('Khách hàng')
@@ -252,12 +260,12 @@ export function AudioCallWidget() {
     }
     if (state !== 'idle' || !agentsAvailable || autoStartRef.current) return
     autoStartRef.current = true
-    startCall().catch((reason) => {
+    startCall().catch(() => {
       autoStartRef.current = false
       toast.error('Không thể bắt đầu cuộc gọi. Bạn vẫn có thể tiếp tục nhắn tin.')
       setOpen(false)
     })
-  }, [open, isAgent, state, agentsAvailable, startCall])
+  }, [open, isAgent, state, agentsAvailable, startCall, setOpen])
 
   useEffect(() => {
     if (!open || isAgent || !presenceKnown || state !== 'idle') return
@@ -316,6 +324,9 @@ export function AudioCallWidget() {
   useEffect(() => {
     if (open || isAgent) return
     if (state === 'calling' || state === 'connecting' || state === 'active') {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       hangup()
     }
   }, [open, isAgent, state, hangup])

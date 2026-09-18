@@ -42,7 +42,11 @@ import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'
 import { PickupPointFormDialog } from '@/features/admin/pickup-points/pickup-form'
+import { getErrorMessage } from '@/lib/error-message'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 export function AdminBrandManagement() {
   const [brandSearch, setBrandSearch] = useState('')
   const [selectedBrand, setSelectedBrand] = useState<AdminBrandOut | null>(null)
@@ -51,12 +55,12 @@ export function AdminBrandManagement() {
   const [mobileView, setMobileView] = useState<'brands' | 'routes' | 'details'>('brands')
   /* --- queries: brands, places (parallel, on mount) --- */
   const brandsQuery = useAdminBrands()
-  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as AdminBrandOut[]
+  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as AdminBrandOut[]
   const placesQuery = usePlacesList(200)
-  const places: PlaceOut[] = (placesQuery.data as any)?.items ?? []
+  const places: PlaceOut[] = ((placesQuery.data ?? {}) as { items?: PlaceOut[] }).items ?? []
   /* --- queries: routes + bus layouts (when a brand is selected) --- */
   const routesQuery = useAdminRoutes({ brandId: selectedBrand?.id })
-  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
+  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminRouteOut[]
   const busLayoutsQuery = useAdminBusLayouts({ brandId: selectedBrand?.id })
   const busLayouts: AdminBusLayoutOut[] = (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
   /* --- queries: schedules + pickup points (when a route is selected) --- */
@@ -150,8 +154,8 @@ export function AdminBrandManagement() {
       }
       toast.success('Đã xoá thành công')
       setDeleteTarget(null)
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể xoá')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể xoá'))
     } finally {
       setDeleting(false)
     }

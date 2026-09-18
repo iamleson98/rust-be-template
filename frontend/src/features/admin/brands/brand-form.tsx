@@ -45,6 +45,7 @@ import { requiredText, optionalText } from '@/lib/forms'
 import { useUpsertAdminBrand } from '@/lib/queries'
 import type { AdminBrandOut } from '@/lib/api'
 import { slugify } from './helpers'
+import { getErrorMessage } from '@/lib/error-message'
 
 const brandSchema = z.object({
   name: requiredText('Tên hãng xe')
@@ -148,11 +149,11 @@ export function BrandFormDialog({
       if (isEdit) {
         payload.id = brand!.id
       }
-      await upsertMutation.mutateAsync({ body: payload } as any)
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
       toast.success(isEdit ? 'Đã cập nhật hãng xe' : 'Đã thêm hãng xe mới')
       onSaved()
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể lưu hãng xe')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu hãng xe'))
     }
   }
 

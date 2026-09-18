@@ -20,6 +20,9 @@ import {
   useMutation,
   useQueryClient,
   keepPreviousData,
+  type QueryFunction,
+  type InfiniteData,
+  type UseMutationOptions,
 } from "@tanstack/react-query";
 
 // NOTE: no bare SDK imports for hooks — all use generated TanStack
@@ -64,7 +67,6 @@ import {
   create8Mutation as reviewCreateMutation,
   // reviews — my own reviews (paginated, /api/reviews/mine)
   mineOptions as reviewsMineOptions,
-  mineQueryKey as reviewsMineQueryKey,
   // bookings (list11 = GET /api/bookings — the user's own bookings)
   list11Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
@@ -146,7 +148,6 @@ import {
   listChannelsOptions as chatChannelsListOptions,
   listMessagesOptions as chatMessagesListOptions,
   listMessagesInfiniteOptions as chatMessagesListInfiniteOptions,
-  listMessagesInfiniteQueryKey as chatMessagesListInfiniteQueryKey,
   postMessageMutation as chatPostMessageMutation,
   createChannelMutation as chatCreateChannelMutation,
   markReadMutation as chatMarkReadMutation,
@@ -162,6 +163,9 @@ import {
 
 // Generated types — re-exported so components can import from here
 import type {
+  ChatMessageListResponse,
+  ChatChannelListResponse,
+  ChatChannelOut,
   BrandOut,
   CampaignOut,
   NotificationOut,
@@ -553,7 +557,7 @@ export function useCancelBooking<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(cancel2Mutation() as any),
+    ...(cancel2Mutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -569,7 +573,7 @@ export function useHoldBooking<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(holdMutation() as any),
+    ...(holdMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -585,7 +589,7 @@ export function useConfirmBooking<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(confirmMutation() as any),
+    ...(confirmMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -656,10 +660,10 @@ export function usePriceAlerts(phone?: string | null) {
   const opts = priceAlertsListOptions({ query: { phone: phone ?? undefined } });
   return useQuery({
     queryKey: opts.queryKey,
-    queryFn: opts.queryFn as any,
+    queryFn: opts.queryFn,
     staleTime: 60 * 1000,
-    select: (data: any) => ({
-      items: (data?.items ?? []).map((a: any) => ({
+    select: (data) => ({
+      items: (data?.items ?? []).map((a) => ({
         ...a,
         targetPrice: a.targetPrice ?? 0,
         maxPrice: a.targetPrice ?? 0,
@@ -713,7 +717,7 @@ export function useLogout<TData = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, void>({
-    ...(logoutMutation() as any),
+    ...(logoutMutation() as unknown as UseMutationOptions<TData, unknown, void>),
     onSuccess: (data, vars) => {
       qc.clear();
       qc.removeQueries({ queryKey: meQueryKey() });
@@ -730,7 +734,7 @@ export function useLogin<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(loginMutation() as any),
+    ...(loginMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: meQueryKey() });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -746,7 +750,7 @@ export function useRegister<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(registerMutation() as any),
+    ...(registerMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: meQueryKey() });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -822,7 +826,13 @@ export function useChatChannels(limit = 50) {
  * activity jumps to the top) + refreshes unread badges.
  */
 export function useChatChannelsInfinite(pageSize = 30) {
-  const query = useInfiniteQuery<any>({
+  const query = useInfiniteQuery<
+    ChatChannelListResponse | undefined,
+    Error,
+    InfiniteData<ChatChannelListResponse | undefined, number>,
+    readonly unknown[],
+    number
+  >({
     queryKey: [
       {
         _id: "listChannels",
@@ -838,7 +848,7 @@ export function useChatChannelsInfinite(pageSize = 30) {
       return data;
     },
     initialPageParam: 0,
-    getNextPageParam: (lastPage: any, allPages: any[]) => {
+    getNextPageParam: (lastPage, allPages) => {
       // A full page means "there may be more" — the next offset is
       // the total fetched so far (same convention as the messages
       // infinite hook).
@@ -855,8 +865,8 @@ export function useChatChannelsInfinite(pageSize = 30) {
 
   // Flatten + dedupe. Pages arrive most-recent-first; the flattened
   // list keeps that order (channel list renders top = most recent).
-  const pages = (query.data?.pages ?? []) as any[];
-  const channels: any[] = [];
+  const pages: Array<ChatChannelListResponse | undefined> = query.data?.pages ?? [];
+  const channels: ChatChannelOut[] = [];
   const seen = new Set<string>();
   for (const page of pages) {
     for (const item of page?.items ?? []) {
@@ -1058,9 +1068,12 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
   const opts = channelId
     ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } })
     : null;
-  return useQuery<any>({
+  // The `?? null` fallback keeps the hook type-safe when disabled; the
+  // cast reconciles the generated QueryFunction's tuple-typed query key
+  // with this hook's fallback key (which has no tuple shape).
+  return useQuery<ChatMessageListResponse | null>({
     queryKey: opts?.queryKey ?? ["chat", "messages", "disabled"],
-    queryFn: (opts?.queryFn as any) ?? (() => Promise.resolve(null)),
+    queryFn: (opts?.queryFn ?? (() => Promise.resolve(null))) as unknown as () => Promise<ChatMessageListResponse | null>,
     enabled: !!channelId,
     staleTime: 10 * 1000,
     // No polling — the admin chat workspace subscribes to the WS
@@ -1137,11 +1150,17 @@ export function useChatMessagesInfinite(
       })
     : null;
 
-  const query = useInfiniteQuery<any>({
+  const query = useInfiniteQuery<
+    ChatMessageListResponse | null,
+    Error,
+    InfiniteData<ChatMessageListResponse | null, number>,
+    readonly unknown[],
+    number
+  >({
     queryKey: opts?.queryKey ?? ["chat", "messages", "infinite", "disabled"],
-    queryFn: (opts?.queryFn as any) ?? (() => Promise.resolve(null)),
+    queryFn: (opts?.queryFn ?? (() => Promise.resolve(null))) as unknown as QueryFunction<ChatMessageListResponse | null, readonly unknown[], number>,
     initialPageParam: 0,
-    getNextPageParam: (lastPage: any, allPages: any[], lastPageParam: any) => {
+    getNextPageParam: (lastPage, allPages) => {
       // `lastPage` is the API response: `{ items: [...] }`.
       // Each page is DESC (newest first). The page size is the
       // requested `pageSize`. If the last page returned fewer items
@@ -1165,7 +1184,7 @@ export function useChatMessagesInfinite(
   // Flatten into the chronological display list — see
   // `flattenInfiniteMessagePages` (the pure, unit-tested helper).
   const pages = query.data?.pages ?? [];
-  const messages = flattenInfiniteMessagePages(pages as any);
+  const messages = flattenInfiniteMessagePages(pages);
 
   return {
     // The chronological messages array (oldest first, newest last).
@@ -1191,7 +1210,7 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(chatPostMessageMutation() as any),
+    ...(chatPostMessageMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       // Use partial key match to invalidate all listMessages + listChannels
       // queries (the generated keys are object arrays, not string arrays).
@@ -1215,7 +1234,7 @@ export function useCreateChatChannel<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(chatCreateChannelMutation() as any),
+    ...(chatCreateChannelMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -1235,7 +1254,7 @@ export function useMarkChatRead<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(chatMarkReadMutation() as any),
+    ...(chatMarkReadMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -1313,9 +1332,9 @@ export function useValidateCampaign<TData = unknown>(
       const queryFn = o.queryFn;
       if (!queryFn) throw new Error("queryFn missing");
       return queryFn({
-        queryKey: o.queryKey as any,
+        queryKey: o.queryKey as unknown as Parameters<NonNullable<typeof queryFn>>[0]["queryKey"],
         signal: new AbortController().signal,
-      } as any) as Promise<TData>;
+      } as unknown as Parameters<NonNullable<typeof queryFn>>[0]) as Promise<TData>;
     },
     onSuccess: (data, vars) => opts?.onSuccess?.(data, vars),
     onError: (err, vars) => opts?.onError?.(err, vars),
@@ -1332,7 +1351,7 @@ export function useCreateReview<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(reviewCreateMutation() as any),
+    ...(reviewCreateMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: reviewsListQueryKey() });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -1348,7 +1367,7 @@ export function useUpdateReview<TData = unknown, TVars = unknown>(
 ) {
   const qc = useQueryClient();
   return useMutation<TData, unknown, TVars>({
-    ...(reviewUpdateMutation() as any),
+    ...(reviewUpdateMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: reviewsListQueryKey() });
       opts?.onSuccess?.(data as TData, vars as TVars);
@@ -1484,7 +1503,7 @@ export function useCreateAdminAddress() {
   const qc = useQueryClient();
   return useMutation({
     ...createAddressMutation(),
-    onSuccess: (_data, vars: any) => {
+    onSuccess: (_data, vars) => {
       // Invalidate the whole admin-addresses key family — the brandId
       // filter may differ between consumers.
       qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
@@ -1823,7 +1842,7 @@ export function useAdminBookingExport(filter: AdminBookingFilter) {
   // Remove undefined values
   Object.keys(query).forEach((k) => query[k] === undefined && delete query[k]);
   return useQuery({
-    ...adminBookingExportOptions({ query } as any),
+    ...adminBookingExportOptions({ query } as unknown as Parameters<typeof adminBookingExportOptions>[0]),
     enabled: false, // only fetch on demand via refetch
   });
 }

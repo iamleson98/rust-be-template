@@ -1,9 +1,9 @@
 'use client'
 
 import { useApp } from '@/lib/store'
-import { useNavigate, useRouterState } from '@/router'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
-import { Home, Search, Ticket, Headset, Bus } from 'lucide-react'
+import { Home, Search, Ticket, Headset } from 'lucide-react'
 
 type TabKey = 'home' | 'search' | 'bookings' | 'support'
 

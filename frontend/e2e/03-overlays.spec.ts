@@ -169,7 +169,7 @@ test.describe('HoverCard', () => {
     await page.getByTestId('hover-card-trigger').hover()
     const content = page.getByTestId('hover-card-content')
     await expect(content).toBeVisible()
-    await expect(content.getByText('VeXeVN Support')).toBeVisible()
+    await expect(content.getByText('DatXeVui Support')).toBeVisible()
   })
 })
 

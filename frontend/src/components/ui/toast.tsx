@@ -19,6 +19,7 @@
  * preserve the public API so consumers can still type-check.
  */
 import {
+  type ComponentProps,
   type ComponentPropsWithoutRef,
   type ElementRef,
   type ReactElement,
@@ -88,7 +89,7 @@ const Toast = forwardRef<
   return (
     <ToastPrimitive.Root
       ref={ref}
-      toast={syntheticToast as any}
+      toast={syntheticToast as unknown as ComponentProps<typeof ToastPrimitive.Root>['toast']}
       className={cn(toastVariants({ variant }), className)}
       {...props}
     />

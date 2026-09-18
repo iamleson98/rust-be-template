@@ -38,6 +38,7 @@ import { useApp } from '@/lib/store'
 import { useSetUserRole, useUsers } from '@/lib/queries'
 import type { UserOut } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
+import { getErrorMessage } from '@/lib/error-message'
 
 const PAGE_SIZE = 20
 
@@ -82,8 +83,8 @@ export function UsersPanel() {
         body: { role },
       })
       toast.success(`Đã cập nhật vai trò của «${target.fullName}»`)
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.body?.message ?? 'Không thể cập nhật vai trò')
+    } catch (e) {
+      toast.error(e instanceof Error || (e && typeof e === 'object' && ('error' in e || 'body' in e)) ? getErrorMessage(e) : 'Không thể cập nhật vai trò')
       // Refetch in case the optimistic select left a stale value.
       void query.refetch()
     }

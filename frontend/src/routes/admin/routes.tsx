@@ -35,8 +35,12 @@ import { BrandDot } from '@/features/admin/brand-dot'
 import { RouteMobileCard } from '@/features/admin/routes/route-card'
 import { RouteDeleteDialog } from '@/features/admin/routes/route-delete-dialog'
 import { useRouteColumns } from '@/features/admin/routes/route-columns'
+import { getErrorMessage } from '@/lib/error-message'
 
 /** Server-side page size for the routes table. */
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 const PAGE_SIZE = 20
 
 export function AdminRoutesPage() {
@@ -54,11 +58,14 @@ export function AdminRoutesPage() {
   // the route name, both city slugs and the brand's name).
   const debouncedSearch = useDebouncedValue(search, 300)
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(0)
   }, [debouncedSearch, brandId])
 
   const brandsQuery = useAdminBrands()
-  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as unknown as AdminBrandOut[]
+  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminBrandOut[]
   const selectedBrand = useMemo(
     () => brands.find((b) => b.id === brandId) ?? null,
     [brands, brandId],
@@ -93,8 +100,8 @@ export function AdminRoutesPage() {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
       toast.success('Đã xoá tuyến')
       setDeleteTarget(null)
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể xoá tuyến')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể xoá tuyến'))
     } finally {
       setDeleting(false)
     }
@@ -114,7 +121,7 @@ export function AdminRoutesPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/admin/schedules' as any })}>
+          <Button variant="outline" size="sm" onClick={() => navigate({ to: '/admin/schedules' as never })}>
             <CalendarDays className="h-4 w-4 mr-1.5" /> Lịch trình
           </Button>
           <Button size="sm" onClick={openCreate} disabled={!selectedBrand}>

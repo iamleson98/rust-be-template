@@ -53,6 +53,9 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setQuery(value)
   }, [value])
 
@@ -63,6 +66,9 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
 
   // Keep `highlight` within bounds as items change.
   useEffect(() => {
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHighlight(0)
   }, [debouncedQuery])
 

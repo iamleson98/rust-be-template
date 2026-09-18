@@ -16,6 +16,9 @@ import { MobileFiltersSheet } from './mobile-filters'
 import { ActiveFilterChips } from './active-filter-chips'
 import { TripResultsList } from './trip-results-list'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 export type { RouteSearch } from './helpers'
 
 /* ─── Main Component ─── */
@@ -43,12 +46,12 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
       }
       : null
   const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
-  const searchResults = searchData?.items ?? []
+  const searchResults = searchData?.items ?? EMPTY_ITEMS
 
   // Cache results in window global so compare can read them without refetch
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      ; (window as any).__lastSearchResults = searchResults
+      ; window.__lastSearchResults = searchResults
     }
   }, [searchResults])
 
@@ -200,7 +203,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
       date: s.date,
       adults: s.adults,
       children: s.children,
-      sort: s.sort as any,
+      sort: s.sort as never,
       vehicleTypes: s.vehicleTypes,
     })
     setFilters(s.filters)

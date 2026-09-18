@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/lib/queries'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { useApp } from '@/lib/store'
 import {
   Dialog,

@@ -19,7 +19,6 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { formatCurrency } from '@/lib/currency'
 import { useMyBookings, useMyReviews } from '@/lib/queries'
-import { useApp } from '@/lib/store'
 import { isBookingReviewable, type BookingItem, type ReviewItem } from '@/features/booking/history/booking-types'
 import { StarRating } from '@/features/feedback/star-rating'
 import { Card, CardContent } from '@/components/ui/card'
@@ -39,7 +38,11 @@ import {
   Pencil,
   Star,
 } from 'lucide-react'
+import type { ReviewSummary } from '@/features/booking/history/booking-types'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 const FeedbackForm = lazy(() =>
   import('@/features/feedback/feedback-form').then((m) => ({ default: m.FeedbackForm })),
 )
@@ -210,7 +213,7 @@ function SentFeedbackCard({
           <Suspense fallback={FeedbackFormFallback}>
             <FeedbackForm
               booking={booking}
-              existingReview={review as any}
+              existingReview={review as unknown as ReviewSummary | null}
               onSubmitted={onEdited}
               onClose={onEdit}
             />
@@ -261,7 +264,6 @@ function SentFeedbackSkeleton() {
 
 /* ── Page ─────────────────────────────────────────────────────── */
 export function AccountFeedbackContent() {
-  const { currency } = useApp()
   const [tab, setTab] = useState<'pending' | 'sent'>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -276,8 +278,8 @@ export function AccountFeedbackContent() {
     offset: page * PAGE_SIZE,
   })
 
-  const bookings: BookingItem[] = (bookingsData?.items ?? []) as unknown as BookingItem[]
-  const reviews: ReviewItem[] = (reviewsData?.items ?? []) as unknown as ReviewItem[]
+  const bookings: BookingItem[] = (bookingsData?.items ?? EMPTY_ITEMS) as unknown as BookingItem[]
+  const reviews: ReviewItem[] = (reviewsData?.items ?? EMPTY_ITEMS) as unknown as ReviewItem[]
   const total = reviewsData?.total ?? 0
 
   // Rides taken but not yet reviewed → the "pending" tab.

@@ -47,6 +47,7 @@ import { TicketsKpiCards } from './tickets-kpi-cards'
 import { TicketsFilterBar } from './tickets-filter-bar'
 import { TicketsBookingsTable } from './tickets-bookings-table'
 import { BookingDetailDialog } from './booking-detail-dialog'
+import { getErrorMessage } from '@/lib/error-message'
 
 // ── Server-side sort mapping ─────────────────────────────────
 // Only these columns are sortable — the API `sort` param drives the order,
@@ -244,12 +245,12 @@ export function TicketsPanel() {
       toast.success('Xuất CSV thành công', {
         description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
-    } catch (e: any) {
+    } catch (e) {
       toast.error('Xuất CSV thất bại', {
-        description: e?.message ?? 'Vui lòng thử lại',
+        description: getErrorMessage(e, 'Vui lòng thử lại'),
       })
     }
-  }, [exportMutation, filter])
+  }, [exportMutation])
 
   // KPI totals — come from the dedicated /stats endpoint
   // (`AdminBookingStatsResponse.totals`), not from the list response.

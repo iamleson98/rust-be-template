@@ -61,6 +61,7 @@ import { ScheduleRouteSection } from './schedule-route-section'
 import { ScheduleBasicsFields } from './schedule-basics-fields'
 import { ScheduleDaysField } from './schedule-days-field'
 import { SchedulePricingFields } from './schedule-pricing-fields'
+import { getErrorMessage } from '@/lib/error-message'
 
 export function ScheduleFormDialog({
   open,
@@ -273,11 +274,11 @@ export function ScheduleFormDialog({
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as any)
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
       toast.success(isEdit ? 'Đã cập nhật lịch trình' : 'Đã thêm lịch trình mới')
       onSaved()
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể lưu lịch trình')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu lịch trình'))
     }
   }
 

@@ -58,6 +58,9 @@ export function Hero() {
   const { data: statsData } = useStats()
   useEffect(() => {
     if (statsData) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStats({
         brands: Number(statsData.brands) || 0,
         routes: Number(statsData.routes) || 0,

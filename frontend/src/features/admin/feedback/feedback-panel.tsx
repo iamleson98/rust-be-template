@@ -32,6 +32,7 @@ import { useFeedbackColumns } from './feedback-columns'
 import { FeedbackDetailDialog } from './feedback-detail-dialog'
 import { FeedbackFilterToolbar } from './feedback-filter-toolbar'
 import type { FeedbackRow } from './helpers'
+import { getErrorMessage } from '@/lib/error-message'
 
 /* ── Constants ─────────────────────────────────────────────────── */
 
@@ -83,11 +84,11 @@ export function FeedbackPanel() {
     ) => {
       setUpdating(true)
       try {
-        await moderateMut.mutateAsync({ path: { id }, body: { status: body.status, brandReply: body.brandReply } } as any)
+        await moderateMut.mutateAsync({ path: { id }, body: { status: body.status, brandReply: body.brandReply } } as unknown as Parameters<typeof moderateMut.mutateAsync>[0])
         toast.success(successMsg)
         return true
-      } catch (e: any) {
-        toast.error(e?.message ?? 'Cập nhật thất bại')
+      } catch (e) {
+        toast.error(getErrorMessage(e, 'Cập nhật thất bại'))
         return false
       } finally {
         setUpdating(false)

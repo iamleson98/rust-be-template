@@ -44,11 +44,15 @@ import { useEffect, useState, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { stopTitleNotification } from '@/lib/title-notifier'
-import type { SessionUser } from '@/lib/api/types.gen'
+import type {
+  CreateChannelData,
+  CreateChannelResponse,
+  ChatChannelListResponse,
+  ChatMessageListResponse, SessionUser } from '@/lib/api/types.gen'
 import {
   useAuthMe,
   useChatChannels,
@@ -72,6 +76,7 @@ import { ChatInput } from './chat-input'
 import { useChatFocusTrap } from './use-chat-focus-trap'
 import { useChatWidgetWs } from './use-chat-widget-ws'
 import { isStaffUser } from '@/lib/store'
+import { getErrorMessage } from '@/lib/error-message'
 
 export function ChatWidget() {
   const { chatOpen, setChatOpen, callOpen, setCallOpen, user: storeUser, setUser: setStoreUser } = useApp()
@@ -95,7 +100,7 @@ export function ChatWidget() {
   // Agent presence / waiting-for-agent UI
   const [waitingForAgent, setWaitingForAgent] = useState(false)
   const [employeesOnline, setEmployeesOnline] = useState(0)
-  const [agentJoinedName, setAgentJoinedName] = useState<string | null>(null)
+  const [, setAgentJoinedName] = useState<string | null>(null)
   // Three-role routing: live assignee (from `channel_assigned` events
   // + channel list refetch) + bot status (no staff online).
   const [assignee, setAssignee] = useState<{ id: string; name: string; role: string } | null>(null)
@@ -136,6 +141,9 @@ export function ChatWidget() {
 
     if (authMe.isLoading) return
     if (authMe.error) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setChatUser(null)
       setCallOpen(false)
       setChatOpen(false)
@@ -145,9 +153,9 @@ export function ChatWidget() {
     if (authMe.data?.user) {
       const u = authMe.data.user as unknown as SessionUser
       setChatUser(u)
-      if (!storeUser) setStoreUser(u as any)
+      if (!storeUser) setStoreUser(u as unknown as Parameters<typeof setStoreUser>[0])
     }
-  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, navigate])
+  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, setCallOpen, navigate])
 
   // Hide the chat button entirely for employees (they have the admin workspace)
   const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)
@@ -209,9 +217,9 @@ export function ChatWidget() {
   // version in ChatConversation.
 
   // ── Mutations ─────────────────────────────────────────────────────
-  const createChannelMut = useCreateChatChannel({
-    onError: (err: any) => {
-      toast.error(err?.message ?? 'Không thể tạo kênh chat')
+  const createChannelMut = useCreateChatChannel<CreateChannelResponse, CreateChannelData>({
+    onError: (err) => {
+      toast.error(getErrorMessage(err, 'Không thể tạo kênh chat'))
     },
   })
 
@@ -247,17 +255,17 @@ export function ChatWidget() {
         socketRef.current.on('_open', joinHandler)
       }
     }
-    markReadMut.mutate({ path: { id: ch.id } } as any)
+    markReadMut.mutate({ path: { id: ch.id } } as unknown as Parameters<typeof markReadMut.mutate>[0])
     // Optimistically clear the unread badge in the cache — the
     // mutation's onSuccess will refetch from the server to confirm.
     // Use the correct query key format (partial match on _id).
-    qc.setQueryData<any>(
+    qc.setQueryData<ChatChannelListResponse>(
       [{ _id: 'listChannels' }],
-      (old: any) => {
+      (old) => {
         if (!old?.items) return old
         return {
           ...old,
-          items: old.items.map((c: any) =>
+          items: old.items.map((c) =>
             c.id === ch.id ? { ...c, unreadUser: 0 } : c
           ),
         }
@@ -272,8 +280,16 @@ export function ChatWidget() {
     if (!chatUser || authMe.isLoading || channelsQuery.isLoading || !initializingChannel) return
 
     const latestChannel = channels[0]
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (latestChannel) void openChannel(latestChannel)
     setInitializingChannel(false)
+    // One-shot channel auto-open: `channels` is a derived flatten (new
+    // identity per render) and `openChannel` is a non-memoized async fn;
+    // listing them would re-fire this effect every render. The
+    // `initializingChannel` flag is the guard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatUser, authMe.isLoading, channelsQuery.isLoading, channelsQuery.data, initializingChannel])
 
   const startNewChat = async () => {
@@ -289,11 +305,15 @@ export function ChatWidget() {
     // The mutation's onSuccess invalidates the channels list so the
     // new channel appears immediately.
     createChannelMut.mutate(
-      { body: { topic: 'Hỗ trợ đặt vé', brandId: null } } as any,
+      { body: { topic: 'Hỗ trợ đặt vé', brandId: null } } as unknown as Parameters<
+        typeof createChannelMut.mutate
+      >[0],
       {
-        onSuccess: (data: any) => {
+        onSuccess: (data) => {
           if (data?.channel) {
-            openChannel(data.channel)
+            // App-side view type vs wire type — structurally compatible,
+            // converted at the boundary.
+            openChannel(data.channel as unknown as Channel)
           }
         },
       },
@@ -344,9 +364,9 @@ export function ChatWidget() {
       path: { id: activeChannel.id },
       query: { limit: 50 },
     })
-    qc.setQueryData<any>(msgQueryKey, (old: any) => {
+    qc.setQueryData<ChatMessageListResponse>(msgQueryKey, (old) => {
       if (!old?.items) return old
-      if (old.items.some((m: any) => m.clientMsgId === clientMsgId)) return old
+      if (old.items.some((m) => (m as { clientMsgId?: string | null }).clientMsgId === clientMsgId)) return old
       return { ...old, items: [...old.items, optimisticMsg] }
     })
 
@@ -371,7 +391,7 @@ export function ChatWidget() {
         kind: 'text',
         clientMsgId,
       },
-    } as any)
+    } as unknown as Parameters<typeof postMessageMut.mutate>[0])
   }
 
   const onInputTyping = (val: string) => {
@@ -457,8 +477,6 @@ export function ChatWidget() {
             messages={messages}
             typing={typing}
             waitingForAgent={waitingForAgent}
-            agentJoinedName={agentJoinedName}
-            employeesOnline={employeesOnline}
             hasMoreMessages={hasMoreMessages}
             isFetchingMoreMessages={isFetchingMoreMessages}
             onFetchMoreMessages={() => fetchMoreMessages()}

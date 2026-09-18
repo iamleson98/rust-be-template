@@ -30,7 +30,6 @@ export function TicketsKpiCards({
         up
         color="#2563eb"
         gradient="from-blue-500/10 to-blue-600/5"
-        delay={0}
       />
       <KpiCard
         icon={<DollarSign className="h-5 w-5" />}
@@ -40,7 +39,6 @@ export function TicketsKpiCards({
         up
         color="#16a34a"
         gradient="from-emerald-500/10 to-emerald-600/5"
-        delay={0.05}
       />
       <KpiCard
         icon={<CheckCircle2 className="h-5 w-5" />}
@@ -50,7 +48,6 @@ export function TicketsKpiCards({
         up
         color="#0ea5e9"
         gradient="from-sky-500/10 to-sky-600/5"
-        delay={0.1}
       />
       <KpiCard
         icon={<TrendingUp className="h-5 w-5" />}
@@ -60,7 +57,6 @@ export function TicketsKpiCards({
         up
         color="#10b981"
         gradient="from-emerald-500/10 to-emerald-600/5"
-        delay={0.15}
       />
       <KpiCard
         icon={<Ban className="h-5 w-5" />}
@@ -69,7 +65,6 @@ export function TicketsKpiCards({
         change=""
         color="#f43f5e"
         gradient="from-rose-500/10 to-rose-600/5"
-        delay={0.2}
       />
     </div>
   )

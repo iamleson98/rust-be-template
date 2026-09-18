@@ -37,7 +37,7 @@ function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null
   if (!audioCtx) {
     try {
-      audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)()
     } catch {
       return null
     }

@@ -56,8 +56,6 @@ export function ChatConversation({
   messages,
   typing,
   waitingForAgent,
-  agentJoinedName,
-  employeesOnline,
   hasMoreMessages,
   isFetchingMoreMessages,
   onFetchMoreMessages,
@@ -67,8 +65,6 @@ export function ChatConversation({
   messages: Message[]
   typing: { name: string } | null
   waitingForAgent: boolean
-  agentJoinedName: string | null
-  employeesOnline: number
   /** Whether there are more older messages to load (infinite scroll). */
   hasMoreMessages?: boolean
   /** Whether we're currently fetching the next page of older messages. */

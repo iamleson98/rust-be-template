@@ -17,7 +17,7 @@
  */
 
 import { memo, useCallback, useState } from 'react'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import {
   useStats,
   useAdminBookingExport,
@@ -44,6 +44,7 @@ import { StatsOverview } from './stats-overview'
 import { ChatPanel } from '@/features/admin/chat/chat-panel'
 import { CampaignsPanel } from './campaigns-panel'
 import { TicketsPanel } from '@/features/admin/tickets/tickets-panel'
+import { getErrorMessage } from '@/lib/error-message'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
@@ -62,8 +63,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
       toast.success('Xuất CSV thành công', {
         description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
       })
-    } catch (e: any) {
-      toast.error('Xuất CSV thất bại', { description: e?.message ?? 'Vui lòng thử lại' })
+    } catch (e) {
+      toast.error('Xuất CSV thất bại', { description: getErrorMessage(e, 'Vui lòng thử lại') })
     }
   }, [exportQuery])
 
@@ -147,7 +148,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
                 unreadPulseChannels={chat.unreadPulseChannels}
                 hasMoreMessages={chat.hasMoreMessages}
                 isFetchingMoreMessages={chat.isFetchingMoreMessages}
-                onFetchMoreMessages={chat.fetchMoreMessages as any}
+                onFetchMoreMessages={chat.fetchMoreMessages as unknown as () => Promise<void>}
                 chatStats={chat.chatStats}
                 onViewTicket={(code) => {
                   const ev = new CustomEvent('admin:view-ticket', { detail: code })

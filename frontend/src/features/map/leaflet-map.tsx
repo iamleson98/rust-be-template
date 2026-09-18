@@ -18,7 +18,7 @@ import { BasemapLayer } from '@/features/map/basemap-layer'
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
-delete (L.Icon.Default.prototype as any)._getIconUrl
+delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -194,7 +194,7 @@ function MapSearchBox({
     setLoading(true)
     try {
       const { data } = await sdkPlaceSearch({ query: { q: query, limit: 6 } })
-      setHits((data as any)?.items ?? [])
+      setHits(((data ?? {}) as { items?: PlaceHit[] }).items ?? [])
     } catch {
       setHits([])
     } finally {
@@ -281,7 +281,7 @@ function MapSearchBox({
 async function reverseGeocode(lat: number, lon: number): Promise<PickedPlace> {
   try {
     const { data } = await sdkReverseGeocode({ query: { lat, lon, limit: 1 } })
-    const hits: PlaceHit[] = (data as any) ?? []
+    const hits: PlaceHit[] = (data ?? []) as PlaceHit[]
     const h = hits[0]
     if (!h) return { name: `${lat.toFixed(3)}, ${lon.toFixed(3)}`, lat, lon }
     return {

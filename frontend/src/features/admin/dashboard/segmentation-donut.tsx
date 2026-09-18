@@ -34,7 +34,7 @@ export function SegmentationDonut({
 
   // Pre-compute cumulative offsets without mutation (functional style)
   const pcts = segments.map((s) => s.count / safeTotal)
-  const cumulativeStarts = pcts.reduce<number[]>((acc, p, i) => {
+  const cumulativeStarts = pcts.reduce<number[]>((acc, _p, i) => {
     const start = i === 0 ? 0 : acc[i - 1] + pcts[i - 1]
     return [...acc, start]
   }, [])

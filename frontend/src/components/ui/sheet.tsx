@@ -5,6 +5,7 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { resolveNativeButton } from './resolve-native-button'
 
 /**
  * Radix-compat Sheet wrapper around Base UI's Dialog.
@@ -47,7 +48,7 @@ function SheetTrigger({
     return (
       <SheetPrimitive.Trigger
         data-slot="sheet-trigger"
-        nativeButton={true}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />
@@ -71,7 +72,7 @@ function SheetClose({
     return (
       <SheetPrimitive.Close
         data-slot="sheet-close"
-        nativeButton={true}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />

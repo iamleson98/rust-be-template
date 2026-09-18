@@ -5,6 +5,7 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { resolveNativeButton } from './resolve-native-button'
 
 /**
  * Radix-compat wrapper around Base UI's AlertDialog.
@@ -52,7 +53,7 @@ function AlertDialogTrigger({
     return (
       <AlertDialogPrimitive.Trigger
         data-slot="alert-dialog-trigger"
-        nativeButton={false}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />

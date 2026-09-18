@@ -30,10 +30,10 @@ export function AdminChatPage() {
         unreadPulseChannels={ws.unreadPulseChannels}
         hasMoreMessages={ws.hasMoreMessages}
         isFetchingMoreMessages={ws.isFetchingMoreMessages}
-        onFetchMoreMessages={ws.fetchMoreMessages as any}
+        onFetchMoreMessages={ws.fetchMoreMessages as unknown as () => Promise<void>}
         hasMoreChannels={ws.hasMoreChannels}
         isFetchingMoreChannels={ws.isFetchingMoreChannels}
-        onFetchMoreChannels={ws.fetchMoreChannels as any}
+        onFetchMoreChannels={ws.fetchMoreChannels as unknown as () => Promise<void>}
         chatStats={ws.chatStats}
         staffPresence={ws.staffPresence}
         mineFilter={ws.mineFilter}

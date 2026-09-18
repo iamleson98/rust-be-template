@@ -17,7 +17,7 @@
  *     caller can immediately select it for the schedule point.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -35,9 +35,8 @@ import { useCreateAdminAddress, usePlaceSearch } from '@/lib/queries'
 import { reverseGeocode } from '@/features/map/leaflet-map'
 import type { AdminAddressOut, PlaceSearchHit } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
-import { useQuery } from '@tanstack/react-query'
-import { reverseOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { LatLongRegex, parseLatLong } from '@/lib/slug'
+import { getErrorMessage } from '@/lib/error-message'
 
 // Leaflet touches `window` at import time — load the map client-side only.
 const LeafletMap = lazy(() =>
@@ -96,6 +95,9 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   useEffect(() => {
     const result = parseLatLong(debounced);
     if (result.ok) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setReverseLoading(true)
 
       reverseGeocode(result.value![0], result.value![1])
@@ -126,6 +128,9 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   // Reset every time the dialog opens.
   useEffect(() => {
     if (open) {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm(EMPTY_FORM)
       setPicked(null)
       setFlyTarget(null)
@@ -224,7 +229,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
     try {
       // SDK mutation hooks require { body: <payload> } — see the 415 note
       // in queries/index.ts.
-      const res: any = await createMutation.mutateAsync({
+      const res = await (createMutation.mutateAsync({
         body: {
           brandId,
           name: form.name.trim(),
@@ -235,8 +240,11 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           district: form.district.trim() || undefined,
           ward: form.ward.trim() || undefined,
         },
-      } as any)
-      const newId: string | undefined = res?.id ?? (res?.data as any)?.id
+      } as unknown as Parameters<typeof createMutation.mutateAsync>[0]) as {
+        id?: string
+        data?: { id?: string }
+      })
+      const newId: string | undefined = res?.id ?? res?.data?.id
       if (!newId) throw new Error('missing id in response')
       toast.success('Đã tạo địa điểm mới', { description: form.name.trim() })
       onCreated({
@@ -253,9 +261,9 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         updatedAt: new Date().toISOString(),
       })
       onOpenChange(false)
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể tạo địa điểm', {
-        description: 'Vui lòng thử lại',
+    } catch (e) {
+      toast.error('Không thể tạo địa điểm', {
+        description: getErrorMessage(e, 'Vui lòng thử lại'),
       })
     }
   }

@@ -2,7 +2,7 @@
 
 // Extracted from the original 'my-bookings.tsx'.
 
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { Search, ChevronDown } from 'lucide-react'
 import { Card as UiCard } from '@/components/ui/card'
 import type { Currency } from '@/lib/currency'

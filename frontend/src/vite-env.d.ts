@@ -21,3 +21,19 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+/**
+ * Global window augmentations for third-party scripts and app-internal
+ * debug channels. Centralized here so call sites use `window.gtag` etc.
+ * directly instead of `(window as any)` casts.
+ */
+interface Window {
+  /** Google Analytics 4 gtag() — injected by the GA4 bootstrap script. */
+  gtag?: (...args: unknown[]) => void
+  /** Firebug presence probe (console-protection). */
+  firebug?: { isEnabled: boolean }
+  /** Safari's legacy prefixed AudioContext (sound-effects). */
+  webkitAudioContext?: typeof AudioContext
+  /** Debug channel: last trip-search results (search-results ↔ trip-compare). */
+  __lastSearchResults?: unknown[]
+}

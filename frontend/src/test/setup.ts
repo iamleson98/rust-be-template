@@ -30,32 +30,35 @@ if (!window.matchMedia) {
 }
 
 // ── Mock IntersectionObserver (used by LazySection) ───────────
-class MockIntersectionObserver {
+class MockIntersectionObserver implements IntersectionObserver {
+  readonly root: Element | null = null
+  readonly rootMargin: string = '0px'
+  readonly thresholds: ReadonlyArray<number> = []
   observe = vi.fn()
   unobserve = vi.fn()
   disconnect = vi.fn()
   takeRecords = vi.fn().mockReturnValue([])
 }
-;(window as any).IntersectionObserver = MockIntersectionObserver
+;window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
 
 // ── Mock ResizeObserver (used by some shadcn components) ──────
-class MockResizeObserver {
+class MockResizeObserver implements ResizeObserver {
   observe = vi.fn()
   unobserve = vi.fn()
   disconnect = vi.fn()
 }
-;(window as any).ResizeObserver = MockResizeObserver
+;window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 
 // ── Mock scrollTo (jsdom doesn't implement it) ────────────────
 window.scrollTo = vi.fn()
 
 // ── Mock navigator.sendBeacon (web vitals) ───────────────────
 if (!navigator.sendBeacon) {
-  ;(navigator as any).sendBeacon = vi.fn().mockReturnValue(true)
+  ;(navigator as Navigator & { sendBeacon?: (url: string, data?: BodyInit) => boolean }).sendBeacon = vi.fn().mockReturnValue(true)
 }
 
 // ── Mock crypto.randomUUID ───────────────────────────────────
 if (!crypto.randomUUID) {
-  ;(crypto as any).randomUUID = () =>
+  ;(crypto as Crypto & { randomUUID?: () => string }).randomUUID = () =>
     '00000000-0000-4000-8000-000000000000'
 }

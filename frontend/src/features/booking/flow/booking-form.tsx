@@ -13,6 +13,7 @@ import {
   UserCheck,
   Baby,
 } from 'lucide-react'
+import type { TripSeat } from '@/lib/api/types.gen'
 
 // ── Trip detail shape (local — matches the actual backend response) ──
 // The centralized type in `@/lib/queries/types` lacks `seatMap.decks`,
@@ -28,7 +29,7 @@ export type TripDetail = {
   pricing: { basePriceAdult: number; basePriceChild: number }
   pickupPoints: { id: string; name: string; stopOrder: number; etaOffsetMin: number }[]
   seatMap: {
-    decks: { deck: number; rows: { row: number; seats: any[] }[] }[]
+    decks: { deck: number; rows: { row: number; seats: TripSeat[] }[] }[]
   }
 }
 

@@ -43,6 +43,9 @@ export function useRouteNavigation(
   // fresh "locating you…" state instead of stale data from last time.
   useEffect(() => {
     if (!open) return
+    // Intentional effect-synced state (dialog reset-on-open /
+    // server-data snapshot / DOM-availability gate).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGeo({ status: 'idle' })
     setRoute({ status: 'idle' })
   }, [open])
@@ -76,6 +79,9 @@ export function useRouteNavigation(
   // Auto-trigger geolocation when the dialog opens.
   useEffect(() => {
     if (open && geo.status === 'idle') {
+      // Intentional effect-synced state (dialog reset-on-open /
+      // server-data snapshot / DOM-availability gate).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       requestLocation()
     }
   }, [open, geo.status, requestLocation])

@@ -55,7 +55,11 @@ import { ScheduleCard } from '@/features/admin/schedules/schedule-card'
 import { ScheduleDeleteDialog } from '@/features/admin/schedules/schedule-delete-dialog'
 import { cityLabel } from '@/features/admin/schedules/schedule-page-helpers'
 import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'
+import { getErrorMessage } from '@/lib/error-message'
 
+
+/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+const EMPTY_ITEMS: never[] = []
 export function AdminSchedulesPage() {
   const [brandId, setBrandId] = useState<string | undefined>(undefined)
   const [routeId, setRouteId] = useState<string | undefined>(undefined)
@@ -65,14 +69,14 @@ export function AdminSchedulesPage() {
   const [deleting, setDeleting] = useState(false)
 
   const brandsQuery = useAdminBrands()
-  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? []) as unknown as AdminBrandOut[]
+  const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminBrandOut[]
   const selectedBrand = useMemo(
     () => brands.find((b) => b.id === brandId) ?? null,
     [brands, brandId],
   )
 
   const routesQuery = useAdminRoutes({ brandId })
-  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? []) as unknown as AdminRouteOut[]
+  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminRouteOut[]
   const selectedRoute = useMemo(
     () => routes.find((r) => r.id === routeId) ?? null,
     [routes, routeId],
@@ -80,13 +84,13 @@ export function AdminSchedulesPage() {
 
   const schedulesQuery = useAdminSchedules(selectedRoute?.id)
   const schedules: AdminScheduleOut[] =
-    (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
+    (schedulesQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminScheduleOut[]
 
   const busLayoutsQuery = useAdminBusLayouts({
     brandId: selectedRoute?.brandId ?? undefined,
   })
   const busLayouts: AdminBusLayoutOut[] =
-    (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
+    (busLayoutsQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminBusLayoutOut[]
 
   const layoutById = useMemo(
     () => new Map(busLayouts.map((l) => [l.id, l])),
@@ -116,8 +120,8 @@ export function AdminSchedulesPage() {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
       toast.success('Đã xoá lịch trình')
       setDeleteTarget(null)
-    } catch (e: any) {
-      toast.error(e?.message ?? 'Không thể xoá lịch trình')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể xoá lịch trình'))
     } finally {
       setDeleting(false)
     }

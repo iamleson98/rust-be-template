@@ -44,6 +44,7 @@ import {
   timeLabel,
 } from './helpers'
 import { ScheduleEditDialog } from './schedule-edit-dialog'
+import { getErrorMessage } from '@/lib/error-message'
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -318,10 +319,10 @@ export function CronJobsPanel() {
     try {
       await triggerMutation.mutateAsync({ path: { jobType: job.jobType } })
       toast.success(`Đã đưa «${job.jobType}» vào hàng chờ`)
-    } catch (e: any) {
+    } catch (e) {
       // 409 = already running; 503 = worker disabled — the API messages
       // are already human-readable Vietnamese/English strings.
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể chạy tác vụ')
+      toast.error(getErrorMessage(e, 'Không thể chạy tác vụ'))
     }
   }
 
@@ -329,9 +330,9 @@ export function CronJobsPanel() {
     try {
       await cancelMutation.mutateAsync({ path: { jobType: job.jobType } })
       toast.success(`Đã gửi yêu cầu dừng «${job.jobType}»`)
-    } catch (e: any) {
+    } catch (e) {
       // 404 = nothing queued/running to stop.
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể dừng tác vụ')
+      toast.error(getErrorMessage(e, 'Không thể dừng tác vụ'))
     }
   }
 
@@ -342,8 +343,8 @@ export function CronJobsPanel() {
         body: { enabled },
       })
       toast.success(enabled ? 'Đã bật lịch chạy' : 'Đã tắt lịch chạy')
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể cập nhật lịch')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể cập nhật lịch'))
     }
   }
 
@@ -356,8 +357,8 @@ export function CronJobsPanel() {
       })
       toast.success('Đã lưu lịch chạy')
       setEditOpen(false)
-    } catch (e: any) {
-      toast.error(e?.error?.message ?? e?.message ?? 'Không thể lưu lịch')
+    } catch (e) {
+      toast.error(getErrorMessage(e, 'Không thể lưu lịch'))
     }
   }
 

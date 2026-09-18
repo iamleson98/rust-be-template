@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useApp, type TripResult } from '@/lib/store'
-import { useNavigate } from '@/router'
+import { useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -118,7 +118,7 @@ export const TripCompare = memo(function TripCompare() {
         Promise.all(
             compareList.map(async (tripId) => {
                 // Use search results first if available; otherwise fetch detail
-                const cached = (window as any).__lastSearchResults as TripResult[] | undefined
+                const cached = window.__lastSearchResults as TripResult[] | undefined
                 const fromCache = cached?.find((t) => t.tripId === tripId)
                 return fromCache
             })

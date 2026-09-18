@@ -4,6 +4,7 @@ import { type ComponentProps, type ReactElement, isValidElement } from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { cn } from "@/lib/utils"
+import { resolveNativeButton } from './resolve-native-button'
 
 /**
  * Radix-compat wrapper around Base UI's Popover.
@@ -48,7 +49,7 @@ function PopoverTrigger({
     return (
       <PopoverPrimitive.Trigger
         data-slot="popover-trigger"
-        nativeButton={true}
+        nativeButton={resolveNativeButton(children)}
         render={children as ReactElement}
         {...props}
       />

@@ -85,7 +85,34 @@ export interface AudioCallConfig {
   iceServers?: IceServerConfig[]
 }
 
-type SignalHandler = (data: any) => void
+/**
+ * Typed payload shapes the client emits. Handlers passed to `on()`
+ * get these types — no more `any` at subscription sites.
+ */
+export interface AudioCallEventMap {
+  state: CallState
+  registered: Record<string, unknown>
+  presence: { onlineAgents: number; agentInCall?: boolean; agentsAvailable?: boolean }
+  incoming: { from: string; channelId?: string; sdp: RTCSessionDescriptionInit }
+  error: { code: string; message: string }
+  hangup: { reason: string }
+  '_close': { code: number; reason: string }
+  'remote-stream': { stream: MediaStream }
+  'connection-state': { state: RTCPeerConnectionState }
+  'ice-restart': { attempts: number }
+}
+
+type SignalHandler<K extends keyof AudioCallEventMap> = (data: AudioCallEventMap[K]) => void
+
+/** Narrow an unknown JSON field to a number (fallback when absent/invalid). */
+function asNum(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
+}
+
+/** Narrow an unknown JSON field to a string (null when absent/invalid). */
+function asStr(v: unknown): string | null {
+  return typeof v === 'string' ? v : null
+}
 
 const DEFAULT_ICE_SERVERS: IceServerConfig[] = [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -162,7 +189,7 @@ export class AudioCallClient {
   public onlineAgents = 0
   public remoteAudioElement: HTMLAudioElement | null = null
 
-  private readonly handlers = new Map<string, Set<SignalHandler>>()
+  private readonly handlers = new Map<string, Set<(data: unknown) => void>>()
 
   constructor(cfg: AudioCallConfig) {
     this.cfg = {
@@ -187,15 +214,15 @@ export class AudioCallClient {
     })
   }
 
-  on(event: string, h: SignalHandler): () => void {
-    let set = this.handlers.get(event)
-    if (!set) { set = new Set(); this.handlers.set(event, set) }
-    set.add(h)
-    return () => set!.delete(h)
+  on<K extends keyof AudioCallEventMap>(event: K, h: SignalHandler<K>): () => void {
+    const set = this.handlers.get(event as string) ?? new Set()
+    set.add(h as (data: unknown) => void)
+    this.handlers.set(event as string, set)
+    return () => { set.delete(h as (data: unknown) => void) }
   }
 
-  private emit(event: string, data: any): void {
-    const set = this.handlers.get(event)
+  private emit<K extends keyof AudioCallEventMap>(event: K, data: AudioCallEventMap[K]): void {
+    const set = this.handlers.get(event as string)
     if (set) for (const h of set) { try { h(data) } catch { } }
   }
 
@@ -229,9 +256,11 @@ export class AudioCallClient {
     }
 
     this.ws.onmessage = (ev) => {
-      let msg: any
+      let msg: unknown
       try { msg = JSON.parse(ev.data) } catch { return }
-      this.handleSignal(msg)
+      if (typeof msg === 'object' && msg !== null) {
+        this.handleSignal(msg as Record<string, unknown>)
+      }
     }
 
     this.ws.onclose = (ev) => {
@@ -282,7 +311,7 @@ export class AudioCallClient {
     this.handlers.clear()
   }
 
-  private send(msg: any): void {
+  private send(msg: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try { this.ws.send(JSON.stringify(msg)) } catch { }
     }
@@ -290,7 +319,7 @@ export class AudioCallClient {
 
   /** Send an ICE candidate, or buffer it when the socket is down and the
    * call is live (see `pendingIce`). */
-  private sendOrBufferIce(to: string, candidate: any): void {
+  private sendOrBufferIce(to: string, candidate: unknown): void {
     const msg: Record<string, unknown> = { type: 'call', to, from: this.cfg.userId, kind: 'ice', candidate }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try { this.ws.send(JSON.stringify(msg)) } catch { }
@@ -312,11 +341,11 @@ export class AudioCallClient {
       this.state === 'connecting' || this.state === 'active'
   }
 
-  private handleSignal(msg: any): void {
+  private handleSignal(msg: Record<string, unknown>): void {
     switch (msg.type) {
       case 'registered': {
         this.registered = true
-        this.onlineAgents = msg.onlineAgents ?? 0
+        this.onlineAgents = asNum(msg.onlineAgents)
         // Server-provided STUN/TURN config (AUDIO_CALL_ICE_SERVERS), pushed
         // over the authed WS. Empty/absent → keep the public-STUN default.
         // Applies to every RTCPeerConnection created after this point.
@@ -347,7 +376,7 @@ export class AudioCallClient {
         break
       }
       case 'presence':
-        this.onlineAgents = msg.onlineAgents ?? 0
+        this.onlineAgents = asNum(msg.onlineAgents)
         this.emit('presence', { onlineAgents: this.onlineAgents })
         break
       case 'incoming': {
@@ -355,12 +384,16 @@ export class AudioCallClient {
         // caller gets an immediate response instead of ringing into a void
         // while we're already on another call.
         if (this.state !== 'idle' || this.pc) {
-          this.send({ type: 'hangup', to: msg.from, reason: 'busy', from: this.cfg.userId })
+          this.send({ type: 'hangup', to: asStr(msg.from) ?? '', reason: 'busy', from: this.cfg.userId })
           break
         }
-        this.peerId = msg.from
+        this.peerId = asStr(msg.from)
         this.setState('incoming')
-        this.emit('incoming', { from: msg.from, channelId: msg.channelId, sdp: msg.sdp })
+        this.emit('incoming', {
+          from: asStr(msg.from) ?? '',
+          channelId: asStr(msg.channelId) ?? undefined,
+          sdp: msg.sdp as RTCSessionDescriptionInit,
+        })
         this.startRingTimeout()
         break
       }
@@ -369,7 +402,7 @@ export class AudioCallClient {
         this.clearCallTimeout()
         if (typeof msg.from === 'string') this.peerId = msg.from
         if (this.pc && msg.sdp) {
-          this.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp))
+          this.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit))
             .then(() => this.setState('active'))
             .catch((e) => this.emit('error', { code: 'set-remote-desc', message: String(e) }))
           // Caller side: 'active' already, but media may never connect.
@@ -387,7 +420,7 @@ export class AudioCallClient {
         // ICE restart: the peer (always the original OFFERER) re-offered
         // with fresh candidates after the media path failed. Apply it to
         // the EXISTING peer connection — never re-ring, never a new call.
-        const sdp = msg.sdp ? new RTCSessionDescription(msg.sdp) : null
+        const sdp = msg.sdp ? new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit) : null
         if (!sdp || !this.pc || !this.isCallLive()) break
         if (typeof msg.from === 'string' && !this.peerId) this.peerId = msg.from
         if (msg.kind === 'offer') {
@@ -416,7 +449,7 @@ export class AudioCallClient {
         this.clearRingTimeout()
         this.cleanupCall()
         this.setState('ended')
-        this.emit('hangup', { reason: msg.reason ?? 'remote' })
+        this.emit('hangup', { reason: asStr(msg.reason) ?? 'remote' })
         setTimeout(() => this.setState('idle'), 2500)
         break
       case 'pong':
@@ -425,7 +458,7 @@ export class AudioCallClient {
       case 'error':
         // Terminal call-setup errors — stop ringing and release the mic.
         if (
-          TERMINAL_ERROR_CODES.has(msg.code) &&
+          TERMINAL_ERROR_CODES.has(asStr(msg.code) ?? '') &&
           (this.state === 'calling' || this.state === 'incoming' ||
             this.state === 'connecting' || this.state === 'active')
         ) {
@@ -434,7 +467,7 @@ export class AudioCallClient {
           this.cleanupCall()
           this.setState('idle')
         }
-        this.emit('error', { code: msg.code, message: msg.message })
+        this.emit('error', { code: asStr(msg.code) ?? 'error', message: asStr(msg.message) ?? 'Lỗi không xác định' })
         break
     }
   }
@@ -453,7 +486,7 @@ export class AudioCallClient {
         },
         video: false,
       })
-    } catch (e) {
+    } catch {
       this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro — kiểm tra quyền trình duyệt' })
       return
     }
@@ -494,7 +527,7 @@ export class AudioCallClient {
   }
 
   /** Accept an inbound call (agent receiving customer's offer, or vice versa). */
-  async acceptCall(remoteOfferSdp: any, fromUserId: string): Promise<void> {
+  async acceptCall(remoteOfferSdp: unknown, fromUserId: string): Promise<void> {
     if (this.state !== 'incoming') return
     this.clearRingTimeout()
     this.peerId = fromUserId
@@ -504,7 +537,7 @@ export class AudioCallClient {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         video: false,
       })
-    } catch (e) {
+    } catch {
       this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro' })
       this.hangup()
       return
@@ -520,7 +553,7 @@ export class AudioCallClient {
     })
     this.setupPeerConnection()
 
-    await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp))
+    await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp as RTCSessionDescriptionInit))
     const answer = await this.pc.createAnswer()
     await this.pc.setLocalDescription(answer)
 
@@ -661,7 +694,7 @@ export class AudioCallClient {
         try { this.remoteAudioElement.play().catch(() => { }) } catch { }
       }
       if (this.remoteStream) {
-        this.emit('remote-stream', { stream: this.remoteStream })
+        this.emit('remote-stream', { stream: this.remoteStream as MediaStream })
       }
     }
     this.pc.onconnectionstatechange = () => {
