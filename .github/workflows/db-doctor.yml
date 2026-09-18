@@ -6,11 +6,11 @@ on: workflow_dispatch
 
 jobs:
   doctor:
-    name: Read-only prod diagnostics v3
+    name: Read-only prod diagnostics v4
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: SSH + run diagnostics v3
+      - name: SSH + run diagnostics v4
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -23,31 +23,23 @@ jobs:
             CID=$(docker ps -q --filter "name=datxevui_backend" | head -n1)
             echo "##### container: $CID"
 
-            echo "##### SECTION: processes in container"
-            docker exec "$CID" sh -c 'ps aux 2>/dev/null || ls /proc | grep -E "^[0-9]+$"'
+            echo "##### SECTION: process cmdlines"
+            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
+              echo "PID $p: $(docker exec "$CID" sh -c "tr '\0' ' ' < /proc/$p/cmdline 2>/dev/null")"
+            done
 
-            echo "##### SECTION: backend PID discovery + fds"
-            BPID=$(docker exec "$CID" sh -c 'ps aux 2>/dev/null | grep -E "backend serve" | grep -v grep | awk "{print \$2}" | head -n1')
-            echo "backend pid: $BPID"
-            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null" | grep -iE "wal|db|rsql|tmp|shm|spill|deleted"
-            echo "--- fd total:"
-            docker exec "$CID" sh -c "ls /proc/$BPID/fd 2>/dev/null | wc -l"
-            echo "--- deleted fds:"
-            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null | grep deleted"
+            echo "##### SECTION: fds of backend (pid 6 and all)"
+            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
+              OUT=$(docker exec "$CID" sh -c "ls -l /proc/$p/fd 2>/dev/null" | grep -iE "wal|\.db|rsql|tmp|shm|spill|deleted")
+              if [ -n "$OUT" ]; then
+                echo "--- PID $p db-related fds:"
+                echo "$OUT"
+              fi
+            done
 
-            echo "##### SECTION: /app/data + stat"
-            docker exec "$CID" ls -la /app/data
-            docker exec "$CID" sh -c 'stat /app/data/app.db 2>/dev/null | head -8'
-
-            echo "##### SECTION: live error probe (register) while watching fds"
-            ( curl -s -o /dev/null -w "register probe: %{http_code}\n" --max-time 20 -X POST "https://datxevui.com/api/auth/register" -H "Content-Type: application/json" -H "Origin: https://datxevui.com" -A "Mozilla/5.0" -d '{"email":"probe_diag3@example.com","password":"Passw0rd!123","fullName":"Probe Diag3"}' ) &
-            sleep 1
-            docker exec "$CID" sh -c "ls -l /proc/$BPID/fd 2>/dev/null" | grep -iE "wal|db|rsql" | head -10
-            wait
-
-            echo "##### SECTION: full error timeline (first + transition)"
-            docker logs "$CID" 2>&1 | grep -n "app_error\|ERROR" | head -8
-            echo "--- around transition 13:29 (context):"
-            docker logs "$CID" 2>&1 | grep -n "13:2[0-9].*ERROR\|13:3[0-3].*ERROR" | head -12
+            echo "##### SECTION: fd count per pid"
+            for p in $(docker exec "$CID" sh -c 'ls /proc | grep -E "^[0-9]+$"' | head -8); do
+              echo "PID $p: $(docker exec "$CID" sh -c "ls /proc/$p/fd 2>/dev/null | wc -l") fds"
+            done
 
             echo "##### DONE"
