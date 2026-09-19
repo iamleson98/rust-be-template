@@ -63,6 +63,19 @@ class CallController extends Notifier<CallUiState> {
   /// ICE restarts attempted this call (capped at 1).
   int _iceRestarts = 0;
 
+  /// Inbound ICE candidates that arrived BEFORE the engine existed
+  /// (during the ring — the web customer trickles the moment it creates
+  /// its offer) or before the remote SDP settled. Dropped candidates
+  /// are lost forever (peers never re-trickle) → incomplete remote
+  /// candidate set → media never connects on strict NATs. Mirrors the
+  /// web client's inbound-candidate buffering fix.
+  final List<Map<String, dynamic>> _pendingRemoteCandidates = [];
+
+  /// True once the engine applied the remote SDP for this negotiation.
+  bool _remoteDescReady = false;
+
+  static const int _maxPendingRemoteCandidates = 128;
+
   static const _ringTimeout = Duration(seconds: 30);
   static const _callTimeout = Duration(seconds: 30);
   static const _connectTimeout = Duration(seconds: 20);
@@ -175,6 +188,10 @@ class CallController extends Notifier<CallUiState> {
     try {
       await engine.open(_iceServers());
       final answer = await engine.acceptOffer(state.remoteOffer!);
+      // Remote SDP settled — apply the caller's candidates that were
+      // buffered during the ring.
+      _remoteDescReady = true;
+      _flushPendingRemoteCandidates();
       sig.sendAnswer(state.peerId ?? '', answer);
       // Mic open + answer sent — the call is being set up. Hold the
       // process awake from now on so the WS heartbeat survives
@@ -257,10 +274,15 @@ class CallController extends Notifier<CallUiState> {
     if (from == null || sig == null) return;
 
     if (kind == 'offer') {
+      // A restart offer resets the remote description — candidates
+      // arriving mid-restart are buffered until it settles.
+      _remoteDescReady = false;
       unawaited(
         engine
             .acceptRenegotiateOffer(Map<String, dynamic>.from(sdp))
             .then((answer) {
+          _remoteDescReady = true;
+          _flushPendingRemoteCandidates();
           sig.sendRenegotiateAnswer(from, answer);
           // Fresh candidates are coming — extend the media deadline so a
           // slow restart isn't killed by the old timer.
@@ -272,6 +294,7 @@ class CallController extends Notifier<CallUiState> {
     } else if (kind == 'answer') {
       engine
           .setRemoteAnswer(Map<String, dynamic>.from(sdp))
+          .then((_) => _flushPendingRemoteCandidates())
           .catchError((_) {});
       _startConnectTimeout();
     }
@@ -386,19 +409,46 @@ class CallController extends Notifier<CallUiState> {
       clearError: true,
     );
     unawaited(ref.read(soundServiceProvider).playCallJoined());
-    _engine?.setRemoteAnswer(Map<String, dynamic>.from(sdp)).catchError((_) {});
+    _engine?.setRemoteAnswer(Map<String, dynamic>.from(sdp)).then((_) {
+      // Remote SDP settled — the answerer's candidates that raced the
+      // answer frame can be applied now.
+      _remoteDescReady = true;
+      _flushPendingRemoteCandidates();
+    }).catchError((_) {});
     // The caller jumps straight to `active` on the answer — media may
     // still be negotiating. Same guard as the callee's `connecting`.
     _startConnectTimeout();
   }
 
   void _onIce(Map<String, dynamic> msg) {
-    if (!_engineExists) return;
     final candidate = msg['candidate'];
     if (candidate is! Map) return;
-    _engine?.addRemoteCandidate(
-      Map<String, dynamic>.from(candidate),
-    ).catchError((_) {});
+    final cand = Map<String, dynamic>.from(candidate);
+    if (!_engineExists || !_remoteDescReady) {
+      // Ring phase (engine not created yet) or remote SDP not settled:
+      // buffer — never drop. A dropped candidate is never re-sent and
+      // leaves the remote candidate set incomplete.
+      final live = state.status != CallStatus.idle &&
+          state.status != CallStatus.ended;
+      if (live &&
+          _pendingRemoteCandidates.length < _maxPendingRemoteCandidates) {
+        _pendingRemoteCandidates.add(cand);
+      }
+      return;
+    }
+    _engine?.addRemoteCandidate(cand).catchError((_) {});
+  }
+
+  /// Apply candidates buffered before the engine / remote SDP was
+  /// ready. Stale or duplicate candidates fail their add silently —
+  /// never fatal.
+  void _flushPendingRemoteCandidates() {
+    if (!_engineExists || _pendingRemoteCandidates.isEmpty) return;
+    final queued = List<Map<String, dynamic>>.of(_pendingRemoteCandidates);
+    _pendingRemoteCandidates.clear();
+    for (final cand in queued) {
+      _engine?.addRemoteCandidate(cand).catchError((_) {});
+    }
   }
 
   void _onRemoteHangup(Map<String, dynamic> msg) {
@@ -447,6 +497,8 @@ class CallController extends Notifier<CallUiState> {
   CallEngine _freshEngine() {
     _teardownEngine();
     _mediaConnected = false;
+    _remoteDescReady = false;
+    _pendingRemoteCandidates.clear();
     final engine = CallEngine()
       ..onLocalCandidate = (candidate) {
         final peer = state.peerId;
@@ -602,6 +654,8 @@ class CallController extends Notifier<CallUiState> {
   void _teardownEngine() {
     _engine?.close();
     _engine = null;
+    _pendingRemoteCandidates.clear();
+    _remoteDescReady = false;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────

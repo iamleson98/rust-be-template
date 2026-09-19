@@ -182,6 +182,21 @@ export class AudioCallClient {
   private pendingIce: Array<Record<string, unknown>> = []
   private static readonly MAX_PENDING_ICE = 64
 
+  /** Inbound ICE candidates that arrived BEFORE this side's peer
+   * connection existed (the caller trickles the moment it creates its
+   * offer — i.e. DURING our ring) or before its remote description
+   * settled (between the answer frame and setRemoteDescription
+   * resolving). These must be BUFFERED, never dropped: browsers do not
+   * re-trickle, so a candidate dropped here leaves the peer with an
+   * incomplete remote candidate set — the peer cannot send it any
+   * connectivity checks, its TURN allocation gets no permission for our
+   * addresses, and on strict NATs (carrier CGNAT) media never connects.
+   * That is the "answered but stuck on connecting" failure. */
+  private inboundIce: RTCIceCandidateInit[] = []
+  /** True once setRemoteDescription settled for the current negotiation. */
+  private remoteDescReady = false
+  private static readonly MAX_INBOUND_ICE = 128
+
   private registered = false
   private registeredResolvers: Array<() => void> = []
 
@@ -334,6 +349,20 @@ export class AudioCallClient {
     for (const msg of queued) this.send(msg)
   }
 
+  /** Apply inbound candidates buffered while the peer connection was
+   * absent or its remote description had not settled. Stale/duplicate
+   * candidates simply fail their addIceCandidate — never fatal. */
+  private async flushInboundIce(): Promise<void> {
+    if (!this.pc || this.inboundIce.length === 0) return
+    const queued = this.inboundIce.splice(0)
+    for (const cand of queued) {
+      if (!this.pc) return
+      try {
+        await this.pc.addIceCandidate(new RTCIceCandidate(cand))
+      } catch { /* stale or duplicate — harmless */ }
+    }
+  }
+
   // ── Signal handling ────────────────────────────────────────
 
   private isCallLive(): boolean {
@@ -403,6 +432,12 @@ export class AudioCallClient {
         if (typeof msg.from === 'string') this.peerId = msg.from
         if (this.pc && msg.sdp) {
           this.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit))
+            .then(() => {
+              // The answerer's candidates may have arrived while the
+              // remote description was still settling — flush them now.
+              this.remoteDescReady = true
+              return this.flushInboundIce()
+            })
             .then(() => this.setState('active'))
             .catch((e) => this.emit('error', { code: 'set-remote-desc', message: String(e) }))
           // Caller side: 'active' already, but media may never connect.
@@ -411,9 +446,20 @@ export class AudioCallClient {
         break
       case 'ice':
         if (typeof msg.from === 'string' && !this.peerId) this.peerId = msg.from
-        if (this.pc && msg.candidate) {
-          this.pc.addIceCandidate(new RTCIceCandidate(msg.candidate))
-            .catch((e) => this.emit('error', { code: 'add-ice', message: String(e) }))
+        {
+          const cand = msg.candidate as RTCIceCandidateInit | undefined
+          if (cand) {
+            // Buffer while the pc is absent (ring phase) or the remote
+            // description has not settled — addIceCandidate would reject
+            // before setRemoteDescription, and dropping the candidate
+            // loses it forever (browsers never re-trickle).
+            if (this.pc && this.remoteDescReady) {
+              this.pc.addIceCandidate(new RTCIceCandidate(cand))
+                .catch((e) => this.emit('error', { code: 'add-ice', message: String(e) }))
+            } else if (this.isCallLive() && this.inboundIce.length < AudioCallClient.MAX_INBOUND_ICE) {
+              this.inboundIce.push(cand)
+            }
+          }
         }
         break
       case 'renegotiate': {
@@ -424,8 +470,13 @@ export class AudioCallClient {
         if (!sdp || !this.pc || !this.isCallLive()) break
         if (typeof msg.from === 'string' && !this.peerId) this.peerId = msg.from
         if (msg.kind === 'offer') {
+          // A restart offer resets the remote description — candidates
+          // arriving mid-restart are buffered until it settles.
+          this.remoteDescReady = false
           this.pc.setRemoteDescription(sdp)
             .then(async () => {
+              this.remoteDescReady = true
+              await this.flushInboundIce()
               const answer = await this.pc!.createAnswer()
               await this.pc!.setLocalDescription(answer)
               this.send({
@@ -440,6 +491,7 @@ export class AudioCallClient {
             .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
         } else if (msg.kind === 'answer') {
           this.pc.setRemoteDescription(sdp)
+            .then(() => this.flushInboundIce())
             .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
         }
         break
@@ -554,6 +606,10 @@ export class AudioCallClient {
     this.setupPeerConnection()
 
     await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp as RTCSessionDescriptionInit))
+    // Remote description settled — apply the caller's candidates that
+    // were buffered during the ring (they would otherwise be lost).
+    this.remoteDescReady = true
+    await this.flushInboundIce()
     const answer = await this.pc.createAnswer()
     await this.pc.setLocalDescription(answer)
 
@@ -784,6 +840,8 @@ export class AudioCallClient {
     this.isOfferer = false
     this.iceRestarts = 0
     this.pendingIce = []
+    this.inboundIce = []
+    this.remoteDescReady = false
     this.clearCallTimeout()
     this.clearRingTimeout()
     if (this.remoteAudioElement) {
