@@ -76,10 +76,7 @@ fn parse_ip(s: &str) -> Option<IpAddr> {
 /// `X-Forwarded-For` (TRUSTED_PROXY_HOPS + 1 from the right), falling
 /// back to `CF-Connecting-IP`, then to the socket peer.
 pub fn real_client_ip(headers: &HeaderMap, socket_ip: IpAddr) -> IpAddr {
-    if let Some(xff) = headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         let hops = trusted_proxy_hops();
         if hops > 0 {
             let ips: Vec<&str> = xff.split(',').collect();
@@ -131,10 +128,7 @@ mod tests {
     /// hops = 1 → the entry 2-from-the-right = real client IP.
     #[test]
     fn xff_right_anchored_skips_spoofed_padding() {
-        let h = headers(&[(
-            "x-forwarded-for",
-            "1.2.3.4, 203.0.113.7, 198.51.100.99",
-        )]);
+        let h = headers(&[("x-forwarded-for", "1.2.3.4, 203.0.113.7, 198.51.100.99")]);
         assert_eq!(
             real_client_ip(&h, ip("10.0.0.9")),
             ip("203.0.113.7") // real client; 198.51.100.99 = CF edge (Caddy's append)
@@ -182,20 +176,14 @@ mod tests {
     /// IPv6 clients (mobile carriers) survive the right-anchored parse.
     #[test]
     fn ipv6_client_parsed() {
-        let h = headers(&[(
-            "x-forwarded-for",
-            "2001:db8::1, 198.51.100.99",
-        )]);
+        let h = headers(&[("x-forwarded-for", "2001:db8::1, 198.51.100.99")]);
         assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("2001:db8::1"));
     }
 
     /// Entries with `ip:port` forms don't break the parse.
     #[test]
     fn xff_entry_with_port() {
-        let h = headers(&[(
-            "x-forwarded-for",
-            "203.0.113.7:54321, 198.51.100.99",
-        )]);
+        let h = headers(&[("x-forwarded-for", "203.0.113.7:54321, 198.51.100.99")]);
         assert_eq!(real_client_ip(&h, ip("10.0.0.9")), ip("203.0.113.7"));
     }
 
