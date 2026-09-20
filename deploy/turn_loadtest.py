@@ -26,6 +26,11 @@ ALLOCATE_OK = 0x0103
 ALLOCATE_ERR = 0x0113
 STUN_BINDING = 0x0001
 STUN_BINDING_OK = 0x0101
+LIFETIME = 0x000D
+# Client-requested allocation lifetime: bounds zombie allocations to
+# this many seconds even if the Release exchange fails (the server
+# clamps to its own max, granting min(request, max)).
+REQ_LIFETIME_SECS = 120
 
 
 def header(msg_type: int, length: int, txid: bytes) -> bytes:
@@ -109,6 +114,7 @@ def allocate(host: str, port: int, user: str, secret: str, idx: int) -> tuple:
             + attr(0x0006, user.encode())
             + attr(0x0014, realm.encode())
             + attr(0x0015, nonce.encode())
+            + attr(LIFETIME, struct.pack(">I", REQ_LIFETIME_SECS))
         )
         msg = header(ALLOCATE, len(body) + 24, txid) + body
         mac = hmac.new(key, msg, hashlib.sha1).digest()
@@ -123,7 +129,8 @@ def allocate(host: str, port: int, user: str, secret: str, idx: int) -> tuple:
         if 0x0016 not in a:
             raise RuntimeError(f"[{idx}] no XOR-RELAYED-ADDRESS")
         xport, xaddr = xor_port_addr(a[0x0016])
-        return xport, xaddr, sock, realm, nonce
+        granted = struct.unpack(">I", a.get(LIFETIME, b"\x00\x00\x00\x00"))[0]
+        return xport, xaddr, sock, realm, nonce, granted
     except Exception:
         sock.close()
         raise
@@ -170,9 +177,11 @@ def main() -> int:
 
     def _one(i: int):
         try:
-            xport, xaddr, sock, realm, nonce = allocate(host, port, user, secret, i)
+            xport, xaddr, sock, realm, nonce, granted = allocate(host, port, user, secret, i)
             with lock:
                 live.append((xport, xaddr, sock, realm, nonce))
+                if i == 0:
+                    print(f"  granted lifetime: {granted}s (requested {REQ_LIFETIME_SECS}s)")
         except Exception as e:
             with lock:
                 errors.append(str(e))
