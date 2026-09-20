@@ -84,7 +84,16 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # Auth
-jsonwebtoken = "10"
+# jsonwebtoken 10 made the crypto provider opt-in: default features
+# carry NO provider (`default = ["use_pem"]`), and without exactly one
+# of `rust_crypto` / `aws_lc_rs` (or an explicit
+# `CryptoProvider::install_default()`) every encode/decode PANICS at
+# runtime — login/refresh died with 502s after the 9.3.1 → 10.3.0
+# dependabot bump (2026-09-20 outage). `rust_crypto` is the pure-Rust
+# provider (hmac/sha2/rsa/…): no cmake/nasm build deps, CI-friendly.
+# JwtManager::new() also installs it explicitly as belt-and-braces
+# against future feature unification flipping auto-detection.
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
 hmac = "0.12"
 sha2 = "0.10"
