@@ -98,6 +98,34 @@ pub struct WebsocketStats {
     pub online_employees: usize,
     /// Distinct client IPs (used for per-IP connection caps).
     pub distinct_ips: usize,
+    /// Live hardware-bounded admission telemetry — the RAM/fd numbers
+    /// that ACTUALLY cap connections now that the static caps default
+    /// to unlimited (see `middleware::resource_guard`).
+    pub resources: ResourceGuardStats,
+}
+
+/// Hardware-bounded admission telemetry — "how much headroom does this
+/// box have for more realtime connections right now".
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourceGuardStats {
+    /// Host `MemAvailable` right now, bytes (`null` when procfs is
+    /// unavailable — non-Linux dev environments).
+    pub mem_available_bytes: Option<u64>,
+    /// Configured memory floor (`WS_MIN_FREE_MEM_MB`), bytes. `0` = off.
+    pub mem_floor_bytes: u64,
+    /// Open file descriptors of this process right now.
+    pub fd_used: u64,
+    /// Soft `RLIMIT_NOFILE` of this process (`0` = unknown).
+    pub fd_soft_limit: u64,
+    /// fd usage as a percentage of the soft limit (0.0 when unknown).
+    pub fd_used_pct: f64,
+    /// Configured fd high watermark % (`WS_FD_HIGH_WATERMARK_PCT`).
+    /// `0` = off.
+    pub fd_high_watermark_pct: u32,
+    /// Whether a NEW long-lived connection would be admitted right now
+    /// (both watermarks evaluated against the live snapshot).
+    pub admitting: bool,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -453,6 +481,23 @@ pub async fn system_status(
     let (active_connections, idle_connections, size_mb) = collect_db_stats(&st).await;
     let engine = engine_stats_with_rates();
 
+    // ── Hardware-bounded admission telemetry ───────────────────────
+    let wm = crate::middleware::resource_guard::ResourceWatermarks::from_config(&st.config.ws);
+    let snap = crate::middleware::resource_guard::ResourceSnapshot::read();
+    let resources = ResourceGuardStats {
+        mem_available_bytes: snap.mem_available_bytes,
+        mem_floor_bytes: wm.min_free_mem_bytes,
+        fd_used: snap.fd_used,
+        fd_soft_limit: snap.fd_soft_limit,
+        fd_used_pct: if snap.fd_soft_limit > 0 {
+            (snap.fd_used as f64 / snap.fd_soft_limit as f64) * 100.0
+        } else {
+            0.0
+        },
+        fd_high_watermark_pct: wm.fd_high_watermark_pct,
+        admitting: crate::middleware::resource_guard::decide(&snap, &wm).is_ok(),
+    };
+
     Ok(Json(SystemStatusResponse {
         uptime: SystemUptime {
             seconds: uptime_secs,
@@ -466,6 +511,7 @@ pub async fn system_status(
             online_employee_brands: ws_stats.online_staff,
             online_employees,
             distinct_ips: ws_stats.distinct_ips,
+            resources,
         },
         calls,
         database: DatabaseStats {

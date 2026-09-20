@@ -35,4 +35,5 @@ pub mod anti_scraping;
 pub mod auth_extractor;
 pub mod client_ip;
 pub mod request_id;
+pub mod resource_guard;
 pub mod timeout;
