@@ -163,6 +163,26 @@ pub async fn ws_upgrade(
     let ip = crate::middleware::real_client_ip(&headers, addr.ip()).to_string();
     let limits = WsLimits::from_config(&st.config);
 
+    // ── Hardware-bounded admission (RAM / fd watermarks) ─────────────
+    // The configured caps default to UNLIMITED — the real ceiling is the
+    // box itself. Refuse NEW sockets when free memory is low or fds near
+    // the soft limit, so existing connections keep working and the OS
+    // stays healthy. Two procfs reads per upgrade — microseconds.
+    // (see `middleware::resource_guard` for the capacity math)
+    let watermarks =
+        crate::middleware::resource_guard::ResourceWatermarks::from_config(&st.config.ws);
+    if let Err(reason) = crate::middleware::resource_guard::admit(&watermarks) {
+        tracing::warn!(
+            ip = %ip,
+            reason = ?reason,
+            connections = hub().connection_count(),
+            "WS upgrade rejected: resource watermark"
+        );
+        return Err(AppError::ServiceUnavailable(
+            "server busy (resource watermark) — retry shortly".into(),
+        ));
+    }
+
     // ── Global connection cap (checked FIRST — cheapest rejection) ────
     if !hub().try_acquire_global() {
         tracing::warn!(

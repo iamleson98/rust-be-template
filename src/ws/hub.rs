@@ -159,6 +159,11 @@ impl ChatHub {
 
     /// Atomically try to acquire a connection slot for `ip`.
     /// Returns `false` if the per-IP cap is exceeded.
+    ///
+    /// `cap == 0` means UNLIMITED (the default since the caps became
+    /// hardware-bounded — see `middleware::resource_guard`): the connection
+    /// is still counted per-IP (the map feeds `distinct_ips` stats), it
+    /// just never denies.
     /// NOTE: this does NOT touch the global counter — call `try_acquire_global`
     /// first, then `try_acquire_ip`, and roll back the global acquire if the
     /// IP check fails.
@@ -168,7 +173,7 @@ impl ChatHub {
         // CAS loop: only increment if below cap.
         loop {
             let cur = entry.load(Ordering::Acquire);
-            if cur >= cap {
+            if cap > 0 && cur >= cap {
                 return false;
             }
             if entry
@@ -736,6 +741,21 @@ mod tests {
         assert!(!h.try_acquire_ip(ip, cap));
         h.release_ip(ip);
         assert!(h.try_acquire_ip(ip, cap), "release must free the slot");
+    }
+
+    #[test]
+    fn try_acquire_ip_zero_cap_is_unlimited() {
+        // 0 = disabled (the hardware-bounded default — see
+        // `middleware::resource_guard`): never denies, but STILL counts
+        // per-IP so `distinct_ips` stats stay accurate.
+        let h = fresh_hub();
+        for _ in 0..100 {
+            assert!(h.try_acquire_ip("203.0.113.7", 0), "cap 0 must never deny");
+        }
+        assert!(
+            h.ip_conns.get("203.0.113.7").is_some(),
+            "unlimited mode still counts the ip"
+        );
     }
 
     // ── register / unregister ───────────────────────────────────

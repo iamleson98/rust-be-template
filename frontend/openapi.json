@@ -10562,6 +10562,62 @@
           }
         }
       },
+      "ResourceGuardStats": {
+        "type": "object",
+        "description": "Hardware-bounded admission telemetry — \"how much headroom does this\nbox have for more realtime connections right now\".",
+        "required": [
+          "memFloorBytes",
+          "fdUsed",
+          "fdSoftLimit",
+          "fdUsedPct",
+          "fdHighWatermarkPct",
+          "admitting"
+        ],
+        "properties": {
+          "admitting": {
+            "type": "boolean",
+            "description": "Whether a NEW long-lived connection would be admitted right now\n(both watermarks evaluated against the live snapshot)."
+          },
+          "fdHighWatermarkPct": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Configured fd high watermark % (`WS_FD_HIGH_WATERMARK_PCT`).\n`0` = off.",
+            "minimum": 0
+          },
+          "fdSoftLimit": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Soft `RLIMIT_NOFILE` of this process (`0` = unknown).",
+            "minimum": 0
+          },
+          "fdUsed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Open file descriptors of this process right now.",
+            "minimum": 0
+          },
+          "fdUsedPct": {
+            "type": "number",
+            "format": "double",
+            "description": "fd usage as a percentage of the soft limit (0.0 when unknown)."
+          },
+          "memAvailableBytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Host `MemAvailable` right now, bytes (`null` when procfs is\nunavailable — non-Linux dev environments).",
+            "minimum": 0
+          },
+          "memFloorBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Configured memory floor (`WS_MIN_FREE_MEM_MB`), bytes. `0` = off.",
+            "minimum": 0
+          }
+        }
+      },
       "ReviewDeleteResponse": {
         "type": "object",
         "description": "Response of `DELETE /api/reviews/{id}`.",
@@ -12840,7 +12896,8 @@
           "idempotencyEntries",
           "onlineEmployeeBrands",
           "onlineEmployees",
-          "distinctIps"
+          "distinctIps",
+          "resources"
         ],
         "properties": {
           "connections": {
@@ -12872,6 +12929,10 @@
             "type": "integer",
             "description": "Total online employees (sum across all brands). Useful for\nthe admin dashboard — \"how many support staff are online?\".",
             "minimum": 0
+          },
+          "resources": {
+            "$ref": "#/components/schemas/ResourceGuardStats",
+            "description": "Live hardware-bounded admission telemetry — the RAM/fd numbers\nthat ACTUALLY cap connections now that the static caps default\nto unlimited (see `middleware::resource_guard`)."
           },
           "rooms": {
             "type": "integer",

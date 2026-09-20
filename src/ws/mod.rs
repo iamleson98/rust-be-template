@@ -12,8 +12,13 @@
 //!   256) — a slow consumer fills its queue, then `try_send` drops further
 //!   messages; the heartbeat sweep eventually reaps the socket. No unbounded
 //!   memory growth per client.
-//! * **Global connection cap** (`ws_max_connections`, default 50_000) —
-//!   atomic admission check at upgrade time; over-cap upgrades get HTTP 503.
+//! * **Global connection cap** (`ws_max_connections`, default 0 = UNLIMITED)
+//!   — capacity is hardware-bounded instead: the resource guard
+//!   (`middleware::resource_guard`) refuses new upgrades at the RAM /
+//!   file-descriptor watermarks (`WS_MIN_FREE_MEM_MB`, default 512 MiB;
+//!   `WS_FD_HIGH_WATERMARK_PCT`, default 90%), so existing connections keep
+//!   working while the box degrades gracefully. A static cap remains
+//!   available as an operator override.
 //! * **Server-initiated heartbeat** (`ws_heartbeat_sec`, default 30s) —
 //!   Ping frames keep NAT bindings warm and probe for dead peers.
 //! * **Idle timeout** (`ws_idle_timeout_sec`, default 90s) — half-open

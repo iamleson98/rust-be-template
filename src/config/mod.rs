@@ -655,8 +655,23 @@ impl SearchConfig {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct WsConfig {
+    /// Global WS connection cap across BOTH hubs (`/ws` + `/ws-call`).
+    /// `0` (default) = UNLIMITED — capacity is hardware-bounded by the
+    /// resource_guard watermarks below (see `middleware::resource_guard`).
     pub max_connections: usize,
+    /// Per-REAL-client-IP socket cap, shared by both hubs. `0` (default) =
+    /// DISABLED — a pure anti-abuse knob, never a capacity one: call-center
+    /// agents legitimately sit 50+ behind one NAT. Re-enable (e.g. 250) only
+    /// for origins exposed without a protective CDN.
     pub max_per_ip: usize,
+    /// Refuse NEW WS connections once host `MemAvailable` drops below this
+    /// many MiB (`WS_MIN_FREE_MEM_MB`, default 512, `0` = off). The primary
+    /// hardware bound: existing connections keep working, upgrades get 503.
+    pub min_free_mem_mb: u64,
+    /// Refuse NEW WS connections once open fds reach this % of the process'
+    /// soft `RLIMIT_NOFILE` (`WS_FD_HIGH_WATERMARK_PCT`, default 90,
+    /// `0` = off). The hard OS ceiling — exhausting fds kills accept().
+    pub fd_high_watermark_pct: u32,
     pub channel_capacity: usize,
     pub heartbeat_sec: u64,
     pub idle_timeout_sec: u64,
@@ -667,14 +682,21 @@ pub struct WsConfig {
 impl Default for WsConfig {
     fn default() -> Self {
         Self {
-            max_connections: env_parse("WS_MAX_CONNECTIONS").unwrap_or(50_000),
-            // 25 (was 10): the cap is now keyed on the REAL client IP
-            // (see `middleware::client_ip`) — a NAT'd office where the
-            // whole team shares one public IP legitimately needs >10
-            // concurrent sockets (each user holds one chat `/ws` and,
-            // while calling, one `/ws-call`). 25 still bounds scripted
-            // abuse while fitting 100+ concurrent users behind shared NATs.
-            max_per_ip: env_parse("WS_MAX_PER_IP").unwrap_or(25),
+            // 0 = unlimited (was 50_000): a static guess is either too low
+            // for a big box or never fires before the box dies. Discord /
+            // Mattermost-style: the limit is the MACHINE — the resource
+            // guard denies at the RAM/fd watermarks, and scale-out happens
+            // at the LB. Set a number only to deliberately shard a box.
+            max_connections: env_parse("WS_MAX_CONNECTIONS").unwrap_or(0),
+            // 0 = disabled (was 25). Since the caps are keyed on the REAL
+            // client IP (see `middleware::client_ip`), a per-IP cap is pure
+            // anti-abuse — but 50+ agents behind one office NAT is a normal
+            // day for this product, so the default leaves the hardware
+            // guard as the only limiter. Cloudflare + auth + the global
+            // watermarks remain the abuse story.
+            max_per_ip: env_parse("WS_MAX_PER_IP").unwrap_or(0),
+            min_free_mem_mb: env_parse("WS_MIN_FREE_MEM_MB").unwrap_or(512),
+            fd_high_watermark_pct: env_parse("WS_FD_HIGH_WATERMARK_PCT").unwrap_or(90),
             channel_capacity: env_parse("WS_CHANNEL_CAPACITY").unwrap_or(256),
             heartbeat_sec: env_parse("WS_HEARTBEAT_SEC").unwrap_or(30),
             idle_timeout_sec: env_parse("WS_IDLE_TIMEOUT_SEC").unwrap_or(90),

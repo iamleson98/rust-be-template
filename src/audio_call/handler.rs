@@ -108,6 +108,25 @@ pub async fn ws_upgrade(
     // `WS_MAX_PER_IP` concurrent signaling sockets.
     let ip = crate::middleware::real_client_ip(&headers, addr.ip()).to_string();
 
+    // ── Hardware-bounded admission (RAM / fd watermarks) ─────────────
+    // Same guard as the chat `/ws` handler: caps default to UNLIMITED,
+    // the machine is the limit. Refuse NEW call-signaling sockets when
+    // free memory / fds are near exhaustion — live calls are unaffected,
+    // only new ring sessions can't start until resources recover.
+    let watermarks =
+        crate::middleware::resource_guard::ResourceWatermarks::from_config(&st.config.ws);
+    if let Err(reason) = crate::middleware::resource_guard::admit(&watermarks) {
+        tracing::warn!(
+            ip = %ip,
+            reason = ?reason,
+            connections = call_hub().connection_count(),
+            "ws-call upgrade rejected: resource watermark"
+        );
+        return Err(AppError::ServiceUnavailable(
+            "server busy (resource watermark) — retry shortly".into(),
+        ));
+    }
+
     // ── Connection caps (global FIRST — cheapest rejection) ────────
     // `/ws-call` previously had NO admission control: every
     // authenticated account could hold unlimited signaling sockets

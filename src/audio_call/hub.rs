@@ -225,11 +225,14 @@ impl CallHub {
 
     /// Try to acquire a per-IP slot against the configured cap
     /// (`WsConfig.max_per_ip`, same value the chat hub enforces).
+    /// `max_per_ip == 0` means UNLIMITED (default — hardware-bounded
+    /// admission via `middleware::resource_guard`); connections are still
+    /// counted per-IP, the check just never denies.
     pub fn try_acquire_ip(&self, ip: &str) -> bool {
         let entry = self.ip_conns.entry(ip.to_string()).or_default();
         loop {
             let cur = entry.load(Ordering::Acquire);
-            if cur >= self.max_per_ip {
+            if self.max_per_ip > 0 && cur >= self.max_per_ip {
                 return false;
             }
             if entry
@@ -931,9 +934,9 @@ mod tests {
 
     #[test]
     fn zero_global_cap_means_unlimited() {
-        // Global cap 0 = unlimited (chat-hub semantics); per-IP cap 0
-        // = nothing allowed for that IP (also chat-hub semantics — the
-        // two flags are deliberately NOT symmetric).
+        // Global cap 0 = unlimited. Per-IP caps are symmetric since the
+        // caps became hardware-bounded (see `middleware::resource_guard`):
+        // 0 = unlimited there too — this test pins the real-cap path (1).
         let h = CallHub::with_limits(0, 1);
         for _ in 0..100 {
             assert!(h.try_acquire_global(), "unlimited mode never rejects");
@@ -945,6 +948,20 @@ mod tests {
         assert!(
             !h.try_acquire_ip("192.0.2.1"),
             "per-ip cap 1 rejects the second socket"
+        );
+    }
+
+    #[test]
+    fn zero_per_ip_cap_means_unlimited() {
+        // Per-IP cap 0 = disabled (the default): connections are still
+        // counted per-IP for stats, the check just never denies.
+        let h = CallHub::with_limits(0, 0);
+        for _ in 0..100 {
+            assert!(h.try_acquire_ip("203.0.113.7"), "cap 0 must never deny");
+        }
+        assert!(
+            h.ip_conns.get("203.0.113.7").is_some(),
+            "unlimited mode still counts per-IP for stats"
         );
     }
 
