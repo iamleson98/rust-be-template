@@ -668,7 +668,13 @@ impl Default for WsConfig {
     fn default() -> Self {
         Self {
             max_connections: env_parse("WS_MAX_CONNECTIONS").unwrap_or(50_000),
-            max_per_ip: env_parse("WS_MAX_PER_IP").unwrap_or(10),
+            // 25 (was 10): the cap is now keyed on the REAL client IP
+            // (see `middleware::client_ip`) — a NAT'd office where the
+            // whole team shares one public IP legitimately needs >10
+            // concurrent sockets (each user holds one chat `/ws` and,
+            // while calling, one `/ws-call`). 25 still bounds scripted
+            // abuse while fitting 100+ concurrent users behind shared NATs.
+            max_per_ip: env_parse("WS_MAX_PER_IP").unwrap_or(25),
             channel_capacity: env_parse("WS_CHANNEL_CAPACITY").unwrap_or(256),
             heartbeat_sec: env_parse("WS_HEARTBEAT_SEC").unwrap_or(30),
             idle_timeout_sec: env_parse("WS_IDLE_TIMEOUT_SEC").unwrap_or(90),

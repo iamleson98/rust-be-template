@@ -55,6 +55,10 @@
 
 export type CallRole = 'customer' | 'agent'
 
+// Re-exported for the widget (keeps a single quality vocabulary).
+export type { QualityLevel, QualityStats } from '@/lib/call-quality'
+import { classifyQuality, type QualityStats } from '@/lib/call-quality'
+
 export type CallState =
   | 'idle'         // no active call
   | 'calling'      // outbound: waiting for answer
@@ -100,6 +104,7 @@ export interface AudioCallEventMap {
   'remote-stream': { stream: MediaStream }
   'connection-state': { state: RTCPeerConnectionState }
   'ice-restart': { attempts: number }
+  quality: QualityStats & { level: ReturnType<typeof classifyQuality> }
 }
 
 type SignalHandler<K extends keyof AudioCallEventMap> = (data: AudioCallEventMap[K]) => void
@@ -196,6 +201,11 @@ export class AudioCallClient {
   /** True once setRemoteDescription settled for the current negotiation. */
   private remoteDescReady = false
   private static readonly MAX_INBOUND_ICE = 128
+
+  /** Periodic getStats() sampler while a peer connection exists —
+   * feeds the `quality` event (RTT / jitter / loss / relayed). */
+  private qualityTimer: ReturnType<typeof setInterval> | null = null
+  private static readonly QUALITY_POLL_MS = 2500
 
   private registered = false
   private registeredResolvers: Array<() => void> = []
@@ -314,9 +324,77 @@ export class AudioCallClient {
     if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null }
   }
 
+  private startQualitySampler(): void {
+    this.stopQualitySampler()
+    // getStats() is cheap and local — sampling it every 2.5 s while the
+    // call is up costs nothing and gives the UI live network health.
+    this.qualityTimer = setInterval(() => { void this.sampleQuality() }, AudioCallClient.QUALITY_POLL_MS)
+  }
+
+  private stopQualitySampler(): void {
+    if (this.qualityTimer) { clearInterval(this.qualityTimer); this.qualityTimer = null }
+  }
+
+  /** One getStats() pass → RTT (candidate-pair), jitter/loss (inbound
+   * audio RTP), relayed (selected pair's candidates). Emits `quality`. */
+  private async sampleQuality(): Promise<void> {
+    const pc = this.pc
+    if (!pc || this.disposed) return
+    try {
+      const stats = await pc.getStats()
+      let rttMs: number | null = null
+      let jitterMs: number | null = null
+      let lossPct: number | null = null
+      let relayed: boolean | null = null
+      const candidatesById = new Map<string, { type: string }>()
+      let selectedLocalId: string | null = null
+      let selectedRemoteId: string | null = null
+
+      stats.forEach((r: RTCStats) => {
+        const rep = r as unknown as Record<string, unknown>
+        const t = rep.type as string
+        if (t === 'candidate-pair') {
+          // Prefer `selected`; older browsers only flag `nominated`+succeeded.
+          const isSelected = rep.selected === true ||
+            (rep.nominated === true && rep.state === 'succeeded')
+          if (isSelected && typeof rep.currentRoundTripTime === 'number') {
+            rttMs = Math.round(rep.currentRoundTripTime * 1000)
+            selectedLocalId = typeof rep.localCandidateId === 'string' ? rep.localCandidateId : null
+            selectedRemoteId = typeof rep.remoteCandidateId === 'string' ? rep.remoteCandidateId : null
+          }
+        } else if (t === 'local-candidate' || t === 'remote-candidate') {
+          const candidateType = typeof rep.candidateType === 'string' ? rep.candidateType : ''
+          candidatesById.set(rep.id as string, { type: candidateType })
+        } else if (t === 'inbound-rtp' && rep.kind === 'audio') {
+          if (typeof rep.jitter === 'number') {
+            jitterMs = Math.round(rep.jitter * 1000)
+          }
+          const lost = typeof rep.packetsLost === 'number' ? rep.packetsLost : null
+          const recv = typeof rep.packetsReceived === 'number' ? rep.packetsReceived : null
+          if (lost !== null && recv !== null && lost + recv > 0) {
+            lossPct = Math.round((lost / (lost + recv)) * 1000) / 10
+          }
+        }
+      })
+
+      // Either end going through a TURN relay → the pair is relayed.
+      const local = selectedLocalId ? candidatesById.get(selectedLocalId) : undefined
+      const remote = selectedRemoteId ? candidatesById.get(selectedRemoteId) : undefined
+      if (local || remote) {
+        relayed = local?.type === 'relay' || remote?.type === 'relay'
+      }
+
+      const sample: QualityStats = { rttMs, jitterMs, lossPct, relayed }
+      this.emit('quality', { ...sample, level: classifyQuality(sample) })
+    } catch {
+      // getStats during ICE restarts can transiently fail — skip sample.
+    }
+  }
+
   dispose(): void {
     this.disposed = true
     this.stopHeartbeat()
+    this.stopQualitySampler()
     this.clearCallTimeout()
     this.clearRingTimeout()
     this.clearConnectTimeout()
@@ -590,8 +668,17 @@ export class AudioCallClient {
         video: false,
       })
     } catch {
+      // Mic permission denied AFTER the user pressed Accept. Two things
+      // must happen: (1) OUR side learns WHY with actionable guidance;
+      // (2) the CALLER learns the pickup failed for a mic reason — not a
+      // vague "remote" hangup. Production incident 2026-09-20 (first
+      // cross-network test): the agent's mic permission was still
+      // un-granted; the auto-hangup reached the customer as `remote` and
+      // looked like a network failure. `mic-denied` now rides the hangup
+      // frame (allow-listed server-side) and maps to a clear message on
+      // both ends.
       this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro' })
-      this.hangup()
+      this.hangup('mic-denied')
       return
     }
 
@@ -633,7 +720,7 @@ export class AudioCallClient {
   }
 
   /** End the current call. */
-  hangup(reason?: 'remote' | 'busy' | 'declined' | 'timeout'): void {
+  hangup(reason?: 'remote' | 'busy' | 'declined' | 'timeout' | 'mic-denied'): void {
     if (this.state === 'idle') return
     // Route to the peer we actually talked to. `?? 'agent'` covers a
     // customer hanging up before the agent answered (the server resolves
@@ -720,6 +807,8 @@ export class AudioCallClient {
 
   private setupPeerConnection(): void {
     if (!this.pc || !this.localStream) return
+    // Live network-health sampling for the whole life of the call.
+    this.startQualitySampler()
     // Add local tracks.
     for (const track of this.localStream.getAudioTracks()) {
       this.pc.addTrack(track, this.localStream)
@@ -844,6 +933,7 @@ export class AudioCallClient {
     this.remoteDescReady = false
     this.clearCallTimeout()
     this.clearRingTimeout()
+    this.stopQualitySampler()
     if (this.remoteAudioElement) {
       try { this.remoteAudioElement.srcObject = null } catch { }
     }

@@ -101,7 +101,12 @@ pub async fn ws_upgrade(
         AppError::Unauthorized("ws-call handshake: missing or invalid token".into())
     })?;
 
-    let ip = addr.ip().to_string();
+    // REAL client IP (right-anchored X-Forwarded-For / CF-Connecting-IP —
+    // see `middleware::client_ip`). Same reasoning as the chat `/ws`
+    // handler: the socket peer is Caddy's overlay IP for every browser,
+    // so keying the per-IP cap on it would cap the whole site at
+    // `WS_MAX_PER_IP` concurrent signaling sockets.
+    let ip = crate::middleware::real_client_ip(&headers, addr.ip()).to_string();
 
     // ── Connection caps (global FIRST — cheapest rejection) ────────
     // `/ws-call` previously had NO admission control: every
@@ -139,7 +144,7 @@ pub async fn ws_upgrade(
         .collect::<String>();
     tracing::info!(
         user_id = %user.id,
-        ip = %addr.ip(),
+        ip = %ip,
         user_agent = %ua,
         "ws-call connected"
     );
@@ -926,7 +931,7 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
     let reason = msg
         .get("reason")
         .and_then(|v| v.as_str())
-        .filter(|r| matches!(*r, "busy" | "declined" | "timeout"))
+        .filter(|r| matches!(*r, "busy" | "declined" | "timeout" | "mic-denied"))
         .unwrap_or("remote");
     tracing::info!(
         from = %user.id,

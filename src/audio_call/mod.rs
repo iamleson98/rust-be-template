@@ -42,7 +42,7 @@
 //! { "type": "incoming",   "from": userId, "channelId"?, "sdp", "kind": "offer" }
 //! { "type": "answer",     "from": userId, "sdp" }
 //! { "type": "ice",        "from": userId, "candidate" }
-//! { "type": "hangup",     "from": userId, "reason": "remote" | "busy" | "declined" | "timeout" | "agent-offline" | "replaced" | "peer-offline" | "expired" }
+//! { "type": "hangup",     "from": userId, "reason": "remote" | "busy" | "declined" | "timeout" | "mic-denied" | "agent-offline" | "replaced" | "peer-offline" | "expired" }
 //! { "type": "presence",   "onlineAgents": N }
 //! { "type": "error",      "code", "message" }
 //! { "type": "pong" }

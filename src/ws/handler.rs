@@ -155,7 +155,12 @@ pub async fn ws_upgrade(
     let user = user
         .ok_or_else(|| AppError::Unauthorized("ws handshake: missing or invalid token".into()))?;
 
-    let ip = addr.ip().to_string();
+    // REAL client IP (right-anchored X-Forwarded-For / CF-Connecting-IP —
+    // see `middleware::client_ip`). The socket peer behind the
+    // Cloudflare → nginx → Caddy chain is always CADDY's overlay IP,
+    // which would put every user in one per-IP bucket and cap the site
+    // at `max_per_ip` concurrent sockets total.
+    let ip = crate::middleware::real_client_ip(&headers, addr.ip()).to_string();
     let limits = WsLimits::from_config(&st.config);
 
     // ── Global connection cap (checked FIRST — cheapest rejection) ────

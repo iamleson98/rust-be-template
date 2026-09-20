@@ -28,8 +28,10 @@
 #
 # Ports used (host networking): 3478/tcp + 3478/udp (STUN + TURN),
 # 5349/tcp (TURN-over-TLS; reached publicly via nginx SNI routing on
-# 443/tcp), 49160-49200/udp (relay allocations). ufw already allows
-# 3478, 49160-49200/udp and 443/tcp; 5349 stays loopback-only.
+# 443/tcp), 49160-49760/udp (relay allocations) — see the CAPACITY note
+# inside the coturn cmd for why the range is 601 ports. ufw must allow
+# 49160-49760/udp (server-init.sh manages the rule); 5349 stays
+# loopback-only.
 #
 # Wire protocol note: 2026-09-10 TLS added for corporate networks.
 # Corporate firewalls typically allow only outbound TCP 443 —
@@ -191,7 +193,20 @@ fi
 # TLS: --tls-listening-port=5349 (public 443 is SNI-routed here by
 # nginx). --no-dtls stays: no DTLS/UDP listener is needed (3478/udp
 # covers plain UDP TURN; TLS-TCP 443 covers corporate networks).
-base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=49200 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --no-dtls"
+#
+# CAPACITY (2026-09-20, measured): the relay range 49160-49200 held
+# only 41 ports — a load test (deploy/turn_loadtest.py, 50 concurrent
+# allocations) exhausted it at exactly 40 with STUN error 508
+# "Insufficient Capacity". A fully-relayed 1-1 call makes up to 8
+# allocations (both peers × multiple ICE candidates), so 41 ports
+# ≈ 5 concurrent calls — the 50-60-call target needs ≥ 480. The new
+# range 49160-49760 (601 ports) covers 75 fully-relayed calls with
+# headroom; ufw's rule must match (server-init.sh widens it).
+# --user-quota=0/--total-quota=0 make the unlimited-quotas explicit:
+# every peer shares the ONE long-term credential (vexevn), so a
+# per-user allocation quota is meaningless here and coturn's small
+# defaults would silently cap concurrency.
+base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=49760 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --user-quota=0 --total-quota=0 --no-dtls"
 tls_args="--tls-listening-port=5349 --cert=/etc/cert/fullchain.pem --pkey=/etc/cert/privkey.pem"
 desired_cmd="$base_cmd $tls_args"
 
@@ -221,11 +236,11 @@ if [ -z "$running_cmd" ] || [ "$running_cmd" != "$desired_cmd" ] || [ "$running_
     --network host \
     --restart unless-stopped \
     --log-driver json-file --log-opt max-size=20m --log-opt max-file=3 \
-    --memory 512m --memory-swap 512m \
+    --memory 1g --memory-swap 1g \
     -v "$(cd "$CERT_DIR" && pwd)":/etc/cert:ro \
     $IMAGE $desired_cmd
   echo "$cert_now" > "$cert_stamp"
-  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49200/udp + TLS 5349→443, logs capped 3x20m, mem 512m)"
+  echo "coturn: container (re)created (host network, 3478 tcp/udp + 49160-49760/udp + TLS 5349→443, logs capped 3x20m, mem 1g)"
 elif [ "$cert_now" != "$cert_prev" ]; then
   # Same flags, new cert bytes → restart the container to load them.
   # NOT SIGHUP: coturn 4.6-alpine SEGFAULTS on SIGHUP with TLS listeners
