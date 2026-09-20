@@ -27,10 +27,12 @@
 //! ```
 
 pub use self::auth_extractor::{AdminUser, AuthUser, MaybeAuthUser};
+pub use self::client_ip::real_client_ip;
 pub use self::request_id::RequestId;
 pub use self::timeout::request_timeout;
 
 pub mod anti_scraping;
 pub mod auth_extractor;
+pub mod client_ip;
 pub mod request_id;
 pub mod timeout;

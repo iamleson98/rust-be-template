@@ -207,7 +207,10 @@ class CallController extends Notifier<CallUiState> {
       state = state.copyWith(
         error: 'Không truy cập được micro — kiểm tra quyền ứng dụng',
       );
-      _hangup('remote');
+      // `mic-denied` (not a vague `remote`) so the CALLER's UI can say
+      // why the pickup failed; allow-listed server-side in
+      // audio_call/handler.rs handle_hangup.
+      _hangup('mic-denied');
     }
   }
 

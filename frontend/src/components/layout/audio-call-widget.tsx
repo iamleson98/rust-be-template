@@ -44,9 +44,45 @@ import type { AudioCallClient } from '@/lib/audio-call-client'
 import { playSound, startRingTone } from '@/lib/sound-effects'
 import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
 import { isStaffUser } from '@/lib/store'
+import {
+  MIC_DENIED_GUIDANCE,
+  hangupReasonText,
+  type QualityLevel,
+} from '@/lib/call-quality'
 import { toast } from 'sonner'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
+
+/** Live network health of the active call, sampled from getStats(). */
+interface QualityInfo {
+  level: QualityLevel
+  rttMs: number | null
+  jitterMs: number | null
+  lossPct: number | null
+  relayed: boolean | null
+}
+
+/** Signal bars for the active call — 3 bars, colored by quality level. */
+function QualityBars({ level }: { level: QualityLevel }) {
+  const active = level === 'good' ? 3 : level === 'fair' ? 2 : 1
+  const color =
+    level === 'good'
+      ? 'bg-emerald-500'
+      : level === 'fair'
+        ? 'bg-amber-500'
+        : 'bg-red-500'
+  return (
+    <span className="flex items-end gap-[2px]" aria-hidden>
+      {[1, 2, 3].map((bar) => (
+        <span
+          key={bar}
+          className={cn('w-1 rounded-sm transition-colors', color, bar <= active ? 'opacity-100' : 'opacity-25')}
+          style={{ height: `${4 + bar * 3}px` }}
+        />
+      ))}
+    </span>
+  )
+}
 
 // Build signaling URL — points at the native Rust `/ws-call` endpoint on
 // the same origin (Vite proxies it to :8080 in dev, Caddy routes it in
@@ -83,6 +119,14 @@ export function AudioCallWidget() {
   const [presenceKnown, setPresenceKnown] = useState(false)
   const [micOn, setMicOn] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /** true while the last error was a mic-permission failure — the panel
+   * stays (no auto-dismiss) with actionable guidance until the user
+   * retries, because recovering requires manual action in the browser's
+   * site-permissions UI. */
+  const [micDenied, setMicDenied] = useState(false)
+  const [quality, setQuality] = useState<QualityInfo | null>(null)
+  /** Last signaling hangup reason — drives the end-of-call message. */
+  const [endReason, setEndReason] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
   const [incomingFrom, setIncomingFrom] = useState<{ from: string; sdp: RTCSessionDescriptionInit } | null>(null)
 
@@ -100,6 +144,10 @@ export function AudioCallWidget() {
   // call transitions out of 'calling' or 'incoming'.
   const stopRingRef = useRef<(() => void) | null>(null)
   const autoStartRef = useRef(false)
+  /** Delayed surface-close timer for customers — lets the 'ended' reason
+   * line ("Nhân viên từ chối cuộc gọi" / "…mic-denied" / …) be read for
+   * the full ended window before the call surface folds back to chat. */
+  const endCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Wake Lock helpers ──────────────────────────────────────────
   // Keeps the screen on during an active call. The wake lock is released
@@ -165,7 +213,18 @@ export function AudioCallWidget() {
     if (audioRef.current) client.remoteAudioElement = audioRef.current
     client.on('state', (s: CallState) => {
       setState(s)
-      if (!isAgent && (s === 'ended' || (s === 'idle' && autoStartRef.current))) {
+      if (!isAgent && s === 'ended') {
+        // Give the customer the full 'ended' window (~2.5s) to read WHY
+        // the call ended — the reason line is the primary feedback for a
+        // declined / busy / mic-denied outcome. The 'idle' transition
+        // below (and the auto-start failure path) remain immediate.
+        if (endCloseTimerRef.current) clearTimeout(endCloseTimerRef.current)
+        endCloseTimerRef.current = setTimeout(() => {
+          endCloseTimerRef.current = null
+          setOpen(false)
+        }, 2600)
+      }
+      if (!isAgent && s === 'idle' && autoStartRef.current && !endCloseTimerRef.current) {
         setOpen(false)
       }
       if (s === 'active' && callTimerRef.current === null) {
@@ -226,13 +285,26 @@ export function AudioCallWidget() {
     client.on('incoming', ({ from, sdp }) => {
       setIncomingFrom({ from, sdp })
       // ── Browser push notification for incoming call (when page is hidden).
-      notifyIncomingCall('Khách hàng')
+      // Label the caller by OUR perspective: agents are called BY
+      // customers; a customer being called back is called by staff.
+      notifyIncomingCall(isAgent ? 'Khách hàng' : 'Nhân viên hỗ trợ')
     })
-    client.on('error', ({ message }: { message: string }) => {
+    client.on('quality', (q) => {
+      setQuality({ level: q.level, rttMs: q.rttMs, jitterMs: q.jitterMs, lossPct: q.lossPct, relayed: q.relayed })
+    })
+    client.on('error', ({ code, message }: { code: string; message: string }) => {
+      if (code === 'mic-denied') {
+        // Persistent, actionable — recovering needs a manual permission
+        // change in the browser UI, a 4-second toast is not enough.
+        setMicDenied(true)
+        setError(message)
+        return
+      }
       setError(message)
       setTimeout(() => setError(null), 4000)
     })
-    client.on('hangup', () => {
+    client.on('hangup', ({ reason }: { reason: string }) => {
+      setEndReason(reason)
       setIncomingFrom(null)
       if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null }
       setCallDuration(0)
@@ -246,6 +318,15 @@ export function AudioCallWidget() {
   // Start a call (customer → agent, or agent → customer).
   const startCall = useCallback(async () => {
     setError(null)
+    setMicDenied(false)
+    setEndReason(null)
+    setQuality(null)
+    // A retry within the 'ended' display window must cancel the pending
+    // surface-close, or the panel would fold mid-dial.
+    if (endCloseTimerRef.current) {
+      clearTimeout(endCloseTimerRef.current)
+      endCloseTimerRef.current = null
+    }
     const client = await ensureClient()
     await client.startCall()
   }, [ensureClient])
@@ -283,6 +364,12 @@ export function AudioCallWidget() {
   // only once the peer connection reports 'connected'.)
   const acceptCall = useCallback(async () => {
     if (!incomingFrom) return
+    setEndReason(null)
+    setQuality(null)
+    if (endCloseTimerRef.current) {
+      clearTimeout(endCloseTimerRef.current)
+      endCloseTimerRef.current = null
+    }
     const client = await ensureClient()
     await client.acceptCall(incomingFrom.sdp, incomingFrom.from)
     setIncomingFrom(null)
@@ -344,6 +431,7 @@ export function AudioCallWidget() {
   useEffect(() => {
     return () => {
       if (callTimerRef.current) clearInterval(callTimerRef.current)
+      if (endCloseTimerRef.current) clearTimeout(endCloseTimerRef.current)
       clientRef.current?.dispose()
       clientRef.current = null
       clientOwnerRef.current = null
@@ -496,7 +584,7 @@ export function AudioCallWidget() {
               <div className="flex flex-col items-center gap-2">
                 <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
                 <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                  Cuộc gọi đến từ khách hàng
+                  {isAgent ? 'Cuộc gọi đến từ khách hàng' : 'Cuộc gọi từ nhân viên hỗ trợ'}
                 </div>
               </div>
             )}
@@ -509,25 +597,75 @@ export function AudioCallWidget() {
             {state === 'active' && (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-1.5">
-                  <Signal className="h-4 w-4 text-emerald-500" />
+                  {quality ? (
+                    <QualityBars level={quality.level} />
+                  ) : (
+                    <Signal className="h-4 w-4 text-emerald-500" />
+                  )}
                   <span className="text-2xl font-mono font-semibold text-zinc-800 dark:text-zinc-100">
                     {Math.floor(callDuration / 60)}:{String(callDuration % 60).padStart(2, '0')}
                   </span>
                 </div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {micOn ? 'Micro đang bật' : 'Đã tắt micro'}
+                {/* Live network health line: relay chip (when the media
+                    goes through TURN — expected on strict NATs, slightly
+                    higher latency) + numbers tooltip for the curious. */}
+                <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  {quality?.relayed && (
+                    <span
+                      className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium text-zinc-600 dark:text-zinc-300"
+                      title="Âm thanh đang đi qua máy chủ chuyển tiếp TURN"
+                    >
+                      TURN relay
+                    </span>
+                  )}
+                  <span>{micOn ? 'Micro đang bật' : 'Đã tắt micro'}</span>
+                  {quality && (
+                    <span
+                      className="cursor-help"
+                      title={[
+                        quality.rttMs != null ? `Độ trễ: ${quality.rttMs} ms` : null,
+                        quality.jitterMs != null ? `Jitter: ${quality.jitterMs} ms` : null,
+                        quality.lossPct != null ? `Mất gói: ${quality.lossPct}%` : null,
+                      ].filter(Boolean).join(' · ') || undefined}
+                    >
+                      (
+                        {quality.rttMs != null ? `${quality.rttMs} ms` : '…'}
+                        {quality.lossPct != null ? `, ${quality.lossPct}%` : ''}
+                      )
+                    </span>
+                  )}
                 </div>
               </div>
             )}
             {state === 'ended' && (
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">Cuộc gọi đã kết thúc</div>
+              <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                {hangupReasonText(endReason, isAgent)}
+              </div>
             )}
           </div>
 
           {/* Error */}
-          {error && (
+          {error && !micDenied && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300">
               {error}
+            </div>
+          )}
+          {/* Mic permission denied — persistent + actionable: recovering
+              requires the user to change the browser's site permission
+              manually, so auto-dismissing would hide the instructions. */}
+          {error && micDenied && (
+            <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
+              <div className="font-medium mb-1">{error}</div>
+              <div className="text-amber-700 dark:text-amber-300">{MIC_DENIED_GUIDANCE}</div>
+              {!isAgent && (
+                <button
+                  type="button"
+                  onClick={() => { setMicDenied(false); setError(null); void startCall() }}
+                  className="mt-2 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors"
+                >
+                  Thử gọi lại
+                </button>
+              )}
             </div>
           )}
 

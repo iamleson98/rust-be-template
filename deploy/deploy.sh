@@ -34,6 +34,7 @@ SHARED_CADDYFILE=/opt/pdf-tts/Caddyfile
 [ -f stack.yml ]          || { echo "FATAL: stack.yml missing in $(pwd)"; exit 1; }
 [ -f Caddyfile.datxevui ] || { echo "FATAL: Caddyfile.datxevui missing in $(pwd)"; exit 1; }
 [ -f turn.sh ]            || { echo "FATAL: turn.sh missing in $(pwd)"; exit 1; }
+[ -f tune-call-capacity.sh ] || { echo "FATAL: tune-call-capacity.sh missing in $(pwd)"; exit 1; }
 
 # ── 1. First-run .env (secrets generated ON the server) ──────────────
 if [ ! -f .env ]; then
@@ -60,6 +61,12 @@ if TURN_FROM_DEPLOY=1 bash turn.sh; then
 else
   echo "WARN: turn.sh failed — deploying without TURN changes (calls behind CGNAT may fail)"
 fi
+
+# ── 1b-2. Host capacity tuning for calls (ufw relay range, UDP buffers,
+# nginx stream worker_connections) — idempotent, 50-60 concurrent
+# relayed calls + 100+ concurrent users. See the script header for the
+# measured numbers behind each knob.
+bash tune-call-capacity.sh || echo "WARN: capacity tuning failed (non-fatal — check ufw/sysctl/nginx manually)"
 
 # The CD pipeline passes the exact image ref; manual runs may set it too.
 : "${IMAGE:?IMAGE=<image-ref> env var is required (set by the CD pipeline)}"
