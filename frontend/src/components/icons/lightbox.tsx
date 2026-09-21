@@ -88,9 +88,6 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           {/* Image */}
           <div
             key={idx}
-
-
-
             className="max-w-[92vw] max-h-[82vh]"
             onClick={(e) => e.stopPropagation()}
           >
