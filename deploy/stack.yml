@@ -76,6 +76,15 @@ services:
       - CACHE_BACKEND=${CACHE_BACKEND:-moka}
       - WORKER_BACKEND=${WORKER_BACKEND:-db}
 
+      # ── Allocator RSS hygiene (2026-09-21 login-RSS incident) ──
+      # Engine knob (rust-sql tune_mimalloc): freed mimalloc pages
+      # madvise back to the OS after ~25 ms of thread idleness instead
+      # of being retained forever (purge_delay=-1 default). Fixes the
+      # "RSS only ever grows" ratchet from thread-local heap stranding
+      # (argon2 verifies, tantivy searches, image decodes — anything
+      # big + transient on tokio blocking threads).
+      - RUSTSQL_MIMALLOC_PURGE_DELAY_MS=${RUSTSQL_MIMALLOC_PURGE_DELAY_MS:-25}
+
       # Everything else (STATIC_FILES_DIR, SEARCH_INDEX_DIR,
       # SEARCH_OSM_PBF_PATH, STORAGE_LOCAL_ROOT, SCHEDULER)
       # comes from the image defaults baked into the Dockerfile.
