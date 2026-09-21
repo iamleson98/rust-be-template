@@ -100,11 +100,18 @@ impl AuthService {
         let human_count = self.store.user_store().count_human_users().await?;
         let is_first_user = human_count == 0;
 
-        let password_arc = self.password.clone();
-        let pwd_for_hash = password.clone();
-        let hash = tokio::task::spawn_blocking(move || password_arc.hash(&pwd_for_hash))
+        // Argon2 on the DEDICATED worker pool — never `spawn_blocking`.
+        // Tokio's blocking pool spins up a fresh thread per busy slot and
+        // the engine's mimalloc (purge_delay=-1) strands Argon2's multi-MB
+        // working set in each thread's local heap: measured +2.5 MB PER
+        // LOGIN, permanent (60 concurrent logins = +154 MB, 2026-09-21
+        // incident — see `auth::password::workers`). The dedicated pool
+        // reuses two fixed threads, so the working set is allocated once
+        // and reused for every future hash/verify.
+        let hash = self
+            .password
+            .hash_async(password)
             .await
-            .map_err(|e| AppError::Internal(format!("hash join: {e}")))?
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let role_name = if is_first_user { "admin" } else { "user" };
@@ -184,15 +191,16 @@ impl AuthService {
             .as_deref()
             .ok_or_else(|| AppError::Unauthorized("invalid credentials".into()))?;
 
-        // Argon2 verify is CPU-heavy (50-150ms with default params). Run it
-        // on a blocking-pool thread so we don't stall the tokio worker.
-        let password_arc = self.password.clone();
-        let pwd_string = password.to_string();
-        let hash_string = hash.to_string();
-        let password_ok =
-            tokio::task::spawn_blocking(move || password_arc.verify(&pwd_string, &hash_string))
-                .await
-                .map_err(|e| AppError::Internal(format!("verify join: {e}")))?;
+        // Argon2 verify is CPU-heavy (50-150ms with default params) and —
+        // critically — allocates a multi-MB working set. It runs on the
+        // DEDICATED worker pool, NOT `tokio::task::spawn_blocking`: the
+        // blocking pool hands each concurrent login a different OS
+        // thread, and mimalloc's thread-local heaps (purge disabled by
+        // the engine) strand the freed working set on each of them —
+        // +2.5 MB of RSS per login, never returned (2026-09-21 incident,
+        // see `auth::password::workers`). Two fixed worker threads reuse
+        // one heap: bounded cost, unbounded logins.
+        let password_ok = self.password.verify_async(password, hash.to_string()).await;
 
         if !password_ok {
             return Err(AppError::Unauthorized("invalid credentials".into()));
