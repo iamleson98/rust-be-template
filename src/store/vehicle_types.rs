@@ -89,15 +89,18 @@ fn apply_q(
 ) -> sea_orm::Select<vehicle_type::Entity> {
     use sea_orm::sea_query::Expr;
     if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
-        let needle = q.to_lowercase();
+        // Wildcards pre-baked into the parameter — `'%' || ? || '%'`
+        // mis-parses on the rustqlite engine (LIKE binds tighter than
+        // `||`, making the predicate always truthy). See route.rs.
+        let needle = format!("%{}%", q.to_lowercase());
         query = query.filter(
             sea_orm::Condition::any()
                 .add(Expr::cust_with_values(
-                    "LOWER(label) LIKE '%' || ? || '%'",
+                    "LOWER(label) LIKE ?",
                     [needle.clone()],
                 ))
                 .add(Expr::cust_with_values(
-                    "LOWER(code) LIKE '%' || ? || '%'",
+                    "LOWER(code) LIKE ?",
                     [needle],
                 )),
         );

@@ -217,7 +217,12 @@ impl RouteStore for DbRouteStore {
             base = base.filter(route::Column::BrandId.eq(brand_uuid));
         }
         if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
-            let needle = q.to_lowercase();
+            // NOTE: the wildcards are pre-baked into the bound parameter.
+            // Do NOT rebuild this as `'%' || ? || '%'` — the rustqlite
+            // engine parses LIKE tighter than `||`, so that form becomes
+            // `(name LIKE '%') || ? || '%'` (always a truthy string) and
+            // the filter silently matches EVERY row.
+            let needle = format!("%{}%", q.to_lowercase());
             // Search the route name, both city slugs and the owning
             // brand's name (subquery keeps it one round-trip). LIKE with
             // a LOWER()-ed column keeps matches case-insensitive on the engine —
@@ -225,19 +230,19 @@ impl RouteStore for DbRouteStore {
             base = base.filter(
                 sea_orm::Condition::any()
                     .add(Expr::cust_with_values(
-                        "LOWER(name) LIKE '%' || ? || '%'",
+                        "LOWER(name) LIKE ?",
                         [needle.clone()],
                     ))
                     .add(Expr::cust_with_values(
-                        "LOWER(start_location_id) LIKE '%' || ? || '%'",
+                        "LOWER(start_location_id) LIKE ?",
                         [needle.clone()],
                     ))
                     .add(Expr::cust_with_values(
-                        "LOWER(end_location_id) LIKE '%' || ? || '%'",
+                        "LOWER(end_location_id) LIKE ?",
                         [needle.clone()],
                     ))
                     .add(Expr::cust_with_values(
-                        "brand_id IN (SELECT id FROM brand WHERE LOWER(name) LIKE '%' || ? || '%')",
+                        "brand_id IN (SELECT id FROM brand WHERE LOWER(name) LIKE ?)",
                         [needle],
                     )),
             );
@@ -268,19 +273,22 @@ impl RouteStore for DbRouteStore {
         // "load 1000 routes + to_lowercase().contains() in Rust" pattern.
         // On SQLite, LIKE is case-insensitive for ASCII by default; on
         // Postgres ILIKE would be; LOWER() is the engine-compatible form.
-        // We use LIKE (portable across both backends) with already-lowercased
-        // inputs — the route names are stored in their original case, so we
-        // also lowercase the column via `LOWER(name) LIKE '%from%'`.
+        //
+        // NOTE: wildcards are pre-baked into the bound parameters. The
+        // previous `'%' || ? || '%'` form parsed as `(name LIKE '%') || ?
+        // || '%'` on the rustqlite engine (LIKE binds tighter than `||`
+        // there), which is always truthy — the from/to filter silently
+        // matched every route.
         use sea_orm::sea_query::Expr;
         Ok(route::Entity::find()
             .filter(route::Column::Status.eq("active"))
             .filter(Expr::cust_with_values(
-                "LOWER(name) LIKE '%' || ? || '%'",
-                [from_lower.to_string()],
+                "LOWER(name) LIKE ?",
+                [format!("%{}%", from_lower)],
             ))
             .filter(Expr::cust_with_values(
-                "LOWER(name) LIKE '%' || ? || '%'",
-                [to_lower.to_string()],
+                "LOWER(name) LIKE ?",
+                [format!("%{}%", to_lower)],
             ))
             .limit(limit)
             .all(self.db.as_ref())
