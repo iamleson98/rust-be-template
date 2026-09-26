@@ -179,32 +179,32 @@ export function AdminPaymentsPanel() {
       {isLoading ? (
         <AdminStatsCardsSkeleton count={4} />
       ) : (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label="Tổng giao dịch"
-          value={kpis.totalCount.toString()}
-          color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
-        />
-        <KpiCard
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          label="Đã hoàn tất"
-          value={kpis.completedCount.toString()}
-          color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-        />
-        <KpiCard
-          icon={<Clock className="h-4 w-4" />}
-          label="Đang chờ"
-          value={kpis.pendingCount.toString()}
-          color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
-        />
-        <KpiCard
-          icon={<Wallet className="h-4 w-4" />}
-          label="Doanh thu (trang)"
-          value={formatCurrency(kpis.revenue, currency)}
-          color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
-        />
-      </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label="Tổng giao dịch"
+            value={kpis.totalCount.toString()}
+            color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+          />
+          <KpiCard
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            label="Đã hoàn tất"
+            value={kpis.completedCount.toString()}
+            color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+          />
+          <KpiCard
+            icon={<Clock className="h-4 w-4" />}
+            label="Đang chờ"
+            value={kpis.pendingCount.toString()}
+            color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+          />
+          <KpiCard
+            icon={<Wallet className="h-4 w-4" />}
+            label="Doanh thu (trang)"
+            value={formatCurrency(kpis.revenue, currency)}
+            color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
+          />
+        </div>
       )}
 
       {/* ── Filter bar ─────────────────────────────────────── */}
@@ -249,42 +249,42 @@ export function AdminPaymentsPanel() {
 
       {/* ── Table / Cards — the DataTable renders its own bordered surface. ─── */}
       <DataTable
-            columns={columns}
-            data={items}
-            rowNoun="giao dịch"
-            manualPagination
-            totalRowCount={total}
-            pageIndex={page}
-            onPageIndexChange={setPage}
-            pageSize={PAGE_SIZE}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={() => refetch()}
-            onRowClick={(p) => setSelectedPayment(p)}
-            rowAriaLabel={(p) => `Xem chi tiết giao dịch ${p.bookingCode ?? p.bookingId.slice(0, 8)}`}
-            emptyTitle="Chưa có giao dịch nào"
-            emptyDescription={
-              statusFilter !== 'all' || providerFilter !== 'all'
-                ? 'Thử thay đổi bộ lọc.'
-                : 'Giao dịch sẽ xuất hiện ở đây khi có khách đặt vé.'
-            }
-            emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
-            toolbar={(table) => (
-              <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
-                <DataTableViewOptions table={table} className="ml-auto h-8" />
-              </div>
-            )}
-            mobileList={
-              <PaymentMobileList
-                items={items}
-                currency={currency}
-                updateStatus={updateStatus}
-                setActionDialog={setActionDialog}
-                setActionAmount={setActionAmount}
-                setSelectedPayment={setSelectedPayment}
-              />
-            }
+        columns={columns}
+        data={items}
+        rowNoun="giao dịch"
+        manualPagination
+        totalRowCount={total}
+        pageIndex={page}
+        onPageIndexChange={setPage}
+        pageSize={PAGE_SIZE}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => refetch()}
+        onRowClick={(p) => setSelectedPayment(p)}
+        rowAriaLabel={(p) => `Xem chi tiết giao dịch ${p.bookingCode ?? p.bookingId.slice(0, 8)}`}
+        emptyTitle="Chưa có giao dịch nào"
+        emptyDescription={
+          statusFilter !== 'all' || providerFilter !== 'all'
+            ? 'Thử thay đổi bộ lọc.'
+            : 'Giao dịch sẽ xuất hiện ở đây khi có khách đặt vé.'
+        }
+        emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
+        toolbar={(table) => (
+          <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+            <DataTableViewOptions table={table} className="ml-auto h-8" />
+          </div>
+        )}
+        mobileList={
+          <PaymentMobileList
+            items={items}
+            currency={currency}
+            updateStatus={updateStatus}
+            setActionDialog={setActionDialog}
+            setActionAmount={setActionAmount}
+            setSelectedPayment={setSelectedPayment}
           />
+        }
+      />
 
       {/* ── Detail dialog ──────────────────────────────────── */}
       <PaymentDetailDialog
