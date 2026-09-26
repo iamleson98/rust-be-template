@@ -40,6 +40,7 @@ pub mod consts {
     pub const ADMIN_PICKUP_POINTS_READ: &str = "admin:pickup_points:read";
     pub const ADMIN_PICKUP_POINTS_WRITE: &str = "admin:pickup_points:write";
     pub const ADMIN_BUS_LAYOUTS_READ: &str = "admin:bus_layouts:read";
+    pub const ADMIN_BUS_LAYOUTS_WRITE: &str = "admin:bus_layouts:write";
     pub const ADMIN_VEHICLE_TYPES_READ: &str = "admin:vehicle_types:read";
     pub const ADMIN_VEHICLE_TYPES_WRITE: &str = "admin:vehicle_types:write";
     pub const ADMIN_REVIEWS_MODERATE: &str = "admin:reviews:moderate";

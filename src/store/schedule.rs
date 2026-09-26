@@ -13,7 +13,7 @@ use sea_orm::{
 use store_macros::retry;
 use uuid::Uuid;
 
-use crate::entity::{bus_layout, schedule};
+use crate::entity::{booking_seat, bus_layout, schedule, seat_inventory};
 
 use super::error::StoreResult;
 use super::retry::RetryPolicy;
@@ -83,6 +83,30 @@ pub trait ScheduleStore: Send + Sync {
         &self,
         brand_ids: Vec<String>,
     ) -> StoreResult<std::collections::HashMap<String, usize>>;
+
+    /// Update an existing bus layout (metadata patch).
+    async fn update_bus_layout(
+        &self,
+        model: bus_layout::ActiveModel,
+    ) -> StoreResult<bus_layout::Model>;
+
+    /// Delete a bus layout by id. The caller MUST have verified no
+    /// schedule references it and none of its seats carry
+    /// inventory/booking rows (the FKs are all `Restrict`).
+    async fn delete_bus_layout(&self, id: Uuid) -> StoreResult<()>;
+
+    /// Number of schedules referencing the layout — a layout still
+    /// wired into live schedules cannot be deleted.
+    async fn count_schedules_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
+
+    /// Number of `seat_inventory` rows referencing any seat of this
+    /// layout (i.e. materialized trips used it) — such layouts cannot
+    /// be deleted without destroying trip history.
+    async fn count_seat_inventory_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
+
+    /// Number of `booking_seat` rows referencing any seat of this
+    /// layout (sold tickets) — such layouts cannot be deleted.
+    async fn count_booking_seats_by_bus_layout(&self, id: Uuid) -> StoreResult<usize>;
     async fn list_schedules_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<schedule::Model>>;
 }
 
@@ -294,5 +318,53 @@ impl ScheduleStore for DbScheduleStore {
             .filter(schedule::Column::Id.is_in(ids))
             .all(self.db.as_ref())
             .await?)
+    }
+
+    async fn update_bus_layout(
+        &self,
+        model: bus_layout::ActiveModel,
+    ) -> StoreResult<bus_layout::Model> {
+        Ok(bus_layout::Entity::update(model)
+            .exec(self.db.as_ref())
+            .await?)
+    }
+
+    async fn delete_bus_layout(&self, id: Uuid) -> StoreResult<()> {
+        bus_layout::Entity::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(())
+    }
+
+    async fn count_schedules_by_bus_layout(&self, id: Uuid) -> StoreResult<usize> {
+        Ok(schedule::Entity::find()
+            .filter(schedule::Column::BusLayoutId.eq(id))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
+    async fn count_seat_inventory_by_bus_layout(&self, id: Uuid) -> StoreResult<usize> {
+        use sea_orm::sea_query::Expr;
+        // seat_id IN (SELECT id FROM seat WHERE bus_layout_id = ?) —
+        // same subquery shape the route store uses for the brand-name
+        // search (single round trip, no JOIN materialisation).
+        Ok(seat_inventory::Entity::find()
+            .filter(Expr::cust_with_values(
+                "seat_id IN (SELECT id FROM seat WHERE bus_layout_id = ?)",
+                [id],
+            ))
+            .count(self.db.as_ref())
+            .await? as usize)
+    }
+
+    async fn count_booking_seats_by_bus_layout(&self, id: Uuid) -> StoreResult<usize> {
+        use sea_orm::sea_query::Expr;
+        Ok(booking_seat::Entity::find()
+            .filter(Expr::cust_with_values(
+                "seat_id IN (SELECT id FROM seat WHERE bus_layout_id = ?)",
+                [id],
+            ))
+            .count(self.db.as_ref())
+            .await? as usize)
     }
 }

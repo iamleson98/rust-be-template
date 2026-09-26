@@ -95,6 +95,10 @@ const PERMISSIONS: &[(&str, &str)] = &[
     ),
     // Bus layouts
     ("admin:bus_layouts:read", "Admin: list bus layouts"),
+    (
+        "admin:bus_layouts:write",
+        "Admin: create/update/delete bus layouts",
+    ),
     // Vehicle types
     (
         "admin:vehicle_types:read",

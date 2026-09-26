@@ -57,11 +57,15 @@ export function MapSidebar({
               Tìm thành phố
             </div>
             <div className="relative">
+              {/* Leading lookup icon INSIDE the field — the field itself
+                  must carry the affordance, not just the label above. */}
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="VD: Hà Nội, Đà Nẵng..."
-                className="pr-8 h-9 text-sm"
+                className="h-9 pl-9 pr-8 text-sm"
+                aria-label="Tìm thành phố trên bản đồ"
               />
               {searchQuery && (
                 <button

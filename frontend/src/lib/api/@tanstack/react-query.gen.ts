@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, deleteAllPictures, deletePicture, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPictures, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, mine, moderate, momoIpn, oauthCallback, oauthStart, type Options, patchPicture, postMessage, processMemory, ready, recommendations, refresh, register, registerDevice, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routePictures, routes, search, searchTrips, serve, setUserRole, sitemap, stats, stats2, status, summary, systemMetrics, systemStatus, tags, toggle, trigger, tripDetail, unregisterDevice, update, update2, update3, update4, update5, update6, update7, update8, updatePaymentStatus, updatePost, updateStatus, uploadPicture, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
-import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, DeleteAllPicturesData, DeleteAllPicturesResponse, DeleteData, DeletePictureData, DeletePictureResponse, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPicturesData, ListPicturesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, MineData, MineResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PatchPictureData, PatchPictureResponse, PostMessageData, PostMessageResponse, ProcessMemoryData, ProcessMemoryResponse2, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterDeviceData, RegisterDeviceResponse2, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutePicturesData, RoutePicturesResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, ServeData, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SummaryData, SummaryResponse, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, UploadPictureData, UploadPictureResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
+import { brandDetail, brands, campaigns, cancel, cancel2, cancelPayment, chatStats, claimChannel, closeChannel, confirm, create, create2, create3, create4, create5, create6, create7, create8, create9, createChannel, createPayment, createPost, delete_, delete2, delete3, delete4, delete5, delete6, delete7, delete8, deleteAllPictures, deletePicture, deletePost, deleteUser, detail, directions, employeeLogin, export_, get, get2, getPayment, getPost, getStaffPresence, getUser, health, hold, isochrone, list, list10, list11, list12, list13, list14, list15, list16, list2, list3, list4, list5, list6, list7, list8, list9, listAdminPayments, listBookingPayments, listChannels, listExchanges, listMessages, listPictures, listPosts, listRuns, listUsers, login, logout, lookup, markCodCollected, markRead, markRead2, matrix, me, mine, moderate, momoIpn, oauthCallback, oauthStart, type Options, patchPicture, postMessage, processMemory, ready, recommendations, refresh, register, registerDevice, releaseChannel, remove, remove2, remove3, reportVitals, reverse, robots, routePictures, routes, search, searchTrips, serve, setUserRole, sitemap, stats, stats2, status, summary, systemMetrics, systemStatus, tags, toggle, trigger, tripDetail, unregisterDevice, update, update2, update3, update4, update5, update6, update7, update8, update9, updatePaymentStatus, updatePost, updateStatus, uploadPicture, validateCampaign, vnpayIpn, zalopayCallback } from '../sdk.gen';
+import type { BrandDetailData, BrandDetailResponse, BrandsData, BrandsResponse, CampaignsData, CampaignsResponse, Cancel2Data, Cancel2Response, CancelData, CancelPaymentData, CancelPaymentResponse2, CancelResponse, ChatStatsData, ChatStatsResponse2, ClaimChannelData, ClaimChannelResponse, CloseChannelData, CloseChannelResponse, ConfirmData, ConfirmResponse, Create2Data, Create2Response, Create3Data, Create3Response, Create4Data, Create4Response, Create5Data, Create5Response, Create6Data, Create6Response, Create7Data, Create7Response, Create8Data, Create8Response, Create9Data, Create9Response, CreateChannelData, CreateChannelResponse2, CreateData, CreatePaymentData, CreatePaymentResponse2, CreatePostData, CreatePostResponse, CreateResponse, Delete2Data, Delete2Response, Delete3Data, Delete3Response, Delete4Data, Delete4Response, Delete5Data, Delete5Response, Delete6Data, Delete6Response, Delete7Data, Delete7Response, Delete8Data, Delete8Response, DeleteAllPicturesData, DeleteAllPicturesResponse, DeleteData, DeletePictureData, DeletePictureResponse, DeletePostData, DeletePostResponse, DeleteResponse, DeleteUserData, DeleteUserResponse, DetailData, DetailResponse, DirectionsData, DirectionsResponse2, EmployeeLoginData, EmployeeLoginResponse, ExportData, ExportResponse, Get2Data, Get2Response, GetData, GetPaymentData, GetPaymentResponse, GetPostData, GetPostResponse, GetResponse, GetStaffPresenceData, GetStaffPresenceResponse, GetUserData, GetUserResponse, HealthData, HealthResponse2, HoldData, HoldResponse, IsochroneData, IsochroneResponse2, List10Data, List10Response, List11Data, List11Response, List12Data, List12Response, List13Data, List13Response, List14Data, List14Response, List15Data, List15Response, List16Data, List16Response, List2Data, List2Response, List3Data, List3Response, List4Data, List4Response, List5Data, List5Response, List6Data, List6Response, List7Data, List7Response, List8Data, List8Response, List9Data, List9Response, ListAdminPaymentsData, ListAdminPaymentsResponse, ListBookingPaymentsData, ListBookingPaymentsResponse, ListChannelsData, ListChannelsResponse, ListData, ListExchangesData, ListExchangesResponse, ListMessagesData, ListMessagesResponse, ListPicturesData, ListPicturesResponse, ListPostsData, ListPostsResponse2, ListResponse, ListRunsData, ListRunsResponse, ListUsersData, ListUsersResponse, LoginData, LoginResponse, LogoutData, LogoutResponse, LookupData, LookupResponse, MarkCodCollectedData, MarkCodCollectedResponse2, MarkRead2Data, MarkRead2Response, MarkReadData, MarkReadResponse, MatrixData, MatrixResponse2, MeData, MeResponse, MineData, MineResponse, ModerateData, ModerateResponse, MomoIpnData, MomoIpnResponse, OauthCallbackData, OauthStartData, PatchPictureData, PatchPictureResponse, PostMessageData, PostMessageResponse, ProcessMemoryData, ProcessMemoryResponse2, ReadyData, ReadyError, ReadyResponse, RecommendationsData, RecommendationsResponse, RefreshData, RefreshResponse, RegisterData, RegisterDeviceData, RegisterDeviceResponse2, RegisterResponse, ReleaseChannelData, ReleaseChannelResponse, Remove2Data, Remove2Response, Remove3Data, Remove3Response, RemoveData, RemoveResponse, ReportVitalsData, ReportVitalsResponse, ReverseData, ReverseResponse, RobotsData, RoutePicturesData, RoutePicturesResponse, RoutesData, RoutesResponse, SearchData, SearchResponse, SearchTripsData, SearchTripsResponse, ServeData, SetUserRoleData, SetUserRoleResponse2, SitemapData, SitemapResponse, Stats2Data, Stats2Response, StatsData, StatsResponse2, StatusData, StatusResponse, SummaryData, SummaryResponse, SystemMetricsData, SystemMetricsResponse, SystemStatusData, SystemStatusResponse2, TagsData, TagsResponse, ToggleData, ToggleResponse, TriggerData, TriggerResponse, TripDetailData, TripDetailResponse, UnregisterDeviceData, UnregisterDeviceResponse2, Update2Data, Update2Response, Update3Data, Update3Response, Update4Data, Update4Response, Update5Data, Update5Response, Update6Data, Update6Response, Update7Data, Update7Response, Update8Data, Update8Response, Update9Data, Update9Response, UpdateData, UpdatePaymentStatusData, UpdatePaymentStatusResponse2, UpdatePostData, UpdatePostResponse, UpdateResponse, UpdateStatusData, UpdateStatusResponse, UploadPictureData, UploadPictureResponse, ValidateCampaignData, ValidateCampaignResponse, VnpayIpnData, VnpayIpnResponse, ZalopayCallbackData, ZalopayCallbackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -469,6 +469,63 @@ export const list4InfiniteOptions = (options?: Options<List4Data>) => {
     return opts as Omit<typeof opts, 'initialData'>;
 };
 
+/**
+ * `POST /api/admin/bus-layouts` — create a bus layout (with generated
+ * seat rows when `seatGrid` is provided; defaults to 10×4×1 = 40).
+ */
+export const create3Mutation = (options?: Partial<Options<Create3Data>>): UseMutationOptions<Create3Response, DefaultError, Options<Create3Data>> => {
+    const mutationOptions: UseMutationOptions<Create3Response, DefaultError, Options<Create3Data>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await create3({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `DELETE /api/admin/bus-layouts/{id}` — delete a bus layout.
+ *
+ * Blocked with `409 Conflict` while any schedule references the
+ * layout, or any of its seats carry `seat_inventory` /
+ * `booking_seat` rows (all FKs are `Restrict`).
+ */
+export const delete3Mutation = (options?: Partial<Options<Delete3Data>>): UseMutationOptions<Delete3Response, DefaultError, Options<Delete3Data>> => {
+    const mutationOptions: UseMutationOptions<Delete3Response, DefaultError, Options<Delete3Data>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await delete3({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * `PUT /api/admin/bus-layouts/{id}` — update a bus layout's metadata
+ * (name / brand / vehicle type / total seats / layout data).
+ */
+export const update3Mutation = (options?: Partial<Options<Update3Data>>): UseMutationOptions<Update3Response, DefaultError, Options<Update3Data>> => {
+    const mutationOptions: UseMutationOptions<Update3Response, DefaultError, Options<Update3Data>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await update3({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const chatStatsQueryKey = (options?: Options<ChatStatsData>) => createQueryKey('chatStats', options);
 
 /**
@@ -534,10 +591,10 @@ export const listRunsOptions = (options?: Options<ListRunsData>) => queryOptions
  * `PATCH /api/admin/cron-jobs/{jobType}` — enable/disable, change the
  * cadence or fire time, or re-arm the next run.
  */
-export const update3Mutation = (options?: Partial<Options<Update3Data>>): UseMutationOptions<Update3Response, DefaultError, Options<Update3Data>> => {
-    const mutationOptions: UseMutationOptions<Update3Response, DefaultError, Options<Update3Data>> = {
+export const update4Mutation = (options?: Partial<Options<Update4Data>>): UseMutationOptions<Update4Response, DefaultError, Options<Update4Data>> => {
+    const mutationOptions: UseMutationOptions<Update4Response, DefaultError, Options<Update4Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update3({
+            const { data } = await update4({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -675,10 +732,10 @@ export const list6Options = (options?: Options<List6Data>) => queryOptions<List6
 /**
  * `POST /api/admin/pickup-points` — create a pickup point.
  */
-export const create3Mutation = (options?: Partial<Options<Create3Data>>): UseMutationOptions<Create3Response, DefaultError, Options<Create3Data>> => {
-    const mutationOptions: UseMutationOptions<Create3Response, DefaultError, Options<Create3Data>> = {
+export const create4Mutation = (options?: Partial<Options<Create4Data>>): UseMutationOptions<Create4Response, DefaultError, Options<Create4Data>> => {
+    const mutationOptions: UseMutationOptions<Create4Response, DefaultError, Options<Create4Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create3({
+            const { data } = await create4({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -692,10 +749,10 @@ export const create3Mutation = (options?: Partial<Options<Create3Data>>): UseMut
 /**
  * `DELETE /api/admin/pickup-points/{id}` — delete a pickup point.
  */
-export const delete3Mutation = (options?: Partial<Options<Delete3Data>>): UseMutationOptions<Delete3Response, DefaultError, Options<Delete3Data>> => {
-    const mutationOptions: UseMutationOptions<Delete3Response, DefaultError, Options<Delete3Data>> = {
+export const delete4Mutation = (options?: Partial<Options<Delete4Data>>): UseMutationOptions<Delete4Response, DefaultError, Options<Delete4Data>> => {
+    const mutationOptions: UseMutationOptions<Delete4Response, DefaultError, Options<Delete4Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await delete3({
+            const { data } = await delete4({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -709,10 +766,10 @@ export const delete3Mutation = (options?: Partial<Options<Delete3Data>>): UseMut
 /**
  * `PUT /api/admin/pickup-points/{id}` — update a pickup point.
  */
-export const update4Mutation = (options?: Partial<Options<Update4Data>>): UseMutationOptions<Update4Response, DefaultError, Options<Update4Data>> => {
-    const mutationOptions: UseMutationOptions<Update4Response, DefaultError, Options<Update4Data>> = {
+export const update5Mutation = (options?: Partial<Options<Update5Data>>): UseMutationOptions<Update5Response, DefaultError, Options<Update5Data>> => {
+    const mutationOptions: UseMutationOptions<Update5Response, DefaultError, Options<Update5Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update4({
+            const { data } = await update5({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -794,10 +851,10 @@ export const summaryOptions = (options?: Options<SummaryData>) => queryOptions<S
 /**
  * `DELETE /api/admin/reviews/{id}` — delete a review (admin override).
  */
-export const delete4Mutation = (options?: Partial<Options<Delete4Data>>): UseMutationOptions<Delete4Response, DefaultError, Options<Delete4Data>> => {
-    const mutationOptions: UseMutationOptions<Delete4Response, DefaultError, Options<Delete4Data>> = {
+export const delete5Mutation = (options?: Partial<Options<Delete5Data>>): UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> => {
+    const mutationOptions: UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await delete4({
+            const { data } = await delete5({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -878,10 +935,10 @@ export const list8InfiniteOptions = (options?: Options<List8Data>) => {
 /**
  * `POST /api/admin/routes` — create a route.
  */
-export const create4Mutation = (options?: Partial<Options<Create4Data>>): UseMutationOptions<Create4Response, DefaultError, Options<Create4Data>> => {
-    const mutationOptions: UseMutationOptions<Create4Response, DefaultError, Options<Create4Data>> = {
+export const create5Mutation = (options?: Partial<Options<Create5Data>>): UseMutationOptions<Create5Response, DefaultError, Options<Create5Data>> => {
+    const mutationOptions: UseMutationOptions<Create5Response, DefaultError, Options<Create5Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create4({
+            const { data } = await create5({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -899,10 +956,10 @@ export const create4Mutation = (options?: Partial<Options<Create4Data>>): UseMut
  * cascade would drop the rows (the only index of which objects
  * exist) and orphan the objects with no way to find them again.
  */
-export const delete5Mutation = (options?: Partial<Options<Delete5Data>>): UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> => {
-    const mutationOptions: UseMutationOptions<Delete5Response, DefaultError, Options<Delete5Data>> = {
+export const delete6Mutation = (options?: Partial<Options<Delete6Data>>): UseMutationOptions<Delete6Response, DefaultError, Options<Delete6Data>> => {
+    const mutationOptions: UseMutationOptions<Delete6Response, DefaultError, Options<Delete6Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await delete5({
+            const { data } = await delete6({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -916,10 +973,10 @@ export const delete5Mutation = (options?: Partial<Options<Delete5Data>>): UseMut
 /**
  * `PUT /api/admin/routes/{id}` — update a route.
  */
-export const update5Mutation = (options?: Partial<Options<Update5Data>>): UseMutationOptions<Update5Response, DefaultError, Options<Update5Data>> => {
-    const mutationOptions: UseMutationOptions<Update5Response, DefaultError, Options<Update5Data>> = {
+export const update6Mutation = (options?: Partial<Options<Update6Data>>): UseMutationOptions<Update6Response, DefaultError, Options<Update6Data>> => {
+    const mutationOptions: UseMutationOptions<Update6Response, DefaultError, Options<Update6Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update5({
+            const { data } = await update6({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1049,10 +1106,10 @@ export const list9Options = (options?: Options<List9Data>) => queryOptions<List9
 /**
  * `POST /api/admin/schedules` — create a schedule.
  */
-export const create5Mutation = (options?: Partial<Options<Create5Data>>): UseMutationOptions<Create5Response, DefaultError, Options<Create5Data>> => {
-    const mutationOptions: UseMutationOptions<Create5Response, DefaultError, Options<Create5Data>> = {
+export const create6Mutation = (options?: Partial<Options<Create6Data>>): UseMutationOptions<Create6Response, DefaultError, Options<Create6Data>> => {
+    const mutationOptions: UseMutationOptions<Create6Response, DefaultError, Options<Create6Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create5({
+            const { data } = await create6({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1066,10 +1123,10 @@ export const create5Mutation = (options?: Partial<Options<Create5Data>>): UseMut
 /**
  * `DELETE /api/admin/schedules/{id}` — delete a schedule.
  */
-export const delete6Mutation = (options?: Partial<Options<Delete6Data>>): UseMutationOptions<Delete6Response, DefaultError, Options<Delete6Data>> => {
-    const mutationOptions: UseMutationOptions<Delete6Response, DefaultError, Options<Delete6Data>> = {
+export const delete7Mutation = (options?: Partial<Options<Delete7Data>>): UseMutationOptions<Delete7Response, DefaultError, Options<Delete7Data>> => {
+    const mutationOptions: UseMutationOptions<Delete7Response, DefaultError, Options<Delete7Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await delete6({
+            const { data } = await delete7({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1083,10 +1140,10 @@ export const delete6Mutation = (options?: Partial<Options<Delete6Data>>): UseMut
 /**
  * `PUT /api/admin/schedules/{id}` — update a schedule.
  */
-export const update6Mutation = (options?: Partial<Options<Update6Data>>): UseMutationOptions<Update6Response, DefaultError, Options<Update6Data>> => {
-    const mutationOptions: UseMutationOptions<Update6Response, DefaultError, Options<Update6Data>> = {
+export const update7Mutation = (options?: Partial<Options<Update7Data>>): UseMutationOptions<Update7Response, DefaultError, Options<Update7Data>> => {
+    const mutationOptions: UseMutationOptions<Update7Response, DefaultError, Options<Update7Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update6({
+            const { data } = await update7({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1208,10 +1265,10 @@ export const list10InfiniteOptions = (options?: Options<List10Data>) => {
 /**
  * `POST /api/admin/vehicle-types` — create a vehicle type.
  */
-export const create6Mutation = (options?: Partial<Options<Create6Data>>): UseMutationOptions<Create6Response, DefaultError, Options<Create6Data>> => {
-    const mutationOptions: UseMutationOptions<Create6Response, DefaultError, Options<Create6Data>> = {
+export const create7Mutation = (options?: Partial<Options<Create7Data>>): UseMutationOptions<Create7Response, DefaultError, Options<Create7Data>> => {
+    const mutationOptions: UseMutationOptions<Create7Response, DefaultError, Options<Create7Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create6({
+            const { data } = await create7({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1227,10 +1284,10 @@ export const create6Mutation = (options?: Partial<Options<Create6Data>>): UseMut
  * referencing the type fall back to their bus layout
  * (`ON DELETE SET NULL` semantics).
  */
-export const delete7Mutation = (options?: Partial<Options<Delete7Data>>): UseMutationOptions<Delete7Response, DefaultError, Options<Delete7Data>> => {
-    const mutationOptions: UseMutationOptions<Delete7Response, DefaultError, Options<Delete7Data>> = {
+export const delete8Mutation = (options?: Partial<Options<Delete8Data>>): UseMutationOptions<Delete8Response, DefaultError, Options<Delete8Data>> => {
+    const mutationOptions: UseMutationOptions<Delete8Response, DefaultError, Options<Delete8Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await delete7({
+            const { data } = await delete8({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -1244,10 +1301,10 @@ export const delete7Mutation = (options?: Partial<Options<Delete7Data>>): UseMut
 /**
  * `PUT /api/admin/vehicle-types/{id}` — update (patch semantics).
  */
-export const update7Mutation = (options?: Partial<Options<Update7Data>>): UseMutationOptions<Update7Response, DefaultError, Options<Update7Data>> => {
-    const mutationOptions: UseMutationOptions<Update7Response, DefaultError, Options<Update7Data>> = {
+export const update8Mutation = (options?: Partial<Options<Update8Data>>): UseMutationOptions<Update8Response, DefaultError, Options<Update8Data>> => {
+    const mutationOptions: UseMutationOptions<Update8Response, DefaultError, Options<Update8Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update7({
+            const { data } = await update8({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2500,10 +2557,10 @@ export const list14InfiniteOptions = (options?: Options<List14Data>) => {
  * owner. The `phone` field is still required (for notification
  * delivery) and must match a valid Vietnamese mobile number.
  */
-export const create7Mutation = (options?: Partial<Options<Create7Data>>): UseMutationOptions<Create7Response, DefaultError, Options<Create7Data>> => {
-    const mutationOptions: UseMutationOptions<Create7Response, DefaultError, Options<Create7Data>> = {
+export const create8Mutation = (options?: Partial<Options<Create8Data>>): UseMutationOptions<Create8Response, DefaultError, Options<Create8Data>> => {
+    const mutationOptions: UseMutationOptions<Create8Response, DefaultError, Options<Create8Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create7({
+            const { data } = await create8({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2666,10 +2723,10 @@ export const list15InfiniteOptions = (options?: Options<List15Data>) => {
 /**
  * `POST /api/reviews` — create a review. Requires authentication.
  */
-export const create8Mutation = (options?: Partial<Options<Create8Data>>): UseMutationOptions<Create8Response, DefaultError, Options<Create8Data>> => {
-    const mutationOptions: UseMutationOptions<Create8Response, DefaultError, Options<Create8Data>> = {
+export const create9Mutation = (options?: Partial<Options<Create9Data>>): UseMutationOptions<Create9Response, DefaultError, Options<Create9Data>> => {
+    const mutationOptions: UseMutationOptions<Create9Response, DefaultError, Options<Create9Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await create8({
+            const { data } = await create9({
                 ...options,
                 ...fnOptions,
                 throwOnError: true
@@ -2792,10 +2849,10 @@ export const get2Options = (options: Options<Get2Data>) => queryOptions<Get2Resp
 /**
  * `PATCH /api/reviews/{id}` — update a review. Requires authentication.
  */
-export const update8Mutation = (options?: Partial<Options<Update8Data>>): UseMutationOptions<Update8Response, DefaultError, Options<Update8Data>> => {
-    const mutationOptions: UseMutationOptions<Update8Response, DefaultError, Options<Update8Data>> = {
+export const update9Mutation = (options?: Partial<Options<Update9Data>>): UseMutationOptions<Update9Response, DefaultError, Options<Update9Data>> => {
+    const mutationOptions: UseMutationOptions<Update9Response, DefaultError, Options<Update9Data>> = {
         mutationFn: async (fnOptions) => {
-            const { data } = await update8({
+            const { data } = await update9({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

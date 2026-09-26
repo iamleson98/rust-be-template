@@ -39,6 +39,8 @@ pub async fn list(
             .list_routes(
                 q.brand_id.map(|id| id.to_string()).as_deref(),
                 q.q.as_deref(),
+                q.start_location_id.as_deref(),
+                q.end_location_id.as_deref(),
                 q.limit,
                 q.offset.unwrap_or(0),
             )

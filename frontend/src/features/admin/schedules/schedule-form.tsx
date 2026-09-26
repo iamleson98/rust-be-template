@@ -48,7 +48,7 @@ import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useUpsertAdminSchedule } from '@/lib/queries'
+import { useUpsertAdminSchedule, useUpdateAdminSchedule } from '@/lib/queries'
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
@@ -83,8 +83,9 @@ export function ScheduleFormDialog({
   onSaved: () => void
 }) {
   const isEdit = !!schedule
-  const upsertMutation = useUpsertAdminSchedule()
-  const saving = upsertMutation.isPending
+  const createMutation = useUpsertAdminSchedule()
+  const updateMutation = useUpdateAdminSchedule()
+  const saving = createMutation.isPending || updateMutation.isPending
 
   // Addresses created inside this dialog session — merged as extras so
   // the new option appears instantly (the query invalidation refreshes
@@ -267,15 +268,22 @@ export function ScheduleFormDialog({
         amenities: values.amenities.join(','),
         points,
       }
-      if (isEdit) {
-        payload.id = schedule!.id
-      }
       // SDK mutation hooks require { body: <payload> } — passing the raw
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
-      toast.success(isEdit ? 'Đã cập nhật lịch trình' : 'Đã thêm lịch trình mới')
+      if (isEdit) {
+        // PUT /api/admin/schedules/{id} — the create endpoint ignores
+        // an `id` body field, so posting edits there duplicated schedules.
+        await updateMutation.mutateAsync({
+          path: { id: schedule!.id },
+          body: payload,
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
+        toast.success('Đã cập nhật lịch trình')
+      } else {
+        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
+        toast.success('Đã thêm lịch trình mới')
+      }
       onSaved()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Không thể lưu lịch trình'))
@@ -292,7 +300,7 @@ export function ScheduleFormDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
@@ -312,6 +320,10 @@ export function ScheduleFormDialog({
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4">
+              {/* Point sequence stays full-width — the wide modal exists
+                  precisely so the pickup/drop-off selects render on one
+                  line with their arrival-time pickers instead of
+                  wrapping into a narrow column. */}
               <ScheduleRouteSection
                 form={form}
                 brandId={brandId}
@@ -327,14 +339,19 @@ export function ScheduleFormDialog({
                 removeMiddle={removeMiddle}
               />
 
-              <ScheduleBasicsFields
-                form={form}
-                busLayouts={busLayouts}
-                effectiveFrom={effectiveFrom}
-                scheduleVehicleType={scheduleVehicleType}
-              />
-
-              <ScheduleDaysField form={form} toggleDay={toggleDay} setDays={setDays} />
+              {/* Compact fields pair up on the widened (max-w-4xl)
+                  dialog so everything stays visible without scrolling. */}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <ScheduleBasicsFields
+                  form={form}
+                  busLayouts={busLayouts}
+                  effectiveFrom={effectiveFrom}
+                  scheduleVehicleType={scheduleVehicleType}
+                />
+                <div className="grid gap-4 content-start">
+                  <ScheduleDaysField form={form} toggleDay={toggleDay} setDays={setDays} />
+                </div>
+              </div>
 
               <SchedulePricingFields form={form} toggleAmenity={toggleAmenity} />
 

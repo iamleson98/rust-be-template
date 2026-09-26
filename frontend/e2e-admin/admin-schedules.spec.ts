@@ -1,15 +1,19 @@
 /**
- * Full-stack admin E2E — brand → route → schedule management with the
- * address-point system, against the real Rust backend (SQLite demo DB).
+ * Full-stack admin E2E — the /admin/brands tree table (brands →
+ * routes → schedules) with the address-point system, against the real
+ * Rust backend (SQLite demo DB).
  *
  * Verifies the user's requirements end-to-end:
- *   1. brands → routes → schedules hierarchy renders,
- *   2. the schedule form drives start time + start/middle/end point
+ *   1. the brands → routes → schedules subtree table renders and
+ *      expands level by level,
+ *   2. the smart filter (route start + end points) prunes brands and
+ *      auto-expands the matching ones,
+ *   3. the schedule form drives start time + start/middle/end point
  *      selects (display = address names, value = address ids),
- *   3. the "create address" modal opens a map with full-text search,
+ *   4. the "create address" modal opens a map with full-text search,
  *      map clicks fill lat/lng, and saving selects the new address for
  *      the point that asked for it,
- *   4. saving the schedule persists the ordered point sequence.
+ *   5. saving the schedule persists and the new row appears.
  *
  * Also captures screenshots for visual review (admin-e2e-artifacts/).
  *
@@ -39,12 +43,24 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/admin/, { timeout: 20_000 })
 }
 
-async function pickBrandAndRoute(page: Page) {
-  // First trigger = brand filter, second = route filter.
-  await trigger(page).first().click()
-  await item(page).filter({ hasText: BRAND }).first().click()
-  await trigger(page).nth(1).click()
-  await item(page).filter({ hasText: ROUTE }).first().click()
+/** Expand BRAND's subtree on /admin/brands and return its row scope. */
+async function expandBrand(page: Page) {
+  const brandRow = page.locator('tr', { hasText: BRAND }).first()
+  await expect(brandRow).toBeVisible({ timeout: 15_000 })
+  await brandRow.locator('button[aria-expanded]').first().click()
+  // Route rows render under the brand.
+  await expect(page.locator('tr', { hasText: ROUTE }).first()).toBeVisible({ timeout: 15_000 })
+  return brandRow
+}
+
+/** Expand BRAND → ROUTE and wait for the schedule rows. */
+async function expandRoute(page: Page) {
+  await expandBrand(page)
+  const routeRow = page.locator('tr', { hasText: ROUTE }).first()
+  await routeRow.locator('button[aria-expanded]').first().click()
+  // Seeded schedules appear (08:30 + 20:00 on the demo route).
+  await expect(page.getByText('08:30').first()).toBeVisible({ timeout: 15_000 })
+  return routeRow
 }
 
 test('login lands on the admin dashboard', async ({ page }) => {
@@ -52,63 +68,82 @@ test('login lands on the admin dashboard', async ({ page }) => {
   await expect(page.getByText(/bảng điều khiển/i).first()).toBeVisible()
 })
 
-test('routes page lists routes with brand + cities + counts', async ({ page }) => {
+test('brands tree expands brands → routes with cities + counts', async ({ page }) => {
   await login(page)
-  await page.goto('/admin/routes')
+  await page.goto('/admin/brands')
 
-  await expect(page.getByRole('heading', { name: 'Tuyến đường' })).toBeVisible()
-  const row = page.locator('tr', { hasText: ROUTE })
-  await expect(row).toBeVisible({ timeout: 15_000 })
-  await expect(row).toContainText(BRAND)
-  await expect(row).toContainText('Hồ Chí Minh')
-  await expect(row).toContainText('Nha Trang')
+  await expect(page.getByRole('heading', { name: 'Hãng xe & Tuyến đường' })).toBeVisible()
 
-  await page.screenshot({ path: `${ART}/admin-routes.png` })
+  // Level 1: the brand row carries counts.
+  const brandRow = await expandBrand(page)
+  await expect(brandRow).toContainText('tuyến')
+
+  // Level 2: the route row carries the direction + schedule count.
+  const routeRow = page.locator('tr', { hasText: ROUTE }).first()
+  await expect(routeRow).toContainText('Hồ Chí Minh')
+  await expect(routeRow).toContainText('Nha Trang')
+  await expect(routeRow).toContainText('lịch trình')
+
+  await page.screenshot({ path: `${ART}/admin-brands-tree.png` })
 })
 
-test('schedules page shows the points timeline per schedule', async ({ page }) => {
+test('brands tree expands schedules with days, prices + point summaries', async ({ page }) => {
   await login(page)
-  await page.goto('/admin/schedules')
+  await page.goto('/admin/brands')
+  await expandRoute(page)
 
-  // Empty state prompts to pick brand + route first.
-  await expect(page.getByText('Chọn hãng và tuyến đường')).toBeVisible()
-
-  await pickBrandAndRoute(page)
-
-  // Two seeded schedules appear.
-  await expect(page.getByText('08:30').first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('20:00').first()).toBeVisible()
 
-  // Points timeline on the right panel of the first card.
-  const firstCard = page.locator('.grid.lg\\:grid-cols-\\[1fr_320px\\]').first()
-  await expect(firstCard.getByText('Điểm đón — trả')).toBeVisible()
-  await expect(firstCard.getByText('Bến xe Miền Đông')).toBeVisible()
-  await expect(firstCard.getByText('Trạm dừng Dầu Giây')).toBeVisible()
-  await expect(firstCard.getByText('Bến xe Nha Trang')).toBeVisible()
-  await expect(firstCard.getByText('Khởi hành')).toBeVisible()
-  await expect(firstCard.getByText('Trung gian')).toBeVisible()
-  await expect(firstCard.getByText('Kết thúc')).toBeVisible()
+  // Schedule rows show the days chips, price + the point sequence
+  // summary (first → last, midway count).
+  const scheduleRow = page.locator('tr', { hasText: '08:30' }).first()
+  await expect(scheduleRow).toContainText('T2')
+  await expect(scheduleRow).toContainText('Bến xe Miền Đông')
+  await expect(scheduleRow).toContainText('Bến xe Nha Trang')
 
-  await page.screenshot({ path: `${ART}/admin-schedules.png` })
+  await page.screenshot({ path: `${ART}/admin-brands-schedules.png` })
+})
+
+test('smart filter: start + end points prune brands and auto-expand matches', async ({ page }) => {
+  await login(page)
+  await page.goto('/admin/brands')
+
+  // Pick the route's start + end points (Hồ Chí Minh → Nha Trang).
+  await page.locator('[aria-label="Điểm đi"]').click()
+  await item(page).filter({ hasText: 'Hồ Chí Minh' }).first().click()
+  await page.locator('[aria-label="Điểm đến"]').click()
+  await item(page).filter({ hasText: 'Nha Trang' }).first().click()
+
+  // Matching brands auto-expand with their matching routes inline —
+  // no manual expansion needed.
+  await expect(page.locator('tr', { hasText: ROUTE }).first()).toBeVisible({ timeout: 15_000 })
+
+  // Brand-level summary counts the matches.
+  await expect(page.getByText(/tuyến/i).first()).toBeVisible()
+  await page.screenshot({ path: `${ART}/admin-brands-smart-filter.png` })
+
+  // Clearing the filter collapses back to the plain brand list.
+  await page.getByRole('button', { name: /xoá lọc/i }).click()
+  await expect(page.locator('tr', { hasText: ROUTE })).toHaveCount(0, { timeout: 15_000 })
 })
 
 test('schedule form: point selects, map address creation, save with points', async ({ page }) => {
   test.setTimeout(120_000)
   await login(page)
-  await page.goto('/admin/schedules')
-  await pickBrandAndRoute(page)
+  await page.goto('/admin/brands')
+  const routeRow = await expandRoute(page)
   await expect(page.getByText('08:30').first()).toBeVisible({ timeout: 15_000 })
 
-  // Open the create form.
-  await page.getByRole('button', { name: /thêm lịch trình/i }).first().click()
+  // Open the create form from the route row's "Thêm lịch trình" action.
+  await routeRow.getByRole('button', { name: new RegExp(`thêm lịch trình cho ${ROUTE}`, 'i') }).click()
   const dialog = page.locator('[data-slot="dialog-content"]')
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('Lộ trình đón — trả khách')).toBeVisible()
   await page.screenshot({ path: `${ART}/schedule-form.png` })
 
   // ── Point selects: display = address names, value = address ids ──
-  // Scope to the DIALOG — the page-level brand/route filter selects are
-  // behind the overlay and would intercept clicks.
+  // Scope to the DIALOG — the page-level filter selects are behind the
+  // overlay and would intercept clicks.
   // [0] start, [1] bus layout; middles insert between start and end;
   // end is always last.
   const dialogTriggers = dialog.locator('[data-slot="select-trigger"]')
@@ -178,7 +213,7 @@ test('schedule form: point selects, map address creation, save with points', asy
 
   // The new schedule appears with 06:15.
   await expect(page.getByText('06:15').first()).toBeVisible({ timeout: 15_000 })
-  await page.screenshot({ path: `${ART}/admin-schedules-after-create.png` })
+  await page.screenshot({ path: `${ART}/admin-brands-after-create.png` })
 })
 
 test('address list API returns brand-scoped options (values are ids)', async ({ request }) => {

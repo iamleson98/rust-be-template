@@ -39,8 +39,6 @@ import {
   MessageSquare,
   MessageSquareWarning,
   Building2,
-  Route as RouteIcon,
-  CalendarDays,
   Armchair,
   CreditCard,
   Activity,
@@ -75,8 +73,6 @@ const NAV_GROUPS = [
     label: 'Danh mục',
     items: [
       { title: 'Hãng xe & Tuyến', icon: Building2, url: '/admin/brands' },
-      { title: 'Tuyến đường', icon: RouteIcon, url: '/admin/routes' },
-      { title: 'Lịch trình', icon: CalendarDays, url: '/admin/schedules' },
       { title: 'Sơ đồ ghế', icon: Armchair, url: '/admin/bus-layouts' },
       { title: 'Loại xe', icon: Bus, url: '/admin/vehicle-types' },
     ],

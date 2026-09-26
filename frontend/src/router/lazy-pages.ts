@@ -29,8 +29,6 @@ export const ComparePage = lazy(() => import('../routes/compare').then((m) => ({
 export const MapPage = lazy(() => import('../routes/map').then((m) => ({ default: m.MapPage })))
 export const AdminPage = lazy(() => import('../routes/admin').then((m) => ({ default: m.AdminPage })))
 export const AdminBrandsPage = lazy(() => import('../routes/admin/brands').then((m) => ({ default: m.AdminBrandsPage })))
-export const AdminRoutesPage = lazy(() => import('../routes/admin/routes').then((m) => ({ default: m.AdminRoutesPage })))
-export const AdminSchedulesPage = lazy(() => import('../routes/admin/schedules').then((m) => ({ default: m.AdminSchedulesPage })))
 export const AdminCronJobsPage = lazy(() => import('../routes/admin/cron-jobs').then((m) => ({ default: m.AdminCronJobsPage })))
 export const AdminTicketsPage = lazy(() => import('../routes/admin/tickets').then((m) => ({ default: m.AdminTicketsPage })))
 export const AdminChatPage = lazy(() => import('../routes/admin/chat').then((m) => ({ default: m.AdminChatPage })))

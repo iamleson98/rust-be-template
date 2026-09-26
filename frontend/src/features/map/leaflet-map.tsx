@@ -122,6 +122,12 @@ export function LeafletMap({
     >
       <BasemapLayer />
       <ZoomControl position="bottomright" />
+      {/* Leaflet measures the container at mount time — inside an
+          animating Dialog (zoom-in, 200ms) that size is stale/zero and
+          the tile grid renders broken/gray. Keep calling invalidateSize
+          until the container reports a stable size (same approach as
+          route-map-inner's FixSize). */}
+      <FixSize />
       {onMapClick && <ClickHandler onPick={onMapClick} />}
       {/* Recenter MUST live inside <MapContainer> so useMap() has a context. */}
       {flyTarget && <Recenter center={flyTarget} zoom={flyZoom} />}
@@ -444,3 +450,50 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
 
 // ── Re-exports for the route map view ───────────────────────
 export { LeafletMap as LeafletRouteMap, reverseGeocode, BLUE_PIN, RED_PIN, type PlaceHit }
+
+/** Fix leaflet's tile rendering when the container mounts inside a
+ *  dynamically-sized wrapper (an animating Dialog, a swapping layout).
+ *  Leaflet measures the container size at init time, which can be
+ *  stale — we keep calling invalidateSize until the container reports
+ *  a stable size, and observe later resizes. Extracted from
+ *  route-map-inner.tsx so dialog-mounted maps (AddressMapDialog,
+ *  MapPicker) get the same treatment. */
+function FixSize() {
+  const map = useMap()
+  useEffect(() => {
+    let lastW = 0
+    let lastH = 0
+    let stable = 0
+    const tick = () => {
+      const el = map.getContainer()
+      const w = el.offsetWidth
+      const h = el.offsetHeight
+      if (w === lastW && h === lastH && w > 0 && h > 0) {
+        stable++
+        if (stable === 1) {
+          // First time stable — invalidate to lock the size.
+          map.invalidateSize()
+        }
+        if (stable > 8) {
+          // Container has been stable for a while — stop polling.
+          clearInterval(timer)
+        }
+      } else {
+        stable = 0
+        map.invalidateSize()
+      }
+      lastW = w
+      lastH = h
+    }
+    const timer = setInterval(tick, 100)
+    tick()
+    // Also observe resize events on the container.
+    const ro = new ResizeObserver(() => map.invalidateSize())
+    ro.observe(map.getContainer())
+    return () => {
+      clearInterval(timer)
+      ro.disconnect()
+    }
+  }, [map])
+  return null
+}

@@ -99,10 +99,7 @@ fn apply_q(
                     "LOWER(label) LIKE ?",
                     [needle.clone()],
                 ))
-                .add(Expr::cust_with_values(
-                    "LOWER(code) LIKE ?",
-                    [needle],
-                )),
+                .add(Expr::cust_with_values("LOWER(code) LIKE ?", [needle])),
         );
     }
     query

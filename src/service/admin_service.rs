@@ -28,13 +28,13 @@ use crate::dto::admin::{
     AdminPlacePreview, AdminReviewListResponse, AdminRouteListResponse, AdminRouteOut,
     AdminScheduleListResponse, AdminScheduleOut, AdminSchedulePointOut,
     AdminVehicleTypeListResponse, AdminVehicleTypeOut, ModerateReviewRequest,
-    ModerateReviewResponse, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
-    UpsertAddressRequest, UpsertBrandRequest, UpsertPickupPointRequest, UpsertRouteRequest,
-    UpsertSchedulePointItem, UpsertScheduleRequest, UpsertVehicleTypeRequest,
+    ModerateReviewResponse, SeatGridSpec, UpdateBookingStatusRequest, UpdateBookingStatusResponse,
+    UpsertAddressRequest, UpsertBrandRequest, UpsertBusLayoutRequest, UpsertPickupPointRequest,
+    UpsertRouteRequest, UpsertSchedulePointItem, UpsertScheduleRequest, UpsertVehicleTypeRequest,
 };
 use crate::entity::{
-    address, audit_log, booking, brand, pickup_point, review, route, schedule, schedule_point,
-    vehicle_type,
+    address, audit_log, booking, brand, bus_layout, pickup_point, review, route, schedule,
+    schedule_point, seat, vehicle_type,
 };
 use crate::error::{AppError, AppResult};
 use crate::store::CompositeStore;
@@ -254,6 +254,8 @@ impl AdminService {
         &self,
         brand_id: Option<&str>,
         q: Option<&str>,
+        start_location_id: Option<&str>,
+        end_location_id: Option<&str>,
         limit: Option<u64>,
         offset: u64,
     ) -> AppResult<AdminRouteListResponse> {
@@ -261,7 +263,14 @@ impl AdminService {
         let page = self
             .store
             .route_store()
-            .list_routes_page(brand_id, q, limit, offset)
+            .list_routes_page(
+                brand_id,
+                q,
+                start_location_id,
+                end_location_id,
+                limit,
+                offset,
+            )
             .await?;
         let routes = page.items;
 
@@ -1335,6 +1344,171 @@ impl AdminService {
         })
     }
 
+    /// Create a bus layout. When `seat_grid` is provided the concrete
+    /// `seat` rows are generated in the same transaction — the trip
+    /// materializer only produces per-trip `seat_inventory` for layouts
+    /// that HAVE seats, so a layout without them is unsellable.
+    ///
+    /// NOTE: the inserts run DIRECTLY on the transaction (entity ops on
+    /// `&txn`, same as `delete_vehicle_type`) — going through the store
+    /// methods would check out a SECOND pooled connection and deadlock
+    /// on SQLite's table lock.
+    pub async fn create_bus_layout(
+        &self,
+        body: &UpsertBusLayoutRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        use sea_orm::{EntityTrait, TransactionTrait};
+
+        let name = optional_trimmed(body.name.as_deref())
+            .ok_or_else(|| AppError::BadRequest("name is required".into()))?;
+
+        // Resolve the seat grid (defaults: 10 rows × 4 cols × 1 floor).
+        let grid = seat_grid_defaults(body.seat_grid.as_ref());
+        let total_seats = grid.rows * grid.cols * grid.floors;
+        if total_seats > 120 {
+            return Err(AppError::Validation(
+                "seat grid too large — max 120 seats".into(),
+            ));
+        }
+
+        let id = Uuid::new_v4();
+        let now = now_iso();
+        let layout = bus_layout::ActiveModel {
+            id: Set(id),
+            brand_id: Set(body.brand_id),
+            name: Set(Some(name)),
+            vehicle_type: Set(optional_trimmed(body.vehicle_type.as_deref())),
+            total_seats: Set(Some(total_seats)),
+            layout_data: Set(optional_trimmed(body.layout_data.as_deref())),
+            created_at: Set(now.clone()),
+            updated_at: Set(now),
+        };
+        let seats = generate_seat_grid(id, grid);
+
+        // Layout + generated seats must land together — a layout whose
+        // seat rows are missing would silently sell nothing.
+        let txn = self
+            .store
+            .db()
+            .begin()
+            .await
+            .map_err(|e| AppError::Internal(format!("begin txn: {e}")))?;
+        bus_layout::Entity::insert(layout)
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("insert bus layout: {e}")))?;
+        seat::Entity::insert_many(seats)
+            .exec(&txn)
+            .await
+            .map_err(|e| AppError::Internal(format!("insert seats: {e}")))?;
+        txn.commit()
+            .await
+            .map_err(|e| AppError::Internal(format!("commit txn: {e}")))?;
+
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Update a bus layout — metadata patch only. The seat grid can
+    /// never be regenerated on an existing layout: per-trip
+    /// `seat_inventory` rows reference the concrete seat ids, so
+    /// regenerating would orphan sold-ticket history.
+    pub async fn update_bus_layout(
+        &self,
+        id: Uuid,
+        body: &UpsertBusLayoutRequest,
+    ) -> AppResult<AdminMutationResponse> {
+        let existing = self
+            .store
+            .schedule_store()
+            .find_bus_layout_by_id(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?
+            .ok_or_else(|| AppError::NotFound("bus layout not found".into()))?;
+
+        let mut active: bus_layout::ActiveModel = existing.into();
+
+        if let Some(ref name) = body.name {
+            let name = name.trim().to_string();
+            if name.is_empty() {
+                return Err(AppError::Validation("name cannot be empty".into()));
+            }
+            active.name = Set(Some(name));
+        }
+        if let Some(brand_id) = body.brand_id {
+            active.brand_id = Set(Some(brand_id));
+        }
+        if let Some(ref vt) = body.vehicle_type {
+            // Patch semantics: `""` clears, non-empty sets the trimmed code.
+            active.vehicle_type = Set(optional_trimmed(Some(vt.as_str())));
+        }
+        if let Some(seats) = body.total_seats {
+            active.total_seats = Set(Some(seats));
+        }
+        if let Some(ref data) = body.layout_data {
+            active.layout_data = Set(optional_trimmed(Some(data.as_str())));
+        }
+        active.updated_at = Set(now_iso());
+
+        self.store
+            .schedule_store()
+            .update_bus_layout(active)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
+    }
+
+    /// Delete a bus layout. Guarded on three fronts because every FK
+    /// pointing at a layout (or its seats) is `Restrict`:
+    ///
+    /// 1. schedules referencing the layout,
+    /// 2. `seat_inventory` rows of materialized trips,
+    /// 3. `booking_seat` rows of sold tickets.
+    ///
+    /// Each returns a descriptive 409 instead of a raw FK error.
+    /// Unreferenced layouts delete cleanly (their seats cascade).
+    pub async fn delete_bus_layout(&self, id: Uuid) -> AppResult<AdminMutationResponse> {
+        let schedule_refs = self
+            .store
+            .schedule_store()
+            .count_schedules_by_bus_layout(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if schedule_refs > 0 {
+            return Err(AppError::Conflict(format!(
+                "{schedule_refs} lịch trình đang dùng sơ đồ ghế này — gỡ sơ đồ khỏi các lịch trình trước khi xoá"
+            )));
+        }
+        let inventory_refs = self
+            .store
+            .schedule_store()
+            .count_seat_inventory_by_bus_layout(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if inventory_refs > 0 {
+            return Err(AppError::Conflict(
+                "Sơ đồ ghế đã phát sinh kho ghế cho các chuyến — không thể xoá".into(),
+            ));
+        }
+        let booking_refs = self
+            .store
+            .schedule_store()
+            .count_booking_seats_by_bus_layout(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        if booking_refs > 0 {
+            return Err(AppError::Conflict(
+                "Sơ đồ ghế đã có vé đã bán — không thể xoá".into(),
+            ));
+        }
+
+        self.store
+            .schedule_store()
+            .delete_bus_layout(id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(AdminMutationResponse { id })
+    }
+
     // ── Booking management ──────────────────────────────────────
 
     /// List bookings with admin filters.
@@ -1765,20 +1939,28 @@ impl AdminService {
 pub fn slugify(input: &str) -> String {
     fn strip_diacritic(c: char) -> char {
         match c {
-            'á' | 'à' | 'ả' | 'ã' | 'ạ' | 'â' | 'ầ' | 'ẩ' | 'ẫ' | 'ậ' | 'ấ' | 'ă' | 'ằ' | 'ẳ' | 'ẵ'
-            | 'ặ' => 'a',
-            'Á' | 'À' | 'Ả' | 'Ã' | 'Ạ' | 'Â' | 'Ầ' | 'Ẩ' | 'Ẫ' | 'Ậ' | 'Ấ' | 'Ă' | 'Ằ' | 'Ẳ' | 'Ẵ'
-            | 'Ặ' => 'a',
-            'é' | 'è' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ề' | 'ể' | 'ễ' | 'ệ' | 'ế' => 'e',
-            'É' | 'È' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ề' | 'Ể' | 'Ễ' | 'Ệ' | 'Ế' => 'e',
+            'á' | 'à' | 'ả' | 'ã' | 'ạ' | 'â' | 'ầ' | 'ẩ' | 'ẫ' | 'ậ' | 'ấ' | 'ă' | 'ằ' | 'ẳ'
+            | 'ẵ' | 'ặ' => 'a',
+            'Á' | 'À' | 'Ả' | 'Ã' | 'Ạ' | 'Â' | 'Ầ' | 'Ẩ' | 'Ẫ' | 'Ậ' | 'Ấ' | 'Ă' | 'Ằ' | 'Ẳ'
+            | 'Ẵ' | 'Ặ' => 'a',
+            'é' | 'è' | 'ẻ' | 'ẽ' | 'ẹ' | 'ê' | 'ề' | 'ể' | 'ễ' | 'ệ' | 'ế' => {
+                'e'
+            }
+            'É' | 'È' | 'Ẻ' | 'Ẽ' | 'Ẹ' | 'Ê' | 'Ề' | 'Ể' | 'Ễ' | 'Ệ' | 'Ế' => {
+                'e'
+            }
             'í' | 'ì' | 'ỉ' | 'ĩ' | 'ị' => 'i',
             'Í' | 'Ì' | 'Ỉ' | 'Ĩ' | 'Ị' => 'i',
-            'ó' | 'ò' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ồ' | 'ổ' | 'ỗ' | 'ộ' | 'ố' | 'ơ' | 'ờ' | 'ở' | 'ỡ'
-            | 'ợ' | 'ớ' => 'o',
-            'Ó' | 'Ò' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ồ' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ố' | 'Ơ' | 'Ờ' | 'Ở' | 'Ỡ'
-            | 'Ợ' | 'Ớ' => 'o',
-            'ú' | 'ù' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ừ' | 'ử' | 'ữ' | 'ự' | 'ứ' => 'u',
-            'Ú' | 'Ù' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ừ' | 'Ử' | 'Ữ' | 'Ự' | 'Ứ' => 'u',
+            'ó' | 'ò' | 'ỏ' | 'õ' | 'ọ' | 'ô' | 'ồ' | 'ổ' | 'ỗ' | 'ộ' | 'ố' | 'ơ' | 'ờ' | 'ở'
+            | 'ỡ' | 'ợ' | 'ớ' => 'o',
+            'Ó' | 'Ò' | 'Ỏ' | 'Õ' | 'Ọ' | 'Ô' | 'Ồ' | 'Ổ' | 'Ỗ' | 'Ộ' | 'Ố' | 'Ơ' | 'Ờ' | 'Ở'
+            | 'Ỡ' | 'Ợ' | 'Ớ' => 'o',
+            'ú' | 'ù' | 'ủ' | 'ũ' | 'ụ' | 'ư' | 'ừ' | 'ử' | 'ữ' | 'ự' | 'ứ' => {
+                'u'
+            }
+            'Ú' | 'Ù' | 'Ủ' | 'Ũ' | 'Ụ' | 'Ư' | 'Ừ' | 'Ử' | 'Ữ' | 'Ự' | 'Ứ' => {
+                'u'
+            }
             'ý' | 'ỳ' | 'ỷ' | 'ỹ' | 'ỵ' => 'y',
             'Ý' | 'Ỳ' | 'Ỷ' | 'Ỹ' | 'Ỵ' => 'y',
             'đ' => 'd',
@@ -2085,6 +2267,72 @@ fn optional_trimmed(v: Option<&str>) -> Option<String> {
 /// Current UTC time as ISO 8601 string.
 fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Bus-layout seat-grid generation
+// ────────────────────────────────────────────────────────────────
+
+/// Resolved seat grid — clamped, defaulted values (`None` fields fall
+/// back to a standard 10×4 single-deck coach).
+pub(crate) struct ResolvedSeatGrid {
+    pub rows: i16,
+    pub cols: i16,
+    pub floors: i16,
+}
+
+/// Collapse the request's optional `seat_grid` into concrete clamped
+/// dimensions. Defaults: 10 rows × 4 cols × 1 floor = 40 seats.
+pub(crate) fn seat_grid_defaults(spec: Option<&SeatGridSpec>) -> ResolvedSeatGrid {
+    let s = spec.cloned().unwrap_or_default();
+    ResolvedSeatGrid {
+        rows: s.rows.unwrap_or(10).clamp(1, 20),
+        cols: s.cols.unwrap_or(4).clamp(1, 6),
+        floors: s.floors.unwrap_or(1).clamp(1, 2),
+    }
+}
+
+/// Generate the concrete `seat` rows for a bus layout from a resolved
+/// grid. Labels follow the Vietnamese bus convention `A1`–`D10`:
+/// the letter is the column (aisle-aware: A/B left, C/D right), the
+/// number is the row. First and last columns are window seats; floor 1
+/// is the lower deck (upper deck on 2-floor layouts is floor 2).
+pub(crate) fn generate_seat_grid(
+    layout_id: Uuid,
+    grid: ResolvedSeatGrid,
+) -> Vec<seat::ActiveModel> {
+    let now = now_iso();
+    let mut seats = Vec::with_capacity((grid.rows * grid.cols * grid.floors) as usize);
+    for floor in 1..=grid.floors {
+        for row in 1..=grid.rows {
+            for col in 1..=grid.cols {
+                // Single-deck: `A1`–`D10` — the letter is the column
+                // (A/B left block, C/D right block), the number is the
+                // row. Sleeper (2 floors): Vietnamese bed convention
+                // `A01`–`A20` lower deck / `B01`–`B20` upper deck, the
+                // running number counted per floor.
+                let label = if grid.floors > 1 {
+                    let deck_letter = if floor == 1 { 'A' } else { 'B' };
+                    format!("{deck_letter}{:02}", (row - 1) * grid.cols + col)
+                } else {
+                    let letter = (b'A' + (col - 1) as u8) as char;
+                    format!("{letter}{row}")
+                };
+                seats.push(seat::ActiveModel {
+                    id: Set(Uuid::new_v4()),
+                    bus_layout_id: Set(layout_id),
+                    seat_label: Set(label),
+                    seat_class: Set(None),
+                    row_num: Set(Some(row)),
+                    col_num: Set(Some(col)),
+                    is_window: Set(col == 1 || col == grid.cols),
+                    floor: Set(floor),
+                    created_at: Set(now.clone()),
+                });
+            }
+        }
+    }
+    seats
 }
 
 // ────────────────────────────────────────────────────────────────

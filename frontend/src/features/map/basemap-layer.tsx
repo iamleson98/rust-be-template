@@ -4,19 +4,28 @@
  * BasemapLayer — CARTO raster basemaps rendered as native Leaflet
  * TileLayers (https://carto.com/basemaps/).
  *
- * Why raster CARTO (replacing the OpenFreeMap vector experiment):
- * OpenFreeMap serves MapLibre vector-tile styles, which we bridged
- * into Leaflet via `@maplibre/maplibre-gl-leaflet`. That bridge renders
- * on a WebGL canvas that Leaflet drags around with CSS transforms, so
- * during pan/zoom the canvas desyncs from Leaflet's tile grid — tiles
- * appear blank, blurry or half-loaded, the canvas smears mid-animation,
- * and it ships a ~950KB `vendor-maplibre` chunk before anything paints.
- * CARTO's raster tiles (`basemaps.cartocdn.com`) are painted by
- * Leaflet's own battle-tested `<img>` tile pipeline: every tile is an
- * independent image loaded from a global 4-subdomain CDN, so panning,
- * zooming and resizing stay perfectly in sync and tiles stream in
- * progressively. No API key, no WebGL, no bridge, no extra vendor
- * chunk beyond Leaflet itself.
+ * TILE-SERVICE RESEARCH (2026-09, fixing "map doesn't render
+ * properly"): candidates for a free, beautiful, no-payment tile
+ * provider —
+ *   * tile.openstreetmap.org  — free but a strict usage policy (bulk
+ *     rendering limits, requires valid HTTP referer); unsuitable as a
+ *     product basemap.
+ *   * Stadia/Stamen tiles      — beautiful, but require a registered
+ *     API key since 2023 (payment tier for scale). Disqualified.
+ *   * MapTiler / Thunderforest — key + paid tiers. Disqualified.
+ *   * OpenFreeMap              — genuinely free vector tiles, no key,
+ *     no rate limit. Tried before: the @maplibre/maplibre-gl-leaflet
+ *     bridge renders on a WebGL canvas that desyncs from Leaflet's
+ *     tile grid during pan/zoom (blank/blurry tiles, canvas smearing)
+ *     and ships a ~950KB vendor chunk. Reverted.
+ *   * CARTO basemaps (CURRENT) — free public raster basemaps, no API
+ *     key, no signup, no payment, served from a global 4-subdomain
+ *     CDN (a-d), effectively no rate limit for a website at this
+ *     scale, attribution-only terms. The voyager style is the classic
+ *     consumer-mapping look. Verified reachable + fast (200, ~2KB per
+ *     tile, ~150ms).
+ * The actual render bug in dialogs was Leaflet measuring the container
+ * mid-animation — fixed by the FixSize component in leaflet-map.tsx.
  *
  * Variants:
  *   - `voyager`  (default) — detailed and colourful, the classic

@@ -45,7 +45,7 @@ import {
 import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText } from '@/lib/forms'
-import { useUpsertAdminRoute } from '@/lib/queries'
+import { useUpsertAdminRoute, useUpdateAdminRoute } from '@/lib/queries'
 import type { AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
 import { CitySelectContent, cityLabel } from './city-select-content'
@@ -79,8 +79,9 @@ export function RouteFormDialog({
   onSaved: () => void
 }) {
   const isEdit = !!route
-  const upsertMutation = useUpsertAdminRoute()
-  const saving = upsertMutation.isPending
+  const createMutation = useUpsertAdminRoute()
+  const updateMutation = useUpdateAdminRoute()
+  const saving = createMutation.isPending || updateMutation.isPending
 
   const form = useForm<z.input<typeof routeSchema>, unknown, z.output<typeof routeSchema>>({
     resolver: zodResolver(routeSchema),
@@ -109,6 +110,10 @@ export function RouteFormDialog({
       return
     }
     try {
+      // SDK mutation hooks require { body: <payload> } — passing the raw
+      // payload makes `opts.body === undefined`, which causes the openapi-ts
+      // client to delete `Content-Type: application/json` before sending,
+      // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
       const payload: Record<string, unknown> = {
         brandId: brand.id,
         name: values.name.trim(),
@@ -116,14 +121,17 @@ export function RouteFormDialog({
         endLocationId: values.endLocationId,
       }
       if (isEdit) {
-        payload.id = route!.id
+        // PUT /api/admin/routes/{id} — the create endpoint ignores an
+        // `id` body field, so posting edits there duplicated routes.
+        await updateMutation.mutateAsync({
+          path: { id: route!.id },
+          body: payload,
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
+        toast.success('Đã cập nhật tuyến')
+      } else {
+        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
+        toast.success('Đã thêm tuyến mới')
       }
-      // SDK mutation hooks require { body: <payload> } — passing the raw
-      // payload makes `opts.body === undefined`, which causes the openapi-ts
-      // client to delete `Content-Type: application/json` before sending,
-      // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
-      toast.success(isEdit ? 'Đã cập nhật tuyến' : 'Đã thêm tuyến mới')
       onSaved()
     } catch (e) {
       toast.error(getErrorMessage(e, 'Không thể lưu tuyến'))

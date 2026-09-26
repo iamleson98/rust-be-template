@@ -839,6 +839,146 @@
             "description": "Forbidden"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/bus-layouts` — create a bus layout (with generated\nseat rows when `seatGrid` is provided; defaults to 10×4×1 = 40).",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertBusLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — name missing"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable — seat grid out of range"
+          }
+        }
+      }
+    },
+    "/api/admin/bus-layouts/{id}": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PUT /api/admin/bus-layouts/{id}` — update a bus layout's metadata\n(name / brand / vehicle type / total seats / layout data).",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertBusLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request — empty name"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`DELETE /api/admin/bus-layouts/{id}` — delete a bus layout.",
+        "description": "Blocked with `409 Conflict` while any schedule references the\nlayout, or any of its seats carry `seat_inventory` /\n`booking_seat` rows (all FKs are `Restrict`).",
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict — schedules / trips / tickets reference the layout"
+          }
+        }
       }
     },
     "/api/admin/chat/stats": {
@@ -1582,6 +1722,24 @@
             "name": "q",
             "in": "query",
             "description": "Case-insensitive search over the route name, start/end city\nslugs and the owning brand's name.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startLocationId",
+            "in": "query",
+            "description": "Exact city-slug filter on `route.start_location_id` (e.g.\n`\"ha-noi\"`). Combined with `end_location_id` this powers the\nadmin brands tree's \"routes from X to Y\" smart filter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endLocationId",
+            "in": "query",
+            "description": "Exact city-slug filter on `route.end_location_id` (e.g.\n`\"da-nang\"`).",
             "required": false,
             "schema": {
               "type": "string"
@@ -11076,6 +11234,36 @@
           }
         }
       },
+      "SeatGridSpec": {
+        "type": "object",
+        "description": "Rectangular seat-grid spec for bus-layout create — the backend\ngenerates the concrete `seat` rows (label / row / col / window /\nfloor) from it. `rows` × `cols` × `floors` seats in total.",
+        "properties": {
+          "cols": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seat columns across the bus width (1–6) — an aisle gap is\ninserted after column 2 for 4+ column layouts when rendering."
+          },
+          "floors": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Deck count: 1 (single-deck coach) or 2 (sleeper)."
+          },
+          "rows": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Seat rows per floor (1–20)."
+          }
+        }
+      },
       "SessionUser": {
         "type": "object",
         "description": "Identity of an authenticated actor, derived from the `user` row.\n\n`actor_type` mirrors the `user.role` column and is one of:\n  - `\"user\"`      — customer (book trips, feedback, ticket status)\n  - `\"employee\"`  — support staff (bookings, tickets, chat, calls, promos)\n  - `\"admin\"`     — full-access superuser (the first registered account)\n\nThe distinction matters for the chat / call hubs (only staff — employees\nOR admins — may register as agents) and for nullclaw (the human-fallback\nthreshold counts online staff).",
@@ -12533,6 +12721,58 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "UpsertBusLayoutRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/admin/bus-layouts` (create) and\n`PUT /api/admin/bus-layouts/{id}` (update — metadata patch only;\nthe seat grid can never be regenerated on an existing layout\nwithout orphaning per-trip seat inventory).",
+        "properties": {
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "layoutData": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional layout JSON blob (reserved for seat-map geometry)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seatGrid": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeatGridSpec",
+                "description": "Seat-grid generator — only honoured on CREATE. Generates the\n`seat` rows the trip materializer turns into per-trip\n`seat_inventory`."
+              }
+            ]
+          },
+          "totalSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Total bookable seats. When `seat_grid` is provided the computed\n`rows × cols × floors` wins; otherwise this value is stored."
+          },
+          "vehicleType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in\nsync with the `vehicle_type` catalog codes."
           }
         }
       },

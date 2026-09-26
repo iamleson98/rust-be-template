@@ -12,13 +12,11 @@
  */
 
 import { Suspense } from 'react'
-import { Outlet, createRoute } from '@tanstack/react-router'
+import { Outlet, createRoute, redirect } from '@tanstack/react-router'
 import { AdminShell, AdminContentSkeleton } from './lazy-pages'
 import {
   AdminPage,
   AdminBrandsPage,
-  AdminRoutesPage,
-  AdminSchedulesPage,
   AdminVehicleTypesPage,
   AdminCronJobsPage,
   AdminTicketsPage,
@@ -72,24 +70,23 @@ export const adminBrandsRoute = createRoute({
   ),
 })
 
-export const adminRoutesRoute = createRoute({
+// NOTE: `/admin/routes` and `/admin/schedules` were consolidated into
+// `/admin/brands` (brands → routes → schedules tree table). The old
+// URLs redirect there so bookmarks keep working.
+export const adminRoutesRedirectRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/routes',
-  component: () => (
-    <Suspense fallback={<AdminContentSkeleton />}>
-      <AdminRoutesPage />
-    </Suspense>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/brands', replace: true })
+  },
 })
 
-export const adminSchedulesRoute = createRoute({
+export const adminSchedulesRedirectRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: '/schedules',
-  component: () => (
-    <Suspense fallback={<AdminContentSkeleton />}>
-      <AdminSchedulesPage />
-    </Suspense>
-  ),
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/brands', replace: true })
+  },
 })
 
 // Admin route — vehicle type catalog (schedule form's "Loại xe" picker).

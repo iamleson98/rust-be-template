@@ -19,6 +19,8 @@
 //! | 10 | `seed_defaults`         | RBAC roles/permissions/grants + vehicle-type catalogue |
 //! | 11 | `create_push_devices`    | push_device |
 //! | 12 | `create_route_pictures`  | route_picture |
+//! | 13 | `create_staff_presence_state` | staff_presence_state |
+//! | 14 | `add_bus_layouts_write_permission` | RBAC grant (idempotent) |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -49,6 +51,7 @@ mod m20260905_000010_seed_defaults;
 mod m20260905_000011_create_push_devices;
 mod m20260910_000012_create_route_pictures;
 mod m20260912_000013_create_staff_presence_state;
+mod m20260926_000014_add_bus_layouts_write_permission;
 
 pub struct Migrator;
 
@@ -69,6 +72,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260905_000011_create_push_devices::Migration),
             Box::new(m20260910_000012_create_route_pictures::Migration),
             Box::new(m20260912_000013_create_staff_presence_state::Migration),
+            Box::new(m20260926_000014_add_bus_layouts_write_permission::Migration),
         ]
     }
 }

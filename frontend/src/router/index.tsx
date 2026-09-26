@@ -49,7 +49,7 @@ import {
 import { Suspense } from 'react'
 import { IslandFallback } from '@/routes/_fallback'
 import { rootRoute } from './root-route'
-import { adminLayoutRoute, adminIndexRoute, adminBrandsRoute, adminRoutesRoute, adminSchedulesRoute, adminVehicleTypesRoute, adminCronJobsRoute, adminTicketsRoute, adminChatRoute, adminFeedbackRoute, adminBusLayoutsRoute, adminSystemRoute, adminUsersRoute, adminPaymentsRoute } from './admin-routes'
+import { adminLayoutRoute, adminIndexRoute, adminBrandsRoute, adminRoutesRedirectRoute, adminSchedulesRedirectRoute, adminVehicleTypesRoute, adminCronJobsRoute, adminTicketsRoute, adminChatRoute, adminFeedbackRoute, adminBusLayoutsRoute, adminSystemRoute, adminUsersRoute, adminPaymentsRoute } from './admin-routes'
 import { accountLayoutRoute, accountIndexRoute, accountWishlistRoute, accountLoyaltyRoute, accountNotificationsRoute, accountSecurityRoute, accountTripsRoute, accountFeedbackRoute } from './account-routes'
 import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingsPage, BookingDetailPage, ComparePage, MapPage, LoginPage } from './lazy-pages'
 
@@ -198,8 +198,8 @@ export const routeTree = rootRoute.addChildren([
   adminLayoutRoute.addChildren([
     adminIndexRoute,
     adminBrandsRoute,
-    adminRoutesRoute,
-    adminSchedulesRoute,
+    adminRoutesRedirectRoute,
+    adminSchedulesRedirectRoute,
     adminVehicleTypesRoute,
     adminCronJobsRoute,
     adminTicketsRoute,

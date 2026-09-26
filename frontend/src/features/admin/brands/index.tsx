@@ -1,6 +1,25 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+/**
+ * AdminBrandManagement — the /admin/brands page: one subtree table
+ * (brands → routes → schedules) with a smart filter bar.
+ *
+ * Filters:
+ *  - free-text brand search (name / slug / phone, diacritic-insensitive)
+ *  - route start + end point — "which brands run X → Y?" — served by
+ *    the admin routes list's server-side start/end filters; matching
+ *    brands auto-expand with their matching routes inline.
+ *
+ * Schedule rows sort WITHIN each route group (departure time / price /
+ * effective date) via the toolbar control — the tree grouping stays
+ * fixed, only the schedule leaves reorder.
+ *
+ * Mutations ride the shared dialogs (BrandFormDialog, RouteFormDialog,
+ * ScheduleFormDialog, RoutePickupPointsDialog) + one delete AlertDialog
+ * for every level.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,128 +30,170 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  ArrowDownUp,
+  Building2,
+  Loader2,
+  MapPin,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { toast } from 'sonner'
-import { Loader2, Trash2 } from 'lucide-react'
 import {
   useAdminBrands,
   useAdminRoutes,
-  useAdminSchedules,
-  useAdminPickupPoints,
   useAdminBusLayouts,
   useDeleteAdminBrand,
   useDeleteAdminRoute,
   useDeleteAdminSchedule,
-  useDeleteAdminPickupPoint,
-  usePlacesList,
 } from '@/lib/queries'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { DeleteTarget } from '@/features/admin/types'
 import type {
   AdminBrandOut,
-  AdminBusLayoutOut,
-  AdminPickupPointOut,
   AdminRouteOut,
   AdminScheduleOut,
-  PlaceOut,
 } from '@/lib/api/types.gen'
-import { BrandListPanel } from './brand-list-panel'
-import { RouteListPanel } from './route-list-panel'
-import { ScheduleAndPickupPanel } from './schedule-and-pickup-panel'
-import { BrandManagementBreadcrumb } from './brand-management-breadcrumb'
+import { CitySelectContent, cityLabel } from '@/features/admin/routes/city-select-content'
 import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'
-import { PickupPointFormDialog } from '@/features/admin/pickup-points/pickup-form'
+import { RoutePickupPointsDialog } from './route-pickup-points-dialog'
+import { BrandTreeTable, type BrandTreeCallbacks } from './brand-tree-table'
+import {
+  matchesBrandSearch,
+  SCHEDULE_SORT_LABELS,
+  type ScheduleSort,
+  type ScheduleSortKey,
+} from './brand-tree-helpers'
 import { getErrorMessage } from '@/lib/error-message'
 
-
-/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
+/** Stable empty default — keeps useMemo deps referentially stable. */
 const EMPTY_ITEMS: never[] = []
+
 export function AdminBrandManagement() {
+  /* ── Filters ─────────────────────────────────────────────── */
   const [brandSearch, setBrandSearch] = useState('')
-  const [selectedBrand, setSelectedBrand] = useState<AdminBrandOut | null>(null)
-  const [routeSearch, setRouteSearch] = useState('')
-  const [selectedRoute, setSelectedRoute] = useState<AdminRouteOut | null>(null)
-  const [mobileView, setMobileView] = useState<'brands' | 'routes' | 'details'>('brands')
-  /* --- queries: brands, places (parallel, on mount) --- */
+  const debouncedSearch = useDebouncedValue(brandSearch, 250)
+  const [startLocationId, setStartLocationId] = useState<string>('')
+  const [endLocationId, setEndLocationId] = useState<string>('')
+  const [scheduleSort, setScheduleSort] = useState<ScheduleSort | null>(null)
+
+  /* ── Expansion state ─────────────────────────────────────── */
+  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set())
+  const [expandedRoutes, setExpandedRoutes] = useState<Set<string>>(new Set())
+
+  /* ── Queries ─────────────────────────────────────────────── */
   const brandsQuery = useAdminBrands()
   const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as AdminBrandOut[]
-  const placesQuery = usePlacesList(200)
-  const places: PlaceOut[] = ((placesQuery.data ?? {}) as { items?: PlaceOut[] }).items ?? []
-  /* --- queries: routes + bus layouts (when a brand is selected) --- */
-  const routesQuery = useAdminRoutes({ brandId: selectedBrand?.id })
-  const routes: AdminRouteOut[] = (routesQuery.data?.items ?? EMPTY_ITEMS) as unknown as AdminRouteOut[]
-  const busLayoutsQuery = useAdminBusLayouts({ brandId: selectedBrand?.id })
-  const busLayouts: AdminBusLayoutOut[] = (busLayoutsQuery.data?.items ?? []) as unknown as AdminBusLayoutOut[]
-  /* --- queries: schedules + pickup points (when a route is selected) --- */
-  const schedulesQuery = useAdminSchedules(selectedRoute?.id)
-  const schedules: AdminScheduleOut[] = (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
-  const pickupPointsQuery = useAdminPickupPoints(selectedRoute?.id)
-  const pickupPoints: AdminPickupPointOut[] = (pickupPointsQuery.data?.items ?? []) as unknown as AdminPickupPointOut[]
-  /* --- query: addresses of the selected brand (schedule point selects) --- */
-  /* --- selection handlers --- */
-  const selectBrand = useCallback((brand: AdminBrandOut | null) => {
-    setSelectedBrand(brand)
-    setSelectedRoute(null)
-    if (brand) {
-      setMobileView('routes')
+
+  const locationFilterActive = !!(startLocationId || endLocationId)
+  // The smart filter's single cross-brand route query — only fires when
+  // at least one endpoint is picked.
+  const filteredRoutesQuery = useAdminRoutes(
+    locationFilterActive
+      ? {
+          startLocationId: startLocationId || undefined,
+          endLocationId: endLocationId || undefined,
+          limit: 200,
+        }
+      : undefined,
+  )
+  const filteredRoutes = useMemo(
+    () =>
+      locationFilterActive
+        ? ((filteredRoutesQuery.data?.items ?? []) as unknown as AdminRouteOut[])
+        : null,
+    [locationFilterActive, filteredRoutesQuery.data],
+  )
+  const matchingBrandIds = useMemo(
+    () => new Set((filteredRoutes ?? []).map((r) => r.brandId ?? '')),
+    [filteredRoutes],
+  )
+
+  // Brand-level visibility: text search AND (when active) the route
+  // location filter.
+  const visibleBrands = useMemo(
+    () =>
+      brands.filter(
+        (b) =>
+          matchesBrandSearch(b, debouncedSearch) &&
+          (!locationFilterActive || matchingBrandIds.has(b.id)),
+      ),
+    [brands, debouncedSearch, locationFilterActive, matchingBrandIds],
+  )
+
+  // Auto-expand matching brands while the location filter is active —
+  // collapse to the manual state when it clears. The updater returns
+  // the SAME reference when nothing changes, so an unstable
+  // `matchingBrandIds` upstream (e.g. keepPreviousData swapping the
+  // data object) cannot loop the render.
+  useEffect(() => {
+    if (!locationFilterActive) {
+      // Intentional effect-synced state (filter mode switch —
+      // resetting the tree to its collapsed baseline).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setExpandedBrands(new Set())
+      setExpandedRoutes(new Set())
+      return
     }
-  }, [])
-
-  const selectRoute = useCallback((route: AdminRouteOut | null) => {
-    setSelectedRoute(route)
-    if (route) {
-      setMobileView('details')
-    }
-  }, [])
-
-  /* --- derived: filtered lists (search box) --- */
-  const filteredBrands = useMemo(() => {
-    const q = brandSearch.trim().toLowerCase()
-    if (!q) return brands
-    return brands.filter(
-      (b) =>
-        b.name.toLowerCase().includes(q) ||
-        b.slug.toLowerCase().includes(q) ||
-        (b.contactPhone ?? '').includes(q),
-    )
-  }, [brands, brandSearch])
-
-  const filteredRoutes = useMemo(() => {
-    const q = routeSearch.trim().toLowerCase()
-    if (!q) return routes
-    return routes.filter(
-      (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.id.toLowerCase().includes(q) ||
-        (r.startLocation?.name ?? '').toLowerCase().includes(q) ||
-        (r.endLocation?.name ?? '').toLowerCase().includes(q),
-    )
-  }, [routes, routeSearch])
-
-  /* --- mutations: delete (one per resource kind, auto-invalidates) --- */
+    // Intentional effect-synced state (filter mode switch — see the
+    // disable above).
+    setExpandedBrands((prev) => {
+      let changed = false
+      const next = new Set(prev)
+      for (const id of matchingBrandIds) {
+        if (!next.has(id)) {
+          next.add(id)
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [locationFilterActive, matchingBrandIds])
+  /* ── Mutations ───────────────────────────────────────────── */
   const deleteBrandMutation = useDeleteAdminBrand()
   const deleteRouteMutation = useDeleteAdminRoute()
   const deleteScheduleMutation = useDeleteAdminSchedule()
-  const deletePickupMutation = useDeleteAdminPickupPoint()
-  /* --- Dialog state --- */
+
+  /* ── Dialog state ────────────────────────────────────────── */
   const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: AdminBrandOut | null }>({
     open: false,
     brand: null,
   })
-  const [routeDialog, setRouteDialog] = useState<{ open: boolean; route: AdminRouteOut | null }>({
-    open: false,
-    route: null,
-  })
-  const [scheduleDialog, setScheduleDialog] = useState<{ open: boolean; schedule: AdminScheduleOut | null }>({
-    open: false,
-    schedule: null,
-  })
-  const [pickupDialog, setPickupDialog] = useState<{ open: boolean; pickup: AdminPickupPointOut | null }>({
-    open: false,
-    pickup: null,
-  })
+  const [routeDialog, setRouteDialog] = useState<{
+    open: boolean
+    route: AdminRouteOut | null
+    brand: AdminBrandOut | null
+  }>({ open: false, route: null, brand: null })
+  const [scheduleDialog, setScheduleDialog] = useState<{
+    open: boolean
+    schedule: AdminScheduleOut | null
+    route: AdminRouteOut | null
+    brand: AdminBrandOut | null
+  }>({ open: false, schedule: null, route: null, brand: null })
+  const [pickupRoute, setPickupRoute] = useState<AdminRouteOut | null>(null)
 
-  /* --- Delete confirmation --- */
+  // Bus layouts for the schedule form — the brand of the route being
+  // edited scopes the picker.
+  const busLayoutsQuery = useAdminBusLayouts({
+    brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined,
+  })
+  const busLayouts = (busLayoutsQuery.data?.items ?? []) as never[]
+
+  /* ── Delete confirmation ─────────────────────────────────── */
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -142,15 +203,15 @@ export function AdminBrandManagement() {
     try {
       if (deleteTarget.kind === 'brand') {
         await deleteBrandMutation.mutateAsync({ path: { id: deleteTarget.id } })
-        setSelectedBrand(null)
-        setSelectedRoute(null)
       } else if (deleteTarget.kind === 'route') {
         await deleteRouteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-        setSelectedRoute(null)
+        setExpandedRoutes((prev) => {
+          const next = new Set(prev)
+          next.delete(deleteTarget.id)
+          return next
+        })
       } else if (deleteTarget.kind === 'schedule') {
         await deleteScheduleMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      } else if (deleteTarget.kind === 'pickup') {
-        await deletePickupMutation.mutateAsync({ path: { id: deleteTarget.id } })
       }
       toast.success('Đã xoá thành công')
       setDeleteTarget(null)
@@ -161,117 +222,245 @@ export function AdminBrandManagement() {
     }
   }
 
+  /* ── Tree callbacks ──────────────────────────────────────── */
+  const toggleBrand = useCallback((brandId: string) => {
+    setExpandedBrands((prev) => {
+      const next = new Set(prev)
+      if (next.has(brandId)) next.delete(brandId)
+      else next.add(brandId)
+      return next
+    })
+  }, [])
+
+  const toggleRoute = useCallback((routeId: string) => {
+    setExpandedRoutes((prev) => {
+      const next = new Set(prev)
+      if (next.has(routeId)) next.delete(routeId)
+      else next.add(routeId)
+      return next
+    })
+  }, [])
+
+  const callbacks: BrandTreeCallbacks = {
+    onAddRoute: (brand) => setRouteDialog({ open: true, route: null, brand }),
+    onEditRoute: (route, brand) => setRouteDialog({ open: true, route, brand }),
+    onDeleteRoute: (route) => setDeleteTarget({ kind: 'route', id: route.id, name: route.name }),
+    onAddSchedule: (route, brand) => setScheduleDialog({ open: true, schedule: null, route, brand }),
+    onEditSchedule: (schedule, route, brand) =>
+      setScheduleDialog({ open: true, schedule, route, brand }),
+    onDeleteSchedule: (schedule, route) =>
+      setDeleteTarget({
+        kind: 'schedule',
+        id: schedule.id,
+        name: `${schedule.departureTime} · ${route.name}`,
+      }),
+    onPickupPoints: (route) => setPickupRoute(route),
+    onEditBrand: (brand) => setBrandDialog({ open: true, brand }),
+    onDeleteBrand: (brand) => setDeleteTarget({ kind: 'brand', id: brand.id, name: brand.name }),
+  }
+
+  const clearLocationFilter = () => {
+    setStartLocationId('')
+    setEndLocationId('')
+  }
+
+  const filterSummary = locationFilterActive
+    ? `${visibleBrands.length} hãng · ${filteredRoutes?.length ?? 0} tuyến ${
+        startLocationId ? cityLabel(startLocationId) : '…'
+      } → ${endLocationId ? cityLabel(endLocationId) : '…'}`
+    : null
+
   return (
-    <div className="p-3">
-      <BrandManagementBreadcrumb
-        selectedBrand={selectedBrand}
-        selectedRoute={selectedRoute}
-        onBrandsClick={() => {
-          setMobileView('brands')
-          setSelectedBrand(null)
-          setSelectedRoute(null)
-        }}
-        onRoutesClick={() => {
-          setMobileView('routes')
-          setSelectedRoute(null)
-        }}
-      />
-      {/* 3-panel layout: stacks on mobile (only the active level is shown) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_320px_1fr] gap-4">
-        <BrandListPanel
-          brandsLoading={brandsQuery.isLoading}
-          filteredBrands={filteredBrands}
-          brandSearch={brandSearch}
-          setBrandSearch={setBrandSearch}
-          selectedBrand={selectedBrand}
-          onSelectBrand={selectBrand}
-          onAdd={() => setBrandDialog({ open: true, brand: null })}
-          onEdit={(b) => setBrandDialog({ open: true, brand: b })}
-          onDelete={(b) => setDeleteTarget({ kind: 'brand', id: b.id, name: b.name })}
-          mobileView={mobileView}
-        />
-        <RouteListPanel
-          routesLoading={routesQuery.isLoading}
-          filteredRoutes={filteredRoutes}
-          routeSearch={routeSearch}
-          setRouteSearch={setRouteSearch}
-          selectedBrand={selectedBrand}
-          selectedRoute={selectedRoute}
-          onSelectRoute={selectRoute}
-          onAdd={() => setRouteDialog({ open: true, route: null })}
-          onEdit={(r) => setRouteDialog({ open: true, route: r })}
-          onDelete={(r) => setDeleteTarget({ kind: 'route', id: r.id, name: r.name })}
-          onBack={() => setMobileView('brands')}
-          mobileView={mobileView}
-        />
-        <ScheduleAndPickupPanel
-          selectedRoute={selectedRoute}
-          schedulesLoading={schedulesQuery.isLoading}
-          schedules={schedules}
-          pickupLoading={pickupPointsQuery.isLoading}
-          pickupPoints={pickupPoints}
-          onBack={() => setMobileView('routes')}
-          onAddSchedule={() => setScheduleDialog({ open: true, schedule: null })}
-          onEditSchedule={(s) => setScheduleDialog({ open: true, schedule: s })}
-          onDeleteSchedule={(s) =>
-            setDeleteTarget({
-              kind: 'schedule',
-              id: s.id,
-              name: `${s.departureTime} (${s.busLayoutId ?? '—'})`,
-            })
-          }
-          onAddPickup={() => setPickupDialog({ open: true, pickup: null })}
-          onEditPickup={(p) => setPickupDialog({ open: true, pickup: p })}
-          onDeletePickup={(p) => setDeleteTarget({ kind: 'pickup', id: p.id, name: p.name ?? '—' })}
-          mobileView={mobileView}
-        />
+    <div className="p-3 md:p-4 space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-xl font-semibold">
+            <Building2 className="h-5 w-5 text-blue-600" />
+            Hãng xe & Tuyến đường
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Mở rộng từng hãng để quản lý tuyến đường và lịch trình (điểm đón/trả, giờ chạy, giá vé).
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setBrandDialog({ open: true, brand: null })}>
+          <Plus className="h-4 w-4" /> Thêm hãng xe
+        </Button>
       </div>
-      {/* ─── Dialogs ─── */}
+
+      {/* Smart filter bar */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+        <div className="relative w-full lg:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={brandSearch}
+            onChange={(e) => setBrandSearch(e.target.value)}
+            placeholder="Tìm hãng xe…"
+            className="pl-9"
+            aria-label="Tìm hãng xe theo tên"
+          />
+          {brandSearch && (
+            <button
+              type="button"
+              aria-label="Xoá tìm kiếm"
+              onClick={() => setBrandSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <div className="min-w-40 flex-1 sm:max-w-56">
+            <Select
+              value={startLocationId || 'any'}
+              onValueChange={(v) => setStartLocationId(v === 'any' ? '' : v)}
+            >
+              <SelectTrigger className="w-full" aria-label="Điểm đi">
+                <span className="flex min-w-0 items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Điểm đi">
+                    {(v: string | null | undefined) =>
+                      v === 'any' || !v ? 'Điểm đi (tất cả)' : cityLabel(v) ?? 'Điểm đi'
+                    }
+                  </SelectValue>
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Điểm đi (tất cả)</SelectItem>
+                <CitySelectContent />
+              </SelectContent>
+            </Select>
+          </div>
+          <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden>
+            →
+          </span>
+          <div className="min-w-40 flex-1 sm:max-w-56">
+            <Select
+              value={endLocationId || 'any'}
+              onValueChange={(v) => setEndLocationId(v === 'any' ? '' : v)}
+            >
+              <SelectTrigger className="w-full" aria-label="Điểm đến">
+                <span className="flex min-w-0 items-center gap-2">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Điểm đến">
+                    {(v: string | null | undefined) =>
+                      v === 'any' || !v ? 'Điểm đến (tất cả)' : cityLabel(v) ?? 'Điểm đến'
+                    }
+                  </SelectValue>
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Điểm đến (tất cả)</SelectItem>
+                <CitySelectContent />
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Schedule sort — applies inside every expanded route group */}
+          <div className="flex items-center gap-1.5">
+            <Select
+              value={scheduleSort?.key ?? 'none'}
+              onValueChange={(v: string) => {
+                if (v === 'none') {
+                  setScheduleSort(null)
+                  return
+                }
+                setScheduleSort((prev) =>
+                  prev && prev.key === (v as ScheduleSortKey)
+                    ? { key: prev.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+                    : { key: v as ScheduleSortKey, dir: 'asc' },
+                )
+              }}
+            >
+              <SelectTrigger className="h-9 w-44" aria-label="Sắp xếp lịch trình">
+                <span className="flex items-center gap-2">
+                  <ArrowDownUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <SelectValue placeholder="Sắp xếp lịch">
+                    {(v: string | null | undefined) =>
+                      v === 'none' || !v
+                        ? 'Sắp xếp lịch trình'
+                        : `${SCHEDULE_SORT_LABELS[v as ScheduleSortKey]} ${
+                            scheduleSort?.dir === 'desc' ? '↓' : '↑'
+                          }`
+                    }
+                  </SelectValue>
+                </span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Không sắp xếp</SelectItem>
+                {(Object.keys(SCHEDULE_SORT_LABELS) as ScheduleSortKey[]).map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {SCHEDULE_SORT_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {locationFilterActive && (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-9 gap-1" onClick={clearLocationFilter}>
+                <RotateCcw className="h-3.5 w-3.5" /> Xoá lọc
+              </Button>
+              {filteredRoutesQuery.isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label="Đang lọc" />
+              ) : (
+                <span className="text-xs text-muted-foreground">{filterSummary}</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* The tree table */}
+      <BrandTreeTable
+        brands={visibleBrands}
+        brandsLoading={brandsQuery.isLoading}
+        expandedBrands={expandedBrands}
+        onToggleBrand={toggleBrand}
+        expandedRoutes={expandedRoutes}
+        onToggleRoute={toggleRoute}
+        scheduleSort={scheduleSort}
+        filteredRoutes={filteredRoutes}
+        callbacks={callbacks}
+        hasSearch={!!debouncedSearch.trim()}
+        hasLocationFilter={locationFilterActive}
+      />
+
+      {/* ── Dialogs ── */}
       <BrandFormDialog
         open={brandDialog.open}
         brand={brandDialog.brand}
         onOpenChange={(open) => setBrandDialog({ open, brand: open ? brandDialog.brand : null })}
-        onSaved={() => {
-          setBrandDialog({ open: false, brand: null })
-          // useUpsertAdminBrand invalidates ['admin', 'brands'] → brandsQuery refetches.
-        }}
+        onSaved={() => setBrandDialog({ open: false, brand: null })}
       />
       <RouteFormDialog
         open={routeDialog.open}
         route={routeDialog.route}
-        brand={selectedBrand}
-        onOpenChange={(open) => setRouteDialog({ open, route: open ? routeDialog.route : null })}
-        onSaved={() => {
-          setRouteDialog({ open: false, route: null })
-        }}
+        brand={routeDialog.brand}
+        onOpenChange={(open) => setRouteDialog({ open, route: open ? routeDialog.route : null, brand: routeDialog.brand })}
+        onSaved={() => setRouteDialog({ open: false, route: null, brand: null })}
       />
       <ScheduleFormDialog
         open={scheduleDialog.open}
         schedule={scheduleDialog.schedule}
-        route={selectedRoute}
+        route={scheduleDialog.route}
         busLayouts={busLayouts}
-        brandId={selectedBrand?.id}
-        brandName={selectedBrand?.name}
+        brandId={scheduleDialog.brand?.id}
+        brandName={scheduleDialog.brand?.name}
         onOpenChange={(open) =>
-          setScheduleDialog({ open, schedule: open ? scheduleDialog.schedule : null })
+          setScheduleDialog((prev) =>
+            open ? prev : { open: false, schedule: null, route: null, brand: null },
+          )
         }
-        onSaved={() => {
-          setScheduleDialog({ open: false, schedule: null })
-          // useUpsertAdminSchedule invalidates ['admin', 'schedules'] → schedulesQuery refetches.
-        }}
+        onSaved={() =>
+          setScheduleDialog({ open: false, schedule: null, route: null, brand: null })
+        }
       />
-      <PickupPointFormDialog
-        open={pickupDialog.open}
-        pickup={pickupDialog.pickup}
-        route={selectedRoute}
-        places={places}
-        existingCount={pickupPoints.length}
-        onOpenChange={(open) => setPickupDialog({ open, pickup: open ? pickupDialog.pickup : null })}
-        onSaved={() => {
-          setPickupDialog({ open: false, pickup: null })
-          // useUpsertAdminPickupPoint invalidates ['admin', 'pickup-points'] → pickupPointsQuery refetches.
-        }}
-      />
+      <RoutePickupPointsDialog route={pickupRoute} onOpenChange={() => setPickupRoute(null)} />
+
       {/* Delete confirmation */}
       <AlertDialog
         open={!!deleteTarget}
@@ -283,7 +472,8 @@ export function AdminBrandManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Xác nhận xoá</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xoá <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
+              Bạn có chắc muốn xoá{' '}
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
               {deleteTarget?.kind === 'brand' && (
                 <>
                   {' '}
@@ -305,15 +495,15 @@ export function AdminBrandManagement() {
                 confirmDelete()
               }}
               disabled={deleting}
-              className="bg-rose-600 hover:bg-rose-700 text-white"
+              className="bg-rose-600 text-white hover:bg-rose-700"
             >
               {deleting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang xoá...
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Đang xoá...
                 </>
               ) : (
                 <>
-                  <Trash2 className="h-4 w-4 mr-1.5" /> Xoá
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Xoá
                 </>
               )}
             </AlertDialogAction>

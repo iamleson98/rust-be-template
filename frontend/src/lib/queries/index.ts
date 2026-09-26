@@ -63,8 +63,8 @@ import {
   list15Options as reviewsListOptions,
   list15QueryKey as reviewsListQueryKey,
   tagsOptions as reviewTagsOptions,
-  update8Mutation as reviewUpdateMutation,
-  create8Mutation as reviewCreateMutation,
+  update9Mutation as reviewUpdateMutation,
+  create9Mutation as reviewCreateMutation,
   // reviews — my own reviews (paginated, /api/reviews/mine)
   mineOptions as reviewsMineOptions,
   // bookings (list11 = GET /api/bookings — the user's own bookings)
@@ -77,7 +77,7 @@ import {
   // price alerts (list14 = /api/price-alerts, create7 = POST /api/price-alerts)
   list14Options as priceAlertsListOptions,
   list14QueryKey as priceAlertsListQueryKey,
-  create7Mutation as priceAlertCreateMutation,
+  create8Mutation as priceAlertCreateMutation,
   removeMutation as priceAlertRemoveMutation,
   // notifications (list12 = /api/notifications)
   list12Options as notificationsListOptions,
@@ -95,36 +95,45 @@ import {
   list3QueryKey as adminBrandsListQueryKey,
   create2Mutation as createBrandMutation,
   delete2Mutation as deleteBrandMutation,
-  // admin — routes (list7/create4/delete5/update4)
+  // admin — routes (list8/create5/delete6/update6)
   list8Options as adminRoutesListOptions,
   list8QueryKey as adminRoutesListQueryKey,
-  create4Mutation as createRouteMutation,
-  delete5Mutation as deleteRouteMutation,
-  // admin — schedules (list8/create5/delete6/update5)
+  create5Mutation as createRouteMutation,
+  delete6Mutation as deleteRouteMutation,
+  update6Mutation,
+  // admin — schedules (list9/create6/delete7/update7)
   list9Options as adminSchedulesListOptions,
   list9QueryKey as adminSchedulesListQueryKey,
-  create5Mutation as createScheduleMutation,
-  delete6Mutation as deleteScheduleMutation,
+  create6Mutation as createScheduleMutation,
+  delete7Mutation as deleteScheduleMutation,
+  update7Mutation,
   // cron jobs (recurring background jobs)
   list5Options as cronJobsListOptions,
   list5QueryKey as cronJobsListQueryKey,
   listRunsOptions as cronJobRunsListOptions,
   listRunsQueryKey as cronJobRunsListQueryKey,
-  update3Mutation as updateCronJobMutation,
+  update4Mutation as updateCronJobMutation,
   triggerMutation as triggerCronJobMutation,
   cancelMutation as cancelCronJobMutation,
   // admin — vehicle types (list10 = /api/admin/vehicle-types)
   list10Options as adminVehicleTypesListOptions,
   list10QueryKey as adminVehicleTypesListQueryKey,
-  create6Mutation as createVehicleTypeMutation,
-  update7Mutation as updateVehicleTypeMutation,
-  delete7Mutation as deleteVehicleTypeMutation,
-  // admin — pickup points (list5/create3/delete3)
+  create7Mutation as createVehicleTypeMutation,
+  update8Mutation as updateVehicleTypeMutation,
+  delete8Mutation as deleteVehicleTypeMutation,
+  // admin — pickup points (list6/create4/delete4)
   list6Options as adminPickupPointsListOptions,
-  create3Mutation as createPickupPointMutation,
-  delete3Mutation as deletePickupPointMutation,
-  // admin — bus layouts (list4)
+  create4Mutation as createPickupPointMutation,
+  delete4Mutation as deletePickupPointMutation,
+  // admin — bus layouts (list4/create3/update3/delete3 — the CRUD
+  // paths were appended to the spec, which sorts them alphabetically
+  // BEFORE pickup-points and shifts every numbered create/update/delete
+  // AFTER bus-layouts by one; see the aliases above for the new numbers)
   list4Options as adminBusLayoutsListOptions,
+  list4QueryKey as adminBusLayoutsListQueryKey,
+  create3Mutation as createBusLayoutMutation,
+  update3Mutation as updateBusLayoutMutation,
+  delete3Mutation as deleteBusLayoutMutation,
   // admin — reviews (list6)
   list7Options as adminReviewsListOptions,
   list7QueryKey as adminReviewsListQueryKey,
@@ -1418,11 +1427,18 @@ export function useDeleteAdminBrand() {
 export function useAdminRoutes(query?: {
   brandId?: string;
   q?: string;
+  /** Exact city-slug filter on the route's start location (e.g. "ha-noi"). */
+  startLocationId?: string;
+  /** Exact city-slug filter on the route's end location (e.g. "da-nang"). */
+  endLocationId?: string;
   limit?: number;
   offset?: number;
 }) {
   return useQuery({
     ...adminRoutesListOptions({ query }),
+    // `undefined` (not `{}`) disables the query — the brands tree's
+    // collapsed brand rows pass undefined so they never fire a fetch.
+    enabled: query !== undefined,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
@@ -1432,6 +1448,20 @@ export function useUpsertAdminRoute() {
   const qc = useQueryClient();
   return useMutation({
     ...createRouteMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ["routes"] });
+    },
+  });
+}
+
+/** Update an existing route — PUT /api/admin/routes/{id}. The legacy
+ *  dialogs posted edits to the create endpoint, which silently made
+ *  duplicates (the create handler ignores an `id` body field). */
+export function useUpdateAdminRoute() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...update6Mutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() });
       qc.invalidateQueries({ queryKey: ["routes"] });
@@ -1560,6 +1590,19 @@ export function useUpsertAdminSchedule() {
   });
 }
 
+/** Update an existing schedule — PUT /api/admin/schedules/{id}. Like
+ *  routes, the schedule dialog used to POST edits to the create
+ *  endpoint and duplicated rows. */
+export function useUpdateAdminSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...update7Mutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+    },
+  });
+}
+
 export function useDeleteAdminSchedule() {
   const qc = useQueryClient();
   return useMutation({
@@ -1666,6 +1709,43 @@ export function useAdminBusLayouts(query?: {
     ...adminBusLayoutsListOptions({ query }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
+  });
+}
+
+/** Create a bus layout (optionally with a seat-grid spec that the
+ *  backend expands into concrete seat rows). */
+export function useUpsertAdminBusLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...createBusLayoutMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+    },
+  });
+}
+
+/** Update a bus layout's metadata (name / brand / vehicle type /
+ *  total seats — the seat grid itself is immutable after create). */
+export function useUpdateAdminBusLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...updateBusLayoutMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+    },
+  });
+}
+
+/** Delete a bus layout — the backend blocks the delete with 409 while
+ *  schedules reference the layout or its seats carry inventory /
+ *  sold tickets. */
+export function useDeleteAdminBusLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    ...deleteBusLayoutMutation(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+    },
   });
 }
 

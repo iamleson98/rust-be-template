@@ -407,6 +407,51 @@ pub struct AdminBusLayoutListResponse {
     pub total: Option<u64>,
 }
 
+/// Rectangular seat-grid spec for bus-layout create — the backend
+/// generates the concrete `seat` rows (label / row / col / window /
+/// floor) from it. `rows` × `cols` × `floors` seats in total.
+#[derive(Debug, Clone, Deserialize, ToSchema, Default, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct SeatGridSpec {
+    /// Seat rows per floor (1–20).
+    #[validate(range(min = 1, max = 20))]
+    pub rows: Option<i16>,
+    /// Seat columns across the bus width (1–6) — an aisle gap is
+    /// inserted after column 2 for 4+ column layouts when rendering.
+    #[validate(range(min = 1, max = 6))]
+    pub cols: Option<i16>,
+    /// Deck count: 1 (single-deck coach) or 2 (sleeper).
+    #[validate(range(min = 1, max = 2))]
+    pub floors: Option<i16>,
+}
+
+/// Request body for `POST /api/admin/bus-layouts` (create) and
+/// `PUT /api/admin/bus-layouts/{id}` (update — metadata patch only;
+/// the seat grid can never be regenerated on an existing layout
+/// without orphaning per-trip seat inventory).
+#[derive(Debug, Deserialize, ToSchema, Default, Validate)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertBusLayoutRequest {
+    #[validate(length(min = 1, max = 255))]
+    pub name: Option<String>,
+    pub brand_id: Option<Uuid>,
+    /// Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in
+    /// sync with the `vehicle_type` catalog codes.
+    #[validate(length(max = 30))]
+    pub vehicle_type: Option<String>,
+    /// Total bookable seats. When `seat_grid` is provided the computed
+    /// `rows × cols × floors` wins; otherwise this value is stored.
+    #[validate(range(min = 1, max = 120))]
+    pub total_seats: Option<i16>,
+    /// Optional layout JSON blob (reserved for seat-map geometry).
+    #[validate(length(max = 100_000))]
+    pub layout_data: Option<String>,
+    /// Seat-grid generator — only honoured on CREATE. Generates the
+    /// `seat` rows the trip materializer turns into per-trip
+    /// `seat_inventory`.
+    pub seat_grid: Option<SeatGridSpec>,
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Vehicle types (admin-managed catalog)
 // ────────────────────────────────────────────────────────────────
@@ -772,6 +817,13 @@ pub struct AdminRoutesQuery {
     /// Case-insensitive search over the route name, start/end city
     /// slugs and the owning brand's name.
     pub q: Option<String>,
+    /// Exact city-slug filter on `route.start_location_id` (e.g.
+    /// `"ha-noi"`). Combined with `end_location_id` this powers the
+    /// admin brands tree's "routes from X to Y" smart filter.
+    pub start_location_id: Option<String>,
+    /// Exact city-slug filter on `route.end_location_id` (e.g.
+    /// `"da-nang"`).
+    pub end_location_id: Option<String>,
     /// Page size (clamped to `[1, 200]` by the service). `None` = all
     /// rows (legacy consumers).
     pub limit: Option<u64>,

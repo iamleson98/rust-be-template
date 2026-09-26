@@ -719,6 +719,46 @@ export type BrandOut = {
 };
 
 /**
+ * Audio-call subsystem stats — live sessions plus the janitor's
+ * cumulative resource-release counters. The janitor counters answer
+ * "are calls being left dangling?" without grepping logs: anything
+ * above zero means the server (not a client) had to end a call.
+ */
+export type CallSystemStats = {
+    /**
+     * Sessions currently ACTIVE (media negotiated).
+     */
+    active: number;
+    /**
+     * Agent sockets registered on the call hub (one per device).
+     */
+    agentSockets: number;
+    /**
+     * Active sessions the janitor tore down at the hard lifetime cap
+     * since boot (both call UIs died without hanging up).
+     */
+    janitorActiveExpired: number;
+    /**
+     * Ringing sessions the janitor expired since boot (frozen
+     * callers, dead ring timers) — each one released the agent's
+     * busy flag and the customer's busy lock.
+     */
+    janitorRingExpired: number;
+    /**
+     * Of those, how many were re-routed to another agent.
+     */
+    janitorRingRerouted: number;
+    /**
+     * Sessions currently RINGING (waiting for an answer).
+     */
+    ringing: number;
+    /**
+     * Live call sessions (ringing + active).
+     */
+    sessions: number;
+};
+
+/**
  * Response of `GET /api/campaigns`.
  */
 export type CampaignListResponse = {
@@ -1991,6 +2031,44 @@ export type RegisterRequest = {
 };
 
 /**
+ * Hardware-bounded admission telemetry — "how much headroom does this
+ * box have for more realtime connections right now".
+ */
+export type ResourceGuardStats = {
+    /**
+     * Whether a NEW long-lived connection would be admitted right now
+     * (both watermarks evaluated against the live snapshot).
+     */
+    admitting: boolean;
+    /**
+     * Configured fd high watermark % (`WS_FD_HIGH_WATERMARK_PCT`).
+     * `0` = off.
+     */
+    fdHighWatermarkPct: number;
+    /**
+     * Soft `RLIMIT_NOFILE` of this process (`0` = unknown).
+     */
+    fdSoftLimit: number;
+    /**
+     * Open file descriptors of this process right now.
+     */
+    fdUsed: number;
+    /**
+     * fd usage as a percentage of the soft limit (0.0 when unknown).
+     */
+    fdUsedPct: number;
+    /**
+     * Host `MemAvailable` right now, bytes (`null` when procfs is
+     * unavailable — non-Linux dev environments).
+     */
+    memAvailableBytes?: number | null;
+    /**
+     * Configured memory floor (`WS_MIN_FREE_MEM_MB`), bytes. `0` = off.
+     */
+    memFloorBytes: number;
+};
+
+/**
  * Response of `DELETE /api/reviews/{id}`.
  */
 export type ReviewDeleteResponse = {
@@ -2179,6 +2257,27 @@ export type RoutePictureUploadResponse = {
 export type RoutePicturesBulkDeleteResponse = {
     deleted: number;
     ok: boolean;
+};
+
+/**
+ * Rectangular seat-grid spec for bus-layout create — the backend
+ * generates the concrete `seat` rows (label / row / col / window /
+ * floor) from it. `rows` × `cols` × `floors` seats in total.
+ */
+export type SeatGridSpec = {
+    /**
+     * Seat columns across the bus width (1–6) — an aisle gap is
+     * inserted after column 2 for 4+ column layouts when rendering.
+     */
+    cols?: number | null;
+    /**
+     * Deck count: 1 (single-deck coach) or 2 (sleeper).
+     */
+    floors?: number | null;
+    /**
+     * Seat rows per floor (1–20).
+     */
+    rows?: number | null;
 };
 
 /**
@@ -2380,6 +2479,11 @@ export type SystemMetrics = {
 };
 
 export type SystemStatusResponse = {
+    /**
+     * Audio-call subsystem: live sessions + the janitor's release
+     * counters ("how often did the safety net fire").
+     */
+    calls: CallSystemStats;
     database: DatabaseStats;
     process: ProcessStats;
     uptime: SystemUptime;
@@ -2733,6 +2837,32 @@ export type UpsertBrandRequest = {
 };
 
 /**
+ * Request body for `POST /api/admin/bus-layouts` (create) and
+ * `PUT /api/admin/bus-layouts/{id}` (update — metadata patch only;
+ * the seat grid can never be regenerated on an existing layout
+ * without orphaning per-trip seat inventory).
+ */
+export type UpsertBusLayoutRequest = {
+    brandId?: string | null;
+    /**
+     * Optional layout JSON blob (reserved for seat-map geometry).
+     */
+    layoutData?: string | null;
+    name?: string | null;
+    seatGrid?: null | SeatGridSpec;
+    /**
+     * Total bookable seats. When `seat_grid` is provided the computed
+     * `rows × cols × floors` wins; otherwise this value is stored.
+     */
+    totalSeats?: number | null;
+    /**
+     * Legacy vehicle-class code (`limousine`, `sleeper`, …) — kept in
+     * sync with the `vehicle_type` catalog codes.
+     */
+    vehicleType?: string | null;
+};
+
+/**
  * Request body for `POST /api/admin/pickup-points` + `PUT /api/admin/pickup-points/{id}`.
  */
 export type UpsertPickupPointRequest = {
@@ -2903,6 +3033,12 @@ export type WebsocketStats = {
      * the admin dashboard — "how many support staff are online?".
      */
     onlineEmployees: number;
+    /**
+     * Live hardware-bounded admission telemetry — the RAM/fd numbers
+     * that ACTUALLY cap connections now that the static caps default
+     * to unlimited (see `middleware::resource_guard`).
+     */
+    resources: ResourceGuardStats;
     /**
      * Number of chat rooms (one per open channel that has at least
      * one joined socket). Empty rooms are cleaned up by the hub GC.
@@ -3438,6 +3574,121 @@ export type List4Responses = {
 
 export type List4Response = List4Responses[keyof List4Responses];
 
+export type Create3Data = {
+    body: UpsertBusLayoutRequest;
+    path?: never;
+    query?: never;
+    url: '/api/admin/bus-layouts';
+};
+
+export type Create3Errors = {
+    /**
+     * Bad request — name missing
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Unprocessable — seat grid out of range
+     */
+    422: unknown;
+};
+
+export type Create3Responses = {
+    /**
+     * Created
+     */
+    201: AdminMutationResponse;
+};
+
+export type Create3Response = Create3Responses[keyof Create3Responses];
+
+export type Delete3Data = {
+    body?: never;
+    path: {
+        /**
+         * Bus layout ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/bus-layouts/{id}';
+};
+
+export type Delete3Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Conflict — schedules / trips / tickets reference the layout
+     */
+    409: unknown;
+};
+
+export type Delete3Responses = {
+    /**
+     * Deleted
+     */
+    200: AdminMutationResponse;
+};
+
+export type Delete3Response = Delete3Responses[keyof Delete3Responses];
+
+export type Update3Data = {
+    body: UpsertBusLayoutRequest;
+    path: {
+        /**
+         * Bus layout ID
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/admin/bus-layouts/{id}';
+};
+
+export type Update3Errors = {
+    /**
+     * Bad request — empty name
+     */
+    400: unknown;
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * Not found
+     */
+    404: unknown;
+};
+
+export type Update3Responses = {
+    /**
+     * Updated
+     */
+    200: AdminMutationResponse;
+};
+
+export type Update3Response = Update3Responses[keyof Update3Responses];
+
 export type ChatStatsData = {
     body?: never;
     path?: never;
@@ -3528,7 +3779,7 @@ export type ListRunsResponses = {
 
 export type ListRunsResponse = ListRunsResponses[keyof ListRunsResponses];
 
-export type Update3Data = {
+export type Update4Data = {
     body: UpdateCronJobRequest;
     path: {
         /**
@@ -3540,7 +3791,7 @@ export type Update3Data = {
     url: '/api/admin/cron-jobs/{jobType}';
 };
 
-export type Update3Errors = {
+export type Update4Errors = {
     /**
      * Bad request — invalid interval/hour/minute
      */
@@ -3559,14 +3810,14 @@ export type Update3Errors = {
     404: unknown;
 };
 
-export type Update3Responses = {
+export type Update4Responses = {
     /**
      * Updated schedule
      */
     200: CronJobOut;
 };
 
-export type Update3Response = Update3Responses[keyof Update3Responses];
+export type Update4Response = Update4Responses[keyof Update4Responses];
 
 export type CancelData = {
     body?: never;
@@ -3749,14 +4000,14 @@ export type List6Responses = {
 
 export type List6Response = List6Responses[keyof List6Responses];
 
-export type Create3Data = {
+export type Create4Data = {
     body: UpsertPickupPointRequest;
     path?: never;
     query?: never;
     url: '/api/admin/pickup-points';
 };
 
-export type Create3Errors = {
+export type Create4Errors = {
     /**
      * Unauthorized
      */
@@ -3767,16 +4018,16 @@ export type Create3Errors = {
     403: unknown;
 };
 
-export type Create3Responses = {
+export type Create4Responses = {
     /**
      * Created
      */
     201: AdminMutationResponse;
 };
 
-export type Create3Response = Create3Responses[keyof Create3Responses];
+export type Create4Response = Create4Responses[keyof Create4Responses];
 
-export type Delete3Data = {
+export type Delete4Data = {
     body?: never;
     path: {
         /**
@@ -3788,7 +4039,7 @@ export type Delete3Data = {
     url: '/api/admin/pickup-points/{id}';
 };
 
-export type Delete3Errors = {
+export type Delete4Errors = {
     /**
      * Unauthorized
      */
@@ -3803,16 +4054,16 @@ export type Delete3Errors = {
     404: unknown;
 };
 
-export type Delete3Responses = {
+export type Delete4Responses = {
     /**
      * Deleted
      */
     204: void;
 };
 
-export type Delete3Response = Delete3Responses[keyof Delete3Responses];
+export type Delete4Response = Delete4Responses[keyof Delete4Responses];
 
-export type Update4Data = {
+export type Update5Data = {
     body: UpsertPickupPointRequest;
     path: {
         /**
@@ -3824,7 +4075,7 @@ export type Update4Data = {
     url: '/api/admin/pickup-points/{id}';
 };
 
-export type Update4Errors = {
+export type Update5Errors = {
     /**
      * Unauthorized
      */
@@ -3839,14 +4090,14 @@ export type Update4Errors = {
     404: unknown;
 };
 
-export type Update4Responses = {
+export type Update5Responses = {
     /**
      * Updated
      */
     200: AdminMutationResponse;
 };
 
-export type Update4Response = Update4Responses[keyof Update4Responses];
+export type Update5Response = Update5Responses[keyof Update5Responses];
 
 export type List7Data = {
     body?: never;
@@ -3909,7 +4160,7 @@ export type SummaryResponses = {
 
 export type SummaryResponse = SummaryResponses[keyof SummaryResponses];
 
-export type Delete4Data = {
+export type Delete5Data = {
     body?: never;
     path: {
         /**
@@ -3921,7 +4172,7 @@ export type Delete4Data = {
     url: '/api/admin/reviews/{id}';
 };
 
-export type Delete4Errors = {
+export type Delete5Errors = {
     /**
      * Unauthorized
      */
@@ -3936,14 +4187,14 @@ export type Delete4Errors = {
     404: unknown;
 };
 
-export type Delete4Responses = {
+export type Delete5Responses = {
     /**
      * Deleted
      */
     204: void;
 };
 
-export type Delete4Response = Delete4Responses[keyof Delete4Responses];
+export type Delete5Response = Delete5Responses[keyof Delete5Responses];
 
 export type ModerateData = {
     body: ModerateReviewRequest;
@@ -3992,6 +4243,17 @@ export type List8Data = {
          */
         q?: string;
         /**
+         * Exact city-slug filter on `route.start_location_id` (e.g.
+         * `"ha-noi"`). Combined with `end_location_id` this powers the
+         * admin brands tree's "routes from X to Y" smart filter.
+         */
+        startLocationId?: string;
+        /**
+         * Exact city-slug filter on `route.end_location_id` (e.g.
+         * `"da-nang"`).
+         */
+        endLocationId?: string;
+        /**
          * Page size (clamped to `[1, 200]` by the service). `None` = all
          * rows (legacy consumers).
          */
@@ -4024,14 +4286,14 @@ export type List8Responses = {
 
 export type List8Response = List8Responses[keyof List8Responses];
 
-export type Create4Data = {
+export type Create5Data = {
     body: UpsertRouteRequest;
     path?: never;
     query?: never;
     url: '/api/admin/routes';
 };
 
-export type Create4Errors = {
+export type Create5Errors = {
     /**
      * Unauthorized
      */
@@ -4042,16 +4304,16 @@ export type Create4Errors = {
     403: unknown;
 };
 
-export type Create4Responses = {
+export type Create5Responses = {
     /**
      * Created
      */
     201: AdminMutationResponse;
 };
 
-export type Create4Response = Create4Responses[keyof Create4Responses];
+export type Create5Response = Create5Responses[keyof Create5Responses];
 
-export type Delete5Data = {
+export type Delete6Data = {
     body?: never;
     path: {
         /**
@@ -4063,7 +4325,7 @@ export type Delete5Data = {
     url: '/api/admin/routes/{id}';
 };
 
-export type Delete5Errors = {
+export type Delete6Errors = {
     /**
      * Unauthorized
      */
@@ -4078,16 +4340,16 @@ export type Delete5Errors = {
     404: unknown;
 };
 
-export type Delete5Responses = {
+export type Delete6Responses = {
     /**
      * Deleted
      */
     200: AdminMutationResponse;
 };
 
-export type Delete5Response = Delete5Responses[keyof Delete5Responses];
+export type Delete6Response = Delete6Responses[keyof Delete6Responses];
 
-export type Update5Data = {
+export type Update6Data = {
     body: UpsertRouteRequest;
     path: {
         /**
@@ -4099,7 +4361,7 @@ export type Update5Data = {
     url: '/api/admin/routes/{id}';
 };
 
-export type Update5Errors = {
+export type Update6Errors = {
     /**
      * Unauthorized
      */
@@ -4114,14 +4376,14 @@ export type Update5Errors = {
     404: unknown;
 };
 
-export type Update5Responses = {
+export type Update6Responses = {
     /**
      * Updated
      */
     200: AdminMutationResponse;
 };
 
-export type Update5Response = Update5Responses[keyof Update5Responses];
+export type Update6Response = Update6Responses[keyof Update6Responses];
 
 export type DeleteAllPicturesData = {
     body?: never;
@@ -4339,14 +4601,14 @@ export type List9Responses = {
 
 export type List9Response = List9Responses[keyof List9Responses];
 
-export type Create5Data = {
+export type Create6Data = {
     body: UpsertScheduleRequest;
     path?: never;
     query?: never;
     url: '/api/admin/schedules';
 };
 
-export type Create5Errors = {
+export type Create6Errors = {
     /**
      * Unauthorized
      */
@@ -4357,16 +4619,16 @@ export type Create5Errors = {
     403: unknown;
 };
 
-export type Create5Responses = {
+export type Create6Responses = {
     /**
      * Created
      */
     201: AdminMutationResponse;
 };
 
-export type Create5Response = Create5Responses[keyof Create5Responses];
+export type Create6Response = Create6Responses[keyof Create6Responses];
 
-export type Delete6Data = {
+export type Delete7Data = {
     body?: never;
     path: {
         /**
@@ -4378,7 +4640,7 @@ export type Delete6Data = {
     url: '/api/admin/schedules/{id}';
 };
 
-export type Delete6Errors = {
+export type Delete7Errors = {
     /**
      * Unauthorized
      */
@@ -4393,16 +4655,16 @@ export type Delete6Errors = {
     404: unknown;
 };
 
-export type Delete6Responses = {
+export type Delete7Responses = {
     /**
      * Deleted
      */
     204: void;
 };
 
-export type Delete6Response = Delete6Responses[keyof Delete6Responses];
+export type Delete7Response = Delete7Responses[keyof Delete7Responses];
 
-export type Update6Data = {
+export type Update7Data = {
     body: UpsertScheduleRequest;
     path: {
         /**
@@ -4414,7 +4676,7 @@ export type Update6Data = {
     url: '/api/admin/schedules/{id}';
 };
 
-export type Update6Errors = {
+export type Update7Errors = {
     /**
      * Unauthorized
      */
@@ -4429,14 +4691,14 @@ export type Update6Errors = {
     404: unknown;
 };
 
-export type Update6Responses = {
+export type Update7Responses = {
     /**
      * Updated
      */
     200: AdminMutationResponse;
 };
 
-export type Update6Response = Update6Responses[keyof Update6Responses];
+export type Update7Response = Update7Responses[keyof Update7Responses];
 
 export type SystemStatusData = {
     body?: never;
@@ -4564,14 +4826,14 @@ export type List10Responses = {
 
 export type List10Response = List10Responses[keyof List10Responses];
 
-export type Create6Data = {
+export type Create7Data = {
     body: UpsertVehicleTypeRequest;
     path?: never;
     query?: never;
     url: '/api/admin/vehicle-types';
 };
 
-export type Create6Errors = {
+export type Create7Errors = {
     /**
      * Bad request — code/label missing
      */
@@ -4590,16 +4852,16 @@ export type Create6Errors = {
     409: unknown;
 };
 
-export type Create6Responses = {
+export type Create7Responses = {
     /**
      * Created
      */
     201: AdminMutationResponse;
 };
 
-export type Create6Response = Create6Responses[keyof Create6Responses];
+export type Create7Response = Create7Responses[keyof Create7Responses];
 
-export type Delete7Data = {
+export type Delete8Data = {
     body?: never;
     path: {
         /**
@@ -4611,7 +4873,7 @@ export type Delete7Data = {
     url: '/api/admin/vehicle-types/{id}';
 };
 
-export type Delete7Errors = {
+export type Delete8Errors = {
     /**
      * Unauthorized
      */
@@ -4626,16 +4888,16 @@ export type Delete7Errors = {
     404: unknown;
 };
 
-export type Delete7Responses = {
+export type Delete8Responses = {
     /**
      * Deleted
      */
     200: AdminMutationResponse;
 };
 
-export type Delete7Response = Delete7Responses[keyof Delete7Responses];
+export type Delete8Response = Delete8Responses[keyof Delete8Responses];
 
-export type Update7Data = {
+export type Update8Data = {
     body: UpsertVehicleTypeRequest;
     path: {
         /**
@@ -4647,7 +4909,7 @@ export type Update7Data = {
     url: '/api/admin/vehicle-types/{id}';
 };
 
-export type Update7Errors = {
+export type Update8Errors = {
     /**
      * Bad request — invalid code/label/status
      */
@@ -4670,14 +4932,14 @@ export type Update7Errors = {
     409: unknown;
 };
 
-export type Update7Responses = {
+export type Update8Responses = {
     /**
      * Updated
      */
     200: AdminMutationResponse;
 };
 
-export type Update7Response = Update7Responses[keyof Update7Responses];
+export type Update8Response = Update8Responses[keyof Update8Responses];
 
 export type EmployeeLoginData = {
     body: LoginRequest;
@@ -6032,14 +6294,14 @@ export type List14Responses = {
 
 export type List14Response = List14Responses[keyof List14Responses];
 
-export type Create7Data = {
+export type Create8Data = {
     body: CreatePriceAlertRequest;
     path?: never;
     query?: never;
     url: '/api/price-alerts';
 };
 
-export type Create7Errors = {
+export type Create8Errors = {
     /**
      * Validation error
      */
@@ -6050,14 +6312,14 @@ export type Create7Errors = {
     401: unknown;
 };
 
-export type Create7Responses = {
+export type Create8Responses = {
     /**
      * Created (or existing duplicate returned)
      */
     201: CreatePriceAlertResponse;
 };
 
-export type Create7Response = Create7Responses[keyof Create7Responses];
+export type Create8Response = Create8Responses[keyof Create8Responses];
 
 export type RemoveData = {
     body?: never;
@@ -6187,28 +6449,28 @@ export type List15Responses = {
 
 export type List15Response = List15Responses[keyof List15Responses];
 
-export type Create8Data = {
+export type Create9Data = {
     body: CreateReviewInput;
     path?: never;
     query?: never;
     url: '/api/reviews';
 };
 
-export type Create8Errors = {
+export type Create9Errors = {
     /**
      * Unauthorized
      */
     401: unknown;
 };
 
-export type Create8Responses = {
+export type Create9Responses = {
     /**
      * Created review
      */
     201: ReviewMutationResponse;
 };
 
-export type Create8Response = Create8Responses[keyof Create8Responses];
+export type Create9Response = Create9Responses[keyof Create9Responses];
 
 export type MineData = {
     body?: never;
@@ -6316,7 +6578,7 @@ export type Get2Responses = {
 
 export type Get2Response = Get2Responses[keyof Get2Responses];
 
-export type Update8Data = {
+export type Update9Data = {
     body: UpdateReviewInput;
     path: {
         /**
@@ -6328,7 +6590,7 @@ export type Update8Data = {
     url: '/api/reviews/{id}';
 };
 
-export type Update8Errors = {
+export type Update9Errors = {
     /**
      * Unauthorized
      */
@@ -6339,14 +6601,14 @@ export type Update8Errors = {
     403: unknown;
 };
 
-export type Update8Responses = {
+export type Update9Responses = {
     /**
      * Updated review
      */
     200: ReviewMutationResponse;
 };
 
-export type Update8Response = Update8Responses[keyof Update8Responses];
+export type Update9Response = Update9Responses[keyof Update9Responses];
 
 export type RoutesData = {
     body?: never;

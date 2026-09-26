@@ -178,6 +178,13 @@ use utoipa::OpenApi;
         // Appended LAST on purpose (see the addresses comment above):
         // appending keeps the existing SDK function numbers stable.
         crate::routes::system::system_metrics,
+        // admin — bus layout CRUD (create with seat-grid generation,
+        // metadata update, guarded delete). Appended LAST on purpose
+        // (see the addresses comment above): appending keeps the
+        // existing SDK function numbers stable.
+        crate::routes::admin::bus_layouts::create,
+        crate::routes::admin::bus_layouts::update,
+        crate::routes::admin::bus_layouts::delete,
     ),
     components(schemas(
         // auth
@@ -373,6 +380,9 @@ use utoipa::OpenApi;
         // system — live host metrics (admin server-monitoring page)
         crate::dto::system::SystemMetrics,
         crate::dto::system::DiskInfo,
+        // admin — bus layout CRUD (appended last, same ordering rule)
+        crate::dto::admin::UpsertBusLayoutRequest,
+        crate::dto::admin::SeatGridSpec,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),

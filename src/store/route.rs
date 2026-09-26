@@ -75,6 +75,8 @@ pub trait RouteStore: Send + Sync {
         &self,
         brand_id: Option<&str>,
         q: Option<&str>,
+        start_location_id: Option<&str>,
+        end_location_id: Option<&str>,
         limit: Option<u64>,
         offset: u64,
     ) -> StoreResult<RoutePage>;
@@ -205,6 +207,8 @@ impl RouteStore for DbRouteStore {
         &self,
         brand_id: Option<&str>,
         q: Option<&str>,
+        start_location_id: Option<&str>,
+        end_location_id: Option<&str>,
         limit: Option<u64>,
         offset: u64,
     ) -> StoreResult<RoutePage> {
@@ -215,6 +219,15 @@ impl RouteStore for DbRouteStore {
             // Parse to Uuid — see `parse_uuid` (TEXT param ≠ BLOB column on SQLite).
             let brand_uuid = super::parse_uuid(brand_id)?;
             base = base.filter(route::Column::BrandId.eq(brand_uuid));
+        }
+        // Exact city-slug filters — the admin brands tree's "routes from
+        // X to Y" smart filter. Both are optional and combinable; the
+        // slugs are plain TEXT columns so no uuid parsing is involved.
+        if let Some(start) = start_location_id.map(str::trim).filter(|s| !s.is_empty()) {
+            base = base.filter(route::Column::StartLocationId.eq(start));
+        }
+        if let Some(end) = end_location_id.map(str::trim).filter(|s| !s.is_empty()) {
+            base = base.filter(route::Column::EndLocationId.eq(end));
         }
         if let Some(q) = q.map(str::trim).filter(|s| !s.is_empty()) {
             // NOTE: the wildcards are pre-baked into the bound parameter.

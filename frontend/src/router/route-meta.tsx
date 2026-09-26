@@ -29,8 +29,6 @@ export const ROUTE_META: Record<string, { title: string; description: string }> 
     description: 'Bảng điều khiển quản trị hệ thống DatXeVui.',
   },
   '/admin/brands': { title: 'Hãng xe — Quản trị DatXeVui', description: 'Quản lý hãng xe, tuyến đường, lịch trình.' },
-  '/admin/routes': { title: 'Tuyến đường — Quản trị DatXeVui', description: 'Quản lý tuyến đường.' },
-  '/admin/schedules': { title: 'Lịch trình — Quản trị DatXeVui', description: 'Quản lý lịch trình.' },
   '/admin/cron-jobs': { title: 'Cron jobs — Quản trị DatXeVui', description: 'Quản lý tác vụ nền định kỳ.' },
   '/admin/tickets': { title: 'Vé đã bán — Quản trị DatXeVui', description: 'Quản lý vé đã bán.' },
   '/admin/chat': { title: 'Chat hỗ trợ — Quản trị DatXeVui', description: 'Hỗ trợ khách hàng qua chat.' },
