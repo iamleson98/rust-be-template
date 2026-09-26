@@ -331,7 +331,7 @@ export function ChatPanel({
         />
 
         {/* Chat workspace */}
-        <Card className="xl:col-span-3 flex flex-col xl:h-[40rem]">
+        <Card className="xl:col-span-3 flex flex-col xl:h-160">
           {activeChannel ? (
             <>
               <ChatWorkspaceHeader

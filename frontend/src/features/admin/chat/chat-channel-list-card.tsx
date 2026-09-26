@@ -62,7 +62,7 @@ export function ChatChannelListCard({
   channelScrollRef: RefObject<HTMLDivElement | null>
 }) {
   return (
-    <Card className="xl:col-span-2 flex flex-col xl:h-[40rem]">
+    <Card className="xl:col-span-2 flex flex-col xl:h-160">
       <CardHeader className="pb-2 shrink-0 space-y-2">
         <CardTitle className="text-base flex items-center gap-2">
           <MessageSquare className="h-4 w-4 text-blue-600" />
