@@ -471,3 +471,78 @@
   font: inherit;
   outline: none;
 }
+
+/* ── Basemap style switcher (custom Leaflet control, bottom-left) ──
+   Renders a compact Layers button that expands into a vertical list
+   of basemap styles. Pure DOM — see features/map/basemap-layer.tsx. */
+.vexevn-basemap-switcher {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.vexevn-basemap-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgb(226 232 240); /* slate-200 */
+  background: rgb(255 255 255 / 0.95);
+  backdrop-filter: blur(4px);
+  color: #1e293b; /* slate-800 */
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.vexevn-basemap-button:hover {
+  background: #eff6ff; /* blue-50 */
+  color: #2563eb; /* blue-600 */
+}
+.vexevn-basemap-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 148px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgb(226 232 240);
+  background: rgb(255 255 255 / 0.98);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 16px -4px rgb(0 0 0 / 0.18);
+}
+.vexevn-basemap-menu[hidden] {
+  display: none;
+}
+.vexevn-basemap-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #334155; /* slate-700 */
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.vexevn-basemap-item:hover {
+  background: #eff6ff; /* blue-50 */
+  color: #1d4ed8; /* blue-700 */
+}
+.vexevn-basemap-item.is-active {
+  color: #2563eb; /* blue-600 */
+  font-weight: 600;
+}
+.vexevn-basemap-check {
+  display: inline-flex;
+  width: 14px;
+  flex-shrink: 0;
+  color: #2563eb; /* blue-600 */
+  font-size: 12px;
+}

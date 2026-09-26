@@ -1,11 +1,16 @@
 // Shared types and utilities for the bus booking platform
+//
+// The label maps below hold I18N KEYS (not display text) — resolve them
+// at render time with `t(VEHICLE_TYPE_LABELS[x] ?? x)`. Keeping keys in
+// the maps lets every consumer re-localize when the language switches
+// while the map shape (and its unknown-key fallbacks) stays unchanged.
 
 export const VEHICLE_TYPE_LABELS: Record<string, string> = {
-  limousine: 'Limousine',
-  sleeper: 'Giường nằm',
-  semi_sleeper: 'Giường nằm đơn',
-  standard: 'Ghế ngồi',
-  minivan: 'Minivan',
+  limousine: 'types.vehicleLimousine',
+  sleeper: 'types.vehicleSleeper',
+  semi_sleeper: 'types.vehicleSemiSleeper',
+  standard: 'types.vehicleStandard',
+  minivan: 'types.vehicleMinivan',
 }
 
 export const VEHICLE_TYPE_ICONS: Record<string, string> = {
@@ -17,11 +22,11 @@ export const VEHICLE_TYPE_ICONS: Record<string, string> = {
 }
 
 export const SEAT_CLASS_LABELS: Record<string, string> = {
-  standard: 'Thường',
-  premium: 'Cao cấp',
-  vip: 'VIP',
-  bed_lower: 'Giường dưới',
-  bed_upper: 'Giường trên',
+  standard: 'types.seatStandard',
+  premium: 'types.seatPremium',
+  vip: 'types.seatVip',
+  bed_lower: 'types.seatBedLower',
+  bed_upper: 'types.seatBedUpper',
 }
 
 export const SEAT_CLASS_COLORS: Record<string, string> = {
@@ -33,19 +38,33 @@ export const SEAT_CLASS_COLORS: Record<string, string> = {
 }
 
 export const AMENITY_LABELS: Record<string, string> = {
-  window: 'Cửa sổ',
-  legroom: 'Rộng chân',
-  recline: 'Ngả sâu',
-  curtain: 'Rèm che',
-  charging: 'Cắm sạc',
-  wifi: 'Wi-Fi',
-  ac: 'Điều hòa',
-  water: 'Nước uống',
+  window: 'types.amenityWindow',
+  legroom: 'types.amenityLegroom',
+  recline: 'types.amenityRecline',
+  curtain: 'types.amenityCurtain',
+  charging: 'types.amenityCharging',
+  wifi: 'types.amenityWifi',
+  ac: 'types.amenityAc',
+  water: 'types.amenityWater',
 }
 
-// Format VND currency
+// Locale-aware formatting — reads the CURRENT app language from the
+// Zustand store (works outside React too) so numbers, currency, and
+// durations follow the VI/EN switch instead of hardcoding Vietnamese.
+import { useApp } from '@/lib/store'
+import { translate, type Lang } from '@/lib/i18n'
+
+function currentLocale(): 'vi-VN' | 'en-US' {
+  return useApp.getState().lang === 'en' ? 'en-US' : 'vi-VN'
+}
+
+function currentLang(): Lang {
+  return useApp.getState().lang
+}
+
+// Format VND currency — "320.000 ₫" (vi) / "₫320,000" (en)
 export function formatVND(amount: number): string {
-  return new Intl.NumberFormat('vi-VN', {
+  return new Intl.NumberFormat(currentLocale(), {
     style: 'currency',
     currency: 'VND',
     maximumFractionDigits: 0,
@@ -54,26 +73,32 @@ export function formatVND(amount: number): string {
 
 // Format number with thousand separator (no currency symbol)
 export function formatNum(n: number): string {
-  return new Intl.NumberFormat('vi-VN').format(n)
+  return new Intl.NumberFormat(currentLocale()).format(n)
 }
 
-// Format duration in minutes to "Xh Ym" or "X ngày Yh"
+// Format duration in minutes to "Xh Ym" or "X ngày Yh" / "Xd Yh"
 export function formatDuration(min: number): string {
-  if (min < 60) return `${min} phút`
+  if (min < 60) {
+    return currentLang() === 'en' ? `${min} min` : `${min} phút`
+  }
   const days = Math.floor(min / (24 * 60))
   const hours = Math.floor((min % (24 * 60)) / 60)
   const mins = min % 60
   if (days > 0) {
-    return mins > 0 ? `${days} ngày ${hours}h${mins > 0 ? ` ${mins}p` : ''}` : `${days} ngày ${hours}h`
+    const dayWord = currentLang() === 'en' ? 'd' : 'ngày'
+    return mins > 0
+      ? `${days} ${dayWord} ${hours}h${mins > 0 ? ` ${mins}p` : ''}`
+      : `${days} ${dayWord} ${hours}h`
   }
   return mins > 0 ? `${hours}h ${mins}p` : `${hours}h`
 }
 
-// Format a date string (ISO or yyyy-mm-dd) to Vietnamese display
-// IMPORTANT: Always use Asia/Ho_Chi_Minh timezone to keep date and time parts in sync.
+// Format a date string (ISO or yyyy-mm-dd) — locale follows the app
+// language (vi-VN default). IMPORTANT: Always use Asia/Ho_Chi_Minh
+// timezone to keep date and time parts in sync.
 export function formatDateVN(dateStr: string, opts?: Intl.DateTimeFormatOptions): string {
   const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
-  return new Intl.DateTimeFormat('vi-VN', {
+  return new Intl.DateTimeFormat(currentLocale(), {
     timeZone: 'Asia/Ho_Chi_Minh',
     ...(opts ?? { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
   }).format(d)
@@ -81,25 +106,28 @@ export function formatDateVN(dateStr: string, opts?: Intl.DateTimeFormatOptions)
 
 export function formatTimeVN(dateStr: string): string {
   const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
-  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }).format(d)
+  return new Intl.DateTimeFormat(currentLocale(), { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }).format(d)
 }
 
 export function formatDateTimeVN(dateStr: string): string {
   return `${formatDateVN(dateStr)} • ${formatTimeVN(dateStr)}`
 }
 
-// Relative time (e.g. "3 phút trước")
+// Relative time (e.g. "3 phút trước" / "3 minutes ago") — language-
+// reactive via the store, so chat lists and dashboards re-localize on
+// the VI/EN switch.
 export function relativeTime(dateStr: string): string {
   const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
   const diff = Date.now() - d.getTime()
+  const lang = currentLang()
   const sec = Math.floor(diff / 1000)
-  if (sec < 60) return 'vừa xong'
+  if (sec < 60) return translate(lang, 'types.justNow')
   const min = Math.floor(sec / 60)
-  if (min < 60) return `${min} phút trước`
+  if (min < 60) return translate(lang, 'types.minutesAgo', { min })
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr} giờ trước`
+  if (hr < 24) return translate(lang, 'types.hoursAgo', { hr })
   const day = Math.floor(hr / 24)
-  if (day < 7) return `${day} ngày trước`
+  if (day < 7) return translate(lang, 'types.daysAgo', { day })
   return formatDateVN(dateStr, { day: '2-digit', month: '2-digit' })
 }
 

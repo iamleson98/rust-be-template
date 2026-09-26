@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 import { NoNotifications } from '@/features/notifications/no-notifications'
 
 const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
@@ -36,6 +37,7 @@ const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
 export function NotificationBell() {
   const { notifOpen, setNotifOpen, user } = useApp()
   const navigate = useNavigate()
+  const t = useT()
   const isLoggedIn = !!user
 
   // Polling + dedup + caching handled by the centralized hook (60s interval).
@@ -75,7 +77,7 @@ export function NotificationBell() {
     })
     try {
       await markRead({ body: { ids: unreadIds } })
-      toast.success('Đã đánh dấu tất cả là đã đọc')
+      toast.success(t('notifications.markedAllRead'))
     } catch {
       // Roll back optimistic state on failure — the next poll will re-sync.
       setOptimisticReads((m) => {
@@ -83,7 +85,7 @@ export function NotificationBell() {
         for (const id of unreadIds) delete next[id]
         return next
       })
-      toast.error('Không thể đánh dấu đã đọc')
+      toast.error(t('notifications.markReadFailed'))
     }
   }
 
@@ -116,8 +118,8 @@ export function NotificationBell() {
         onClick={() => setNotifOpen(true)}
         className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-white transition-colors ${isEmpty ? 'opacity-60 hidden sm:inline-flex' : ''
           }`}
-        aria-label="Thông báo"
-        title="Thông báo"
+        aria-label={t('account.notifications')}
+        title={t('account.notifications')}
       >
         <Bell className={unread > 0 ? 'h-4 w-4 text-amber-300' : 'h-4 w-4'} />
         {unread > 0 && (
@@ -138,9 +140,9 @@ export function NotificationBell() {
                   <Bell className="h-4 w-4" />
                 </div>
                 <div>
-                  <div className="font-semibold text-sm">Thông báo</div>
+                  <div className="font-semibold text-sm">{t('account.notifications')}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    {unread > 0 ? `${unread} chưa đọc` : 'Tất cả đã đọc'}
+                    {unread > 0 ? t('notifications.unreadCount', { count: unread }) : t('notifications.allRead')}
                   </div>
                 </div>
               </div>
@@ -148,13 +150,13 @@ export function NotificationBell() {
                 {unread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={markAllRead}>
                     <CheckCheck className="h-3.5 w-3.5" />
-                    Đọc hết
+                    {t('notifications.readAll')}
                   </Button>
                 )}
                 <button
                   onClick={() => setNotifOpen(false)}
                   className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-slate-200 text-muted-foreground"
-                  aria-label="Đóng"
+                  aria-label={t('common.close')}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -164,13 +166,13 @@ export function NotificationBell() {
             {/* List */}
             <ScrollArea className="flex-1 max-h-[60vh]">
               {isLoading ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">Đang tải...</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
               ) : isError ? (
                 <div className="p-6 text-center">
                   <AlertCircle className="h-7 w-7 text-rose-500 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-3">Không thể tải thông báo</p>
+                  <p className="text-sm text-muted-foreground mb-3">{t('notifications.loadFailed')}</p>
                   <Button size="sm" variant="outline" onClick={() => refetch()}>
-                    Thử lại
+                    {t('payment.retry')}
                   </Button>
                 </div>
               ) : effectiveItems.length === 0 ? (
@@ -230,7 +232,7 @@ export function NotificationBell() {
             <div className="border-t px-4 py-2 flex items-center justify-between bg-slate-50">
               <div className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
                 <Settings className="h-3 w-3" />
-                Cập nhật mỗi 60 giây
+                {t('notifications.updatesEvery60s')}
               </div>
               <button
                 onClick={() => {
@@ -239,7 +241,7 @@ export function NotificationBell() {
                 }}
                 className="text-[11px] font-medium text-blue-700 hover:text-blue-800"
               >
-                Xem vé của tôi →
+                {t('notifications.viewMyTickets')}
               </button>
             </div>
           </div>

@@ -12,7 +12,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Dialog,
   DialogContent,
@@ -24,17 +24,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import { Plus, MapPin, Loader2, Crosshair } from 'lucide-react'
 import { toast } from 'sonner'
 import { LeafletMap, type PickedPlace } from '@/features/map/leaflet-map'
 import { reverse as sdkReverse, create4 as createPickupPoint } from '@/lib/api/sdk.gen'
+import { adminPickupPointsListQueryKey } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type { PlaceSearchHit } from '@/lib/api/types.gen'
 
 type Props = {
@@ -64,6 +60,8 @@ const EMPTY_FORM: FormState = {
 }
 
 export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated }: Props) {
+  const t = useT()
+  const qc = useQueryClient()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [picked, setPicked] = useState<PickedPlace | null>(null)
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null)
@@ -85,7 +83,11 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
       return data
     },
     onSuccess: (data) => {
-      toast.success('Đã tạo điểm đón/trả mới')
+      toast.success(t('adminPickup.quickCreated'))
+      // Refresh every pickup-points list (the generated list6 key is a
+      // superset matcher for all routeId-scoped instances) so the
+      // RoutePickupPointsDialog shows the new point immediately.
+      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() })
       onCreated({
         id: data?.id ?? '',
         name: form.name,
@@ -97,8 +99,8 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
       onOpenChange(false)
     },
     onError: (err) => {
-      toast.error('Không thể tạo điểm', {
-        description: err?.message ?? 'Vui lòng thử lại',
+      toast.error(t('adminPickup.createFailed'), {
+        description: err?.message ?? t('adminPickup.tryAgain'),
       })
     },
   })
@@ -118,7 +120,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
   // ── Map click → reverse geocode via generated SDK ────────────
   const handleMapClick = useCallback(async (clickLat: number, clickLon: number) => {
     setForm((f) => ({ ...f, lat: clickLat, lon: clickLon }))
-    setPicked({ name: 'Đang tải...', lat: clickLat, lon: clickLon })
+    setPicked({ name: t('common.loading'), lat: clickLat, lon: clickLon })
 
     try {
       const { data } = await sdkReverse({ query: { lat: clickLat, lon: clickLon, limit: 1 } })
@@ -134,13 +136,13 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
         setPicked({ name: placeName, lat: clickLat, lon: clickLon, province: hit.province })
       } else {
         setForm((f) => ({ ...f, name: `${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}` }))
-        setPicked({ name: 'Vị trí đã chọn', lat: clickLat, lon: clickLon })
+        setPicked({ name: t('map.selectedLocation'), lat: clickLat, lon: clickLon })
       }
     } catch {
       setForm((f) => ({ ...f, name: `${clickLat.toFixed(4)}, ${clickLon.toFixed(4)}` }))
-      setPicked({ name: 'Vị trí đã chọn', lat: clickLat, lon: clickLon })
+      setPicked({ name: t('map.selectedLocation'), lat: clickLat, lon: clickLon })
     }
-  }, [])
+  }, [t])
 
   // ── GPS "my location" ──────────────────────────────────────
   const handleMyLocation = useCallback(() => {
@@ -159,7 +161,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
   // ── Submit ──────────────────────────────────────────────────
   const handleSave = () => {
     if (!form.name.trim()) {
-      toast.error('Vui lòng nhập tên điểm đón/trả')
+      toast.error(t('adminPickup.nameRequired'))
       return
     }
     createMutation.mutate(form)
@@ -176,10 +178,10 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
-            <Plus className="h-4 w-4" /> Tạo điểm đón/trả mới
+            <Plus className="h-4 w-4" /> {t('adminPickup.quickCreateTitle')}
           </DialogTitle>
           <DialogDescription>
-            Nhập thông tin hoặc nhấn vào bản đồ để chọn vị trí chính xác.
+            {t('adminPickup.createDesc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -187,56 +189,60 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
           {/* Name + Kind */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-xs">Tên điểm <span className="text-destructive">*</span></Label>
+              <Label className="text-xs">{t('adminPickup.nameLabel')} <span className="text-destructive">*</span></Label>
               <Input
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
-                placeholder="VD: Bến xe Mỹ Đình"
+                placeholder={t('adminPickup.namePh')}
                 className="mt-1"
               />
             </div>
             <div>
-              <Label className="text-xs">Loại điểm</Label>
-              <Select value={form.kind} onValueChange={(v) => update('kind', v)}>
-                <SelectTrigger className="mt-1 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="boarding">Điểm đón</SelectItem>
-                  <SelectItem value="dropping">Điểm trả</SelectItem>
-                  <SelectItem value="both">Cả hai</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">{t('adminPickup.kindLabel')}</Label>
+              <div className="mt-1">
+                <ComboboxField
+                  value={form.kind}
+                  onValueChange={(v) => update('kind', v)}
+                  items={[
+                    { value: 'boarding', label: t('adminPickup.kind.boarding') },
+                    { value: 'dropping', label: t('adminPickup.kind.dropping') },
+                    { value: 'both', label: t('adminPickup.kind.both') },
+                  ]}
+                  placeholder={t('adminPickup.chooseKind')}
+                  searchPlaceholder={t('combobox.search')}
+                  aria-label={t('adminPickup.kindLabel')}
+                />
+              </div>
             </div>
           </div>
 
           {/* Lat/Lng + Stop order */}
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label className="text-xs">Vĩ độ</Label>
+              <Label className="text-xs">{t('adminPickup.latitude')}</Label>
               <Input
                 value={form.lat ? form.lat.toFixed(6) : ''}
                 readOnly
-                placeholder="Tự động từ bản đồ"
+                placeholder={t('adminPickup.autoFromMap')}
                 className="mt-1 bg-muted/30 font-mono text-xs"
               />
             </div>
             <div>
-              <Label className="text-xs">Kinh độ</Label>
+              <Label className="text-xs">{t('adminPickup.longitude')}</Label>
               <Input
                 value={form.lon ? form.lon.toFixed(6) : ''}
                 readOnly
-                placeholder="Tự động từ bản đồ"
+                placeholder={t('adminPickup.autoFromMap')}
                 className="mt-1 bg-muted/30 font-mono text-xs"
               />
             </div>
             <div>
-              <Label className="text-xs">Thứ tự dừng</Label>
+              <Label className="text-xs">{t('adminPickup.stopOrderLabel')}</Label>
               <Input
                 type="number"
                 value={form.stopOrder}
                 onChange={(e) => update('stopOrder', e.target.value)}
-                placeholder="VD: 1, 2, 3..."
+                placeholder={t('adminPickup.stopOrderPh')}
                 className="mt-1"
               />
             </div>
@@ -256,8 +262,8 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             <button
               onClick={handleMyLocation}
               className="absolute right-3 top-3 z-1000 h-9 w-9 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-primary hover:bg-primary/5 transition-colors"
-              title="Vị trí của tôi"
-              aria-label="Vị trí của tôi"
+              title={t('map.myLocation')}
+              aria-label={t('map.myLocation')}
             >
               <Crosshair className="h-4 w-4" />
             </button>
@@ -265,7 +271,7 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
             {!picked && (
               <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white">
                 <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
-                Chạm vào bản đồ để chọn vị trí
+                {t('map.clickToPick')}
               </div>
             )}
           </div>
@@ -273,11 +279,11 @@ export function QuickPickupPointDialog({ open, onOpenChange, routeId, onCreated 
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Huỷ
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-            Tạo điểm
+            {t('adminPickup.createBtn')}
           </Button>
         </DialogFooter>
       </DialogContent>

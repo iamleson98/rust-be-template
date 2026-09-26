@@ -25,6 +25,7 @@ import {
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 
 // Fix leaflet's default marker icon paths (broken under bundlers).
@@ -135,6 +136,7 @@ export default function RouteNavigationMap({
   coordinates,
   pickupName,
 }: RouteNavigationMapProps) {
+  const t = useT()
   // Center on the user's location initially. FitBounds will zoom to fit
   // both endpoints once the polyline arrives.
   const initialCenter = useMemo<[number, number]>(() => [userLat, userLon], [userLat, userLon])
@@ -193,7 +195,7 @@ export default function RouteNavigationMap({
         }}
       >
         <LeafletTooltip direction="top" offset={[0, -9]} opacity={1}>
-          <span className="text-xs font-semibold text-slate-800">Vị trí của bạn</span>
+          <span className="text-xs font-semibold text-slate-800">{t('mapNav.yourLocation')}</span>
         </LeafletTooltip>
       </CircleMarker>
 
@@ -202,7 +204,7 @@ export default function RouteNavigationMap({
         <Popup>
           <div className="min-w-45">
             <div className="text-[11px] font-bold uppercase tracking-wide text-rose-600 mb-0.5">
-              Điểm đón
+              {t('mapNav.pickupPoint')}
             </div>
             <div className="font-bold text-sm text-slate-900">{pickupName}</div>
             <div className="text-[11px] text-slate-500 tabular-nums mt-1">

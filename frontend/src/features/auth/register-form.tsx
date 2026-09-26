@@ -4,7 +4,7 @@
  * RegisterForm — new-account form for end-customers.
  *
  * Extracted from the original `login-page.tsx`. Uses the shared
- * `registerZodSchema` from `./_shared` so the email/phone/password
+ * `makeRegisterSchema` from `./_shared` so the email/phone/password
  * validation rules stay consistent with the customer-login schema.
  *
  * Backend route: `POST /api/auth/register` with body
@@ -12,10 +12,11 @@
  * `RegisterRequest` in `src/routes/auth.rs`).
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { useRegister } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
@@ -44,7 +45,7 @@ import {
 import { cn } from '@/lib/utils'
 import { SocialAuthButtons } from './social-buttons'
 import {
-  registerZodSchema,
+  makeRegisterSchema,
   scorePassword,
   type RegisterFormValues,
 } from './_shared'
@@ -52,11 +53,13 @@ import {
 export function RegisterForm() {
   const { setUser } = useApp()
   const navigate = useNavigate()
+  const t = useT()
   const [showPwd, setShowPwd] = useState(false)
   const [success, setSuccess] = useState(false)
+  const registerSchema = useMemo(() => makeRegisterSchema(t), [t])
 
   const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerZodSchema),
+    resolver: zodResolver(registerSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: {
@@ -82,10 +85,10 @@ export function RegisterForm() {
       if (!user) return
       setUser(user)
       setSuccess(true)
-      toast.success('Tài khoản đã được tạo!')
+      toast.success(t('authPage.accountCreated'))
     },
     onError: () => {
-      toast.error('Đăng ký thất bại. Email có thể đã được sử dụng.')
+      toast.error(t('authPage.registerFailedEmail'))
     },
   })
 
@@ -106,15 +109,15 @@ export function RegisterForm() {
         <div className="inline-flex h-16 w-16 rounded-full bg-linear-to-br from-blue-400 to-blue-500 items-center justify-center mb-4">
           <Check className="h-8 w-8 text-white" strokeWidth={3} />
         </div>
-        <h3 className="font-bold text-lg mb-1">Đăng ký thành công!</h3>
+        <h3 className="font-bold text-lg mb-1">{t('auth.registerSuccess')}</h3>
         <p className="text-sm text-muted-foreground mb-5">
-          Tài khoản của bạn đã sẵn sàng. Bắt đầu đặt vé ngay!
+          {t('authPage.registerReady')}
         </p>
         <Button
           onClick={() => navigate({ to: '/' })}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
         >
-          Bắt đầu tìm vé
+          {t('authPage.startSearch')}
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
@@ -130,12 +133,12 @@ export function RegisterForm() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Họ và tên <span className="text-destructive">*</span>
+                {t('auth.fullName')} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <FormControl>
-                  <Input {...field} placeholder="Nguyễn Văn A" autoFocus className="pl-10 h-11" />
+                  <Input {...field} placeholder={t('authPage.fullNamePh')} autoFocus className="pl-10 h-11" />
                 </FormControl>
               </div>
               <FormMessage />
@@ -149,7 +152,7 @@ export function RegisterForm() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Email <span className="text-muted-foreground/60 normal-case font-normal">(hoặc số điện thoại)</span>{' '}
+                {t('auth.email')} <span className="text-muted-foreground/60 normal-case font-normal">{t('authPage.orPhone')}</span>{' '}
                 <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
@@ -196,14 +199,14 @@ export function RegisterForm() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Mật khẩu <span className="text-destructive">*</span>
+                {t('auth.password')} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="Tối thiểu 6 ký tự"
+                    placeholder={t('authPage.passwordMin6')}
                     type={showPwd ? 'text' : 'password'}
                     className="pl-10 pr-10 h-11"
                   />
@@ -211,7 +214,7 @@ export function RegisterForm() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  aria-label={showPwd ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  aria-label={showPwd ? t('authPage.hidePassword') : t('authPage.showPassword')}
                   aria-pressed={showPwd}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
@@ -247,21 +250,21 @@ export function RegisterForm() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Xác nhận mật khẩu <span className="text-destructive">*</span>
+                {t('auth.confirmPassword')} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder={t('authPage.confirmPasswordPh')}
                     type={showPwd ? 'text' : 'password'}
                     className="pl-10 h-11"
                   />
                 </FormControl>
               </div>
               {confirm && password !== confirm && (
-                <p className="text-[11px] text-red-500">Mật khẩu xác nhận không khớp</p>
+                <p className="text-[11px] text-red-500">{t('validation.passwordMatch')}</p>
               )}
               <FormMessage />
             </FormItem>
@@ -274,12 +277,12 @@ export function RegisterForm() {
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
           {registerMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-          Tạo tài khoản
+          {t('authPage.createAccount')}
           <ChevronRight className="h-4 w-4" />
         </Button>
 
         <p className="text-[11px] text-muted-foreground text-center">
-          Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của DatXeVui.
+          {t('authPage.termsAgree')}
         </p>
       </form>
 

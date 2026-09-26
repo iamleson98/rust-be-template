@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Sparkles, Star, Quote, Pencil } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { ReviewSummary, REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
 
 export function ExistingReviewCard({
@@ -23,14 +24,15 @@ export function ExistingReviewCard({
   setEditMode: (editMode: boolean) => void
   onClose?: () => void
 }) {
-    return (
+  const t = useT()
+  return (
       <Card className="ring-1 ring-amber-200 overflow-hidden">
         <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
         <CardContent className="p-4 md:p-5 space-y-3">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700">
               <Sparkles className="h-3.5 w-3.5" />
-              Đánh giá của bạn về chuyến này
+              {t('feedbackForm.yourReviewTitle')}
             </div>
             <Button
               variant="outline"
@@ -39,7 +41,7 @@ export function ExistingReviewCard({
               onClick={() => setEditMode(true)}
             >
               <Pencil className="h-3 w-3" />
-              Chỉnh sửa
+              {t('feedbackForm.edit')}
             </Button>
           </div>
 
@@ -75,21 +77,21 @@ export function ExistingReviewCard({
 
           {existingReview && existingReview.tags.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              {existingReview.tags.map((t, i) => {
-                const meta = REVIEW_TAG_LABELS[t]
+              {existingReview.tags.map((tag, i) => {
+                const meta = REVIEW_TAG_LABELS[tag]
                 return (
                   <Badge
-                    key={`${t}-${i}`}
+                    key={`${tag}-${i}`}
                     variant="outline"
                     className="text-[11px] gap-1 px-2 py-0.5 bg-amber-50/60 border-amber-200/60 text-amber-800 font-medium"
                   >
                     {meta ? (
                       <>
                         <span>{meta.emoji}</span>
-                        {meta.label}
+                        {t(meta.labelKey)}
                       </>
                     ) : (
-                      t.replace(/_/g, ' ')
+                      tag.replace(/_/g, ' ')
                     )}
                   </Badge>
                 )
@@ -107,7 +109,7 @@ export function ExistingReviewCard({
                   rel="noopener noreferrer"
                   className="aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 hover:ring-amber-400 transition-all"
                 >
-                  <img src={src} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img src={src} alt={t('reviews.photoAlt', { index: i + 1 })} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 </a>
               ))}
             </div>
@@ -115,10 +117,10 @@ export function ExistingReviewCard({
 
           <div className="flex items-center justify-between pt-2 border-t border-dashed border-slate-200">
             <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
-              Đóng
+              {t('common.close')}
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              Cảm ơn bạn đã chia sẻ trải nghiệm!
+              {t('feedbackForm.thanksForSharing')}
             </span>
           </div>
         </CardContent>

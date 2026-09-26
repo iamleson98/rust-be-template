@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
@@ -43,6 +44,7 @@ type HoldBookingData = {
 }
 
 export function BookingDialog() {
+  const t = useT()
   const {
     bookingStep,
     setBookingStep,
@@ -175,15 +177,15 @@ export function BookingDialog() {
       return p as PassengerFormValue
     })
     replace(next)
-    toast.success('Đã tự động ghép ghế cho các hành khách!')
-  }, [passengerFields, selectedSeatCodes, replace])
+    toast.success(t('booking.autoAssignSuccess'))
+  }, [passengerFields, selectedSeatCodes, replace, t])
 
   const copyContactToFirst = useCallback(() => {
     const contactName = form.getValues('contactName')
     const source = contactName || guestName
     if (!source) {
-      toast.error('Chưa có thông tin người liên hệ', {
-        description: 'Vui lòng nhập tên người liên hệ ở bước tiếp theo.',
+      toast.error(t('booking.missingContact'), {
+        description: t('bookingFlow.missingContactNameDesc'),
       })
       return
     }
@@ -195,8 +197,8 @@ export function BookingDialog() {
         name: source,
       })
     }
-    toast.success('Đã sao chép tên người liên hệ!')
-  }, [passengerFields, form, guestName, update])
+    toast.success(t('bookingFlow.copiedContactName'))
+  }, [passengerFields, form, guestName, update, t])
 
   // Derived: unassigned passengers + duplicate seat check
   const unassignedCount = useMemo(
@@ -229,13 +231,13 @@ export function BookingDialog() {
     onSuccess: (data) => {
       setCampaignResult(data)
       if (data?.valid) {
-        toast.success('Mã khuyến mãi hợp lệ!', {
-          description: `Giảm ${formatCurrency(data.discount ?? 0, currency)}`,
+        toast.success(t('bookingFlow.promoValid'), {
+          description: t('bookingFlow.discountAmount', { amount: formatCurrency(data.discount ?? 0, currency) }),
           duration: 3000,
         })
       } else {
-        toast.error('Mã không hợp lệ', {
-          description: 'Kiểm tra lại mã khuyến mãi',
+        toast.error(t('bookingFlow.promoInvalidTitle'), {
+          description: t('bookingFlow.promoInvalidDesc'),
           duration: 3000,
         })
       }
@@ -271,19 +273,22 @@ export function BookingDialog() {
       setGuestPhone(normalizePhone(contactPhoneRef.current))
       if (contactNameRef.current) setGuestName(contactNameRef.current)
       setBookingStep('success')
-      toast.success('Đặt vé thành công!', {
-        description: `Mã vé: ${holdData.code} — ${formatCurrency(holdData.total, currency)}`,
+      toast.success(t('booking.success'), {
+        description: t('bookingFlow.successToastDesc', {
+          code: holdData.code,
+          total: formatCurrency(holdData.total, currency),
+        }),
         duration: 5000,
       })
       const earnedPoints = Math.max(10, Math.floor(holdData.total / 1000))
       setLoyaltyPoints((prev) => prev + earnedPoints)
-      toast.success(`Bạn nhận được +${earnedPoints} điểm thưởng!`, {
-        description: 'Xem chi tiết tại mục Điểm thưởng',
+      toast.success(t('bookingFlow.loyaltyEarned', { points: earnedPoints }), {
+        description: t('bookingFlow.loyaltyEarnedDesc'),
         duration: 4000,
       })
     },
     onError: () => {
-      setError('Thanh toán thất bại')
+      setError(t('payment.failed'))
     },
     onSettled: () => {
       setSubmitting(false)
@@ -301,7 +306,7 @@ export function BookingDialog() {
     onSuccess: (holdResult: unknown) => {
       const holdData = ((holdResult ?? {}) as { data?: HoldBookingData }).data ?? (holdResult as HoldBookingData | undefined)
       if (!holdData?.bookingId) {
-        setError('Không thể đặt chỗ')
+        setError(t('bookingFlow.holdFailed'))
         setSubmitting(false)
         return
       }
@@ -312,7 +317,7 @@ export function BookingDialog() {
       } as unknown as Parameters<typeof confirmMut.mutate>[0])
     },
     onError: () => {
-      setError('Không thể đặt chỗ')
+      setError(t('bookingFlow.holdFailed'))
       setSubmitting(false)
     },
   })
@@ -326,7 +331,7 @@ export function BookingDialog() {
     setError('')
     if (!bookingContext || !trip) return
     if (hasDuplicateSeats) {
-      setError('Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau')
+      setError(t('bookingFlow.duplicateSeatsError'))
       return
     }
     contactPhoneRef.current = normalizePhone(values.contactPhone)
@@ -376,11 +381,11 @@ export function BookingDialog() {
   const gotoContact = async () => {
     const valid = await form.trigger('passengers')
     if (!valid) {
-      setError('Vui lòng kiểm tra thông tin hành khách')
+      setError(t('bookingFlow.checkPassengerInfo'))
       return
     }
     if (hasDuplicateSeats) {
-      setError('Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau')
+      setError(t('bookingFlow.duplicateSeatsError'))
       return
     }
     setError('')

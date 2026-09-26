@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { AdminBookingTotals } from '@/lib/api/types.gen'
 import { KpiCard } from '@/features/admin/dashboard/kpi-card'
+import { useT } from '@/lib/i18n'
 import { formatVND } from './tickets-helpers'
 
 /**
@@ -20,11 +21,12 @@ export function TicketsKpiCards({
 }: {
   totals: AdminBookingTotals | undefined
 }) {
+  const t = useT()
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
       <KpiCard
         icon={<TicketIcon className="h-5 w-5" />}
-        label="Tổng vé"
+        label={t('adminTickets.kpiTotal')}
         value={totals ? String(totals.total) : '—'}
         change=""
         up
@@ -33,7 +35,7 @@ export function TicketsKpiCards({
       />
       <KpiCard
         icon={<DollarSign className="h-5 w-5" />}
-        label="Doanh thu"
+        label={t('adminTickets.kpiRevenue')}
         value={totals ? formatVND(totals.revenue) : '—'}
         change=""
         up
@@ -42,7 +44,7 @@ export function TicketsKpiCards({
       />
       <KpiCard
         icon={<CheckCircle2 className="h-5 w-5" />}
-        label="Đã xác nhận"
+        label={t('adminTickets.statusConfirmed')}
         value={totals ? String(totals.confirmed) : '—'}
         change=""
         up
@@ -51,7 +53,7 @@ export function TicketsKpiCards({
       />
       <KpiCard
         icon={<TrendingUp className="h-5 w-5" />}
-        label="Hoàn thành"
+        label={t('adminTickets.statusCompleted')}
         value={totals ? String(totals.completed) : '—'}
         change=""
         up
@@ -60,7 +62,7 @@ export function TicketsKpiCards({
       />
       <KpiCard
         icon={<Ban className="h-5 w-5" />}
-        label="Đã huỷ"
+        label={t('adminTickets.statusCancelled')}
         value={totals ? String(totals.cancelled) : '—'}
         change=""
         color="#f43f5e"

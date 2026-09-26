@@ -32,6 +32,7 @@ import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-ba
 import { TicketDetailSkeleton } from './ticket-detail-skeleton'
 import { formatVND, formatDepartureDate } from './tickets-helpers'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 // ── BookingDetailDialog ─────────────────────────────────────
 
@@ -46,6 +47,7 @@ export function BookingDetailDialog({
   const updateStatus = useUpdateBookingStatus()
   const [reason, setReason] = useState('')
   const [force, setForce] = useState(false)
+  const t = useT()
 
   const booking = data?.item
 
@@ -61,18 +63,21 @@ export function BookingDetailDialog({
             force,
           },
         })
-        toast.success('Đã cập nhật trạng thái', {
-          description: `Vé ${booking.code}: ${statusLabel(status)}`,
+        toast.success(t('adminTickets.statusUpdated'), {
+          description: t('adminTickets.statusUpdatedDesc', {
+            code: booking.code,
+            status: statusLabel(status, t),
+          }),
         })
         setReason('')
         setForce(false)
       } catch (e) {
-        toast.error('Không thể cập nhật trạng thái', {
-          description: getErrorMessage(e, 'Vui lòng thử lại'),
+        toast.error(t('adminTickets.statusUpdateFailed'), {
+          description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
         })
       }
     },
-    [booking, updateStatus, reason, force],
+    [booking, updateStatus, reason, force, t],
   )
 
   return (
@@ -81,11 +86,11 @@ export function BookingDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TicketIcon className="h-5 w-5 text-blue-600" />
-            {booking ? `Vé ${booking.code}` : 'Chi tiết vé'}
+            {booking ? t('adminTickets.ticketCode', { code: booking.code }) : t('adminTickets.detailTitle')}
             {booking && <BookingStatusBadge status={booking.status} />}
           </DialogTitle>
           <DialogDescription>
-            Thông tin chi tiết vé, hành khách, chuyến đi và quản lý trạng thái.
+            {t('adminTickets.detailDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -94,14 +99,14 @@ export function BookingDetailDialog({
         ) : isError ? (
           <div className="p-4 text-center">
             <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Không tải được chi tiết vé.</p>
+            <p className="text-sm text-muted-foreground">{t('adminTickets.detailLoadFailed')}</p>
             <Button
               variant="outline"
               size="sm"
               className="mt-2"
               onClick={() => refetch()}
             >
-              Thử lại
+              {t('payment.retry')}
             </Button>
           </div>
         ) : booking ? (
@@ -111,7 +116,7 @@ export function BookingDetailDialog({
               <Card className="bg-slate-50/50 border-dashed">
                 <CardContent className="p-3 space-y-2.5">
                   <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Quản lý trạng thái
+                    {t('adminTickets.statusManagement')}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     <Button
@@ -122,7 +127,7 @@ export function BookingDetailDialog({
                       disabled={updateStatus.isPending || booking.status === 'confirmed'}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      Xác nhận
+                      {t('common.confirm')}
                     </Button>
                     <Button
                       size="sm"
@@ -132,7 +137,7 @@ export function BookingDetailDialog({
                       disabled={updateStatus.isPending || booking.status === 'completed'}
                     >
                       <TrendingUp className="h-3.5 w-3.5" />
-                      Hoàn thành
+                      {t('adminTickets.statusCompleted')}
                     </Button>
                     <Button
                       size="sm"
@@ -142,7 +147,7 @@ export function BookingDetailDialog({
                       disabled={updateStatus.isPending || booking.status === 'cancelled'}
                     >
                       <Ban className="h-3.5 w-3.5" />
-                      Huỷ vé
+                      {t('cancel.title')}
                     </Button>
                     <Button
                       size="sm"
@@ -155,32 +160,32 @@ export function BookingDetailDialog({
                       }
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
-                      Hoàn tiền
+                      {t('adminTickets.statusRefunded')}
                     </Button>
                   </div>
                   <Textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder="Ghi chú / lý do (tuỳ chọn)…"
+                    placeholder={t('adminTickets.reasonPlaceholder')}
                     className="text-xs min-h-10 resize-none"
                   />
                   <div className="flex items-center gap-2 text-[11px]">
                     <Switch checked={force} onCheckedChange={setForce} id="force" />
                     <Label htmlFor="force" className="cursor-pointer text-muted-foreground">
-                      Bật chế độ ghi đè (admin override) — cho phép chuyển trạng thái bất kỳ
+                      {t('adminTickets.forceOverride')}
                     </Label>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Contact info */}
-              <Section title="Thông tin hành khách" icon={<User className="h-4 w-4" />}>
+              <Section title={t('adminTickets.passengerInfo')} icon={<User className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <InfoField label="Họ tên" value={booking.contactName} />
-                  <InfoField label="SĐT" value={booking.contactPhone} icon={<Phone className="h-3 w-3" />} />
-                  <InfoField label="Email" value={booking.contactEmail} icon={<Mail className="h-3 w-3" />} />
+                  <InfoField label={t('adminTickets.fullName')} value={booking.contactName} />
+                  <InfoField label={t('adminTickets.phoneLabel')} value={booking.contactPhone} icon={<Phone className="h-3 w-3" />} />
+                  <InfoField label={t('booking.contactEmail')} value={booking.contactEmail} icon={<Mail className="h-3 w-3" />} />
                   <InfoField
-                    label="Phương thức thanh toán"
+                    label={t('payment.method')}
                     value={booking.paymentMethod ?? '—'}
                   />
                 </div>
@@ -191,35 +196,35 @@ export function BookingDetailDialog({
                         {booking.contactName?.[0] ?? 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    Tài khoản: <span className="font-medium text-blue-700">{booking.contactName}</span>
+                    {t('adminTickets.accountLabel')} <span className="font-medium text-blue-700">{booking.contactName}</span>
                     {booking.contactPhone && <span>· {booking.contactPhone}</span>}
                   </div>
                 )}
               </Section>
 
-              <Section title="Thông tin chuyến đi" icon={<Bus className="h-4 w-4" />}>
+              <Section title={t('adminTickets.tripInfo')} icon={<Bus className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField
-                    label="Tuyến"
+                    label={t('adminTickets.route')}
                     value={`${booking.pickupName ?? '—'} → ${booking.dropoffName ?? '—'}`}
                   />
                   <InfoField
-                    label="Hãng xe"
+                    label={t('admin.brands')}
                     value={booking.contactName ?? '—'}
                   />
                   <InfoField
-                    label="Ngày đi"
+                    label={t('search.date')}
                     value={formatDepartureDate(booking.createdAt)}
                   />
                   <InfoField
-                    label="Loại xe"
+                    label={t('admin.vehicleTypes')}
                     value={booking.paymentMethod ?? '—'}
                   />
                 </div>
               </Section>
 
               {/* Seats + passengers */}
-              <Section title="Ghế & hành khách" icon={<TicketIcon className="h-4 w-4" />}>
+              <Section title={t('adminTickets.seatsAndPassengers')} icon={<TicketIcon className="h-4 w-4" />}>
                 <div className="space-y-1.5">
                   {booking.seats.map((s, i) => (
                     <div
@@ -233,7 +238,7 @@ export function BookingDetailDialog({
                         <span className="font-medium">{s.passengerName ?? '—'}</span>
                         {s.passengerType && (
                           <Badge variant="secondary" className="text-[9px]">
-                            {s.passengerType === 'adult' ? 'Người lớn' : s.passengerType === 'child' ? 'Trẻ em' : s.passengerType}
+                            {s.passengerType === 'adult' ? t('booking.passengerType.adult') : s.passengerType === 'child' ? t('booking.passengerType.child') : s.passengerType}
                           </Badge>
                         )}
                       </div>
@@ -244,18 +249,18 @@ export function BookingDetailDialog({
               </Section>
 
               {/* Pickup / dropoff + total */}
-              <Section title="Điểm đón / trả & tổng tiền" icon={<MapPin className="h-4 w-4" />}>
+              <Section title={t('adminTickets.pickupDropoffAndTotal')} icon={<MapPin className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <InfoField label="Điểm đón" value={booking.pickupName} />
-                  <InfoField label="Điểm trả" value={booking.dropoffName} />
+                  <InfoField label={t('adminTickets.pickupPoint')} value={booking.pickupName} />
+                  <InfoField label={t('adminTickets.dropoffPoint')} value={booking.dropoffName} />
                 </div>
                 <div className="mt-2 flex items-center justify-between rounded-md bg-linear-to-r from-blue-50 to-emerald-50 px-3 py-2 text-sm">
-                  <span className="font-medium">Tổng tiền</span>
+                  <span className="font-medium">{t('booking.totalAmount')}</span>
                   <span className="font-bold text-blue-700">{formatVND(booking.total)}</span>
                 </div>
                 {(booking.discount || 0) > 0 && (
                   <div className="mt-1 flex items-center justify-between text-[11px] text-emerald-700">
-                    <span>Đã giảm</span>
+                    <span>{t('adminTickets.discounted')}</span>
                     <span>-{formatVND(booking.discount)}</span>
                   </div>
                 )}
@@ -308,14 +313,14 @@ function InfoField({
   )
 }
 
-function statusLabel(s: string): string {
+function statusLabel(s: string, t: ReturnType<typeof useT>): string {
   const m: Record<string, string> = {
-    pending: 'Chờ xử lý',
-    confirmed: 'Đã xác nhận',
-    paid: 'Đã xác nhận',
-    completed: 'Hoàn thành',
-    cancelled: 'Đã huỷ',
-    refunded: 'Hoàn tiền',
+    pending: t('adminTickets.statusPending'),
+    confirmed: t('adminTickets.statusConfirmed'),
+    paid: t('adminTickets.statusConfirmed'),
+    completed: t('adminTickets.statusCompleted'),
+    cancelled: t('adminTickets.statusCancelled'),
+    refunded: t('adminTickets.statusRefunded'),
   }
   return m[s] ?? s
 }

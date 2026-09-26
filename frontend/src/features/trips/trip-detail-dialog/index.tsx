@@ -17,6 +17,7 @@
 
 import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useTripDetail } from '@/lib/queries'
 import {
   Dialog,
@@ -54,6 +55,7 @@ import { PolicyBlock } from './policy-block'
 
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const { setBookingStep, setBookingContext, searchParams, currency, setShareOpen, setShareTripData } = useApp()
+  const t = useT()
   const [selectedSeats, setSelectedSeats] = useState<string[]>([])
   const [boardingPoint, setBoardingPoint] = useState<string>('')
   const [droppingPoint, setDroppingPoint] = useState<string>('')
@@ -119,9 +121,9 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
       <DialogContent className="max-w-7xl w-[97vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
         {loading || !detail ? (
           <>
-            <DialogTitle className="sr-only">Đang tải chi tiết chuyến xe</DialogTitle>
+            <DialogTitle className="sr-only">{t('tripDetail.loadingTitle')}</DialogTitle>
             <DialogDescription className="sr-only">
-              Vui lòng đợi trong khi chúng tôi tải thông tin chuyến xe.
+              {t('tripDetail.loadingDesc')}
             </DialogDescription>
             <TripDetailSkeleton />
           </>
@@ -154,28 +156,28 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                   <ScrollArea className="shrink-0">
                     <TabsList className="rounded-none border-b bg-slate-50 justify-start px-3 h-auto py-2 w-max">
                       <TabsTrigger value="seats" className="gap-1.5">
-                        <Bus className="h-4 w-4" /> Sơ đồ ghế
+                        <Bus className="h-4 w-4" /> {t('booking.seatSelector')}
                       </TabsTrigger>
                       <TabsTrigger value="route" className="gap-1.5">
-                        <MapPin className="h-4 w-4" /> Lộ trình
+                        <MapPin className="h-4 w-4" /> {t('tripDetail.tabRoute')}
                       </TabsTrigger>
                       <TabsTrigger value="tracking" className="gap-1.5">
-                        <Radar className="h-4 w-4" /> Theo dõi xe
+                        <Radar className="h-4 w-4" /> {t('tripDetail.tabTracking')}
                       </TabsTrigger>
                       <TabsTrigger value="businfo" className="gap-1.5">
-                        <Bus className="h-4 w-4" /> Thông tin xe
+                        <Bus className="h-4 w-4" /> {t('tripDetail.tabBusInfo')}
                       </TabsTrigger>
                       <TabsTrigger value="weather" className="gap-1.5">
-                        <Cloud className="h-4 w-4" /> Thời tiết
+                        <Cloud className="h-4 w-4" /> {t('tripDetail.tabWeather')}
                       </TabsTrigger>
                       <TabsTrigger value="tips" className="gap-1.5">
-                        <Compass className="h-4 w-4" /> Mẹo du lịch
+                        <Compass className="h-4 w-4" /> {t('tripDetail.tabTips')}
                       </TabsTrigger>
                       <TabsTrigger value="info" className="gap-1.5">
-                        <CheckCircle2 className="h-4 w-4" /> Chính sách
+                        <CheckCircle2 className="h-4 w-4" /> {t('tripDetail.tabPolicy')}
                       </TabsTrigger>
                       <TabsTrigger value="reviews" className="gap-1.5">
-                        <MessageSquareQuote className="h-4 w-4" /> Đánh giá
+                        <MessageSquareQuote className="h-4 w-4" /> {t('tripDetail.tabReviews')}
                       </TabsTrigger>
                     </TabsList>
                   </ScrollArea>
@@ -184,14 +186,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                     <TabsContent value="seats" className="m-0 p-4">
                       <div className="mb-3 flex items-center justify-between text-sm">
                         <div className="font-semibold">
-                          Chọn {maxSeats} ghế
+                          {t('tripDetail.chooseSeats', { count: maxSeats })}
                           <span className="text-muted-foreground font-normal ml-1">
                             ({selectedSeats.length}/{maxSeats})
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <Users className="h-3.5 w-3.5" />
-                          {detail.trip.availableSeats}/{detail.trip.totalSeats} chỗ trống
+                          {detail.trip.availableSeats}/{detail.trip.totalSeats} {t('common.seatsAvailable')}
                         </div>
                       </div>
                       <SeatMap
@@ -237,35 +239,35 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
                     <TabsContent value="info" className="m-0 p-4 space-y-4">
                       <PolicyBlock
-                        title="Giá vé"
+                        title={t('search.sort.price')}
                         items={[
-                          { label: 'Người lớn', value: formatCurrency(detail.pricing.basePriceAdult, currency) },
-                          { label: 'Trẻ em (0-9 tuổi)', value: formatCurrency(detail.pricing.basePriceChild, currency) },
+                          { label: t('booking.passengerType.adult'), value: formatCurrency(detail.pricing.basePriceAdult, currency) },
+                          { label: t('tripDetail.childFare'), value: formatCurrency(detail.pricing.basePriceChild, currency) },
                         ]}
                       />
                       {detail.discountPrograms.length > 0 && (
                         <PolicyBlock
-                          title="Ưu đãi đặc biệt"
+                          title={t('tripDetail.specialOffers')}
                           items={detail.discountPrograms.map((dp) => ({
-                            label: `${dp.passengerType === 'child' ? 'Trẻ em' : dp.passengerType === 'student' ? 'Học sinh/Sinh viên' : 'Người cao tuổi'} (${dp.minAge}-${dp.maxAge} tuổi)`,
-                            value: `Giảm ${dp.value}%`,
+                            label: `${dp.passengerType === 'child' ? t('booking.passengerType.child') : dp.passengerType === 'student' ? t('tripDetail.passengerStudent') : t('tripDetail.passengerSenior')} ${t('tripDetail.ageRange', { min: dp.minAge, max: dp.maxAge })}`,
+                            value: t('tripDetail.discountValue', { value: dp.value }),
                           }))}
                         />
                       )}
                       <PolicyBlock
-                        title="Quy định hành lý"
+                        title={t('tripDetail.luggagePolicy')}
                         items={[
-                          { label: 'Hành lý xách tay', value: 'Tối đa 7kg' },
-                          { label: 'Vali lớn', value: 'Để dưới khoang xe' },
-                          { label: 'Hàng cấm', value: 'Dễ cháy nổ, mùi mạnh' },
+                          { label: t('tripDetail.carryOn'), value: t('tripDetail.carryOnMax') },
+                          { label: t('tripDetail.largeLuggage'), value: t('tripDetail.underCompartment') },
+                          { label: t('tripDetail.prohibitedItemsLabel'), value: t('tripDetail.prohibitedItems') },
                         ]}
                       />
                       <PolicyBlock
-                        title="Đổi / Huỷ vé"
+                        title={t('tripDetail.changeCancelPolicy')}
                         items={[
-                          { label: 'Trước 24h', value: 'Hoàn 90%' },
-                          { label: 'Trước 12h', value: 'Hoàn 70%' },
-                          { label: 'Sau 12h', value: 'Không hoàn' },
+                          { label: t('tripDetail.before24h'), value: t('tripDetail.refund90') },
+                          { label: t('tripDetail.before12h'), value: t('tripDetail.refund70') },
+                          { label: t('tripDetail.after12h'), value: t('tripDetail.noRefund') },
                         ]}
                       />
                     </TabsContent>

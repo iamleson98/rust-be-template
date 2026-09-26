@@ -12,20 +12,21 @@
 
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
 
-function providerMeta(provider: PaymentProvider): { label: string; icon: React.ReactNode } {
+function providerMeta(provider: PaymentProvider, t: ReturnType<typeof useT>): { label: string; icon: React.ReactNode } {
   switch (provider) {
     case 'vnpay':
-      return { label: 'VNPay QR', icon: <Wallet className="h-5 w-5 text-primary" /> }
+      return { label: t('payment.vnpay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
     case 'momo':
-      return { label: 'Ví MoMo', icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> }
+      return { label: t('payment.momo'), icon: <Wallet className="h-5 w-5 text-fuchsia-600" /> }
     case 'zalopay':
-      return { label: 'ZaloPay', icon: <Wallet className="h-5 w-5 text-primary" /> }
+      return { label: t('payment.zalopay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
     case 'vietqr':
-      return { label: 'VietQR / Chuyển khoản', icon: <QrCode className="h-5 w-5 text-emerald-600" /> }
+      return { label: t('bookingFlow.providerVietqrTransfer'), icon: <QrCode className="h-5 w-5 text-emerald-600" /> }
     case 'cod':
-      return { label: 'Thanh toán tại xe', icon: <Banknote className="h-5 w-5 text-amber-600" /> }
+      return { label: t('bookingFlow.payCod'), icon: <Banknote className="h-5 w-5 text-amber-600" /> }
     default:
       return { label: provider, icon: <Wallet className="h-5 w-5" /> }
   }
@@ -40,13 +41,14 @@ export function GatewayRedirect({
   gatewayUrl?: string | null
   status: PaymentOut['status']
 }) {
-  const meta = providerMeta(provider)
+  const t = useT()
+  const meta = providerMeta(provider, t)
   if (status === 'completed') {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
         <div className="text-sm font-medium text-emerald-800">
-          Cảm ơn bạn! Thanh toán đã thành công.
+          {t('bookingFlow.gatewayThanks')}
         </div>
       </div>
     )
@@ -54,7 +56,7 @@ export function GatewayRedirect({
   if (!gatewayUrl) {
     return (
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center text-sm text-amber-800">
-        Đang chờ cổng thanh toán phản hồi...
+        {t('bookingFlow.gatewayWaiting')}
       </div>
     )
   }
@@ -69,11 +71,11 @@ export function GatewayRedirect({
           className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90"
         >
           <ExternalLink className="h-4 w-4" />
-          Mở trang thanh toán
+          {t('bookingFlow.openPaymentPage')}
         </Button>
       </a>
       <p className="text-[11px] text-muted-foreground text-center">
-        Sau khi hoàn tất trên trang của {meta.label}, hệ thống sẽ tự động xác nhận trong vài giây.
+        {t('bookingFlow.gatewayAutoConfirm', { provider: meta.label })}
       </p>
     </div>
   )

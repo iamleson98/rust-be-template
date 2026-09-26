@@ -10,6 +10,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 
 type RouteResponse = {
   coordinates: [number, number][] // [lat, lon] pairs
@@ -53,7 +55,13 @@ export function useRouteNavigation(
   // ── Step 1: get the user's geolocation ──
   const requestLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeo({ status: 'denied', message: 'Trình duyệt không hỗ trợ định vị' })
+      setGeo({
+        status: 'denied',
+        message: translate(
+          useApp.getState().lang,
+          'mapNav.browserNoGeolocation'
+        ),
+      })
       return
     }
     setGeo({ status: 'loading' })
@@ -64,12 +72,15 @@ export function useRouteNavigation(
       (err) => {
         const message =
           err.code === err.PERMISSION_DENIED
-            ? 'Bạn đã từ chối quyền truy cập vị trí. Bật lại trong cài đặt trình duyệt để xem đường đi.'
+            ? translate(
+                useApp.getState().lang,
+                'mapNav.geoPermissionDenied'
+              )
             : err.code === err.POSITION_UNAVAILABLE
-              ? 'Không xác định được vị trí hiện tại.'
+              ? translate(useApp.getState().lang, 'mapNav.geoPositionUnavailable')
               : err.code === err.TIMEOUT
-                ? 'Hết giờ xác định vị trí. Thử lại trong khu vực thoáng.'
-                : 'Lỗi không xác định khi định vị.'
+                ? translate(useApp.getState().lang, 'mapNav.geoTimeout')
+                : translate(useApp.getState().lang, 'mapNav.geoUnknownError')
         setGeo({ status: 'denied', message })
       },
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
@@ -110,7 +121,10 @@ export function useRouteNavigation(
         if (!cancelled) setRoute({ status: 'ok', data })
       } catch (e) {
         if (cancelled) return
-        const msg = e instanceof Error ? e.message : 'Lỗi không xác định'
+        const msg =
+          e instanceof Error
+            ? e.message
+            : translate(useApp.getState().lang, 'mapNav.unknownError')
         setRoute({ status: 'error', message: msg })
       }
     }

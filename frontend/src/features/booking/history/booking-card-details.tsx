@@ -19,6 +19,7 @@ import {
 import { formatDateTimeVN, SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import {
   BookingItem,
   PAYMENT_LABELS,
@@ -55,6 +56,7 @@ export function BookingCardDetails({
   extraActions?: React.ReactNode
   onExploreOther?: () => void
 }) {
+  const t = useT()
   return (
     <div className="border-t bg-slate-50/70">
       <button
@@ -63,7 +65,7 @@ export function BookingCardDetails({
       >
         <span className="inline-flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5" />
-          Chi tiết đặt vé
+          {t('bookingHistory.bookingDetails')}
         </span>
         <ChevronDown
           className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
@@ -77,13 +79,13 @@ export function BookingCardDetails({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <InfoTile
                   icon={<MapPin className="h-3.5 w-3.5 text-blue-600" />}
-                  label="Điểm đón"
-                  value={b.pickupPointName ?? 'Bến xe xuất phát'}
+                  label={t('bookingHistory.pickupPoint')}
+                  value={b.pickupPointName ?? t('bookingHistory.originStation')}
                 />
                 <InfoTile
                   icon={<MapPin className="h-3.5 w-3.5 text-rose-600" />}
-                  label="Điểm trả"
-                  value={b.droppingPointName ?? 'Bến xe đích'}
+                  label={t('bookingHistory.dropoffPoint')}
+                  value={b.droppingPointName ?? t('bookingHistory.destinationStation')}
                 />
               </div>
             )}
@@ -92,7 +94,7 @@ export function BookingCardDetails({
             <div>
               <div className="text-xs font-bold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5" />
-                Hành khách
+                {t('booking.passengers')}
               </div>
               <div className="space-y-1.5">
                 {b.seats.map((s, i) => (
@@ -105,13 +107,13 @@ export function BookingCardDetails({
                         {(s.passengerName ?? '?').slice(0, 1).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-semibold">{s.passengerName ?? 'Hành khách'}</div>
+                        <div className="font-semibold">{s.passengerName ?? t('booking.passengers')}</div>
                         <div className="text-[11px] text-muted-foreground">
                           {s.passengerType === 'child'
-                            ? `Trẻ em${s.passengerAge > 0 ? `• ${s.passengerAge} tuổi` : ''}`
-                            : 'Người lớn'}
+                            ? `${t('booking.passengerType.child')}${s.passengerAge > 0 ? t('bookingHistory.ageSuffix', { age: s.passengerAge }) : ''}`
+                            : t('booking.passengerType.adult')}
                           {' • '}
-                          {SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass}
+                          {t(SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass)}
                         </div>
                       </div>
                     </div>
@@ -132,17 +134,17 @@ export function BookingCardDetails({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               <InfoTile
                 icon={<User className="h-3.5 w-3.5 text-muted-foreground" />}
-                label="Người liên hệ"
+                label={t('bookingHistory.contactPerson')}
                 value={b.contactName}
               />
               <InfoTile
                 icon={<Phone className="h-3.5 w-3.5 text-muted-foreground" />}
-                label="Điện thoại"
+                label={t('bookingHistory.phone')}
                 value={b.contactPhone}
               />
               <InfoTile
                 icon={<Mail className="h-3.5 w-3.5 text-muted-foreground" />}
-                label="Email"
+                label={t('booking.contactEmail')}
                 value={b.contactEmail ?? '—'}
               />
             </div>
@@ -153,36 +155,36 @@ export function BookingCardDetails({
             <div>
               <div className="text-xs font-bold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" />
-                Chi tiết giá
+                {t('bookingHistory.priceDetails')}
               </div>
               <div className="bg-white rounded-lg ring-1 ring-black/5 p-3 space-y-1.5 text-sm">
                 <PriceRow
-                  label={`Tạm tính (${b.seats.length} ghế)`}
+                  label={t('bookingHistory.subtotalSeats', { count: b.seats.length })}
                   value={formatCurrency(b.subtotal, currency)}
                 />
                 {b.discount > 0 && (
                   <PriceRow
-                    label="Giảm giá"
+                    label={t('bookingHistory.discount')}
                     value={`- ${formatCurrency(b.discount, currency)}`}
                     valueClass="text-blue-600 font-semibold"
                   />
                 )}
                 {b.fees > 0 && (
-                  <PriceRow label="Phí dịch vụ" value={formatCurrency(b.fees, currency)} />
+                  <PriceRow label={t('bookingHistory.serviceFee')} value={formatCurrency(b.fees, currency)} />
                 )}
                 {b.paymentMethod && (
                   <div className="pt-1.5 border-t mt-1.5 flex items-center justify-between text-xs text-muted-foreground">
                     <span className="inline-flex items-center gap-1">
                       <CreditCard className="h-3 w-3" />
-                      Phương thức thanh toán
+                      {t('payment.method')}
                     </span>
                     <span className="font-semibold text-foreground">
-                      {PAYMENT_LABELS[b.paymentMethod] ?? b.paymentMethod}
+                      {t(PAYMENT_LABELS[b.paymentMethod] ?? b.paymentMethod)}
                     </span>
                   </div>
                 )}
                 <div className="pt-1.5 border-t mt-1.5 flex items-center justify-between">
-                  <span className="font-bold">Tổng cộng</span>
+                  <span className="font-bold">{t('bookingHistory.grandTotal')}</span>
                   <span className="font-extrabold text-blue-700 text-lg">
                     {formatCurrency(b.total, currency)}
                   </span>
@@ -196,19 +198,19 @@ export function BookingCardDetails({
             <div>
               <div className="text-xs font-bold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                Trạng thái
+                {t('common.status')}
               </div>
               <div className="space-y-2">
                 <TimelineItem
                   icon={<FileText className="h-3.5 w-3.5" />}
-                  label="Đặt vé thành công"
+                  label={t('bookingHistory.timelineBooked')}
                   time={b.createdAt}
                   active
                 />
                 {b.paidAt && (
                   <TimelineItem
                     icon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                    label="Thanh toán thành công"
+                    label={t('payment.success')}
                     time={b.paidAt}
                     active
                   />
@@ -216,7 +218,7 @@ export function BookingCardDetails({
                 {b.cancelledAt && (
                   <TimelineItem
                     icon={<XCircle className="h-3.5 w-3.5" />}
-                    label="Đã hủy"
+                    label={t('bookingHistory.statusCancelled')}
                     time={b.cancelledAt}
                     active
                     destructive
@@ -225,7 +227,7 @@ export function BookingCardDetails({
                 {!b.paidAt && !b.cancelledAt && b.expiresAt && (
                   <TimelineItem
                     icon={<AlertCircle className="h-3.5 w-3.5" />}
-                    label={`Hết hạn giữ chỗ lúc ${formatDateTimeVN(b.expiresAt)}`}
+                    label={t('bookingHistory.holdExpiresAt', { time: formatDateTimeVN(b.expiresAt) })}
                     time={b.expiresAt}
                   />
                 )}

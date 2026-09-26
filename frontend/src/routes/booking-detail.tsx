@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import {
   ArrowLeft,
   AlertCircle,
@@ -38,6 +39,7 @@ export function BookingDetailPage() {
   const { code } = useParams({ from: '/bookings/$code' })
   const { data: booking, isLoading, isError, error } = useBooking(code)
   const { currency } = useApp()
+  const t = useT()
 
   // Payment state — used only when the booking is `pending` (awaiting payment).
   // Holds the id of the most recent payment attempt (so the user can resume
@@ -71,13 +73,13 @@ export function BookingDetailPage() {
     return (
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> Vé của tôi</Link>
+          <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> {t('nav.tickets')}</Link>
         </Button>
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="h-12 w-12 text-rose-400 mb-3" />
-          <h2 className="text-lg font-semibold">Không tìm thấy vé</h2>
+          <h2 className="text-lg font-semibold">{t('bookingDetail.notFoundTitle')}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {(error as Error)?.message ?? `Mã vé "${code}" không hợp lệ hoặc đã bị huỷ.`}
+            {(error as Error)?.message ?? t('bookingDetail.invalidCode', { code })}
           </p>
         </div>
       </div>
@@ -86,10 +88,10 @@ export function BookingDetailPage() {
 
   const statusLabel = (() => {
     switch (booking.status) {
-      case 'confirmed': return { text: 'Đã xác nhận', cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
-      case 'pending': return { text: 'Chờ thanh toán', cls: 'bg-amber-100 text-amber-700', icon: <Calendar className="h-3.5 w-3.5" /> }
-      case 'cancelled': return { text: 'Đã huỷ', cls: 'bg-rose-100 text-rose-700', icon: <XCircle className="h-3.5 w-3.5" /> }
-      case 'completed': return { text: 'Hoàn thành', cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
+      case 'confirmed': return { text: t('bookingDetail.statusConfirmed'), cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
+      case 'pending': return { text: t('bookingDetail.statusPending'), cls: 'bg-amber-100 text-amber-700', icon: <Calendar className="h-3.5 w-3.5" /> }
+      case 'cancelled': return { text: t('bookingDetail.statusCancelled'), cls: 'bg-rose-100 text-rose-700', icon: <XCircle className="h-3.5 w-3.5" /> }
+      case 'completed': return { text: t('bookingDetail.statusCompleted'), cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
       default: return { text: booking.status, cls: 'bg-slate-100 text-slate-700', icon: <Ticket className="h-3.5 w-3.5" /> }
     }
   })()
@@ -109,11 +111,11 @@ export function BookingDetailPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> Vé của tôi</Link>
+        <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> {t('nav.tickets')}</Link>
       </Button>
 
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Chi tiết vé {booking.code}</h1>
+        <h1 className="text-2xl font-bold">{t('bookingDetail.title', { code: booking.code })}</h1>
         <Badge className={statusLabel.cls}>{statusLabel.icon} {statusLabel.text}</Badge>
       </div>
 
@@ -130,28 +132,28 @@ export function BookingDetailPage() {
             <div className="flex items-start gap-2">
               <MapPin className="h-4 w-4 text-blue-500 mt-0.5" />
               <div>
-                <div className="text-muted-foreground text-xs">Điểm đi</div>
+                <div className="text-muted-foreground text-xs">{t('search.from')}</div>
                 <div className="font-medium">{trip?.route?.from ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <MapPin className="h-4 w-4 text-rose-500 mt-0.5" />
               <div>
-                <div className="text-muted-foreground text-xs">Điểm đến</div>
+                <div className="text-muted-foreground text-xs">{t('search.to')}</div>
                 <div className="font-medium">{trip?.route?.to ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Calendar className="h-4 w-4 text-violet-500 mt-0.5" />
               <div>
-                <div className="text-muted-foreground text-xs">Khởi hành</div>
+                <div className="text-muted-foreground text-xs">{t('booking.departure')}</div>
                 <div className="font-medium">{departureAt ?? '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">
               <Users className="h-4 w-4 text-amber-500 mt-0.5" />
               <div>
-                <div className="text-muted-foreground text-xs">Hành khách</div>
+                <div className="text-muted-foreground text-xs">{t('booking.passengers')}</div>
                 <div className="font-medium">{passengerName}</div>
               </div>
             </div>
@@ -161,14 +163,14 @@ export function BookingDetailPage() {
             <div className="flex items-start gap-2 text-sm pt-3 border-t">
               <Ticket className="h-4 w-4 text-blue-500 mt-0.5" />
               <div>
-                <div className="text-muted-foreground text-xs">Ghế</div>
+                <div className="text-muted-foreground text-xs">{t('bookingDetail.seats')}</div>
                 <div className="font-medium">{seatCodes.join(', ')}</div>
               </div>
             </div>
           )}
 
           <div className="flex items-center justify-between pt-3 border-t">
-            <span className="text-sm text-muted-foreground">Tổng tiền</span>
+            <span className="text-sm text-muted-foreground">{t('booking.totalAmount')}</span>
             <span className="text-xl font-bold text-blue-700">{formatCurrency(totalAmount, currency)}</span>
           </div>
         </CardContent>
@@ -181,9 +183,9 @@ export function BookingDetailPage() {
             <div className="flex items-center gap-3">
               <CreditCard className="h-6 w-6 text-blue-600 shrink-0" />
               <div>
-                <div className="font-semibold text-sm">Thanh toán để xác nhận vé</div>
+                <div className="font-semibold text-sm">{t('bookingDetail.payToConfirm')}</div>
                 <div className="text-xs text-muted-foreground">
-                  Hỗ trợ VNPay, MoMo, ZaloPay, VietQR (chuyển khoản) hoặc thanh toán tiền mặt tại xe.
+                  {t('bookingDetail.paymentHint')}
                 </div>
               </div>
             </div>
@@ -192,7 +194,7 @@ export function BookingDetailPage() {
               className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
             >
               <CreditCard className="h-4 w-4" />
-              Thanh toán
+              {t('booking.payment')}
             </Button>
           </CardContent>
         </Card>

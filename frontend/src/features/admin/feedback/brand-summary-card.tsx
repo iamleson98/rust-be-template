@@ -17,6 +17,7 @@ import {
   Star,
   XCircle,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
 
 function BrandSummaryCard({
@@ -28,6 +29,7 @@ function BrandSummaryCard({
   active: boolean
   onClick: () => void
 }) {
+  const t = useT()
   const accent = summary.brandAccent || '#2563eb'
   const totalNonZero = Math.max(1, summary.pending + summary.approved + summary.rejected + summary.hidden)
   return (
@@ -51,14 +53,14 @@ function BrandSummaryCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-sm truncate">
-            {summary.brandName ?? 'Chưa phân loại'}
+            {summary.brandName ?? t('adminFeedback.uncategorized')}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5">
             <Star className="size-3.5 fill-amber-400 text-amber-400" />
             <span className="text-xs font-semibold tabular-nums text-amber-600">
               {summary.avgRating?.toFixed(1) ?? '—'}
             </span>
-            <span className="text-xs text-muted-foreground">· {summary.total} phản hồi</span>
+            <span className="text-xs text-muted-foreground">· {t('adminFeedback.reviewCount', { count: summary.total })}</span>
           </div>
         </div>
       </div>
@@ -67,7 +69,7 @@ function BrandSummaryCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         {summary.pending > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
-            <Clock className="size-2.5" /> {summary.pending} chờ
+            <Clock className="size-2.5" /> {t('adminFeedback.pendingCountShort', { count: summary.pending })}
           </span>
         )}
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
@@ -124,11 +126,12 @@ export function BrandSummaryStrip({
   brandId: string | null
   setBrandId: React.Dispatch<React.SetStateAction<string | null>>
 }) {
+  const t = useT()
   return (
     <div>
       <div className="flex items-center gap-2 mb-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
         <LayoutGrid className="size-3.5" />
-        Theo hãng xe
+        {t('adminFeedback.byBrand')}
       </div>
       <div className="flex gap-3 overflow-x-auto pb-1 scroll-thin -mx-1 px-1">
         {/* "All brands" card */}
@@ -144,11 +147,11 @@ export function BrandSummaryStrip({
         >
           <div className="flex items-center gap-2 text-sm font-semibold">
             <LayoutGrid className="size-4 text-primary" />
-            Tất cả hãng xe
+            {t('adminFeedback.allBrands')}
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            {summaries.reduce((s, x) => s + x.total, 0)} phản hồi ·{' '}
-            {summaries.reduce((s, x) => s + x.pending, 0)} chờ duyệt
+            {t('adminFeedback.reviewCount', { count: summaries.reduce((s, x) => s + x.total, 0) })} ·{' '}
+            {t('adminFeedback.pendingApprovalCount', { count: summaries.reduce((s, x) => s + x.pending, 0) })}
           </div>
         </button>
 

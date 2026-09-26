@@ -11,15 +11,16 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
 
 /** Real backend moderation statuses (NOT the legacy `published/flagged`). */
 const STATUS_FILTERS = [
-  { value: 'all', label: 'Tất cả' },
-  { value: 'pending', label: 'Chờ duyệt' },
-  { value: 'approved', label: 'Đã hiển thị' },
-  { value: 'rejected', label: 'Từ chối' },
-  { value: 'hidden', label: 'Đã ẩn' },
+  { value: 'all', labelKey: 'common.all' },
+  { value: 'pending', labelKey: 'adminFeedback.statusPending' },
+  { value: 'approved', labelKey: 'adminFeedback.statusApproved' },
+  { value: 'rejected', labelKey: 'adminFeedback.statusRejected' },
+  { value: 'hidden', labelKey: 'adminFeedback.statusHidden' },
 ] as const
 
 export function FeedbackFilterToolbar({
@@ -39,6 +40,7 @@ export function FeedbackFilterToolbar({
   setBrandId: React.Dispatch<React.SetStateAction<string | null>>
   activeSummary: AdminReviewBrandSummary | null
 }) {
+  const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
@@ -53,7 +55,7 @@ export function FeedbackFilterToolbar({
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {s.label}
+            {t(s.labelKey)}
             {s.value !== 'all' && activeSummary && (
               <span className="ml-1 text-[10px] text-muted-foreground">
                 {(s.value === 'pending' ? activeSummary.pending
@@ -70,13 +72,13 @@ export function FeedbackFilterToolbar({
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Tìm theo khách, nội dung, tiêu đề…"
+          placeholder={t('adminFeedback.searchPlaceholder')}
           className="pl-8 h-9 text-sm"
         />
       </div>
       {brandId && (
         <Button variant="ghost" size="sm" onClick={() => setBrandId(null)} className="text-xs text-rose-600">
-          Bỏ lọc hãng
+          {t('adminFeedback.clearBrandFilter')}
         </Button>
       )}
     </div>

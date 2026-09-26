@@ -43,6 +43,9 @@
  * ```
  */
 
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
 const LS_PERMISSION_KEY = 'datxevui:notif-permission'
 const LS_ASKED_AT_KEY = 'datxevui:notif-asked-at'
 
@@ -231,7 +234,10 @@ export function notifyChatMessage(senderName: string, body: string, channelId?: 
  * Convenience wrapper: show a notification for an incoming audio call.
  */
 export function notifyIncomingCall(fromName: string): void {
-  showNotification(`📞 Cuộc gọi đến từ ${fromName}`, 'Nhấn để trả lời cuộc gọi', {
+  showNotification(
+    translate(useApp.getState().lang, 'notifications.incomingCall', { name: fromName }),
+    translate(useApp.getState().lang, 'notifications.tapToAnswer'),
+    {
     tag: 'audio-call',
     onClick: () => {
       window.dispatchEvent(new CustomEvent('datxevui:open-call'))

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { useApp } from '@/lib/store'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { Gift, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { getNextTier, getTier, type Voucher } from './loyalty-data'
@@ -15,6 +16,7 @@ import { LoyaltyTiersOverview } from './loyalty-tiers-overview'
 
 export const LoyaltyWidget = memo(function LoyaltyWidget() {
   const { loyaltyOpen, setLoyaltyOpen, loyaltyPoints, setLoyaltyPoints, currency } = useApp()
+  const t = useT()
 
   const currentTier = getTier(loyaltyPoints)
   const nextTier = getNextTier(loyaltyPoints)
@@ -22,8 +24,8 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
   const handleRedeem = (voucher: Voucher) => {
     if (loyaltyPoints < voucher.points) return
     setLoyaltyPoints((prev) => prev - voucher.points)
-    toast.success(`Đổi thành công Voucher ${formatCurrency(voucher.value, currency)}!`, {
-      description: `Đã trừ ${voucher.points} điểm. Voucher sẽ được gửi qua SMS.`,
+    toast.success(t('home.redeemSuccessTitle', { value: formatCurrency(voucher.value, currency) }), {
+      description: t('home.redeemSuccessDesc', { points: voucher.points }),
       duration: 4000,
     })
   }
@@ -57,7 +59,7 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
                     <Gift className="h-4 w-4" />
                   </div>
                   <div>
-                    <h2 className="font-extrabold text-sm">Điểm thưởng</h2>
+                    <h2 className="font-extrabold text-sm">{t('nav.loyalty')}</h2>
                     <p className="text-[11px] text-muted-foreground">DatXeVui Loyalty</p>
                   </div>
                 </div>

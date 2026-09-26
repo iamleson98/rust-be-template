@@ -38,6 +38,7 @@
 import { useEffect, useState, useRef, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2, Signal } from 'lucide-react'
 import type { AudioCallClient } from '@/lib/audio-call-client'
@@ -45,7 +46,7 @@ import { playSound, startRingTone } from '@/lib/sound-effects'
 import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
 import { isStaffUser } from '@/lib/store'
 import {
-  MIC_DENIED_GUIDANCE,
+  micDeniedGuidance,
   hangupReasonText,
   type QualityLevel,
 } from '@/lib/call-quality'
@@ -110,6 +111,7 @@ function CallSurface({ embedded, children }: { embedded: boolean; children: Reac
 
 export function AudioCallWidget() {
   const { user, callOpen: open, setCallOpen: setOpen } = useApp()
+  const t = useT()
   const isAgent = isStaffUser(user)
   const [state, setState] = useState<CallState>('idle')
   const [onlineAgents, setOnlineAgents] = useState(0)
@@ -287,7 +289,7 @@ export function AudioCallWidget() {
       // ── Browser push notification for incoming call (when page is hidden).
       // Label the caller by OUR perspective: agents are called BY
       // customers; a customer being called back is called by staff.
-      notifyIncomingCall(isAgent ? 'Khách hàng' : 'Nhân viên hỗ trợ')
+      notifyIncomingCall(isAgent ? t('users.roleUser') : t('chat.agentName'))
     })
     client.on('quality', (q) => {
       setQuality({ level: q.level, rttMs: q.rttMs, jitterMs: q.jitterMs, lossPct: q.lossPct, relayed: q.relayed })
@@ -313,7 +315,7 @@ export function AudioCallWidget() {
     clientRef.current = client
     clientOwnerRef.current = owner
     return client
-  }, [user, isAgent, setOpen, releaseWakeLock, requestWakeLock])
+  }, [user, isAgent, setOpen, releaseWakeLock, requestWakeLock, t])
 
   // Start a call (customer → agent, or agent → customer).
   const startCall = useCallback(async () => {
@@ -343,21 +345,21 @@ export function AudioCallWidget() {
     autoStartRef.current = true
     startCall().catch(() => {
       autoStartRef.current = false
-      toast.error('Không thể bắt đầu cuộc gọi. Bạn vẫn có thể tiếp tục nhắn tin.')
+      toast.error(t('layout.call.startFailed'))
       setOpen(false)
     })
-  }, [open, isAgent, state, agentsAvailable, startCall, setOpen])
+  }, [open, isAgent, state, agentsAvailable, startCall, setOpen, t])
 
   useEffect(() => {
     if (!open || isAgent || !presenceKnown || state !== 'idle') return
     if (onlineAgents === 0) {
-      toast.info('Hiện không có nhân viên trực tuyến. Bạn vẫn có thể tiếp tục nhắn tin.')
+      toast.info(t('layout.call.noAgentsToast'))
       setOpen(false)
     } else if (!agentsAvailable) {
-      toast.info('Nhân viên đang bận. Bạn vẫn có thể tiếp tục nhắn tin.')
+      toast.info(t('layout.call.busyToast'))
       setOpen(false)
     }
-  }, [open, isAgent, presenceKnown, state, onlineAgents, agentsAvailable, setOpen])
+  }, [open, isAgent, presenceKnown, state, onlineAgents, agentsAvailable, setOpen, t])
 
   // Accept inbound call. (The duration timer is NOT started here — it starts
   // when the call actually reaches 'active', which for the answering side is
@@ -456,7 +458,7 @@ export function AudioCallWidget() {
     let cancelled = false
     ensureClient().catch((e) => {
       if (!cancelled) {
-        setError(`Không thể kết nối đến dịch vụ gọi: ${String(e)}`)
+        setError(t('layout.call.connectFailed', { error: String(e) }))
         setTimeout(() => setError(null), 4000)
       }
     })
@@ -467,22 +469,22 @@ export function AudioCallWidget() {
       void ensureCallNotificationPermission()
     }
     return () => { cancelled = true }
-  }, [open, ensureClient, isAgent, user])
+  }, [open, ensureClient, isAgent, user, t])
 
   // Agent status text. isAgent is already declared above (for the
   // auto-connect effect). Reuse it here.
   const agentsOnline = onlineAgents > 0
   const statusText = isAgent
     ? state === 'active'
-      ? 'Đang trong cuộc gọi'
+      ? t('layout.call.inCall')
       : state === 'calling' || state === 'connecting'
-        ? 'Đang gọi...'
-        : 'Sẵn sàng nhận cuộc gọi'
+        ? t('layout.call.calling')
+        : t('layout.call.ready')
     : agentsOnline
       ? agentsAvailable
-        ? 'Nhân viên đang online'
-        : 'Nhân viên đang bận'
-      : 'Nhân viên đang ngoại tuyến'
+        ? t('layout.call.agentOnline')
+        : t('layout.call.agentBusy')
+      : t('layout.call.agentOffline')
 
   return (
     <>
@@ -496,7 +498,7 @@ export function AudioCallWidget() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Gọi hỗ trợ"
+          aria-label={t('layout.call.support')}
           className={cn(
             'fixed z-40 right-4 md:right-6 flex items-center justify-center',
             'h-10 w-10 md:h-12 md:w-12 rounded-full',
@@ -541,7 +543,7 @@ export function AudioCallWidget() {
                 agentInCall ? 'bg-amber-500' : onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
               )} />
               <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                {isAgent ? 'Đại diện hỗ trợ' : 'Gọi hỗ trợ'}
+                {isAgent ? t('layout.call.agentPanel') : t('layout.call.support')}
               </span>
             </div>
             <button
@@ -551,7 +553,7 @@ export function AudioCallWidget() {
                 }
                 setOpen(false)
               }}
-              aria-label="Đóng"
+              aria-label={t('common.close')}
               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1"
             >
               <X className="h-4 w-4" />
@@ -566,32 +568,32 @@ export function AudioCallWidget() {
             {state === 'idle' && (
               <div className="text-zinc-600 dark:text-zinc-300 text-sm">
                 {isAgent
-                  ? 'Bạn sẽ nhận được cuộc gọi khi khách hàng cần hỗ trợ.'
+                  ? t('layout.call.agentIdleHint')
                   : onlineAgents === 0
-                    ? 'Hiện không có nhân viên online. Vui lòng thử lại sau.'
+                    ? t('layout.call.noAgentsHint')
                     : agentsAvailable
-                      ? 'Nhấn để gọi nhân viên hỗ trợ.'
-                      : 'Nhân viên đang trong cuộc gọi khác. Vui lòng thử lại sau.'}
+                      ? t('layout.call.tapToCall')
+                      : t('layout.call.agentOnOtherCall')}
               </div>
             )}
             {state === 'calling' && (
               <div className="flex flex-col items-center gap-2">
                 <PhoneOutgoing className="h-8 w-8 text-emerald-600 animate-pulse" />
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">Đang gọi...</div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('layout.call.calling')}</div>
               </div>
             )}
             {state === 'incoming' && incomingFrom && (
               <div className="flex flex-col items-center gap-2">
                 <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
                 <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                  {isAgent ? 'Cuộc gọi đến từ khách hàng' : 'Cuộc gọi từ nhân viên hỗ trợ'}
+                  {isAgent ? t('layout.call.incomingFromCustomer') : t('layout.call.incomingFromAgent')}
                 </div>
               </div>
             )}
             {state === 'connecting' && (
               <div className="flex flex-col items-center gap-2">
                 <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">Đang kết nối...</div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('chatWidget.connecting')}</div>
               </div>
             )}
             {state === 'active' && (
@@ -613,19 +615,19 @@ export function AudioCallWidget() {
                   {quality?.relayed && (
                     <span
                       className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium text-zinc-600 dark:text-zinc-300"
-                      title="Âm thanh đang đi qua máy chủ chuyển tiếp TURN"
+                      title={t('layout.call.turnRelay')}
                     >
                       TURN relay
                     </span>
                   )}
-                  <span>{micOn ? 'Micro đang bật' : 'Đã tắt micro'}</span>
+                  <span>{micOn ? t('layout.call.micOn') : t('layout.call.micOff')}</span>
                   {quality && (
                     <span
                       className="cursor-help"
                       title={[
-                        quality.rttMs != null ? `Độ trễ: ${quality.rttMs} ms` : null,
-                        quality.jitterMs != null ? `Jitter: ${quality.jitterMs} ms` : null,
-                        quality.lossPct != null ? `Mất gói: ${quality.lossPct}%` : null,
+                        quality.rttMs != null ? t('layout.call.rtt', { value: quality.rttMs }) : null,
+                        quality.jitterMs != null ? t('layout.call.jitter', { value: quality.jitterMs }) : null,
+                        quality.lossPct != null ? t('layout.call.packetLoss', { value: quality.lossPct }) : null,
                       ].filter(Boolean).join(' · ') || undefined}
                     >
                       (
@@ -656,14 +658,14 @@ export function AudioCallWidget() {
           {error && micDenied && (
             <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
               <div className="font-medium mb-1">{error}</div>
-              <div className="text-amber-700 dark:text-amber-300">{MIC_DENIED_GUIDANCE}</div>
+              <div className="text-amber-700 dark:text-amber-300">{micDeniedGuidance()}</div>
               {!isAgent && (
                 <button
                   type="button"
                   onClick={() => { setMicDenied(false); setError(null); void startCall() }}
                   className="mt-2 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors"
                 >
-                  Thử gọi lại
+                  {t('layout.call.retry')}
                 </button>
               )}
             </div>
@@ -674,22 +676,22 @@ export function AudioCallWidget() {
             {state === 'idle' && !isAgent && onlineAgents > 0 && !agentsAvailable && (
               <div className="flex flex-col items-center gap-2 py-2">
                 <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
-                  Nhân viên đang bận
+                  {t('layout.call.agentBusy')}
                 </div>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Vui lòng thử lại sau hoặc gửi tin nhắn.
+                  {t('layout.call.busyHint')}
                 </div>
               </div>
             )}
             {state === 'idle' && !isAgent && agentsAvailable && (
               <div className="flex items-center gap-2 py-2 text-sm text-emerald-700 dark:text-emerald-400">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Đang bắt đầu cuộc gọi...
+                {t('layout.call.starting')}
               </div>
             )}
             {state === 'idle' && isAgent && (
               <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-2">
-                Đang chờ cuộc gọi từ khách hàng...
+                {t('layout.call.waitingForCustomer')}
               </div>
             )}
             {(state === 'calling' || state === 'connecting' || state === 'active') && (
@@ -697,7 +699,7 @@ export function AudioCallWidget() {
                 {state === 'active' && (
                   <button
                     onClick={toggleMic}
-                    aria-label={micOn ? 'Tắt micro' : 'Bật micro'}
+                    aria-label={micOn ? t('layout.call.mute') : t('layout.call.unmute')}
                     className={cn(
                       'h-12 w-12 rounded-full flex items-center justify-center transition-colors',
                       micOn
@@ -710,7 +712,7 @@ export function AudioCallWidget() {
                 )}
                 <button
                   onClick={hangup}
-                  aria-label="Kết thúc cuộc gọi"
+                  aria-label={t('layout.call.hangup')}
                   className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors"
                 >
                   <PhoneOff className="h-5 w-5" />
@@ -721,14 +723,14 @@ export function AudioCallWidget() {
               <>
                 <button
                   onClick={rejectCall}
-                  aria-label="Từ chối"
+                  aria-label={t('layout.call.decline')}
                   className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center"
                 >
                   <PhoneOff className="h-5 w-5" />
                 </button>
                 <button
                   onClick={acceptCall}
-                  aria-label="Chấp nhận"
+                  aria-label={t('layout.call.accept')}
                   className="h-12 w-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center animate-pulse"
                 >
                   <Phone className="h-5 w-5" />

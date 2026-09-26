@@ -12,6 +12,7 @@
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTimeVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { CheckCircle2, Ticket, Calendar, Bus } from 'lucide-react'
 import { type SelectedSeat, type TripDetail } from './booking-form'
 
@@ -24,22 +25,23 @@ export function BookingStepHeader({
   trip: TripDetail | null | undefined
   selectedSeatCodes: SelectedSeat[]
 }) {
+  const t = useT()
   const stepIndex = ((bookingStep: string): number => {
     if (bookingStep === 'contact') return 1
     if (bookingStep === 'payment') return 2
     if (bookingStep === 'success') return 3
     return 0 // 'idle' or 'passengers'
   })(bookingStep)
-  const steps = ['Hành khách', 'Liên hệ', 'Thanh toán', 'Hoàn tất']
+  const steps = [t('booking.passengers'), t('bookingFlow.stepContact'), t('booking.payment'), t('booking.complete')]
 
   return (
     <div className="px-5 py-4 border-b bg-linear-to-r from-blue-50 to-blue-50">
       <DialogTitle className="text-lg font-extrabold flex items-center gap-2">
         <Ticket className="h-5 w-5 text-blue-600" />
-        {bookingStep === 'success' ? 'Đặt vé thành công!' : 'Hoàn tất đặt vé'}
+        {bookingStep === 'success' ? t('booking.success') : t('bookingFlow.completeBooking')}
       </DialogTitle>
       <DialogDescription className="text-xs mt-1">
-        {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : 'Đang tải...'}
+        {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : t('common.loading')}
       </DialogDescription>
 
       {/* Stepper */}

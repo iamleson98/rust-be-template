@@ -58,6 +58,11 @@ export type CallRole = 'customer' | 'agent'
 // Re-exported for the widget (keeps a single quality vocabulary).
 export type { QualityLevel, QualityStats } from '@/lib/call-quality'
 import { classifyQuality, type QualityStats } from '@/lib/call-quality'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+/** Resolve a dictionary key in the CURRENT app language (vi default). */
+const L = (key: string) => translate(useApp.getState().lang, key)
 
 export type CallState =
   | 'idle'         // no active call
@@ -475,7 +480,7 @@ export class AudioCallClient {
           this.clearConnectTimeout()
           this.cleanupCall()
           this.setState('ended')
-          this.emit('error', { code: 'call-gone', message: 'Cuộc gọi đã kết thúc' })
+          this.emit('error', { code: 'call-gone', message: L('call.ended') })
           setTimeout(() => this.setState('idle'), 2500)
         }
         this.emit('registered', msg)
@@ -597,7 +602,7 @@ export class AudioCallClient {
           this.cleanupCall()
           this.setState('idle')
         }
-        this.emit('error', { code: asStr(msg.code) ?? 'error', message: asStr(msg.message) ?? 'Lỗi không xác định' })
+        this.emit('error', { code: asStr(msg.code) ?? 'error', message: asStr(msg.message) ?? L('call.errUnknown') })
         break
     }
   }
@@ -617,7 +622,7 @@ export class AudioCallClient {
         video: false,
       })
     } catch {
-      this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro — kiểm tra quyền trình duyệt' })
+      this.emit('error', { code: 'mic-denied', message: L('call.errMicDeniedLong') })
       return
     }
 
@@ -677,7 +682,7 @@ export class AudioCallClient {
       // looked like a network failure. `mic-denied` now rides the hangup
       // frame (allow-listed server-side) and maps to a clear message on
       // both ends.
-      this.emit('error', { code: 'mic-denied', message: 'Không truy cập được micro' })
+      this.emit('error', { code: 'mic-denied', message: L('call.errMicDenied') })
       this.hangup('mic-denied')
       return
     }
@@ -756,7 +761,7 @@ export class AudioCallClient {
       this.callTimeoutTimer = null
       if (this.state === 'calling') {
         this.hangup('timeout')
-        this.emit('error', { code: 'call-timeout', message: 'Không có ai nhấc máy — vui lòng thử lại sau' })
+        this.emit('error', { code: 'call-timeout', message: L('call.errTimeout') })
       }
     }, CALL_TIMEOUT_MS)
   }
@@ -792,7 +797,7 @@ export class AudioCallClient {
         this.emit('error', {
           code: 'media-timeout',
           message:
-            'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
+            L('call.errAudioFailed'),
         })
         this.hangup('timeout')
       }

@@ -23,13 +23,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   Form,
   FormField,
@@ -42,23 +36,27 @@ import { MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { requiredText, positiveInt, optionalText } from '@/lib/forms'
 import { useUpsertAdminPickupPoint } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type { AdminPickupPointOut, PlaceOut, AdminRouteOut } from '@/lib/api/types.gen'
 import { getErrorMessage } from '@/lib/error-message'
 
-const pickupPointSchema = z.object({
-  placeId: requiredText('Địa điểm'),
-  name: requiredText('Tên hiển thị')
-    .min(2, 'Tên cần ít nhất 2 ký tự')
-    .max(120, 'Tên quá dài'),
-  stopOrder: positiveInt(0),
-  etaOffsetMin: z.coerce
-    .number({ message: 'ETA phải là số' })
-    .int('ETA phải là số nguyên')
-    .min(0, 'ETA phải ≥ 0'),
-  pickupType: z.enum(['station', 'curb', 'on_request']),
-  address: optionalText(1000),
-})
-type PickupPointFormValues = z.infer<typeof pickupPointSchema>
+// Schema factory — takes `t` so validation messages follow the UI language.
+function makePickupPointSchema(t: ReturnType<typeof useT>) {
+  return z.object({
+    placeId: requiredText('adminPickup.placeLabel'),
+    name: requiredText('adminPickup.displayName')
+      .min(2, t('adminPickup.nameMin'))
+      .max(120, t('adminPickup.nameMax')),
+    stopOrder: positiveInt(0),
+    etaOffsetMin: z.coerce
+      .number({ message: t('adminPickup.etaNumber') })
+      .int(t('adminPickup.etaInteger'))
+      .min(0, t('adminPickup.etaMin')),
+    pickupType: z.enum(['station', 'curb', 'on_request']),
+    address: optionalText(1000),
+  })
+}
+type PickupPointFormValues = z.infer<ReturnType<typeof makePickupPointSchema>>
 
 export function PickupPointFormDialog({
   open,
@@ -77,9 +75,13 @@ export function PickupPointFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!pickup
   const upsertMutation = useUpsertAdminPickupPoint()
   const saving = upsertMutation.isPending
+
+  // Rebuilt per render so validation messages follow the UI language.
+  const pickupPointSchema = makePickupPointSchema(t)
 
   const form = useForm<z.input<typeof pickupPointSchema>, unknown, z.output<typeof pickupPointSchema>>({
     resolver: zodResolver(pickupPointSchema),
@@ -128,7 +130,7 @@ export function PickupPointFormDialog({
 
   const onSubmit = async (values: PickupPointFormValues) => {
     if (!route) {
-      toast.error('Chưa chọn tuyến đường')
+      toast.error(t('adminSchedules.noRouteSelected'))
       return
     }
     try {
@@ -156,10 +158,10 @@ export function PickupPointFormDialog({
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
       await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
-      toast.success(isEdit ? 'Đã cập nhật điểm đón/trả' : 'Đã thêm điểm đón/trả mới')
+      toast.success(isEdit ? t('adminPickup.updated') : t('adminPickup.created'))
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu điểm đón/trả'))
+      toast.error(getErrorMessage(e, t('adminPickup.saveFailed')))
     }
   }
 
@@ -169,12 +171,12 @@ export function PickupPointFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MapPin className="h-5 w-5 text-rose-600" />
-            {isEdit ? 'Sửa điểm đón/trả' : 'Thêm điểm đón/trả mới'}
+            {isEdit ? t('adminPickup.editTitle') : t('adminPickup.createTitle')}
           </DialogTitle>
           <DialogDescription>
             {route ? (
               <>
-                Tuyến: <span className="font-medium">{route.name}</span>
+                {t('adminSchedules.routePrefix')} <span className="font-medium">{route.name}</span>
               </>
             ) : null}
           </DialogDescription>
@@ -191,28 +193,22 @@ export function PickupPointFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Địa điểm <span className="text-destructive">*</span>
+                    {t('adminPickup.placeLabel')} <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Select value={field.value} onValueChange={onSelectPlace}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn địa điểm..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent className="max-h-70">
-                      {sortedPlaces.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          <span className="flex items-center gap-1.5">
-                            <MapPin className="h-3 w-3 text-rose-500" />
-                            <span>{p.name}</span>
-                            {p.province && (
-                              <span className="text-[10px] text-muted-foreground">· {p.province}</span>
-                            )}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <ComboboxField
+                      value={field.value || null}
+                      onValueChange={onSelectPlace}
+                      items={sortedPlaces.map((p) => ({
+                        value: p.id,
+                        label: p.province ? `${p.name} · ${p.province}` : p.name,
+                      }))}
+                      placeholder={t('adminPickup.choosePlace')}
+                      searchPlaceholder={t('adminPickup.searchPlace')}
+                      contentClassName="max-h-70"
+                      aria-label={t('adminPickup.placeLabel')}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -224,10 +220,10 @@ export function PickupPointFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Tên hiển thị <span className="text-destructive">*</span>
+                    {t('adminPickup.displayName')} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Bến xe Miền Đông · Cổng A" />
+                    <Input {...field} placeholder={t('adminPickup.namePlaceholder')} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -240,7 +236,7 @@ export function PickupPointFormDialog({
                 name="stopOrder"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Thứ tự</FormLabel>
+                    <FormLabel>{t('adminPickup.stopOrder')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -259,7 +255,7 @@ export function PickupPointFormDialog({
                 name="etaOffsetMin"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>ETA (phút)</FormLabel>
+                    <FormLabel>{t('adminPickup.etaLabel')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -279,19 +275,21 @@ export function PickupPointFormDialog({
                 name="pickupType"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Loại đón</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="station">Bến xe</SelectItem>
-                        <SelectItem value="curb">Đón ven đường</SelectItem>
-                        <SelectItem value="on_request">Theo yêu cầu</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t('adminPickup.pickupTypeLabel')}</FormLabel>
+                    <FormControl>
+                      <ComboboxField
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={[
+                          { value: 'station', label: t('adminPickup.type.station') },
+                          { value: 'curb', label: t('adminPickup.type.curb') },
+                          { value: 'on_request', label: t('adminPickup.type.onRequest') },
+                        ]}
+                        placeholder={t('adminPickup.chooseType')}
+                        searchPlaceholder={t('combobox.search')}
+                        aria-label={t('adminPickup.pickupTypeLabel')}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -303,12 +301,12 @@ export function PickupPointFormDialog({
               name="address"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
-                  <FormLabel>Địa chỉ chi tiết</FormLabel>
+                  <FormLabel>{t('adminPickup.addressLabel')}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       value={field.value ?? ''}
-                      placeholder="Số nhà, đường, quận/huyện..."
+                      placeholder={t('adminPickup.addressPh')}
                       rows={2}
                     />
                   </FormControl>
@@ -319,15 +317,15 @@ export function PickupPointFormDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Huỷ
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={saving} className="bg-rose-600 hover:bg-rose-700">
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                   </>
                 ) : (
-                  <>{isEdit ? 'Lưu thay đổi' : 'Thêm điểm'}</>
+                  <>{isEdit ? t('common.saveChanges') : t('adminPickup.addPointBtn')}</>
                 )}
               </Button>
             </DialogFooter>

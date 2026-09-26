@@ -2,6 +2,7 @@
 
 import type { RefObject } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { useT } from '@/lib/i18n'
 import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
 import { daySeparatorLabel, PANES_HEIGHT } from './chat-helpers'
 import { MessageRow } from './message-row'
@@ -45,6 +46,7 @@ export function ChatMessageList({
   typingUser?: { name: string } | null
   onViewTicket?: (bookingCode: string) => void
 }) {
+  const t = useT()
   return (
     <ScrollArea ref={chatScrollRef} className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 xl:min-h-0 p-4`}>
       <div className="space-y-2.5">
@@ -59,7 +61,7 @@ export function ChatMessageList({
           <div className="flex items-center justify-center py-3">
             <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
               <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
-              Đang tải tin nhắn cũ hơn...
+              {t('chat.loadingMore')}
             </div>
           </div>
         )}
@@ -69,7 +71,7 @@ export function ChatMessageList({
               onClick={onFetchMoreMessages}
               className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
             >
-              Xem tin nhắn cũ hơn
+              {t('chat.loadMore')}
             </button>
           </div>
         )}
@@ -98,13 +100,13 @@ export function ChatMessageList({
           <div className="flex items-center justify-center py-10">
             <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
               <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
-              Đang tải tin nhắn...
+              {t('adminChat.loadingMessages')}
             </div>
           </div>
         )}
         {!messagesLoading && activeChannel && chatMessages.length === 0 && (
           <div className="py-10 text-center text-xs text-muted-foreground">
-            Chưa có tin nhắn — hãy gửi câu trả lời đầu tiên.
+            {t('adminChat.noMessages')}
           </div>
         )}
       </div>

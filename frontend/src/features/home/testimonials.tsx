@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState, useCallback } from 'react'
 import { Star, Quote, BadgeCheck } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { useT } from '@/lib/i18n'
 import { TestimonialsSkeleton } from '@/features/home/components/testimonials-skeleton'
 
 interface Testimonial {
@@ -13,47 +14,49 @@ interface Testimonial {
   date: string
 }
 
+// Person names / locations / dates stay as data (proper nouns);
+// `review` holds i18n keys (home.testimonialReview*) rendered via t().
 const testimonials: Testimonial[] = [
   {
     name: 'Nguyễn Thị Mai',
     location: 'Hà Nội',
     rating: 5,
-    review: 'Đặt vé limousine Hà Nội - Đà Nẵng, xe sạch sẽ ghế êm. Đặt online 5 phút xong!',
+    review: 'home.testimonialReview1',
     date: '15/01/2025',
   },
   {
     name: 'Trần Văn Hùng',
     location: 'TP.HCM',
     rating: 5,
-    review: 'Giá rẻ hơn mua tại bến xe đến 15%. Nhân viên hỗ trợ chat rất nhiệt tình.',
+    review: 'home.testimonialReview2',
     date: '22/12/2024',
   },
   {
     name: 'Lê Thu Hà',
     location: 'Đà Nẵng',
     rating: 4,
-    review: 'App dễ dùng, chọn ghế trực quan. Đi giường nằm Sài Gòn - Đà Lạt ngủ rất ngon.',
+    review: 'home.testimonialReview3',
     date: '08/01/2025',
   },
   {
     name: 'Phạm Minh Đức',
     location: 'Hải Phòng',
     rating: 5,
-    review: 'Hoàn vé nhanh chóng chỉ mất 2 phút. Dịch vụ chuyên nghiệp!',
+    review: 'home.testimonialReview4',
     date: '30/11/2024',
   },
   {
     name: 'Hoàng Thị Lan',
     location: 'Nha Trang',
     rating: 5,
-    review: 'Mã giảm giá TETSALE tiết kiệm được 200k. Chuyến đi Tết rất suôn sẻ.',
+    review: 'home.testimonialReview5',
     date: '18/01/2025',
   },
   {
     name: 'Võ Thành Nam',
     location: 'Cần Thơ',
     rating: 4,
-    review: 'So sánh giá nhiều hãng cùng lúc rất tiện. Chọn được chuyến giá tốt nhất.',
+    review: 'home.testimonialReview6',
     date: '05/12/2024',
   },
 ]
@@ -113,6 +116,7 @@ const StarRating = memo(function StarRating({ rating }: { rating: number }) {
 })
 
 export const Testimonials = memo(function Testimonials() {
+  const t = useT()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [isPaused, setIsPaused] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -176,13 +180,13 @@ export const Testimonials = memo(function Testimonials() {
           className="text-center max-w-2xl mx-auto mb-10"
         >
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 mb-3">
-            ⭐ Đánh giá từ hành khách
+            {t('home.testimonialsBadge')}
           </div>
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
-            Khách hàng nói gì về DatXeVui?
+            {t('home.testimonialsTitle')}
           </h2>
           <p className="text-muted-foreground mt-3">
-            Hơn 125.000 hành khách tin dùng
+            {t('home.testimonialsTrustCount')}
           </p>
         </div>
 
@@ -201,7 +205,7 @@ export const Testimonials = memo(function Testimonials() {
                 <div className="flex flex-col items-center sm:items-center shrink-0">
                   <div className="text-5xl font-extrabold text-blue-700">4.8</div>
                   <StarRating rating={5} />
-                  <div className="text-xs text-muted-foreground mt-1">trung bình</div>
+                  <div className="text-xs text-muted-foreground mt-1">{t('home.ratingAverage')}</div>
                 </div>
 
                 {/* Star distribution bars */}
@@ -239,7 +243,7 @@ export const Testimonials = memo(function Testimonials() {
           style={{ scrollbarWidth: 'none' }}
         >
           {/* Duplicate items for infinite scroll feel */}
-          {[...testimonials, ...testimonials].map((t, i) => (
+          {[...testimonials, ...testimonials].map((item, i) => (
             <div
               key={i}
               className="snap-start shrink-0 w-75 sm:w-85"
@@ -257,30 +261,30 @@ export const Testimonials = memo(function Testimonials() {
                   <div className="flex items-center gap-3 mb-3">
                     <div className="relative shrink-0">
                       <div
-                        className={`h-10 w-10 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-bold`}
+                        className={`h-10 w-10 rounded-full ${getAvatarColor(item.name)} flex items-center justify-center text-white text-sm font-bold`}
                       >
-                        {getInitials(t.name)}
+                        {getInitials(item.name)}
                       </div>
                       {/* Verified badge */}
                       <BadgeCheck className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-white text-blue-500 ring-1 ring-white" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1">
-                        <span className="font-semibold text-sm truncate">{t.name}</span>
+                        <span className="font-semibold text-sm truncate">{item.name}</span>
                         <BadgeCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                       </div>
-                      <div className="text-xs text-muted-foreground">{t.location}</div>
+                      <div className="text-xs text-muted-foreground">{item.location}</div>
                     </div>
-                    <div className="text-xs text-muted-foreground shrink-0">{t.date}</div>
+                    <div className="text-xs text-muted-foreground shrink-0">{item.date}</div>
                   </div>
 
                   {/* Star rating */}
-                  <StarRating rating={t.rating} />
+                  <StarRating rating={item.rating} />
 
                   {/* Review text with quote marks */}
                   <p className="text-sm text-slate-600 leading-relaxed mt-3">
                     <span className="text-blue-400 text-lg leading-none">&ldquo;</span>
-                    {t.review}
+                    {t(item.review)}
                     <span className="text-blue-400 text-lg leading-none">&rdquo;</span>
                   </p>
                 </CardContent>
@@ -298,9 +302,9 @@ export const Testimonials = memo(function Testimonials() {
           className="text-center mt-8"
         >
           <span className="text-sm text-muted-foreground">
-            Và hàng ngàn đánh giá khác trên{' '}
+            {t('home.moreReviewsOn')}{' '}
             <span className="font-semibold text-blue-600">Google</span>{' '}
-            và{' '}
+            {t('home.and')}{' '}
             <span className="font-semibold text-blue-600">Facebook</span>
           </span>
         </div>

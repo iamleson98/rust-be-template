@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { Form } from '@/components/ui/form'
 import { buildSearchInput } from '@/lib/search-params'
@@ -17,6 +18,7 @@ import { SearchActionsRow } from './search-actions-row'
 import { PopularRoutesQuickSelect } from './popular-routes-quick-select'
 
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
+  const t = useT()
   const {
     searchParams,
     setSearchParams,
@@ -116,7 +118,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
       )}
     >
       <Form {...form}>
-        <form onSubmit={onSubmit} className="contents" noValidate aria-label="Tìm chuyến xe">
+        <form onSubmit={onSubmit} className="contents" noValidate aria-label={t('search.title')}>
           {/* Trip type toggle: One-way / Round-trip */}
           <SearchTripTypeToggle
             form={form}

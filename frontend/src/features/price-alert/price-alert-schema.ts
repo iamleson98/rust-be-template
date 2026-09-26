@@ -9,6 +9,13 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { phoneSchema } from '@/lib/forms'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+// Error messages use Zod's functional `{ error: () => ... }` form so the
+// string is resolved (in the store's current language) at validation
+// time, not at module load.
+const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 export type Frequency = 'immediate' | 'daily' | 'weekly'
 
@@ -19,9 +26,11 @@ export const priceAlertSchema = z.object({
     .trim()
     .refine(
       (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-      'Email không hợp lệ',
+      { error: () => tSync('validation.email') },
     ),
-  targetPrice: z.coerce.number().positive('Mức giá mục tiêu phải lớn hơn 0'),
+  targetPrice: z.coerce
+    .number()
+    .positive({ error: () => tSync('priceAlertSchema.targetPricePositive') }),
   frequency: z.enum(['immediate', 'daily', 'weekly']),
 })
 export type PriceAlertFormValues = z.infer<typeof priceAlertSchema>

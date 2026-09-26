@@ -57,8 +57,8 @@ export const Header = memo(function Header() {
 
   const handleLangChange = useCallback((newLang: 'vi' | 'en') => {
     setLang(newLang)
-    toast.success(newLang === 'vi' ? 'Đã chuyển sang Tiếng Việt' : 'Switched to English')
-  }, [setLang])
+    toast.success(newLang === 'vi' ? t('lang.switchedVi') : t('lang.switchedEn'))
+  }, [setLang, t])
 
   const logoutMut = useLogout({
     onSuccess: () => {
@@ -67,7 +67,7 @@ export const Header = memo(function Header() {
       navigate({ to: '/' })
     },
     onError: () => {
-      toast.error('Failed to logout')
+      toast.error(t('layout.header.logoutFailed'))
     },
   })
 
@@ -97,7 +97,7 @@ export const Header = memo(function Header() {
           </div>
           <div className="leading-tight">
             <div className="font-extrabold text-lg tracking-tight">DatXeVui</div>
-            <div className="text-[10px] text-blue-200 -mt-0.5">Đặt vé xe khách online</div>
+            <div className="text-[10px] text-blue-200 -mt-0.5">{t('trips.imageTagline')}</div>
           </div>
         </button>
 
@@ -224,9 +224,9 @@ export const Header = memo(function Header() {
                       {isStaffUser(user) && (
                         <div className="text-[10px] mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
                           <Briefcase className="h-2.5 w-2.5" />
-                          {user.employeeRole === 'admin' ? 'Quản trị' :
-                            user.employeeRole === 'support_lead' ? 'Trưởng hỗ trợ' :
-                              user.employeeRole === 'ops' ? 'Vận hành' : 'Hỗ trợ'}
+                          {user.employeeRole === 'admin' ? t('nav.role.admin') :
+                            user.employeeRole === 'support_lead' ? t('nav.role.supportLead') :
+                              user.employeeRole === 'ops' ? t('nav.role.operations') : t('nav.role.support')}
                           {user.brandName ? ` · ${user.brandName}` : ''}
                         </div>
                       )}
@@ -235,16 +235,16 @@ export const Header = memo(function Header() {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })} className="gap-2">
-                  <Ticket className="h-4 w-4" /> Vé của tôi
+                  <Ticket className="h-4 w-4" /> {t('nav.tickets')}
                 </DropdownMenuItem>
                 {isStaffUser(user) && (
                   <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
-                    <LayoutDashboard className="h-4 w-4" /> Quản trị
+                    <LayoutDashboard className="h-4 w-4" /> {t('nav.admin')}
                   </DropdownMenuItem>
                 )}
                 {isStaffUser(user) && (
                   <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
-                    <CreditCard className="h-4 w-4" /> Thanh toán
+                    <CreditCard className="h-4 w-4" /> {t('nav.payments')}
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => navigate({ to: '/' })} className="gap-2">

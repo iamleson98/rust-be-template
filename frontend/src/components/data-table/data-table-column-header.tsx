@@ -16,6 +16,7 @@ import type { Column, RowData } from '@tanstack/react-table'
 
 import { Button } from '@/components/ui/button'
 
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import type { DataTableFeatures } from './data-table-features'
 
@@ -30,6 +31,7 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
   title,
   className,
 }: DataTableColumnHeaderProps<TData, TValue>) {
+  const t = useT()
   if (!column.getCanSort()) {
     return <span className={cn('text-inherit', className)}>{title}</span>
   }
@@ -46,7 +48,7 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({
         className,
       )}
       onClick={() => column.toggleSorting(sorted === 'asc')}
-      aria-label={`Sắp xếp theo ${title}`}
+      aria-label={t('dataTable.sortBy', { title })}
     >
       {title}
       <SortIcon

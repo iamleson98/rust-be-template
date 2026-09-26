@@ -16,6 +16,9 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
 interface Props {
   children: ReactNode
 }
@@ -31,7 +34,10 @@ export class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, message: '', retryKey: 0 }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, message: error?.message ?? 'Lỗi không xác định' }
+    return {
+      hasError: true,
+      message: error?.message ?? translate(useApp.getState().lang, 'errorBoundary.unknownError'),
+    }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
@@ -50,6 +56,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     if (this.state.hasError) {
+      // Class component — hooks are unavailable, so resolve strings via
+      // the store's current language (guide's non-React `translate` pattern).
+      const lang = useApp.getState().lang
       return (
         <div
           role="alert"
@@ -74,11 +83,10 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              Ứng dụng gặp lỗi
+              {translate(lang, 'errorBoundary.title')}
             </h2>
             <p className="max-w-md text-sm text-slate-500 dark:text-slate-400">
-              Đã xảy ra lỗi không mong muốn. Bạn có thể thử tải lại phần này hoặc
-              làm mới toàn bộ trang.
+              {translate(lang, 'errorBoundary.description')}
             </p>
             {this.state.message && (
               <p className="mt-2 wrap-break-word rounded-md bg-slate-50 px-3 py-2 font-mono text-xs text-slate-400 dark:bg-slate-900/60 dark:text-slate-500">
@@ -92,14 +100,14 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleRetry}
               className="inline-flex h-11 items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline focus-visible:outline-ring"
             >
-              Thử lại
+              {translate(lang, 'common.retry')}
             </button>
             <button
               type="button"
               onClick={this.handleReload}
               className="inline-flex h-11 items-center justify-center rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              Tải lại trang
+              {translate(lang, 'errorBoundary.reload')}
             </button>
           </div>
         </div>

@@ -17,6 +17,7 @@ import type {
   AdminChatMessage,
 } from "@/features/admin/dashboard/types";
 import { useAdminChatWs } from "./use-admin-chat-ws";
+import { translate } from "@/lib/i18n";
 import { useApp } from "@/lib/store";
 import { getErrorMessage } from '@/lib/error-message'
 
@@ -76,9 +77,9 @@ export function useAdminChatWorkspace() {
     if (!activeChannel) return;
     try {
       await claimMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof claimMut.mutateAsync>[0]);
-      toast.success("Đã nhận kênh hỗ trợ");
+      toast.success(translate(useApp.getState().lang, "adminChat.claimed"));
     } catch (e) {
-      toast.error(getErrorMessage(e, "Không thể nhận kênh"))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.claimFailed")))
     }
   }, [activeChannel, claimMut]);
 
@@ -86,9 +87,9 @@ export function useAdminChatWorkspace() {
     if (!activeChannel) return;
     try {
       await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof releaseMut.mutateAsync>[0]);
-      toast.success("Đã trả kênh về hàng chờ");
+      toast.success(translate(useApp.getState().lang, "adminChat.released"));
     } catch (e) {
-      toast.error(getErrorMessage(e, "Không thể trả kênh"))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.releaseFailed")))
     }
   }, [activeChannel, releaseMut]);
 
@@ -96,10 +97,10 @@ export function useAdminChatWorkspace() {
     if (!activeChannel) return;
     try {
       await closeMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof closeMut.mutateAsync>[0]);
-      toast.success("Đã đóng cuộc trò chuyện");
+      toast.success(translate(useApp.getState().lang, "adminChat.channelClosed"));
       setActiveChannel(null);
     } catch (e) {
-      toast.error(getErrorMessage(e, "Không thể đóng kênh"))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.closeFailed")))
     }
   }, [activeChannel, closeMut]);
 
@@ -141,7 +142,7 @@ export function useAdminChatWorkspace() {
       setReplyText("");
     },
     onError: () => {
-      toast.error("Không thể gửi tin nhắn");
+      toast.error(translate(useApp.getState().lang, "chat.sendFailed"));
     },
   });
 
@@ -213,8 +214,8 @@ export function useAdminChatWorkspace() {
 
   const blockChannel = useCallback(
     (channelId: string) => {
-      toast.success("Đã chặn cuộc trò chuyện", {
-        description: "Khách sẽ không thể gửi tin nhắn mới",
+      toast.success(translate(useApp.getState().lang, "chat.blocked"), {
+        description: translate(useApp.getState().lang, "chat.blockedDesc"),
       });
       if (activeChannel?.id === channelId) setActiveChannel(null);
     },
@@ -251,7 +252,9 @@ export function useAdminChatWorkspace() {
       postTicketCardMut.mutate({
         path: { id: activeChannel.id },
         body: {
-          content: `Đã đặt vé ${payload.bookingCode}`,
+          content: translate(useApp.getState().lang, "adminChat.ticketCardNote", {
+            code: payload.bookingCode,
+          }),
           kind: "ticket",
           attachments,
         },

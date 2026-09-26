@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { CronJobOut, UpdateCronJobRequest } from '@/lib/api/types.gen'
 
 export function ScheduleEditDialog({
@@ -34,6 +35,7 @@ export function ScheduleEditDialog({
   onSave: (body: UpdateCronJobRequest) => void
   saving: boolean
 }) {
+  const t = useT()
   const [intervalDays, setIntervalDays] = useState('14')
   const [atHour, setAtHour] = useState('2')
   const [atMinute, setAtMinute] = useState('0')
@@ -59,15 +61,15 @@ export function ScheduleEditDialog({
     const hour = Number.parseInt(atHour, 10)
     const minute = Number.parseInt(atMinute, 10)
     if (Number.isNaN(days) || days < 1 || days > 365) {
-      setError('Chu kỳ phải từ 1 đến 365 ngày')
+      setError(t('adminCronJobs.intervalRange'))
       return
     }
     if (Number.isNaN(hour) || hour < 0 || hour > 23) {
-      setError('Giờ phải từ 0 đến 23')
+      setError(t('adminCronJobs.hourRange'))
       return
     }
     if (Number.isNaN(minute) || minute < 0 || minute > 59) {
-      setError('Phút phải từ 0 đến 59')
+      setError(t('adminCronJobs.minuteRange'))
       return
     }
     setError(null)
@@ -83,16 +85,16 @@ export function ScheduleEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Chỉnh lịch chạy</DialogTitle>
+          <DialogTitle>{t('adminCronJobs.editDialogTitle')}</DialogTitle>
           <DialogDescription>
-            {job ? `Chu kỳ + giờ chạy của «${job.jobType}»` : ''}
+            {job ? t('adminCronJobs.editDialogDesc', { job: job.jobType }) : ''}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="cron-interval">Chu kỳ (ngày)</Label>
+              <Label htmlFor="cron-interval">{t('adminCronJobs.intervalDays')}</Label>
               <Input
                 id="cron-interval"
                 type="number"
@@ -103,7 +105,7 @@ export function ScheduleEditDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cron-hour">Giờ</Label>
+              <Label htmlFor="cron-hour">{t('adminCronJobs.hour')}</Label>
               <Input
                 id="cron-hour"
                 type="number"
@@ -114,7 +116,7 @@ export function ScheduleEditDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cron-minute">Phút</Label>
+              <Label htmlFor="cron-minute">{t('adminCronJobs.minute')}</Label>
               <Input
                 id="cron-minute"
                 type="number"
@@ -134,9 +136,9 @@ export function ScheduleEditDialog({
               onChange={(e) => setResetNextRun(e.target.checked)}
             />
             <span>
-              Đặt lại lần chạy kế tiếp
+              {t('adminCronJobs.resetNextRun')}
               <span className="block text-xs text-muted-foreground">
-                Lần chạy tiếp theo sẽ tính từ bây giờ theo giờ mới (bỏ qua lịch cũ).
+                {t('adminCronJobs.resetNextRunHint')}
               </span>
             </span>
           </label>
@@ -150,11 +152,11 @@ export function ScheduleEditDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Huỷ
+            {t('common.cancel')}
           </Button>
           <Button onClick={submit} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : null}
-            Lưu lịch
+            {t('adminCronJobs.saveSchedule')}
           </Button>
         </DialogFooter>
       </DialogContent>

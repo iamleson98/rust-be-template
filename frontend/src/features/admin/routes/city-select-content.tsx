@@ -1,34 +1,46 @@
 'use client'
 
 /**
- * City select content + helpers for RouteFormDialog — the grouped
- * Vietnamese-city dropdown (Miền Bắc / Trung / Nam) and the slug → display
- * name lookup used by the SelectValue render-prop.
+ * City items + helpers for the route forms — the grouped Vietnamese-city
+ * collection (Miền Bắc / Trung / Nam) used by the searchable city
+ * comboboxes, and the slug → display name lookup for places that render
+ * a stored city slug as text.
  *
- * Extracted from the original 'src/features/admin/routes/route-form.tsx'.
+ * Extracted from the original 'src/features/admin/routes/route-form.tsx'
+ * (originally a Select dropdown; now feeds ComboboxField groups).
  */
 
-import {
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-} from '@/components/ui/select'
-import {
-  VIETNAMESE_CITIES,
-} from '@/lib/vietnamese-cities'
+import type {
+  ComboboxFieldGroup,
+  ComboboxFieldItem,
+} from '@/components/ui/combobox'
+import { useT } from '@/lib/i18n'
+import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
 
-// Group cities by region for the Select dropdown.
+// Group cities by region for the grouped combobox.
 const NORTH = VIETNAMESE_CITIES.filter((c) => c.region === 'north')
 const CENTRAL = VIETNAMESE_CITIES.filter((c) => c.region === 'central')
 const SOUTH = VIETNAMESE_CITIES.filter((c) => c.region === 'south')
 
-// Map city id (slug) → display name. Used by the SelectValue render-prop
-// so the trigger shows "Hà Nội" instead of the raw slug "ha-noi" — Base
-// UI unmounts SelectContent (and thus the SelectItems) when the popover
-// closes, so it can no longer look up the label by matching the value.
-// The slug is the only stable identifier we have, so we look it up in
-// this side table instead.
+const toItem = (c: { id: string; name: string }): ComboboxFieldItem => ({
+  value: c.id,
+  label: c.name,
+})
+
+/** Grouped city items for ComboboxField (Miền Bắc / Trung / Nam).
+ *  Region labels are translated — city names are proper nouns and
+ *  stay as-is. */
+export const getCityGroups = (t: ReturnType<typeof useT>): ComboboxFieldGroup[] => [
+  { label: t('adminRoutes.regionNorth'), items: NORTH.map(toItem) },
+  { label: t('adminRoutes.regionCentral'), items: CENTRAL.map(toItem) },
+  { label: t('adminRoutes.regionSouth'), items: SOUTH.map(toItem) },
+]
+
+/** Flat city items (value = city slug, label = display name). */
+export const CITY_ITEMS: ComboboxFieldItem[] = VIETNAMESE_CITIES.map(toItem)
+
+// Map city id (slug) → display name. Used where a stored slug must be
+// rendered as text (the combobox resolves the trigger label itself).
 const CITY_NAME_BY_ID = new Map<string, string>(
   VIETNAMESE_CITIES.map((c) => [c.id, c.name]),
 )
@@ -36,41 +48,4 @@ const CITY_NAME_BY_ID = new Map<string, string>(
 export function cityLabel(value: string | null | undefined): string | null {
   if (!value) return null
   return CITY_NAME_BY_ID.get(value) ?? null
-}
-
-export function CitySelectContent() {
-  return (
-    <SelectContent className="max-h-80">
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-blue-600">
-          Miền Bắc
-        </SelectLabel>
-        {NORTH.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-amber-600">
-          Miền Trung
-        </SelectLabel>
-        {CENTRAL.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-      <SelectGroup>
-        <SelectLabel className="text-xs font-semibold uppercase text-emerald-600">
-          Miền Nam
-        </SelectLabel>
-        {SOUTH.map((c) => (
-          <SelectItem key={c.id} value={c.id}>
-            {c.name}
-          </SelectItem>
-        ))}
-      </SelectGroup>
-    </SelectContent>
-  )
 }

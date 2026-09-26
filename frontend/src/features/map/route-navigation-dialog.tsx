@@ -23,6 +23,7 @@ import {
   Navigation2,
 } from 'lucide-react'
 import { formatDuration } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { useRouteNavigation } from './route-navigation-state'
 import { StatusBanner, StatTile } from './route-navigation-dialog-parts'
 
@@ -66,6 +67,7 @@ export function RouteNavigationDialog({
   pickupLat,
   pickupLon,
 }: RouteNavigationDialogProps) {
+  const t = useT()
   const { geo, route, requestLocation, googleMapsUrl } = useRouteNavigation(
     open,
     pickupLat,
@@ -83,12 +85,12 @@ export function RouteNavigationDialog({
             <span className="h-8 w-8 rounded-lg bg-blue-600 text-white inline-flex items-center justify-center shrink-0">
               <Navigation className="h-4 w-4" />
             </span>
-            <span>Đường đi đến điểm đón</span>
+            <span>{t('mapNav.directionsToPickup')}</span>
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Đường lái xe ngắn nhất từ vị trí hiện tại của bạn đến{' '}
+            {t('mapNav.dialogDescriptionPrefix')}{' '}
             <span className="font-semibold text-foreground">
-              {pickupName ?? 'điểm đón'}
+              {pickupName ?? t('mapNav.pickupPointInline')}
             </span>
             .
           </DialogDescription>
@@ -102,10 +104,10 @@ export function RouteNavigationDialog({
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                Điểm đón
+                {t('mapNav.pickupPoint')}
               </div>
               <div className="text-sm font-semibold text-foreground truncate">
-                {pickupName ?? 'Điểm đón'}
+                {pickupName ?? t('mapNav.pickupPoint')}
               </div>
               {pickupAddress && (
                 <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
@@ -123,14 +125,14 @@ export function RouteNavigationDialog({
             <StatusBanner
               icon={<Loader2 className="h-4 w-4 animate-spin" />}
               tone="info"
-              text="Đang chuẩn bị…"
+              text={t('mapNav.preparing')}
             />
           )}
           {geo.status === 'loading' && (
             <StatusBanner
               icon={<Loader2 className="h-4 w-4 animate-spin" />}
               tone="info"
-              text="Đang xác định vị trí của bạn…"
+              text={t('mapNav.locatingYou')}
             />
           )}
           {geo.status === 'denied' && (
@@ -138,17 +140,17 @@ export function RouteNavigationDialog({
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-900">
-                  <div className="font-semibold mb-0.5">Không lấy được vị trí</div>
+                  <div className="font-semibold mb-0.5">{t('mapNav.geolocationFailed')}</div>
                   <div className="text-xs text-amber-800">{geo.message}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pl-7">
                 <Button size="sm" variant="outline" onClick={requestLocation}>
-                  <LocateFixed className="h-3.5 w-3.5" /> Thử lại
+                  <LocateFixed className="h-3.5 w-3.5" /> {t('mapNav.retry')}
                 </Button>
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" className="gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5" /> Mở trong Google Maps
+                    <ExternalLink className="h-3.5 w-3.5" /> {t('mapNav.openInGoogleMaps')}
                   </Button>
                 </a>
               </div>
@@ -159,7 +161,7 @@ export function RouteNavigationDialog({
             <StatusBanner
               icon={<Loader2 className="h-4 w-4 animate-spin" />}
               tone="info"
-              text="Đang tính toán đường đi…"
+              text={t('mapNav.calculatingRoute')}
             />
           )}
           {geo.status === 'ok' && route.status === 'error' && (
@@ -167,14 +169,14 @@ export function RouteNavigationDialog({
               <div className="flex items-start gap-2.5">
                 <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
                 <div className="text-sm text-rose-900">
-                  <div className="font-semibold mb-0.5">Không tính được đường đi</div>
+                  <div className="font-semibold mb-0.5">{t('mapNav.routeCalcFailed')}</div>
                   <div className="text-xs text-rose-800">{route.message}</div>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 pl-7">
                 <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
                   <Button size="sm" className="gap-1.5">
-                    <ExternalLink className="h-3.5 w-3.5" /> Mở trong Google Maps
+                    <ExternalLink className="h-3.5 w-3.5" /> {t('mapNav.openInGoogleMaps')}
                   </Button>
                 </a>
               </div>
@@ -185,7 +187,7 @@ export function RouteNavigationDialog({
             <StatusBanner
               icon={<AlertTriangle className="h-4 w-4" />}
               tone="warn"
-              text={route.status === 'ok' ? route.data.note ?? 'Dùng khoảng cách chim bay' : ''}
+              text={route.status === 'ok' ? route.data.note ?? t('mapNav.crowFlightFallback') : ''}
             />
           )}
 
@@ -194,20 +196,20 @@ export function RouteNavigationDialog({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <StatTile
                 icon={<Ruler className="h-4 w-4" />}
-                label="Khoảng cách"
+                label={t('mapNav.distance')}
                 value={`${route.data.distanceKm} km`}
                 tone="blue"
               />
               <StatTile
                 icon={<Clock className="h-4 w-4" />}
-                label="Thời gian ước tính"
+                label={t('mapNav.estimatedTime')}
                 value={formatDuration(route.data.durationMin)}
                 tone="amber"
               />
               <StatTile
                 icon={<Navigation2 className="h-4 w-4" />}
-                label="Chế độ"
-                value={route.data.fallback ? 'Chim bay' : 'Lái xe'}
+                label={t('mapNav.mode')}
+                value={route.data.fallback ? t('mapNav.modeCrowFlight') : t('mapNav.modeDriving')}
                 tone={route.data.fallback ? 'slate' : 'emerald'}
               />
             </div>
@@ -224,13 +226,13 @@ export function RouteNavigationDialog({
                     pickupLat={pickupLat}
                     pickupLon={pickupLon}
                     coordinates={route.status === 'ok' ? route.data.coordinates : []}
-                    pickupName={pickupName ?? 'Điểm đón'}
+                    pickupName={pickupName ?? t('mapNav.pickupPoint')}
                   />
                 </Suspense>
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-sm">
                   <Loader2 className="h-5 w-5 animate-spin mr-2 text-blue-600" />
-                  Đang tải bản đồ…
+                  {t('mapNav.loadingMap')}
                 </div>
               )}
             </div>
@@ -241,22 +243,19 @@ export function RouteNavigationDialog({
             <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-50">
               <Button className="w-full gap-1.5 bg-blue-600 hover:bg-blue-700 text-white">
                 <ExternalLink className="h-4 w-4" />
-                Mở trong Google Maps
+                {t('mapNav.openInGoogleMaps')}
               </Button>
             </a>
             {geo.status === 'ok' && (
               <Button variant="outline" onClick={requestLocation} className="gap-1.5">
-                <LocateFixed className="h-4 w-4" /> Định vị lại
+                <LocateFixed className="h-4 w-4" /> {t('mapNav.relocate')}
               </Button>
             )}
           </div>
 
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             <RouteIcon className="inline h-3 w-3 mr-1 -mt-0.5" />
-            Đường đi được tính bằng OSRM (Open Source Routing Machine) trên
-            dữ liệu OpenStreetMap. Khoảng cách + thời gian chỉ mang tính
-            tham khảo; hãy ưu tiên nút "Mở trong Google Maps" khi cần dữ
-            liệu giao thông thời gian thực.
+            {t('mapNav.osrmDisclaimer')}
           </p>
         </div>
       </DialogContent>

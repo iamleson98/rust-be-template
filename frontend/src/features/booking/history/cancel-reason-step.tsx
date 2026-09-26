@@ -80,13 +80,13 @@ export function CancelReasonStep({
           render={({ field }) => (
             <FormItem className="overflow-hidden">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Lý do khác <span className="text-destructive">*</span>
+                {t('cancel.reason.other')} <span className="text-destructive">*</span>
               </FormLabel>
               <FormControl>
                 <Textarea
                   {...field}
                   value={field.value ?? ''}
-                  placeholder="Nhập lý do huỷ vé (tối thiểu 10 ký tự)..."
+                  placeholder={t('bookingHistory.otherReasonPh')}
                   className="mt-2 resize-none"
                   rows={3}
                 />

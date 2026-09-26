@@ -7,10 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/layout/error-state'
 import { Tag, Copy, Check, Zap, Timer, Flame } from 'lucide-react'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 import { CampaignsSkeleton } from '@/features/home/components/campaigns-skeleton'
 
 /* Countdown timer for campaigns */
 function CampaignCountdown({ endTime }: { endTime: number }) {
+  const t = useT()
   // Lazy initializer: without the arrow, endTime - Date.now() would be
   // re-evaluated on EVERY render (impure + resets the countdown).
   const [timeLeft, setTimeLeft] = useState(() => endTime - Date.now())
@@ -22,7 +24,7 @@ function CampaignCountdown({ endTime }: { endTime: number }) {
     return () => clearInterval(interval)
   }, [endTime])
 
-  if (timeLeft <= 0) return <span className="text-[10px] text-muted-foreground">Đã hết hạn</span>
+  if (timeLeft <= 0) return <span className="text-[10px] text-muted-foreground">{t('home.campaignExpired')}</span>
 
   const hours = Math.floor(timeLeft / 3600000)
   const minutes = Math.floor((timeLeft % 3600000) / 60000)
@@ -39,6 +41,7 @@ function CampaignCountdown({ endTime }: { endTime: number }) {
 }
 
 export const CampaignsBanner = memo(function CampaignsBanner() {
+  const t = useT()
   const { data, isLoading, isError, refetch } = useCampaigns()
   const items: Campaign[] = data?.items ?? []
   const [copied, setCopied] = useState<string | null>(null)
@@ -57,19 +60,19 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
   const copy = (code: string) => {
     navigator.clipboard.writeText(code)
     setCopied(code)
-    toast.success('Đã sao chép mã khuyến mãi!', {
-      description: `Mã ${code} đã được chép vào clipboard`,
+    toast.success(t('home.campaignCopiedToast'), {
+      description: t('home.campaignCopiedToastDesc', { code }),
       duration: 2500,
     })
     setTimeout(() => setCopied(null), 1500)
   }
 
-  const typeLabel = (t: string, v: number) => {
-    if (t === 'percent') return `Giảm ${v}%`
-    if (t === 'fixed_amount') return `Giảm ${v.toLocaleString('vi-VN')}đ`
-    if (t === 'free_child') return 'Trẻ em miễn phí'
-    if (t === 'seat_upgrade') return 'Tặng nâng hạng'
-    return 'Ưu đãi'
+  const typeLabel = (kind: string, v: number) => {
+    if (kind === 'percent') return t('home.discountPercent', { value: v })
+    if (kind === 'fixed_amount') return t('home.discountFixed', { value: v.toLocaleString('vi-VN') })
+    if (kind === 'free_child') return t('home.discountFreeChild')
+    if (kind === 'seat_upgrade') return t('home.discountSeatUpgrade')
+    return t('home.discountDefault')
   }
 
   /* Generate deterministic end time for each campaign (24-72h from now) */
@@ -92,7 +95,7 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
           <CampaignsSkeleton count={3} />
         ) : isError ? (
           <ErrorState
-            description="Không thể tải mã khuyến mãi. Vui lòng thử lại."
+            description={t('home.campaignLoadError')}
             onRetry={() => refetch()}
           />
         ) : items.length === 0 ? null : (
@@ -101,9 +104,9 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <Tag className="h-5 w-5 text-rose-500" />
-                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Mã khuyến mãi hot</h2>
+                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">{t('home.campaignsTitle')}</h2>
                 </div>
-                <p className="text-muted-foreground text-sm">Áp dụng ngay khi đặt vé — số lượng có hạn</p>
+                <p className="text-muted-foreground text-sm">{t('home.campaignsSubtitle')}</p>
               </div>
               {/* Carousel dots indicator */}
               {items.length > 3 && (
@@ -114,7 +117,7 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                       onClick={() => setActiveIndex(i)}
                       className={`h-1.5 rounded-full transition-all duration-300 ${i === activeIndex ? 'w-4 bg-rose-500' : 'w-1.5 bg-rose-300/40 hover:bg-rose-400/60'
                         }`}
-                      aria-label={`Xem mã ${i + 1}`}
+                      aria-label={t('home.viewCampaign', { index: i + 1 })}
                     />
                   ))}
                 </div>
@@ -158,7 +161,7 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                         <div className="absolute top-3 right-3 z-20">
                           <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-rose-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">
                             <Flame className="h-3 w-3" />
-                            HOT
+                            {t('home.hotBadge')}
                           </span>
                         </div>
                       )}
@@ -195,11 +198,11 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                           >
                             {copied === c.code ? (
                               <>
-                                <Check className="h-3.5 w-3.5" /> Đã chép
+                                <Check className="h-3.5 w-3.5" /> {t('home.copiedShort')}
                               </>
                             ) : (
                               <>
-                                <Copy className="h-3.5 w-3.5" /> Sao chép
+                                <Copy className="h-3.5 w-3.5" /> {t('home.copy')}
                               </>
                             )}
                           </button>

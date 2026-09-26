@@ -21,13 +21,7 @@ import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 
 import {
   DataTable,
@@ -39,13 +33,14 @@ import { useSetUserRole, useUsers } from '@/lib/queries'
 import type { UserOut } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 const PAGE_SIZE = 20
 
-const ROLES: { value: string; label: string; hint: string }[] = [
-  { value: 'user', label: 'Khách hàng', hint: 'Đặt vé, phản hồi, tra cứu vé' },
-  { value: 'employee', label: 'Nhân viên', hint: 'Hỗ trợ chat, gọi điện, vé, khuyến mãi' },
-  { value: 'admin', label: 'Quản trị', hint: 'Toàn quyền hệ thống' },
+const ROLES: { value: string; labelKey: string; hintKey: string }[] = [
+  { value: 'user', labelKey: 'users.roleUser', hintKey: 'users.roleUserHint' },
+  { value: 'employee', labelKey: 'users.roleEmployee', hintKey: 'users.roleEmployeeHint' },
+  { value: 'admin', labelKey: 'users.roleAdmin', hintKey: 'users.roleAdminHint' },
 ]
 
 const ROLE_BADGE: Record<string, string> = {
@@ -67,6 +62,7 @@ function initials(name: string): string {
 
 export function UsersPanel() {
   const { user: me } = useApp()
+  const t = useT()
   const [page, setPage] = useState(0)
 
   const query = useUsers({ limit: PAGE_SIZE, offset: page * PAGE_SIZE })
@@ -82,9 +78,9 @@ export function UsersPanel() {
         path: { id: target.id },
         body: { role },
       })
-      toast.success(`Đã cập nhật vai trò của «${target.fullName}»`)
+      toast.success(t('adminUsers.roleChangedOf', { name: target.fullName }))
     } catch (e) {
-      toast.error(e instanceof Error || (e && typeof e === 'object' && ('error' in e || 'body' in e)) ? getErrorMessage(e) : 'Không thể cập nhật vai trò')
+      toast.error(e instanceof Error || (e && typeof e === 'object' && ('error' in e || 'body' in e)) ? getErrorMessage(e) : t('adminUsers.roleChangeFailed'))
       // Refetch in case the optimistic select left a stale value.
       void query.refetch()
     }
@@ -94,7 +90,7 @@ export function UsersPanel() {
     () =>
       columnHelper.columns([
         columnHelper.accessor('fullName', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Người dùng" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('admin.users')} />,
           cell: ({ row }) => {
             const u = row.original
             return (
@@ -118,15 +114,16 @@ export function UsersPanel() {
               </div>
             )
           },
-          meta: { label: 'Người dùng' },
+          meta: { label: t('admin.users') },
         }),
         columnHelper.accessor('role', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Vai trò" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminUsers.role')} />,
           cell: ({ row }) => {
             const u = row.original
             const isSelf = me?.id === u.id
             const disabled =
               roleMutation.isPending || u.isBot || isSelf || me?.type !== 'admin'
+            const roleDef = ROLES.find((r) => r.value === u.role)
             return (
               <div className="flex items-center gap-2">
                 <Badge
@@ -135,45 +132,32 @@ export function UsersPanel() {
                     ROLE_BADGE[u.role] ?? ROLE_BADGE.user,
                   )}
                 >
-                  {ROLES.find((r) => r.value === u.role)?.label ?? u.role}
+                  {roleDef ? t(roleDef.labelKey) : u.role}
                 </Badge>
                 {me?.type === 'admin' && !u.isBot && !isSelf && (
-                  <Select
+                  <ComboboxField
                     value={u.role}
                     disabled={disabled}
                     onValueChange={(v) => void onRoleChange(u, v)}
-                  >
-                    <SelectTrigger
-                      className="h-7 w-[130px] text-xs"
-                      aria-label={`Đổi vai trò của ${u.fullName}`}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map((r) => (
-                        <SelectItem
-                          key={r.value}
-                          value={r.value}
-                          disabled={r.value === 'admin' && isSelf}
-                          className="text-xs"
-                        >
-                          {r.label}
-                          <span className="ml-1 text-[10px] text-muted-foreground">
-                            — {r.hint}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    items={ROLES.map((r) => ({
+                      value: r.value,
+                      label: `${t(r.labelKey)} — ${t(r.hintKey)}`,
+                      disabled: r.value === 'admin' && isSelf,
+                    }))}
+                    className="h-7 w-[130px] text-xs"
+                    placeholder={t('adminUsers.role')}
+                    searchPlaceholder={t('combobox.search')}
+                    aria-label={t('users.changeRoleOf', { name: u.fullName })}
+                  />
                 )}
               </div>
             )
           },
           sortFn: 'basic',
-          meta: { label: 'Vai trò' },
+          meta: { label: t('adminUsers.role') },
         }),
         columnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
           cell: ({ getValue }) => {
             const v = getValue()
             return (
@@ -185,26 +169,26 @@ export function UsersPanel() {
                     : 'bg-rose-100 text-rose-700 border-rose-200',
                 )}
               >
-                {v === 'active' ? 'Hoạt động' : 'Bị khoá'}
+                {v === 'active' ? t('common.active') : t('adminUsers.locked')}
               </Badge>
             )
           },
           sortFn: 'basic',
-          meta: { label: 'Trạng thái' },
+          meta: { label: t('common.status') },
         }),
         columnHelper.accessor('createdAt', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Ngày tạo" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminUsers.createdAt')} />,
           cell: ({ getValue }) => (
             <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
               {new Date(getValue()).toLocaleDateString('vi-VN')}
             </span>
           ),
           sortFn: 'alphanumeric',
-          meta: { label: 'Ngày tạo' },
+          meta: { label: t('adminUsers.createdAt') },
         }),
       ]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [me?.id, me?.type, roleMutation.isPending],
+    [me?.id, me?.type, roleMutation.isPending, t],
   )
 
   return (
@@ -214,11 +198,10 @@ export function UsersPanel() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
-            Người dùng
+            {t('admin.users')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Quản lý vai trò: khách hàng đặt vé, nhân viên hỗ trợ chat/call, quản
-            trị toàn quyền. Tài khoản đầu tiên của hệ thống là quản trị viên.
+            {t('adminUsers.subtitle')}
           </p>
         </div>
         <Button
@@ -226,7 +209,7 @@ export function UsersPanel() {
           size="sm"
           onClick={() => query.refetch()}
           disabled={query.isFetching}
-          aria-label="Làm mới"
+          aria-label={t('common.refresh')}
         >
           {query.isFetching ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -239,10 +222,7 @@ export function UsersPanel() {
       {me?.type === 'admin' ? (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
           <ShieldCheck className="h-4 w-4 shrink-0" />
-          <span>
-            Chỉ quản trị viên mới đổi được vai trò. Không thể hạ quyền quản trị
-            của chính mình hoặc của quản trị viên cuối cùng.
-          </span>
+          <span>{t('adminUsers.adminNote')}</span>
         </div>
       ) : null}
 
@@ -251,7 +231,7 @@ export function UsersPanel() {
         columns={columns}
         data={items}
         testId="users-table"
-        rowNoun="người dùng"
+        rowNoun={t('adminUsers.rowNoun')}
         manualPagination
         totalRowCount={total}
         pageIndex={page}
@@ -261,8 +241,8 @@ export function UsersPanel() {
         isLoading={query.isLoading}
         isError={query.isError}
         onRetry={() => query.refetch()}
-        emptyTitle="Chưa có người dùng nào"
-        emptyDescription="Tài khoản sẽ xuất hiện ở đây khi có người đăng ký."
+        emptyTitle={t('adminUsers.emptyTitle')}
+        emptyDescription={t('adminUsers.emptyDesc')}
         emptyIcon={<UserIcon className="h-5 w-5" aria-hidden />}
       />
     </div>

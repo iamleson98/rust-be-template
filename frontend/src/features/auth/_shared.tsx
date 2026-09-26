@@ -11,47 +11,61 @@ import type React from 'react'
 import { z } from 'zod'
 import { cn } from '@/lib/utils'
 import { emailSchema, fullNameSchema } from '@/lib/forms'
+import { translate, useT } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 
 export type Tab = 'customer' | 'register'
 
 // ── Customer login schema ─────────────────────────────────
 // Backend route: `POST /api/auth/login` with body `{ email, password }`.
-export const customerZodSchema = z.object({
-  email: emailSchema,
-  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
-})
-export type CustomerFormValues = z.infer<typeof customerZodSchema>
+// Factory takes `t` so validation messages follow the active language
+// (same pattern as `makeBrandSchema` in the admin brand form).
+export const makeCustomerSchema = (t: ReturnType<typeof useT>) =>
+  z.object({
+    email: emailSchema,
+    password: z.string().min(1, t('authPage.passwordRequired')),
+  })
+export type CustomerFormValues = z.infer<ReturnType<typeof makeCustomerSchema>>
 
 // ── Register form schema ──────────────────────────────────
-export const registerZodSchema = z
-  .object({
-    fullName: fullNameSchema,
-    email: z
-      .string()
-      .trim()
-      .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Email không hợp lệ'),
-    phone: z
-      .string()
-      .trim()
-      .refine((v) => !v || /^0\d{8,10}$/.test(v), 'Số điện thoại không hợp lệ'),
-    password: z
-      .string()
-      .min(8, 'Mật khẩu phải có ít nhất 8 ký tự')
-      .max(128, 'Mật khẩu tối đa 128 ký tự'),
-    confirm: z.string().min(1, 'Vui lòng xác nhận mật khẩu'),
-  })
-  .refine((d) => d.email || d.phone, {
-    message: 'Vui lòng nhập email hoặc số điện thoại',
-    path: ['email'],
-  })
-  .refine((d) => d.password === d.confirm, {
-    message: 'Mật khẩu xác nhận không khớp',
-    path: ['confirm'],
-  })
-export type RegisterFormValues = z.infer<typeof registerZodSchema>
+export const makeRegisterSchema = (t: ReturnType<typeof useT>) =>
+  z
+    .object({
+      fullName: fullNameSchema,
+      email: z
+        .string()
+        .trim()
+        .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), t('validation.email')),
+      phone: z
+        .string()
+        .trim()
+        .refine((v) => !v || /^0\d{8,10}$/.test(v), t('authPage.phoneInvalid')),
+      password: z
+        .string()
+        .min(8, t('validation.passwordMin'))
+        .max(128, t('validation.passwordMax')),
+      confirm: z.string().min(1, t('authPage.confirmPasswordRequired')),
+    })
+    .refine((d) => d.email || d.phone, {
+      message: t('auth.emailOrPhoneHint'),
+      path: ['email'],
+    })
+    .refine((d) => d.password === d.confirm, {
+      message: t('validation.passwordMatch'),
+      path: ['confirm'],
+    })
+export type RegisterFormValues = z.infer<ReturnType<typeof makeRegisterSchema>>
 
 // ── Helpers ───────────────────────────────────────────────
 /** Heuristic password-strength scorer used by the registration meter. */
+const STRENGTH_LABEL_KEYS = [
+  'auth.passwordWeak',
+  'auth.passwordFair',
+  'auth.passwordGood',
+  'auth.passwordStrong',
+  'auth.passwordVeryStrong',
+] as const
+
 export function scorePassword(pwd: string): { score: number; label: string } {
   if (!pwd) return { score: 0, label: '' }
   let score = 0
@@ -59,8 +73,8 @@ export function scorePassword(pwd: string): { score: number; label: string } {
   if (pwd.length >= 10) score++
   if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score++
   if (/\d/.test(pwd) && /[^A-Za-z0-9]/.test(pwd)) score++
-  const labels = ['Rất yếu', 'Yếu', 'Trung bình', 'Tốt', 'Mạnh']
-  return { score, label: labels[score] || '' }
+  const labelKey = STRENGTH_LABEL_KEYS[score]
+  return { score, label: labelKey ? translate(useApp.getState().lang, labelKey) : '' }
 }
 
 // ── Tab button ───────────────────────────────────────────

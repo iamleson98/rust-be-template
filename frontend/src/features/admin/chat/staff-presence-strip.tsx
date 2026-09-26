@@ -1,6 +1,7 @@
 'use client'
 
 import { Bot } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { relativeTime } from '@/lib/types'
 
 /** Live staff presence (WS `staff_presence` broadcasts). */
@@ -40,6 +41,7 @@ export function StaffPresenceStrip({
 }: {
   staffPresence?: StaffPresence
 }) {
+  const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {staffPresence ? (
@@ -53,7 +55,7 @@ export function StaffPresenceStrip({
                     ? 'border-amber-200 bg-amber-50 text-amber-700'
                     : 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 }`}
-              title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ${st.online ? (st.busy ? 'đang gọi điện' : 'sẵn sàng') : 'ngoại tuyến'} · ${st.activeChats} kênh${st.lastSeenAt ? ` · hoạt động ${relativeTime(st.lastSeenAt)}` : ''}`}
+              title={`${st.name} — ${st.role === 'admin' ? t('adminChat.roleAdmin') : t('adminChat.roleStaff')} · ${st.online ? (st.busy ? t('adminChat.onCall') : t('adminChat.available')) : t('adminChat.offline')} · ${st.activeChats} ${t('adminChat.channelNoun')}${st.lastSeenAt ? ` · ${t('adminChat.activeAgo', { time: relativeTime(st.lastSeenAt) })}` : ''}`}
             >
               <span
                 className={`h-1.5 w-1.5 rounded-full ${!st.online ? 'bg-slate-300' : st.busy ? 'bg-amber-500' : 'bg-emerald-500'
@@ -67,7 +69,7 @@ export function StaffPresenceStrip({
             <span
               key={`off-${st.userId}`}
               className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 border-dashed bg-slate-50/50 px-2 py-0.5 text-[10px] font-medium text-slate-400"
-              title={`${st.name} — ${st.role === 'admin' ? 'Quản trị' : 'Nhân viên'} · ngoại tuyến · hoạt động lần cuối ${relativeTime(st.lastSeenAt)}`}
+              title={`${st.name} — ${st.role === 'admin' ? t('adminChat.roleAdmin') : t('adminChat.roleStaff')} · ${t('adminChat.offline')} · ${t('adminChat.lastActive')} ${relativeTime(st.lastSeenAt)}`}
             >
               <span className="h-1.5 w-1.5 rounded-full bg-slate-300/70" />
               {st.name}
@@ -81,17 +83,17 @@ export function StaffPresenceStrip({
               }`}
             title={
               staffPresence.botActive
-                ? 'Không có nhân viên trực tuyến — bot AI đang hỗ trợ khách'
-                : 'Có nhân viên trực tuyến — bot chỉ hỗ trợ khi không ai online'
+                ? t('adminChat.botActiveTitle')
+                : t('adminChat.botIdleTitle')
             }
           >
             <Bot className="h-3 w-3" />
-            Bot {staffPresence.botActive ? 'đang hỗ trợ' : 'chờ'}
+            Bot {staffPresence.botActive ? t('adminChat.botAssisting') : t('adminChat.botStandby')}
           </span>
         </>
       ) : (
         <span className="text-[10px] text-muted-foreground">
-          Đang kết nối trạng thái nhân viên...
+          {t('adminChat.connectingStaff')}
         </span>
       )}
     </div>

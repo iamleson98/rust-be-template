@@ -45,6 +45,7 @@ import type React from 'react'
 import { useRef, useEffect, useLayoutEffect } from 'react'
 import { Loader2, Check, CheckCheck, Sparkles, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 import type { Message } from './_shared'
 
 /** Distance from the bottom (in px) within which we consider the user "at the bottom". */
@@ -79,6 +80,7 @@ export function ChatConversation({
   // the infinite-scroll detection + scroll-position-preservation
   // logic here via internal refs.
   //
+  const t = useT()
   // `isAtBottomRef` tracks whether the user is at the bottom — set on
   // every scroll event. Used by the auto-scroll effect to decide
   // whether to yank the user down to a new message.
@@ -181,7 +183,7 @@ export function ChatConversation({
             <div className="text-center py-2">
               <span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-[10px] text-emerald-700 ring-1 ring-emerald-200">
                 <Sparkles className="inline h-2.5 w-2.5 mr-1" />
-                Nhân viên luôn sẵn sàng • Phản hồi tức thì
+                {t('chatWidget.agentAlwaysReady')}
               </span>
             </div>
 
@@ -193,7 +195,7 @@ export function ChatConversation({
               <div className="flex items-center justify-center py-3">
                 <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
-                  Đang tải tin nhắn cũ hơn...
+                  {t('chat.loadingMore')}
                 </div>
               </div>
             )}
@@ -204,7 +206,7 @@ export function ChatConversation({
                   className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
                 >
                   <ChevronUp className="h-3 w-3" />
-                  Xem tin nhắn cũ hơn
+                  {t('chat.loadMore')}
                 </button>
               </div>
             )}
@@ -213,7 +215,7 @@ export function ChatConversation({
               <div className="flex justify-center py-2">
                 <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-800">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Đang chuyển tới nhân viên hỗ trợ...</span>
+                  <span>{t('chat.waitingForAgent')}</span>
                 </div>
               </div>
             )}

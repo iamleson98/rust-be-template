@@ -42,12 +42,14 @@ import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
 
 import { VehicleTypeFormDialog } from './vehicle-type-form'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 const PAGE_SIZE = 20
 
 const columnHelper = createColumnHelper<DataTableFeatures, AdminVehicleTypeOut>()
 
 export function VehicleTypesPanel() {
+  const t = useT()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -78,10 +80,10 @@ export function VehicleTypesPanel() {
     if (!deleteTarget) return
     try {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success(`Đã xoá loại xe «${deleteTarget.label}»`)
+      toast.success(t('adminVehicleTypes.deletedToast', { name: deleteTarget.label }))
       setDeleteTarget(null)
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể xoá loại xe'))
+      toast.error(getErrorMessage(e, t('adminVehicleTypes.deleteFailed')))
     }
   }
 
@@ -99,11 +101,11 @@ export function VehicleTypesPanel() {
             <span className="text-xs tabular-nums text-muted-foreground">{getValue()}</span>
           ),
           sortFn: 'basic',
-          meta: { label: 'Thứ tự', cellClassName: 'w-14' },
+          meta: { label: t('adminVehicleTypes.sortOrder'), cellClassName: 'w-14' },
         }),
         columnHelper.accessor('label', {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Tên hiển thị" />
+            <DataTableColumnHeader column={column} title={t('adminVehicleTypes.displayName')} />
           ),
           cell: ({ row }) => (
             <div className="font-medium">
@@ -119,31 +121,33 @@ export function VehicleTypesPanel() {
             </div>
           ),
           sortFn: 'text',
-          meta: { label: 'Tên hiển thị' },
+          meta: { label: t('adminVehicleTypes.displayName') },
         }),
         columnHelper.accessor('code', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Mã" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminVehicleTypes.code')} />,
           cell: ({ getValue }) => (
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {getValue()}
             </code>
           ),
           sortFn: 'text',
-          meta: { label: 'Mã' },
+          meta: { label: t('adminVehicleTypes.code') },
         }),
         columnHelper.accessor('totalSeats', {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Số ghế" />
+            <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />
           ),
           cell: ({ getValue }) => (
-            <span className="tabular-nums">{getValue() ? `${getValue()} chỗ` : '—'}</span>
+            <span className="tabular-nums">
+              {getValue() ? t('busLayouts.seatsCount', { count: getValue() as number }) : '—'}
+            </span>
           ),
           sortFn: 'basic',
-          meta: { label: 'Số ghế' },
+          meta: { label: t('adminBusLayouts.seatCount') },
         }),
         columnHelper.accessor('status', {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Trạng thái" />
+            <DataTableColumnHeader column={column} title={t('common.status')} />
           ),
           cell: ({ getValue }) =>
             getValue() === 'active' ? (
@@ -151,19 +155,19 @@ export function VehicleTypesPanel() {
                 variant="outline"
                 className="text-xs border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
               >
-                Đang dùng
+                {t('adminVehicleTypes.active')}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-xs">
-                Đã ẩn
+                {t('adminVehicleTypes.disabled')}
               </Badge>
             ),
           sortFn: 'text',
-          meta: { label: 'Trạng thái' },
+          meta: { label: t('common.status') },
         }),
         columnHelper.display({
           id: 'actions',
-          header: 'Thao tác',
+          header: t('common.actions'),
           cell: ({ row }) => (
             <div className="flex items-center justify-end gap-1">
               <Button
@@ -175,7 +179,7 @@ export function VehicleTypesPanel() {
                 }}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                <span className="sr-only">Sửa loại xe</span>
+                <span className="sr-only">{t('adminVehicleTypes.editTitle')}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -184,16 +188,16 @@ export function VehicleTypesPanel() {
                 onClick={() => setDeleteTarget(row.original)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">Xoá loại xe</span>
+                <span className="sr-only">{t('adminVehicleTypes.delete')}</span>
               </Button>
             </div>
           ),
           enableSorting: false,
           enableHiding: false,
-          meta: { align: 'right', label: 'Thao tác' },
+          meta: { align: 'right', label: t('common.actions') },
         }),
       ]),
-    [setEditType, setDialogOpen, setDeleteTarget],
+    [setEditType, setDialogOpen, setDeleteTarget, t],
   )
 
   return (
@@ -203,11 +207,10 @@ export function VehicleTypesPanel() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <Bus className="h-5 w-5 text-blue-600" />
-            Loại xe
+            {t('admin.vehicleTypes')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Danh mục loại phương tiện cho form tạo lịch trình và bộ lọc tìm kiếm
-            (limousine, giường nằm, xe 11 chỗ…).
+            {t('adminVehicleTypes.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -216,7 +219,7 @@ export function VehicleTypesPanel() {
             size="sm"
             onClick={() => query.refetch()}
             disabled={query.isFetching}
-            aria-label="Làm mới"
+            aria-label={t('common.refresh')}
           >
             {query.isFetching ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -226,7 +229,7 @@ export function VehicleTypesPanel() {
           </Button>
           <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700">
             <Plus className="h-4 w-4 mr-1.5" />
-            Thêm loại xe
+            {t('adminVehicleTypes.add')}
           </Button>
         </div>
       </div>
@@ -238,7 +241,7 @@ export function VehicleTypesPanel() {
           <Input
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Tìm theo tên hoặc mã…"
+            placeholder={t('busLayouts.search')}
             className="pl-9"
           />
         </div>
@@ -249,7 +252,7 @@ export function VehicleTypesPanel() {
             columns={columns}
             data={items}
             testId="vehicle-types-table"
-            rowNoun="loại xe"
+            rowNoun={t('adminVehicleTypes.rowNoun')}
             manualPagination
             totalRowCount={total}
             pageIndex={page}
@@ -259,11 +262,11 @@ export function VehicleTypesPanel() {
             isLoading={query.isLoading}
             isError={query.isError}
             onRetry={() => query.refetch()}
-            emptyTitle={search ? 'Không tìm thấy loại xe nào' : 'Chưa có loại xe nào'}
+            emptyTitle={search ? t('adminVehicleTypes.emptySearchTitle') : t('adminVehicleTypes.emptyTitle')}
             emptyDescription={
               search
-                ? 'Thử từ khoá khác.'
-                : 'Thêm loại xe đầu tiên để dùng trong form tạo lịch trình.'
+                ? t('adminVehicleTypes.emptySearchDesc')
+                : t('adminVehicleTypes.emptyDesc')
             }
             emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
           />
@@ -286,18 +289,17 @@ export function VehicleTypesPanel() {
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!busy && !open) setDeleteTarget(null) }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xoá</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xoá loại xe{' '}
+              {t('adminVehicleTypes.deleteConfirmLead')}{' '}
               <span className="font-semibold text-foreground">
                 {deleteTarget?.label}
               </span>
-              ? Các lịch trình đang dùng loại xe này sẽ quay lại dùng loại xe
-              từ sơ đồ ghế của hãng.
+              {t('adminVehicleTypes.deleteConfirmTail')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Huỷ</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               className="bg-rose-600 hover:bg-rose-700"
@@ -306,7 +308,7 @@ export function VehicleTypesPanel() {
                 void confirmDelete()
               }}
             >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Xoá'}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

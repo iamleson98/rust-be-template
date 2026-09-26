@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageSquare, Filter, Phone, Mail } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { relativeTime } from '@/lib/types'
 import { ChatChannelListSkeleton } from './chat-channel-list-skeleton'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
@@ -61,14 +62,15 @@ export function ChatChannelListCard({
    *  effect queries its viewport. */
   channelScrollRef: RefObject<HTMLDivElement | null>
 }) {
+  const t = useT()
   return (
     <Card className="xl:col-span-2 flex flex-col xl:h-160">
       <CardHeader className="pb-2 shrink-0 space-y-2">
         <CardTitle className="text-base flex items-center gap-2">
           <MessageSquare className="h-4 w-4 text-blue-600" />
-          Hàng đợi cuộc trò chuyện
+          {t('chat.queue')}
           <span className="text-xs font-normal text-muted-foreground ml-auto">
-            {channels.length}{allChannelsCount != null && allChannelsCount !== channels.length ? `/${allChannelsCount}` : ''} kênh
+            {channels.length}{allChannelsCount != null && allChannelsCount !== channels.length ? `/${allChannelsCount}` : ''}{' '}{t('adminChat.channelNoun')}
           </span>
           {onToggleMineFilter && (
             <Button
@@ -76,10 +78,10 @@ export function ChatChannelListCard({
               size="sm"
               className={`h-7 gap-1 text-xs ${mineFilter ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
               onClick={() => onToggleMineFilter(!mineFilter)}
-              title="Chỉ hiện kênh của tôi + kênh chưa phân công"
+              title={t('adminChat.mineFilterTitle')}
             >
               <Filter className="h-3 w-3" />
-              Của tôi
+              {t('adminChat.mine')}
             </Button>
           )}
         </CardTitle>
@@ -91,7 +93,7 @@ export function ChatChannelListCard({
             {channelsLoading ? (
               <ChatChannelListSkeleton count={6} />
             ) : channels.length === 0 && !hasMoreChannels ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">Chưa có cuộc trò chuyện</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">{t('chat.noChannels')}</div>
             ) : (
               channels.map((c) => {
                 const hasPulse = unreadPulseChannels?.has(c.id) ?? false
@@ -114,7 +116,7 @@ export function ChatChannelListCard({
                       {hasPulse && (
                         <span
                           className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-blue-500 ring-2 ring-white animate-pulse"
-                          title="Tin nhắn mới"
+                          title={t('chat.newMessage')}
                         />
                       )}
                     </div>
@@ -127,9 +129,9 @@ export function ChatChannelListCard({
                         {c.assignedTo?.fullName && (
                           <Badge
                             className={`text-[9px] border-0 ${c.assignedToMe ? 'bg-blue-600 text-white' : 'bg-indigo-100 text-indigo-700'}`}
-                            title={`Được phân công cho ${c.assignedTo.fullName}`}
+                            title={t('adminChat.assignedTo', { name: c.assignedTo.fullName })}
                           >
-                            {c.assignedToMe ? 'Của tôi' : c.assignedTo.fullName}
+                            {c.assignedToMe ? t('adminChat.mine') : c.assignedTo.fullName}
                           </Badge>
                         )}
                       </div>
@@ -153,7 +155,7 @@ export function ChatChannelListCard({
                     <div className="text-right shrink-0">
                       <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
                       {c.unreadEmployee > 0 && (
-                        <Badge className="bg-rose-500 text-white text-[10px] mt-1">{c.unreadEmployee} mới</Badge>
+                        <Badge className="bg-rose-500 text-white text-[10px] mt-1">{t('adminChat.newCount', { count: c.unreadEmployee })}</Badge>
                       )}
                       <StatusBadge status={c.status} />
                     </div>
@@ -170,7 +172,7 @@ export function ChatChannelListCard({
               <div className="flex items-center justify-center py-3">
                 <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-muted-foreground">
                   <span className="h-3 w-3 rounded-full border-2 border-slate-300 border-t-slate-600 animate-spin" />
-                  Đang tải thêm kênh...
+                  {t('adminChat.loadingMoreChannels')}
                 </div>
               </div>
             )}
@@ -180,7 +182,7 @@ export function ChatChannelListCard({
                   onClick={onFetchMoreChannels}
                   className="text-[11px] text-blue-600 hover:text-blue-700 hover:underline"
                 >
-                  Tải thêm kênh
+                  {t('adminChat.loadMoreChannels')}
                 </button>
               </div>
             )}

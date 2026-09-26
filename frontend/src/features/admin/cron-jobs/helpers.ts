@@ -1,25 +1,30 @@
 /**
  * Pure formatting helpers for the admin cron-jobs page.
  *
- * Kept free of React/imports so they can be unit-tested directly
- * (see `__tests__/cron-jobs-helpers.test.ts`).
+ * Kept free of React so they can be unit-tested directly (see
+ * `__tests__/cron-jobs-helpers.test.ts`). Labels resolve through the
+ * i18n dictionaries via the store's current language.
  */
+
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 
 export type CronJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
-/** Human label for a run status (Vietnamese, matching the admin UI). */
+/** Human label for a run status (matching the admin UI language). */
 export function runStatusLabel(status: string): string {
+  const lang = useApp.getState().lang
   switch (status) {
     case 'queued':
-      return 'Đang chờ'
+      return translate(lang, 'admin.stats.openCount')
     case 'running':
-      return 'Đang chạy'
+      return translate(lang, 'adminCronJobs.statusRunning')
     case 'succeeded':
-      return 'Thành công'
+      return translate(lang, 'common.success')
     case 'failed':
-      return 'Thất bại'
+      return translate(lang, 'adminCronJobs.statusFailed')
     case 'cancelled':
-      return 'Đã dừng'
+      return translate(lang, 'adminCronJobs.statusCancelled')
     default:
       return status
   }
@@ -45,11 +50,12 @@ export function runStatusClass(status: string): string {
 
 /** "Mỗi 14 ngày" / "Hàng ngày" / … (interval is days). */
 export function scheduleIntervalLabel(intervalDays: number): string {
-  if (intervalDays === 1) return 'Hàng ngày'
-  if (intervalDays === 7) return 'Hàng tuần'
-  if (intervalDays === 14) return 'Hai tuần một lần'
-  if (intervalDays === 30) return 'Hàng tháng'
-  return `Mỗi ${intervalDays} ngày`
+  const lang = useApp.getState().lang
+  if (intervalDays === 1) return translate(lang, 'adminCronJobs.daily')
+  if (intervalDays === 7) return translate(lang, 'adminCronJobs.weekly')
+  if (intervalDays === 14) return translate(lang, 'adminCronJobs.biweekly')
+  if (intervalDays === 30) return translate(lang, 'adminCronJobs.monthly')
+  return translate(lang, 'adminCronJobs.everyDays', { days: intervalDays })
 }
 
 /** `2:0` → "02:00". */
@@ -79,14 +85,17 @@ export function elapsedLabel(startedAt?: string | null, now = Date.now()): strin
 
 /** ms → "1 giờ 23 phút" / "45 giây" / "< 1 giây". */
 export function humanizeDuration(ms: number): string {
+  const lang = useApp.getState().lang
   const totalSeconds = Math.floor(ms / 1000)
-  if (totalSeconds < 1) return '< 1 giây'
-  if (totalSeconds < 60) return `${totalSeconds} giây`
+  if (totalSeconds < 1) return translate(lang, 'adminCronJobs.ltOneSecond')
+  if (totalSeconds < 60) return translate(lang, 'adminCronJobs.seconds', { n: totalSeconds })
   const totalMinutes = Math.floor(totalSeconds / 60)
-  if (totalMinutes < 60) return `${totalMinutes} phút`
+  if (totalMinutes < 60) return translate(lang, 'adminCronJobs.minutes', { n: totalMinutes })
   const hours = Math.floor(totalMinutes / 60)
   const minutes = totalMinutes % 60
-  return minutes > 0 ? `${hours} giờ ${minutes} phút` : `${hours} giờ`
+  return minutes > 0
+    ? translate(lang, 'adminCronJobs.hoursMinutes', { h: hours, m: minutes })
+    : translate(lang, 'adminCronJobs.hours', { n: hours })
 }
 
 /** Short date-time for run history rows: "02/09 02:00". */
@@ -126,6 +135,8 @@ export function jobHeading(job: { jobType: string; description?: string | null }
 
 /** Friendly job-type label: "osm.import" → "Làm mới chỉ mục địa điểm OSM". */
 export function jobTypeLabel(jobType: string): string {
-  if (jobType === 'osm.import') return 'Làm mới chỉ mục địa điểm OSM'
+  if (jobType === 'osm.import') {
+    return translate(useApp.getState().lang, 'adminCronJobs.osmImportLabel')
+  }
   return jobType
 }

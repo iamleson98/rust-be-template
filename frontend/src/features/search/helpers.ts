@@ -35,12 +35,13 @@ export type RouteSearch = {
 
 export type NavigateFn = UseNavigateResult<string>
 
-/** Sort options rendered by the filter sidebar + mobile filter sheet. */
-export const sortOptions: { key: 'departure' | 'price' | 'duration' | 'rating'; label: string; icon: string }[] = [
-  { key: 'departure', label: 'Giờ đi', icon: '🕐' },
-  { key: 'price', label: 'Giá rẻ nhất', icon: '💰' },
-  { key: 'duration', label: 'Nhanh nhất', icon: '⚡' },
-  { key: 'rating', label: 'Đánh giá', icon: '⭐' },
+/** Sort options rendered by the filter sidebar + mobile filter sheet.
+ * Labels are i18n keys — translated at render time by the consumers. */
+export const sortOptions: { key: 'departure' | 'price' | 'duration' | 'rating'; labelKey: string; icon: string }[] = [
+  { key: 'departure', labelKey: 'searchPage.departureTime', icon: '🕐' },
+  { key: 'price', labelKey: 'searchPage.sortCheapest', icon: '💰' },
+  { key: 'duration', labelKey: 'searchPage.sortFastest', icon: '⚡' },
+  { key: 'rating', labelKey: 'searchPage.rating', icon: '⭐' },
 ]
 
 export function getHourOfDeparture(t: TripResult): number {

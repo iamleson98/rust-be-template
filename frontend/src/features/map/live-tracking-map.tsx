@@ -4,6 +4,7 @@
 
 import { useLiveTrackingProjection } from './live-tracking-projection'
 import { LiveTrackingMapOverlays } from './live-tracking-map-overlays'
+import { useT } from '@/lib/i18n'
 import type { TripDetail, TrackingStatus } from './live-tracking-types'
 
 export function LiveTrackingMap({
@@ -28,6 +29,7 @@ export function LiveTrackingMap({
   const { points, viewBox, stops, pathD, busX, busY, traveledPathD, hasGeometry } =
     useLiveTrackingProjection(detail, progress)
 
+  const t = useT()
   const accentColor = detail.brand.accentColor || '#2563eb'
 
   return (
@@ -179,7 +181,7 @@ export function LiveTrackingMap({
                   textAnchor="middle"
                   dy="5"
                   style={{ fontSize: '16px' }}
-                  aria-label="Vị trí xe buýt"
+                  aria-label={t('liveTracking.busPosition')}
                 >
                   🚌
                 </text>
@@ -189,7 +191,7 @@ export function LiveTrackingMap({
         </svg>
       ) : (
         <div className="p-12 text-center text-sm text-muted-foreground">
-          Chưa có dữ liệu lộ trình để hiển thị vị trí xe.
+          {t('liveTracking.noRouteData')}
         </div>
       )}
 

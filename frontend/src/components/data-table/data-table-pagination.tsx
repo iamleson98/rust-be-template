@@ -17,16 +17,11 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import type { ReactTable } from '@tanstack/react-table'
 
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 import type { DataTableFeatures } from './data-table-features'
 
 interface DataTablePaginationProps<TData extends RowData> {
@@ -43,12 +38,13 @@ interface DataTablePaginationProps<TData extends RowData> {
 
 export function DataTablePagination<TData extends RowData>({
   table,
-  noun = 'dòng',
+  noun,
   showPageSize = false,
   pageSizeOptions = [10, 20, 30, 40, 50],
   hideOnSinglePage = true,
   className,
 }: DataTablePaginationProps<TData>) {
+  const t = useT()
   const { pageIndex, pageSize } = table.state.pagination
   const pageCount = table.getPageCount()
   const total = table.getRowCount()
@@ -57,6 +53,7 @@ export function DataTablePagination<TData extends RowData>({
 
   const from = total === 0 ? 0 : pageIndex * pageSize + 1
   const to = from + visibleCount - 1
+  const effectiveNoun = noun ?? t('dataTable.rowNoun')
 
   if (hideOnSinglePage && pageCount <= 1 && selectedCount === 0 && !showPageSize) {
     return null
@@ -74,11 +71,11 @@ export function DataTablePagination<TData extends RowData>({
       <div className="flex min-w-0 items-center gap-2 tabular-nums">
         {selectedCount > 0 ? (
           <span>
-            Đã chọn {selectedCount} / {total} {noun}
+            {t('common.selected', { selected: selectedCount, total, noun: effectiveNoun })}
           </span>
         ) : (
           <span>
-            Hiển thị {total === 0 ? 0 : from}–{to} / {total} {noun}
+            {t('common.showing', { from: total === 0 ? 0 : from, to, total, noun: effectiveNoun })}
           </span>
         )}
       </div>
@@ -86,28 +83,26 @@ export function DataTablePagination<TData extends RowData>({
       <div className="flex items-center gap-4">
         {showPageSize ? (
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline">Số dòng mỗi trang</span>
-            <Select
+            <span className="hidden sm:inline">{t('common.rowsPerPage')}</span>
+            <ComboboxField
               value={`${pageSize}`}
               onValueChange={(value) => table.setPageSize(Number(value))}
-            >
-              <SelectTrigger size="sm" className="h-7 w-18 text-xs tabular-nums">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent side="top">
-                {pageSizeOptions.map((option) => (
-                  <SelectItem key={option} value={`${option}`}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              items={pageSizeOptions.map((option) => ({
+                value: `${option}`,
+                label: `${option}`,
+              }))}
+              className="h-7 w-18 text-xs tabular-nums"
+              contentClassName="min-w-20"
+              searchPlaceholder={t('dataTable.rowsPerPageSearch')}
+              aria-label={t('common.rowsPerPage')}
+              data-testid="page-size-combobox"
+            />
           </div>
         ) : null}
 
         <div className="flex items-center gap-2">
           <span className="tabular-nums">
-            Trang {pageIndex + 1}
+            {t('common.page', { page: pageIndex + 1 })}
             {pageCount > 0 && pageCount !== Infinity ? ` / ${pageCount}` : ''}
           </span>
           <div className="flex items-center gap-1">
@@ -118,7 +113,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.firstPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <span className="sr-only">Về trang đầu</span>
+              <span className="sr-only">{t('common.firstPage')}</span>
               <ChevronsLeft className="size-3.5" />
             </Button>
             <Button
@@ -128,7 +123,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
-              <span className="sr-only">Trang trước</span>
+              <span className="sr-only">{t('common.prevPage')}</span>
               <ChevronLeft className="size-3.5" />
             </Button>
             <Button
@@ -138,7 +133,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
-              <span className="sr-only">Trang sau</span>
+              <span className="sr-only">{t('common.nextPage')}</span>
               <ChevronRight className="size-3.5" />
             </Button>
             <Button
@@ -148,7 +143,7 @@ export function DataTablePagination<TData extends RowData>({
               onClick={() => table.lastPage()}
               disabled={!table.getCanLastPage()}
             >
-              <span className="sr-only">Đến trang cuối</span>
+              <span className="sr-only">{t('common.lastPage')}</span>
               <ChevronsRight className="size-3.5" />
             </Button>
           </div>

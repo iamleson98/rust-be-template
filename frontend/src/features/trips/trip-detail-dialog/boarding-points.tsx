@@ -18,6 +18,7 @@ import {
   formatDuration,
   SEAT_CLASS_LABELS,
 } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { formatCurrency, type Currency } from '@/lib/currency'
 import type { SeatInv } from '@/features/trips/seat-map'
 import type { TripDetailDialogData as TripDetail } from './types'
@@ -39,6 +40,7 @@ export function BoardingPoints({
   selectedSeatDetails: SeatInv[]
   currency: Currency
 }) {
+  const t = useT()
   return (
     <div className="bg-slate-50 flex flex-col min-h-0 hidden md:flex">
       <ScrollArea className="flex-1 max-h-[calc(92vh-220px)]">
@@ -48,7 +50,7 @@ export function BoardingPoints({
             <div className="flex items-center gap-1.5 mb-2.5">
               <MapPin className="h-3.5 w-3.5 text-blue-700" />
               <div className="text-xs font-bold uppercase tracking-wide text-blue-800">
-                Điểm đón
+                {t('tripDetail.pickupLabel')}
               </div>
             </div>
             <div className="space-y-2">
@@ -89,7 +91,7 @@ export function BoardingPoints({
             <div className="flex items-center gap-1.5 mb-2.5">
               <Flag className="h-3.5 w-3.5 text-rose-600" />
               <div className="text-xs font-bold uppercase tracking-wide text-rose-700">
-                Điểm trả
+                {t('tripDetail.dropoffLabel')}
               </div>
             </div>
             <div className="space-y-2">
@@ -126,7 +128,7 @@ export function BoardingPoints({
           {selectedSeatDetails.length > 0 && (
             <div>
               <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                Ghế đã chọn
+                {t('tripDetail.selectedSeats')}
               </div>
               <div className="space-y-1.5">
                 {selectedSeatDetails.map((s) => (
@@ -139,7 +141,7 @@ export function BoardingPoints({
                         {s.code}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {SEAT_CLASS_LABELS[s.seatClass]}
+                        {t(SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass)}
                       </span>
                     </div>
                     <div className="font-semibold text-blue-800">{formatCurrency(s.finalPrice, currency)}</div>

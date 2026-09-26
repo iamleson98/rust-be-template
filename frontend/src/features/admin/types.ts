@@ -10,28 +10,43 @@
 
 import { Wifi, Snowflake, Droplet, Plug, type LucideIcon } from 'lucide-react'
 
-export const DAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
-export const DAY_FULL = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'CN']
-
-export const VEHICLE_LABELS: Record<string, string> = {
-  limousine: 'Limousine',
-  sleeper: 'Giường nằm',
-  semi_sleeper: 'Giường nằm nửa',
-  standard: 'Ghế ngồi',
-  minivan: 'Minivan',
-}
-
-export const AMENITY_OPTIONS: { key: string; label: string; icon: LucideIcon }[] = [
-  { key: 'wifi', label: 'Wifi', icon: Wifi },
-  { key: 'ac', label: 'Điều hoà', icon: Snowflake },
-  { key: 'water', label: 'Nước uống', icon: Droplet },
-  { key: 'charging', label: 'Cắm sạc', icon: Plug },
+/** Compact day-chip labels — I18N KEYS (T2…CN / Mo…Su), resolved at
+ *  render time via `t(...)` / `translate(...)` by consumers. */
+export const DAY_LABELS = [
+  'common.dayShort.mon',
+  'common.dayShort.tue',
+  'common.dayShort.wed',
+  'common.dayShort.thu',
+  'common.dayShort.fri',
+  'common.dayShort.sat',
+  'common.dayShort.sun',
 ]
 
+/** Vehicle-class labels — I18N KEYS, resolved at render time. */
+export const VEHICLE_LABELS: Record<string, string> = {
+  limousine: 'types.vehicleLimousine',
+  sleeper: 'types.vehicleSleeper',
+  semi_sleeper: 'adminShared.vehicleSemiSleeper',
+  standard: 'types.vehicleStandard',
+  minivan: 'types.vehicleMinivan',
+}
+
+/** Amenity chips for the schedule form — labels are plain fallback text
+ *  (schedule-pricing-fields.tsx maps every key to an i18n key at render
+ *  time via its AMENITY_KEYS map, so these literals only surface if the
+ *  map ever misses — kept as human-readable slugs). */
+export const AMENITY_OPTIONS: { key: string; label: string; icon: LucideIcon }[] = [
+  { key: 'wifi', label: 'Wifi', icon: Wifi },
+  { key: 'ac', label: 'AC', icon: Snowflake },
+  { key: 'water', label: 'Water', icon: Droplet },
+  { key: 'charging', label: 'Charging', icon: Plug },
+]
+
+/** Pickup point kind labels — I18N KEYS, resolved at render time. */
 export const PICKUP_TYPE_LABELS: Record<string, string> = {
-  station: 'Bến xe',
-  curb: 'Đón ven đường',
-  on_request: 'Theo yêu cầu',
+  station: 'adminPickup.type.station',
+  curb: 'adminPickup.type.curb',
+  on_request: 'adminPickup.type.onRequest',
 }
 
 /** Discriminated union used by the delete-confirmation AlertDialog. */

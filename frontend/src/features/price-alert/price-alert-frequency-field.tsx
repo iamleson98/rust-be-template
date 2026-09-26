@@ -12,24 +12,25 @@ import type { PriceAlertForm, Frequency } from './price-alert-schema'
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Clock, Calendar } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
-const FREQUENCY_OPTIONS: { value: Frequency; label: string; description: string; icon: React.ReactNode }[] = [
+const FREQUENCY_OPTIONS: { value: Frequency; labelKey: string; descKey: string; icon: React.ReactNode }[] = [
   {
     value: 'immediate',
-    label: 'Ngay lập tức',
-    description: 'Thông báo ngay khi giá giảm',
+    labelKey: 'priceAlert.freqImmediate',
+    descKey: 'priceAlert.freqImmediateDesc',
     icon: <Clock className="h-4 w-4" />,
   },
   {
     value: 'daily',
-    label: 'Hàng ngày',
-    description: 'Tổng hợp mỗi sáng (8:00)',
+    labelKey: 'priceAlert.freqDaily',
+    descKey: 'priceAlert.freqDailyDesc',
     icon: <Calendar className="h-4 w-4" />,
   },
   {
     value: 'weekly',
-    label: 'Hàng tuần',
-    description: 'Tổng hợp mỗi thứ Hai',
+    labelKey: 'priceAlert.freqWeekly',
+    descKey: 'priceAlert.freqWeeklyDesc',
     icon: <Calendar className="h-4 w-4" />,
   },
 ]
@@ -41,6 +42,7 @@ export function PriceAlertFrequencyField({
   form: PriceAlertForm
   frequency: Frequency
 }) {
+  const t = useT()
   const { control } = form
 
   return (
@@ -50,7 +52,7 @@ export function PriceAlertFrequencyField({
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
                     <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Tần suất thông báo
+                      {t('priceAlert.freqLabel')}
                     </FormLabel>
                     <FormControl>
                       <RadioGroup
@@ -77,10 +79,10 @@ export function PriceAlertFrequencyField({
                                 <span className={`text-blue-600 ${frequency === opt.value ? '' : 'text-slate-400'}`}>
                                   {opt.icon}
                                 </span>
-                                <span className="text-sm font-medium">{opt.label}</span>
+                                <span className="text-sm font-medium">{t(opt.labelKey)}</span>
                               </div>
                               <div className="text-[11px] text-muted-foreground mt-0.5">
-                                {opt.description}
+                                {t(opt.descKey)}
                               </div>
                             </div>
                           </label>

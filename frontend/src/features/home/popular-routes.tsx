@@ -11,6 +11,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/error-state'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { ArrowRight, Star, Bus, ChevronRight, TrendingUp } from 'lucide-react'
 import { PopularRoutesSkeleton } from '@/features/home/components/popular-routes-skeleton'
 import { buildSearchInput } from '@/lib/search-params'
@@ -19,6 +20,7 @@ export const PopularRoutes = memo(function PopularRoutes() {
   const { setSearchParams, currency } = useApp()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const t = useT()
 
   // ── Data: TanStack Query ─────────────────────────────────────────
   // Replaces the bespoke `useEffect + fetch + useState` pattern with
@@ -97,7 +99,7 @@ export const PopularRoutes = memo(function PopularRoutes() {
           <PopularRoutesSkeleton count={8} />
         ) : isError ? (
           <ErrorState
-            description="Không thể tải danh sách tuyến đường phổ biến. Vui lòng thử lại."
+            description={t('home.popularRoutesError')}
             onRetry={() => refetch()}
           />
         ) : (
@@ -105,8 +107,8 @@ export const PopularRoutes = memo(function PopularRoutes() {
             <div>
               <div className="flex items-end justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Tuyến đường phổ biến</h2>
-                  <p className="text-muted-foreground mt-1 text-sm">Các tuyến được đặt nhiều nhất tuần qua</p>
+                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">{t('home.popularRoutesTitle')}</h2>
+                  <p className="text-muted-foreground mt-1 text-sm">{t('home.popularRoutesSubtitle')}</p>
                 </div>
               </div>
             </div>
@@ -142,29 +144,29 @@ export const PopularRoutes = memo(function PopularRoutes() {
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base truncate">{r.from.name}</div>
-                          <div className="text-[11px] text-muted-foreground">Điểm đi</div>
+                          <div className="text-[11px] text-muted-foreground">{t('search.from')}</div>
                         </div>
                         <div className="shrink-0 h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                           <ArrowRight className="h-4 w-4 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
                         </div>
                         <div className="min-w-0 flex-1 text-right">
                           <div className="font-bold text-base truncate">{r.to.name}</div>
-                          <div className="text-[11px] text-muted-foreground">Điểm đến</div>
+                          <div className="text-[11px] text-muted-foreground">{t('search.to')}</div>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span className="font-medium text-blue-600">{r.scheduleCount} chuyến/ngày</span>
+                        <span className="font-medium text-blue-600">{t('home.tripsPerDay', { count: r.scheduleCount })}</span>
                       </div>
 
                       {/* Price display */}
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-blue-700">
-                          Từ {formatCurrency(getPriceFromHash(r.id), currency)}
+                          {t('home.priceFrom')} {formatCurrency(getPriceFromHash(r.id), currency)}
                         </span>
                         <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-medium">
                           <TrendingUp className="h-3 w-3" />
-                          Phổ biến
+                          {t('home.popularBadge')}
                         </span>
                       </div>
 
@@ -177,7 +179,7 @@ export const PopularRoutes = memo(function PopularRoutes() {
                           />
                         </div>
                         <div className="text-[10px] text-muted-foreground text-right">
-                          {Math.round((r.scheduleCount / maxSchedules) * 100)}% nhu cầu
+                          {t('home.demandPercent', { count: Math.round((r.scheduleCount / maxSchedules) * 100) })}
                         </div>
                       </div>
                     </div>
@@ -202,7 +204,7 @@ export const PopularRoutes = memo(function PopularRoutes() {
                   })
                 }}
               >
-                Xem tất cả tuyến đường
+                {t('home.viewAllRoutes')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

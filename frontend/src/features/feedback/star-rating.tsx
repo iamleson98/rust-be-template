@@ -13,15 +13,16 @@
  */
 import { memo, useState } from 'react'
 import { Star } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-/** Emoji + Vietnamese label for each rating level. */
-export const RATING_META: Record<number, { emoji: string; label: string }> = {
-  1: { emoji: '😞', label: 'Rất tệ' },
-  2: { emoji: '🙁', label: 'Tạm được' },
-  3: { emoji: '🙂', label: 'Khá tốt' },
-  4: { emoji: '😊', label: 'Rất tốt' },
-  5: { emoji: '🤩', label: 'Tuyệt vời' },
+/** Emoji + i18n labelKey for each rating level (label rendered via t()). */
+export const RATING_META: Record<number, { emoji: string; labelKey: string }> = {
+  1: { emoji: '😞', labelKey: 'feedbackForm.ratingVeryBad' },
+  2: { emoji: '🙁', labelKey: 'feedbackForm.ratingMediocre' },
+  3: { emoji: '🙂', labelKey: 'feedbackForm.ratingNice' },
+  4: { emoji: '😊', labelKey: 'feedbackForm.ratingVeryGood' },
+  5: { emoji: '🤩', labelKey: 'feedbackForm.ratingExcellent' },
 }
 
 /* ── Read-only display ─────────────────────────────────────────── */
@@ -38,8 +39,9 @@ export const StarRating = memo(function StarRating({
   className?: string
 }) {
   const px = size === 'sm' ? 'h-3.5 w-3.5' : size === 'lg' ? 'h-6 w-6' : 'h-4 w-4'
+  const t = useT()
   return (
-    <span className={cn('inline-flex items-center gap-0.5', className)} aria-label={`${value} trên 5 sao`}>
+    <span className={cn('inline-flex items-center gap-0.5', className)} aria-label={t('feedbackForm.starsOutOf5', { value })}>
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
@@ -71,6 +73,7 @@ export function StarPicker({
   className?: string
 }) {
   const [hover, setHover] = useState(0)
+  const t = useT()
   const active = hover || value
   const px =
     size === 'md' ? 'h-7 w-7' : size === 'xl' ? 'h-11 w-11' : 'h-9 w-9'
@@ -80,7 +83,7 @@ export function StarPicker({
     <div className={cn('flex flex-col items-center gap-2.5 select-none', className)}>
       <div
         role="radiogroup"
-        aria-label="Chọn số sao đánh giá"
+        aria-label={t('feedbackForm.chooseRatingAria')}
         className="flex items-center gap-1.5"
         onMouseLeave={() => setHover(0)}
       >
@@ -93,7 +96,7 @@ export function StarPicker({
               type="button"
               role="radio"
               aria-checked={value === star}
-              aria-label={`${star} sao — ${RATING_META[star].label}`}
+              aria-label={t('feedbackForm.starAria', { count: star, label: t(RATING_META[star].labelKey) })}
               onMouseEnter={() => setHover(star)}
               onFocus={() => setHover(star)}
               onBlur={() => setHover(0)}
@@ -128,7 +131,7 @@ export function StarPicker({
           {active > 0 && (
             <>
               <span className="text-xl leading-none">{meta?.emoji}</span>
-              <span className="text-amber-600">{meta?.label}</span>
+              <span className="text-amber-600">{meta ? t(meta.labelKey) : null}</span>
             </>
           )}
         </div>

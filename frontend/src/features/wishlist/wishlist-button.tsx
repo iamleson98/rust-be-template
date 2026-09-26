@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { relativeTime } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { NoWishlistItems } from '@/features/wishlist/no-wishlist-items'
 import { buildSearchInput } from '@/lib/search-params'
 
@@ -67,6 +68,7 @@ function saveCacheLabels(labels: string[]) {
 export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }: Props) {
   const { user, wishlistOpen, setWishlistOpen } = useApp()
   const navigate = useNavigate()
+  const t = useT()
 
   const isLoggedIn = !!user
 
@@ -81,7 +83,7 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }:
 
   const addToWishlist = async () => {
     if (!isLoggedIn) {
-      toast.info('Đăng nhập để lưu tuyến yêu thích')
+      toast.info(t('wishlist.loginToSave'))
       navigate({ to: '/login' })
       return
     }
@@ -99,25 +101,25 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }:
         fromName: fromName ?? presetLabel,
         toName: toName ?? '',
       } })
-      toast.success('Đã lưu vào yêu thích')
+      toast.success(t('wishlist.saved'))
     } catch {
       // The mutation hook already invalidates the wishlist query on
       // success; on error we surface a friendly toast and let the
       // user retry.
-      toast.error('Không thể lưu')
+      toast.error(t('wishlist.saveFailed'))
     }
   }
 
   const removeItem = async (id: string) => {
     try {
       await removeMutation.mutateAsync({ path: { id } })
-      toast.success('Đã xoá khỏi yêu thích')
+      toast.success(t('wishlist.removed'))
       // Refresh the local label cache so the bell badge count stays in sync.
       // `WishlistItemOut` only exposes `routeId` (no from/to names), so we use
       // routeId as the cache label.
       saveCacheLabels(items.filter((i) => i.id !== id).map((i) => i.routeId))
     } catch {
-      toast.error('Không thể xoá')
+      toast.error(t('wishlist.removeFailed'))
     }
   }
 
@@ -129,12 +131,12 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }:
       return (
         <button
           onClick={() => {
-            toast.info('Đăng nhập để lưu tuyến yêu thích')
+            toast.info(t('wishlist.loginToSave'))
             navigate({ to: '/login' })
           }}
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-rose-300 transition-colors"
-          aria-label="Đăng nhập để lưu yêu thích"
-          title="Đăng nhập để lưu"
+          aria-label={t('wishlist.loginToSaveAria')}
+          title={t('wishlist.loginToSaveShort')}
         >
           <Heart className="h-4 w-4" />
         </button>
@@ -158,8 +160,8 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }:
           }}
           className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-rose-300 transition-colors ${count === 0 ? 'hidden sm:inline-flex' : ''
             }`}
-          aria-label="Tuyến yêu thích"
-          title="Tuyến yêu thích"
+          aria-label={t('wishlist.favoriteRoutes')}
+          title={t('wishlist.favoriteRoutes')}
         >
           <Heart className="h-4 w-4" />
           {count > 0 && (
@@ -197,7 +199,7 @@ export function WishlistButton({ variant = 'icon', presetLabel, presetRouteId }:
         ) : (
           <Plus className="h-3.5 w-3.5" />
         )}
-        {isLoggedIn ? 'Lưu yêu thích' : 'Đăng nhập để lưu'}
+        {isLoggedIn ? t('wishlist.save') : t('wishlist.loginToSaveShort')}
       </Button>
       <WishlistPanel
         open={wishlistOpen}
@@ -225,6 +227,7 @@ function WishlistPanel({
 }) {
   const { user } = useApp()
   const navigate = useNavigate()
+  const t = useT()
 
   return (
     <>
@@ -239,14 +242,14 @@ function WishlistPanel({
                   <Heart className="h-4 w-4 fill-white" />
                 </div>
                 <div>
-                  <div className="font-semibold text-sm">Tuyến yêu thích</div>
-                  <div className="text-[10px] text-muted-foreground">{items.length} mục đã lưu</div>
+                  <div className="font-semibold text-sm">{t('wishlist.favoriteRoutes')}</div>
+                  <div className="text-[10px] text-muted-foreground">{t('wishlist.itemsSaved', { count: items.length })}</div>
                 </div>
               </div>
               <button
                 onClick={onClose}
                 className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-slate-200 text-muted-foreground"
-                aria-label="Đóng"
+                aria-label={t('common.close')}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -255,7 +258,7 @@ function WishlistPanel({
             {/* List */}
             <ScrollArea className="flex-1 max-h-[60vh]">
               {loading ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">Đang tải...</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
               ) : items.length === 0 ? (
                 <div className="p-4">
                   <NoWishlistItems
@@ -276,17 +279,17 @@ function WishlistPanel({
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm flex items-center gap-1.5 flex-wrap">
-                              <span>Tuyến {it.routeId.slice(0, 8)}</span>
+                              <span>{t('wishlist.routePrefix', { id: it.routeId.slice(0, 8) })}</span>
                               <MapPin className="h-3 w-3 text-rose-500" />
                             </div>
                             <div className="text-[10px] text-muted-foreground mt-1">
-                              Đã lưu {relativeTime(it.createdAt)}
+                              {t('wishlist.savedAt', { time: relativeTime(it.createdAt) })}
                             </div>
                           </div>
                           <button
                             onClick={() => onRemove(it.id)}
                             className="opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-rose-100 text-rose-600"
-                            aria-label="Xoá"
+                            aria-label={t('common.delete')}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -304,7 +307,7 @@ function WishlistPanel({
                           }}
                         >
                           <Search className="h-3 w-3" />
-                          Tìm chuyến đi
+                          {t('wishlist.searchTrips')}
                         </Button>
                       </div>
                     )
@@ -320,7 +323,7 @@ function WishlistPanel({
                 {user?.phone ?? user?.email ?? '—'}
               </div>
               <Badge variant="outline" className="text-[10px] font-normal">
-                Đồng bộ máy chủ
+                {t('wishlist.serverSync')}
               </Badge>
             </div>
           </div>

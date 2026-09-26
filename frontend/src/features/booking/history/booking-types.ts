@@ -106,33 +106,40 @@ export type ReviewItem = {
   route?: { name: string; slug: string; fromName: string; toName: string }
 }
 
+// i18n: label values below are translation KEYS (bookingHistory.*) resolved
+// at render time via `t(...)` — see the guide's "translate at render time"
+// pattern for module-level label maps.
+
 export const PAYMENT_LABELS: Record<string, string> = {
-  momo: 'Ví MoMo',
-  vnpay: 'VNPay QR',
-  bank: 'Chuyển khoản',
-  cash: 'Tiền mặt',
+  momo: 'payment.momo',
+  vnpay: 'payment.vnpay',
+  bank: 'payment.vietqr',
+  cash: 'bookingHistory.cash',
 }
 
-export const REVIEW_TAG_LABELS: Record<string, { label: string; emoji: string }> = {
-  on_time: { label: 'Đúng giờ', emoji: '⏱️' },
-  clean: { label: 'Sạch sẽ', emoji: '✨' },
-  friendly_driver: { label: 'Tài xế thân thiện', emoji: '😊' },
-  comfortable: { label: 'Thoải mái', emoji: '🛋️' },
-  safe_drive: { label: 'An toàn', emoji: '🛡️' },
-  value: { label: 'Giá tốt', emoji: '💰' },
-  good_wifi: { label: 'Wifi mạnh', emoji: '📶' },
-  easy_booking: { label: 'Đặt dễ', emoji: '🎟️' },
+// `labelKey` is the i18n key — every consumer resolves it at render time
+// with `t(...)`. (The legacy Vietnamese `label` field was dropped after
+// all consumers switched to `labelKey`.)
+export const REVIEW_TAG_LABELS: Record<string, { labelKey: string; emoji: string }> = {
+  on_time: { labelKey: 'bookingHistory.tagOnTime', emoji: '⏱️' },
+  clean: { labelKey: 'bookingHistory.tagClean', emoji: '✨' },
+  friendly_driver: { labelKey: 'bookingHistory.tagFriendlyDriver', emoji: '😊' },
+  comfortable: { labelKey: 'bookingHistory.tagComfortable', emoji: '🛋️' },
+  safe_drive: { labelKey: 'bookingHistory.tagSafeDrive', emoji: '🛡️' },
+  value: { labelKey: 'bookingHistory.tagValue', emoji: '💰' },
+  good_wifi: { labelKey: 'bookingHistory.tagGoodWifi', emoji: '📶' },
+  easy_booking: { labelKey: 'bookingHistory.tagEasyBooking', emoji: '🎟️' },
 }
 
-export const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }> = {
-  confirmed: { label: 'Đã xác nhận', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
-  paid: { label: 'Đã thanh toán', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
-  completed: { label: 'Đã hoàn thành', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
-  pending: { label: 'Chờ thanh toán', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
-  held: { label: 'Đang giữ chỗ', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
-  cancelled: { label: 'Đã hủy', cls: 'bg-rose-100 text-rose-700', icon: 'xcircle' },
-  refunded: { label: 'Đã hoàn tiền', cls: 'bg-slate-100 text-slate-600', icon: 'landmark' },
-  expired: { label: 'Hết hạn', cls: 'bg-slate-100 text-slate-600', icon: 'alert' },
+export const STATUS_CONFIG: Record<string, { labelKey: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }> = {
+  confirmed: { labelKey: 'bookingHistory.statusConfirmed', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
+  paid: { labelKey: 'bookingHistory.statusPaid', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
+  completed: { labelKey: 'bookingHistory.statusCompleted', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
+  pending: { labelKey: 'bookingHistory.statusPending', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
+  held: { labelKey: 'bookingHistory.statusHeld', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
+  cancelled: { labelKey: 'bookingHistory.statusCancelled', cls: 'bg-rose-100 text-rose-700', icon: 'xcircle' },
+  refunded: { labelKey: 'bookingHistory.statusRefunded', cls: 'bg-slate-100 text-slate-600', icon: 'landmark' },
+  expired: { labelKey: 'bookingHistory.statusExpired', cls: 'bg-slate-100 text-slate-600', icon: 'alert' },
 }
 
 /**

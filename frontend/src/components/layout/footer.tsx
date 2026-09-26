@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
-import { EXCHANGE_RATE_NOTE } from '@/lib/currency'
+import { exchangeRateNote } from '@/lib/currency'
 import {
   Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
   CreditCard, Heart, Globe, FileText, HelpCircle, MessageCircle,
@@ -68,7 +68,7 @@ export const Footer = memo(function Footer() {
                 🎫 {t('footer.newsletter')}
               </h3>
               <p className="text-blue-100/90 text-sm md:text-base">
-                Đăng ký nhận bản tin để không bỏ lỡ mã giảm giá, ưu đãi cuối tuần
+                {t('layout.footer.newsletterDesc')}
               </p>
             </div>
             <Form {...form}>
@@ -87,7 +87,7 @@ export const Footer = memo(function Footer() {
                           <Input
                             {...field}
                             type="email"
-                            placeholder="Nhập email của bạn"
+                            placeholder={t('footer.newsletterPlaceholder')}
                             className="h-12 bg-white/20 border-white/30 text-white placeholder:text-white/60 focus-visible:ring-white/40 focus-visible:border-white/50 backdrop-blur-sm text-base"
                           />
                         </FormControl>
@@ -96,7 +96,7 @@ export const Footer = memo(function Footer() {
                           className="h-12 px-6 bg-white text-blue-700 hover:bg-white/90 font-semibold shrink-0 text-base"
                         >
                           <Send className="h-4 w-4 mr-1.5" />
-                          Đăng ký
+                          {t('footer.newsletterBtn')}
                         </Button>
                       </div>
                       <FormMessage className="mt-1.5 text-xs" />
@@ -132,10 +132,10 @@ export const Footer = memo(function Footer() {
       <div className="container mx-auto px-4 py-12">
         {/* ── Quick stats mini-section ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10 pb-10 border-b border-slate-800/60">
-          <QuickStat icon={<Users className="h-4 w-4" />} value="125K+" label="Khách hàng" />
-          <QuickStat icon={<RouteIcon className="h-4 w-4" />} value="680+" label="Tuyến đường" />
-          <QuickStat icon={<Building2 className="h-4 w-4" />} value="42" label="Hãng xe" />
-          <QuickStat icon={<Sparkles className="h-4 w-4" />} value="4.8/5" label="Đánh giá" />
+          <QuickStat icon={<Users className="h-4 w-4" />} value="125K+" label={t('layout.footer.statCustomers')} />
+          <QuickStat icon={<RouteIcon className="h-4 w-4" />} value="680+" label={t('admin.routes')} />
+          <QuickStat icon={<Building2 className="h-4 w-4" />} value="42" label={t('admin.brands')} />
+          <QuickStat icon={<Sparkles className="h-4 w-4" />} value="4.8/5" label={t('adminFeedback.rating')} />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
@@ -147,11 +147,11 @@ export const Footer = memo(function Footer() {
               </div>
               <div>
                 <div className="font-extrabold text-white text-lg tracking-tight">DatXeVui</div>
-                <div className="text-[10px] text-blue-400 font-medium -mt-0.5">Đặt vé xe online</div>
+                <div className="text-[10px] text-blue-400 font-medium -mt-0.5">{t('trips.tagline')}</div>
               </div>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed mb-4">
-              Nền tảng đặt vé xe khách hàng đầu Việt Nam. Kết nối hành khách với hàng trăm hãng xe uy tín trên cả nước.
+              {t('layout.footer.brandIntro')}
             </p>
 
             {/* Hotline */}
@@ -184,7 +184,7 @@ export const Footer = memo(function Footer() {
 
           {/* Popular routes — with teal underline slide-in on hover */}
           <div>
-            <h4 className="font-semibold text-white text-sm mb-3">Tuyến phổ biến</h4>
+            <h4 className="font-semibold text-white text-sm mb-3">{t('search.popularRoutes')}</h4>
             <ul className="space-y-2 text-sm">
               {['Hà Nội → Đà Nẵng', 'Hà Nội → Hồ Chí Minh', 'Hồ Chí Minh → Đà Lạt', 'Hồ Chí Minh → Nha Trang', 'Đà Nẵng → Hà Nội'].map((r) => {
                 // Parse "From → To" into separate legs so we can prefill
@@ -212,7 +212,7 @@ export const Footer = memo(function Footer() {
                   className="relative inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
                 >
                   <MapPinned className="h-3.5 w-3.5" />
-                  Bản đồ tuyến đường
+                  {t('mapPage.title')}
                 </button>
               </li>
             </ul>
@@ -220,11 +220,11 @@ export const Footer = memo(function Footer() {
 
           {/* Support — with teal underline slide-in on hover */}
           <div>
-            <h4 className="font-semibold text-white text-sm mb-3">Hỗ trợ</h4>
+            <h4 className="font-semibold text-white text-sm mb-3">{t('nav.support')}</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <button onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
-                  <HelpCircle className="h-3.5 w-3.5" /> Chat trực tuyến
+                  <HelpCircle className="h-3.5 w-3.5" /> {t('home.trustChat')}
                 </button>
               </li>
               <li>
@@ -242,7 +242,7 @@ export const Footer = memo(function Footer() {
               </li>
               <li>
                 <button onClick={() => navigate({ to: '/bookings' })} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
-                  <FileText className="h-3.5 w-3.5" /> Tra cứu vé
+                  <FileText className="h-3.5 w-3.5" /> {t('bookingHistory.lookupAria')}
                 </button>
               </li>
             </ul>
@@ -250,11 +250,11 @@ export const Footer = memo(function Footer() {
 
           {/* Company — with teal underline slide-in on hover */}
           <div>
-            <h4 className="font-semibold text-white text-sm mb-3">Công ty</h4>
+            <h4 className="font-semibold text-white text-sm mb-3">{t('layout.footer.company')}</h4>
             <ul className="space-y-2 text-sm">
-              {['Về chúng tôi', 'Tuyển dụng', 'Đối tác hãng xe', 'Chính sách hoàn vé', 'Điều khoản sử dụng'].map((item) => (
-                <li key={item}>
-                  <a href="#" className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{item}</a>
+              {(['footer.about', 'layout.footer.careers', 'layout.footer.brandPartners', 'cancel.refundPolicy', 'layout.footer.termsOfUse'] as const).map((key) => (
+                <li key={key}>
+                  <a href="#" className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t(key)}</a>
                 </li>
               ))}
             </ul>
@@ -262,7 +262,7 @@ export const Footer = memo(function Footer() {
 
           {/* Payment */}
           <div>
-            <h4 className="font-semibold text-white text-sm mb-3">Thanh toán</h4>
+            <h4 className="font-semibold text-white text-sm mb-3">{t('booking.payment')}</h4>
             <div className="flex flex-wrap gap-2">
               {['MoMo', 'VNPay', 'ZaloPay', 'Visa', 'Mastercard', 'Banking'].map((p) => (
                 <span key={p} className="rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors cursor-default">
@@ -273,7 +273,7 @@ export const Footer = memo(function Footer() {
             <div className="mt-4 space-y-1.5 text-xs text-slate-400">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
-                Bảo mật SSL 256-bit
+                {t('layout.footer.ssl')}
               </div>
               <div className="flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5 text-blue-500" />
@@ -285,11 +285,11 @@ export const Footer = memo(function Footer() {
             <div className="mt-4 space-y-2">
               <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
                 <Award className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">Bộ GTVT cấp phép</span>
+                <span className="text-xs text-blue-300 font-medium">{t('layout.footer.license')}</span>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
                 <Stamp className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">Bảo hiểm hành khách</span>
+                <span className="text-xs text-blue-300 font-medium">{t('layout.footer.insurance')}</span>
               </div>
             </div>
           </div>
@@ -297,7 +297,7 @@ export const Footer = memo(function Footer() {
 
         {/* ── Partner Transport Logos — with hover scale effects ── */}
         <div className="mt-10 pt-8 border-t border-slate-800/60">
-          <h4 className="font-semibold text-white text-sm mb-4 text-center">Đối tác vận chuyển</h4>
+          <h4 className="font-semibold text-white text-sm mb-4 text-center">{t('layout.footer.transportPartners')}</h4>
           <div className="flex flex-wrap justify-center gap-3">
             {partners.map((name) => (
               <span
@@ -314,23 +314,23 @@ export const Footer = memo(function Footer() {
         <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-1 text-sm text-slate-400">
-              © 2025 DatXeVui. Bản quyền thuộc về Công ty TNHH DatXeVui
+              {t('layout.footer.copyright')}
               <Heart className="h-3 w-3 text-rose-500 inline mx-0.5" />
             </div>
             <div className="text-xs text-slate-500">
-              Số ĐKKD: 0301234567 | Cấp bởi Sở KH&amp;ĐT TP.HCM
+              {t('layout.footer.registration')}
             </div>
           </div>
           <div className="flex flex-col items-center md:items-end gap-2">
             <div className="flex items-center gap-4 text-xs text-slate-500">
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">Điều khoản sử dụng</a>
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">Chính sách bảo mật</a>
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">Quyền riêng tư</a>
+              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.termsOfUse')}</a>
+              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.privacyPolicy')}</a>
+              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.dataRights')}</a>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-center md:justify-end">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 ring-1 ring-slate-800 px-3 py-1 text-[11px] text-slate-400">
                 <TrendingUp className="h-3 w-3 text-blue-400" />
-                {EXCHANGE_RATE_NOTE}
+                {exchangeRateNote()}
               </div>
             </div>
           </div>

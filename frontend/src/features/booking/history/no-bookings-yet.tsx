@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -65,11 +66,12 @@ export const NoBookingsYet = memo(function NoBookingsYet({
   onSearch?: () => void
   className?: string
 }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<TicketSVG />}
-      title="Chưa có vé nào"
-      description="Bạn chưa đặt chuyến nào. Tìm chuyến xe phù hợp và đặt vé ngay hôm nay để bắt đầu hành trình của mình."
+      title={t('account.noBookings')}
+      description={t('bookingHistory.noBookingsDesc')}
       className={className}
       size="lg"
     >
@@ -79,7 +81,7 @@ export const NoBookingsYet = memo(function NoBookingsYet({
           className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
           onClick={onSearch}
         >
-          Đặt chuyến đầu tiên
+          {t('bookingHistory.bookFirstTrip')}
         </Button>
       )}
     </EmptyState>

@@ -27,6 +27,7 @@ import { MessageSquareHeart, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAdminReviewBrandSummary, useAdminReviews, useModerateAdminReview } from '@/lib/queries'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useT } from '@/lib/i18n'
 import { BrandSummaryStrip } from './brand-summary-card'
 import { useFeedbackColumns } from './feedback-columns'
 import { FeedbackDetailDialog } from './feedback-detail-dialog'
@@ -48,6 +49,7 @@ export function FeedbackPanel() {
   const [selected, setSelected] = useState<FeedbackRow | null>(null)
   const [replyText, setReplyText] = useState('')
   const [updating, setUpdating] = useState(false)
+  const t = useT()
 
   const debouncedSearch = useDebouncedValue(search, 400)
 
@@ -88,13 +90,13 @@ export function FeedbackPanel() {
         toast.success(successMsg)
         return true
       } catch (e) {
-        toast.error(getErrorMessage(e, 'Cập nhật thất bại'))
+        toast.error(getErrorMessage(e, t('adminFeedback.updateFailed')))
         return false
       } finally {
         setUpdating(false)
       }
     },
-    [moderateMut],
+    [moderateMut, t],
   )
 
   const openDetail = (row: FeedbackRow) => {
@@ -116,10 +118,10 @@ export function FeedbackPanel() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <MessageSquareHeart className="size-5 text-primary" />
-            Phản hồi khách hàng
+            {t('adminFeedback.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Phản hồi của hành khách theo từng hãng xe — kiểm duyệt, trả lời và theo dõi chất lượng dịch vụ.
+            {t('adminFeedback.subtitle')}
           </p>
         </div>
         <Button
@@ -131,7 +133,7 @@ export function FeedbackPanel() {
           }}
           className="gap-1.5"
         >
-          <RefreshCw className="size-3.5" /> Làm mới
+          <RefreshCw className="size-3.5" /> {t('common.refresh')}
         </Button>
       </div>
 
@@ -158,7 +160,7 @@ export function FeedbackPanel() {
       <DataTable
         columns={columns}
         data={rows}
-        rowNoun="phản hồi"
+        rowNoun={t('adminFeedback.rowNoun')}
         manualPagination
         totalRowCount={total}
         pageIndex={page}
@@ -168,12 +170,12 @@ export function FeedbackPanel() {
         isError={listQuery.isError}
         onRetry={() => void listQuery.refetch()}
         onRowClick={openDetail}
-        rowAriaLabel={(r) => `Phản hồi của ${r.authorName ?? 'khách ẩn danh'}`}
-        emptyTitle="Chưa có phản hồi nào"
+        rowAriaLabel={(r) => t('adminFeedback.rowAriaLabel', { name: r.authorName ?? t('adminFeedback.anonymousCustomerLower') })}
+        emptyTitle={t('adminFeedback.emptyTitle')}
         emptyDescription={
           brandId || status !== 'all' || debouncedSearch
-            ? 'Thử bỏ bớt bộ lọc để xem thêm phản hồi.'
-            : 'Phản hồi của khách hàng sẽ xuất hiện ở đây khi họ đánh giá chuyến đi.'
+            ? t('adminFeedback.emptyFiltered')
+            : t('adminFeedback.emptyDescription')
         }
         emptyIcon={<MessageSquareHeart className="size-5" aria-hidden />}
       />

@@ -29,13 +29,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import {
@@ -49,6 +43,7 @@ import { BusLayoutFormDialog } from '@/features/admin/bus-layouts/bus-layout-for
 import { BrandDot } from '@/features/admin/brand-dot'
 import { vehicleCodeLabel } from '@/features/admin/brands/brand-tree-helpers'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 /** Server-side page size for the bus-layouts table. */
 const PAGE_SIZE = 20
@@ -67,6 +62,7 @@ interface BusLayoutRow {
 const columnHelper = createColumnHelper<DataTableFeatures, BusLayoutRow>()
 
 export function AdminBusLayoutsPage() {
+  const t = useT()
   const [page, setPage] = useState(0)
   const [brandId, setBrandId] = useState<string | undefined>(undefined)
 
@@ -123,13 +119,13 @@ export function AdminBusLayoutsPage() {
     setDeleteError(null)
     try {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success('Đã xoá sơ đồ ghế')
+      toast.success(t('busLayouts.deleted'))
       setDeleteTarget(null)
     } catch (e) {
       // The backend's 409 guard explains exactly what still references
       // the layout — surface it inside the dialog instead of a toast
       // the user dismisses before reading.
-      setDeleteError(getErrorMessage(e, 'Không thể xoá sơ đồ ghế'))
+      setDeleteError(getErrorMessage(e, t('busLayouts.deleteFailed')))
     } finally {
       setDeleting(false)
     }
@@ -141,13 +137,13 @@ export function AdminBusLayoutsPage() {
     () =>
       columnHelper.columns([
         columnHelper.accessor('name', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Tên sơ đồ" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.name')} />,
           cell: ({ getValue }) => <span className="font-medium">{getValue() || '—'}</span>,
           sortFn: 'text',
-          meta: { label: 'Tên sơ đồ' },
+          meta: { label: t('busLayouts.name') },
         }),
         columnHelper.accessor('brandName', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Hãng xe" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.brand')} />,
           cell: ({ getValue, row }) => {
             const name = getValue()
             if (!name) return <span className="text-muted-foreground">—</span>
@@ -159,10 +155,10 @@ export function AdminBusLayoutsPage() {
             )
           },
           sortFn: 'text',
-          meta: { label: 'Hãng xe' },
+          meta: { label: t('busLayouts.brand') },
         }),
         columnHelper.accessor('vehicleLabel', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Loại xe" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.vehicleType')} />,
           cell: ({ getValue }) =>
             getValue() ? (
               <Badge variant="secondary">{getValue()}</Badge>
@@ -170,10 +166,10 @@ export function AdminBusLayoutsPage() {
               <span className="text-muted-foreground">—</span>
             ),
           sortFn: 'text',
-          meta: { label: 'Loại xe' },
+          meta: { label: t('busLayouts.vehicleType') },
         }),
         columnHelper.accessor('seatCount', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Số ghế" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />,
           cell: ({ getValue }) => (
             <span className="flex items-center justify-end gap-1 tabular-nums font-semibold">
               <Armchair className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
@@ -181,11 +177,11 @@ export function AdminBusLayoutsPage() {
             </span>
           ),
           sortFn: 'basic',
-          meta: { label: 'Số ghế', align: 'right' },
+          meta: { label: t('adminBusLayouts.seatCount'), align: 'right' },
         }),
         columnHelper.display({
           id: 'actions',
-          header: 'Thao tác',
+          header: t('common.actions'),
           cell: ({ row }) => (
             <div className="flex items-center justify-end gap-1">
               <Button
@@ -200,7 +196,7 @@ export function AdminBusLayoutsPage() {
                 }}
               >
                 <Pencil className="h-3.5 w-3.5" />
-                <span className="sr-only">Sửa sơ đồ ghế</span>
+                <span className="sr-only">{t('busLayouts.editTitle')}</span>
               </Button>
               <Button
                 variant="ghost"
@@ -215,16 +211,16 @@ export function AdminBusLayoutsPage() {
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">Xoá sơ đồ ghế</span>
+                <span className="sr-only">{t('adminBusLayouts.deleteLayout')}</span>
               </Button>
             </div>
           ),
           enableSorting: false,
           enableHiding: false,
-          meta: { align: 'right', label: 'Thao tác' },
+          meta: { align: 'right', label: t('common.actions') },
         }),
       ]),
-    [itemById],
+    [itemById, t],
   )
 
   return (
@@ -233,66 +229,56 @@ export function AdminBusLayoutsPage() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-blue-600" />
-            Sơ đồ ghế
+            {t('busLayouts.title')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Các sơ đồ ghế của hãng xe dùng để chọn chỗ khi đặt vé — tạo mới kèm lưới ghế tự động.
+            {t('adminBusLayouts.pageSubtitle')}
           </p>
         </div>
         <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Thêm sơ đồ ghế
+          <Plus className="h-4 w-4" /> {t('busLayouts.add')}
         </Button>
       </div>
 
       {/* Brand filter */}
       <div className="w-full sm:w-64">
-        <Select
-          value={brandId ?? 'all'}
-          onValueChange={(v) => {
-            setBrandId(v === 'all' ? undefined : v)
-            setPage(0)
-          }}
-        >
-          <SelectTrigger className="w-full" aria-label="Lọc theo hãng">
-            <span className="flex min-w-0 items-center gap-2">
-              <Bus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <SelectValue placeholder="Tất cả hãng">
-                {(v: string | null | undefined) =>
-                  v === 'all' || !v ? 'Tất cả hãng' : brandById.get(v)?.name ?? 'Hãng'
-                }
-              </SelectValue>
-            </span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tất cả hãng</SelectItem>
-            {brands.map((b) => (
-              <SelectItem key={b.id} value={b.id}>
-                <span className="flex items-center gap-2">
-                  <BrandDot color={b.accentColor} />
-                  {b.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Bus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <ComboboxField
+            value={brandId ?? 'all'}
+            onValueChange={(v) => {
+              setBrandId(v === 'all' ? undefined : v)
+              setPage(0)
+            }}
+            items={[
+              { value: 'all', label: t('busLayouts.allBrands') },
+              ...brands.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+            className="flex-1"
+            placeholder={t('busLayouts.allBrands')}
+            searchPlaceholder={t('adminBusLayouts.searchBrand')}
+            aria-label={t('adminBusLayouts.filterByBrand')}
+            data-testid="brand-filter"
+          />
+        </div>
       </div>
 
       <DataTable
         columns={columns}
         data={rows}
-        rowNoun="sơ đồ"
+        rowNoun={t('adminBusLayouts.rowNoun')}
         manualPagination
         totalRowCount={total}
         pageIndex={page}
         onPageIndexChange={setPage}
         pageSize={PAGE_SIZE}
         isLoading={isLoading}
-        emptyTitle="Chưa có sơ đồ ghế nào"
-        emptyDescription="Thêm sơ đồ ghế đầu tiên — chọn lưới ghế, hệ thống tự sinh các ghế để bán vé."
+        emptyTitle={t('busLayouts.empty')}
+        emptyDescription={t('adminBusLayouts.emptyDesc')}
         emptyIcon={<LayoutGrid className="h-5 w-5" aria-hidden />}
         emptyAction={
           <Button size="sm" className="mt-2" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Thêm sơ đồ ghế
+            <Plus className="h-4 w-4" /> {t('busLayouts.add')}
           </Button>
         }
       />
@@ -317,14 +303,16 @@ export function AdminBusLayoutsPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xoá</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Xoá sơ đồ ghế{' '}
+              {t('adminBusLayouts.deleteLayout')}{' '}
               <span className="font-semibold text-foreground">
                 {deleteTarget?.name ?? '—'}
-                {deleteTarget?.totalSeats ? ` (${deleteTarget.totalSeats} ghế)` : ''}
+                {deleteTarget?.totalSeats
+                  ? t('adminBusLayouts.seatsParens', { count: deleteTarget.totalSeats })
+                  : ''}
               </span>
-              ? Các ghế của sơ đồ cũng sẽ bị xoá. Hành động này không thể hoàn tác.
+              {t('adminBusLayouts.deleteConfirmTail')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {deleteError && (
@@ -334,7 +322,7 @@ export function AdminBusLayoutsPage() {
           )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>
-              {deleteError ? 'Đóng' : 'Huỷ'}
+              {deleteError ? t('common.close') : t('common.cancel')}
             </AlertDialogCancel>
             {!deleteError && (
               <AlertDialogAction
@@ -347,11 +335,11 @@ export function AdminBusLayoutsPage() {
               >
                 {deleting ? (
                   <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Đang xoá...
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
                   </>
                 ) : (
                   <>
-                    <Trash2 className="mr-1.5 h-4 w-4" /> Xoá
+                    <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
                   </>
                 )}
               </AlertDialogAction>

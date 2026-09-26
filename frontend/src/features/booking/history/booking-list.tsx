@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { BookingCard } from '@/features/booking/history/booking-card'
 import { BookingItem } from '@/features/booking/history/booking-types'
 import { MyBookingsSkeleton } from '@/features/booking/history/my-bookings-skeleton'
@@ -35,30 +36,32 @@ type Props = {
   children?: React.ReactNode
 }
 
+// i18n: `title`/`subtitle` hold translation KEYS resolved via `t(...)` at
+// render time (module-level constant → render-time translation pattern).
 const EMPTY_COPY: Record<Props['variant'], { title: string; subtitle: string }> = {
   upcoming: {
-    title: 'Chưa có chuyến sắp đi',
-    subtitle: 'Bạn chưa có vé nào cho chuyến đi sắp tới. Hãy tìm chuyến phù hợp và đặt ngay!',
+    title: 'bookingHistory.emptyUpcomingTitle',
+    subtitle: 'bookingHistory.emptyUpcomingSubtitle',
   },
   past: {
-    title: 'Chưa có chuyến đã đi',
-    subtitle: 'Sau khi hoàn thành chuyến đi, vé sẽ hiển thị tại đây để bạn có thể để lại đánh giá.',
+    title: 'bookingHistory.emptyPastTitle',
+    subtitle: 'bookingHistory.emptyPastSubtitle',
   },
   cancelled: {
-    title: 'Chưa có vé bị hủy',
-    subtitle: 'Các vé đã huỷ hoặc đã hoàn tiền sẽ hiển thị tại đây.',
+    title: 'bookingHistory.emptyCancelledTitle',
+    subtitle: 'bookingHistory.emptyCancelledSubtitle',
   },
   reviews: {
-    title: 'Chưa có đánh giá nào',
-    subtitle: 'Sau khi đi chuyến, hãy quay lại đây để chia sẻ trải nghiệm của bạn về nhà xe.',
+    title: 'bookingHistory.emptyReviewsTitle',
+    subtitle: 'bookingHistory.emptyReviewsSubtitle',
   },
   all: {
-    title: 'Chưa có vé nào',
-    subtitle: 'Bắt đầu đặt chuyến đi đầu tiên của bạn ngay hôm nay.',
+    title: 'account.noBookings',
+    subtitle: 'bookingHistory.emptyAllSubtitle',
   },
   search: {
-    title: 'Không tìm thấy vé',
-    subtitle: 'Vui lòng kiểm tra lại mã vé hoặc số điện thoại đã nhập.',
+    title: 'bookingHistory.emptySearchTitle',
+    subtitle: 'bookingHistory.emptySearchSubtitle',
   },
 }
 
@@ -84,6 +87,7 @@ export function BookingList({
   variant,
   children,
 }: Props) {
+  const t = useT()
   const count = bookings.length
   const emptyCopy = EMPTY_COPY[variant]
 
@@ -127,8 +131,8 @@ export function BookingList({
           <div className="flex items-start gap-2.5 text-xs text-muted-foreground">
             <RefreshCw className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
             <p>
-              <span className="font-semibold text-foreground">{emptyCopy.title}.</span>{' '}
-              {emptyCopy.subtitle}
+              <span className="font-semibold text-foreground">{t(emptyCopy.title)}.</span>{' '}
+              {t(emptyCopy.subtitle)}
             </p>
           </div>
         </div>
@@ -140,7 +144,9 @@ export function BookingList({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Tìm thấy <span className="font-bold text-foreground">{count}</span> vé
+          {t('bookingHistory.foundTicketsPrefix')}{' '}
+          <span className="font-bold text-foreground">{count}</span>{' '}
+          {t('bookingHistory.foundTicketsSuffix')}
         </p>
         {onReload && (
           <Button
@@ -151,7 +157,7 @@ export function BookingList({
             disabled={loading}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Tải lại
+            {t('bookingHistory.reload')}
           </Button>
         )}
       </div>

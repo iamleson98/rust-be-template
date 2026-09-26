@@ -33,36 +33,40 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import { Bus, Loader2 } from 'lucide-react'
-import { requiredText } from '@/lib/forms'
 import { useCreateAdminVehicleType, useUpdateAdminVehicleType } from '@/lib/queries'
 import { slugify } from '@/lib/slug'
 import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
-const vehicleTypeSchema = z.object({
-  code: requiredText('Mã loại xe')
-    .min(2, 'Mã tối thiểu 2 ký tự')
-    .max(60, 'Mã tối đa 60 ký tự')
-    .regex(/^[a-z0-9-]+$/, 'Chỉ chữ thường, số và gạch ngang (vd: limousine)'),
-  label: requiredText('Tên hiển thị').min(2, 'Tên tối thiểu 2 ký tự').max(120),
-  totalSeats: z.coerce
-    .number({ message: 'Số ghế phải là số' })
-    .min(0, 'Phải ≥ 0')
-    .max(200, 'Tối đa 200')
-    .optional(),
-  sortOrder: z.coerce.number({ message: 'Thứ tự phải là số' }).min(0).max(1000),
-  status: z.enum(['active', 'disabled']),
-  description: z.string().max(1000, 'Tối đa 1000 ký tự').optional(),
-})
-type VehicleTypeFormValues = z.input<typeof vehicleTypeSchema>
+/** Schema factory — messages follow the active UI language. */
+const buildVehicleTypeSchema = (t: ReturnType<typeof useT>) =>
+  z.object({
+    code: z
+      .string()
+      .trim()
+      .min(1, t('adminVehicleTypes.codeRequired'))
+      .min(2, t('adminVehicleTypes.codeMin'))
+      .max(60, t('adminVehicleTypes.codeMax'))
+      .regex(/^[a-z0-9-]+$/, t('adminVehicleTypes.codeRegex')),
+    label: z
+      .string()
+      .trim()
+      .min(1, t('adminVehicleTypes.labelRequired'))
+      .min(2, t('adminVehicleTypes.labelMin'))
+      .max(120),
+    totalSeats: z.coerce
+      .number({ message: t('adminVehicleTypes.seatsNumber') })
+      .min(0, t('adminVehicleTypes.seatsMin'))
+      .max(200, t('adminVehicleTypes.seatsMax'))
+      .optional(),
+    sortOrder: z.coerce.number({ message: t('adminVehicleTypes.sortNumber') }).min(0).max(1000),
+    status: z.enum(['active', 'disabled']),
+    description: z.string().max(1000, t('adminVehicleTypes.descMax')).optional(),
+  })
+type VehicleTypeFormValues = z.input<ReturnType<typeof buildVehicleTypeSchema>>
 
 const emptyDefaults: VehicleTypeFormValues = {
   code: '',
@@ -84,13 +88,14 @@ export function VehicleTypeFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!vehicleType
   const createMutation = useCreateAdminVehicleType()
   const updateMutation = useUpdateAdminVehicleType()
   const saving = createMutation.isPending || updateMutation.isPending
 
   const form = useForm<VehicleTypeFormValues, unknown, VehicleTypeFormValues>({
-    resolver: zodResolver(vehicleTypeSchema),
+    resolver: zodResolver(buildVehicleTypeSchema(t)),
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: emptyDefaults,
@@ -141,15 +146,15 @@ export function VehicleTypeFormDialog({
         path: { id: vehicleType!.id },
         body,
       } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success('Đã cập nhật loại xe')
+        toast.success(t('adminVehicleTypes.updated'))
       } else {
         // SDK mutation hooks require { body: <payload> } (see schedule form).
         await createMutation.mutateAsync({ body } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
-        toast.success('Đã thêm loại xe mới')
+        toast.success(t('adminVehicleTypes.created'))
       }
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu loại xe'))
+      toast.error(getErrorMessage(e, t('adminVehicleTypes.saveFailed')))
     }
   }
 
@@ -159,10 +164,10 @@ export function VehicleTypeFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bus className="h-5 w-5 text-blue-600" />
-            {isEdit ? 'Sửa loại xe' : 'Thêm loại xe mới'}
+            {isEdit ? t('adminVehicleTypes.editTitle') : t('adminVehicleTypes.createTitle')}
           </DialogTitle>
           <DialogDescription>
-            Loại xe dùng trong form tạo lịch trình và bộ lọc tìm kiếm chuyến.
+            {t('adminVehicleTypes.formDesc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -175,7 +180,7 @@ export function VehicleTypeFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel>
-                      Mã <span className="text-destructive">*</span>
+                      {t('adminVehicleTypes.code')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -195,7 +200,7 @@ export function VehicleTypeFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel>
-                      Tên hiển thị <span className="text-destructive">*</span>
+                      {t('adminVehicleTypes.displayName')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="Limousine" />
@@ -212,7 +217,7 @@ export function VehicleTypeFormDialog({
                 name="totalSeats"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Số ghế thường</FormLabel>
+                    <FormLabel>{t('adminVehicleTypes.seatsLabel')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -233,7 +238,7 @@ export function VehicleTypeFormDialog({
                 name="sortOrder"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Thứ tự hiển thị</FormLabel>
+                    <FormLabel>{t('adminVehicleTypes.sortOrderLabel')}</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -253,18 +258,18 @@ export function VehicleTypeFormDialog({
                 name="status"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Trạng thái</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Đang dùng</SelectItem>
-                        <SelectItem value="disabled">Đã ẩn</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t('common.status')}</FormLabel>
+                    <ComboboxField
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      items={[
+                        { value: 'active', label: t('adminVehicleTypes.active') },
+                        { value: 'disabled', label: t('adminVehicleTypes.disabled') },
+                      ]}
+                      placeholder={t('adminVehicleTypes.chooseStatus')}
+                      searchPlaceholder={t('combobox.search')}
+                      aria-label={t('common.status')}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -276,13 +281,13 @@ export function VehicleTypeFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
-                  <FormLabel>Mô tả</FormLabel>
+                  <FormLabel>{t('adminVehicleTypes.description')}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       value={field.value ?? ''}
                       rows={2}
-                      placeholder="Ghi chú về loại xe (tùy chọn)"
+                      placeholder={t('adminVehicleTypes.descPlaceholder')}
                     />
                   </FormControl>
                   <FormMessage />
@@ -292,15 +297,15 @@ export function VehicleTypeFormDialog({
 
             <DialogFooter>
               <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
-                Huỷ
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                   </>
                 ) : (
-                  <>{isEdit ? 'Lưu thay đổi' : 'Thêm loại xe'}</>
+                  <>{isEdit ? t('common.saveChanges') : t('adminVehicleTypes.add')}</>
                 )}
               </Button>
             </DialogFooter>

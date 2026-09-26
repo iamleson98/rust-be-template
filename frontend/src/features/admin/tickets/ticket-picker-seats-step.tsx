@@ -2,14 +2,9 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import { Armchair, MapPin } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { TripResult, TripDetail } from '@/lib/api/types.gen'
 import type { Seat } from './chat-ticket-picker-types'
 
@@ -40,6 +35,7 @@ export function SeatsStep({
   setDroppingPointId: (id: string) => void
   totalPrice: number
 }) {
+  const t = useT()
   const selectedIds = new Set(selectedSeats.map((s) => s.id))
   const decks = trip.seatMap?.decks ?? []
   return (
@@ -57,7 +53,7 @@ export function SeatsStep({
             </div>
           </div>
           <Badge variant="outline" className="text-[10px]">
-            {selectedTrip.availableSeats} ghế trống
+            {t('adminTickets.seatsAvailable', { count: selectedTrip.availableSeats })}
           </Badge>
         </div>
       </div>
@@ -66,14 +62,14 @@ export function SeatsStep({
       <div className="rounded-lg border p-3 bg-slate-50/50">
         <div className="text-xs font-semibold mb-2 flex items-center gap-1.5">
           <Armchair className="h-3.5 w-3.5" />
-          Sơ đồ ghế
+          {t('booking.seatSelector')}
         </div>
         <div className="space-y-3">
           {decks.map((deck) => (
             <div key={deck.deck}>
               {decks.length > 1 && (
                 <div className="text-[10px] text-muted-foreground uppercase mb-1">
-                  Tầng {deck.deck}
+                  {t('adminTickets.floor', { n: deck.deck })}
                 </div>
               )}
               <div className="space-y-1">
@@ -123,16 +119,16 @@ export function SeatsStep({
         {/* Legend */}
         <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-white border" /> Còn trống
+            <span className="inline-block h-3 w-3 rounded bg-white border" /> {t('adminTickets.legendAvailable')}
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded bg-amber-100" /> VIP
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-blue-600" /> Đã chọn
+            <span className="inline-block h-3 w-3 rounded bg-blue-600" /> {t('adminTickets.legendSelected')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-slate-200" /> Đã có người đặt
+            <span className="inline-block h-3 w-3 rounded bg-slate-200" /> {t('adminTickets.legendTaken')}
           </span>
         </div>
       </div>
@@ -141,44 +137,38 @@ export function SeatsStep({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> Điểm đón
+            <MapPin className="h-3 w-3" /> {t('adminTickets.pickupPoint')}
           </Label>
-          <Select value={boardingPointId} onValueChange={setBoardingPointId}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Chọn điểm đón" />
-            </SelectTrigger>
-            <SelectContent>
-              {boardingPoints.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name ?? '—'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ComboboxField
+            value={boardingPointId}
+            onValueChange={setBoardingPointId}
+            items={boardingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
+            className="h-9"
+            placeholder={t('adminTickets.choosePickupPoint')}
+            searchPlaceholder={t('adminTickets.searchPickupPoint')}
+            aria-label={t('adminTickets.pickupPoint')}
+          />
         </div>
         <div>
           <Label className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> Điểm trả
+            <MapPin className="h-3 w-3" /> {t('adminTickets.dropoffPoint')}
           </Label>
-          <Select value={droppingPointId} onValueChange={setDroppingPointId}>
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Chọn điểm trả" />
-            </SelectTrigger>
-            <SelectContent>
-              {droppingPoints.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name ?? '—'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ComboboxField
+            value={droppingPointId}
+            onValueChange={setDroppingPointId}
+            items={droppingPoints.map((p) => ({ value: p.id, label: p.name ?? '—' }))}
+            className="h-9"
+            placeholder={t('adminTickets.chooseDropoffPoint')}
+            searchPlaceholder={t('adminTickets.searchDropoffPoint')}
+            aria-label={t('adminTickets.dropoffPoint')}
+          />
         </div>
       </div>
 
       {selectedSeats.length > 0 && (
         <div className="rounded-lg bg-blue-50/50 border border-blue-200 p-2.5">
           <div className="text-xs font-semibold text-blue-700 mb-1">
-            Đã chọn {selectedSeats.length} ghế
+            {t('adminTickets.selectedSeatsCount', { count: selectedSeats.length })}
           </div>
           <div className="flex flex-wrap gap-1">
             {selectedSeats.map((s) => (
@@ -188,7 +178,7 @@ export function SeatsStep({
             ))}
           </div>
           <div className="text-xs mt-1.5 font-semibold text-right text-blue-700">
-            Tổng: {new Intl.NumberFormat('vi-VN').format(totalPrice)}₫
+            {t('adminTickets.totalLabel')} {new Intl.NumberFormat('vi-VN').format(totalPrice)}₫
           </div>
         </div>
       )}

@@ -52,72 +52,74 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useLogout } from '@/lib/queries'
+import { useT, type Lang } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-const NAV_GROUPS = [
+/** Nav groups — labels resolve through the i18n dictionary so the
+ *  admin sidebar follows the VI/EN language switch. */
+const navGroups = (t: (k: string) => string) => [
   {
-    label: 'Tổng quan',
+    label: t('admin.group.overview'),
     items: [
-      { title: 'Bảng điều khiển', icon: LayoutDashboard, url: '/admin' },
+      { title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin' },
     ],
   },
   {
-    label: 'Vận hành',
+    label: t('admin.group.operations'),
     items: [
-      { title: 'Vé đã bán', icon: Ticket, url: '/admin/tickets' },
-      { title: 'Hỗ trợ trực tuyến', icon: MessageSquare, url: '/admin/chat' },
-      { title: 'Phản hồi', icon: MessageSquareWarning, url: '/admin/feedback' },
+      { title: t('admin.ticketsSold'), icon: Ticket, url: '/admin/tickets' },
+      { title: t('admin.chatOnline'), icon: MessageSquare, url: '/admin/chat' },
+      { title: t('admin.feedback'), icon: MessageSquareWarning, url: '/admin/feedback' },
     ],
   },
   {
-    label: 'Danh mục',
+    label: t('admin.group.catalog'),
     items: [
-      { title: 'Hãng xe & Tuyến', icon: Building2, url: '/admin/brands' },
-      { title: 'Sơ đồ ghế', icon: Armchair, url: '/admin/bus-layouts' },
-      { title: 'Loại xe', icon: Bus, url: '/admin/vehicle-types' },
+      { title: t('admin.brands'), icon: Building2, url: '/admin/brands' },
+      { title: t('admin.busLayouts'), icon: Armchair, url: '/admin/bus-layouts' },
+      { title: t('admin.vehicleTypes'), icon: Bus, url: '/admin/vehicle-types' },
     ],
   },
   {
-    label: 'Tài chính',
+    label: t('admin.group.finance'),
     items: [
-      { title: 'Thanh toán', icon: CreditCard, url: '/admin/payments' },
+      { title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' },
     ],
   },
   {
-    label: 'Hệ thống',
+    label: t('admin.group.system'),
     items: [
-      { title: 'Theo dõi hệ thống', icon: Activity, url: '/admin/system' },
-      { title: 'Cron jobs', icon: CalendarClock, url: '/admin/cron-jobs' },
+      { title: t('admin.systemMonitoring'), icon: Activity, url: '/admin/system' },
+      { title: t('admin.cronJobs'), icon: CalendarClock, url: '/admin/cron-jobs' },
     ],
   },
 ]
 
-/**
- * Admin-only navigation entries. Employees never see these — the
- * backend also enforces the permission (`admin:users:manage-roles` /
- * cron-jobs perms), so hiding is UX, not security.
- */
-const ADMIN_ONLY_ITEMS = [
-  { title: 'Người dùng', icon: Users, url: '/admin/users' },
+/** Admin-only navigation entries. Employees never see these — the
+ *  backend also enforces the permission (`admin:users:manage-roles` /
+ *  cron-jobs perms), so hiding is UX, not security. */
+const adminOnlyItems = (t: (k: string) => string) => [
+  { title: t('admin.users'), icon: Users, url: '/admin/users' },
 ]
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { user } = useApp()
+  const { user, lang, setLang } = useApp()
   const logoutMut = useLogout()
+  const t = useT()
 
   // Admin-only entries (Users / governance) merge into the nav for
   // admins. Employees keep the operational view.
   const isAdmin = user?.type === 'admin'
-  const navGroups = isAdmin
+  const groups = isAdmin
     ? [
-        ...NAV_GROUPS.slice(0, 5),
+        ...navGroups(t).slice(0, 5),
         {
-          label: 'Quản trị',
-          items: ADMIN_ONLY_ITEMS,
+          label: t('admin.group.governance'),
+          items: adminOnlyItems(t),
         },
       ]
-    : NAV_GROUPS
+    : navGroups(t)
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -158,7 +160,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
               <span className="truncate font-bold text-white">DatXeVui</span>
-              <span className="truncate text-xs text-white/70">Hệ thống quản trị</span>
+              <span className="truncate text-xs text-white/70">{t('admin.adminSystem')}</span>
             </div>
           )}
         </Link>
@@ -166,7 +168,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
-        {navGroups.map((group) => (
+        {groups.map((group) => (
           <div key={group.label} className="mb-3">
             {!collapsed && (
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5">
@@ -204,28 +206,48 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Footer */}
       <div className="border-t border-border/40 px-2 py-2 shrink-0">
         <div className="space-y-0.5">
+          {/* Language switcher — VI/EN, persisted via the app store. */}
+          <div className={cn('flex items-center rounded-lg transition-all h-9', collapsed ? 'justify-center px-0' : 'px-2 gap-1')}>
+            {(['vi', 'en'] as const).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLang(code as Lang)}
+                aria-pressed={lang === code}
+                title={code === 'vi' ? 'Tiếng Việt' : 'English'}
+                className={cn(
+                  'flex-1 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                  lang === code
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {code === 'vi' ? 'VI' : 'EN'}
+              </button>
+            ))}
+          </div>
           <Link
             to="/"
             onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Trang khách hàng' : undefined}
+            title={collapsed ? t('admin.customerSite') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all h-9',
               collapsed ? 'justify-center px-0' : 'px-3',
             )}
           >
             <Eye className="size-4 shrink-0" />
-            {!collapsed && <span>Trang khách hàng</span>}
+            {!collapsed && <span>{t('admin.customerSite')}</span>}
           </Link>
           <button
             onClick={() => { logoutMut.mutate(); setMobileOpen(false) }}
-            title={collapsed ? 'Đăng xuất' : undefined}
+            title={collapsed ? t('auth.logout') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all h-9 w-full',
               collapsed ? 'justify-center px-0' : 'px-3',
             )}
           >
             <LogOut className="size-4 shrink-0" />
-            {!collapsed && <span>Đăng xuất</span>}
+            {!collapsed && <span>{t('auth.logout')}</span>}
           </button>
         </div>
         {!collapsed && (

@@ -12,6 +12,7 @@
 import { Star, ThumbsUp, Quote, Images } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTimeVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 
 export type Review = {
   id: string
@@ -27,15 +28,16 @@ export type Review = {
   createdAt: string
 }
 
-const TAG_LABELS: Record<string, { label: string; emoji: string }> = {
-  on_time: { label: 'Đúng giờ', emoji: '⏱️' },
-  clean: { label: 'Sạch sẽ', emoji: '✨' },
-  friendly_driver: { label: 'Tài xế thân thiện', emoji: '😊' },
-  comfortable: { label: 'Thoải mái', emoji: '🛋️' },
-  value: { label: 'Đáng đồng tiền', emoji: '💰' },
-  easy_booking: { label: 'Đặt dễ', emoji: '🎟️' },
-  good_wifi: { label: 'Wifi mạnh', emoji: '📶' },
-  safe_drive: { label: 'Lái xe an toàn', emoji: '🛡️' },
+// Map tag slug → i18n labelKey + emoji (label rendered via t()).
+const TAG_LABELS: Record<string, { labelKey: string; emoji: string }> = {
+  on_time: { labelKey: 'bookingHistory.tagOnTime', emoji: '⏱️' },
+  clean: { labelKey: 'bookingHistory.tagClean', emoji: '✨' },
+  friendly_driver: { labelKey: 'bookingHistory.tagFriendlyDriver', emoji: '😊' },
+  comfortable: { labelKey: 'bookingHistory.tagComfortable', emoji: '🛋️' },
+  value: { labelKey: 'reviews.tagValue', emoji: '💰' },
+  easy_booking: { labelKey: 'bookingHistory.tagEasyBooking', emoji: '🎟️' },
+  good_wifi: { labelKey: 'bookingHistory.tagGoodWifi', emoji: '📶' },
+  safe_drive: { labelKey: 'reviews.tagSafeDrive', emoji: '🛡️' },
 }
 
 export function ReviewCard({
@@ -53,6 +55,7 @@ export function ReviewCard({
   markHelpful: (id: string) => void
   openLightbox: (images: string[], idx: number) => void
 }) {
+  const t = useT()
   return (
               <div
                 key={r.id}
@@ -91,11 +94,11 @@ export function ReviewCard({
                     )}
                     {r.tags.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {r.tags.map((t) => {
-                          const tl = TAG_LABELS[t]
+                        {r.tags.map((tag) => {
+                          const tl = TAG_LABELS[tag]
                           return (
-                            <Badge key={t} variant="outline" className="text-[10px] gap-1 bg-slate-50 font-normal">
-                              {tl?.emoji ?? '🏷️'} {tl?.label ?? t}
+                            <Badge key={tag} variant="outline" className="text-[10px] gap-1 bg-slate-50 font-normal">
+                              {tl?.emoji ?? '🏷️'} {tl ? t(tl.labelKey) : tag}
                             </Badge>
                           )
                         })}
@@ -113,7 +116,7 @@ export function ReviewCard({
                           <span className="inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] text-white" style={{ background: accentColor }}>
                             {brandName.slice(0, 1)}
                           </span>
-                          Phản hồi từ {brandName}
+                          {t('reviews.replyFrom', { brand: brandName })}
                         </div>
                         <p className="text-xs text-muted-foreground">{r.reply}</p>
                       </div>
@@ -126,7 +129,7 @@ export function ReviewCard({
                           }`}
                       >
                         <ThumbsUp className={`h-3 w-3 ${helpfulMap[r.id] ? 'fill-blue-100' : ''}`} />
-                        Hữu ích ({r.helpfulCount})
+                        {t('reviews.helpfulCount', { count: r.helpfulCount })}
                       </button>
                     </div>
                   </div>
@@ -137,6 +140,7 @@ export function ReviewCard({
 
 // ── Photo grid inside a review (max 4 thumbnails,"+N more"overlay) ──
 function ReviewPhotoGrid({ photos, onOpen }: { photos: string[]; onOpen: (i: number) => void }) {
+  const t = useT()
   const visible = photos.slice(0, 4)
   const hiddenCount = photos.length - visible.length
   return (
@@ -146,7 +150,7 @@ function ReviewPhotoGrid({ photos, onOpen }: { photos: string[]; onOpen: (i: num
         className="inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-800 mb-2"
       >
         <Images className="h-3.5 w-3.5" />
-        Xem ảnh ({photos.length})
+        {t('reviews.viewPhotos', { count: photos.length })}
       </button>
       <div className="grid grid-cols-4 gap-1.5 max-w-70">
         {visible.map((src, i) => (
@@ -155,7 +159,7 @@ function ReviewPhotoGrid({ photos, onOpen }: { photos: string[]; onOpen: (i: num
             onClick={() => onOpen(i)}
             className="relative aspect-square rounded-md overflow-hidden ring-1 ring-black/5 hover:ring-2 hover:ring-blue-400 transition-all group"
           >
-            <img src={src} alt={`Ảnh ${i + 1}`} className="w-full h-full object-cover transition-transform" loading="lazy" decoding="async" />
+            <img src={src} alt={t('reviews.photoAlt', { index: i + 1 })} className="w-full h-full object-cover transition-transform" loading="lazy" decoding="async" />
             {i === 3 && hiddenCount > 0 && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white text-xs font-bold">
                 +{hiddenCount}

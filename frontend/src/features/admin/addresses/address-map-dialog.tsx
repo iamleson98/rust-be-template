@@ -32,6 +32,7 @@ import { Label } from '@/components/ui/label'
 import { MapPin, Loader2, Plus, Search, X, Crosshair, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCreateAdminAddress, usePlaceSearch } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { reverseGeocode } from '@/features/map/leaflet-map'
 import type { AdminAddressOut, PlaceSearchHit } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
@@ -80,6 +81,7 @@ const EMPTY_FORM: FormState = {
 }
 
 export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCreated }: Props) {
+  const t = useT()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [picked, setPicked] = useState<{ name: string; lat: number; lon: number } | null>(null)
   const [reverseLoading, setReverseLoading] = useState(false)
@@ -158,7 +160,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   /** Map click → exact lat/lon + reverse-geocoded display name (never moves the pin). */
   const handleMapClick = useCallback(async (lat: number, lon: number) => {
     setForm((f) => ({ ...f, lat, lon }))
-    setPicked({ name: 'Đang tra cứu địa điểm…', lat, lon })
+    setPicked({ name: t('adminAddresses.lookingUp'), lat, lon })
     setReverseLoading(true)
     const place = await reverseGeocode(lat, lon)
     setReverseLoading(false)
@@ -170,7 +172,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       name: f.name.trim() ? f.name : place.name,
       province: f.province.trim() ? f.province : (place.province ?? ''),
     }))
-  }, [])
+  }, [t])
 
   /** Search result click → drop the marker on the result + prefill the form. */
   const handleSearchSelect = useCallback((hit: PlaceSearchHit) => {
@@ -215,15 +217,15 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
 
   const handleSave = async () => {
     if (!brandId) {
-      toast.error('Chưa chọn hãng xe cho địa điểm')
+      toast.error(t('adminAddresses.noBrandForAddress'))
       return
     }
     if (!form.name.trim()) {
-      toast.error('Vui lòng nhập tên địa điểm')
+      toast.error(t('adminAddresses.nameRequired'))
       return
     }
     if (form.lat == null || form.lon == null) {
-      toast.error('Vui lòng chọn vị trí trên bản đồ hoặc từ kết quả tìm kiếm')
+      toast.error(t('adminAddresses.positionRequired'))
       return
     }
     try {
@@ -246,7 +248,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       })
       const newId: string | undefined = res?.id ?? res?.data?.id
       if (!newId) throw new Error('missing id in response')
-      toast.success('Đã tạo địa điểm mới', { description: form.name.trim() })
+      toast.success(t('adminAddresses.created'), { description: form.name.trim() })
       onCreated({
         id: newId,
         brandId,
@@ -262,8 +264,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
       })
       onOpenChange(false)
     } catch (e) {
-      toast.error('Không thể tạo địa điểm', {
-        description: getErrorMessage(e, 'Vui lòng thử lại'),
+      toast.error(t('adminAddresses.createFailed'), {
+        description: getErrorMessage(e, t('adminAddresses.tryAgain')),
       })
     }
   }
@@ -274,7 +276,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         <DialogHeader className="px-5 py-4 border-b bg-white">
           <DialogTitle className="flex items-center gap-2 text-base">
             <MapPin className="h-4 w-4 text-blue-600" />
-            Tạo địa điểm mới
+            {t('adminAddresses.createTitle')}
             {brandName ? (
               <span className="ml-1 text-xs font-normal text-muted-foreground">
                 · {brandName}
@@ -282,7 +284,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             ) : null}
           </DialogTitle>
           <DialogDescription>
-            Tìm kiếm địa điểm, hoặc chạm vào bản đồ để chọn toạ độ chính xác.
+            {t('adminAddresses.createDesc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -291,27 +293,27 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           <div className="p-5 space-y-4 md:border-r">
             <div className="grid gap-1.5">
               <Label htmlFor="addr-name">
-                Tên địa điểm <span className="text-destructive">*</span>
+                {t('adminAddresses.name')} <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="addr-name"
                 value={form.name}
                 onChange={(e) => update('name', e.target.value)}
-                placeholder="VD: Bến xe Miền Đông"
+                placeholder={t('adminAddresses.namePh')}
               />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="addr-detail">Địa chỉ chi tiết</Label>
+              <Label htmlFor="addr-detail">{t('adminAddresses.detailLabel')}</Label>
               <Input
                 id="addr-detail"
                 value={form.address}
                 onChange={(e) => update('address', e.target.value)}
-                placeholder="Số nhà, đường…"
+                placeholder={t('adminAddresses.detailPh')}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="addr-province">Tỉnh / Thành phố</Label>
+                <Label htmlFor="addr-province">{t('adminAddresses.provinceLabel')}</Label>
                 <Input
                   id="addr-province"
                   value={form.province}
@@ -320,7 +322,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="addr-district">Quận / Huyện</Label>
+                <Label htmlFor="addr-district">{t('adminAddresses.districtLabel')}</Label>
                 <Input
                   id="addr-district"
                   value={form.district}
@@ -330,7 +332,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="addr-ward">Phường / Xã</Label>
+              <Label htmlFor="addr-ward">{t('adminAddresses.wardLabel')}</Label>
               <Input
                 id="addr-ward"
                 value={form.ward}
@@ -342,22 +344,22 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             {/* Coordinates — filled by the map / search; read-only UI. */}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label>Vĩ độ (lat)</Label>
+                <Label>{t('adminAddresses.latLabel')}</Label>
                 <Input
                   readOnly
                   tabIndex={-1}
                   value={form.lat != null ? form.lat.toFixed(6) : ''}
-                  placeholder="Tự động từ bản đồ"
+                  placeholder={t('adminAddresses.autoFromMap')}
                   className="font-mono text-xs bg-muted/40"
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label>Kinh độ (lon)</Label>
+                <Label>{t('adminAddresses.lonLabel')}</Label>
                 <Input
                   readOnly
                   tabIndex={-1}
                   value={form.lon != null ? form.lon.toFixed(6) : ''}
-                  placeholder="Tự động từ bản đồ"
+                  placeholder={t('adminAddresses.autoFromMap')}
                   className="font-mono text-xs bg-muted/40"
                 />
               </div>
@@ -385,7 +387,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   value={query}
                   onChange={(e) => onInput(e.target.value)}
                   onFocus={() => setSearchOpen(true)}
-                  placeholder="Tìm thành phố, bến xe, địa danh…"
+                  placeholder={t('map.searchField')}
                   className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
                 />
                 {searchLoading ? (
@@ -393,7 +395,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 ) : query ? (
                   <button
                     type="button"
-                    aria-label="Xoá tìm kiếm"
+                    aria-label={t('map.clearSearch')}
                     onClick={() => {
                       setQuery('')
                       setDebounced('')
@@ -409,7 +411,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                 <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border border-slate-200 bg-white">
                   {hits.length === 0 && !searchLoading ? (
                     <div className="px-3 py-2.5 text-xs text-muted-foreground">
-                      Không tìm thấy địa điểm phù hợp
+                      {t('map.noResults')}
                     </div>
                   ) : (
                     <ul>
@@ -441,8 +443,8 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
               type="button"
               onClick={handleMyLocation}
               className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-              title="Vị trí của tôi"
-              aria-label="Vị trí của tôi"
+              title={t('map.myLocation')}
+              aria-label={t('map.myLocation')}
             >
               <Crosshair className="h-5 w-5" />
             </button>
@@ -451,7 +453,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             {!picked && (
               <div className="pointer-events-none absolute bottom-14 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white">
                 <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
-                Chạm vào bản đồ để chọn vị trí
+                {t('map.clickToPick')}
               </div>
             )}
 
@@ -478,7 +480,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
 
         <DialogFooter className="px-5 py-4 border-t bg-white">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
-            Huỷ
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSave}
@@ -487,11 +489,11 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           >
             {createMutation.isPending ? (
               <>
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
               </>
             ) : (
               <>
-                <Plus className="h-4 w-4 mr-1.5" /> Tạo địa điểm
+                <Plus className="h-4 w-4 mr-1.5" /> {t('adminAddresses.createBtn')}
               </>
             )}
           </Button>

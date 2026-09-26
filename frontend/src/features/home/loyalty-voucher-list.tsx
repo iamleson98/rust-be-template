@@ -4,6 +4,7 @@
 
 import { Button } from '@/components/ui/button'
 import { formatCurrency, type Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { ArrowRight, Zap, Ticket } from 'lucide-react'
 import { VOUCHERS, type Voucher } from './loyalty-data'
 
@@ -16,11 +17,12 @@ export function LoyaltyVoucherList({
   currency: Currency
   handleRedeem: (voucher: Voucher) => void
 }) {
+  const t = useT()
   return (
     <div>
       <h3 className="font-semibold text-sm mb-2 flex items-center gap-1.5">
         <Ticket className="h-4 w-4 text-blue-600" />
-        Đổi điểm
+        {t('home.redeemPoints')}
       </h3>
       <div className="space-y-2">
         {VOUCHERS.map((v) => {
@@ -32,10 +34,10 @@ export function LoyaltyVoucherList({
                 }`}
             >
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm">Voucher {formatCurrency(v.value, currency)}</div>
+                <div className="font-medium text-sm">{t('home.voucherWord')} {formatCurrency(v.value, currency)}</div>
                 <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                   <Zap className="h-3 w-3" />
-                  {v.points.toLocaleString('vi-VN')} điểm
+                  {v.points.toLocaleString('vi-VN')} {t('home.pointsUnit')}
                 </div>
               </div>
               <Button
@@ -46,7 +48,7 @@ export function LoyaltyVoucherList({
                 className={`gap-1 text-xs shrink-0 ${canRedeem ? 'bg-blue-600 hover:bg-blue-700 text-white' : ''
                   }`}
               >
-                Đổi
+                {t('home.redeem')}
                 <ArrowRight className="h-3 w-3" />
               </Button>
             </div>

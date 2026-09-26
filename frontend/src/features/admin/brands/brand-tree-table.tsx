@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useT } from '@/lib/i18n'
 import { useAdminRoutes, useAdminSchedules } from '@/lib/queries'
 import { formatVND } from '@/lib/types'
 import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
@@ -88,9 +89,10 @@ export function BrandTreeTable({
   hasSearch,
   hasLocationFilter,
 }: BrandTreeTableProps) {
+  const t = useT()
   if (brandsLoading) {
     return (
-      <div className="overflow-hidden rounded-lg border bg-card" role="status" aria-busy="true" aria-label="Đang tải hãng xe">
+      <div className="overflow-hidden rounded-lg border bg-card" role="status" aria-busy="true" aria-label={t('adminBrands.loadingBrands')}>
         <div className="flex items-center gap-4 border-b bg-muted/40 px-4 py-3">
           <Shimmer className="h-4 w-36" />
           <Shimmer className="h-4 w-24" />
@@ -120,12 +122,14 @@ export function BrandTreeTable({
             <Building2 className="size-5" aria-hidden />
           </div>
           <p className="text-sm font-medium">
-            {hasSearch || hasLocationFilter ? 'Không có hãng xe khớp bộ lọc' : 'Chưa có hãng xe nào'}
+            {hasSearch || hasLocationFilter
+              ? t('adminBrands.emptyFiltered')
+              : t('brands.emptyAll')}
           </p>
           <p className="max-w-sm text-xs text-muted-foreground">
             {hasSearch || hasLocationFilter
-              ? 'Thử đổi từ khoá hoặc xoá bộ lọc điểm đi/điểm đến để xem tất cả hãng.'
-              : 'Thêm hãng xe đầu tiên để bắt đầu tạo tuyến đường và lịch trình.'}
+              ? t('adminBrands.emptyFilteredHint')
+              : t('adminBrands.emptyAllHint')}
           </p>
         </div>
       </div>
@@ -140,22 +144,22 @@ export function BrandTreeTable({
             <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
               <TableHead scope="col" className="h-10 w-16 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground" />
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Tên
+                {t('common.name')}
               </TableHead>
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Chi tiết
+                {t('common.details')}
               </TableHead>
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Lịch chạy
+                {t('adminBrands.colSchedules')}
               </TableHead>
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Giá vé
+                {t('search.sort.price')}
               </TableHead>
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Điểm đón → trả
+                {t('adminBrands.colPoints')}
               </TableHead>
               <TableHead scope="col" className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Thao tác
+                {t('common.actions')}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -201,6 +205,7 @@ function BrandNode({
   filteredRoutes: AdminRouteOut[] | null
   callbacks: BrandTreeCallbacks
 }) {
+  const t = useT()
   // Smart filter active → the parent already fetched the matching
   // routes across brands (one query); slice this brand's share and
   // never fetch again. Otherwise fetch lazily on expansion.
@@ -223,7 +228,7 @@ function BrandNode({
         className={cn('bg-blue-50/40 hover:bg-blue-50/60 dark:bg-blue-950/20', expanded && 'border-b-0')}
       >
         <TableCell className="px-3 py-3">
-          <Expander expanded={expandable && expanded} disabled={!expandable} onToggle={onToggle} label={`Mở rộng tuyến của ${brand.name}`} />
+          <Expander expanded={expandable && expanded} disabled={!expandable} onToggle={onToggle} label={t('brands.expandRoutes', { name: brand.name })} />
         </TableCell>
         <TableCell className="px-3 py-3">
           <div className="flex items-center gap-2.5">
@@ -248,26 +253,26 @@ function BrandNode({
         <TableCell className="px-3 py-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="gap-1 text-[11px]">
-              <RouteIcon className="h-3 w-3" aria-hidden /> {brand.routeCount} tuyến
+              <RouteIcon className="h-3 w-3" aria-hidden /> {t('brands.routesCount', { count: brand.routeCount })}
             </Badge>
-            <Badge variant="secondary" className="text-[11px]">{brand.layoutCount} sơ đồ ghế</Badge>
+            <Badge variant="secondary" className="text-[11px]">{t('brands.layoutsCount', { count: brand.layoutCount })}</Badge>
             {brand.rating != null && brand.rating > 0 && (
               <Badge variant="outline" className="text-[11px]">★ {brand.rating.toFixed(1)}</Badge>
             )}
           </div>
         </TableCell>
-        <TableCell className="px-3 py-3 text-xs text-muted-foreground">{brand.totalTrips} chuyến</TableCell>
+        <TableCell className="px-3 py-3 text-xs text-muted-foreground">{t('brands.tripsCount', { count: brand.totalTrips })}</TableCell>
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3">
           <RowActions>
-            <IconAction label={`Thêm tuyến cho ${brand.name}`} onClick={() => callbacks.onAddRoute(brand)}>
+            <IconAction label={t('brands.addRouteFor', { name: brand.name })} onClick={() => callbacks.onAddRoute(brand)}>
               <Plus className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={`Sửa hãng ${brand.name}`} onClick={() => callbacks.onEditBrand(brand)}>
+            <IconAction label={t('brands.editBrand', { name: brand.name })} onClick={() => callbacks.onEditBrand(brand)}>
               <Pencil className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={`Xoá hãng ${brand.name}`} danger onClick={() => callbacks.onDeleteBrand(brand)}>
+            <IconAction label={t('brands.deleteBrand', { name: brand.name })} danger onClick={() => callbacks.onDeleteBrand(brand)}>
               <Trash2 className="h-3.5 w-3.5" />
             </IconAction>
           </RowActions>
@@ -280,7 +285,7 @@ function BrandNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center gap-2 border-l-2 border-blue-200 py-3 pl-10 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> Đang tải tuyến đường…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> {t('adminBrands.loadingRoutes')}
                 </div>
               </TableCell>
             </TableRow>
@@ -288,9 +293,9 @@ function BrandNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center justify-between gap-2 border-l-2 border-blue-200 py-2.5 pl-10 pr-3">
-                  <span className="text-xs text-muted-foreground">Hãng chưa có tuyến đường nào.</span>
+                  <span className="text-xs text-muted-foreground">{t('adminBrands.noRoutesYet')}</span>
                   <Button size="sm" variant="outline" className="h-7" onClick={() => callbacks.onAddRoute(brand)}>
-                    <Plus className="h-3.5 w-3.5" /> Thêm tuyến
+                    <Plus className="h-3.5 w-3.5" /> {t('adminRoutes.addRoute')}
                   </Button>
                 </div>
               </TableCell>
@@ -331,6 +336,7 @@ function RouteNode({
   scheduleSort: ScheduleSort | null
   callbacks: BrandTreeCallbacks
 }) {
+  const t = useT()
   const schedulesQuery = useAdminSchedules(expanded ? route.id : undefined)
   const sorted = useMemo(() => {
     const schedules = (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
@@ -348,7 +354,7 @@ function RouteNode({
             expanded={expanded}
             disabled={route.scheduleCount === 0}
             onToggle={onToggle}
-            label={`Mở rộng lịch trình của ${route.name}`}
+            label={t('adminBrands.expandSchedules', { name: route.name })}
             small
           />
         </TableCell>
@@ -362,27 +368,27 @@ function RouteNode({
         <TableCell className="px-3 py-2.5 text-xs">{routeDirection(route)}</TableCell>
         <TableCell className="px-3 py-2.5">
           <Badge variant="secondary" className="gap-1 text-[11px]">
-            <Clock className="h-3 w-3" aria-hidden /> {route.scheduleCount} lịch trình
+            <Clock className="h-3 w-3" aria-hidden /> {t('brands.schedulesCount', { count: route.scheduleCount })}
           </Badge>
         </TableCell>
         <TableCell className="px-3 py-2.5" />
         <TableCell className="px-3 py-2.5">
           <Badge variant="outline" className="gap-1 text-[11px] text-muted-foreground">
-            <MapPin className="h-3 w-3" aria-hidden /> {route.pickupPointCount} điểm
+            <MapPin className="h-3 w-3" aria-hidden /> {t('brands.pointsCount', { count: route.pickupPointCount })}
           </Badge>
         </TableCell>
         <TableCell className="px-3 py-2.5">
           <RowActions>
-            <IconAction label={`Thêm lịch trình cho ${route.name}`} onClick={() => callbacks.onAddSchedule(route, brand)}>
+            <IconAction label={t('brands.addScheduleFor', { name: route.name })} onClick={() => callbacks.onAddSchedule(route, brand)}>
               <Plus className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={`Điểm đón/trả của ${route.name}`} onClick={() => callbacks.onPickupPoints(route)}>
+            <IconAction label={t('adminBrands.pointsOfRoute', { name: route.name })} onClick={() => callbacks.onPickupPoints(route)}>
               <MapPin className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={`Sửa tuyến ${route.name}`} onClick={() => callbacks.onEditRoute(route, brand)}>
+            <IconAction label={t('brands.editRoute', { name: route.name })} onClick={() => callbacks.onEditRoute(route, brand)}>
               <Pencil className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={`Xoá tuyến ${route.name}`} danger onClick={() => callbacks.onDeleteRoute(route)}>
+            <IconAction label={t('brands.deleteRoute', { name: route.name })} danger onClick={() => callbacks.onDeleteRoute(route)}>
               <Trash2 className="h-3.5 w-3.5" />
             </IconAction>
           </RowActions>
@@ -395,7 +401,7 @@ function RouteNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center gap-2 border-l-2 border-slate-300 py-2.5 pl-16 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> Đang tải lịch trình…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> {t('adminBrands.loadingSchedules')}
                 </div>
               </TableCell>
             </TableRow>
@@ -403,9 +409,9 @@ function RouteNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center justify-between gap-2 border-l-2 border-slate-300 py-2 pl-16 pr-3">
-                  <span className="text-xs text-muted-foreground">Tuyến chưa có lịch trình nào.</span>
+                  <span className="text-xs text-muted-foreground">{t('adminBrands.noSchedulesYet')}</span>
                   <Button size="sm" variant="outline" className="h-7" onClick={() => callbacks.onAddSchedule(route, brand)}>
-                    <Plus className="h-3.5 w-3.5" /> Thêm lịch trình
+                    <Plus className="h-3.5 w-3.5" /> {t('adminBrands.addSchedule')}
                   </Button>
                 </div>
               </TableCell>
@@ -440,6 +446,7 @@ function ScheduleRow({
   brand: AdminBrandOut
   callbacks: BrandTreeCallbacks
 }) {
+  const t = useT()
   const chips = dayChips(schedule.daysOfWeek)
   return (
     <TableRow
@@ -478,7 +485,7 @@ function ScheduleRow({
       <TableCell className="px-3 py-2 text-right">
         <div className="font-semibold tabular-nums">{formatVND(schedule.basePriceAdult)}</div>
         {schedule.basePriceChild != null && schedule.basePriceChild > 0 && (
-          <div className="text-[11px] text-muted-foreground">Trẻ em: {formatVND(schedule.basePriceChild)}</div>
+          <div className="text-[11px] text-muted-foreground">{t('adminBrands.childPrice', { price: formatVND(schedule.basePriceChild) })}</div>
         )}
       </TableCell>
       <TableCell className="px-3 py-2">
@@ -489,13 +496,13 @@ function ScheduleRow({
       <TableCell className="px-3 py-2">
         <RowActions>
           <IconAction
-            label={`Sửa lịch trình ${schedule.departureTime} của ${route.name}`}
+            label={t('adminBrands.editScheduleOf', { time: schedule.departureTime, name: route.name })}
             onClick={() => callbacks.onEditSchedule(schedule, route, brand)}
           >
             <Pencil className="h-3.5 w-3.5" />
           </IconAction>
           <IconAction
-            label={`Xoá lịch trình ${schedule.departureTime} của ${route.name}`}
+            label={t('adminBrands.deleteScheduleOf', { time: schedule.departureTime, name: route.name })}
             danger
             onClick={() => callbacks.onDeleteSchedule(schedule, route)}
           >

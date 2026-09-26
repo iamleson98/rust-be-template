@@ -16,6 +16,7 @@ import {
   MessageSquareQuote,
   CheckCircle2,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { renderStars, type BrandDetail } from './brand-detail-helpers'
 import { StatCard } from './brand-dialog-parts'
 
@@ -36,6 +37,7 @@ export function BrandDialogHeader({
   reviewCount: number
   routesCount: number
 }) {
+  const t = useT()
   return (
     <>
       <div className="relative overflow-hidden">
@@ -81,12 +83,12 @@ export function BrandDialogHeader({
                     variant="outline"
                   >
                     <CheckCircle2 className="h-3 w-3" />
-                    Đang hoạt động
+                    {t('brandDetail.activeBadge')}
                   </Badge>
                 )}
               </div>
               <DialogDescription className="sr-only">
-                Chi tiết hãng xe {brand.name}
+                {t('brandDetail.dialogDescription', { brand: brand.name })}
               </DialogDescription>
 
               <div className="flex items-center gap-3 mt-1.5 text-sm flex-wrap">
@@ -98,7 +100,7 @@ export function BrandDialogHeader({
                     {brand.rating.toFixed(1)}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    ({reviewCount} đánh giá)
+                    ({t('reviews.countLabel', { count: reviewCount })})
                   </span>
                 </span>
                 {brand.contactPhone && (
@@ -129,25 +131,25 @@ export function BrandDialogHeader({
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 px-5 py-3 bg-slate-50/70 border-b">
         <StatCard
           icon={<RouteIcon className="h-4 w-4" />}
-          label="Tuyến đường"
+          label={t('admin.routes')}
           value={routesCount}
           color={accent}
         />
         <StatCard
           icon={<Bus className="h-4 w-4" />}
-          label="Chuyến / ngày"
+          label={t('brandDetail.tripsPerDay')}
           value={brand.totalTrips ?? 0}
           color={accent}
         />
         <StatCard
           icon={<Star className="h-4 w-4" />}
-          label="Đánh giá TB"
+          label={t('brandDetail.avgRatingLabel')}
           value={brand.rating.toFixed(1)}
           color="#f59e0b"
         />
         <StatCard
           icon={<MessageSquareQuote className="h-4 w-4" />}
-          label="Lượt đánh giá"
+          label={t('brandDetail.reviewCountLabel')}
           value={reviewCount}
           color="#2563eb"
         />

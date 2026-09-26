@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { formatTimeVN } from '@/lib/types'
 import { GitCompare, Sparkles, Share2 } from 'lucide-react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
 import { tripDetailOptions } from '@/lib/api/@tanstack/react-query.gen'
@@ -56,6 +57,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
   })))
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const t = useT()
   const inCompare = compareList.includes(trip.tripId)
 
   // Prefetch trip detail on hover so clicking feels instant — the dialog
@@ -107,11 +109,11 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
   const handleCompareToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (!inCompare && compareList.length >= 3) {
-      toast.info('Chỉ so sánh được tối đa 3 chuyến cùng lúc')
+      toast.info(t('searchPage.compareMax'))
       return
     }
     toggleCompare(trip.tripId)
-    toast.success(inCompare ? 'Đã bỏ khỏi danh sách so sánh' : 'Đã thêm vào danh sách so sánh')
+    toast.success(inCompare ? t('searchPage.compareRemoved') : t('searchPage.compareAdded'))
   }
 
   const handleBrandClick = (e: React.MouseEvent) => {
@@ -156,7 +158,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
           <div className="absolute -top-2 left-3 z-20">
             <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold  hover:bg-amber-500">
               <Sparkles className="h-3 w-3" />
-              Phù hợp nhất
+              {t('searchPage.recommended')}
             </Badge>
           </div>
         )}
@@ -165,7 +167,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
         <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
           <button
             onClick={handleCompareToggle}
-            title="Thêm vào so sánh"
+            title={t('searchPage.addToCompare')}
             className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
               ? 'bg-violet-600 text-white '
               : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200 '
@@ -175,7 +177,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
           </button>
           <button
             onClick={handleShare}
-            title="Chia sẻ chuyến"
+            title={t('searchPage.shareTrip')}
             className="h-7 w-7 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
           >
             <Share2 className="h-3.5 w-3.5" />
@@ -208,7 +210,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                   {overnight && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="bg-white px-1.5 text-[10px] text-amber-500 font-semibold whitespace-nowrap">
-                        +1 ngày
+                        {t('searchPage.plusOneDay')}
                       </div>
                     </div>
                   )}

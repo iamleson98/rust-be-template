@@ -17,6 +17,14 @@
 import { z } from 'zod'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+/* Error messages use Zod's functional `{ error: () => … }` form so they
+ * resolve the CURRENT app language at validation time (same pattern as
+ * the feature-level schemas, e.g. booking-form.tsx). */
+const tSync = (key: string, params?: Record<string, string | number>) =>
+  translate(useApp.getState().lang, key, params)
 
 /* ──────────────────────────────────────────────────────────────
  *  Shared zod schemas — reused across booking / auth / admin forms
@@ -26,22 +34,22 @@ import { cn } from '@/lib/utils'
 export const phoneSchema = z
   .string()
   .trim()
-  .regex(/^0\d{8,10}$/, 'Số điện thoại không hợp lệ (vd: 0912345678)')
+  .regex(/^0\d{8,10}$/, { error: () => tSync('validation.phone') })
 
 /** Email — zod email() with a friendly Vietnamese message. */
 export const emailSchema = z
   .string()
   .trim()
-  .min(1, 'Vui lòng nhập email')
-  .email('Email không hợp lệ')
+  .min(1, { error: () => tSync('validation.emailRequired') })
+  .email({ error: () => tSync('validation.email') })
 
 /** Booking code — 6+ alphanumeric chars, case-insensitive. */
 export const bookingCodeSchema = z
   .string()
   .trim()
-  .min(4, 'Mã vé quá ngắn')
-  .max(24, 'Mã vé quá dài')
-  .regex(/^[A-Z0-9-]+$/i, 'Mã vé chỉ chứa chữ cái và số')
+  .min(4, { error: () => tSync('validation.bookingCodeMin') })
+  .max(24, { error: () => tSync('validation.bookingCodeMax') })
+  .regex(/^[A-Z0-9-]+$/i, { error: () => tSync('validation.bookingCode') })
 
 /**
  * Passenger / customer full name — at least 2 chars, max 255 (matches
@@ -54,20 +62,25 @@ export const bookingCodeSchema = z
 export const fullNameSchema = z
   .string()
   .trim()
-  .min(2, 'Họ tên cần ít nhất 2 ký tự')
-  .max(255, 'Họ tên quá dài')
+  .min(2, { error: () => tSync('validation.nameMin') })
+  .max(255, { error: () => tSync('validation.nameMax') })
 
 /** Non-empty trimmed string with a custom label in the error message. */
-export const requiredText = (label = 'Trường này') =>
-  z.string().trim().min(1, `${label} là bắt buộc`)
+export const requiredText = (labelKey?: string) =>
+  z.string().trim().min(1, {
+    error: () =>
+      labelKey === undefined
+        ? tSync('validation.required')
+        : tSync('validation.requiredLabel', { label: tSync(labelKey) }),
+  })
 
 /** Positive integer ≥ min. */
 export const positiveInt = (min = 1) =>
-  z.coerce.number().int().min(min, `Phải lớn hơn hoặc bằng ${min}`)
+  z.coerce.number().int().min(min, { error: () => tSync('validation.minNumber', { min }) })
 
 /** Optional string that defaults to empty when omitted. */
 export const optionalText = (max = 500) =>
-  z.string().trim().max(max, `Tối đa ${max} ký tự`).optional().or(z.literal(''))
+  z.string().trim().max(max, { error: () => tSync('validation.maxChars', { max }) }).optional().or(z.literal(''))
 
 /* ──────────────────────────────────────────────────────────────
  *  FieldLabel — shared required-field marker

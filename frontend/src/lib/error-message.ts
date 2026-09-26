@@ -12,6 +12,9 @@
  *  - plain objects with a `message` field
  *  - strings / numbers                   → String(value)
  */
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
 export function getErrorMessage(e: unknown, fallback?: string): string {
   if (e instanceof Error && e.message) return e.message
   if (typeof e === 'object' && e !== null) {
@@ -22,5 +25,7 @@ export function getErrorMessage(e: unknown, fallback?: string): string {
   }
   if (typeof e === 'string' && e) return e
   if (typeof e === 'number' && Number.isFinite(e)) return String(e)
-  return fallback ?? 'Đã xảy ra lỗi không xác định'
+  // Fallback follows the app language (vi default) — same string in
+  // VI mode, English when the user switched.
+  return fallback ?? translate(useApp.getState().lang, 'common.errorOccurred')
 }

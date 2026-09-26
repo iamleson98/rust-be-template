@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react'
+import { useT } from '@/lib/i18n'
 import { formatNum } from '@/lib/types'
 
 export type DonutSegment = {
@@ -25,6 +26,7 @@ export function SegmentationDonut({
   segments: DonutSegment[]
   total: number
 }) {
+  const t = useT()
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const radius = 60
   const cx = 80
@@ -81,7 +83,7 @@ export function SegmentationDonut({
           ) : (
             <>
               <div className="text-xl font-extrabold">{formatNum(total)}</div>
-              <div className="text-[10px] text-muted-foreground">Tổng</div>
+              <div className="text-[10px] text-muted-foreground">{t('adminDash.total')}</div>
             </>
           )}
         </div>

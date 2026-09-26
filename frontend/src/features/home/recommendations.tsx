@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/error-state'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import {
   Sparkles,
   ArrowRight,
@@ -26,11 +27,12 @@ import { buildSearchInput } from '@/lib/search-params'
 const REASONS = ['recent', 'wishlist', 'booking', 'trending'] as const
 type Reason = (typeof REASONS)[number]
 
+// REASON_LABELS values are i18n keys (home.reason*) — rendered via t().
 const REASON_LABELS: Record<Reason, string> = {
-  recent: 'Dựa trên hoạt động',
-  wishlist: 'Theo danh sách yêu thích',
-  booking: 'Theo chuyến đã đặt',
-  trending: 'Đang phổ biến',
+  recent: 'home.reasonRecent',
+  wishlist: 'home.reasonWishlist',
+  booking: 'home.reasonBooking',
+  trending: 'home.reasonTrending',
 }
 
 const REASON_STYLES: Record<
@@ -74,6 +76,7 @@ function reasonFor(tripId: string): Reason {
 export function Recommendations() {
   const { user, guestPhone, recentlyViewed, currency } = useApp()
   const navigate = useNavigate()
+  const t = useT()
 
   // ── Data: TanStack Query ─────────────────────────────────────────
   // The recommendations endpoint takes no query params — the backend uses
@@ -106,13 +109,13 @@ export function Recommendations() {
             <Sparkles className="h-4.5 w-4.5" />
           </div>
           <div>
-            <h2 className="font-bold text-lg md:text-xl tracking-tight">Gợi ý cho bạn</h2>
-            <p className="text-xs text-muted-foreground">Đang phân tích sở thích của bạn...</p>
+            <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recommendationsTitle')}</h2>
+            <p className="text-xs text-muted-foreground">{t('home.recommendationsAnalyzing')}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-muted-foreground text-sm py-8">
           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-          Đang tải gợi ý chuyến đi...
+          {t('home.recommendationsLoading')}
         </div>
       </section>
     )
@@ -122,7 +125,7 @@ export function Recommendations() {
     return (
       <section className="container mx-auto px-4 py-8">
         <ErrorState
-          description="Không thể tải gợi ý chuyến đi. Vui lòng thử lại."
+          description={t('home.recommendationsError')}
           onRetry={() => refetch()}
         />
       </section>
@@ -141,11 +144,11 @@ export function Recommendations() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <div>
-                <h2 className="font-bold text-lg md:text-xl tracking-tight">Gợi ý cho bạn</h2>
+                <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recommendationsTitle')}</h2>
                 <p className="text-xs text-muted-foreground">
                   {user
-                    ? `Cá nhân hoá theo hoạt động của ${user.name}`
-                    : 'Dựa trên tuyến phổ biến — đăng nhập để nhận gợi ý chính xác hơn'}
+                    ? t('home.recommendationsPersonalized', { name: user.name })
+                    : t('home.recommendationsGuest')}
                 </p>
               </div>
             </div>
@@ -160,7 +163,7 @@ export function Recommendations() {
                 })
               }
             >
-              Tất cả chuyến
+              {t('home.allTrips')}
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -184,7 +187,7 @@ export function Recommendations() {
                       <div className="flex items-center justify-between">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badgeBg} ${style.badgeText}`}>
                           <ReasonIcon className="h-3 w-3" />
-                          {REASON_LABELS[reason]}
+                          {t(REASON_LABELS[reason])}
                         </span>
                         <span className="text-[10px] text-muted-foreground inline-flex items-center gap-0.5">
                           <Bus className="h-3 w-3" style={{ color: rec.brandAccent }} />
@@ -196,14 +199,14 @@ export function Recommendations() {
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base truncate">{rec.fromName}</div>
-                          <div className="text-[10px] text-muted-foreground">Điểm đi</div>
+                          <div className="text-[10px] text-muted-foreground">{t('search.from')}</div>
                         </div>
                         <div className={`shrink-0 h-8 w-8 rounded-full bg-linear-to-br ${style.gradient} text-white flex items-center justify-center`}>
                           <ArrowRight className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1 text-right">
                           <div className="font-bold text-base truncate">{rec.toName}</div>
-                          <div className="text-[10px] text-muted-foreground">Điểm đến</div>
+                          <div className="text-[10px] text-muted-foreground">{t('search.to')}</div>
                         </div>
                       </div>
 
@@ -215,7 +218,7 @@ export function Recommendations() {
                       {/* Price + CTA */}
                       <div className="flex items-end justify-between gap-2 mt-auto pt-2">
                         <div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Giá từ</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('common.fromPrice')}</div>
                           <div className="text-base font-extrabold text-blue-700">
                             {formatCurrency(rec.minPrice, currency)}
                           </div>
@@ -225,7 +228,7 @@ export function Recommendations() {
                           onClick={() => handleView(rec)}
                           className={`gap-1 bg-linear-to-r ${style.gradient} text-white hover:opacity-90`}
                         >
-                          Xem chuyến
+                          {t('home.viewTrip')}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -239,7 +242,7 @@ export function Recommendations() {
           {/* Hint to scroll horizontally on mobile */}
           <div className="md:hidden mt-2 flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
             <ChevronRight className="h-3 w-3" />
-            Vuốt để xem thêm gợi ý
+            {t('home.swipeForMore')}
           </div>
         </div>
       </div>

@@ -11,11 +11,12 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
+import { useT } from '@/lib/i18n'
 import type { FeedbackValues } from './feedback-schema'
 
 const TAG_OPTIONS = Object.entries(REVIEW_TAG_LABELS).map(([key, v]) => ({
   key,
-  label: v.label,
+  labelKey: v.labelKey,
   emoji: v.emoji,
 }))
 
@@ -24,6 +25,7 @@ export function FeedbackTagPickerField({
 }: {
   form: UseFormReturn<FeedbackValues>
 }) {
+  const t = useT()
   return (
             <FormField
               control={form.control}
@@ -31,20 +33,20 @@ export function FeedbackTagPickerField({
               render={({ field }) => (
                 <FormItem className="space-y-2">
                   <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Điểm nổi bật (chọn nhiều)
+                    {t('feedbackForm.tagPickerLabel')}
                   </FormLabel>
                   <div className="flex flex-wrap gap-1.5">
-                    {TAG_OPTIONS.map((t) => {
-                      const active = (field.value ?? []).includes(t.key)
+                    {TAG_OPTIONS.map((opt) => {
+                      const active = (field.value ?? []).includes(opt.key)
                       return (
                         <button
-                          key={t.key}
+                          key={opt.key}
                           type="button"
                           onClick={() =>
                             field.onChange(
-                              (field.value ?? []).includes(t.key)
-                                ? (field.value ?? []).filter((k) => k !== t.key)
-                                : [...(field.value ?? []), t.key],
+                              (field.value ?? []).includes(opt.key)
+                                ? (field.value ?? []).filter((k) => k !== opt.key)
+                                : [...(field.value ?? []), opt.key],
                             )
                           }
                           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${active
@@ -52,8 +54,8 @@ export function FeedbackTagPickerField({
                             : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                             }`}
                         >
-                          <span>{t.emoji}</span>
-                          {t.label}
+                          <span>{opt.emoji}</span>
+                          {t(opt.labelKey)}
                         </button>
                       )
                     })}

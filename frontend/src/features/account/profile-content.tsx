@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Ticket,
@@ -28,6 +29,7 @@ import {
 
 export function ProfileContent() {
   const { user, loyaltyPoints } = useApp()
+  const t = useT()
   const navigate = useNavigate()
 
   const initials = user?.name
@@ -45,7 +47,7 @@ export function ProfileContent() {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold truncate">{user?.name || 'Người dùng'}</h2>
+            <h2 className="text-lg font-bold truncate">{user?.name || t('accountPage.fallbackUserName')}</h2>
             <div className="flex flex-col gap-0.5 mt-1 text-sm text-muted-foreground">
               {user?.phone && (
                 <span className="flex items-center gap-1.5">
@@ -65,7 +67,7 @@ export function ProfileContent() {
             className="gap-1.5"
             onClick={() => navigate({ to: '/account/security' })}
           >
-            <Shield className="h-3.5 w-3.5" /> Bảo mật
+            <Shield className="h-3.5 w-3.5" /> {t('accountPage.securityShort')}
           </Button>
         </CardContent>
       </Card>
@@ -74,21 +76,21 @@ export function ProfileContent() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard
           icon={<Ticket className="h-4 w-4" />}
-          label="Vé đã đặt"
+          label={t('accountPage.statBookings')}
           value="—"
           color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
           onClick={() => navigate({ to: '/bookings' })}
         />
         <StatCard
           icon={<Gift className="h-4 w-4" />}
-          label="Điểm thưởng"
+          label={t('nav.loyalty')}
           value={loyaltyPoints?.toString() ?? '0'}
           color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
           onClick={() => navigate({ to: '/account/loyalty' })}
         />
         <StatCard
           icon={<Heart className="h-4 w-4" />}
-          label="Yêu thích"
+          label={t('accountPage.statWishlist')}
           value="—"
           color="text-rose-600 bg-rose-50 dark:bg-rose-950/30"
           onClick={() => navigate({ to: '/account/wishlist' })}
@@ -98,43 +100,43 @@ export function ProfileContent() {
       {/* ── Quick links ──────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Truy cập nhanh</CardTitle>
+          <CardTitle className="text-sm">{t('accountPage.quickAccess')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
           <QuickLink
             icon={<Ticket className="h-4 w-4 text-blue-600" />}
-            label="Vé của tôi"
-            desc="Xem lịch sử đặt vé và trạng thái chuyến đi"
+            label={t('account.bookings')}
+            desc={t('accountPage.qkBookingsDesc')}
             onClick={() => navigate({ to: '/bookings' })}
           />
           <QuickLink
             icon={<Headset className="h-4 w-4 text-violet-600" />}
-            label="Hỗ trợ & Chat"
-            desc="Chat với nhân viên hỗ trợ hoặc gọi điện"
+            label={t('accountPage.qkSupport')}
+            desc={t('accountPage.qkSupportDesc')}
             onClick={() => navigate({ to: '/' })}
           />
           <QuickLink
             icon={<Heart className="h-4 w-4 text-rose-600" />}
-            label="Danh sách yêu thích"
-            desc="Các tuyến đường bạn đã lưu"
+            label={t('account.wishlist')}
+            desc={t('accountPage.qkWishlistDesc')}
             onClick={() => navigate({ to: '/account/wishlist' })}
           />
           <QuickLink
             icon={<Gift className="h-4 w-4 text-amber-600" />}
-            label="Điểm thưởng"
-            desc="Tích điểm và đổi ưu đãi"
+            label={t('nav.loyalty')}
+            desc={t('accountPage.qkLoyaltyDesc')}
             onClick={() => navigate({ to: '/account/loyalty' })}
           />
           <QuickLink
             icon={<Bell className="h-4 w-4 text-blue-600" />}
-            label="Thông báo"
-            desc="Cài đặt loại thông báo nhận"
+            label={t('account.notifications')}
+            desc={t('accountPage.qkNotificationsDesc')}
             onClick={() => navigate({ to: '/account/notifications' })}
           />
           <QuickLink
             icon={<Shield className="h-4 w-4 text-emerald-600" />}
-            label="Bảo mật & Mật khẩu"
-            desc="Đổi mật khẩu, xác thực 2 bước, quyền dữ liệu"
+            label={t('accountPage.qkSecurity')}
+            desc={t('accountPage.qkSecurityDesc')}
             onClick={() => navigate({ to: '/account/security' })}
           />
         </CardContent>

@@ -7,6 +7,13 @@
  */
 
 import { z } from 'zod'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+// Error messages use Zod's functional `{ error: () => ... }` form so the
+// string is resolved (in the store's current language) at validation
+// time, not at module load.
+const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 /**
  * Zod schema for the review form.
@@ -19,20 +26,20 @@ import { z } from 'zod'
 export const feedbackSchema = z.object({
   rating: z
     .number()
-    .min(1, 'Vui lòng chọn số sao đánh giá')
-    .max(5, 'Đánh giá tối đa 5 sao'),
-  title: z.string().trim().max(255, 'Tiêu đề tối đa 255 ký tự'),
+    .min(1, { error: () => tSync('feedbackSchema.ratingRequired') })
+    .max(5, { error: () => tSync('feedbackSchema.ratingMax') }),
+  title: z.string().trim().max(255, { error: () => tSync('feedbackSchema.titleMax') }),
   content: z
     .string()
     .trim()
-    .max(10000, 'Nhận xét quá dài')
+    .max(10000, { error: () => tSync('feedbackSchema.contentTooLong') })
     .refine(
       (val) => val.length === 0 || val.length >= 20,
-      'Nội dung đánh giá cần ít nhất 20 ký tự để gửi',
+      { error: () => tSync('feedbackSchema.contentMin') },
     ),
   // Backend enforces max 20 tags + max 10 photos.
-  tags: z.array(z.string()).max(20, 'Tối đa 20 thẻ'),
-  photos: z.array(z.string()).max(10, 'Tối đa 10 ảnh'),
+  tags: z.array(z.string()).max(20, { error: () => tSync('feedbackSchema.tagsMax') }),
+  photos: z.array(z.string()).max(10, { error: () => tSync('feedbackSchema.photosMax') }),
 })
 
 export type FeedbackValues = z.infer<typeof feedbackSchema>

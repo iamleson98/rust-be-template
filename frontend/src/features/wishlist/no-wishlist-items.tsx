@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -48,11 +49,12 @@ export const NoWishlistItems = memo(function NoWishlistItems({
   onExplore?: () => void
   className?: string
 }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<HeartSVG />}
-      title="Danh sách yêu thích trống"
-      description="Lưu các tuyến đường bạn thường đi để đặt vé nhanh lần sau. Nhấn vào biểu tượng trái tim trên thẻ chuyến để thêm."
+      title={t('wishlist.emptyTitle')}
+      description={t('wishlist.emptyDesc')}
       className={className}
     >
       {onExplore && (
@@ -61,7 +63,7 @@ export const NoWishlistItems = memo(function NoWishlistItems({
           className="gap-1.5 bg-linear-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white"
           onClick={onExplore}
         >
-          Khám phá chuyến đi
+          {t('wishlist.exploreTrips')}
         </Button>
       )}
     </EmptyState>

@@ -15,16 +15,17 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, Loader2, Lock, ShieldCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { PriceSummary, type InsuranceLevel } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
-const PAYMENT_OPTIONS: { key: PaymentMethodKey; label: string; icon: string; sub: string }[] = [
-  { key: 'momo', label: 'Ví MoMo', icon: '🟣', sub: 'Quét mã QR' },
-  { key: 'vnpay', label: 'VNPay QR', icon: '🔵', sub: 'Ngân hàng' },
-  { key: 'bank', label: 'Chuyển khoản', icon: '🏦', sub: 'Internet Banking' },
-  { key: 'cod', label: 'Thanh toán tại xe', icon: '💵', sub: 'Tiền mặt' },
+const getPaymentOptions = (t: ReturnType<typeof useT>): { key: PaymentMethodKey; label: string; icon: string; sub: string }[] => [
+  { key: 'momo', label: t('payment.momo'), icon: '🟣', sub: t('payment.momoDesc') },
+  { key: 'vnpay', label: t('payment.vnpay'), icon: '🔵', sub: t('payment.vnpayDesc') },
+  { key: 'bank', label: t('payment.vietqr'), icon: '🏦', sub: t('payment.vietqrDesc') },
+  { key: 'cod', label: t('bookingFlow.payCod'), icon: '💵', sub: t('bookingFlow.cash') },
 ]
 
 export function PaymentMethodStep({
@@ -60,12 +61,14 @@ export function PaymentMethodStep({
   onGoBack: () => void
   onSubmit: () => void
 }) {
+  const t = useT()
+  const paymentOptions = getPaymentOptions(t)
   return (
     <div className="p-5 space-y-4">
       <div>
-        <h3 className="font-semibold text-sm mb-3">Phương thức thanh toán</h3>
+        <h3 className="font-semibold text-sm mb-3">{t('payment.method')}</h3>
         <div className="grid grid-cols-2 gap-2">
-          {PAYMENT_OPTIONS.map((m) => (
+          {paymentOptions.map((m) => (
             <button
               key={m.key}
               type="button"
@@ -103,8 +106,8 @@ export function PaymentMethodStep({
       <div className="flex items-start gap-2 text-xs text-muted-foreground bg-info/5 border border-info/20 rounded-lg p-3">
         <ShieldCheck className="h-4 w-4 text-success shrink-0 mt-0.5" />
         <div className="space-y-0.5">
-          <p className="font-medium text-foreground">Thanh toán an toàn</p>
-          <p>Thông tin của bạn được mã hoá SSL 256-bit. Ve điện tử sẽ gửi qua SMS &amp; email sau khi thanh toán. Dữ liệu cá nhân được xử lý theo Nghị định 13/2023/NĐ-CP — không chia sẻ với bên thứ ba.</p>
+          <p className="font-medium text-foreground">{t('bookingFlow.securePayment')}</p>
+          <p>{t('bookingFlow.sslDecreeNote')}</p>
         </div>
       </div>
 
@@ -119,7 +122,7 @@ export function PaymentMethodStep({
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={onGoBack} className="gap-1">
-          <ChevronLeft className="h-4 w-4" /> Quay lại
+          <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
         <Button
           onClick={onSubmit}
@@ -128,11 +131,11 @@ export function PaymentMethodStep({
         >
           {submitting ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" /> Đang xử lý...
+              <Loader2 className="h-4 w-4 animate-spin" /> {t('bookingFlow.processing')}
             </>
           ) : (
             <>
-              <Lock className="h-4 w-4" /> Thanh toán {formatCurrency(total, currency)}
+              <Lock className="h-4 w-4" /> {t('bookingFlow.payButton', { amount: formatCurrency(total, currency) })}
             </>
           )}
         </Button>

@@ -1,3 +1,5 @@
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
 
 /**
@@ -8,7 +10,7 @@ import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
  *   2. `user.email` — fallback when fullName is empty.
  *   3. `user.phone` — fallback when both fullName + email are empty.
  *   4. `topic` — the channel topic, e.g. "Hỗ trợ".
- *   5. `"Khách"` — generic Vietnamese for "Customer" (last-resort default).
+ *   5. Translated "Customer" label (last-resort default).
  */
 export function customerDisplayName(channel: Channel): string {
   const u = channel.user
@@ -16,7 +18,7 @@ export function customerDisplayName(channel: Channel): string {
   if (u?.email && u.email.trim().length > 0) return u.email
   if (u?.phone && u.phone.trim().length > 0) return u.phone
   if (channel.topic && channel.topic.trim().length > 0) return channel.topic
-  return 'Khách'
+  return translate(useApp.getState().lang, 'adminChat.customer')
 }
 
 /** First letter of the customer's display name (for the avatar fallback). */
@@ -61,14 +63,15 @@ export function dayKey(iso: string): string {
  * between messages from different calendar days.
  */
 export function formatDayLabel(iso: string): string {
+  const lang = useApp.getState().lang
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
   const that = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const diffDays = Math.round((today - that) / 86_400_000)
-  if (diffDays === 0) return 'Hôm nay'
-  if (diffDays === 1) return 'Hôm qua'
+  if (diffDays === 0) return translate(lang, 'adminChat.today')
+  if (diffDays === 1) return translate(lang, 'adminChat.yesterday')
   return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 

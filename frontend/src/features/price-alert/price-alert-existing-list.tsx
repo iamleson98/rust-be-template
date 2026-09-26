@@ -14,6 +14,7 @@ import type { PriceAlertOut as ExistingAlert } from '@/lib/api/types.gen'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Trash2 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { formatVND } from '@/lib/types'
 
 export function PriceAlertExistingList({
@@ -23,10 +24,11 @@ export function PriceAlertExistingList({
   existingAlerts: ExistingAlert[]
   handleDeleteAlert: (id: string) => void
 }) {
+  const t = useT()
   return (
                 <div className="space-y-1.5 pt-2 border-t">
                   <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cảnh báo đã tạo ({existingAlerts.length})
+                    {t('priceAlert.existingCount', { count: existingAlerts.length })}
                   </Label>
                   <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                     {existingAlerts.map((a) => (
@@ -41,7 +43,7 @@ export function PriceAlertExistingList({
                               : 'bg-amber-50 text-amber-700 border-amber-200'
                             }`}
                         >
-                          {a.status === 'active' ? 'Đang theo dõi' : 'Đã kích hoạt'}
+                          {a.status === 'active' ? t('priceAlert.statusActive') : t('priceAlert.statusTriggered')}
                         </Badge>
                         <div className="text-xs flex-1 min-w-0 truncate">
                           <span className="font-medium">{a.fromName} → {a.toName}</span>
@@ -51,7 +53,7 @@ export function PriceAlertExistingList({
                           type="button"
                           onClick={() => handleDeleteAlert(a.id)}
                           className="text-rose-500 hover:text-rose-700 p-1 rounded"
-                          aria-label="Xoá"
+                          aria-label={t('common.delete')}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

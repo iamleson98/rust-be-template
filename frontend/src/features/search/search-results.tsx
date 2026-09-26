@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useTripSearch, type TripSearchParams } from '@/lib/queries'
 import { buildSearchInput } from '@/lib/search-params'
 import { Bell, GitCompare, Heart, Sparkles, X } from 'lucide-react'
@@ -25,6 +26,7 @@ export type { RouteSearch } from './helpers'
 
 export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSearch; navigate: NavigateFn }) {
   const { compareList, setCompareOpen, clearCompare, setPriceAlertOpen, setPriceAlertContext } = useApp()
+  const t = useT()
 
   // Drive the search via TanStack Query — the URL (routeSearch) is the
   // single source of truth: updating filters updates the URL, which
@@ -79,8 +81,8 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
   // Compute price bounds from results
   const priceBounds = useMemo<[number, number]>(() => {
     if (searchResults.length === 0) return [0, 1000000]
-    const min = Math.min(...searchResults.map((t) => t.minPrice))
-    const max = Math.max(...searchResults.map((t) => t.maxPrice))
+    const min = Math.min(...searchResults.map((tr) => tr.minPrice))
+    const max = Math.max(...searchResults.map((tr) => tr.maxPrice))
     // Round to nearest 50k for nicer slider
     const rMin = Math.floor(min / 50000) * 50000
     const rMax = Math.ceil(max / 50000) * 50000
@@ -128,19 +130,19 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
   const filteredResults = useMemo(() => {
     if (searchResults.length === 0) return []
     const [pLo, pHi] = effectivePriceRange
-    return searchResults.filter((t) => {
-      if (t.minPrice < pLo) return false
-      if (t.minPrice > pHi) return false
+    return searchResults.filter((tr) => {
+      if (tr.minPrice < pLo) return false
+      if (tr.minPrice > pHi) return false
       if (filters.timeRanges.length > 0) {
-        const hour = getHourOfDeparture(t)
+        const hour = getHourOfDeparture(tr)
         const matched = filters.timeRanges.some((r) => matchesTimeRange(hour, r))
         if (!matched) return false
       }
-      if (filters.minRating > 0 && t.brandRating < filters.minRating) return false
-      if (filters.availableOnly && t.availableSeats <= 5) return false
+      if (filters.minRating > 0 && tr.brandRating < filters.minRating) return false
+      if (filters.availableOnly && tr.availableSeats <= 5) return false
       if (filters.amenities.length > 0) {
-        const tAmenities = t.amenities ?? []
-        const hasAll = filters.amenities.every((a) => tAmenities.includes(a))
+        const trAmenities = tr.amenities ?? []
+        const hasAll = filters.amenities.every((a) => trAmenities.includes(a))
         if (!hasAll) return false
       }
       return true
@@ -185,7 +187,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
     const next = [saved, ...savedSearches].slice(0, 20)
     setSavedSearches(next)
     persistSavedSearches(next)
-    toast.success('Đã lưu tìm kiếm', {
+    toast.success(t('searchPage.searchSaved'), {
       description: `${routeSearch.from} → ${routeSearch.to} • ${routeSearch.date}`,
     })
   }
@@ -207,15 +209,15 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
       vehicleTypes: s.vehicleTypes,
     })
     setFilters(s.filters)
-    toast.success('Đã áp dụng tìm kiếm đã lưu')
+    toast.success(t('searchPage.savedSearchApplied'))
   }
 
   const minPrice = useMemo(
-    () => (searchResults.length > 0 ? Math.min(...searchResults.map((t) => t.minPrice)) : 0),
+    () => (searchResults.length > 0 ? Math.min(...searchResults.map((tr) => tr.minPrice)) : 0),
     [searchResults],
   )
   const maxAvail = useMemo(
-    () => (searchResults.length > 0 ? Math.max(...searchResults.map((t) => t.availableSeats)) : 0),
+    () => (searchResults.length > 0 ? Math.max(...searchResults.map((tr) => tr.availableSeats)) : 0),
     [searchResults],
   )
 
@@ -261,8 +263,8 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   {searchLoading
-                    ? 'Đang tìm chuyến...'
-                    : `${filteredResults.length}/${searchResults.length} chuyến xe tìm thấy`}
+                    ? t('searchPage.searchingTrips')
+                    : t('searchPage.tripsFound', { found: filteredResults.length, total: searchResults.length })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -273,10 +275,10 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                   onClick={handleSaveSearch}
                   disabled={searchResults.length === 0}
                   className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"
-                  title="Lưu tìm kiếm này"
+                  title={t('searchPage.saveThisSearch')}
                 >
                   <Heart className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Lưu</span>
+                  <span className="hidden sm:inline">{t('common.save')}</span>
                 </Button>
                 {/* Price Alert (existing feature) */}
                 {routeSearch.from && routeSearch.to && (
@@ -294,7 +296,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                     className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
                   >
                     <Bell className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Theo dõi giá</span>
+                    <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
                   </Button>
                 )}
                 {/* Mobile filter trigger */}
@@ -319,13 +321,13 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                     className="gap-1.5 border-amber-300 text-violet-700 hover:bg-violet-50"
                   >
                     <GitCompare className="h-3.5 w-3.5" />
-                    So sánh ({compareList.length})
+                    {t('searchPage.compareCount', { count: compareList.length })}
                   </Button>
                 )}
                 {searchResults.length > 0 && (
                   <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    Giá tốt nhất được đánh dấu
+                    {t('searchPage.bestPriceMarked')}
                   </div>
                 )}
               </div>
@@ -361,7 +363,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                 <div className="rounded-xl bg-linear-to-r from-violet-50 to-fuchsia-50 ring-1 ring-violet-200 p-3 flex items-center gap-3">
                   <GitCompare className="h-4 w-4 text-violet-600 shrink-0" />
                   <div className="text-xs text-violet-700 flex-1">
-                    <span className="font-semibold">{compareList.length}/3</span> chuyến đã chọn để so sánh
+                    <span className="font-semibold">{compareList.length}/3</span>{' '}{t('searchPage.compareSelected')}
                   </div>
                   <Button
                     size="sm"
@@ -369,7 +371,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                     className="h-7 gap-1 text-xs bg-violet-600 hover:bg-violet-700"
                     onClick={() => setCompareOpen(true)}
                   >
-                    So sánh ngay
+                    {t('searchPage.compareNow')}
                   </Button>
                   <Button
                     size="sm"
@@ -378,7 +380,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                     onClick={clearCompare}
                   >
                     <X className="h-3 w-3" />
-                    Xoá
+                    {t('common.delete')}
                   </Button>
                 </div>
               </div>

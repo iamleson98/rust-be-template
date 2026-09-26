@@ -11,6 +11,8 @@
 
 import { memo, useState } from 'react'
 
+import { useT } from '@/lib/i18n'
+
 /* ─── Forecast Chart (SVG line + confidence band) ─── */
 
 export const ForecastChart = memo(function ForecastChart({
@@ -210,6 +212,7 @@ export const ForecastChart = memo(function ForecastChart({
 /* ─── Booking Trends Sparkline ─── */
 
 export const BookingTrendsSparkline = memo(function BookingTrendsSparkline({ values, peakIdx }: { values: number[]; peakIdx: number }) {
+  const t = useT()
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const width = 320
   const height = 80
@@ -290,7 +293,7 @@ export const BookingTrendsSparkline = memo(function BookingTrendsSparkline({ val
               <g pointerEvents="none">
                 <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="4" fill="#1e293b" />
                 <text x={tipX + tipW / 2} y={tipY + 14} textAnchor="middle" fontSize="10" fontWeight="700" fill="white">
-                  {hoverIdx}h: {v} vé
+                  {t('adminDash.hourTickets', { hour: hoverIdx, count: v })}
                 </text>
               </g>
             )

@@ -24,6 +24,7 @@ import { Activity, Database, Gauge, MemoryStick } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { useT } from '@/lib/i18n'
 import type { SystemEngineStats } from '@/lib/queries'
 
 /** Compact number: 12_400 → "12.4K", 3_500_000 → "3.5M". */
@@ -58,6 +59,7 @@ function hitRateBarTone(pct: number): string {
 }
 
 export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats }) {
+  const t = useT()
   const util = Math.min(Math.max(engine.memory.utilizationPct, 0), 100)
   const hitRate = Math.min(Math.max(engine.cache.hitRatePct, 0), 100)
 
@@ -65,7 +67,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
     <section id="database-engine" data-testid="database-engine" className="space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <Database className="h-5 w-5" aria-hidden />
-        Database Engine
+        {t('adminSystem.dbEngineTitle')}
         <Badge variant="outline" className="max-w-[280px] truncate font-normal" title={engine.version}>
           {engine.version.split(' ').slice(0, 2).join(' ')}
         </Badge>
@@ -78,9 +80,9 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <MemoryStick className="h-4 w-4 text-muted-foreground" aria-hidden />
-              Memory
+              {t('adminSystem.memory')}
             </CardTitle>
-            <CardDescription>Page-cache footprint vs. capacity</CardDescription>
+            <CardDescription>{t('adminSystem.memoryDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-baseline justify-between">
@@ -88,29 +90,29 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 {mb(engine.memory.cacheMb, 1)}
               </span>
               <span className="text-xs text-muted-foreground">
-                of {mb(engine.memory.cacheCapacityMb, 1)}
+                {t('adminSystem.ofCapacity', { capacity: mb(engine.memory.cacheCapacityMb, 1) })}
               </span>
             </div>
             <Progress value={util} className="h-2" />
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                Cache utilization:{' '}
+                {t('adminSystem.cacheUtilization')}:{' '}
                 <span className="font-medium tabular-nums">{util.toFixed(1)}%</span>
               </div>
               <div>
-                DB size:{' '}
+                {t('adminSystem.dbSize')}:{' '}
                 <span className="font-medium tabular-nums">
                   {mb(engine.memory.dbSizeMb, 1)}
                 </span>{' '}
-                · WAL frames:{' '}
+                · {t('adminSystem.walFrames')}:{' '}
                 <span className="font-medium tabular-nums">{compact(engine.memory.walFrames)}</span>
               </div>
               <div>
-                Freelist pages:{' '}
+                {t('adminSystem.freelistPages')}:{' '}
                 <span className="font-medium tabular-nums">
                   {compact(engine.memory.freelistPages)}
                 </span>{' '}
-                (reclaimable)
+                {t('adminSystem.reclaimable')}
               </div>
             </div>
           </CardContent>
@@ -121,16 +123,16 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Gauge className="h-4 w-4 text-muted-foreground" aria-hidden />
-              Performance Capacity
+              {t('adminSystem.perfCapacity')}
             </CardTitle>
-            <CardDescription>Cache hit rate · concurrency · contention</CardDescription>
+            <CardDescription>{t('adminSystem.perfCapacityDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-baseline justify-between">
               <span className={`text-2xl font-semibold tabular-nums ${hitRateTone(hitRate)}`}>
                 {hitRate.toFixed(1)}%
               </span>
-              <span className="text-xs text-muted-foreground">page-cache hit rate</span>
+              <span className="text-xs text-muted-foreground">{t('adminSystem.pageCacheHitRate')}</span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -140,20 +142,23 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                Connections:{' '}
+                {t('adminSystem.connections')}:{' '}
                 <span className="font-medium text-blue-600 tabular-nums">
                   {engine.connections.live}
                 </span>{' '}
-                live · {compact(engine.cache.hits)} hits / {compact(engine.cache.misses)} misses
+                {t('adminSystem.hitsMisses', {
+                  hits: compact(engine.cache.hits),
+                  misses: compact(engine.cache.misses),
+                })}
               </div>
               <div>
-                Busy waits:{' '}
+                {t('adminSystem.busyWaits')}:{' '}
                 <span
                   className={`font-medium tabular-nums ${engine.contention.busyWaits > 0 ? 'text-amber-600' : ''}`}
                 >
                   {compact(engine.contention.busyWaits)}
                 </span>{' '}
-                · timeouts:{' '}
+                · {t('adminSystem.timeouts')}:{' '}
                 <span
                   className={`font-medium tabular-nums ${engine.contention.busyTimeouts > 0 ? 'text-red-600' : ''}`}
                 >
@@ -161,13 +166,13 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                Writer slot:
+                {t('adminSystem.writerSlot')}:
                 {engine.transactions.active ? (
                   <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px]">
-                    transaction active
+                    {t('adminSystem.txActive')}
                   </Badge>
                 ) : (
-                  <span>idle</span>
+                  <span>{t('adminSystem.idle')}</span>
                 )}
               </div>
             </div>
@@ -179,9 +184,9 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-muted-foreground" aria-hidden />
-              Throughput
+              {t('adminSystem.throughput')}
             </CardTitle>
-            <CardDescription>Live rate · lifetime totals (since boot)</CardDescription>
+            <CardDescription>{t('adminSystem.throughputDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="grid grid-cols-3 gap-2">
@@ -189,37 +194,37 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.rowsPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">rows/s</div>
+                <div className="text-[10px] text-muted-foreground">{t('adminSystem.rowsPerSec')}</div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.writesPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">writes/s</div>
+                <div className="text-[10px] text-muted-foreground">{t('adminSystem.writesPerSec')}</div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.stepsPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">steps/s</div>
+                <div className="text-[10px] text-muted-foreground">{t('adminSystem.stepsPerSec')}</div>
               </div>
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
               <div>
-                Total rows returned:{' '}
+                {t('adminSystem.totalRowsReturned')}:{' '}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.rowsReturned)}
                 </span>
               </div>
               <div>
-                Writes executed:{' '}
+                {t('adminSystem.writesExecuted')}:{' '}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.writesExecuted)}
                 </span>{' '}
-                · statements: {compact(engine.throughput.statementsPrepared)}
+                · {t('adminSystem.statements', { n: compact(engine.throughput.statementsPrepared) })}
               </div>
               <div>
-                Row mutations (total_changes):{' '}
+                {t('adminSystem.rowMutations')}:{' '}
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.totalChanges)}
                 </span>
@@ -244,7 +249,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                     </span>
                     {f.transactionActive && (
                       <Badge className="border-0 bg-emerald-100 text-emerald-700 text-[10px] shrink-0">
-                        tx active
+                        {t('adminSystem.txActiveShort')}
                       </Badge>
                     )}
                   </CardTitle>
@@ -255,44 +260,49 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 <CardContent>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">DB size</span>
+                      <span className="text-muted-foreground">{t('adminSystem.dbSize')}</span>
                       <span className="font-medium tabular-nums">{mb(f.sizeMb, 2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Pages</span>
+                      <span className="text-muted-foreground">{t('adminSystem.pages')}</span>
                       <span className="font-medium tabular-nums">
                         {compact(f.pageCount)} × {formatPageSize(f.pageSizeBytes)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Cache</span>
+                      <span className="text-muted-foreground">{t('adminSystem.cache')}</span>
                       <span className="font-medium tabular-nums">
-                        {compact(f.cachePages)} / {compact(f.cacheCapacityPages)} pg (
-                        {mb(f.cacheMb, 1)})
+                        {t('adminSystem.cachePagesValue', {
+                          used: compact(f.cachePages),
+                          capacity: compact(f.cacheCapacityPages),
+                          size: mb(f.cacheMb, 1),
+                        })}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Hit rate</span>
+                      <span className="text-muted-foreground">{t('adminSystem.hitRate')}</span>
                       <span className={`font-medium tabular-nums ${hitRateTone(fHit)}`}>
                         {fHit.toFixed(1)}%
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">WAL frames</span>
+                      <span className="text-muted-foreground">{t('adminSystem.walFrames')}</span>
                       <span className="font-medium tabular-nums">{compact(f.walFrames)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Connections</span>
-                      <span className="font-medium tabular-nums">{f.liveConnections} live</span>
+                      <span className="text-muted-foreground">{t('adminSystem.connections')}</span>
+                      <span className="font-medium tabular-nums">
+                        {t('adminSystem.liveConns', { n: f.liveConnections })}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Freelist</span>
+                      <span className="text-muted-foreground">{t('adminSystem.freelist')}</span>
                       <span className="font-medium tabular-nums">
                         {compact(f.freelistPages)} pg
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Changes</span>
+                      <span className="text-muted-foreground">{t('adminSystem.changes')}</span>
                       <span className="font-medium tabular-nums">
                         {compact(f.totalChanges)}
                       </span>
@@ -308,17 +318,17 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
       {/* ── Transaction + connection ledger ─────────────────────────── */}
       <Card data-testid="engine-ledger-card">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Engine Ledger</CardTitle>
+          <CardTitle className="text-sm">{t('adminSystem.engineLedger')}</CardTitle>
           <CardDescription>
-            Process-lifetime transaction + connection accounting
+            {t('adminSystem.engineLedgerDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3 md:grid-cols-5">
-          <LedgerItem label="Transactions begun" value={engine.transactions.begun} />
-          <LedgerItem label="Committed" value={engine.transactions.committed} />
-          <LedgerItem label="Rolled back" value={engine.transactions.rolledBack} />
-          <LedgerItem label="Connections opened" value={engine.connections.opened} />
-          <LedgerItem label="Connections closed" value={engine.connections.closed} />
+          <LedgerItem label={t('adminSystem.txStarted')} value={engine.transactions.begun} />
+          <LedgerItem label={t('adminSystem.committed')} value={engine.transactions.committed} />
+          <LedgerItem label={t('adminSystem.rolledBack')} value={engine.transactions.rolledBack} />
+          <LedgerItem label={t('adminSystem.connectionsOpened')} value={engine.connections.opened} />
+          <LedgerItem label={t('adminSystem.connectionsClosed')} value={engine.connections.closed} />
         </CardContent>
       </Card>
     </section>

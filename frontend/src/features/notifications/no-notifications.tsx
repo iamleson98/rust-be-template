@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -44,11 +45,12 @@ function BellSVG() {
 }
 
 export const NoNotifications = memo(function NoNotifications({ className }: { className?: string }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<BellSVG />}
-      title="Chưa có thông báo"
-      description="Thông báo đặt vé, khuyến mãi và nhắc chuyến đi sẽ xuất hiện tại đây."
+      title={t('notifications.emptyTitle')}
+      description={t('notifications.emptyDesc')}
       className={className}
       size="sm"
     />

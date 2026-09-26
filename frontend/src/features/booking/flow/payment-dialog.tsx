@@ -48,6 +48,7 @@ import {
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import {
   useCancelPayment,
   useCreatePayment,
@@ -77,6 +78,7 @@ export function PaymentDialog({
   /** Called when the payment transitions to `completed`. */
   onPaid?: (payment: PaymentOut) => void
 }) {
+  const t = useT()
   const [resumeId, setResumeId] = useState<string | undefined>(paymentId)
   // Re-sync when the parent's `paymentId` prop changes (e.g. after the
   // first successful create-payment, the parent refetches the booking and
@@ -108,7 +110,7 @@ export function PaymentDialog({
 
   const handleCreate = async (provider: PaymentProvider) => {
     if (!bookingId) {
-      toast.error('Thiếu mã đặt chỗ — không thể tạo giao dịch')
+      toast.error(t('payment.missingBooking'))
       return
     }
     try {
@@ -118,7 +120,7 @@ export function PaymentDialog({
       } as unknown as { bookingId: string; provider: PaymentProvider })
       setResumeId((result as unknown as { payment: PaymentOut }).payment.id)
     } catch (e: unknown) {
-      toast.error('Tạo giao dịch thất bại', {
+      toast.error(t('payment.createFailed'), {
         description: e instanceof Error ? e.message : undefined,
       })
     }
@@ -131,10 +133,10 @@ export function PaymentDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogTitle className="text-base font-semibold">
-          Thanh toán vé
+          {t('bookingFlow.paymentTitle')}
         </DialogTitle>
         <DialogDescription className="text-xs text-muted-foreground">
-          {p ? `Mã giao dịch: ${p.providerTxnRef}` : 'Chọn phương thức thanh toán'}
+          {p ? t('bookingFlow.txnRef', { ref: p.providerTxnRef }) : t('bookingFlow.chooseMethod')}
         </DialogDescription>
 
         {showProviderPicker ? (
@@ -153,7 +155,7 @@ export function PaymentDialog({
             {/* Amount */}
             <div className="rounded-lg bg-slate-50 border border-slate-200 p-4 text-center">
               <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
-                Số tiền
+                {t('bookingFlow.amount')}
               </div>
               <div className="text-2xl font-extrabold text-slate-900">
                 {formatCurrency(p.amount, currency)}
@@ -177,7 +179,7 @@ export function PaymentDialog({
             <div className="flex justify-between items-center pt-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                Mã hoá SSL 256-bit. Vé điện tử gửi qua SMS/email.
+                {t('bookingFlow.sslShortNote')}
               </div>
               {p.status === 'pending' && (
                 <Button
@@ -187,17 +189,17 @@ export function PaymentDialog({
                   onClick={async () => {
                     try {
                       await cancelPayment.mutateAsync({ id: p.id })
-                      toast.success('Đã huỷ giao dịch')
+                      toast.success(t('bookingFlow.paymentCancelled'))
                       // Reset to provider-picker for retry.
                       setResumeId(undefined)
                     } catch (e: unknown) {
-                      toast.error('Huỷ thất bại', {
+                      toast.error(t('bookingFlow.cancelFailed'), {
                         description: e instanceof Error ? e.message : undefined,
                       })
                     }
                   }}
                 >
-                  Huỷ
+                  {t('common.cancel')}
                 </Button>
               )}
             </div>
@@ -217,16 +219,17 @@ export function PaymentDialog({
 // ─────────────────────────────────────────────────────────────
 
 function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
+  const t = useT()
   const map = {
-    pending: { label: 'Đang chờ thanh toán', color: 'bg-amber-100 text-amber-800', icon: Clock },
+    pending: { label: t('payment.pending'), color: 'bg-amber-100 text-amber-800', icon: Clock },
     completed: {
-      label: 'Đã thanh toán',
+      label: t('bookingFlow.statusPaid'),
       color: 'bg-emerald-100 text-emerald-800',
       icon: CheckCircle2,
     },
-    failed: { label: 'Thất bại', color: 'bg-rose-100 text-rose-800', icon: XCircle },
-    cancelled: { label: 'Đã huỷ', color: 'bg-slate-100 text-slate-700', icon: XCircle },
-    refunded: { label: 'Đã hoàn tiền', color: 'bg-primary/10 text-primary', icon: ShieldCheck },
+    failed: { label: t('bookingFlow.statusFailed'), color: 'bg-rose-100 text-rose-800', icon: XCircle },
+    cancelled: { label: t('bookingFlow.statusCancelled'), color: 'bg-slate-100 text-slate-700', icon: XCircle },
+    refunded: { label: t('bookingFlow.statusRefunded'), color: 'bg-primary/10 text-primary', icon: ShieldCheck },
   } as const
   const cfg = map[status as keyof typeof map] ?? map.pending
   const Icon = cfg.icon
@@ -241,12 +244,13 @@ function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
 }
 
 function CodDisplay({ payment }: { payment: PaymentOut }) {
+  const t = useT()
   if (payment.status === 'completed') {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
         <div className="text-sm font-medium text-emerald-800">
-          Đã thu tiền mặt tại xe.
+          {t('bookingFlow.codCollected')}
         </div>
         {payment.collectedAt && (
           <div className="text-[11px] text-emerald-700 mt-1">
@@ -260,14 +264,14 @@ function CodDisplay({ payment }: { payment: PaymentOut }) {
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Banknote className="h-5 w-5 text-amber-600" />
-        <span className="font-medium text-sm">Thanh toán tiền mặt tại xe</span>
+        <span className="font-medium text-sm">{t('bookingFlow.codTitle')}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Bạn sẽ thanh toán bằng tiền mặt khi lên xe. Hãy giữ mã vé để đối chiếu.
+        {t('bookingFlow.codDesc')}
       </p>
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-        <strong>Lưu ý:</strong> vé sẽ giữ trong 10 phút. Vui lòng đến trạm đúng giờ.
-        Nếu không thanh toán, ghế sẽ tự động được nhả cho khách khác.
+        <strong>{t('bookingFlow.codNoticeLabel')}</strong>{' '}
+        {t('bookingFlow.codNoticeBody')}
       </div>
     </div>
   )

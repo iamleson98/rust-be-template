@@ -9,6 +9,7 @@ import { Card, CardContent, Card as UiCard } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { BookingItem } from '@/features/booking/history/booking-types'
 import { BookingList } from '@/features/booking/history/booking-list'
 import { GuestLookupForm } from '@/features/booking/history/guest-lookup-form'
@@ -54,6 +55,7 @@ export function GuestLookupView({
   cancelling: string | null
   currency: Currency
 }) {
+  const t = useT()
   const navigate = useNavigate()
 
   const totalBookings = results.length
@@ -84,7 +86,7 @@ export function GuestLookupView({
           />
           <div className="mt-4 flex items-center gap-2 text-[11px] text-muted-foreground">
             <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
-            Thông tin đặt vé của bạn được bảo mật. Vui lòng không chia sẻ mã vé với người lạ.
+            {t('bookingHistory.privacyNote')}
           </div>
         </CardContent>
       </Card>
@@ -103,9 +105,9 @@ export function GuestLookupView({
           <div className="space-y-5">
             <StatsRow
               stats={[
-                { icon: <Ticket className="h-5 w-5" />, label: 'Tổng số vé', value: String(totalBookings), accent: 'from-blue-500 to-blue-500', subtitle: 'vé đã đặt' },
-                { icon: <CalendarCheck className="h-5 w-5" />, label: 'Sắp khởi hành', value: String(upcoming), accent: 'from-blue-500 to-blue-500', subtitle: 'chuyến sắp đi' },
-                { icon: <Wallet className="h-5 w-5" />, label: 'Tổng chi phí', value: formatCurrency(totalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: 'đã thanh toán' },
+                { icon: <Ticket className="h-5 w-5" />, label: t('bookingHistory.statTotalTickets'), value: String(totalBookings), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statTicketsBooked') },
+                { icon: <CalendarCheck className="h-5 w-5" />, label: t('bookingHistory.statUpcoming'), value: String(upcoming), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statUpcomingSub') },
+                { icon: <Wallet className="h-5 w-5" />, label: t('bookingHistory.statTotalSpend'), value: formatCurrency(totalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: t('bookingHistory.statPaidSub') },
               ]}
             />
             <BookingList
@@ -131,10 +133,10 @@ export function GuestLookupView({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-foreground">
-                    Đăng nhập để xem toàn bộ lịch sử đặt vé & đánh giá
+                    {t('bookingHistory.loginPromptTitle')}
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Chỉ cần số điện thoại — vé và đánh giá của bạn sẽ tự động hiển thị.
+                    {t('bookingHistory.loginPromptSubtitle')}
                   </div>
                 </div>
                 <Button
@@ -143,7 +145,7 @@ export function GuestLookupView({
                   onClick={() => navigate({ to: '/login' })}
                 >
                   <LogIn className="h-4 w-4" />
-                  Đăng nhập
+                  {t('auth.login')}
                 </Button>
               </div>
             </div>

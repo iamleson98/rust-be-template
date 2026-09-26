@@ -59,6 +59,7 @@ import { SeatsStep } from './ticket-picker-seats-step'
 import { PassengerStep } from './ticket-picker-passenger-step'
 import { ConfirmStep } from './ticket-picker-confirm-step'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 /**
  * Structural type of the booking object returned by the create-booking
@@ -113,6 +114,8 @@ export function ChatTicketPicker({
    * to send a `kind: 'ticket'` chat message with the booking-card payload. */
   onCreated: (payload: CreatedTicketPayload) => void
 }) {
+  const t = useT()
+
   // ── Step state ──
   const [step, setStep] = useState<Step>('search')
   const [selectedTrip, setSelectedTrip] = useState<TripResult | null>(null)
@@ -135,7 +138,7 @@ export function ChatTicketPicker({
   // ── Reset state when dialog closes ──
   useEffect(() => {
     if (!open) {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         setStep('search')
         setSelectedTrip(null)
         setSelectedSeats([])
@@ -148,7 +151,7 @@ export function ChatTicketPicker({
         setToPlace(null)
         setContactEmail('')
       }, 200)
-      return () => clearTimeout(t)
+      return () => clearTimeout(timer)
     }
     // Pre-fill contact info from the channel's user.
     if (channel?.user) {
@@ -201,12 +204,12 @@ export function ChatTicketPicker({
         return prev.filter((s) => s.id !== seat.id)
       }
       if (prev.length >= 6) {
-        toast.warning('Tối đa 6 ghế / lần đặt')
+        toast.warning(t('adminTickets.maxSeatsPerBooking'))
         return prev
       }
       return [...prev, seat]
     })
-  }, [])
+  }, [t])
 
   // When selectedSeats changes, sync passengers array.
   useEffect(() => {
@@ -242,11 +245,11 @@ export function ChatTicketPicker({
 
   const handleSubmit = useCallback(async () => {
     if (!selectedTrip || !trip) {
-      toast.error('Thiếu thông tin chuyến đi')
+      toast.error(t('adminTickets.missingTripInfo'))
       return
     }
     if (!boardingPointId || !droppingPointId) {
-      toast.error('Vui lòng chọn điểm đón / trả')
+      toast.error(t('adminTickets.chooseBoardingDropoff'))
       return
     }
     try {
@@ -296,13 +299,13 @@ export function ChatTicketPicker({
         createdAt: new Date().toISOString(),
       }
       onCreated(payload)
-      toast.success('Đã đặt vé thành công', {
-        description: `Mã vé: ${payload.bookingCode}`,
+      toast.success(t('adminTickets.bookingCreated'), {
+        description: t('adminTickets.bookingCodeDesc', { code: payload.bookingCode }),
       })
       onOpenChange(false)
     } catch (e) {
-      toast.error('Đặt vé thất bại', {
-        description: getErrorMessage(e, 'Vui lòng thử lại'),
+      toast.error(t('adminTickets.bookingCreateFailed'), {
+        description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
       })
     }
   }, [
@@ -320,6 +323,7 @@ export function ChatTicketPicker({
     totalPrice,
     onCreated,
     onOpenChange,
+    t,
   ])
 
   // ── Render ──
@@ -329,10 +333,10 @@ export function ChatTicketPicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TicketIcon className="h-5 w-5 text-blue-600" />
-            Đặt vé cho khách
+            {t('chat.bookForCustomer')}
           </DialogTitle>
           <DialogDescription>
-            Tạo vé nhanh cho khách hàng trong cuộc trò chuyện này. Khách sẽ nhận được vé trong chat.
+            {t('adminTickets.pickerDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -356,8 +360,8 @@ export function ChatTicketPicker({
                 fromSearch={fromSearch}
                 toSearch={toSearch}
                 tripSearch={tripSearch}
-                onSelectTrip={(t) => {
-                  setSelectedTrip(t)
+                onSelectTrip={(tr) => {
+                  setSelectedTrip(tr)
                   setStep('seats')
                 }}
               />
@@ -422,7 +426,7 @@ export function ChatTicketPicker({
             {selectedSeats.length > 0 && (
               <Badge variant="secondary" className="gap-1">
                 <Armchair className="h-3 w-3" />
-                {selectedSeats.length} ghế
+                {t('adminTickets.seatsCount', { count: selectedSeats.length })}
               </Badge>
             )}
             {totalPrice > 0 && (
@@ -443,7 +447,7 @@ export function ChatTicketPicker({
                 }}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Quay lại
+                {t('common.back')}
               </Button>
             )}
             {step === 'seats' && (
@@ -452,7 +456,7 @@ export function ChatTicketPicker({
                 disabled={!canProceedSeats}
                 onClick={() => setStep('passenger')}
               >
-                Tiếp tục
+                {t('adminTickets.continue')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
@@ -462,7 +466,7 @@ export function ChatTicketPicker({
                 disabled={!canProceedPassenger}
                 onClick={() => setStep('confirm')}
               >
-                Xác nhận
+                {t('common.confirm')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
@@ -476,12 +480,12 @@ export function ChatTicketPicker({
                 {createBooking.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Đang đặt…
+                    {t('adminTickets.bookingInProgress')}
                   </>
                 ) : (
                   <>
                     <TicketIcon className="h-4 w-4" />
-                    Đặt vé ngay
+                    {t('adminTickets.bookNow')}
                   </>
                 )}
               </Button>
@@ -496,11 +500,12 @@ export function ChatTicketPicker({
 // ── StepIndicator ───────────────────────────────────────────
 
 function StepIndicator({ step }: { step: Step }) {
+  const t = useT()
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
-    { key: 'search', label: 'Tìm chuyến', icon: <Search className="h-3.5 w-3.5" /> },
-    { key: 'seats', label: 'Chọn ghế', icon: <Armchair className="h-3.5 w-3.5" /> },
-    { key: 'passenger', label: 'Hành khách', icon: <User className="h-3.5 w-3.5" /> },
-    { key: 'confirm', label: 'Xác nhận', icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
+    { key: 'search', label: t('nav.searchTrips'), icon: <Search className="h-3.5 w-3.5" /> },
+    { key: 'seats', label: t('adminTickets.chooseSeats'), icon: <Armchair className="h-3.5 w-3.5" /> },
+    { key: 'passenger', label: t('booking.passengers'), icon: <User className="h-3.5 w-3.5" /> },
+    { key: 'confirm', label: t('common.confirm'), icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   ]
   const currentIdx = steps.findIndex((s) => s.key === step)
   return (

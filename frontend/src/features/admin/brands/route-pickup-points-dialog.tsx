@@ -38,6 +38,7 @@ import {
   useDeleteAdminPickupPoint,
   usePlacesList,
 } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type { AdminPickupPointOut, AdminRouteOut } from '@/lib/api/types.gen'
 import { PICKUP_TYPE_LABELS } from '@/features/admin/types'
 import { PickupPointFormDialog } from '@/features/admin/pickup-points/pickup-form'
@@ -50,6 +51,7 @@ export function RoutePickupPointsDialog({
   route: AdminRouteOut | null
   onOpenChange: (open: boolean) => void
 }) {
+  const t = useT()
   const open = !!route
   const routeId = route?.id
   const pickupQuery = useAdminPickupPoints(routeId)
@@ -72,10 +74,10 @@ export function RoutePickupPointsDialog({
     setDeleting(true)
     try {
       await deleteMutation.mutateAsync({ path: { id: deleteTarget.id } })
-      toast.success('Đã xoá điểm đón/trả')
+      toast.success(t('adminBrands.pickupDeleted'))
       setDeleteTarget(null)
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể xoá điểm đón/trả'))
+      toast.error(getErrorMessage(e, t('adminBrands.pickupDeleteFailed')))
     } finally {
       setDeleting(false)
     }
@@ -88,7 +90,7 @@ export function RoutePickupPointsDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <MapPin className="h-4 w-4 text-rose-600" />
-              Điểm đón / trả
+              {t('adminBrands.pickupPointsTitle')}
             </DialogTitle>
             <DialogDescription className="truncate">
               {route ? `${route.name} · ${route.startLocation?.name ?? ''} → ${route.endLocation?.name ?? ''}` : ''}
@@ -104,17 +106,17 @@ export function RoutePickupPointsDialog({
                 setFormOpen(true)
               }}
             >
-              <Plus className="h-3.5 w-3.5" /> Thêm điểm
+              <Plus className="h-3.5 w-3.5" /> {t('adminBrands.addPoint')}
             </Button>
           </div>
 
           {pickupQuery.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> Đang tải điểm đón/trả…
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> {t('adminBrands.loadingPickupPoints')}
             </div>
           ) : pickupPoints.length === 0 ? (
             <div className="rounded-md border border-dashed py-8 text-center text-xs text-muted-foreground">
-              Tuyến chưa có điểm đón/trả nào.
+              {t('adminBrands.noPickupPointsYet')}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -140,7 +142,9 @@ export function RoutePickupPointsDialog({
                               : 'bg-slate-100 text-slate-700'
                         }`}
                       >
-                        {PICKUP_TYPE_LABELS[p.kind ?? ''] ?? p.kind}
+                        {p.kind && PICKUP_TYPE_LABELS[p.kind]
+                          ? t(PICKUP_TYPE_LABELS[p.kind])
+                          : p.kind}
                       </Badge>
                     </div>
                     {p.address && (
@@ -155,8 +159,8 @@ export function RoutePickupPointsDialog({
                         setFormOpen(true)
                       }}
                       className="rounded p-1 text-slate-400 transition-colors hover:text-blue-600"
-                      title="Sửa"
-                      aria-label={`Sửa điểm đón ${p.name}`}
+                      title={t('common.edit')}
+                      aria-label={t('adminBrands.editPickupPoint', { name: p.name ?? '' })}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
@@ -164,8 +168,8 @@ export function RoutePickupPointsDialog({
                       type="button"
                       onClick={() => setDeleteTarget(p)}
                       className="rounded p-1 text-slate-400 transition-colors hover:text-rose-600"
-                      title="Xoá"
-                      aria-label={`Xoá điểm đón ${p.name}`}
+                      title={t('common.delete')}
+                      aria-label={t('adminBrands.deletePickupPoint', { name: p.name ?? '' })}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -203,14 +207,15 @@ export function RoutePickupPointsDialog({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xoá</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Xoá điểm đón/trả <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
-              Hành động này không thể hoàn tác.
+              {t('adminBrands.deletePickupConfirm')}{' '}
+              <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?{' '}
+              {t('common.confirmDeleteBody')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Huỷ</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -221,11 +226,11 @@ export function RoutePickupPointsDialog({
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Đang xoá...
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Xoá
+                  <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
                 </>
               )}
             </AlertDialogAction>

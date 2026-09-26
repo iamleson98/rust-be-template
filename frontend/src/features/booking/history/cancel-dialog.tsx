@@ -103,7 +103,7 @@ const cancelMutation = useCancelBooking({
         if (trimmed.length < 10) {
           form.setError('otherReason', {
             type: 'manual',
-            message: 'Vui lòng nhập lý do huỷ vé (tối thiểu 10 ký tự)',
+            message: t('bookingHistory.otherReasonMin'),
           })
           return
         }
@@ -119,7 +119,7 @@ const cancelMutation = useCancelBooking({
         if (!form.formState.errors.agreed) {
           form.setError('agreed', {
             type: 'manual',
-            message: 'Bạn cần đồng ý với chính sách hoàn vé',
+            message: t('bookingHistory.agreeRequired'),
           })
         }
         return

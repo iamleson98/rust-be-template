@@ -35,35 +35,38 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useLogout } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
-const NAV_GROUPS = [
+/** Nav groups — labels resolve through the i18n dictionary so the
+ *  account sidebar follows the VI/EN language switch. */
+const NAV_GROUPS = (t: (k: string) => string) => [
   {
-    label: 'Tài khoản',
+    label: t('auth.account'),
     items: [
-      { title: 'Hồ sơ cá nhân', icon: UserCircle, url: '/account' },
-      { title: 'Lịch sử chuyến đi', icon: History, url: '/account/trips' },
-      { title: 'Vé của tôi', icon: Ticket, url: '/bookings' },
+      { title: t('layout.account.profile'), icon: UserCircle, url: '/account' },
+      { title: t('layout.account.tripHistory'), icon: History, url: '/account/trips' },
+      { title: t('nav.tickets'), icon: Ticket, url: '/bookings' },
     ],
   },
   {
-    label: 'Đánh giá',
+    label: t('bookingHistory.reviews'),
     items: [
-      { title: 'Phản hồi chuyến đi', icon: MessageSquareHeart, url: '/account/feedback' },
+      { title: t('layout.account.tripFeedback'), icon: MessageSquareHeart, url: '/account/feedback' },
     ],
   },
   {
-    label: 'Tiện ích',
+    label: t('layout.account.utilities'),
     items: [
-      { title: 'Danh sách yêu thích', icon: Heart, url: '/account/wishlist' },
-      { title: 'Điểm thưởng', icon: Gift, url: '/account/loyalty' },
+      { title: t('account.wishlist'), icon: Heart, url: '/account/wishlist' },
+      { title: t('nav.loyalty'), icon: Gift, url: '/account/loyalty' },
     ],
   },
   {
-    label: 'Cài đặt',
+    label: t('account.settings'),
     items: [
-      { title: 'Thông báo', icon: Bell, url: '/account/notifications' },
-      { title: 'Bảo mật', icon: ShieldCheck, url: '/account/security' },
+      { title: t('account.notifications'), icon: Bell, url: '/account/notifications' },
+      { title: t('accountPage.securityShort'), icon: ShieldCheck, url: '/account/security' },
     ],
   },
 ]
@@ -72,6 +75,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const { user } = useApp()
   const logoutMut = useLogout()
+  const t = useT()
 
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -111,7 +115,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
               <span className="truncate font-bold text-white">DatXeVui</span>
-              <span className="truncate text-xs text-white/70">Tài khoản của tôi</span>
+              <span className="truncate text-xs text-white/70">{t('layout.account.subtitle')}</span>
             </div>
           )}
         </Link>
@@ -119,7 +123,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
-        {NAV_GROUPS.map((group) => (
+        {NAV_GROUPS(t).map((group) => (
           <div key={group.label} className="mb-3">
             {!collapsed && (
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 px-3 py-1.5">
@@ -160,25 +164,25 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           <Link
             to="/"
             onClick={() => setMobileOpen(false)}
-            title={collapsed ? 'Trang chủ' : undefined}
+            title={collapsed ? t('nav.home') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all h-9',
               collapsed ? 'justify-center px-0' : 'px-3',
             )}
           >
             <ArrowLeft className="size-4 shrink-0" />
-            {!collapsed && <span>Trang chủ</span>}
+            {!collapsed && <span>{t('nav.home')}</span>}
           </Link>
           <button
             onClick={() => { logoutMut.mutate(); setMobileOpen(false) }}
-            title={collapsed ? 'Đăng xuất' : undefined}
+            title={collapsed ? t('auth.logout') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all h-9 w-full',
               collapsed ? 'justify-center px-0' : 'px-3',
             )}
           >
             <LogOut className="size-4 shrink-0" />
-            {!collapsed && <span>Đăng xuất</span>}
+            {!collapsed && <span>{t('auth.logout')}</span>}
           </button>
         </div>
         {!collapsed && (
@@ -189,7 +193,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-xs leading-tight overflow-hidden">
-              <span className="truncate font-semibold">{user?.name || 'Người dùng'}</span>
+              <span className="truncate font-semibold">{user?.name || t('accountPage.fallbackUserName')}</span>
               <span className="truncate text-muted-foreground">{user?.email || ''}</span>
             </div>
           </div>
@@ -244,7 +248,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           </Button>
           <Separator orientation="vertical" className="mr-2 h-5" />
           <span className="text-sm font-medium text-muted-foreground truncate">
-            {user?.name || 'Tài khoản'}
+            {user?.name || t('auth.account')}
           </span>
         </header>
         <div className="flex-1 overflow-y-auto overscroll-contain">

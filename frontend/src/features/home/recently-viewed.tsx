@@ -7,11 +7,13 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { History, ChevronRight, Bus, Clock } from 'lucide-react'
 import { relativeTime } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { buildSearchInput } from '@/lib/search-params'
 
 function RecentlyViewedImpl() {
   const { recentlyViewed, pushRecentlyViewed } = useApp()
   const navigate = useNavigate()
+  const t = useT()
 
   // Don't render if no recently viewed items
   if (recentlyViewed.length === 0) return null
@@ -32,9 +34,9 @@ function RecentlyViewedImpl() {
               <History className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h2 className="font-bold text-lg md:text-xl tracking-tight">Vừa xem gần đây</h2>
+              <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recentlyViewedTitle')}</h2>
               <p className="text-xs text-muted-foreground">
-                {recentlyViewed.length} chuyến bạn vừa xem — tiếp tục đặt ngay
+                {t('home.recentlyViewedSubtitle', { count: recentlyViewed.length })}
               </p>
             </div>
           </div>
@@ -49,7 +51,7 @@ function RecentlyViewedImpl() {
               })
             }
           >
-            Tất cả kết quả
+            {t('home.allResults')}
             <ChevronRight className="h-3.5 w-3.5" />
           </Button>
         </div>
@@ -74,7 +76,7 @@ function RecentlyViewedImpl() {
                 </div>
                 <div className="font-semibold text-sm line-clamp-2 leading-snug">{rv.label}</div>
                 <div className="mt-2 inline-flex items-center gap-1 text-xs text-blue-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                  Mở lại chi tiết
+                  {t('home.reopenDetails')}
                   <ChevronRight className="h-3 w-3" />
                 </div>
               </div>

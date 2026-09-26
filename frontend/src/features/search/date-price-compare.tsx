@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { buildSearchInput } from '@/lib/search-params'
 import { formatCurrency } from '@/lib/currency'
@@ -60,6 +61,18 @@ function formatPriceCompact(price: number, currency: 'VND' | 'USD'): string {
 
 export function DatePriceCompare() {
   const { searchParams, currency } = useApp()
+  const t = useT()
+  // Day-of-week short labels (T2…CN) translated at render time — DOW_VN
+  // keeps the canonical keys used in the DatePrice state.
+  const DOW_LABELS: Record<string, string> = {
+    T2: t('searchPage.dowMon'),
+    T3: t('searchPage.dowTue'),
+    T4: t('searchPage.dowWed'),
+    T5: t('searchPage.dowThu'),
+    T6: t('searchPage.dowFri'),
+    T7: t('searchPage.dowSat'),
+    CN: t('searchPage.dowSun'),
+  }
   const navigate = useNavigate()
   const [prices, setPrices] = useState<DatePrice[]>([])
   const [, setLoading] = useState(true)
@@ -127,7 +140,7 @@ export function DatePriceCompare() {
           // (handled by the SDK's default client config)
         })
         const items: { minPrice: number }[] = ((data ?? {}) as { items?: Array<{ minPrice: number }> }).items ?? []
-        const minPrice = items.length > 0 ? items.reduce((min, t) => Math.min(min, t.minPrice), Infinity) : null
+        const minPrice = items.length > 0 ? items.reduce((min, tr) => Math.min(min, tr.minPrice), Infinity) : null
         return { date: d.date, price: minPrice }
       } catch {
         if (controller.signal.aborted) return { date: d.date, price: null }
@@ -194,8 +207,8 @@ export function DatePriceCompare() {
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 ring-1 ring-blue-100">
           <TrendingDown className="h-3.5 w-3.5 text-blue-600" />
         </div>
-        <span className="text-sm font-semibold text-slate-700">So sánh giá các ngày lân cận</span>
-        <span className="text-[11px] text-slate-400 hidden sm:inline">— chọn ngày rẻ nhất để tiết kiệm</span>
+        <span className="text-sm font-semibold text-slate-700">{t('searchPage.compareNearbyDates')}</span>
+        <span className="text-[11px] text-slate-400 hidden sm:inline">{t('searchPage.cheapestDayHint')}</span>
       </div>
 
       <div className="flex gap-2 sm:gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
@@ -209,7 +222,7 @@ export function DatePriceCompare() {
               key={dp.date}
               onClick={() => handleDateClick(dp)}
               disabled={isDisabled}
-              aria-label={`Ngày ${dp.dow} ${dp.label}${hasPrice ? `, giá ${formatCurrency(dp.price!, currency)}` : ''}`}
+              aria-label={`${t('searchPage.dateButtonAria', { dow: DOW_LABELS[dp.dow] ?? dp.dow, date: dp.label })}${hasPrice ? t('searchPage.datePriceAria', { price: formatCurrency(dp.price!, currency) }) : ''}`}
               className={cn(
                 // Wider cards with generous padding so price never overflows.
                 'relative flex flex-col items-center justify-center gap-0.5',
@@ -229,7 +242,7 @@ export function DatePriceCompare() {
               {dp.isCheapest && !isSelected && hasPrice && (
                 <span className="absolute -top-2 left-1/2 -translate-x-1/2 bg-blue-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap z-10  flex items-center gap-0.5">
                   <Sparkles className="h-2.5 w-2.5" />
-                  Rẻ nhất
+                  {t('searchPage.cheapest')}
                 </span>
               )}
 
@@ -240,7 +253,7 @@ export function DatePriceCompare() {
                   isSelected ? 'text-blue-100' : isDisabled ? 'text-slate-300' : dp.isCheapest ? 'text-blue-600' : 'text-slate-500'
                 )}
               >
-                {dp.dow}
+                {DOW_LABELS[dp.dow] ?? dp.dow}
               </span>
 
               {/* Date */}

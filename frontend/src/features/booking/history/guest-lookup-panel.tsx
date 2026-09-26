@@ -6,6 +6,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { Search, ChevronDown } from 'lucide-react'
 import { Card as UiCard } from '@/components/ui/card'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { BookingItem } from '@/features/booking/history/booking-types'
 import { BookingList } from '@/features/booking/history/booking-list'
 import { GuestLookupForm } from '@/features/booking/history/guest-lookup-form'
@@ -53,6 +54,7 @@ export function GuestLookupPanel({
   cancelling: string | null
   currency: Currency
 }) {
+  const t = useT()
   const navigate = useNavigate()
 
   return (
@@ -66,7 +68,7 @@ export function GuestLookupPanel({
         >
           <span className="inline-flex items-center gap-2">
             <Search className="h-4 w-4 text-blue-600" />
-            Tra cứu vé khác bằng mã vé hoặc SĐT
+            {t('bookingHistory.lookupOtherBookings')}
           </span>
           <ChevronDown
             className={`h-4 w-4 transition-transform ${showGuestLookup ? 'rotate-180' : ''}`}

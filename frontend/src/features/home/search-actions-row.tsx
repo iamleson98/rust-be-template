@@ -28,11 +28,11 @@ export function SearchActionsRow({
     <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
       <div className="flex flex-wrap gap-2">
         {[
-          { key: 'limousine', label: '🚐 Limousine', tip: 'Xe limousine cao cấp, ghế ngả rộng' },
-          { key: 'sleeper', label: '🛏️ Giường nằm', tip: 'Xe giường nằm 2 tầng, phù hợp đi đêm' },
-          { key: 'semi_sleeper', label: '💺 Nằm đơn', tip: 'Ghế ngả 140°, tầm giá giữa limousine và giường nằm' },
-          { key: 'minivan', label: '🚐 Minivan', tip: 'Xe minivan 16 chỗ, phù hợp tuyến ngắn, cảm giác cao cấp' },
-          { key: 'standard', label: '🚌 Ghế ngồi', tip: 'Xe ghế ngồi thông thường, giá rẻ' },
+          { key: 'limousine', label: t('home.vehicleLimousine'), tip: t('home.vehicleLimousineTip') },
+          { key: 'sleeper', label: t('home.vehicleSleeper'), tip: t('home.vehicleSleeperTip') },
+          { key: 'semi_sleeper', label: t('home.vehicleSemiSleeper'), tip: t('home.vehicleSemiSleeperTip') },
+          { key: 'minivan', label: t('home.vehicleMinivan'), tip: t('home.vehicleMinivanTip') },
+          { key: 'standard', label: t('home.vehicleStandard'), tip: t('home.vehicleStandardTip') },
         ].map((v) => {
           const active = searchParams.vehicleTypes.includes(v.key)
           return (
@@ -69,7 +69,7 @@ export function SearchActionsRow({
       >
         {submitting ? (
           <span className="relative z-10 flex items-center gap-2">
-            <span>Đang tìm...</span>
+            <span>{t('home.searching')}</span>
           </span>
         ) : (
           <span className="relative z-10 flex items-center gap-2">

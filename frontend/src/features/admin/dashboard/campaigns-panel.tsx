@@ -21,6 +21,7 @@ import { CheckCircle2, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
+import { useT } from '@/lib/i18n'
 import { formatNum } from '@/lib/types'
 import { useCampaigns } from '@/lib/queries'
 import type { AdminCampaignRow as Campaign } from './types'
@@ -28,6 +29,7 @@ import type { AdminCampaignRow as Campaign } from './types'
 const columnHelper = createColumnHelper<DataTableFeatures, Campaign>()
 
 export function CampaignsPanel() {
+  const t = useT()
   const { data, isLoading, isError, refetch } = useCampaigns()
   const campaigns: Campaign[] = (data?.items ?? []) as unknown as Campaign[]
 
@@ -35,35 +37,35 @@ export function CampaignsPanel() {
     () =>
       columnHelper.columns([
         columnHelper.accessor('code', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Mã" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminDash.code')} />,
           cell: ({ getValue }) => (
             <code className="font-mono font-bold text-blue-700 dark:text-blue-400">{getValue()}</code>
           ),
           sortFn: 'text',
-          meta: { label: 'Mã' },
+          meta: { label: t('adminDash.code') },
         }),
         columnHelper.accessor('name', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Tên" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.name')} />,
           cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
           sortFn: 'text',
-          meta: { label: 'Tên' },
+          meta: { label: t('common.name') },
         }),
-        columnHelper.accessor((row) => row.brand?.name ?? 'Toàn nền tảng', {
+        columnHelper.accessor((row) => row.brand?.name ?? t('adminDash.platformWide'), {
           id: 'brand',
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Hãng" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminDash.brand')} />,
           sortFn: 'text',
-          meta: { label: 'Hãng', cellClassName: 'hidden md:table-cell' },
+          meta: { label: t('adminDash.brand'), cellClassName: 'hidden md:table-cell' },
         }),
         columnHelper.accessor('usedCount', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Lượt dùng" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminDash.usedCount')} />,
           cell: ({ getValue }) => (
             <span className="font-medium tabular-nums">{formatNum(getValue())}</span>
           ),
           sortFn: 'basic',
-          meta: { label: 'Lượt dùng', align: 'right' },
+          meta: { label: t('adminDash.usedCount'), align: 'right' },
         }),
         columnHelper.accessor('usageLimitTotal', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Giới hạn" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminDash.usageLimit')} />,
           cell: ({ getValue }) => (
             <span className="tabular-nums text-muted-foreground">
               {getValue() > 0 ? formatNum(getValue()) : '∞'}
@@ -71,13 +73,13 @@ export function CampaignsPanel() {
           ),
           sortFn: 'basic',
           meta: {
-            label: 'Giới hạn',
+            label: t('adminDash.usageLimit'),
             align: 'right',
             cellClassName: 'hidden sm:table-cell',
           },
         }),
         columnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
           cell: ({ getValue }) => (
             <Badge className="gap-1 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300">
               <CheckCircle2 className="h-3 w-3" aria-hidden />
@@ -85,10 +87,10 @@ export function CampaignsPanel() {
             </Badge>
           ),
           sortFn: 'text',
-          meta: { label: 'Trạng thái', align: 'center' },
+          meta: { label: t('common.status'), align: 'center' },
         }),
       ]),
-    [],
+    [t],
   )
 
   return (
@@ -96,7 +98,7 @@ export function CampaignsPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-500" />
-          Chiến dịch khuyến mãi đang chạy
+          {t('adminDash.campaignsTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
@@ -108,10 +110,10 @@ export function CampaignsPanel() {
           isLoading={isLoading}
           isError={isError}
           onRetry={() => refetch()}
-          rowNoun="chiến dịch"
+          rowNoun={t('adminDash.campaignNoun')}
           hidePagination
-          emptyTitle="Chưa có chiến dịch khuyến mãi"
-          emptyDescription="Các chương trình giảm giá đang chạy sẽ hiển thị tại đây."
+          emptyTitle={t('adminDash.noCampaignsTitle')}
+          emptyDescription={t('adminDash.noCampaignsDesc')}
           emptyIcon={<Sparkles className="h-5 w-5" aria-hidden />}
         />
       </CardContent>

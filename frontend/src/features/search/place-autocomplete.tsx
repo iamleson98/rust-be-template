@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 import { toast } from 'sonner'
 
 // Leaflet touches `window` at import time, so we must load the MapPicker
@@ -42,6 +43,7 @@ type Props = {
 }
 
 export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor = 'blue', className }: Props) {
+  const t = useT()
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
   // Debounced query — fed into usePlaceSearch so we don't fire a request
@@ -103,22 +105,22 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
     }
   }, [])
 
-  const typeLabel = (t: string) => {
+  const typeLabel = (type: string) => {
     const map: Record<string, string> = {
-      city: 'Thành phố',
-      town: 'Thị xã',
-      village: 'Xã',
-      bus_station: 'Bến xe',
-      bus_stop: 'Trạm dừng',
+      city: t('searchPage.placeCity'),
+      town: t('searchPage.placeTown'),
+      village: t('searchPage.placeVillage'),
+      bus_station: t('searchPage.placeBusStation'),
+      bus_stop: t('searchPage.placeBusStop'),
     }
-    return map[t] ?? t
+    return map[type] ?? type
   }
 
   const handleMapConfirm = (place: PickedPlace) => {
     setQuery(place.name)
     onChange(place.name)
     setMapOpen(false)
-    toast.success(`Đã chọn: ${place.name}`)
+    toast.success(t('searchPage.placeSelected', { name: place.name }))
   }
 
   return (
@@ -166,8 +168,8 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
         <button
           type="button"
           onClick={() => setMapOpen(true)}
-          title="Chọn trên bản đồ"
-          aria-label="Chọn trên bản đồ"
+          title={t('searchPage.pickOnMap')}
+          aria-label={t('searchPage.pickOnMap')}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-blue-600 hover:bg-blue-50 transition-colors"
         >
           <MapIcon className="h-4 w-4" />
@@ -208,7 +210,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
             className="flex w-full items-center gap-2 border-t px-3 py-2.5 text-left text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors"
           >
             <MapIcon className="h-4 w-4" />
-            Chọn vị trí trên bản đồ
+            {t('searchPage.pickLocationOnMap')}
           </button>
         </div>
       )}
@@ -222,7 +224,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" style={{ animationDelay: '0.18s' }} />
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" style={{ animationDelay: '0.36s' }} />
             </span>
-            <span>Đang tìm địa điểm...</span>
+            <span>{t('searchPage.searchingPlaces')}</span>
           </div>
         </div>
       )}
@@ -233,7 +235,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
           <DialogHeader className="px-4 py-3 border-b bg-white">
             <DialogTitle className="text-base flex items-center gap-2">
               <MapPin className={cn('h-4 w-4', pinColor === 'red' ? 'text-rose-600' : 'text-blue-600')} />
-              Chọn vị trí trên bản đồ
+              {t('searchPage.pickLocationOnMap')}
             </DialogTitle>
           </DialogHeader>
           <Suspense fallback={MapPickerFallback}>

@@ -25,6 +25,8 @@ import { useEffect, type RefObject } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { WsClient } from '@/lib/ws-client'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import { playSound } from '@/lib/sound-effects'
 import { notifyChatMessage } from '@/lib/notifications'
 import { startTitleNotification } from '@/lib/title-notifier'
@@ -103,7 +105,7 @@ export function useChatWidgetWs({
         }
         // Browser push notification when page is in background.
         if (m.senderType !== 'user') {
-          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          notifyChatMessage(m.senderName ?? translate(useApp.getState().lang, 'chat.agentName'), m.content || '')
           // Flash the page title (messenger-style) so the user notices
           // the new message even when the tab is in the background.
           startTitleNotification(1)
@@ -113,7 +115,7 @@ export function useChatWidgetWs({
       } else {
         // Message from a different channel — show a notification.
         if (m.senderType !== 'user') {
-          notifyChatMessage(m.senderName ?? 'Nhân viên hỗ trợ', m.content || '')
+          notifyChatMessage(m.senderName ?? translate(useApp.getState().lang, 'chat.agentName'), m.content || '')
           startTitleNotification(1)
           playSound('message')
         }
@@ -226,13 +228,13 @@ export function useChatWidgetWs({
     ws.on('abuse:warned', (data: Record<string, unknown>) => {
       const d = data as unknown as { reason?: string }
       if (d?.reason) {
-        toast.warning(`Cảnh báo: ${d.reason}`, { duration: 6000 })
+        toast.warning(translate(useApp.getState().lang, 'chatWidget.abuseWarning', { reason: d.reason }), { duration: 6000 })
       }
     })
 
     ws.on('abuse:banned', (data: Record<string, unknown>) => {
       const d = data as unknown as { reason?: string }
-      const reason = d?.reason ?? 'Tài khoản tạm khóa do vi phạm quy định chat.'
+      const reason = d?.reason ?? translate(useApp.getState().lang, 'chatWidget.abuseBannedDefault')
       toast.error(reason, { duration: 12000 })
       setInput('')
     })

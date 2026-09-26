@@ -9,6 +9,7 @@
  */
 
 import type { TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { SlidersHorizontal, Filter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,12 +44,13 @@ export function MobileFiltersSheet({
   effectivePriceRange: [number, number]
   resetFilters: () => void
 }) {
+  const t = useT()
   return (
     <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
       <SheetTrigger asChild>
         <Button variant="outline" size="sm" className="lg:hidden gap-1.5 relative">
           <Filter className="h-3.5 w-3.5" />
-          Lọc
+          {t('searchPage.filter')}
           {activeFilterCount > 0 && (
             <Badge className="bg-blue-600 text-white text-[9px] h-4 min-w-4 px-1 flex items-center justify-center absolute -top-1 -right-1">
               {activeFilterCount}
@@ -60,7 +62,7 @@ export function MobileFiltersSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-blue-600" />
-            Bộ lọc
+            {t('searchPage.filters')}
             {activeFilterCount > 0 && (
               <Badge className="bg-blue-600 text-white text-[10px]">{activeFilterCount}</Badge>
             )}
@@ -68,7 +70,7 @@ export function MobileFiltersSheet({
         </SheetHeader>
         <div className="px-4 pb-6 space-y-4">
           <div>
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Sắp xếp</div>
+            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.sort')}</div>
             <div className="grid grid-cols-2 gap-1.5">
               {sortOptions.map((o) => (
                 <button
@@ -82,21 +84,21 @@ export function MobileFiltersSheet({
                   )}
                 >
                   <span className="mr-1.5">{o.icon}</span>
-                  {o.label}
+                  {t(o.labelKey)}
                 </button>
               ))}
             </div>
           </div>
           <div className="pt-3 border-t">
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Loại xe</div>
+            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.vehicleType')}</div>
             <div className="grid grid-cols-1 gap-1.5">
               {[
-                { key: 'limousine', label: 'Limousine', emoji: '🚐' },
-                { key: 'sleeper', label: 'Giường nằm', emoji: '🛏️' },
-                { key: 'standard', label: 'Ghế ngồi', emoji: '🚌' },
+                { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
+                { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
+                { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
               ].map((v) => {
                 const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                const count = searchResults.filter((t) => (t.vehicleType ?? null) === v.key).length
+                const count = searchResults.filter((tr) => (tr.vehicleType ?? null) === v.key).length
                 return (
                   <label key={v.key} className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
                     <Checkbox
@@ -109,7 +111,7 @@ export function MobileFiltersSheet({
                       }}
                       className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                     />
-                    <span className="group-hover:text-blue-700 transition-colors flex-1">{v.emoji} {v.label}</span>
+                    <span className="group-hover:text-blue-700 transition-colors flex-1">{v.emoji} {t(v.labelKey)}</span>
                     {count > 0 && (
                       <span className="text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
                     )}
@@ -128,7 +130,7 @@ export function MobileFiltersSheet({
           />
           {activeFilterCount > 0 && (
             <Button variant="outline" onClick={resetFilters} className="w-full text-rose-600 border-rose-300 hover:bg-rose-50">
-              <X className="h-4 w-4" /> Xoá tất cả bộ lọc
+              <X className="h-4 w-4" /> {t('searchPage.clearAllFilters')}
             </Button>
           )}
         </div>

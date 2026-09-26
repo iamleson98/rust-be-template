@@ -12,6 +12,7 @@
 import { useMemo } from 'react'
 import { Clock, Timer, ArrowDown } from 'lucide-react'
 import { formatDuration, formatTimeVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 
 type RouteTimelinePoint = {
   id: string
@@ -34,6 +35,7 @@ export function RouteTimeline({
   toName: string
   pickupPoints: RouteTimelinePoint[]
 }) {
+  const t = useT()
   // Compute time for each stop: departure + etaOffsetMin
   const timelineItems = useMemo(() => {
     const depDate = new Date(departureTime)
@@ -43,7 +45,6 @@ export function RouteTimeline({
       time: Date
       offsetMin: number
       type: 'start' | 'pickup' | 'drop' | 'end'
-      label?: string
     }[] = []
 
     // Starting point
@@ -53,7 +54,6 @@ export function RouteTimeline({
       time: depDate,
       offsetMin: 0,
       type: 'start',
-      label: 'Điểm đi',
     })
 
     // Pickup and drop points (middle stops)
@@ -83,7 +83,6 @@ export function RouteTimeline({
       time: arrDate,
       offsetMin: 0,
       type: 'end',
-      label: 'Điểm đến',
     })
 
     return items
@@ -93,7 +92,7 @@ export function RouteTimeline({
     <div>
       <div className="flex items-center gap-2 mb-4">
         <Timer className="h-4 w-4 text-blue-700" />
-        <h3 className="text-sm font-semibold">Lộ trình chi tiết</h3>
+        <h3 className="text-sm font-semibold">{t('tripDetail.routeTimelineTitle')}</h3>
       </div>
 
       <div className="relative pl-6">
@@ -153,13 +152,13 @@ export function RouteTimeline({
                       >
                         {item.name}
                       </span>
-                      {item.label && (
+                      {(isFirst || isLast) && (
                         <span
                           className={`text-[10px] font-medium uppercase tracking-wider ${
                             isFirst ? 'text-blue-600' : 'text-rose-500'
                           }`}
                         >
-                          {item.label}
+                          {isFirst ? t('search.from') : t('search.to')}
                         </span>
                       )}
                       {isMid && (
@@ -168,7 +167,7 @@ export function RouteTimeline({
                             isPickup ? 'text-blue-600' : 'text-amber-500'
                           }`}
                         >
-                          {isPickup ? 'Điểm đón' : 'Điểm trả'}
+                          {isPickup ? t('tripDetail.pickupLabel') : t('tripDetail.dropoffLabel')}
                         </span>
                       )}
                     </div>

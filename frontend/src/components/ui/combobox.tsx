@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
-import { CheckIcon, ChevronDownIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
+import { useT } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 /**
@@ -190,6 +191,184 @@ function ComboboxEmpty({
       className={cn("py-2 text-center text-sm text-muted-foreground", className)}
       {...props}
     />
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+// ComboboxField — a Select-compatible searchable dropdown
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * ComboboxField — the drop-in replacement for `Select` used across
+ * the app. Same mental model (`value` + `onValueChange` + declarative
+ * items), but the popup carries a search input so long lists (cities,
+ * brands, routes, layouts…) can be typed-to-filter instead of
+ * scroll-hunted.
+ *
+ * ## API
+ *
+ * ```tsx
+ * // Flat items
+ * <ComboboxField
+ *   value={status}
+ *   onValueChange={setStatus}
+ *   items={[
+ *     { value: "active", label: "Hoạt động" },
+ *     { value: "inactive", label: "Ẩn" },
+ *   ]}
+ * />
+ *
+ * // Grouped items (e.g. Vietnamese cities by region)
+ * <ComboboxField
+ *   value={city}
+ *   onValueChange={setCity}
+ *   items={[
+ *     { label: "Miền Bắc", items: [{ value: "ha-noi", label: "Hà Nội" }] },
+ *     { label: "Miền Nam", items: [{ value: "sg", label: "TP. Hồ Chí Minh" }] },
+ *   ]}
+ * />
+ * ```
+ *
+ * ## Implementation notes
+ *
+ * - The `items` collection is passed to Base UI's Combobox root, which
+ *   gives us three things for free: client-side label filtering as the
+ *   user types (collator-aware substring match on the item label),
+ *   the `ComboboxEmpty` no-match state, and automatic selected-label
+ *   resolution in the trigger (`ComboboxValue`).
+ * - Groups render through `ComboboxGroup` + `ComboboxGroupLabel`. Base
+ *   UI hides non-matching ITEMS but keeps empty group labels mounted,
+ *   so we track the query ourselves (`onInputValueChange`) and stop
+ *   rendering a group once none of its items match.
+ */
+export type ComboboxFieldItem = {
+  value: string
+  label: string
+  disabled?: boolean
+}
+
+export type ComboboxFieldGroup = {
+  label: string
+  items: ComboboxFieldItem[]
+}
+
+type ComboboxFieldProps = {
+  /** Currently selected value (the item's `value`, like Select). */
+  value: string | null | undefined
+  /** Called with the newly selected item's value. */
+  onValueChange: (value: string) => void
+  /** Flat or grouped item collection. */
+  items: ComboboxFieldItem[] | ComboboxFieldGroup[]
+  /** Trigger placeholder when nothing is selected. */
+  placeholder?: string
+  /** Search input placeholder inside the popup. */
+  searchPlaceholder?: string
+  /** Text shown when no item matches the query. */
+  emptyText?: string
+  disabled?: boolean
+  /** Extra classes for the trigger (width, height…). */
+  className?: string
+  /** Extra classes for the popup content. */
+  contentClassName?: string
+  /** Optional aria-label for the trigger. */
+  "aria-label"?: string
+  /** Test id forwarded to the trigger. */
+  "data-testid"?: string
+}
+
+const isGrouped = (
+  items: ComboboxFieldItem[] | ComboboxFieldGroup[],
+): items is ComboboxFieldGroup[] =>
+  items.length > 0 && "items" in (items[0] as ComboboxFieldGroup)
+
+export function ComboboxField({
+  value,
+  onValueChange,
+  items,
+  placeholder,
+  searchPlaceholder,
+  emptyText,
+  disabled,
+  className,
+  contentClassName,
+  "aria-label": ariaLabel,
+  "data-testid": testId,
+}: ComboboxFieldProps) {
+  const t = useT()
+  const groups = isGrouped(items) ? items : null
+  const flat = groups ? null : (items as ComboboxFieldItem[])
+  // Track the live query so empty groups can be unmounted (Base UI
+  // hides filtered-out items but leaves group labels in the DOM).
+  const [query, setQuery] = React.useState("")
+  const needle = query.trim().toLowerCase()
+
+  const groupMatches = (group: ComboboxFieldGroup) =>
+    !needle ||
+    group.items.some(
+      (item) => item.label.toLowerCase().includes(needle),
+    )
+
+  return (
+    <Combobox
+      value={value ?? null}
+      onValueChange={(v) => {
+        // Single-select combobox: the value is the item's value or null.
+        onValueChange((v as string | null) ?? "")
+      }}
+      onInputValueChange={(input) => setQuery(input ?? "")}
+      // The items collection powers label filtering, the empty state
+      // and trigger label resolution. Base UI accepts flat
+      // {value,label} arrays or grouped {label, items} collections.
+      items={items as unknown as readonly Record<string, unknown>[]}
+      disabled={disabled}
+    >
+      <ComboboxTrigger
+        className={className}
+        aria-label={ariaLabel}
+        data-testid={testId}
+      >
+        <ComboboxValue placeholder={placeholder ?? t("combobox.choose")} />
+      </ComboboxTrigger>
+      <ComboboxContent className={contentClassName}>
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <ComboboxInput
+            placeholder={searchPlaceholder ?? t("combobox.search")}
+            className="h-8 border-b pl-8 text-sm"
+          />
+        </div>
+        <ComboboxList>
+          {groups
+            ? groups
+                .filter(groupMatches)
+                .map((group) => (
+                  <ComboboxPrimitive.Group
+                    key={group.label}
+                    className="combobox-field-group"
+                  >
+                    <ComboboxPrimitive.GroupLabel className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </ComboboxPrimitive.GroupLabel>
+                    {group.items.map((item) => (
+                      <ComboboxFieldItemRow key={item.value} item={item} />
+                    ))}
+                  </ComboboxPrimitive.Group>
+                ))
+            : flat?.map((item) => (
+                <ComboboxFieldItemRow key={item.value} item={item} />
+              ))}
+          <ComboboxEmpty>{emptyText ?? t("combobox.noMatch")}</ComboboxEmpty>
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
+}
+
+function ComboboxFieldItemRow({ item }: { item: ComboboxFieldItem }) {
+  return (
+    <ComboboxItem value={item.value} disabled={item.disabled}>
+      {item.label}
+    </ComboboxItem>
   )
 }
 

@@ -3,6 +3,7 @@
 // Extracted from the original 'hero.tsx'.
 
 import { Bus } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 /* Trusted-by partner logos strip (small brand-style pills) */
 const trustedBy = [
@@ -16,11 +17,12 @@ const trustedBy = [
 ]
 
 export function HeroTrustedBy() {
+  const t = useT()
   return (
     <div className="mt-10 pt-6 border-t border-white/15">
       <div className="text-center mb-3">
         <span className="text-[11px] font-bold uppercase tracking-widest text-blue-100">
-          Được tin dùng bởi các hãng xe hàng đầu
+          {t('home.trustedBy')}
         </span>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">

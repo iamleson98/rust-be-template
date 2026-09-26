@@ -5,40 +5,43 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Radar, RefreshCw } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { LiveTrackingMap } from './live-tracking-map'
 import { LiveTrackingSidePanel } from './live-tracking-side-panel'
 import type { TripDetail, TrackingStatus } from './live-tracking-types'
 
+// Status metadata — `label` holds an i18n key, translated at render
+// time via `t(statusMeta.label)` inside the component.
 const STATUS_META: Record<
   TrackingStatus,
   { label: string; color: string; bg: string; dot: string }
 > = {
   not_departed: {
-    label: 'Chưa khởi hành',
+    label: 'liveTracking.statusNotDeparted',
     color: 'text-slate-700',
     bg: 'bg-slate-100',
     dot: 'bg-slate-400',
   },
   running: {
-    label: 'Đang chạy',
+    label: 'liveTracking.statusRunning',
     color: 'text-blue-700',
     bg: 'bg-blue-100',
     dot: 'bg-blue-500',
   },
   stopped: {
-    label: 'Đang nghỉ',
+    label: 'liveTracking.statusStopped',
     color: 'text-amber-700',
     bg: 'bg-amber-100',
     dot: 'bg-amber-500',
   },
   arriving_soon: {
-    label: 'Sắp đến',
+    label: 'liveTracking.statusArrivingSoon',
     color: 'text-blue-700',
     bg: 'bg-blue-100',
     dot: 'bg-blue-500',
   },
   arrived: {
-    label: 'Đã đến',
+    label: 'liveTracking.arrived',
     color: 'text-blue-700',
     bg: 'bg-blue-100',
     dot: 'bg-blue-500',
@@ -46,6 +49,7 @@ const STATUS_META: Record<
 }
 
 export function LiveTracking({ detail }: { detail: TripDetail }) {
+  const t = useT()
   // Tick state — updates every second for ETA countdown
   const [now, setNow] = useState(() => Date.now())
   // Speed state — fluctuates every few seconds (40-80 km/h)
@@ -139,7 +143,9 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       } else if (nextStop) {
         locName = `${detail.from.name} → ${nextStop.name}`
       } else if (passedStops.length > 0) {
-        locName = `Gần ${passedStops[passedStops.length - 1].name}`
+        locName = t('liveTracking.nearPlace', {
+          place: passedStops[passedStops.length - 1].name,
+        })
       }
     }
 
@@ -152,6 +158,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     }
   }, [
     now,
+    t,
     detail.trip.departureAt,
     detail.trip.arrivalAt,
     detail.pickupPoints,
@@ -195,9 +202,9 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
   // Relative "last updated" text
   const lastUpdatedText = (() => {
     const diff = Math.floor((now - lastUpdated) / 1000)
-    if (diff < 5) return 'vừa xong'
-    if (diff < 60) return `${diff} giây trước`
-    return `${Math.floor(diff / 60)} phút trước`
+    if (diff < 5) return t('liveTracking.justNow')
+    if (diff < 60) return t('liveTracking.secondsAgo', { count: diff })
+    return t('liveTracking.minutesAgo', { count: Math.floor(diff / 60) })
   })()
 
   return (
@@ -212,14 +219,14 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
           </div>
           <div>
             <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-              Theo dõi trực tiếp
+              {t('liveTracking.title')}
             </div>
             <div key={status}>
               <Badge className={`${statusMeta.bg} ${statusMeta.color} border-0 gap-1.5`}>
                 <span
                   className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`}
                 />
-                {statusMeta.label}
+                {t(statusMeta.label)}
               </Badge>
             </div>
           </div>
@@ -232,7 +239,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
           className="gap-1.5"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'Đang cập nhật...' : 'Cập nhật vị trí'}
+          {refreshing ? t('liveTracking.refreshing') : t('liveTracking.refreshLocation')}
         </Button>
       </div>
 
@@ -265,7 +272,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       <div className="rounded-xl border bg-white p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Tiến độ chuyến đi
+            {t('liveTracking.tripProgress')}
           </div>
           <div className="text-sm font-bold text-blue-700">
             {Math.round(progress * 100)}%

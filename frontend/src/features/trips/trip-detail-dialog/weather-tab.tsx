@@ -28,6 +28,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { formatTimeVN, formatDateVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 
 type WeatherCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'rainy'
 
@@ -50,11 +51,17 @@ type Weather = {
   }[]
 }
 
-const CONDITION_LABELS: Record<WeatherCondition, string> = {
-  sunny: 'Trời nắng',
-  partly_cloudy: 'Nắng ít mây',
-  cloudy: 'Nhiều mây',
-  rainy: 'Có mưa',
+function conditionLabel(condition: WeatherCondition, t: ReturnType<typeof useT>): string {
+  switch (condition) {
+    case 'sunny':
+      return t('tripDetail.weatherSunny')
+    case 'partly_cloudy':
+      return t('tripDetail.weatherPartlyCloudy')
+    case 'cloudy':
+      return t('tripDetail.weatherCloudy')
+    case 'rainy':
+      return t('tripDetail.weatherRainy')
+  }
 }
 
 function ConditionIcon({ condition, className }: { condition: WeatherCondition; className?: string }) {
@@ -130,34 +137,35 @@ function getWeather(destination: string, arrivalDate: string): Weather {
 }
 
 export function WeatherTab({ destination, arrivalDate }: { destination: string; arrivalDate: string }) {
+  const t = useT()
   const weather = useMemo(() => getWeather(destination, arrivalDate), [destination, arrivalDate])
 
   // Suggested items based on weather
   const suggestions = useMemo(() => {
     const items: { icon: React.ReactNode; label: string; reason: string }[] = []
     if (weather.today.condition === 'rainy') {
-      items.push({ icon: <Umbrella className="h-4 w-4" />, label: 'Ô / Dù', reason: 'Dự báo có mưa' })
+      items.push({ icon: <Umbrella className="h-4 w-4" />, label: t('tripDetail.suggestUmbrella'), reason: t('tripDetail.suggestUmbrellaReason') })
     }
     if (weather.today.temp < 22) {
-      items.push({ icon: <Thermometer className="h-4 w-4" />, label: 'Áo khoác', reason: `Nhiệt độ ${weather.today.temp}°C khá mát` })
+      items.push({ icon: <Thermometer className="h-4 w-4" />, label: t('tripDetail.suggestJacket'), reason: t('tripDetail.suggestJacketReason', { temp: weather.today.temp }) })
     }
     if (weather.today.condition === 'sunny' || weather.today.temp > 30) {
-      items.push({ icon: <Sun className="h-4 w-4" />, label: 'Kem chống nắng', reason: 'Tia UV cao' })
+      items.push({ icon: <Sun className="h-4 w-4" />, label: t('tripDetail.suggestSunscreen'), reason: t('tripDetail.suggestSunscreenReason') })
     }
     if (weather.today.temp > 30) {
-      items.push({ icon: <Droplet className="h-4 w-4" />, label: 'Nước uống', reason: 'Tránh mất nước' })
+      items.push({ icon: <Droplet className="h-4 w-4" />, label: t('tripDetail.suggestWater'), reason: t('tripDetail.suggestWaterReason') })
     }
     if (weather.today.humidity > 80) {
-      items.push({ icon: <Wind className="h-4 w-4" />, label: 'Khẩu trang', reason: 'Độ ẩm cao' })
+      items.push({ icon: <Wind className="h-4 w-4" />, label: t('tripDetail.suggestMask'), reason: t('tripDetail.suggestMaskReason') })
     }
     if (weather.today.wind > 20) {
-      items.push({ icon: <Wind className="h-4 w-4" />, label: 'Áo gió', reason: 'Gió mạnh' })
+      items.push({ icon: <Wind className="h-4 w-4" />, label: t('tripDetail.suggestWindbreaker'), reason: t('tripDetail.suggestWindbreakerReason') })
     }
     if (items.length === 0) {
-      items.push({ icon: <CheckCircle2 className="h-4 w-4" />, label: 'Trang phục thoải mái', reason: 'Thời tiết dễ chịu' })
+      items.push({ icon: <CheckCircle2 className="h-4 w-4" />, label: t('tripDetail.suggestComfortable'), reason: t('tripDetail.suggestComfortableReason') })
     }
     return items
-  }, [weather])
+  }, [weather, t])
 
   return (
     <div className="space-y-5">
@@ -165,7 +173,7 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <Cloud className="h-4 w-4 text-blue-700" />
-          Thời tiết tại {destination}
+          {t('tripDetail.weatherAt', { destination })}
         </h3>
         <div className="rounded-xl bg-linear-to-br from-blue-50 to-blue-50 ring-1 ring-blue-200/50 p-5">
           <div className="flex items-center gap-4">
@@ -177,27 +185,27 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
             <div className="flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-extrabold text-slate-800">{weather.today.temp}°</span>
-                <span className="text-sm font-semibold text-muted-foreground">{CONDITION_LABELS[weather.today.condition]}</span>
+                <span className="text-sm font-semibold text-muted-foreground">{conditionLabel(weather.today.condition, t)}</span>
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                Cảm giác như {weather.today.feelsLike}°C • Đến {destination} lúc {formatTimeVN(arrivalDate)}
+                {t('tripDetail.weatherFeels', { temp: weather.today.feelsLike, destination, time: formatTimeVN(arrivalDate) })}
               </div>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-blue-200/40">
             <div className="text-center">
               <Droplets className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-              <div className="text-xs text-muted-foreground">Độ ẩm</div>
+              <div className="text-xs text-muted-foreground">{t('tripDetail.humidityLabel')}</div>
               <div className="font-bold text-sm">{weather.today.humidity}%</div>
             </div>
             <div className="text-center">
               <Wind className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-              <div className="text-xs text-muted-foreground">Gió</div>
+              <div className="text-xs text-muted-foreground">{t('tripDetail.windLabel')}</div>
               <div className="font-bold text-sm">{weather.today.wind} km/h</div>
             </div>
             <div className="text-center">
               <Thermometer className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-              <div className="text-xs text-muted-foreground">Cảm giác</div>
+              <div className="text-xs text-muted-foreground">{t('tripDetail.feelsLikeLabel')}</div>
               <div className="font-bold text-sm">{weather.today.feelsLike}°C</div>
             </div>
           </div>
@@ -208,7 +216,7 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <CalendarDays className="h-4 w-4 text-blue-700" />
-          Dự báo 3 ngày tới
+          {t('tripDetail.forecast3Days')}
         </h3>
         <div className="grid grid-cols-3 gap-3">
           {weather.forecast.map((f, i) => (
@@ -226,7 +234,7 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
               <div className="font-bold text-sm">
                 {f.tempMax}° <span className="text-muted-foreground font-normal text-xs">/ {f.tempMin}°</span>
               </div>
-              <div className="text-[10px] text-muted-foreground mt-1">{CONDITION_LABELS[f.condition]}</div>
+              <div className="text-[10px] text-muted-foreground mt-1">{conditionLabel(f.condition, t)}</div>
             </div>
           ))}
         </div>
@@ -236,7 +244,7 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <Lightbulb className="h-4 w-4 text-amber-500" />
-          Đồ gợi ý mang theo
+          {t('tripDetail.suggestedItems')}
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {suggestions.map((s, i) => (
@@ -257,7 +265,7 @@ export function WeatherTab({ destination, arrivalDate }: { destination: string; 
       </div>
 
       <div className="text-[10px] text-muted-foreground italic text-center pt-2">
-        * Dữ liệu thời tiết chỉ mang tính tham khảo. Vui lòng kiểm tra dự báo chính thức trước khi khởi hành.
+        {t('tripDetail.weatherDisclaimer')}
       </div>
     </div>
   )

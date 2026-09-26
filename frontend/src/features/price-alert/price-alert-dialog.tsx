@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useCreatePriceAlert, usePriceAlerts, useRemovePriceAlert } from '@/lib/queries'
 import type { PriceAlertOut as PriceAlert } from '@/lib/api/types.gen'
 import {
@@ -57,6 +58,7 @@ export function PriceAlertDialog() {
     guestName,
     searchParams,
   } = useApp()
+  const t = useT()
 
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState<{ targetPrice: number } | null>(null)
@@ -125,15 +127,15 @@ export function PriceAlertDialog() {
   const handleDeleteAlert = async (id: string) => {
     try {
       await removeAlertMut.mutateAsync({ path: { id } })
-      toast.success('Đã huỷ theo dõi giá')
+      toast.success(t('priceAlert.removed'))
     } catch {
-      toast.error('Không thể xoá cảnh báo')
+      toast.error(t('priceAlert.removeFailed'))
     }
   }
 
   const onSubmit = async (values: PriceAlertFormValues) => {
     if (!fromName || !toName) {
-      toast.error('Vui lòng chọn điểm đi và điểm đến trước')
+      toast.error(t('priceAlert.selectRouteFirst'))
       return
     }
 
@@ -161,11 +163,11 @@ export function PriceAlertDialog() {
       // so the `usePriceAlerts(phone)` query will refetch automatically.
       toast.success(
         data?.duplicate
-          ? 'Cảnh báo giá đã tồn tại — không tạo mới'
-          : 'Đã tạo cảnh báo giá thành công',
+          ? t('priceAlert.duplicate')
+          : t('priceAlert.created'),
       )
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể tạo cảnh báo giá'))
+      toast.error(getErrorMessage(e, t('priceAlert.createFailed')))
     } finally {
       setSubmitting(false)
     }
@@ -180,9 +182,9 @@ export function PriceAlertDialog() {
               <Bell className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold">Theo dõi giảm giá vé</DialogTitle>
+              <DialogTitle className="text-lg font-bold">{t('priceAlert.dialogTitle')}</DialogTitle>
               <DialogDescription className="text-xs">
-                Nhận thông báo khi giá vé giảm dưới mức bạn mong muốn
+                {t('priceAlert.dialogDesc')}
               </DialogDescription>
             </div>
           </div>
@@ -194,13 +196,13 @@ export function PriceAlertDialog() {
               <CheckCircle2 className="h-9 w-9 text-blue-600" />
             </div>
             <div>
-              <h3 className="font-bold text-base">Đã thiết lập cảnh báo giá!</h3>
+              <h3 className="font-bold text-base">{t('priceAlert.successTitle')}</h3>
               <p className="text-sm text-muted-foreground mt-1.5 max-w-sm mx-auto">
-                Bạn sẽ được thông báo khi giá vé tuyến{' '}
+                {t('priceAlert.successIntro')}{' '}
                 <span className="font-semibold text-foreground">
                   {fromName} → {toName}
                 </span>{' '}
-                giảm dưới{' '}
+                {t('priceAlert.successBelow')}{' '}
                 <span className="font-semibold text-blue-700">
                   {formatVND(success.targetPrice)}
                 </span>
@@ -209,14 +211,14 @@ export function PriceAlertDialog() {
             </div>
             <div className="flex items-center justify-center gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setSuccess(null)}>
-                Tạo cảnh báo khác
+                {t('priceAlert.createAnother')}
               </Button>
               <Button
                 size="sm"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => setPriceAlertOpen(false)}
               >
-                Xong
+                {t('priceAlert.done')}
               </Button>
             </div>
           </div>
@@ -226,22 +228,22 @@ export function PriceAlertDialog() {
               {/* Route (read-only display) */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Tuyến đường
+                  {t('priceAlert.routeLabel')}
                 </Label>
                 <div className="flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{fromName || 'Chưa chọn'}</div>
-                    <div className="text-[10px] text-muted-foreground">Điểm đi</div>
+                    <div className="text-sm font-semibold truncate">{fromName || t('priceAlert.notSelected')}</div>
+                    <div className="text-[10px] text-muted-foreground">{t('search.from')}</div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-blue-600 shrink-0" />
                   <div className="flex-1 min-w-0 text-right">
-                    <div className="text-sm font-semibold truncate">{toName || 'Chưa chọn'}</div>
-                    <div className="text-[10px] text-muted-foreground">Điểm đến</div>
+                    <div className="text-sm font-semibold truncate">{toName || t('priceAlert.notSelected')}</div>
+                    <div className="text-[10px] text-muted-foreground">{t('search.to')}</div>
                   </div>
                 </div>
                 {minPrice > 0 && (
                   <p className="text-[11px] text-muted-foreground">
-                    Giá thấp nhất hiện tại:{' '}
+                    {t('priceAlert.minPriceNow')}{' '}
                     <span className="font-semibold text-blue-700">{formatVND(minPrice)}</span>
                   </p>
                 )}
@@ -261,7 +263,7 @@ export function PriceAlertDialog() {
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
                     <FormLabel htmlFor="alert-phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Số điện thoại <span className="text-destructive">*</span>
+                      {t('auth.phone')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
@@ -287,7 +289,7 @@ export function PriceAlertDialog() {
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
                     <FormLabel htmlFor="alert-email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Email <span className="text-muted-foreground/60 normal-case font-normal">(không bắt buộc)</span>
+                      {t('auth.email')} <span className="text-muted-foreground/60 normal-case font-normal">{t('priceAlert.emailOptional')}</span>
                     </FormLabel>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
@@ -324,7 +326,7 @@ export function PriceAlertDialog() {
                   onClick={() => setPriceAlertOpen(false)}
                   disabled={submitting}
                 >
-                  Huỷ
+                  {t('common.cancel')}
                 </Button>
                 <Button
                   type="submit"
@@ -334,12 +336,12 @@ export function PriceAlertDialog() {
                   {submitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang tạo...
+                      {t('priceAlert.creating')}
                     </>
                   ) : (
                     <>
                       <Bell className="h-4 w-4" />
-                      Bật theo dõi giá
+                      {t('priceAlert.enableTracking')}
                     </>
                   )}
                 </Button>
@@ -347,7 +349,7 @@ export function PriceAlertDialog() {
 
               {guestName && (
                 <p className="text-[10px] text-muted-foreground text-center -mt-2">
-                  Đang dùng thông tin từ đặt vé gần nhất ({guestName})
+                  {t('priceAlert.usingRecentInfo', { name: guestName })}
                 </p>
               )}
             </form>

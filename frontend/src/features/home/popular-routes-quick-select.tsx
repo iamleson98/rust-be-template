@@ -4,6 +4,7 @@
 
 import { Route } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/lib/i18n'
 import type { SearchParams } from '@/lib/store'
 
 export function PopularRoutesQuickSelect({
@@ -13,11 +14,12 @@ export function PopularRoutesQuickSelect({
   searchParams: SearchParams
   setSearchParams: (p: Partial<SearchParams>) => void
 }) {
+  const t = useT()
   return (
     <div className="mt-3 pt-3 border-t border-slate-100">
       <div className="flex items-center gap-1.5 mb-2">
         <Route className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tuyến phổ biến</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{t('search.popularRoutes')}</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {[

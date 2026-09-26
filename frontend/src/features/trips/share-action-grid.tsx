@@ -10,6 +10,7 @@
  */
 
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 import {
   Copy,
   Check,
@@ -42,6 +43,7 @@ export function ShareActionGrid({
   handleZalo: () => void
   handleWhatsApp: () => void
 }) {
+  const t = useT()
   return (
             <div className="grid grid-cols-2 gap-2">
               <Button
@@ -50,7 +52,7 @@ export function ShareActionGrid({
                 className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
               >
                 {copied ? <Check className="h-4 w-4 text-blue-600" /> : <Copy className="h-4 w-4" />}
-                {copied ? 'Đã copy' : 'Sao chép link'}
+                {copied ? t('trips.copiedLabel') : t('trips.copyLink')}
               </Button>
               <Button
                 onClick={handleDownload}
@@ -58,7 +60,7 @@ export function ShareActionGrid({
                 className="gap-2 border-amber-300 text-violet-700 hover:bg-violet-50"
               >
                 <Download className="h-4 w-4" />
-                Tải ảnh
+                {t('trips.downloadImage')}
               </Button>
               <Button
                 onClick={handleFacebook}
@@ -82,7 +84,7 @@ export function ShareActionGrid({
                 className="gap-2 col-span-2 border-blue-300 text-blue-700 hover:bg-blue-50"
               >
                 <WhatsAppIcon className="h-4 w-4" />
-                Chia sẻ WhatsApp
+                {t('trips.shareWhatsApp')}
               </Button>
             </div>
   )

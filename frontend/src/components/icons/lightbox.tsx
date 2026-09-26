@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 
+import { useT } from '@/lib/i18n'
+
 type Props = {
   open: boolean
   images: string[]
@@ -11,6 +13,7 @@ type Props = {
 }
 
 export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
+  const t = useT()
   const [idx, setIdx] = useState(initialIndex)
 
   useEffect(() => {
@@ -55,7 +58,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           className="fixed inset-0 z-100 bg-black/90 backdrop-blur-sm flex items-center justify-center"
           role="dialog"
           aria-modal="true"
-          aria-label="Xem ảnh phóng to"
+          aria-label={t('lightbox.dialogLabel')}
         >
           {/* Top bar */}
           <div className="absolute top-0 inset-x-0 flex items-center justify-between px-4 py-3 text-white">
@@ -65,7 +68,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
             <button
               onClick={onClose}
               className="h-10 w-10 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
-              aria-label="Đóng"
+              aria-label={t('common.close')}
             >
               <X className="h-5 w-5" />
             </button>
@@ -79,7 +82,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                 goPrev()
               }}
               className="absolute left-2 sm:left-4 h-12 w-12 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              aria-label="Ảnh trước"
+              aria-label={t('lightbox.prevImage')}
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
@@ -96,7 +99,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           >
             <img
               src={images[idx]}
-              alt={`Ảnh ${idx + 1}`}
+              alt={t('lightbox.imageAlt', { index: idx + 1 })}
               className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg"
               loading="eager"
               decoding="async"
@@ -111,7 +114,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                 goNext()
               }}
               className="absolute right-2 sm:right-4 h-12 w-12 inline-flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
-              aria-label="Ảnh sau"
+              aria-label={t('lightbox.nextImage')}
             >
               <ChevronRight className="h-6 w-6" />
             </button>
@@ -129,7 +132,7 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                   }}
                   className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${i === idx ? 'ring-white scale-105' : 'ring-white/20 opacity-70 hover:opacity-100'
                     }`}
-                  aria-label={`Ảnh ${i + 1}`}
+                  aria-label={t('lightbox.imageAlt', { index: i + 1 })}
                 >
                   <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
                 </button>

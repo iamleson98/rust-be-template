@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2, EyeOff, Send, XCircle } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { StarRating } from '@/features/feedback/star-rating'
 import { formatDate, type FeedbackRow } from './helpers'
 
@@ -44,6 +45,7 @@ export function FeedbackDetailDialog({
   ) => Promise<boolean>
   onClose: () => void
 }) {
+  const t = useT()
   return (
     <Dialog open={!!selected} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -57,14 +59,14 @@ export function FeedbackDetailDialog({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <div className="truncate text-base">{selected.authorName || 'Khách ẩn danh'}</div>
+                  <div className="truncate text-base">{selected.authorName || t('adminFeedback.anonymousCustomer')}</div>
                   <div className="text-xs font-normal text-muted-foreground">
                     {formatDate(selected.createdAt)}
                   </div>
                 </div>
               </DialogTitle>
               <DialogDescription className="sr-only">
-                Chi tiết phản hồi và kiểm duyệt
+                {t('adminFeedback.detailSr')}
               </DialogDescription>
             </DialogHeader>
 
@@ -97,13 +99,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'approved' }, 'Đã duyệt phản hồi')) {
+                      if (await moderate(selected.id, { status: 'approved' }, t('adminFeedback.approvedToast'))) {
                         setSelected({ ...selected, status: 'approved' })
                       }
                     }}
                     className="gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                   >
-                    <CheckCircle2 className="size-3.5" /> Duyệt hiển thị
+                    <CheckCircle2 className="size-3.5" /> {t('adminFeedback.approveAction')}
                   </Button>
                 )}
                 {selected.status !== 'rejected' && (
@@ -112,13 +114,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'rejected' }, 'Đã từ chối phản hồi')) {
+                      if (await moderate(selected.id, { status: 'rejected' }, t('adminFeedback.rejectedToast'))) {
                         setSelected({ ...selected, status: 'rejected' })
                       }
                     }}
                     className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"
                   >
-                    <XCircle className="size-3.5" /> Từ chối
+                    <XCircle className="size-3.5" /> {t('adminFeedback.statusRejected')}
                   </Button>
                 )}
                 {selected.status !== 'hidden' && (
@@ -127,13 +129,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'hidden' }, 'Đã ẩn phản hồi')) {
+                      if (await moderate(selected.id, { status: 'hidden' }, t('adminFeedback.hiddenToast'))) {
                         setSelected({ ...selected, status: 'hidden' })
                       }
                     }}
                     className="gap-1.5"
                   >
-                    <EyeOff className="size-3.5" /> Ẩn
+                    <EyeOff className="size-3.5" /> {t('adminFeedback.hideAction')}
                   </Button>
                 )}
               </div>
@@ -141,12 +143,12 @@ export function FeedbackDetailDialog({
               {/* Brand reply editor */}
               <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                 <div className="text-xs font-semibold text-muted-foreground">
-                  Phản hồi của hãng xe (hiển thị kèm đánh giá)
+                  {t('adminFeedback.brandReplyLabel')}
                 </div>
                 <Textarea
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Cảm ơn bạn đã phản hồi…"
+                  placeholder={t('adminFeedback.brandReplyPlaceholder')}
                   rows={3}
                   className="bg-background text-sm resize-none"
                 />
@@ -155,13 +157,13 @@ export function FeedbackDetailDialog({
                     size="sm"
                     disabled={updating || !replyText.trim()}
                     onClick={async () => {
-                      if (await moderate(selected.id, { brandReply: replyText.trim() }, 'Đã gửi phản hồi')) {
+                      if (await moderate(selected.id, { brandReply: replyText.trim() }, t('adminFeedback.replySentToast'))) {
                         setSelected({ ...selected, reply: replyText.trim() })
                       }
                     }}
                     className="gap-1.5"
                   >
-                    <Send className="size-3.5" /> Gửi phản hồi
+                    <Send className="size-3.5" /> {t('adminFeedback.sendReply')}
                   </Button>
                 </div>
               </div>

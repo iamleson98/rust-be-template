@@ -54,6 +54,7 @@ import {
   ComboboxTrigger,
 } from '@/components/ui/combobox'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 /** One page of the paginated list the component consumes. */
@@ -174,22 +175,23 @@ function ListFooter({
   isFetchingNextPage: boolean
   hasItems: boolean
 }) {
+  const t = useT()
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải…
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ui.loading')}
       </div>
     )
   }
   if (isFetchingNextPage) {
     return (
       <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang tải thêm…
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('ui.loadingMore')}
       </div>
     )
   }
   if (!hasItems) {
-    return <div className="py-6 text-center text-sm text-muted-foreground">Không tìm thấy kết quả</div>
+    return <div className="py-6 text-center text-sm text-muted-foreground">{t('combobox.noMatch')}</div>
   }
   // All loaded — no footer; the list simply ends, matching the plain
   // Select / Combobox behaviour.
@@ -234,16 +236,19 @@ export function InfiniteSelect<T>({
   renderValue,
   renderItem,
   extraItems,
-  placeholder = 'Chọn…',
-  searchPlaceholder = 'Tìm kiếm…',
+  placeholder,
+  searchPlaceholder,
   searchable = true,
   disabled,
   size = 'default',
   className,
   id,
 }: InfiniteSelectProps<T>) {
+  const t = useT()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 250)
+  const effectivePlaceholder = placeholder ?? t('ui.choose')
+  const effectiveSearchPlaceholder = searchPlaceholder ?? t('ui.search')
 
   const query = useInfiniteOptions(scope, fetchPage, debouncedSearch)
   const items = useMergedItems(query.data?.pages, extraItems, itemValue)
@@ -264,7 +269,7 @@ export function InfiniteSelect<T>({
     ? renderValue(selected, value ?? null)
     : selected
       ? itemLabel(selected)
-      : (value ?? placeholder)
+      : (value ?? effectivePlaceholder)
 
   return (
     <Combobox
@@ -291,7 +296,7 @@ export function InfiniteSelect<T>({
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <ComboboxInput
-              placeholder={searchPlaceholder}
+              placeholder={effectiveSearchPlaceholder}
               className="pl-9"
             />
           </div>
@@ -355,8 +360,8 @@ export function InfiniteMultiSelect<T>({
   itemLabel,
   renderItem,
   extraItems,
-  placeholder = 'Chọn…',
-  searchPlaceholder = 'Tìm kiếm…',
+  placeholder,
+  searchPlaceholder,
   searchable = true,
   disabled,
   size = 'default',
@@ -364,8 +369,11 @@ export function InfiniteMultiSelect<T>({
   maxBadges = 2,
   id,
 }: InfiniteMultiSelectProps<T>) {
+  const t = useT()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebouncedValue(search, 250)
+  const effectivePlaceholder = placeholder ?? t('ui.choose')
+  const effectiveSearchPlaceholder = searchPlaceholder ?? t('ui.search')
 
   const query = useInfiniteOptions(scope, fetchPage, debouncedSearch)
   const items = useMergedItems(query.data?.pages, extraItems, itemValue)
@@ -400,7 +408,7 @@ export function InfiniteMultiSelect<T>({
         className={cn('w-full', size === 'sm' && 'h-8', className)}
       >
         {values.length === 0 ? (
-          <span className="flex-1 truncate text-left text-muted-foreground">{placeholder}</span>
+          <span className="flex-1 truncate text-left text-muted-foreground">{effectivePlaceholder}</span>
         ) : (
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-left">
             {badges.map((v) => (
@@ -422,7 +430,7 @@ export function InfiniteMultiSelect<T>({
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <ComboboxInput
-              placeholder={searchPlaceholder}
+              placeholder={effectiveSearchPlaceholder}
               className="pl-9"
             />
           </div>

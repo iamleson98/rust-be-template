@@ -2,15 +2,17 @@
 
 import { memo } from 'react'
 import { Check, Smartphone, Play, Bell, Ticket, Star, Zap, Gift } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 const FEATURES = [
-  { icon: Bell, label: 'Thông báo giá rẻ tức thì' },
-  { icon: Ticket, label: 'Quản lý vé offline' },
-  { icon: Star, label: 'Tích điểm đổi vé miễn phí' },
-  { icon: Smartphone, label: 'Hỗ trợ 24/7 qua chat' },
+  { icon: Bell, labelKey: 'home.appNotify' },
+  { icon: Ticket, labelKey: 'home.appOffline' },
+  { icon: Star, labelKey: 'home.appPoints' },
+  { icon: Smartphone, labelKey: 'home.appSupport' },
 ]
 
 function AppDownloadImpl() {
+  const t = useT()
   return (
     <section
       className="relative overflow-hidden bg-linear-to-br from-slate-900 via-slate-800 to-rose-900"
@@ -31,32 +33,34 @@ function AppDownloadImpl() {
           {/* Left column — copy + CTAs */}
           <div className="text-center md:text-left">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur">
-              📱 Tải app DatXeVui
+              {t('home.appBadge')}
             </span>
 
             <h2
               id="app-download-heading"
               className="mt-4 text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-white"
             >
-              Đặt vé xe mọi lúc, mọi nơi
+              {t('home.appTitle')}
             </h2>
 
             <p className="mt-4 text-sm md:text-base text-white/70 max-w-lg mx-auto md:mx-0">
-              Tải app DatXeVui để nhận thông báo giá rẻ, quản lý vé dễ dàng, tích điểm đổi quà.
-              Hơn <span className="font-semibold text-white">125.000 người</span> đã tải.
+              {t('home.appDesc')}{' '}
+              {t('home.appOver')}{' '}
+              <span className="font-semibold text-white">{t('home.appDownloadsCount')}</span>{' '}
+              {t('home.appDownloadsTail')}
             </p>
 
             {/* Feature list */}
             <ul className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg mx-auto md:mx-0 text-left">
               {FEATURES.map((f) => (
                 <li
-                  key={f.label}
+                  key={f.labelKey}
                   className="flex items-center gap-2.5 rounded-lg bg-white/5 px-3 py-2 ring-1 ring-white/10"
                 >
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-rose-500/30 text-rose-200">
                     <Check className="size-3.5" />
                   </span>
-                  <span className="text-sm text-white/90">{f.label}</span>
+                  <span className="text-sm text-white/90">{t(f.labelKey)}</span>
                 </li>
               ))}
             </ul>
@@ -70,7 +74,7 @@ function AppDownloadImpl() {
                 <Smartphone className="size-5 text-slate-900" />
                 <span className="text-left leading-tight">
                   <span className="block text-[10px] uppercase tracking-wide text-slate-500">
-                    Tải trên
+                    {t('home.downloadOn')}
                   </span>
                   <span className="block text-sm font-semibold">App Store</span>
                 </span>
@@ -83,7 +87,7 @@ function AppDownloadImpl() {
                 <Play className="size-5 fill-slate-900 text-slate-900" />
                 <span className="text-left leading-tight">
                   <span className="block text-[10px] uppercase tracking-wide text-slate-500">
-                    Tải trên
+                    {t('home.downloadOn')}
                   </span>
                   <span className="block text-sm font-semibold">Google Play</span>
                 </span>
@@ -104,8 +108,8 @@ function AppDownloadImpl() {
                   {/* App header */}
                   <div className="flex items-center justify-between text-white">
                     <div>
-                      <div className="text-[10px] opacity-80">Xin chào,</div>
-                      <div className="text-sm font-bold">Vé của bạn</div>
+                      <div className="text-[10px] opacity-80">{t('home.mockHello')}</div>
+                      <div className="text-sm font-bold">{t('home.mockYourTickets')}</div>
                     </div>
                     <div className="size-8 rounded-full bg-white/20 backdrop-blur" />
                   </div>
@@ -113,10 +117,10 @@ function AppDownloadImpl() {
                   {/* Ticket card */}
                   <div className="rounded-2xl bg-white p-3">
                     <div className="flex items-center justify-between text-[9px] text-slate-400">
-                      <span>Vé điện tử</span>
+                      <span>{t('home.mockETicket')}</span>
                       <span className="inline-flex items-center gap-1 text-rose-600 font-semibold">
                         <span className="size-1.5 rounded-full bg-emerald-500" />
-                        Đã xác nhận
+                        {t('home.mockConfirmed')}
                       </span>
                     </div>
 
@@ -139,22 +143,22 @@ function AppDownloadImpl() {
 
                     <div className="mt-3 grid grid-cols-3 gap-2 text-[9px]">
                       <div>
-                        <div className="text-slate-400">Giờ đi</div>
+                        <div className="text-slate-400">{t('home.mockDepartTime')}</div>
                         <div className="font-semibold text-slate-900">20:00</div>
                       </div>
                       <div>
-                        <div className="text-slate-400">Ghế</div>
+                        <div className="text-slate-400">{t('home.mockSeat')}</div>
                         <div className="font-semibold text-slate-900">A07</div>
                       </div>
                       <div>
-                        <div className="text-slate-400">Ngày</div>
+                        <div className="text-slate-400">{t('home.mockDate')}</div>
                         <div className="font-semibold text-slate-900">28/06</div>
                       </div>
                     </div>
 
                     <div className="mt-3 flex items-end justify-between border-t border-dashed border-slate-200 pt-2">
                       <div>
-                        <div className="text-[9px] text-slate-400">Tổng tiền</div>
+                        <div className="text-[9px] text-slate-400">{t('home.mockTotal')}</div>
                         <div className="text-sm font-bold text-rose-600">320.000đ</div>
                       </div>
                       <div className="grid grid-cols-3 gap-0.5">
@@ -171,7 +175,7 @@ function AppDownloadImpl() {
                   {/* Secondary mini card */}
                   <div className="rounded-xl bg-white/15 backdrop-blur p-2.5 ring-1 ring-white/20">
                     <div className="flex items-center justify-between text-white">
-                      <div className="text-[10px] opacity-90">⚡ Flash Sale 12.000 vé</div>
+                      <div className="text-[10px] opacity-90">{t('home.mockFlashSaleTickets')}</div>
                       <div className="text-[10px] font-bold">-50K</div>
                     </div>
                     <div className="mt-1.5 h-1.5 rounded-full bg-white/20 overflow-hidden">
@@ -185,21 +189,21 @@ function AppDownloadImpl() {
               <div className="absolute -top-3 -left-6 z-20 animate-[float-slow_3s_ease-in-out_infinite] rounded-xl bg-amber-400 px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Zap className="size-3.5 text-amber-900" />
-                  <span className="text-xs font-bold text-amber-900">⚡ Flash Sale</span>
+                  <span className="text-xs font-bold text-amber-900">{t('home.flashSaleBadge')}</span>
                 </div>
               </div>
 
               <div className="absolute top-1/2 -right-6 z-20 animate-[float-slow_3.4s_ease-in-out_infinite_0.3s] rounded-xl bg-white px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Gift className="size-3.5 text-rose-600" />
-                  <span className="text-xs font-bold text-slate-900">🎁 -50K</span>
+                  <span className="text-xs font-bold text-slate-900">{t('home.giftBadge')}</span>
                 </div>
               </div>
 
               <div className="absolute -bottom-3 left-2 z-20 animate-[float-slow_3.2s_ease-in-out_infinite_0.6s] rounded-xl bg-white px-3 py-1.5 ring-1 ring-black/5">
                 <div className="flex items-center gap-1.5">
                   <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                  <span className="text-xs font-bold text-slate-900">⭐ 4.8/5</span>
+                  <span className="text-xs font-bold text-slate-900">{t('home.ratingBadge')}</span>
                 </div>
               </div>
             </div>

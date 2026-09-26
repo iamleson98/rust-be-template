@@ -14,13 +14,7 @@ import type { Control, FieldArrayWithId } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   FormField,
   FormControl,
@@ -30,6 +24,7 @@ import {
 import { SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { User, Trash2, Armchair, GripVertical } from 'lucide-react'
 import {
   type BookingValues,
@@ -58,6 +53,7 @@ export function PassengerFormCard({
   currency: Currency
   removePassenger: (index: number) => void
 }) {
+  const t = useT()
   const passenger = passengers[i] ?? (p as PassengerFormValue)
   const typeMeta = PASSENGER_TYPE_META[getPassengerType(passenger.age)]
   const assignedSeat = selectedSeatCodes.find((s) => s.id === passenger.seatId)
@@ -73,12 +69,12 @@ export function PassengerFormCard({
             {i + 1}
           </div>
           <span className="text-xs font-medium text-slate-700 shrink-0 hidden sm:inline">
-            Hành khách {i + 1}
+            {t('booking.passenger', { n: i + 1 })}
           </span>
           <Badge className={`${typeMeta.pill} border-0 text-[10px] gap-1 shrink-0`}>
             {typeMeta.icon}
-            {typeMeta.label}
-            {getPassengerType(passenger.age) === 'infant' && <span className="opacity-70">(miễn phí)</span>}
+            {t(typeMeta.label)}
+            {getPassengerType(passenger.age) === 'infant' && <span className="opacity-70">{t('bookingFlow.infantFree')}</span>}
           </Badge>
         </div>
         {passengerFields.length > 1 && (
@@ -87,7 +83,7 @@ export function PassengerFormCard({
             size="sm"
             className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 shrink-0"
             onClick={() => removePassenger(i)}
-            aria-label="Xoá hành khách"
+            aria-label={t('bookingFlow.removePassenger')}
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
@@ -105,7 +101,7 @@ export function PassengerFormCard({
               <FormControl>
                 <Input
                   {...field}
-                  placeholder="Họ và tên (như CCCD)"
+                  placeholder={t('bookingFlow.passengerNamePh')}
                   className="pl-8 bg-white"
                 />
               </FormControl>
@@ -128,7 +124,7 @@ export function PassengerFormCard({
                   onBlur={field.onBlur}
                   name={field.name}
                   ref={field.ref}
-                  placeholder="Tuổi"
+                  placeholder={t('booking.passengerAge')}
                   className="bg-white"
                 />
               </FormControl>
@@ -141,18 +137,21 @@ export function PassengerFormCard({
           name={`passengers.${i}.gender`}
           render={({ field }) => (
             <FormItem className="space-y-0">
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Giới tính" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="male">Nam</SelectItem>
-                  <SelectItem value="female">Nữ</SelectItem>
-                  <SelectItem value="other">Khác</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <ComboboxField
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={[
+                    { value: 'male', label: t('bookingFlow.genderMale') },
+                    { value: 'female', label: t('bookingFlow.genderFemale') },
+                    { value: 'other', label: t('bookingFlow.genderOther') },
+                  ]}
+                  className="bg-white"
+                  placeholder={t('bookingFlow.genderLabel')}
+                  searchPlaceholder={t('combobox.search')}
+                  aria-label={t('bookingFlow.genderLabel')}
+                />
+              </FormControl>
               <FormMessage className="mt-1" />
             </FormItem>
           )}
@@ -167,42 +166,27 @@ export function PassengerFormCard({
           name={`passengers.${i}.seatId`}
           render={({ field }) => (
             <FormItem className="flex-1 space-y-0">
-              <Select value={field.value} onValueChange={field.onChange}>
-                <FormControl>
-                  <SelectTrigger className="bg-white">
-                    <SelectValue placeholder="Chọn ghế cho hành khách này" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {selectedSeatCodes.map((s) => {
+              <FormControl>
+                <ComboboxField
+                  value={field.value}
+                  onValueChange={field.onChange}
+                  items={selectedSeatCodes.map((s) => {
                     const assignedTo = passengers.find((pp, j) => pp.seatId === s.id && j !== i)
                     const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null
-                    return (
-                      <SelectItem
-                        key={s.id}
-                        value={s.id}
-                        disabled={!!assignedTo}
-                        textValue={`${s.code} • ${SEAT_CLASS_LABELS[s.class] ?? s.class} • ${formatCurrency(s.price, currency)}${assignedTo ? ` • đã ghép HP${assignedToIdx}` : ''}`}
-                      >
-                        <div className="flex items-center gap-2 w-full">
-                          <span className="font-mono font-bold text-xs">{s.code}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {SEAT_CLASS_LABELS[s.class] ?? s.class}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground ml-auto">
-                            {formatCurrency(s.price, currency)}
-                          </span>
-                          {assignedTo && (
-                            <span className="text-[10px] text-rose-500 ml-1 shrink-0">
-                              • HP{assignedToIdx}
-                            </span>
-                          )}
-                        </div>
-                      </SelectItem>
-                    )
+                    return {
+                      value: s.id,
+                      label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)} • ${formatCurrency(s.price, currency)}${
+                        assignedTo ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}` : ''
+                      }`,
+                      disabled: !!assignedTo,
+                    }
                   })}
-                </SelectContent>
-              </Select>
+                  className="bg-white"
+                  placeholder={t('bookingFlow.chooseSeatPh')}
+                  searchPlaceholder={t('bookingFlow.searchSeatPh')}
+                  aria-label={t('bookingFlow.passengerSeatAria')}
+                />
+              </FormControl>
               <FormMessage className="mt-1" />
             </FormItem>
           )}

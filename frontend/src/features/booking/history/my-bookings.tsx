@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import {
   useMyBookings,
@@ -14,7 +15,7 @@ import {
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Ticket, CalendarCheck, Wallet } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
-import { lookupSchema, type LookupValues } from '@/features/booking/history/guest-lookup-form'
+import { makeLookupSchema, type LookupValues } from '@/features/booking/history/guest-lookup-form'
 
 // Re-export shared types for backward compatibility (other modules may
 // still `import { BookingItem } from '@/features/booking/history/my-bookings'`).
@@ -46,16 +47,20 @@ type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
 export function MyBookings() {
   const { setCancelDialogOpen, setCancelBookingId, currency, user } = useApp()
+  const t = useT()
   const navigate = useNavigate()
 
   // ── Guest lookup state ─────────────────────────────────
   // The lookup form is owned by react-hook-form (zod-validated via the
-  // shared `lookupSchema` exported from guest-lookup-form.tsx). The
+  // shared `makeLookupSchema` factory exported from guest-lookup-form.tsx). The
   // `searchCode` / `searchPhone` strings exposed to <GuestLookupForm />
   // are derived from the form via `watch`, and the setters write back
   // via `setValue` — so the parent and the embedded <GuestLookupForm />
   // RHF instance stay in sync (the child also validates on its own
   // before `doSearch` is invoked).
+  // i18n: schema factory memoized per language so the refine message
+  // follows the active language.
+  const lookupSchema = useMemo(() => makeLookupSchema(t), [t])
   const lookupForm = useForm<LookupValues>({
     resolver: zodResolver(lookupSchema),
     defaultValues: { code: '', phone: '' },
@@ -236,9 +241,9 @@ export function MyBookings() {
   const bookingStats = (
     <StatsRow
       stats={[
-        { icon: <Ticket className="h-5 w-5" />, label: 'Tổng số vé', value: String(userBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: 'vé đã đặt' },
-        { icon: <CalendarCheck className="h-5 w-5" />, label: 'Sắp khởi hành', value: String(upcomingBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: 'chuyến sắp đi' },
-        { icon: <Wallet className="h-5 w-5" />, label: 'Tổng chi phí', value: formatCurrency(userTotalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: 'đã thanh toán' },
+        { icon: <Ticket className="h-5 w-5" />, label: t('bookingHistory.statTotalTickets'), value: String(userBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statTicketsBooked') },
+        { icon: <CalendarCheck className="h-5 w-5" />, label: t('bookingHistory.statUpcoming'), value: String(upcomingBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statUpcomingSub') },
+        { icon: <Wallet className="h-5 w-5" />, label: t('bookingHistory.statTotalSpend'), value: formatCurrency(userTotalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: t('bookingHistory.statPaidSub') },
       ]}
     />
   )

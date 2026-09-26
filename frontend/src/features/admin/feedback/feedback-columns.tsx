@@ -12,6 +12,7 @@ import { createColumnHelper } from '@tanstack/react-table'
 import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { useT } from '@/lib/i18n'
 import { StarRating } from '@/features/feedback/star-rating'
 import { StatusBadge } from './feedback-status-badge'
 import { formatDate, type FeedbackRow } from './helpers'
@@ -19,13 +20,14 @@ import { formatDate, type FeedbackRow } from './helpers'
 const feedbackColumnHelper = createColumnHelper<DataTableFeatures, FeedbackRow>()
 
 export function useFeedbackColumns() {
+  const t = useT()
   return useMemo(
     () =>
       feedbackColumnHelper.columns([
         feedbackColumnHelper.accessor('authorName', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Khách hàng" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminFeedback.customer')} />,
           cell: ({ row }) => {
-            const name = row.original.authorName || 'Ẩn danh'
+            const name = row.original.authorName || t('adminFeedback.anonymous')
             const phone = row.original.authorPhone
             return (
               <div className="flex items-center gap-2.5 min-w-0">
@@ -43,15 +45,15 @@ export function useFeedbackColumns() {
               </div>
             )
           },
-          meta: { label: 'Khách hàng' },
+          meta: { label: t('adminFeedback.customer') },
         }),
         feedbackColumnHelper.accessor('rating', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Đánh giá" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminFeedback.rating')} />,
           cell: ({ getValue }) => <StarRating value={getValue() as number} size="sm" />,
-          meta: { label: 'Đánh giá' },
+          meta: { label: t('adminFeedback.rating') },
         }),
         feedbackColumnHelper.accessor('title', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Nội dung" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminFeedback.content')} />,
           cell: ({ row }) => {
             const r = row.original
             return (
@@ -72,23 +74,23 @@ export function useFeedbackColumns() {
               </div>
             )
           },
-          meta: { label: 'Nội dung' },
+          meta: { label: t('adminFeedback.content') },
         }),
         feedbackColumnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
           cell: ({ getValue }) => <StatusBadge status={getValue() as string} />,
-          meta: { label: 'Trạng thái' },
+          meta: { label: t('common.status') },
         }),
         feedbackColumnHelper.accessor('createdAt', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Thời gian" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.time')} />,
           cell: ({ getValue }) => (
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {formatDate(getValue() as string)}
             </span>
           ),
-          meta: { label: 'Thời gian' },
+          meta: { label: t('adminPayments.time') },
         }),
       ]),
-    [],
+    [t],
   )
 }

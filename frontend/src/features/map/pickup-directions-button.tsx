@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Navigation } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { BookingItem, isBookingUpcoming } from '@/features/booking/history/booking-types'
 import { RouteNavigationDialog } from '@/features/map/route-navigation-dialog'
 
@@ -22,6 +23,7 @@ import { RouteNavigationDialog } from '@/features/map/route-navigation-dialog'
  * see `BookingList.renderExtraActions` and `BookingCard.extraActions`.
  */
 export function PickupDirectionsButton({ booking }: { booking: BookingItem }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
 
   // Only show for actionable, upcoming bookings with valid pickup coords.
@@ -47,10 +49,10 @@ export function PickupDirectionsButton({ booking }: { booking: BookingItem }) {
         size="sm"
         className="gap-1.5 text-blue-700 hover:text-blue-800 hover:bg-blue-50 border-blue-200"
         onClick={() => setOpen(true)}
-        aria-label="Đường đi đến điểm đón"
+        aria-label={t('mapNav.directionsToPickup')}
       >
         <Navigation className="h-3.5 w-3.5" />
-        Đường đi đến điểm đón
+        {t('mapNav.directionsToPickup')}
       </Button>
 
       <RouteNavigationDialog

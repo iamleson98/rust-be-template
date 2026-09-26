@@ -18,9 +18,14 @@ vi.mock('@/lib/queries', () => {
   }
 })
 
-/** Mutable mock state — each test can switch the logged-in persona. */
-const mockState: { user: { id: string; type: string; name: string } | null } = {
+/** Mutable mock state — each test can switch the logged-in persona.
+ *  `lang` feeds the useT() hook (labels assert Vietnamese). */
+const mockState: {
+  user: { id: string; type: string; name: string } | null
+  lang: 'vi' | 'en'
+} = {
   user: { id: 'admin-1', type: 'admin', name: 'Root Admin' },
+  lang: 'vi',
 }
 
 vi.mock('@/lib/store', () => {

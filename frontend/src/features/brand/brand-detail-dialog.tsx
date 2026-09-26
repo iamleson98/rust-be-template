@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/lib/queries'
 import { useNavigate } from '@tanstack/react-router'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import {
   Dialog,
   DialogContent,
@@ -34,15 +35,16 @@ import { BrandTagStats } from './brand-tag-stats'
 import { BrandDialogHeader } from './brand-dialog-header'
 import { BrandRoutesTab } from './brand-routes-tab'
 
+// Map tag slug → i18n labelKey (rendered via t()).
 const TAG_LABELS: Record<string, string> = {
-  on_time: 'Đúng giờ',
-  clean: 'Sạch sẽ',
-  friendly_driver: 'Tài xế thân thiện',
-  comfortable: 'Thoải mái',
-  value: 'Đáng đồng tiền',
-  easy_booking: 'Đặt dễ',
-  good_wifi: 'Wifi mạnh',
-  safe_drive: 'Lái xe an toàn',
+  on_time: 'bookingHistory.tagOnTime',
+  clean: 'bookingHistory.tagClean',
+  friendly_driver: 'bookingHistory.tagFriendlyDriver',
+  comfortable: 'bookingHistory.tagComfortable',
+  value: 'reviews.tagValue',
+  easy_booking: 'bookingHistory.tagEasyBooking',
+  good_wifi: 'bookingHistory.tagGoodWifi',
+  safe_drive: 'reviews.tagSafeDrive',
 }
 
 type TagStatsResponse = { items: TagStat[] }
@@ -50,6 +52,7 @@ type TagStatsResponse = { items: TagStat[] }
 export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: () => void }) {
   const navigate = useNavigate()
   const { setSearchParams } = useApp()
+  const t = useT()
   const [tab, setTab] = useState('routes')
 
   // ── Brand identity + brand-wide reviews ──────────────────
@@ -123,23 +126,23 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
       <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
         {isLoading || !brand ? (
           <>
-            <DialogTitle className="sr-only">Đang tải thông tin hãng xe</DialogTitle>
+            <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>
             <DialogDescription className="sr-only">
-              Vui lòng đợi trong khi chúng tôi tải thông tin hãng xe.
+              {t('brandDetail.loadingDesc')}
             </DialogDescription>
             <div className="flex flex-col items-center justify-center h-64 gap-2">
               {isError ? (
                 <>
                   <AlertCircle className="h-8 w-8 text-rose-500" />
-                  <p className="text-sm text-muted-foreground">Không thể tải thông tin hãng xe</p>
+                  <p className="text-sm text-muted-foreground">{t('brandDetail.loadError')}</p>
                   <Button size="sm" variant="outline" onClick={() => brandQuery.refetch()}>
-                    Thử lại
+                    {t('payment.retry')}
                   </Button>
                 </>
               ) : (
                 <>
                   <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
-                  <p className="text-sm text-muted-foreground">Đang tải thông tin hãng xe...</p>
+                  <p className="text-sm text-muted-foreground">{t('brandDetail.loadingText')}</p>
                 </>
               )}
             </div>
@@ -159,21 +162,21 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
               <TabsList className="rounded-none border-b bg-white justify-start px-3 h-auto py-2 w-full">
                 <TabsTrigger value="routes" className="gap-1.5">
                   <RouteIcon className="h-4 w-4" />
-                  Tuyến đường
+                  {t('admin.routes')}
                   <Badge variant="secondary" className="text-[10px] ml-0.5">
                     {routes.length}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="reviews" className="gap-1.5">
                   <MessageSquareQuote className="h-4 w-4" />
-                  Đánh giá
+                  {t('tripDetail.tabReviews')}
                   <Badge variant="secondary" className="text-[10px] ml-0.5">
                     {aggregate.count}
                   </Badge>
                 </TabsTrigger>
                 <TabsTrigger value="fleet" className="gap-1.5">
                   <Bus className="h-4 w-4" />
-                  Đội xe
+                  {t('brandDetail.tabFleet')}
                 </TabsTrigger>
               </TabsList>
 
@@ -191,21 +194,21 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                   {reviewsQuery.isLoading ? (
                     <div className="flex flex-col items-center justify-center py-10 text-muted-foreground">
                       <Loader2 className="h-6 w-6 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm">Đang tải đánh giá...</p>
+                      <p className="text-sm">{t('reviews.loading')}</p>
                     </div>
                   ) : reviewsQuery.isError ? (
                     <div className="flex flex-col items-center justify-center py-10 text-center">
                       <AlertCircle className="h-7 w-7 text-rose-500 mb-2" />
-                      <p className="text-sm text-muted-foreground mb-3">Không thể tải đánh giá</p>
+                      <p className="text-sm text-muted-foreground mb-3">{t('reviews.loadError')}</p>
                       <Button size="sm" variant="outline" onClick={() => reviewsQuery.refetch()}>
-                        Thử lại
+                        {t('payment.retry')}
                       </Button>
                     </div>
                   ) : aggregate.count === 0 ? (
                     <EmptyState
                       icon={<MessageSquareQuote className="h-7 w-7 text-slate-400" />}
-                      title="Chưa có đánh giá"
-                      subtitle={`Hãy là người đầu tiên đánh giá chuyến đi với ${brand.name}.`}
+                      title={t('reviews.emptyTitle')}
+                      subtitle={t('brandDetail.emptyReviewsSubtitle', { brand: brand.name })}
                     />
                   ) : (
                     <div className="space-y-4">
@@ -219,12 +222,12 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                             {renderStars(aggregate.avgRating, 'h-4 w-4')}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {aggregate.count.toLocaleString('vi-VN')} đánh giá
+                            {t('reviews.countLabel', { count: aggregate.count.toLocaleString('vi-VN') })}
                           </div>
                         </div>
                         <div className="space-y-1.5">
                           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-                            Phân bố sao
+                            {t('reviews.ratingDistribution')}
                           </div>
                           {[5, 4, 3, 2, 1].map((star) => {
                             const count = aggregate.distribution[star - 1] ?? 0
@@ -262,7 +265,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                       <div>
                         <div className="text-sm font-semibold mb-2 flex items-center gap-1.5">
                           <MessageSquareQuote className="h-4 w-4 text-amber-500" />
-                          Đánh giá gần đây
+                          {t('brandDetail.recentReviews')}
                         </div>
                         <div className="space-y-3">
                           {reviews.map((r) => (
@@ -309,13 +312,13 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                   )}
                                   {r.tags.length > 0 && (
                                     <div className="mt-2 flex flex-wrap gap-1">
-                                      {r.tags.map((t) => (
+                                      {r.tags.map((tag) => (
                                         <Badge
-                                          key={t}
+                                          key={tag}
                                           variant="outline"
                                           className="text-[10px] bg-slate-50 font-normal"
                                         >
-                                          {TAG_LABELS[t] ?? t}
+                                          {TAG_LABELS[tag] ? t(TAG_LABELS[tag]) : tag}
                                         </Badge>
                                       ))}
                                     </div>
@@ -332,7 +335,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                         >
                                           {brand.name.slice(0, 1)}
                                         </span>
-                                        Phản hồi từ {brand.name}
+                                        {t('reviews.replyFrom', { brand: brand.name })}
                                       </div>
                                       <p className="text-xs text-muted-foreground mt-1">
                                         {r.reply}
@@ -341,7 +344,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                   )}
                                   <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                                     <ThumbsUp className="h-3 w-3" />
-                                    Hữu ích ({r.helpfulCount})
+                                    {t('reviews.helpfulCount', { count: r.helpfulCount })}
                                   </div>
                                 </div>
                               </div>
@@ -357,8 +360,8 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                 <TabsContent value="fleet" className="p-4 m-0">
                   <EmptyState
                     icon={<Bus className="h-7 w-7 text-slate-400" />}
-                    title="Chưa có thông tin đội xe"
-                    subtitle="Hãng chưa cập nhật danh sách xe."
+                    title={t('brandDetail.fleetEmptyTitle')}
+                    subtitle={t('brandDetail.fleetEmptySubtitle')}
                   />
                 </TabsContent>
               </ScrollArea>

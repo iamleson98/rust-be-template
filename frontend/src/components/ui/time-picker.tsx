@@ -18,6 +18,7 @@
 import { Clock, X } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 const HHMM_RE = /^([01]?\d|2[0-3]):([0-5]?\d)(?::([0-5]?\d))?$/
@@ -55,6 +56,7 @@ export function TimePicker({
   'aria-label': ariaLabel,
   id,
 }: TimePickerProps) {
+  const t = useT()
   const time = toInputValue(value)
 
   return (
@@ -83,7 +85,7 @@ export function TimePicker({
       {clearable && time ? (
         <button
           type="button"
-          aria-label="Xoá giờ"
+          aria-label={t('ui.clearTime')}
           onClick={() => onChange(null)}
           className="h-6 w-6 shrink-0 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
         >

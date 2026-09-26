@@ -2,6 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import { useT } from '@/lib/i18n'
 import type { TripResult, TripDetail } from '@/lib/api/types.gen'
 import type { Seat, Passenger } from './chat-ticket-picker-types'
 
@@ -32,6 +33,7 @@ export function ConfirmStep({
   totalPrice: number
   autoConfirm: boolean
 }) {
+  const t = useT()
   const boarding = pickupPoints.find((p) => p.id === boardingPointId)
   const dropping = pickupPoints.find((p) => p.id === droppingPointId)
   return (
@@ -39,14 +41,14 @@ export function ConfirmStep({
       <div className="rounded-lg border-2 border-blue-200 bg-linear-to-br from-blue-50/50 to-emerald-50/30 p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs font-semibold uppercase text-muted-foreground">
-            Xác nhận đặt vé
+            {t('booking.confirm')}
           </div>
           <Badge variant="outline" className="text-[10px] bg-white">
-            {autoConfirm ? 'Sẽ tự động xác nhận' : 'Sẽ giữ chỗ 10 phút'}
+            {autoConfirm ? t('adminTickets.willAutoConfirm') : t('adminTickets.willHoldSeat')}
           </Badge>
         </div>
         <div className="space-y-1.5 text-xs">
-          <Row label="Hãng xe">
+          <Row label={t('admin.brands')}>
             <span className="flex items-center gap-1">
               <span
                 className="inline-block h-2 w-2 rounded-full"
@@ -55,13 +57,13 @@ export function ConfirmStep({
               {selectedTrip.brandName}
             </span>
           </Row>
-          <Row label="Tuyến">
+          <Row label={t('adminTickets.route')}>
             {selectedTrip.fromName} → {selectedTrip.toName}
           </Row>
-          <Row label="Khởi hành">
+          <Row label={t('booking.departure')}>
             {trip.trip.departureTime} · {trip.trip.departureDate}
           </Row>
-          <Row label="Số ghế">
+          <Row label={t('adminTickets.seatNumbers')}>
             <div className="flex flex-wrap gap-1 justify-end">
               {selectedSeats.map((s) => (
                 <Badge key={s.id} variant="outline" className="font-mono text-[10px] bg-white">
@@ -70,15 +72,15 @@ export function ConfirmStep({
               ))}
             </div>
           </Row>
-          <Row label="Điểm đón">{boarding?.name ?? '—'}</Row>
-          <Row label="Điểm trả">{dropping?.name ?? '—'}</Row>
-          <Row label="Người đặt">
+          <Row label={t('adminTickets.pickupPoint')}>{boarding?.name ?? '—'}</Row>
+          <Row label={t('adminTickets.dropoffPoint')}>{dropping?.name ?? '—'}</Row>
+          <Row label={t('adminTickets.bookedBy')}>
             {contactName} <span className="text-muted-foreground">· {contactPhone}</span>
           </Row>
         </div>
         <Separator className="my-2" />
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold">Tổng tiền</span>
+          <span className="text-xs font-semibold">{t('booking.totalAmount')}</span>
           <span className="text-lg font-bold text-blue-700">
             {new Intl.NumberFormat('vi-VN').format(totalPrice)}₫
           </span>
@@ -87,7 +89,7 @@ export function ConfirmStep({
 
       {/* Passenger list */}
       <div className="rounded-lg border p-3">
-        <div className="text-xs font-semibold mb-2">Danh sách hành khách</div>
+        <div className="text-xs font-semibold mb-2">{t('adminTickets.passengerList')}</div>
         <div className="space-y-1">
           {passengers.map((p) => (
             <div key={p.seatId} className="flex items-center justify-between text-xs">
@@ -98,7 +100,7 @@ export function ConfirmStep({
                 {p.name}
               </span>
               <span className="text-muted-foreground">
-                {p.type === 'adult' ? 'Người lớn' : p.type === 'child' ? 'Trẻ em' : 'Em bé'}
+                {p.type === 'adult' ? t('booking.passengerType.adult') : p.type === 'child' ? t('booking.passengerType.child') : t('booking.passengerType.infant')}
               </span>
             </div>
           ))}

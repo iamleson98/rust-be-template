@@ -19,6 +19,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import {
   Dialog,
   DialogContent,
@@ -37,6 +38,7 @@ import { ShareEmailForm } from './share-email-form'
 
 export function ShareDialog() {
   const { shareOpen, setShareOpen, shareTripData, setShareTripData, currency } = useApp()
+  const t = useT()
   const [copied, setCopied] = useState(false)
 
   // Reset copied state when dialog toggles
@@ -63,7 +65,7 @@ export function ShareDialog() {
     try {
       await navigator.clipboard.writeText(shareInfo.url)
       setCopied(true)
-      toast.success('Đã sao chép link chia sẻ', { description: shareInfo.url })
+      toast.success(t('trips.linkCopied'), { description: shareInfo.url })
       setTimeout(() => setCopied(false), 1800)
     } catch {
       // Fallback for older browsers
@@ -74,10 +76,10 @@ export function ShareDialog() {
       try {
         document.execCommand('copy')
         setCopied(true)
-        toast.success('Đã sao chép link chia sẻ', { description: shareInfo.url })
+        toast.success(t('trips.linkCopied'), { description: shareInfo.url })
         setTimeout(() => setCopied(false), 1800)
       } catch {
-        toast.error('Không thể sao chép. Vui lòng copy thủ công.')
+        toast.error(t('trips.copyFailedManual'))
       } finally {
         document.body.removeChild(ta)
       }
@@ -94,8 +96,13 @@ export function ShareDialog() {
     const u = encodeURIComponent(shareInfo.url)
     const quote = encodeURIComponent(
       shareTripData
-        ? `${shareTripData.fromName} → ${shareTripData.toName} chỉ từ ${formatCurrency(shareTripData.minPrice, currency)} — ${shareTripData.brandName}`
-        : 'DatXeVui — Đặt vé xe online',
+        ? t('trips.shareQuote', {
+            from: shareTripData.fromName,
+            to: shareTripData.toName,
+            price: formatCurrency(shareTripData.minPrice, currency),
+            brand: shareTripData.brandName,
+          })
+        : t('trips.shareFallbackQuote'),
     )
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`, '_blank', 'noopener,noreferrer,width=640,height=540')
   }
@@ -115,7 +122,13 @@ export function ShareDialog() {
   const handleWhatsApp = () => {
     if (!shareInfo || !shareTripData) return
     const text = encodeURIComponent(
-      `${shareTripData.fromName} → ${shareTripData.toName} • ${shareTripData.brandName} — chỉ từ ${formatCurrency(shareTripData.minPrice, currency)}. Đặt vé tại ${shareInfo.url}`,
+      t('trips.shareQuoteWa', {
+        from: shareTripData.fromName,
+        to: shareTripData.toName,
+        brand: shareTripData.brandName,
+        price: formatCurrency(shareTripData.minPrice, currency),
+        url: shareInfo.url,
+      }),
     )
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer,width=640,height=540')
   }
@@ -126,10 +139,10 @@ export function ShareDialog() {
         <DialogHeader className="px-5 py-4 border-b bg-linear-to-r from-blue-50 to-blue-50">
           <DialogTitle className="text-base font-extrabold flex items-center gap-2">
             <Share2 className="h-4 w-4 text-blue-600" />
-            Chia sẻ chuyến đi
+            {t('trips.shareTrip')}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Gửi chuyến đi này cho bạn bè hoặc người thân
+            {t('trips.shareTripDesc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -159,7 +172,7 @@ export function ShareDialog() {
             {/* Exchange rate note */}
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground pt-1">
               <Phone className="h-3 w-3" />
-              Hotline 1900 6067 · Tỷ giá: 1 USD = {EXCHANGE_RATE.toLocaleString('vi-VN')}₫
+              {t('trips.shareHotlineRate', { rate: EXCHANGE_RATE.toLocaleString('vi-VN') })}
             </div>
           </div>
         )}

@@ -49,6 +49,7 @@ import { Form } from '@/components/ui/form'
 import { Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpsertAdminSchedule, useUpdateAdminSchedule } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
@@ -82,6 +83,7 @@ export function ScheduleFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!schedule
   const createMutation = useUpsertAdminSchedule()
   const updateMutation = useUpdateAdminSchedule()
@@ -236,7 +238,7 @@ export function ScheduleFormDialog({
 
   const onSubmit = async (values: ScheduleFormValues) => {
     if (!route) {
-      toast.error('Chưa chọn tuyến đường')
+      toast.error(t('adminSchedules.noRouteSelected'))
       return
     }
     try {
@@ -279,14 +281,14 @@ export function ScheduleFormDialog({
           path: { id: schedule!.id },
           body: payload,
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success('Đã cập nhật lịch trình')
+        toast.success(t('adminSchedules.updated'))
       } else {
         await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
-        toast.success('Đã thêm lịch trình mới')
+        toast.success(t('adminSchedules.created'))
       }
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu lịch trình'))
+      toast.error(getErrorMessage(e, t('adminSchedules.saveFailed')))
     }
   }
 
@@ -304,12 +306,12 @@ export function ScheduleFormDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
-              {isEdit ? 'Sửa lịch trình' : 'Thêm lịch trình mới'}
+              {isEdit ? t('brands.editSchedule') : t('adminSchedules.createTitle')}
             </DialogTitle>
             <DialogDescription>
               {route ? (
                 <>
-                  Tuyến: <span className="font-medium">{route.name}</span>
+                  {t('adminSchedules.routePrefix')} <span className="font-medium">{route.name}</span>
                   {brandName ? (
                     <span className="text-muted-foreground"> · {brandName}</span>
                   ) : null}
@@ -357,15 +359,15 @@ export function ScheduleFormDialog({
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                  Huỷ
+                  {t('common.cancel')}
                 </Button>
                 <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
                   {saving ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                     </>
                   ) : (
-                    <>{isEdit ? 'Lưu thay đổi' : 'Thêm lịch trình'}</>
+                    <>{isEdit ? t('common.saveChanges') : t('adminSchedules.addSchedule')}</>
                   )}
                 </Button>
               </DialogFooter>

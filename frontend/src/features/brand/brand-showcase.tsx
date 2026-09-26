@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Star, Bus, ChevronRight } from 'lucide-react'
 import { useBrands, type Brand } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { ErrorState } from '@/components/layout/error-state'
 import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcase-skeleton'
@@ -13,6 +14,7 @@ import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcas
 export const BrandShowcase = memo(function BrandShowcase() {
   const { data, isLoading, isError, refetch } = useBrands()
   const navigate = useNavigate()
+  const t = useT()
   // Map the API brand shape to what the card UI expects.
   // `BrandOut` doesn't expose `routeCount`, so we fall back to `totalTrips`.
   const brands: Brand[] = data?.items ?? []
@@ -54,7 +56,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
           <BrandShowcaseSkeleton count={5} />
         ) : isError ? (
           <ErrorState
-            description="Không thể tải danh sách hãng xe. Vui lòng thử lại."
+            description={t('brandDetail.loadBrandsError')}
             onRetry={() => refetch()}
           />
         ) : brands.length === 0 ? null : (
@@ -64,10 +66,10 @@ export const BrandShowcase = memo(function BrandShowcase() {
               <div className="flex items-end justify-between">
                 <div>
                   <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                    Đối tác hãng xe uy tín
+                    {t('brandDetail.partnersTitle')}
                   </h2>
                   <p className="text-muted-foreground mt-1 text-sm">
-                    Hàng trăm hãng xe kết nối cả nước
+                    {t('brandDetail.partnersSubtitle')}
                   </p>
                 </div>
                 <Button
@@ -75,7 +77,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                   size="sm"
                   className="text-blue-600 hover:text-blue-700 hidden sm:flex"
                 >
-                  Xem tất cả
+                  {t('common.viewAll')}
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
@@ -138,7 +140,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                             className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40"
                           >
                             <Bus className="h-3 w-3" />
-                            {brand.totalTrips} tuyến
+                            {t('brands.routesCount', { count: brand.totalTrips })}
                           </Badge>
                         </div>
 
@@ -153,7 +155,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                             })
                           }
                         >
-                          Xem chuyến
+                          {t('brandDetail.viewTrips')}
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </div>

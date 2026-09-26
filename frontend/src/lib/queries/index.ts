@@ -34,6 +34,10 @@ import {
   list as listAddresses,
   list10 as listVehicleTypes,
   listChannels as listChannelsSdk,
+  create2 as createBrandSdk,
+  update2 as updateBrandSdk,
+  create4 as createPickupPointSdk,
+  update5 as updatePickupPointSdk,
 } from "@/lib/api/sdk.gen";
 
 // Generated TanStack Query options + keys + mutations
@@ -93,7 +97,6 @@ import {
   // admin — brands (list3/create2/delete2/update2)
   list3Options as adminBrandsListOptions,
   list3QueryKey as adminBrandsListQueryKey,
-  create2Mutation as createBrandMutation,
   delete2Mutation as deleteBrandMutation,
   // admin — routes (list8/create5/delete6/update6)
   list8Options as adminRoutesListOptions,
@@ -121,9 +124,9 @@ import {
   create7Mutation as createVehicleTypeMutation,
   update8Mutation as updateVehicleTypeMutation,
   delete8Mutation as deleteVehicleTypeMutation,
-  // admin — pickup points (list6/create4/delete4)
+  // admin — pickup points (list6/create4/update5/delete4)
   list6Options as adminPickupPointsListOptions,
-  create4Mutation as createPickupPointMutation,
+  list6QueryKey as adminPickupPointsListQueryKey,
   delete4Mutation as deletePickupPointMutation,
   // admin — bus layouts (list4/create3/update3/delete3 — the CRUD
   // paths were appended to the spec, which sorts them alphabetically
@@ -170,6 +173,15 @@ import {
   systemMetricsOptions,
 } from '@/lib/api/@tanstack/react-query.gen';
 
+// Re-export the generated query keys that dialog components need for
+// direct cache invalidation (kept aliased to stable, readable names).
+export {
+  adminBrandsListQueryKey,
+  adminRoutesListQueryKey,
+  adminSchedulesListQueryKey,
+  adminPickupPointsListQueryKey,
+};
+
 // Generated types — re-exported so components can import from here
 import type {
   ChatMessageListResponse,
@@ -186,6 +198,8 @@ import type {
   SessionUser,
   TripDetail,
   TripResult,
+  UpsertBrandRequest,
+  UpsertPickupPointRequest,
   WishlistItemOut,
   AdminBrandOut,
   AdminBookingExportResponse,
@@ -1401,7 +1415,25 @@ export function useAdminBrands() {
 export function useUpsertAdminBrand() {
   const qc = useQueryClient();
   return useMutation({
-    ...createBrandMutation(),
+    // DISPATCH create vs update: when the payload carries an `id`, the
+    // caller is editing an existing brand — PUT /api/admin/brands/{id}.
+    // The old version always posted to the create endpoint, whose
+    // handler IGNORES the `id` body field, so every edit silently
+    // created a duplicate brand row (the "edit makes a new brand" bug).
+    mutationFn: async (vars: {
+      body: UpsertBrandRequest & { id?: string };
+    }) => {
+      const { id, ...body } = vars.body;
+      if (id) {
+        const { data } = await updateBrandSdk({
+          path: { id },
+          body,
+        });
+        return data;
+      }
+      const { data } = await createBrandSdk({ body: vars.body });
+      return data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() });
       qc.invalidateQueries({ queryKey: ["brands"] });
@@ -1628,9 +1660,30 @@ export function useAdminPickupPoints(routeId?: string) {
 export function useUpsertAdminPickupPoint() {
   const qc = useQueryClient();
   return useMutation({
-    ...createPickupPointMutation(),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["admin", "pickup-points"] }),
+    // DISPATCH create vs update (same rationale as brands): an `id` in
+    // the body means we are editing — PUT /api/admin/pickup-points/{id}.
+    // The old version always POSTed to the create endpoint, so edits
+    // duplicated pickup points.
+    mutationFn: async (vars: {
+      body: UpsertPickupPointRequest & { id?: string };
+    }) => {
+      const { id, ...body } = vars.body;
+      if (id) {
+        const { data } = await updatePickupPointSdk({
+          path: { id },
+          body,
+        });
+        return data;
+      }
+      const { data } = await createPickupPointSdk({ body: vars.body });
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidate the GENERATED key (list6-based) — a literal
+      // ["admin", "pickup-points"] never matched it, so the pickup
+      // list did not refresh after mutations.
+      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() });
+    },
   });
 }
 
@@ -1638,8 +1691,9 @@ export function useDeleteAdminPickupPoint() {
   const qc = useQueryClient();
   return useMutation({
     ...deletePickupPointMutation(),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["admin", "pickup-points"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() });
+    },
   });
 }
 

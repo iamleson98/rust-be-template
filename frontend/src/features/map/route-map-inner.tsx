@@ -14,6 +14,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { MapPin, Bus, ArrowRight, Search } from 'lucide-react'
 import { formatVND } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 
 // Fix default icon paths (safety net; we mostly use CircleMarker / divIcon)
@@ -118,6 +119,7 @@ export function RouteMapInner({
   onSelectRoute,
   flyTo,
 }: RouteMapInnerProps) {
+  const t = useT()
   // Compute bounds of all places once, to fit the map to Vietnam.
   const bounds = useMemo(() => {
     if (places.length === 0) return null
@@ -192,11 +194,11 @@ export function RouteMapInner({
                 )}
                 <div className="flex items-center gap-3 text-xs">
                   <span>
-                    <b className="text-blue-700">{routeCount}</b> tuyến
+                    <b className="text-blue-700">{routeCount}</b> {t('mapNav.routesUnit')}
                   </span>
                   {stats && stats.dests.size > 0 && (
                     <span>
-                      <b className="text-amber-600">{stats.dests.size}</b> điểm đến
+                      <b className="text-amber-600">{stats.dests.size}</b> {t('mapPage.statDests')}
                     </span>
                   )}
                 </div>
@@ -206,7 +208,7 @@ export function RouteMapInner({
                     className="mt-2 w-full inline-flex items-center justify-center gap-1 rounded-md bg-blue-600 text-white text-xs font-medium py-1.5 hover:bg-blue-700 transition-colors"
                   >
                     <Search className="h-3 w-3" />
-                    Xem chi tiết
+                    {t('mapNav.viewDetails')}
                   </button>
                 )}
               </div>
@@ -234,18 +236,18 @@ export function RouteMapInner({
             </div>
             <div className="grid grid-cols-2 gap-1 mb-2 text-center">
               <div className="rounded bg-slate-50 px-1 py-1">
-                <div className="text-[9px] text-slate-500 mt-0.5">Chuyến/ngày</div>
+                <div className="text-[9px] text-slate-500 mt-0.5">{t('mapPage.tripsPerDay')}</div>
                 <div className="text-[10px] font-semibold">{selectedRoute.scheduleCount}</div>
               </div>
               <div className="rounded bg-slate-50 px-1 py-1">
                 {selectedRoute.minPrice > 0 ? (
                   <>
-                    <div className="text-[9px] text-slate-500 mt-0.5">Giá từ</div>
+                    <div className="text-[9px] text-slate-500 mt-0.5">{t('common.fromPrice')}</div>
                     <div className="text-[10px] font-semibold text-blue-700">{formatVND(selectedRoute.minPrice)}</div>
                   </>
                 ) : (
                   <>
-                    <div className="text-[9px] text-slate-500 mt-0.5">Giá</div>
+                    <div className="text-[9px] text-slate-500 mt-0.5">{t('mapPage.price')}</div>
                     <div className="text-[10px] font-semibold">—</div>
                   </>
                 )}

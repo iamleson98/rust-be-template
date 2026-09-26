@@ -13,28 +13,33 @@
  */
 
 import { ShieldCheck, Lock, FileCheck, Eye } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
+// Labels/descriptions are i18n keys resolved at render time (see the
+// conversion guide's module-level-constant rule); the key doubles as the
+// React key below.
 const TRUST_ITEMS = [
   {
     icon: Lock,
-    label: 'SSL 256-bit',
-    description: 'Mã hoá toàn diện',
+    label: 'trust.sslLabel',
+    description: 'trust.sslDesc',
   },
   {
     icon: ShieldCheck,
-    label: 'Bảo vệ dữ liệu',
-    description: 'Không chia sẻ bên thứ 3',
+    label: 'trust.dataProtection',
+    description: 'trust.noThirdParty',
   },
   {
     icon: FileCheck,
-    label: 'NĐ-CP 13/2023',
-    description: 'Tuân thủ nghị định',
+    label: 'trust.decree',
+    description: 'trust.decreeCompliance',
   },
 ]
 
 /** Compact trust bar — shows 3 trust badges in a row. */
 export function TrustBar({ className }: { className?: string }) {
+  const t = useT()
   return (
     <div
       className={cn(
@@ -43,7 +48,7 @@ export function TrustBar({ className }: { className?: string }) {
         className,
       )}
       role="region"
-      aria-label="Cam kết bảo mật"
+      aria-label={t('trust.regionLabel')}
     >
       {TRUST_ITEMS.map((item) => {
         const Icon = item.icon
@@ -53,9 +58,9 @@ export function TrustBar({ className }: { className?: string }) {
             className="flex items-center gap-1.5 text-xs text-muted-foreground"
           >
             <Icon className="h-3.5 w-3.5 text-success" />
-            <span className="font-medium">{item.label}</span>
+            <span className="font-medium">{t(item.label)}</span>
             <span className="hidden sm:inline text-muted-foreground/70">
-              · {item.description}
+              · {t(item.description)}
             </span>
           </div>
         )
@@ -69,6 +74,7 @@ export function TrustBar({ className }: { className?: string }) {
  * Place near the contact-info form in the booking dialog.
  */
 export function PrivacyNotice({ className }: { className?: string }) {
+  const t = useT()
   return (
     <div
       className={cn(
@@ -77,20 +83,20 @@ export function PrivacyNotice({ className }: { className?: string }) {
         className,
       )}
       role="note"
-      aria-label="Chính sách bảo mật dữ liệu"
+      aria-label={t('trust.privacyNoteLabel')}
     >
       <ShieldCheck className="h-4 w-4 text-info shrink-0 mt-0.5" />
       <div className="space-y-1">
         <p className="font-medium text-info-foreground">
-          Thông tin của bạn được bảo vệ
+          {t('trust.privacyTitle')}
         </p>
         <p>
-          Chúng tôi chỉ dùng SĐT và email để gửi vé điện tử + thông báo chuyến đi.
-          <strong className="text-foreground"> Không chia sẻ với bên thứ ba</strong> —
-          tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.
+          {t('trust.privacyBody')}
+          <strong className="text-foreground"> {t('trust.privacyNoShare')}</strong> —
+          {` ${t('trust.privacyDecree')}`}
         </p>
         <p className="text-muted-foreground/80">
-          Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu cá nhân bất cứ lúc nào.
+          {t('trust.privacyRights')}
         </p>
       </div>
     </div>
@@ -102,6 +108,7 @@ export function PrivacyNotice({ className }: { className?: string }) {
  * "Pay now" button in the payment dialog.
  */
 export function PaymentTrustBadges({ className }: { className?: string }) {
+  const t = useT()
   return (
     <div
       className={cn(
@@ -110,7 +117,7 @@ export function PaymentTrustBadges({ className }: { className?: string }) {
       )}
     >
       <span className="flex items-center gap-1">
-        <Lock className="h-3 w-3" /> Mã hoá SSL
+        <Lock className="h-3 w-3" /> {t('trust.sslEncryption')}
       </span>
       <span className="text-border">•</span>
       <span className="flex items-center gap-1">
@@ -118,7 +125,7 @@ export function PaymentTrustBadges({ className }: { className?: string }) {
       </span>
       <span className="text-border">•</span>
       <span className="flex items-center gap-1">
-        <Eye className="h-3 w-3" /> Hoàn tiền 24h
+        <Eye className="h-3 w-3" /> {t('trust.refund24h')}
       </span>
     </div>
   )

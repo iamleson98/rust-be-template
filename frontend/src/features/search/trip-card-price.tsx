@@ -10,6 +10,7 @@
  */
 
 import type { TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { ChevronRight, TrendingUp, TrendingDown, Minus, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -27,9 +28,9 @@ function getPriceTrend(tripId: string): 'up' | 'down' | 'stable' {
 }
 
 const TREND_CONFIG = {
-  up: { icon: TrendingUp, label: 'Giá tăng', color: 'text-rose-500' },
-  down: { icon: TrendingDown, label: 'Giá giảm', color: 'text-blue-500' },
-  stable: { icon: Minus, label: 'Giá ổn định', color: 'text-slate-400' },
+  up: { icon: TrendingUp, labelKey: 'searchPage.priceUp', color: 'text-rose-500' },
+  down: { icon: TrendingDown, labelKey: 'searchPage.priceDown', color: 'text-blue-500' },
+  stable: { icon: Minus, labelKey: 'searchPage.priceStable', color: 'text-slate-400' },
 }
 
 /* Price + action — clean hierarchy: strikethrough first, then current price, then CTA.
@@ -47,6 +48,7 @@ export function TripCardPrice({
   onSelect: () => void
   onPriceAlert: (e: React.MouseEvent) => void
 }) {
+  const t = useT()
   // Price calculations
   const originalPrice = Math.round(trip.minPrice * 1.15)
   const hasPriceRange = trip.maxPrice > trip.minPrice
@@ -62,7 +64,7 @@ export function TripCardPrice({
         {sellingFast && (
           <div className="text-[10px] font-bold text-rose-600 mb-1 flex items-center gap-1 md:justify-end">
             <TrendingUp className="h-3 w-3" />
-            Bán nhanh
+            {t('searchPage.sellingFast')}
           </div>
         )}
         {/* Strikethrough original price — clearly visible as the "was" price */}
@@ -82,13 +84,13 @@ export function TripCardPrice({
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {trendCfg.label}
+              {t(trendCfg.labelKey)}
             </TooltipContent>
           </Tooltip>
         </div>
         {/* Per-seat + range hint combined in one line */}
         <div className="text-[10px] text-muted-foreground mt-1">
-          {hasPriceRange ? 'từ /ghế' : '/ghế'}
+          {hasPriceRange ? t('searchPage.perSeatFrom') : t('searchPage.perSeat')}
         </div>
       </div>
       <div className="flex flex-col gap-1.5 w-full md:w-auto md:min-w-35">
@@ -98,7 +100,7 @@ export function TripCardPrice({
           className="bg-slate-900 hover:bg-slate-800 text-white gap-1.5 transition-all w-full md:w-auto h-9  group-hover:bg-blue-600"
         >
           <span className="flex items-center gap-1">
-            Chọn chuyến
+            {t('searchPage.selectTrip')}
             <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
           </span>
         </Button>
@@ -106,10 +108,10 @@ export function TripCardPrice({
         <button
           onClick={onPriceAlert}
           className="w-full md:w-auto inline-flex items-center justify-center gap-1 text-[11px] font-medium text-slate-500 hover:text-blue-700 transition-colors py-0.5"
-          title="Theo dõi khi giá giảm"
+          title={t('searchPage.trackPriceDrop')}
         >
           <Bell className="h-3 w-3" />
-          Theo dõi giá
+          {t('searchPage.trackPrice')}
         </button>
       </div>
     </div>

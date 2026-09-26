@@ -5,13 +5,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   Popover,
   PopoverContent,
@@ -32,32 +26,34 @@ import {
   RotateCcw,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
-import { vi } from 'date-fns/locale'
+import { enUS, vi } from 'date-fns/locale'
 import {
   useAdminBrands,
   useAdminBookingExport,
   type AdminBookingFilter,
 } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 
 // ── Constants ────────────────────────────────────────────────
 
-const STATUS_OPTIONS: { value: string; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'Tất cả trạng thái', icon: <Filter className="h-3.5 w-3.5" /> },
-  { value: 'confirmed', label: 'Đã xác nhận', icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" /> },
-  { value: 'pending', label: 'Chờ xử lý', icon: <Clock className="h-3.5 w-3.5 text-amber-600" /> },
-  { value: 'completed', label: 'Hoàn thành', icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> },
-  { value: 'cancelled', label: 'Đã huỷ', icon: <Ban className="h-3.5 w-3.5 text-rose-600" /> },
-  { value: 'refunded', label: 'Hoàn tiền', icon: <RotateCcw className="h-3.5 w-3.5 text-slate-600" /> },
+const STATUS_OPTIONS: { value: string; labelKey: string; icon: React.ReactNode }[] = [
+  { value: 'all', labelKey: 'adminTickets.allStatuses', icon: <Filter className="h-3.5 w-3.5" /> },
+  { value: 'confirmed', labelKey: 'adminTickets.statusConfirmed', icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" /> },
+  { value: 'pending', labelKey: 'adminTickets.statusPending', icon: <Clock className="h-3.5 w-3.5 text-amber-600" /> },
+  { value: 'completed', labelKey: 'adminTickets.statusCompleted', icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> },
+  { value: 'cancelled', labelKey: 'adminTickets.statusCancelled', icon: <Ban className="h-3.5 w-3.5 text-rose-600" /> },
+  { value: 'refunded', labelKey: 'adminTickets.statusRefunded', icon: <RotateCcw className="h-3.5 w-3.5 text-slate-600" /> },
 ]
 
-const RANGE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'today', label: 'Hôm nay' },
-  { value: '7d', label: '7 ngày' },
-  { value: '30d', label: '30 ngày' },
-  { value: '90d', label: '90 ngày' },
-  { value: 'this_month', label: 'Tháng này' },
-  { value: 'last_month', label: 'Tháng trước' },
-  { value: 'custom', label: 'Tùy chỉnh' },
+const RANGE_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'today', labelKey: 'adminTickets.rangeToday' },
+  { value: '7d', labelKey: 'adminTickets.range7d' },
+  { value: '30d', labelKey: 'adminTickets.range30d' },
+  { value: '90d', labelKey: 'adminTickets.range90d' },
+  { value: 'this_month', labelKey: 'adminTickets.rangeThisMonth' },
+  { value: 'last_month', labelKey: 'adminTickets.rangeLastMonth' },
+  { value: 'custom', labelKey: 'adminTickets.rangeCustom' },
 ]
 
 export function TicketsFilterBar({
@@ -93,6 +89,7 @@ export function TicketsFilterBar({
   resetFilters: () => void
   setDateRange: (from: string, to: string) => void
 }) {
+  const t = useT()
   return (
     <Card>
       <CardContent className="p-3 sm:p-4">
@@ -104,24 +101,24 @@ export function TicketsFilterBar({
               <Input
                 value={searchInput}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Tìm theo mã vé, tên khách, SĐT…"
+                placeholder={t('adminTickets.searchPlaceholder')}
                 className="pl-8 h-9"
               />
             </div>
 
-            <Select value={filter.range} onValueChange={setRangeFilter}>
-              <SelectTrigger className="h-9 w-full sm:w-35">
-                <CalendarRange className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RANGE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              <CalendarRange className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <ComboboxField
+                value={filter.range}
+                onValueChange={setRangeFilter}
+                items={RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+                className="h-9 w-full sm:w-35"
+                placeholder={t('adminTickets.timeRange')}
+                searchPlaceholder={t('combobox.search')}
+                aria-label={t('adminTickets.timeRange')}
+                data-testid="tickets-range-filter"
+              />
+            </div>
 
             <div className="flex gap-1.5">
               <Button
@@ -131,7 +128,7 @@ export function TicketsFilterBar({
                 onClick={() => setShowStats((v) => !v)}
               >
                 <TrendingUp className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Biểu đồ</span>
+                <span className="hidden sm:inline">{t('adminTickets.chart')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -142,7 +139,7 @@ export function TicketsFilterBar({
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">
-                  {exportMutation.isPending ? 'Đang xuất…' : 'Xuất CSV'}
+                  {exportMutation.isPending ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
                 </span>
               </Button>
             </div>
@@ -150,46 +147,39 @@ export function TicketsFilterBar({
 
           {/* Row 2: brand + status + custom date range + reset */}
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-wrap">
-            <Select
-              value={filter.brandId ?? 'all'}
-              onValueChange={setBrandFilter}
-            >
-              <SelectTrigger className="h-9 w-full sm:w-45">
-                <Bus className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue placeholder="Tất cả hãng xe" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tất cả hãng xe</SelectItem>
-                {brandsQuery.data?.items?.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="inline-block h-2 w-2 rounded-full"
-                        style={{ background: b.accentColor ?? '#64748b' }}
-                      />
-                      {b.name}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              <Bus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <ComboboxField
+                value={filter.brandId ?? 'all'}
+                onValueChange={setBrandFilter}
+                items={[
+                  { value: 'all', label: t('adminTickets.allBrands') },
+                  ...(brandsQuery.data?.items ?? []).map((b) => ({
+                    value: b.id,
+                    label: b.name ?? t('admin.brands'),
+                  })),
+                ]}
+                className="h-9 w-full sm:w-45"
+                placeholder={t('adminTickets.allBrands')}
+                searchPlaceholder={t('adminTickets.searchBrand')}
+                aria-label={t('adminTickets.filterBrand')}
+                data-testid="tickets-brand-filter"
+              />
+            </div>
 
-            <Select value={filter.status ?? 'all'} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-9 w-full sm:w-40">
-                <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    <span className="flex items-center gap-2">
-                      {o.icon}
-                      {o.label}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              <ComboboxField
+                value={filter.status ?? 'all'}
+                onValueChange={setStatusFilter}
+                items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+                className="h-9 w-full sm:w-40"
+                placeholder={t('common.status')}
+                searchPlaceholder={t('combobox.search')}
+                aria-label={t('adminTickets.filterStatus')}
+                data-testid="tickets-status-filter"
+              />
+            </div>
 
             {filter.range === 'custom' && (
               <CustomDateRange
@@ -207,7 +197,7 @@ export function TicketsFilterBar({
                 onClick={resetFilters}
               >
                 <X className="h-3.5 w-3.5" />
-                Xoá bộ lọc ({activeFilterCount})
+                {t('adminTickets.clearFiltersCount', { count: activeFilterCount })}
               </Button>
             )}
           </div>
@@ -217,19 +207,28 @@ export function TicketsFilterBar({
             <div className="flex flex-wrap gap-1.5 pt-1 border-t">
               {filter.brandId && (
                 <FilterChip
-                  label={`Hãng: ${brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ?? filter.brandId}`}
+                  label={t('adminTickets.chipBrand', {
+                    value:
+                      brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ??
+                      filter.brandId,
+                  })}
                   onClear={() => setBrandFilter('all')}
                 />
               )}
               {filter.status && filter.status !== 'all' && (
                 <FilterChip
-                  label={`Trạng thái: ${STATUS_OPTIONS.find((o) => o.value === filter.status)?.label ?? filter.status}`}
+                  label={t('adminTickets.chipStatus', {
+                    value:
+                      STATUS_OPTIONS.find((o) => o.value === filter.status) !== undefined
+                        ? t(STATUS_OPTIONS.find((o) => o.value === filter.status)!.labelKey)
+                        : filter.status,
+                  })}
                   onClear={() => setStatusFilter('all')}
                 />
               )}
               {filter.search && (
                 <FilterChip
-                  label={`Tìm: "${filter.search}"`}
+                  label={t('adminTickets.chipSearch', { value: filter.search })}
                   onClear={() => {
                     setSearchInput('')
                     setFilter((f) => ({ ...f, search: undefined, offset: 0 }))
@@ -238,7 +237,12 @@ export function TicketsFilterBar({
               )}
               {filter.range && filter.range !== '30d' && (
                 <FilterChip
-                  label={`Khoảng: ${RANGE_OPTIONS.find((o) => o.value === filter.range)?.label ?? filter.range}`}
+                  label={t('adminTickets.chipRange', {
+                    value:
+                      RANGE_OPTIONS.find((o) => o.value === filter.range) !== undefined
+                        ? t(RANGE_OPTIONS.find((o) => o.value === filter.range)!.labelKey)
+                        : filter.range,
+                  })}
                   onClear={() => setRangeFilter('30d')}
                 />
               )}
@@ -253,13 +257,14 @@ export function TicketsFilterBar({
 // ── FilterChip ───────────────────────────────────────────────
 
 function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
+  const t = useT()
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 border border-blue-200">
       {label}
       <button
         onClick={onClear}
         className="ml-0.5 rounded-full hover:bg-blue-100 p-0.5"
-        aria-label="Xoá bộ lọc"
+        aria-label={t('adminTickets.clearFilter')}
       >
         <X className="h-3 w-3" />
       </button>
@@ -279,6 +284,9 @@ function CustomDateRange({
   onChange: (from: string, to: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const t = useT()
+  const lang = useApp((s) => s.lang)
+  const dateLocale = lang === 'en' ? enUS : vi
   const from = dateFrom ? parseISO(dateFrom) : undefined
   const to = dateTo ? parseISO(dateTo) : undefined
 
@@ -290,7 +298,7 @@ function CustomDateRange({
           <span className="text-xs">
             {dateFrom || dateTo
               ? `${dateFrom ?? '…'} → ${dateTo ?? '…'}`
-              : 'Chọn ngày'}
+              : t('adminTickets.chooseDates')}
           </span>
         </Button>
       </PopoverTrigger>
@@ -300,12 +308,12 @@ function CustomDateRange({
           selected={{ from, to }}
           onSelect={(range) => {
             const f = range?.from ? format(range.from, 'yyyy-MM-dd') : ''
-            const t = range?.to ? format(range.to, 'yyyy-MM-dd') : ''
-            onChange(f, t)
-            if (f && t) setOpen(false)
+            const toIso = range?.to ? format(range.to, 'yyyy-MM-dd') : ''
+            onChange(f, toIso)
+            if (f && toIso) setOpen(false)
           }}
           numberOfMonths={2}
-          locale={vi}
+          locale={dateLocale}
         />
       </PopoverContent>
     </Popover>

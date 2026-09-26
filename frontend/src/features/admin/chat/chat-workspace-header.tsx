@@ -12,6 +12,7 @@ import {
   Undo2,
   CheckCircle2,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
 import { customerDisplayName, customerInitial } from './chat-helpers'
 
@@ -54,6 +55,7 @@ export function ChatWorkspaceHeader({
   canRelease?: boolean
   onBlockChannel: (channelId: string) => void
 }) {
+  const t = useT()
   return (
     <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-2 min-w-0">
@@ -66,12 +68,12 @@ export function ChatWorkspaceHeader({
           <div className="font-semibold text-sm truncate flex items-center gap-2">
             {customerDisplayName(activeChannel)}
             {userOnline && (
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Đang trực tuyến" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title={t('chat.online')} />
             )}
           </div>
           <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
             {typingUser ? (
-              <span className="text-blue-600 italic">{typingUser.name} đang gõ...</span>
+              <span className="text-blue-600 italic">{t('chat.typing', { name: typingUser.name })}</span>
             ) : (
               <>
                 {activeChannel.user?.phone && (
@@ -98,10 +100,10 @@ export function ChatWorkspaceHeader({
           size="sm"
           className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700"
           onClick={() => setPickerOpen(true)}
-          title="Đặt vé cho khách"
+          title={t('chat.bookForCustomer')}
         >
           <TicketIcon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Đặt vé cho khách</span>
+          <span className="hidden sm:inline">{t('chat.bookForCustomer')}</span>
         </Button>
         {activeChannel.status !== 'closed' && (
           <>
@@ -115,10 +117,10 @@ export function ChatWorkspaceHeader({
                 className="h-8 gap-1.5 text-emerald-700 border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
                 onClick={onClaim}
                 disabled={assignmentBusy}
-                title="Nhận kênh này về cho mình"
+                title={t('adminChat.claimChannelTitle')}
               >
                 <Hand className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Nhận kênh</span>
+                <span className="hidden sm:inline">{t('adminChat.claimChannel')}</span>
               </Button>
             )}
             {activeChannel.assignedToMe && onRelease && canRelease && (
@@ -128,10 +130,10 @@ export function ChatWorkspaceHeader({
                 className="h-8 gap-1.5 text-amber-700 border-amber-200 bg-amber-50 hover:bg-amber-100"
                 onClick={onRelease}
                 disabled={assignmentBusy}
-                title="Trả kênh về hàng đợi chung"
+                title={t('adminChat.releaseChannelTitle')}
               >
                 <Undo2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Trả kênh</span>
+                <span className="hidden sm:inline">{t('adminChat.releaseChannel')}</span>
               </Button>
             )}
             {onCloseChannel && (
@@ -141,27 +143,29 @@ export function ChatWorkspaceHeader({
                 className="h-8 gap-1.5 text-slate-600 border-slate-200 hover:bg-slate-100"
                 onClick={onCloseChannel}
                 disabled={assignmentBusy}
-                title="Đóng cuộc trò chuyện"
+                title={t('adminChat.closeChannelTitle')}
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Đóng</span>
+                <span className="hidden sm:inline">{t('common.close')}</span>
               </Button>
             )}
           </>
         )}
         <Badge className={`text-[10px] border-0 ${activeChannel.status === 'assigned' ? 'bg-blue-100 text-blue-700' : activeChannel.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
           {activeChannel.status === 'assigned'
-            ? `Đang xử lý${activeChannel.assignedTo?.fullName ? ` · ${activeChannel.assignedTo.fullName}` : ''}`
+            ? (activeChannel.assignedTo?.fullName
+                ? t('adminChat.processingWithAgent', { name: activeChannel.assignedTo.fullName })
+                : t('chat.processing'))
             : activeChannel.status === 'closed'
-              ? 'Đã đóng'
-              : 'Chờ'}
+              ? t('admin.stats.closedCount')
+              : t('adminChat.waitingShort')}
         </Badge>
         <Button
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50"
           onClick={() => onBlockChannel(activeChannel.id)}
-          title="Chặn cuộc trò chuyện"
+          title={t('chat.blockChannel')}
         >
           <Ban className="h-4 w-4" />
         </Button>

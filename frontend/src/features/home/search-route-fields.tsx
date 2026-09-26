@@ -36,7 +36,7 @@ export function SearchRouteFields({
                 onChange={(v) => {
                   field.onChange(v)
                 }}
-                placeholder="Thành phố / bến xe"
+                placeholder={t('search.placeholder')}
                 icon={<CircleDot className="h-4 w-4 text-primary" />}
                 pinColor="blue"
                 className="[&_input]:h-10"
@@ -53,8 +53,8 @@ export function SearchRouteFields({
           type="button"
           onClick={swap}
           className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors flex items-center justify-center text-blue-600"
-          title="Đổi chiều"
-          aria-label="Đổi chiều"
+          title={t('home.swapDirection')}
+          aria-label={t('home.swapDirection')}
         >
           <ArrowLeftRight className="h-4 w-4" />
         </button>
@@ -76,7 +76,7 @@ export function SearchRouteFields({
                 onChange={(v) => {
                   field.onChange(v)
                 }}
-                placeholder="Thành phố / bến xe"
+                placeholder={t('search.placeholder')}
                 icon={<MapPin className="h-4 w-4 text-rose-600 fill-rose-600/20" />}
                 pinColor="red"
                 className="[&_input]:h-10"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -18,6 +18,7 @@ import {
   bookingCodeSchema,
   phoneSchema,
 } from '@/lib/forms'
+import { useT } from '@/lib/i18n'
 import { Ticket, Phone, Search, Loader2, History, X } from 'lucide-react'
 
 /**
@@ -26,21 +27,26 @@ import { Ticket, Phone, Search, Loader2, History, X } from 'lucide-react'
  *
  * `code` and `phone` are optional (empty string is allowed); the
  * top-level `.refine` enforces "at least one is filled".
+ *
+ * Factory form (takes `t`) so the refine message follows the active
+ * language — consumers memoize it per language.
  */
-export const lookupSchema = z
-  .object({
-    code: bookingCodeSchema.optional().or(z.literal('')),
-    phone: phoneSchema.optional().or(z.literal('')),
-  })
-  .refine(
-    (d) => (d.code ?? '').trim() !== '' || (d.phone ?? '').trim() !== '',
-    {
-      message: 'Vui lòng nhập mã vé hoặc số điện thoại',
-      path: ['code'],
-    },
-  )
+export function makeLookupSchema(t: ReturnType<typeof useT>) {
+  return z
+    .object({
+      code: bookingCodeSchema.optional().or(z.literal('')),
+      phone: phoneSchema.optional().or(z.literal('')),
+    })
+    .refine(
+      (d) => (d.code ?? '').trim() !== '' || (d.phone ?? '').trim() !== '',
+      {
+        message: t('bookingHistory.lookupRequired'),
+        path: ['code'],
+      },
+    )
+}
 
-export type LookupValues = z.infer<typeof lookupSchema>
+export type LookupValues = z.infer<ReturnType<typeof makeLookupSchema>>
 
 type Props = {
   searchCode: string
@@ -61,7 +67,7 @@ type Props = {
  * the guest flow and the secondary "lookup another booking" panel inside
  * the logged-in user's bookings tab.
  *
- * Validation lives in `lookupSchema` (zod) wired to react-hook-form via
+ * Validation lives in `makeLookupSchema(t)` (zod) wired to react-hook-form via
  * `zodResolver`. The public prop API is unchanged — the parent still owns
  * the `searchCode` / `searchPhone` strings, this component mirrors them
  * into the form and propagates every keystroke back upward so the parent's
@@ -78,6 +84,8 @@ export function GuestLookupForm({
   onRecentClick,
   onRemoveRecent,
 }: Props) {
+  const t = useT()
+  const lookupSchema = useMemo(() => makeLookupSchema(t), [t])
   const form = useForm<LookupValues>({
     resolver: zodResolver(lookupSchema),
     defaultValues: { code: searchCode, phone: searchPhone },
@@ -116,7 +124,7 @@ export function GuestLookupForm({
         onSubmit={form.handleSubmit(onSubmit)}
         className="contents"
         noValidate
-        aria-label="Tra cứu vé"
+        aria-label={t('bookingHistory.lookupAria')}
       >
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
           <FormField
@@ -125,7 +133,7 @@ export function GuestLookupForm({
             render={({ field }) => (
               <FormItem className="flex-1 space-y-2">
                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground pl-1">
-                  Mã đặt vé
+                  {t('bookingHistory.bookingCode')}
                 </FormLabel>
                 <div className="relative">
                   <Ticket className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500 pointer-events-none" />
@@ -137,7 +145,7 @@ export function GuestLookupForm({
                         setSearchCode(e.target.value)
                       }}
                       onBlur={field.onBlur}
-                      placeholder="VD: PT-9TWPZQ"
+                      placeholder={t('bookingHistory.bookingCodePh')}
                       className="pl-12 h-13 font-mono uppercase text-base ring-1 ring-blue-200 focus-visible:ring-blue-400"
                       autoComplete="off"
                       spellCheck={false}
@@ -149,7 +157,7 @@ export function GuestLookupForm({
             )}
           />
           <div className="hidden md:flex items-center pb-3 text-sm font-medium text-muted-foreground">
-            hoặc
+            {t('bookingHistory.or')}
           </div>
           <FormField
             control={form.control}
@@ -157,7 +165,7 @@ export function GuestLookupForm({
             render={({ field }) => (
               <FormItem className="flex-1 space-y-2">
                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground pl-1">
-                  Số điện thoại
+                  {t('booking.contactPhone')}
                 </FormLabel>
                 <div className="relative">
                   <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-500 pointer-events-none" />
@@ -169,7 +177,7 @@ export function GuestLookupForm({
                         setSearchPhone(e.target.value)
                       }}
                       onBlur={field.onBlur}
-                      placeholder="VD: 0901234567"
+                      placeholder={t('bookingHistory.phonePh')}
                       className="pl-12 h-13 text-base ring-1 ring-blue-200 focus-visible:ring-blue-400"
                       inputMode="tel"
                       autoComplete="tel"
@@ -186,7 +194,7 @@ export function GuestLookupForm({
             className="h-13 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white gap-2.5 px-8 text-base font-semibold"
           >
             {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}
-            Tìm kiếm
+            {t('common.search')}
           </Button>
         </div>
       </form>
@@ -194,7 +202,7 @@ export function GuestLookupForm({
       {recentSearches.length > 0 && (
         <div className="mt-4 flex items-center gap-2 flex-wrap">
           <History className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <span className="text-xs text-muted-foreground font-medium shrink-0">Tìm kiếm gần đây:</span>
+          <span className="text-xs text-muted-foreground font-medium shrink-0">{t('bookingHistory.recentSearches')}</span>
           {recentSearches.map((term) => (
             <button
               key={term}

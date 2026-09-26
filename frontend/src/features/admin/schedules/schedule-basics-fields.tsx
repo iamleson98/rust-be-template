@@ -10,13 +10,7 @@
 import { DatePicker } from '@/components/ui/date-picker'
 import { InfiniteSelect } from '@/components/ui/infinite-select'
 import { TimePicker } from '@/components/ui/time-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   FormField,
   FormItem,
@@ -25,6 +19,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { fetchVehicleTypesPage } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type {
   AdminBusLayoutOut,
   AdminVehicleTypeOut,
@@ -42,138 +37,129 @@ export function ScheduleBasicsFields({
   effectiveFrom: string
   scheduleVehicleType: AdminVehicleTypeOut | undefined
 }) {
+  const t = useT()
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 items-start">
-        <FormField
-          control={form.control}
-          name="departureTime"
-          render={({ field }) => (
-            <FormItem className="grid gap-1.5">
-              <FormLabel>
-                Giờ khởi hành <span className="text-destructive">*</span>
-              </FormLabel>
-              <FormControl>
-                <TimePicker value={field.value} onChange={(v) => field.onChange(v ?? '')} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="vehicleTypeId"
-          render={({ field }) => (
-            <FormItem className="grid gap-1.5">
-              <FormLabel>
-                Loại xe <span className="text-destructive">*</span>
-              </FormLabel>
-              <FormControl>
-                <InfiniteSelect<AdminVehicleTypeOut>
-                  scope="vehicle-types"
-                  fetchPage={fetchVehicleTypesPage}
-                  value={field.value || null}
-                  onValueChange={(v) => field.onChange(v ?? '')}
-                  itemValue={(vt) => vt.id}
-                  itemLabel={(vt) => vt.label}
-                  extraItems={scheduleVehicleType ? [scheduleVehicleType] : []}
-                  placeholder="Chọn loại xe…"
-                  searchPlaceholder="Tìm loại xe…"
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="departureTime"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel>
+                        {t('brands.sortDeparture')} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <TimePicker value={field.value} onChange={(v) => field.onChange(v ?? '')} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+                <FormField
+                  control={form.control}
+                  name="vehicleTypeId"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel>
+                        {t('busLayouts.vehicleType')} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <InfiniteSelect<AdminVehicleTypeOut>
+                          scope="vehicle-types"
+                          fetchPage={fetchVehicleTypesPage}
+                          value={field.value || null}
+                          onValueChange={(v) => field.onChange(v ?? '')}
+                          itemValue={(vt) => vt.id}
+                          itemLabel={(vt) => vt.label}
+                          extraItems={scheduleVehicleType ? [scheduleVehicleType] : []}
+                          placeholder={t('adminSchedules.chooseVehicleType')}
+                          searchPlaceholder={t('adminSchedules.searchVehicleType')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-      <div className="grid grid-cols-2 gap-3 items-start">
-        <FormField
-          control={form.control}
-          name="effectiveFrom"
-          render={({ field }) => (
-            <FormItem className="grid gap-1.5">
-              <FormLabel>
-                Hiệu lực từ <span className="text-destructive">*</span>
-              </FormLabel>
-              <FormControl>
-                <DatePicker
-                  value={field.value}
-                  onChange={(v) => field.onChange(v ?? '')}
-                  placeholder="Chọn ngày bắt đầu…"
-                  clearable={false}
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <FormField
+                  control={form.control}
+                  name="effectiveFrom"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel>
+                        {t('adminSchedules.effectiveFrom')} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                          placeholder={t('adminSchedules.chooseStartDate')}
+                          clearable={false}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="effectiveTo"
-          render={({ field }) => (
-            <FormItem className="grid gap-1.5">
-              <FormLabel>
-                Hiệu lực đến <span className="text-destructive">*</span>
-              </FormLabel>
-              <FormControl>
-                <DatePicker
-                  value={field.value}
-                  onChange={(v) => field.onChange(v ?? '')}
-                  placeholder="Chọn ngày kết thúc…"
-                  minDate={effectiveFrom || undefined}
-                  clearable={false}
+                <FormField
+                  control={form.control}
+                  name="effectiveTo"
+                  render={({ field }) => (
+                    <FormItem className="grid gap-1.5">
+                      <FormLabel>
+                        {t('adminSchedules.effectiveTo')} <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <DatePicker
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? '')}
+                          placeholder={t('adminSchedules.chooseEndDate')}
+                          minDate={effectiveFrom || undefined}
+                          clearable={false}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+              </div>
 
-      <FormField
-        control={form.control}
-        name="busLayoutId"
-        render={({ field }) => (
-          <FormItem className="grid gap-1.5">
-            <FormLabel>Sơ đồ ghế (tùy chọn)</FormLabel>
-            <Select
-              value={field.value || NO_LAYOUT}
-              onValueChange={(v) => field.onChange(v === NO_LAYOUT ? '' : v)}
-            >
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn sơ đồ ghế (nếu có)…" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                <SelectItem value={NO_LAYOUT}>
-                  <span className="text-muted-foreground">— Không chọn —</span>
-                </SelectItem>
-                {busLayouts.length === 0 ? (
-                  <div className="p-2 text-xs text-muted-foreground text-center">
-                    Hãng chưa có sơ đồ ghế nào
-                  </div>
-                ) : (
-                  busLayouts.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      <span className="flex items-center gap-1.5">
-                        <span>{l.name}</span>
-                        {l.totalSeats ? (
-                          <span className="text-[10px] text-muted-foreground">
-                            · {l.totalSeats} chỗ
-                          </span>
-                        ) : null}
-                      </span>
-                    </SelectItem>
-                  ))
+              <FormField
+                control={form.control}
+                name="busLayoutId"
+                render={({ field }) => (
+                  <FormItem className="grid gap-1.5">
+                    <FormLabel>{t('adminSchedules.seatLayoutOptional')}</FormLabel>
+                    <FormControl>
+                      <ComboboxField
+                        value={field.value || NO_LAYOUT}
+                        onValueChange={(v) => field.onChange(v === NO_LAYOUT ? '' : v)}
+                        items={[
+                          { value: NO_LAYOUT, label: t('adminSchedules.noLayoutOption') },
+                          ...busLayouts.map((l) => ({
+                            value: l.id,
+                            label: l.totalSeats
+                              ? `${l.name ?? t('adminSchedules.layoutFallback')} · ${t('busLayouts.seatsCount', { count: l.totalSeats })}`
+                              : (l.name ?? t('adminSchedules.layoutFallback')),
+                          })),
+                        ]}
+                        placeholder={t('adminSchedules.chooseSeatLayout')}
+                        searchPlaceholder={t('adminSchedules.searchSeatLayout')}
+                        emptyText={
+                          busLayouts.length === 0
+                            ? t('adminSchedules.noLayoutsYet')
+                            : t('combobox.noMatch')
+                        }
+                        aria-label={t('busLayouts.title')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+              />
     </>
   )
 }

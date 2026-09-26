@@ -15,6 +15,7 @@ import { Building2, CheckCircle2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import type { PaymentOut } from '@/lib/queries/payments'
 
 export function VietQrDisplay({
@@ -24,6 +25,7 @@ export function VietQrDisplay({
   payment: PaymentOut
   currency: Currency
 }) {
+  const t = useT()
   const inst = payment.bankTransferInstructions
   const qrSrc = useMemo(() => {
     if (payment.qrImageDataUri) return payment.qrImageDataUri
@@ -43,7 +45,7 @@ export function VietQrDisplay({
   if (!inst) {
     return (
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
-        Thông tin VietQR chưa sẵn sàng.
+        {t('bookingFlow.vietqrNotReady')}
       </div>
     )
   }
@@ -66,20 +68,19 @@ export function VietQrDisplay({
 
       {/* Bank-transfer instructions */}
       <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
-        <CopyRow label="Ngân hàng" value={inst.bankName} />
-        <CopyRow label="Số tài khoản" value={inst.accountNo} />
-        <CopyRow label="Chủ tài khoản" value={inst.accountName} />
+        <CopyRow label={t('payment.vnpayDesc')} value={inst.bankName} />
+        <CopyRow label={t('bookingFlow.accountNo')} value={inst.accountNo} />
+        <CopyRow label={t('bookingFlow.accountName')} value={inst.accountName} />
         <CopyRow
-          label="Số tiền"
+          label={t('bookingFlow.amount')}
           value={formatCurrency(inst.amount, currency)}
           highlight
         />
-        <CopyRow label="Nội dung CK" value={inst.memo} highlight />
+        <CopyRow label={t('bookingFlow.memoLabel')} value={inst.memo} highlight />
       </div>
 
       <p className="text-[11px] text-muted-foreground text-center">
-        Quét mã QR bằng app ngân hàng hoặc chuyển khoản theo thông tin trên. Hệ thống tự xác nhận
-        sau khi nhận được tiền.
+        {t('bookingFlow.vietqrInstructions')}
       </p>
     </div>
   )
@@ -94,15 +95,16 @@ function CopyRow({
   value: string
   highlight?: boolean
 }) {
+  const t = useT()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(value)
       setCopied(true)
-      toast.success('Đã sao chép')
+      toast.success(t('bookingFlow.copied'))
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error('Không sao chép được')
+      toast.error(t('bookingFlow.copyFailed'))
     }
   }
   return (
@@ -120,7 +122,7 @@ function CopyRow({
           type="button"
           onClick={copy}
           className="text-slate-400 hover:text-primary transition-colors"
-          aria-label={`Sao chép ${label}`}
+          aria-label={t('bookingFlow.copyField', { field: label })}
         >
           {copied ? (
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />

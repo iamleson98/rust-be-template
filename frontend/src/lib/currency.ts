@@ -2,6 +2,8 @@
 // All amounts are stored/processed as VND integers; USD is a presentation layer only.
 
 import { formatVND } from './types'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 
 /** Static exchange rate: 1 USD = 24,500 VND */
 export const EXCHANGE_RATE = 24500
@@ -37,5 +39,14 @@ export function convertToVND(amountUSD: number): number {
   return Math.round(amountUSD * EXCHANGE_RATE)
 }
 
-/** Short human-readable exchange-rate note used in the footer. */
+/** Short human-readable exchange-rate note used in the footer —
+ *  language-reactive: "Tỷ giá: 1 USD = 24.500₫" / "Rate: 1 USD = 24,500₫". */
+export function exchangeRateNote(): string {
+  const lang = useApp.getState().lang
+  const rate = EXCHANGE_RATE.toLocaleString(lang === 'en' ? 'en-US' : 'vi-VN')
+  return translate(lang, 'common.exchangeRateNote', { rate })
+}
+
+/** Legacy module-level (Vietnamese) constant — kept for tests/back-compat;
+ *  prefer calling `exchangeRateNote()` at render time. */
 export const EXCHANGE_RATE_NOTE = `Tỷ giá: 1 USD = ${EXCHANGE_RATE.toLocaleString('vi-VN')}₫`

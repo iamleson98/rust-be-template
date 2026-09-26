@@ -10,6 +10,7 @@ import { useMemo } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import type { AdminPaymentOut } from '@/lib/queries/payments'
@@ -29,6 +30,7 @@ export function usePaymentColumns({
   setActionDialog: React.Dispatch<React.SetStateAction<PaymentAction | null>>
   setActionAmount: React.Dispatch<React.SetStateAction<string>>
 }) {
+  const t = useT()
   // Table columns — rebuilt when the currency or mutation-pending state
   // changes; all dialog setters below are stable setState references.
   return useMemo(
@@ -36,35 +38,35 @@ export function usePaymentColumns({
       paymentColumnHelper.columns([
         paymentColumnHelper.accessor((p) => p.bookingCode ?? p.bookingId.slice(0, 8), {
           id: 'code',
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Mã vé" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('booking.code')} />,
           cell: ({ getValue }) => (
             <span className="font-mono text-xs font-semibold">{getValue()}</span>
           ),
           sortFn: 'text',
-          meta: { label: 'Mã vé' },
+          meta: { label: t('booking.code') },
         }),
         paymentColumnHelper.accessor('provider', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Phương thức" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.method')} />,
           cell: ({ getValue }) => <ProviderBadge provider={getValue()} />,
           sortFn: 'text',
-          meta: { label: 'Phương thức' },
+          meta: { label: t('adminPayments.method') },
         }),
         paymentColumnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
           cell: ({ getValue }) => <StatusBadge status={getValue()} />,
           sortFn: 'text',
-          meta: { label: 'Trạng thái' },
+          meta: { label: t('common.status') },
         }),
         paymentColumnHelper.accessor('amount', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Số tiền" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.amount')} />,
           cell: ({ getValue }) => (
             <span className="font-bold tabular-nums">{formatCurrency(getValue(), currency)}</span>
           ),
           sortFn: 'basic',
-          meta: { label: 'Số tiền', align: 'right' },
+          meta: { label: t('adminPayments.amount'), align: 'right' },
         }),
         paymentColumnHelper.accessor('providerTxnRef', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Tham chiếu" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.reference')} />,
           cell: ({ getValue }) => (
             <span className="font-mono text-xs text-muted-foreground">
               {getValue().slice(0, 14)}
@@ -72,10 +74,10 @@ export function usePaymentColumns({
             </span>
           ),
           sortFn: 'text',
-          meta: { label: 'Tham chiếu' },
+          meta: { label: t('adminPayments.reference') },
         }),
         paymentColumnHelper.accessor('createdAt', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title="Thời gian" />,
+          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.time')} />,
           cell: ({ getValue }) => (
             <span className="text-xs tabular-nums text-muted-foreground">
               {new Date(getValue()).toLocaleString('vi-VN', {
@@ -87,11 +89,11 @@ export function usePaymentColumns({
             </span>
           ),
           sortFn: 'datetime',
-          meta: { label: 'Thời gian' },
+          meta: { label: t('adminPayments.time') },
         }),
         paymentColumnHelper.display({
           id: 'actions',
-          header: 'Thao tác',
+          header: t('common.actions'),
           cell: ({ row }) => {
             const p = row.original
             return (
@@ -109,7 +111,7 @@ export function usePaymentColumns({
                     disabled={updateStatus.isPending}
                     onClick={() => setActionDialog({ type: 'cancel', payment: p })}
                   >
-                    Huỷ
+                    {t('common.cancel')}
                   </Button>
                 )}
                 {p.status === 'pending' && p.provider === 'cod' && (
@@ -123,7 +125,7 @@ export function usePaymentColumns({
                       setActionAmount(String(p.amount))
                     }}
                   >
-                    Đã thu
+                    {t('adminPayments.collectedShort')}
                   </Button>
                 )}
                 {p.status === 'completed' && (
@@ -134,7 +136,7 @@ export function usePaymentColumns({
                     disabled={updateStatus.isPending}
                     onClick={() => setActionDialog({ type: 'refund', payment: p })}
                   >
-                    Hoàn tiền
+                    {t('adminPayments.refund')}
                   </Button>
                 )}
               </div>
@@ -142,9 +144,9 @@ export function usePaymentColumns({
           },
           enableSorting: false,
           enableHiding: false,
-          meta: { align: 'right', label: 'Thao tác' },
+          meta: { align: 'right', label: t('common.actions') },
         }),
       ]),
-    [currency, updateStatus.isPending, setActionDialog, setActionAmount],
+    [currency, updateStatus.isPending, setActionDialog, setActionAmount, t],
   )
 }

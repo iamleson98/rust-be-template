@@ -12,6 +12,7 @@ import {
   QrCode,
   Search,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 /* ─── Action row ─────────────────────────────────────
     Both the feedback button (completed bookings) and the
@@ -41,6 +42,7 @@ export function BookingCardActions({
   extraActions?: React.ReactNode
   onExploreOther?: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex items-center gap-2 pt-2 flex-wrap">
       <Button
@@ -51,7 +53,7 @@ export function BookingCardActions({
         }}
       >
         <Eye className="h-3.5 w-3.5" />
-        Xem chi tiết
+        {t('bookingHistory.viewDetails')}
       </Button>
 
       {canCancel && (
@@ -67,7 +69,7 @@ export function BookingCardActions({
           ) : (
             <Ban className="h-3.5 w-3.5" />
           )}
-          Huỷ vé
+          {t('cancel.title')}
         </Button>
       )}
 
@@ -80,7 +82,7 @@ export function BookingCardActions({
           aria-expanded={feedbackOpen}
         >
           <MessageSquare className="h-3.5 w-3.5" />
-          {feedbackOpen ? 'Ẩn form đánh giá' : 'Viết đánh giá'}
+          {feedbackOpen ? t('bookingHistory.hideReviewForm') : t('bookingHistory.writeReview')}
         </Button>
       )}
 
@@ -93,13 +95,13 @@ export function BookingCardActions({
           aria-expanded={feedbackOpen}
         >
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-          {feedbackOpen ? 'Ẩn đánh giá' : 'Xem đánh giá'}
+          {feedbackOpen ? t('bookingHistory.hideReview') : t('bookingHistory.viewReview')}
         </Button>
       )}
 
       <Button variant="outline" size="sm" className="gap-1.5">
         <QrCode className="h-3.5 w-3.5" />
-        Mã QR
+        {t('bookingHistory.qrCode')}
       </Button>
 
       {/* Extensible slot — Subagent A's directions button goes here. */}
@@ -112,7 +114,7 @@ export function BookingCardActions({
         onClick={onExploreOther}
       >
         <Search className="h-3.5 w-3.5" />
-        Đặt chuyến khác
+        {t('bookingHistory.bookAnotherTrip')}
       </Button>
     </div>
   )

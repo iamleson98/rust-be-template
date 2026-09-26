@@ -19,6 +19,8 @@
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { formatCurrency } from '@/lib/currency'
 import { useMyBookings, useMyReviews } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import { isBookingReviewable, type BookingItem, type ReviewItem } from '@/features/booking/history/booking-types'
 import { StarRating } from '@/features/feedback/star-rating'
 import { Card, CardContent } from '@/components/ui/card'
@@ -52,18 +54,19 @@ const FeedbackFormFallback = <div className="h-32 animate-pulse rounded-lg bg-sl
 const PAGE_SIZE = 8
 
 /* ── Moderation status badges ─────────────────────────────────── */
-const REVIEW_STATUS: Record<string, { label: string; cls: string }> = {
-  pending: { label: 'Chờ duyệt', cls: 'bg-amber-500/10 text-amber-600 ring-amber-500/20' },
-  approved: { label: 'Đã hiển thị', cls: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20' },
-  rejected: { label: 'Bị từ chối', cls: 'bg-rose-500/10 text-rose-600 ring-rose-500/20' },
-  hidden: { label: 'Đã ẩn', cls: 'bg-slate-500/10 text-slate-600 ring-slate-500/20' },
+const REVIEW_STATUS: Record<string, { labelKey: string; cls: string }> = {
+  pending: { labelKey: 'accountPage.feedback.statusPending', cls: 'bg-amber-500/10 text-amber-600 ring-amber-500/20' },
+  approved: { labelKey: 'accountPage.feedback.statusApproved', cls: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20' },
+  rejected: { labelKey: 'accountPage.feedback.statusRejected', cls: 'bg-rose-500/10 text-rose-600 ring-rose-500/20' },
+  hidden: { labelKey: 'accountPage.feedback.statusHidden', cls: 'bg-slate-500/10 text-slate-600 ring-slate-500/20' },
 }
 
 /* ── Date helpers ─────────────────────────────────────────────── */
 function formatDeparture(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const lang = useApp.getState().lang
+  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 /* ── Section: ride awaiting feedback ──────────────────────────── */
@@ -78,6 +81,7 @@ function PendingRideCard({
   onToggle: () => void
   onSubmitted: () => void
 }) {
+  const t = useT()
   const trip = booking.trip
   return (
     <Card className="group ring-1 ring-black/5 overflow-hidden transition-shadow hover:shadow-md">
@@ -96,7 +100,7 @@ function PendingRideCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-sm font-semibold truncate">
-            <span>{trip?.routeName || 'Chuyến đi'}</span>
+            <span>{trip?.routeName || t('accountPage.feedback.tripFallback')}</span>
           </div>
           <div className="mt-0.5 flex items-center gap-3 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 truncate">
@@ -106,7 +110,7 @@ function PendingRideCard({
             {trip?.brandName && <span className="truncate">{trip.brandName}</span>}
             <span className="inline-flex items-center gap-1 shrink-0">
               <Star className="size-3 text-amber-500" />
-              {booking.seats.length} ghế
+              {t('accountPage.feedback.seatsCount', { count: booking.seats.length })}
             </span>
           </div>
         </div>
@@ -117,7 +121,7 @@ function PendingRideCard({
           className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 ring-1 ring-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors group-hover:bg-amber-500/15"
         >
           <MessageSquareHeart className="size-3.5" />
-          Đánh giá ngay
+          {t('accountPage.feedback.rateNow')}
         </span>
       </button>
 
@@ -146,6 +150,7 @@ function SentFeedbackCard({
   editing: boolean
   onEdited: () => void
 }) {
+  const t = useT()
   const status = REVIEW_STATUS[review.status] ?? REVIEW_STATUS.pending
   const canEdit = !!booking && review.status !== 'approved'
   return (
@@ -163,7 +168,7 @@ function SentFeedbackCard({
             </div>
             <div className="min-w-0">
               <div className="font-semibold truncate">
-                {booking?.trip?.routeName || review.title || 'Chuyến đi'}
+                {booking?.trip?.routeName || review.title || t('accountPage.feedback.tripFallback')}
               </div>
               <div className="text-xs text-muted-foreground truncate">
                 {booking?.trip?.brandName} · {formatDeparture(booking?.trip?.departureAt || review.createdAt)}
@@ -171,7 +176,7 @@ function SentFeedbackCard({
             </div>
           </div>
           <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${status.cls}`}>
-            {status.label}
+            {t(status.labelKey)}
           </span>
         </div>
 
@@ -180,7 +185,7 @@ function SentFeedbackCard({
           <StarRating value={review.rating} />
           {canEdit && !editing && (
             <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 gap-1.5 text-xs text-muted-foreground">
-              <Pencil className="size-3" /> Sửa
+              <Pencil className="size-3" /> {t('common.edit')}
             </Button>
           )}
         </div>
@@ -189,9 +194,9 @@ function SentFeedbackCard({
         )}
         {(review.tags?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1.5">
-            {review.tags.slice(0, 6).map((t) => (
-              <Badge key={t} variant="secondary" className="text-[11px] font-normal">
-                {t}
+            {review.tags.slice(0, 6).map((tag) => (
+              <Badge key={tag} variant="secondary" className="text-[11px] font-normal">
+                {tag}
               </Badge>
             ))}
           </div>
@@ -201,7 +206,7 @@ function SentFeedbackCard({
         {review.reply && (
           <div className="rounded-lg rounded-tl-sm border-l-2 border-primary/50 bg-primary/5 px-3.5 py-2.5">
             <div className="text-[11px] font-semibold text-primary">
-              {booking?.trip?.brandName || 'Nhà xe'} đã phản hồi
+              {t('accountPage.feedback.brandReplied', { brand: booking?.trip?.brandName || t('accountPage.feedback.brandFallback') })}
             </div>
             <p className="mt-0.5 text-sm text-foreground/80">{review.reply}</p>
           </div>
@@ -264,6 +269,7 @@ function SentFeedbackSkeleton() {
 
 /* ── Page ─────────────────────────────────────────────────────── */
 export function AccountFeedbackContent() {
+  const t = useT()
   const [tab, setTab] = useState<'pending' | 'sent'>('pending')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -321,11 +327,10 @@ export function AccountFeedbackContent() {
         <div className="relative">
           <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2.5">
             <MessageSquareHeart className="size-6 text-amber-300" />
-            Chuyến đi của bạn thế nào?
+            {t('accountPage.feedback.heroTitle')}
           </h1>
           <p className="mt-1.5 text-sm text-blue-100 max-w-xl">
-            Chia sẻ trải nghiệm của bạn để giúp các nhà xe phục vụ tốt hơn —
-            và giúp hàng nghìn hành khách khác chọn đúng chuyến xe.
+            {t('accountPage.feedback.heroDesc')}
           </p>
           <div className="mt-4 flex flex-wrap gap-2.5">
             <div className="flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur px-3.5 py-1.5 text-sm">
@@ -333,18 +338,18 @@ export function AccountFeedbackContent() {
               <span className="font-semibold tabular-nums">
                 {avgGiven > 0 ? avgGiven.toFixed(1) : '—'}
               </span>
-              <span className="text-blue-100">/ 5 trung bình</span>
+              <span className="text-blue-100">{t('accountPage.feedback.avgGiven')}</span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur px-3.5 py-1.5 text-sm">
               <PartyPopper className="size-4 text-amber-300" />
               <span className="font-semibold tabular-nums">{total}</span>
-              <span className="text-blue-100">phản hồi đã gửi</span>
+              <span className="text-blue-100">{t('accountPage.feedback.sentCount')}</span>
             </div>
             {approvedCount > 0 && (
               <div className="flex items-center gap-2 rounded-full bg-emerald-400/15 ring-1 ring-emerald-300/25 backdrop-blur px-3.5 py-1.5 text-sm">
                 <Star className="size-4 fill-emerald-300 text-emerald-300" />
                 <span className="font-semibold tabular-nums">{approvedCount}</span>
-                <span className="text-emerald-100">được hiển thị công khai</span>
+                <span className="text-emerald-100">{t('accountPage.feedback.publicCount')}</span>
               </div>
             )}
           </div>
@@ -359,7 +364,7 @@ export function AccountFeedbackContent() {
             className="gap-1.5 data-[state=active]:shadow-sm rounded-md px-4"
           >
             <Clock className="size-3.5" />
-            Chưa đánh giá
+            {t('accountPage.feedback.tabPending')}
             {pendingBookings.length > 0 && (
               <span className="ml-1 rounded-full bg-amber-500 text-white text-[10px] font-bold min-w-4 h-4 grid place-items-center px-1">
                 {pendingBookings.length}
@@ -371,7 +376,7 @@ export function AccountFeedbackContent() {
             className="gap-1.5 data-[state=active]:shadow-sm rounded-md px-4"
           >
             <Star className="size-3.5" />
-            Đã gửi ({total})
+            {t('accountPage.feedback.tabSent')} ({total})
           </TabsTrigger>
         </TabsList>
 
@@ -385,10 +390,9 @@ export function AccountFeedbackContent() {
                 <div className="mx-auto size-12 rounded-2xl bg-emerald-500/10 grid place-items-center">
                   <Star className="size-6 fill-emerald-500 text-emerald-500" />
                 </div>
-                <div className="font-semibold">Bạn đã đánh giá tất cả chuyến đi 🎉</div>
+                <div className="font-semibold">{t('accountPage.feedback.allRatedTitle')}</div>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Cảm ơn bạn đã chia sẻ trải nghiệm! Các phản hồi mới sẽ xuất hiện ở đây
-                  sau khi bạn hoàn thành chuyến đi tiếp theo.
+                  {t('accountPage.feedback.allRatedDesc')}
                 </p>
               </CardContent>
             </Card>
@@ -408,7 +412,7 @@ export function AccountFeedbackContent() {
           )}
           {!bookingsLoading && pendingBookings.length > 0 && (
             <p className="text-xs text-muted-foreground px-1">
-              💡 Chỉ những chuyến bạn đã đi (đã khởi hành, không bị hủy) mới hiển thị để đánh giá.
+              {t('accountPage.feedback.pendingHint')}
             </p>
           )}
         </TabsContent>
@@ -423,9 +427,9 @@ export function AccountFeedbackContent() {
                 <div className="mx-auto size-12 rounded-2xl bg-amber-500/10 grid place-items-center">
                   <MessageSquareHeart className="size-6 text-amber-500" />
                 </div>
-                <div className="font-semibold">Chưa có phản hồi nào</div>
+                <div className="font-semibold">{t('accountPage.feedback.emptySentTitle')}</div>
                 <p className="text-sm text-muted-foreground">
-                  Hãy bắt đầu với chuyến đi gần nhất của bạn ở tab "Chưa đánh giá".
+                  {t('accountPage.feedback.emptySentDesc')}
                 </p>
               </CardContent>
             </Card>
@@ -449,7 +453,7 @@ export function AccountFeedbackContent() {
           {total > PAGE_SIZE && (
             <div className="flex items-center justify-between pt-1">
               <span className="text-xs text-muted-foreground">
-                Hiển thị {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} / {total} phản hồi
+                {t('accountPage.feedback.showing', { from: page * PAGE_SIZE + 1, to: Math.min((page + 1) * PAGE_SIZE, total), total })}
               </span>
               <div className="flex items-center gap-2">
                 <Button
@@ -458,7 +462,7 @@ export function AccountFeedbackContent() {
                   className="size-8"
                   disabled={!canPrev || reviewsLoading}
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  aria-label="Trang trước"
+                  aria-label={t('common.prevPage')}
                 >
                   <ChevronLeft className="size-4" />
                 </Button>
@@ -471,7 +475,7 @@ export function AccountFeedbackContent() {
                   className="size-8"
                   disabled={!canNext || reviewsLoading}
                   onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
-                  aria-label="Trang sau"
+                  aria-label={t('common.nextPage')}
                 >
                   <ChevronRight className="size-4" />
                 </Button>
@@ -487,7 +491,7 @@ export function AccountFeedbackContent() {
           href="/account/trips"
           className="inline-flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
         >
-          Xem lịch sử chuyến đi
+          {t('accountPage.feedback.viewTrips')}
           <ArrowRight className="size-3.5" />
         </a>
       </div>

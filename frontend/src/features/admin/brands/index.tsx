@@ -32,18 +32,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  ArrowDownUp,
   Building2,
   Loader2,
-  MapPin,
   Plus,
   RotateCcw,
   Search,
@@ -59,6 +51,7 @@ import {
   useDeleteAdminRoute,
   useDeleteAdminSchedule,
 } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { DeleteTarget } from '@/features/admin/types'
 import type {
@@ -66,7 +59,7 @@ import type {
   AdminRouteOut,
   AdminScheduleOut,
 } from '@/lib/api/types.gen'
-import { CitySelectContent, cityLabel } from '@/features/admin/routes/city-select-content'
+import { CITY_ITEMS, cityLabel } from '@/features/admin/routes/city-select-content'
 import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
 import { ScheduleFormDialog } from '@/features/admin/schedules/schedule-form'
@@ -84,12 +77,42 @@ import { getErrorMessage } from '@/lib/error-message'
 const EMPTY_ITEMS: never[] = []
 
 export function AdminBrandManagement() {
+  const t = useT()
   /* ── Filters ─────────────────────────────────────────────── */
   const [brandSearch, setBrandSearch] = useState('')
   const debouncedSearch = useDebouncedValue(brandSearch, 250)
   const [startLocationId, setStartLocationId] = useState<string>('')
   const [endLocationId, setEndLocationId] = useState<string>('')
   const [scheduleSort, setScheduleSort] = useState<ScheduleSort | null>(null)
+
+  // City filter options — flat list with an "any" reset entry first,
+  // then every Vietnamese city (searchable in the combobox).
+  const CITY_FILTER_ITEMS = useMemo(
+    () => [
+      { value: 'any', label: t('brands.anyPoint') },
+      ...CITY_ITEMS,
+    ],
+    [t],
+  )
+
+  // Sort options — the active key carries a direction arrow in its
+  // label so the trigger reflects the current asc/desc state.
+  const SCHEDULE_SORT_ITEMS = useMemo(() => {
+    const keys = Object.keys(SCHEDULE_SORT_LABELS) as ScheduleSortKey[]
+    return [
+      { value: 'none', label: t('brands.sortNone') },
+      ...keys.map((key) => ({
+        value: key,
+        label:
+          t(SCHEDULE_SORT_LABELS[key]) +
+          (scheduleSort?.key === key
+            ? scheduleSort.dir === 'desc'
+              ? ' ↓'
+              : ' ↑'
+            : ''),
+      })),
+    ]
+  }, [scheduleSort, t])
 
   /* ── Expansion state ─────────────────────────────────────── */
   const [expandedBrands, setExpandedBrands] = useState<Set<string>>(new Set())
@@ -213,10 +236,10 @@ export function AdminBrandManagement() {
       } else if (deleteTarget.kind === 'schedule') {
         await deleteScheduleMutation.mutateAsync({ path: { id: deleteTarget.id } })
       }
-      toast.success('Đã xoá thành công')
+      toast.success(t('adminBrands.deleted'))
       setDeleteTarget(null)
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể xoá'))
+      toast.error(getErrorMessage(e, t('adminBrands.deleteFailed')))
     } finally {
       setDeleting(false)
     }
@@ -265,9 +288,12 @@ export function AdminBrandManagement() {
   }
 
   const filterSummary = locationFilterActive
-    ? `${visibleBrands.length} hãng · ${filteredRoutes?.length ?? 0} tuyến ${
-        startLocationId ? cityLabel(startLocationId) : '…'
-      } → ${endLocationId ? cityLabel(endLocationId) : '…'}`
+    ? t('adminBrands.filterSummary', {
+        brands: visibleBrands.length,
+        routes: filteredRoutes?.length ?? 0,
+        from: startLocationId ? (cityLabel(startLocationId) ?? '…') : '…',
+        to: endLocationId ? (cityLabel(endLocationId) ?? '…') : '…',
+      })
     : null
 
   return (
@@ -277,14 +303,14 @@ export function AdminBrandManagement() {
         <div>
           <h1 className="flex items-center gap-2 text-xl font-semibold">
             <Building2 className="h-5 w-5 text-blue-600" />
-            Hãng xe & Tuyến đường
+            {t('brands.title')}
           </h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Mở rộng từng hãng để quản lý tuyến đường và lịch trình (điểm đón/trả, giờ chạy, giá vé).
+            {t('brands.subtitle')}
           </p>
         </div>
         <Button size="sm" onClick={() => setBrandDialog({ open: true, brand: null })}>
-          <Plus className="h-4 w-4" /> Thêm hãng xe
+          <Plus className="h-4 w-4" /> {t('brands.addBrand')}
         </Button>
       </div>
 
@@ -295,14 +321,14 @@ export function AdminBrandManagement() {
           <Input
             value={brandSearch}
             onChange={(e) => setBrandSearch(e.target.value)}
-            placeholder="Tìm hãng xe…"
+            placeholder={t('brands.searchBrand')}
             className="pl-9"
-            aria-label="Tìm hãng xe theo tên"
+            aria-label={t('brands.searchLabel')}
           />
           {brandSearch && (
             <button
               type="button"
-              aria-label="Xoá tìm kiếm"
+              aria-label={t('map.clearSearch')}
               onClick={() => setBrandSearch('')}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
@@ -313,54 +339,34 @@ export function AdminBrandManagement() {
 
         <div className="flex flex-1 flex-wrap items-center gap-2">
           <div className="min-w-40 flex-1 sm:max-w-56">
-            <Select
+            <ComboboxField
               value={startLocationId || 'any'}
               onValueChange={(v) => setStartLocationId(v === 'any' ? '' : v)}
-            >
-              <SelectTrigger className="w-full" aria-label="Điểm đi">
-                <span className="flex min-w-0 items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Điểm đi">
-                    {(v: string | null | undefined) =>
-                      v === 'any' || !v ? 'Điểm đi (tất cả)' : cityLabel(v) ?? 'Điểm đi'
-                    }
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Điểm đi (tất cả)</SelectItem>
-                <CitySelectContent />
-              </SelectContent>
-            </Select>
+              items={CITY_FILTER_ITEMS}
+              placeholder={t('brands.startAny')}
+              searchPlaceholder={t('routeForm.searchCity')}
+              aria-label={t('brands.startPoint')}
+              data-testid="start-city-filter"
+            />
           </div>
           <span className="hidden text-xs text-muted-foreground sm:inline" aria-hidden>
             →
           </span>
           <div className="min-w-40 flex-1 sm:max-w-56">
-            <Select
+            <ComboboxField
               value={endLocationId || 'any'}
               onValueChange={(v) => setEndLocationId(v === 'any' ? '' : v)}
-            >
-              <SelectTrigger className="w-full" aria-label="Điểm đến">
-                <span className="flex min-w-0 items-center gap-2">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Điểm đến">
-                    {(v: string | null | undefined) =>
-                      v === 'any' || !v ? 'Điểm đến (tất cả)' : cityLabel(v) ?? 'Điểm đến'
-                    }
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Điểm đến (tất cả)</SelectItem>
-                <CitySelectContent />
-              </SelectContent>
-            </Select>
+              items={CITY_FILTER_ITEMS}
+              placeholder={t('brands.endAny')}
+              searchPlaceholder={t('routeForm.searchCity')}
+              aria-label={t('brands.endPoint')}
+              data-testid="end-city-filter"
+            />
           </div>
 
           {/* Schedule sort — applies inside every expanded route group */}
           <div className="flex items-center gap-1.5">
-            <Select
+            <ComboboxField
               value={scheduleSort?.key ?? 'none'}
               onValueChange={(v: string) => {
                 if (v === 'none') {
@@ -373,39 +379,22 @@ export function AdminBrandManagement() {
                     : { key: v as ScheduleSortKey, dir: 'asc' },
                 )
               }}
-            >
-              <SelectTrigger className="h-9 w-44" aria-label="Sắp xếp lịch trình">
-                <span className="flex items-center gap-2">
-                  <ArrowDownUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <SelectValue placeholder="Sắp xếp lịch">
-                    {(v: string | null | undefined) =>
-                      v === 'none' || !v
-                        ? 'Sắp xếp lịch trình'
-                        : `${SCHEDULE_SORT_LABELS[v as ScheduleSortKey]} ${
-                            scheduleSort?.dir === 'desc' ? '↓' : '↑'
-                          }`
-                    }
-                  </SelectValue>
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Không sắp xếp</SelectItem>
-                {(Object.keys(SCHEDULE_SORT_LABELS) as ScheduleSortKey[]).map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {SCHEDULE_SORT_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              items={SCHEDULE_SORT_ITEMS}
+              className="h-9 w-44"
+              placeholder={t('brands.sortSchedules')}
+              searchPlaceholder={t('combobox.search')}
+              aria-label={t('brands.sortSchedules')}
+              data-testid="schedule-sort"
+            />
           </div>
 
           {locationFilterActive && (
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" className="h-9 gap-1" onClick={clearLocationFilter}>
-                <RotateCcw className="h-3.5 w-3.5" /> Xoá lọc
+                <RotateCcw className="h-3.5 w-3.5" /> {t('brands.clearFilter')}
               </Button>
               {filteredRoutesQuery.isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label="Đang lọc" />
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label={t('brands.filtering')} />
               ) : (
                 <span className="text-xs text-muted-foreground">{filterSummary}</span>
               )}
@@ -470,25 +459,24 @@ export function AdminBrandManagement() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xoá</AlertDialogTitle>
+            <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc muốn xoá{' '}
+              {t('adminBrands.deleteConfirmQ')}{' '}
               <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
               {deleteTarget?.kind === 'brand' && (
                 <>
                   {' '}
-                  Tất cả tuyến đường, lịch trình, loại xe và điểm đón/trả thuộc hãng này cũng sẽ bị
-                  xoá theo.
+                  {t('adminBrands.deleteBrandCascade')}
                 </>
               )}
               {deleteTarget?.kind === 'route' && (
-                <> Tất cả lịch trình và điểm đón/trả thuộc tuyến này cũng sẽ bị xoá theo.</>
+                <> {t('adminBrands.deleteRouteCascade')}</>
               )}
-              {' '}Hành động này không thể hoàn tác.
+              {' '}{t('common.confirmDeleteBody')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Huỷ</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault()
@@ -499,11 +487,11 @@ export function AdminBrandManagement() {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Đang xoá...
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> {t('common.deleting')}
                 </>
               ) : (
                 <>
-                  <Trash2 className="mr-1.5 h-4 w-4" /> Xoá
+                  <Trash2 className="mr-1.5 h-4 w-4" /> {t('common.delete')}
                 </>
               )}
             </AlertDialogAction>

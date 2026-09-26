@@ -9,6 +9,7 @@
  */
 
 import { useApp, type TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,6 +45,7 @@ export function FiltersSidebar({
   maxAvail: number
 }) {
   const { currency } = useApp()
+  const t = useT()
   return (
     <aside className="lg:w-80 shrink-0 hidden lg:block">
       <div className="lg:sticky lg:top-32 space-y-4">
@@ -51,7 +53,7 @@ export function FiltersSidebar({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 font-semibold">
               <SlidersHorizontal className="h-4 w-4 text-blue-600" />
-              Bộ lọc
+              {t('searchPage.filters')}
               {activeFilterCount > 0 && (
                 <Badge className="bg-blue-600 text-white text-[10px] ml-1 h-5 min-w-5 px-1 flex items-center justify-center">
                   {activeFilterCount}
@@ -60,14 +62,14 @@ export function FiltersSidebar({
             </div>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={resetFilters} className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50">
-                Xoá tất cả
+                {t('searchPage.clearAll')}
               </Button>
             )}
           </div>
 
           <div className="space-y-3">
             <div>
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Sắp xếp</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.sort')}</div>
               <div className="space-y-1">
                 {sortOptions.map((o) => (
                   <button
@@ -81,22 +83,22 @@ export function FiltersSidebar({
                     )}
                   >
                     <span className="mr-1.5">{o.icon}</span>
-                    {o.label}
+                    {t(o.labelKey)}
                   </button>
                 ))}
               </div>
             </div>
 
             <div className="pt-3 border-t">
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Loại xe</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.vehicleType')}</div>
               <div className="space-y-1.5">
                 {[
-                  { key: 'limousine', label: 'Limousine', emoji: '🚐' },
-                  { key: 'sleeper', label: 'Giường nằm', emoji: '🛏️' },
-                  { key: 'standard', label: 'Ghế ngồi', emoji: '🚌' },
+                  { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
+                  { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
+                  { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
                 ].map((v) => {
                   const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                  const count = searchResults.filter((t) => (t.vehicleType ?? null) === v.key).length
+                  const count = searchResults.filter((tr) => (tr.vehicleType ?? null) === v.key).length
                   return (
                     <label key={v.key} className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
                       <Checkbox
@@ -109,7 +111,7 @@ export function FiltersSidebar({
                         }}
                         className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                       />
-                      <span className="group-hover:text-blue-700 transition-colors">{v.emoji} {v.label}</span>
+                      <span className="group-hover:text-blue-700 transition-colors">{v.emoji} {t(v.labelKey)}</span>
                       {count > 0 && (
                         <span className="ml-auto text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
                       )}
@@ -130,15 +132,15 @@ export function FiltersSidebar({
             {/* Quick stats */}
             {searchResults.length > 0 && (
               <div className="pt-3 border-t">
-                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Tóm tắt</div>
+                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.summary')}</div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between">
-                    <span>Giá từ</span>
+                    <span>{t('common.fromPrice')}</span>
                     <span className="font-semibold text-blue-700">{formatCurrency(minPrice, currency)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Nhiều chỗ nhất</span>
-                    <span className="font-semibold">{maxAvail} chỗ</span>
+                    <span>{t('searchPage.mostSeats')}</span>
+                    <span className="font-semibold">{t('searchPage.seatsCount', { count: maxAvail })}</span>
                   </div>
                 </div>
               </div>

@@ -33,7 +33,7 @@ export function SearchDateFields({
         render={({ field }) => (
           <FormItem className="space-y-1.5">
             <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
-              {searchParams.roundTrip ? 'Ngày đi' : t('search.date')}{' '}
+              {t('search.date')}{' '}
               <span className="text-destructive" aria-hidden="true">*</span>
             </FormLabel>
             <DatePicker
@@ -50,7 +50,7 @@ export function SearchDateFields({
                 }
               }}
               minDate={new Date()}
-              placeholder="Chọn ngày"
+              placeholder={t('home.chooseDatePh')}
               displayFormat="EEEE, dd/MM"
               clearable={false}
               triggerClassName="h-10 bg-white/95"
@@ -68,7 +68,7 @@ export function SearchDateFields({
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
-                Ngày về{' '}
+                {t('search.returnDate')}{' '}
                 <span className="text-destructive" aria-hidden="true">*</span>
               </FormLabel>
               <DatePicker
@@ -79,7 +79,7 @@ export function SearchDateFields({
                   setSearchParams({ returnDate: newReturn })
                 }}
                 minDate={departDateForReturnDisabled}
-                placeholder="Chọn ngày về"
+                placeholder={t('home.chooseReturnDatePh')}
                 displayFormat="EEEE, dd/MM"
                 clearable={false}
                 triggerClassName="h-10 bg-white/95"

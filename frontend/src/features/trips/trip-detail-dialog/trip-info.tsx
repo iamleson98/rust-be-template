@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 import {
   Star,
   Navigation,
@@ -37,6 +38,7 @@ export function TripInfo({
   detail: TripDetail
   onShare: () => void
 }) {
+  const t = useT()
   return (
     <div className="px-5 py-4 border-b bg-linear-to-r from-slate-50 to-white shrink-0">
       <div className="flex items-start justify-between gap-3">
@@ -75,14 +77,14 @@ export function TripInfo({
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              Khởi hành {formatTimeVN(detail.trip.departureAt)}
+              {t('booking.departure')} {formatTimeVN(detail.trip.departureAt)}
             </span>
           </DialogDescription>
         </div>
         {detail.trip.availableSeats <= 5 && (
           <Badge className="bg-rose-100 text-rose-700 border-0 shrink-0">
             <AlertTriangle className="h-3 w-3 mr-0.5" />
-            Chỉ còn {detail.trip.availableSeats} chỗ
+            {t('tripDetail.fewSeatsLeft', { count: detail.trip.availableSeats })}
           </Badge>
         )}
         <Button
@@ -92,7 +94,7 @@ export function TripInfo({
           onClick={onShare}
         >
           <Share2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Chia sẻ</span>
+          <span className="hidden sm:inline">{t('trips.share')}</span>
         </Button>
       </div>
 

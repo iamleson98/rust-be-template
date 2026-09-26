@@ -11,6 +11,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { usePlaceSearch, useTripSearch } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import type { TripResult } from '@/lib/api/types.gen'
 
 function todayIso(): string {
@@ -50,19 +51,20 @@ export function SearchStep({
   tripSearch: ReturnType<typeof useTripSearch>
   onSelectTrip: (t: TripResult) => void
 }) {
+  const t = useT()
   return (
     <div className="space-y-3">
       {/* Search bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <div className="relative">
-          <Label className="text-[10px] text-muted-foreground uppercase">Điểm đi</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase">{t('search.from')}</Label>
           <Input
             value={fromPlace ? fromPlace.name : fromQuery}
             onChange={(e) => {
               setFromQuery(e.target.value)
               setFromPlace(null)
             }}
-            placeholder="VD: Hà Nội"
+            placeholder={t('adminTickets.fromExample')}
             className="h-9"
           />
           {fromSearch.data?.items && fromSearch.data.items.length > 0 && !fromPlace && fromQuery && (
@@ -87,14 +89,14 @@ export function SearchStep({
         </div>
 
         <div className="relative">
-          <Label className="text-[10px] text-muted-foreground uppercase">Điểm đến</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase">{t('search.to')}</Label>
           <Input
             value={toPlace ? toPlace.name : toQuery}
             onChange={(e) => {
               setToQuery(e.target.value)
               setToPlace(null)
             }}
-            placeholder="VD: Đà Nẵng"
+            placeholder={t('adminTickets.toExample')}
             className="h-9"
           />
           {toSearch.data?.items && toSearch.data.items.length > 0 && !toPlace && toQuery && (
@@ -119,7 +121,7 @@ export function SearchStep({
         </div>
 
         <div>
-          <Label className="text-[10px] text-muted-foreground uppercase">Ngày đi</Label>
+          <Label className="text-[10px] text-muted-foreground uppercase">{t('search.date')}</Label>
           <DatePicker
             value={date || null}
             onChange={(v) => setDate(v ?? '')}
@@ -136,10 +138,10 @@ export function SearchStep({
         <TripResultsSkeleton count={4} />
       ) : tripSearch.data?.items && tripSearch.data.items.length > 0 ? (
         <div className="space-y-2 max-h-75 overflow-y-auto">
-          {tripSearch.data.items.map((t) => (
+          {tripSearch.data.items.map((tr) => (
             <button
-              key={t.tripId}
-              onClick={() => onSelectTrip(t)}
+              key={tr.tripId}
+              onClick={() => onSelectTrip(tr)}
               className="w-full text-left rounded-lg border p-2.5 hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
             >
               <div className="flex items-center justify-between gap-2">
@@ -147,27 +149,27 @@ export function SearchStep({
                   <div className="flex items-center gap-1.5 text-xs">
                     <span
                       className="inline-block h-2 w-2 rounded-full"
-                      style={{ background: t.brandAccent }}
+                      style={{ background: tr.brandAccent }}
                     />
-                    <span className="font-medium">{t.brandName}</span>
-                    <span className="text-muted-foreground">· {t.vehicleTypeLabel}</span>
+                    <span className="font-medium">{tr.brandName}</span>
+                    <span className="text-muted-foreground">· {tr.vehicleTypeLabel}</span>
                   </div>
                   <div className="font-semibold text-sm mt-0.5">
-                    {t.fromName} → {t.toName}
+                    {tr.fromName} → {tr.toName}
                   </div>
                   <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
                     <span className="flex items-center gap-0.5">
                       <Clock className="h-3 w-3" />
-                      {t.departureTime}
+                      {tr.departureTime}
                     </span>
-                    <span>· {t.availableSeats} ghế trống</span>
+                    <span>· {t('adminTickets.seatsAvailable', { count: tr.availableSeats })}</span>
                   </div>
                 </div>
                 <div className="text-right shrink-0">
                   <div className="font-bold text-blue-700 text-sm">
-                    {new Intl.NumberFormat('vi-VN').format(t.minPrice)}₫
+                    {new Intl.NumberFormat('vi-VN').format(tr.minPrice)}₫
                   </div>
-                  <div className="text-[10px] text-muted-foreground">/ghế</div>
+                  <div className="text-[10px] text-muted-foreground">{t('adminTickets.perSeat')}</div>
                 </div>
               </div>
             </button>
@@ -176,12 +178,12 @@ export function SearchStep({
       ) : fromPlace && toPlace ? (
         <div className="p-6 text-center text-sm text-muted-foreground">
           <Bus className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-          Không tìm thấy chuyến nào phù hợp.
+          {t('adminTickets.noTripsFound')}
         </div>
       ) : (
         <div className="p-6 text-center text-sm text-muted-foreground">
           <Search className="h-8 w-8 mx-auto mb-2 text-slate-300" />
-          Chọn điểm đi, điểm đến và ngày đi để tìm chuyến.
+          {t('adminTickets.searchHint')}
         </div>
       )}
     </div>

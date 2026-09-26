@@ -22,6 +22,7 @@ import {
   useStats,
   useAdminBookingExport,
 } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { useAdminChatWorkspace } from '@/features/admin/chat/use-admin-chat-workspace'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -48,6 +49,7 @@ import { getErrorMessage } from '@/lib/error-message'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
+  const t = useT()
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const statsQuery = useStats()
   const exportQuery = useAdminBookingExport({})
@@ -60,13 +62,13 @@ export const AdminDashboard = memo(function AdminDashboard() {
       const data = result.data
       if (!data) throw new Error('Export failed')
       downloadCSV(data.filename, data.csv)
-      toast.success('Xuất CSV thành công', {
-        description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
+      toast.success(t('adminDash.exportCsvSuccess'), {
+        description: t('adminDash.exportCsvSuccessDesc', { count: data.count, file: data.filename }),
       })
     } catch (e) {
-      toast.error('Xuất CSV thất bại', { description: getErrorMessage(e, 'Vui lòng thử lại') })
+      toast.error(t('adminDash.exportCsvFailed'), { description: getErrorMessage(e, t('adminDash.pleaseRetry')) })
     }
-  }, [exportQuery])
+  }, [exportQuery, t])
 
   if (statsQuery.isLoading) {
     return <AdminDashboardSkeleton />
@@ -79,18 +81,18 @@ export const AdminDashboard = memo(function AdminDashboard() {
           <div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
               <LayoutDashboard className="h-3.5 w-3.5" />
-              Bảng điều khiển
+              {t('admin.dashboard')}
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight">Tổng quan hoạt động</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">{t('adminDash.overviewTitle')}</h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Date range selector */}
-            <div className="inline-flex items-center rounded-lg border bg-white p-0.5" role="group" aria-label="Khoảng thời gian">
+            <div className="inline-flex items-center rounded-lg border bg-white p-0.5" role="group" aria-label={t('adminDash.dateRangeLabel')}>
               <CalendarRange className="h-3.5 w-3.5 text-muted-foreground mx-2" />
               {([
-                { key: '7d' as DateRange, label: '7 ngày' },
-                { key: '30d' as DateRange, label: '30 ngày' },
-                { key: '90d' as DateRange, label: '90 ngày' },
+                { key: '7d' as DateRange, label: t('adminDash.range7d') },
+                { key: '30d' as DateRange, label: t('adminDash.range30d') },
+                { key: '90d' as DateRange, label: t('adminDash.range90d') },
               ]).map((opt) => (
                 <button
                   key={opt.key}
@@ -106,11 +108,11 @@ export const AdminDashboard = memo(function AdminDashboard() {
             </div>
             <Button variant="outline" onClick={handleExportCSV} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
               <Download className="h-4 w-4" />
-              Xuất CSV
+              {t('adminDash.exportCsv')}
             </Button>
             <Button variant="outline" onClick={() => navigate({ to: '/' })} className="gap-2">
               <Eye className="h-4 w-4" />
-              Về trang khách hàng
+              {t('adminDash.backToCustomerSite')}
             </Button>
           </div>
         </div>
@@ -120,10 +122,10 @@ export const AdminDashboard = memo(function AdminDashboard() {
         <div>
           <Tabs defaultValue="tickets">
             <TabsList className="flex-wrap h-auto">
-              <TabsTrigger value="tickets" className="gap-1.5"><Ticket className="h-4 w-4" /> Vé đã bán</TabsTrigger>
-              <TabsTrigger value="crud" className="gap-1.5"><Building2 className="h-4 w-4" /> Hãng xe &amp; Tuyến</TabsTrigger>
-              <TabsTrigger value="chat" className="gap-1.5"><MessageSquare className="h-4 w-4" /> Hỗ trợ trực tuyến</TabsTrigger>
-              <TabsTrigger value="campaigns" className="gap-1.5"><TrendingUp className="h-4 w-4" /> Khuyến mãi</TabsTrigger>
+              <TabsTrigger value="tickets" className="gap-1.5"><Ticket className="h-4 w-4" /> {t('admin.ticketsSold')}</TabsTrigger>
+              <TabsTrigger value="crud" className="gap-1.5"><Building2 className="h-4 w-4" /> {t('adminDash.brandsRoutesTab')}</TabsTrigger>
+              <TabsTrigger value="chat" className="gap-1.5"><MessageSquare className="h-4 w-4" /> {t('admin.chatOnline')}</TabsTrigger>
+              <TabsTrigger value="campaigns" className="gap-1.5"><TrendingUp className="h-4 w-4" /> {t('admin.campaigns')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="tickets">

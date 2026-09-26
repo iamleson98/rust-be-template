@@ -10,6 +10,7 @@
  */
 
 import { Bookmark, X } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { Filters } from './helpers'
 
 const SAVED_SEARCHES_KEY = 'bus_saved_searches'
@@ -53,11 +54,12 @@ export function SavedSearchesList({
   applySavedSearch: (s: SavedSearch) => void
   removeSavedSearch: (id: string) => void
 }) {
+  const t = useT()
   return (
     <div className="mb-3 rounded-xl border bg-rose-50/40 p-3">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-rose-700 mb-2">
         <Bookmark className="h-3.5 w-3.5" />
-        Tìm kiếm đã lưu ({savedSearches.length})
+        {t('searchPage.savedSearches', { count: savedSearches.length })}
       </div>
       <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
         {savedSearches.slice(0, 6).map((s) => (
@@ -75,7 +77,7 @@ export function SavedSearchesList({
             <button
               onClick={() => removeSavedSearch(s.id)}
               className="text-muted-foreground hover:text-rose-600"
-              title="Xoá"
+              title={t('common.delete')}
             >
               <X className="h-3 w-3" />
             </button>

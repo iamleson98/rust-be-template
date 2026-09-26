@@ -240,7 +240,10 @@ describe('AdminBrandManagement (tree table redesign)', () => {
   })
 
   it('applies schedule sorting within the route group only', async () => {
-    const user = userEvent.setup()
+    // Base UI popup items keep `pointer-events: none` while their enter
+    // transition runs — jsdom never fires transitionend, so the check
+    // must be off to click them (same as the smart-filter test).
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
     setupDefaultMocks()
     render(<AdminBrandManagement />)
 
@@ -251,9 +254,7 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     await screen.findByText('20:00')
 
     // Server order: 20:00 then 08:30. Sort by departure time asc.
-    const sortTrigger = screen.getByRole('combobox', { name: 'Sắp xếp lịch trình' })
-    await user.click(sortTrigger)
-    await user.click(screen.getByText('Giờ khởi hành'))
+    await pickOption(user, 'Sắp xếp lịch trình', 'Giờ khởi hành')
 
     // Rows reorder: 08:30 first. The table rows order reflects the sort
     // within the group (brand + route rows stay above).

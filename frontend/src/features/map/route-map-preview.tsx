@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { formatDuration } from '@/lib/types'
 import { MapPin, Navigation } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 type Props = {
   geometry: [number, number][] // [lat, lon][]
@@ -23,6 +24,7 @@ type Props = {
 // A stylized SVG map preview (no external map library needed).
 // Projects lat/lon into an SVG viewBox preserving aspect ratio.
 export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, accentColor }: Props) {
+  const t = useT()
   const { points, viewBox, stops } = useMemo(() => {
     const allPts = [...geometry, ...pickupPoints.map((p) => [p.lat, p.lon] as [number, number])]
     if (allPts.length === 0) {
@@ -55,7 +57,7 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
   }, [geometry, pickupPoints])
 
   if (points.length < 2) {
-    return <div className="text-sm text-muted-foreground p-4">Chưa có dữ liệu lộ trình.</div>
+    return <div className="text-sm text-muted-foreground p-4">{t('mapNav.noRouteData')}</div>
   }
 
   const pathD = points
@@ -129,13 +131,13 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
           {fromName} → {toName}
         </div>
         <div className="absolute bottom-3 right-3 rounded-lg bg-white/90 backdrop-blur px-3 py-1.5 text-xs text-muted-foreground">
-          {stops.length} trạm dừng
+          {t('mapNav.stopsCount', { count: stops.length })}
         </div>
       </div>
 
       {/* Stop list */}
       <div className="mt-4 space-y-1">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Lịch trình chi tiết</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('mapNav.detailedSchedule')}</div>
         {stops.map((s, i) => (
           <div key={s.id} className="flex items-center gap-3 py-1.5">
             <div className="flex flex-col items-center">

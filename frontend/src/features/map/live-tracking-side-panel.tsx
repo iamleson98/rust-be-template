@@ -14,6 +14,7 @@ import {
   Flag,
 } from 'lucide-react'
 import { formatDuration, formatTimeVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { hashString, formatCountdown } from './live-tracking-helpers'
 import type { TripDetail, TrackingStatus } from './live-tracking-types'
 
@@ -32,6 +33,7 @@ export function LiveTrackingSidePanel({
   stopsWithStatus: (TripDetail['pickupPoints'][number] & { status: 'passed' | 'current' | 'upcoming' })[]
   elapsedMin: number
 }) {
+  const t = useT()
   // Mock driver + vehicle data derived from trip id (deterministic)
   const seed = useMemo(() => hashString(detail.trip.id), [detail.trip.id])
   const driverName =
@@ -51,7 +53,7 @@ export function LiveTrackingSidePanel({
       {/* Driver info */}
       <div className="rounded-xl border bg-white p-3">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-          Thông tin tài xế
+          {t('liveTracking.driverInfo')}
         </div>
         <div className="flex items-center gap-2.5">
           <div className="h-10 w-10 rounded-full bg-linear-to-br from-blue-100 to-blue-100 text-blue-700 inline-flex items-center justify-center font-bold shrink-0">
@@ -62,7 +64,7 @@ export function LiveTrackingSidePanel({
             <div className="flex items-center gap-1 text-xs text-amber-600">
               <Star className="h-3 w-3 fill-current" />
               {driverRating}
-              <span className="text-muted-foreground ml-1">• 5+ năm KN</span>
+              <span className="text-muted-foreground ml-1">{t('liveTracking.driverExperience')}</span>
             </div>
           </div>
         </div>
@@ -81,23 +83,23 @@ export function LiveTrackingSidePanel({
       {/* Bus info */}
       <div className="rounded-xl border bg-white p-3">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-          Thông tin xe
+          {t('liveTracking.busInfo')}
         </div>
         <div className="space-y-1.5 text-xs">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Biển số</span>
+            <span className="text-muted-foreground">{t('liveTracking.plateNumber')}</span>
             <span className="font-mono font-bold">{plateNumber}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Loại xe</span>
+            <span className="text-muted-foreground">{t('liveTracking.vehicleType')}</span>
             <span className="font-medium">{detail.busLayout.vehicleTypeLabel}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Số chỗ</span>
-            <span className="font-medium">{detail.busLayout.capacity} chỗ</span>
+            <span className="text-muted-foreground">{t('liveTracking.seats')}</span>
+            <span className="font-medium">{t('liveTracking.seatsCount', { count: detail.busLayout.capacity })}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Đội xe</span>
+            <span className="text-muted-foreground">{t('liveTracking.fleet')}</span>
             <span className="font-medium truncate ml-2">{detail.brand.name}</span>
           </div>
         </div>
@@ -110,7 +112,7 @@ export function LiveTrackingSidePanel({
           className="rounded-xl bg-linear-to-br from-blue-50 to-blue-50 ring-1 ring-blue-200 p-3"
         >
           <div className="text-[10px] uppercase tracking-wide text-blue-600 font-semibold mb-1">
-            Trạm dừng tiếp theo
+            {t('liveTracking.nextStop')}
           </div>
           <div className="font-bold text-sm text-blue-800 truncate flex items-center gap-1">
             <Flag className="h-3.5 w-3.5 shrink-0" />
@@ -119,20 +121,21 @@ export function LiveTrackingSidePanel({
           <div className="text-xs text-blue-600 mt-0.5 flex items-center gap-1">
             <Clock className="h-3 w-3" />
             <span>
-              Đến sau{' '}
-              {(() => {
-                const depTs = new Date(detail.trip.departureAt).getTime()
-                const stopTs = depTs + nextStop.etaOffsetMin * 60_000
-                const secToStop = Math.max(0, Math.floor((stopTs - now) / 1000))
-                return formatCountdown(secToStop)
-              })()}
+              {t('liveTracking.arriveIn', {
+                time: (() => {
+                  const depTs = new Date(detail.trip.departureAt).getTime()
+                  const stopTs = depTs + nextStop.etaOffsetMin * 60_000
+                  const secToStop = Math.max(0, Math.floor((stopTs - now) / 1000))
+                  return formatCountdown(secToStop)
+                })(),
+              })}
             </span>
           </div>
         </div>
       ) : (
         <div className="rounded-xl bg-slate-50 ring-1 ring-slate-200 p-3">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
-            {status === 'arrived' ? 'Trạm đến' : 'Trạm xuất phát'}
+            {status === 'arrived' ? t('liveTracking.destinationStop') : t('liveTracking.originStop')}
           </div>
           <div className="font-bold text-sm text-slate-800 truncate flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -141,8 +144,8 @@ export function LiveTrackingSidePanel({
           <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
             <Clock className="h-3 w-3" />
             {status === 'arrived'
-              ? `Đã đến lúc ${formatTimeVN(detail.trip.arrivalAt)}`
-              : `Khởi hành lúc ${formatTimeVN(detail.trip.departureAt)}`}
+              ? t('liveTracking.arrivedAt', { time: formatTimeVN(detail.trip.arrivalAt) })
+              : t('liveTracking.departsAt', { time: formatTimeVN(detail.trip.departureAt) })}
           </div>
         </div>
       )}
@@ -150,7 +153,7 @@ export function LiveTrackingSidePanel({
       {/* Stop list with statuses */}
       <div className="rounded-xl border bg-white p-3">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2">
-          Lịch trình các trạm
+          {t('liveTracking.stopSchedule')}
         </div>
         <div className="space-y-0 max-h-72 overflow-y-auto pr-1 custom-scroll">
           {stopsWithStatus.map((s, i) => {
@@ -183,10 +186,12 @@ export function LiveTrackingSidePanel({
                   </div>
                   <div className="text-[10px] text-muted-foreground">
                     {isPassed
-                      ? 'Đã đi qua'
+                      ? t('liveTracking.passed')
                       : isCurrent
-                        ? 'Đang tại đây'
-                        : `Còn ${formatDuration(Math.max(0, s.etaOffsetMin - elapsedMin))}`}
+                        ? t('liveTracking.currentlyHere')
+                        : t('liveTracking.etaIn', {
+                            duration: formatDuration(Math.max(0, s.etaOffsetMin - elapsedMin)),
+                          })}
                   </div>
                 </div>
               </div>

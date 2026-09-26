@@ -11,6 +11,7 @@ import type { Place, RouteItem } from './map-view-types'
 import { MapSidebar } from './map-sidebar'
 import { MapSelectedCityPopup } from './map-selected-city-popup'
 import { MapSelectedRoutePopup } from './map-selected-route-popup'
+import { useT, translate } from '@/lib/i18n'
 
 
 // Real OSM map (loaded client-side only — leaflet touches `window`).
@@ -22,12 +23,19 @@ const RouteMapInnerFallback = (
 )
 
 // ── Mock current location (Hà Nội center) ─────────────────
-const MOCK_USER_LOCATION = { lat: 21.0285, lon: 105.8542, label: 'Hà Nội (vị trí của bạn)' }
+// Module-level constant — translated via the non-React
+// `translate(useApp.getState().lang, ...)` pattern.
+const MOCK_USER_LOCATION = {
+  lat: 21.0285,
+  lon: 105.8542,
+  label: translate(useApp.getState().lang, 'mapPage.mockUserLocation'),
+}
 
 // ── Component ─────────────────────────────────────────────
 export function MapView() {
   const { setSearchParams } = useApp()
   const navigate = useNavigate()
+  const t = useT()
   const [places, setPlaces] = useState<Place[]>([])
   const [routes, setRoutes] = useState<RouteItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -186,7 +194,7 @@ export function MapView() {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-muted-foreground">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
-        <p className="text-sm">Đang tải bản đồ tuyến đường...</p>
+        <p className="text-sm">{t('map.loadingMap')}</p>
       </div>
     )
   }
@@ -201,9 +209,9 @@ export function MapView() {
               <MapPin className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold leading-tight">Bản đồ tuyến đường</h1>
+              <h1 className="text-xl md:text-2xl font-bold leading-tight">{t('mapPage.title')}</h1>
               <p className="text-[12px] text-blue-100">
-                Khám phá {routes.length} tuyến đường của {brands.length} hãng xe trên khắp Việt Nam
+                {t('mapPage.subtitle', { routes: routes.length, brands: brands.length })}
               </p>
             </div>
           </div>
@@ -231,7 +239,7 @@ export function MapView() {
         <button
           onClick={() => setSidebarOpenMobile(true)}
           className="md:hidden fixed left-4 top-35 z-30 h-10 w-10 rounded-full bg-white ring-1 ring-black/10 flex items-center justify-center text-blue-700 transition-transform "
-          aria-label="Mở bộ lọc"
+          aria-label={t('mapPage.openFilter')}
         >
           <Search className="h-4 w-4" />
         </button>
@@ -260,15 +268,15 @@ export function MapView() {
             onClick={handleShowMyLocation}
             className={`absolute bottom-6 right-3 z-1000 h-11 px-3 rounded-full ring-1 ring-black/10 flex items-center gap-1.5 text-xs font-medium transition-all  ${showUserLocation ? 'bg-blue-600 text-white ring-blue-400' : 'bg-white text-blue-700 hover:bg-blue-50'
               }`}
-            aria-label="Vị trí của tôi"
+            aria-label={t('map.myLocation')}
           >
             <Locate className="h-4 w-4" />
-            <span className="hidden sm:inline">Vị trí của tôi</span>
+            <span className="hidden sm:inline">{t('map.myLocation')}</span>
           </button>
 
           {/* Compact legend (mobile) */}
           <div className="md:hidden absolute bottom-6 left-3 z-1000 rounded-lg bg-white/95 backdrop-blur ring-1 ring-black/5 p-2.5 max-w-45 ">
-            <div className="text-[10px] font-semibold text-slate-600 uppercase mb-1.5">Hãng xe</div>
+            <div className="text-[10px] font-semibold text-slate-600 uppercase mb-1.5">{t('mapPage.brands')}</div>
             <div className="flex flex-wrap gap-x-2 gap-y-1">
               {brands.map((b) => (
                 <div key={b.slug} className="flex items-center gap-1">
@@ -299,8 +307,8 @@ export function MapView() {
           {!selectedCity && !selectedRoute && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 md:left-[calc(50%+145px)] z-1000 pointer-events-none">
               <div className="rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-[11px] text-slate-600 ring-1 ring-black/5 ">
-                <span className="hidden sm:inline">Kéo để di chuyển • Cuộn để zoom • Click điểm/tuyến để xem chi tiết</span>
-                <span className="sm:hidden">Chạm vào điểm để xem chi tiết</span>
+                <span className="hidden sm:inline">{t('mapPage.hintDesktop')}</span>
+                <span className="sm:hidden">{t('mapPage.hintMobile')}</span>
               </div>
             </div>
           )}

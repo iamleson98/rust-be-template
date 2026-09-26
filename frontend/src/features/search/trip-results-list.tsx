@@ -15,6 +15,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import type { TripResult } from '@/lib/store'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 import { TripCard } from '@/features/search/trip-card'
 import { TripCardSkeleton } from './trip-card-skeleton'
 import type { NavigateFn } from './helpers'
@@ -34,6 +35,7 @@ export function TripResultsList({
   resetFilters: () => void
   navigate: NavigateFn
 }) {
+  const t = useT()
   // Pre-compute top-rated / cheapest flags once for the recommended badge
   // (avoids O(n²) Math.max/Math.min inside the render loop).
   const { topRating, cheapestPrice } = useMemo(() => {
@@ -77,17 +79,17 @@ export function TripResultsList({
       >
         <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
         <h3 className="font-semibold text-lg">
-          {searchResults.length === 0 ? 'Không tìm thấy chuyến' : 'Không có chuyến phù hợp bộ lọc'}
+          {searchResults.length === 0 ? t('searchPage.noTripsFound') : t('searchPage.noTripsMatchFilters')}
         </h3>
         <p className="text-sm text-muted-foreground mt-1">
           {searchResults.length === 0
-            ? 'Thử đổi ngày đi, điểm đi/đến hoặc bỏ bớt bộ lọc loại xe.'
-            : 'Thử nới lỏng khoảng giá, đánh giá hoặc bỏ bớt bộ lọc tiện ích.'}
+            ? t('searchPage.noTripsHint')
+            : t('searchPage.noMatchHint')}
         </p>
         {searchResults.length > 0 && activeFilterCount > 0 && (
           <Button onClick={resetFilters} variant="outline" className="mt-4 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50">
             <X className="h-4 w-4" />
-            Xoá tất cả bộ lọc
+            {t('searchPage.clearAllFilters')}
           </Button>
         )}
       </div>

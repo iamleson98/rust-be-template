@@ -48,6 +48,7 @@ import { TicketsFilterBar } from './tickets-filter-bar'
 import { TicketsBookingsTable } from './tickets-bookings-table'
 import { BookingDetailDialog } from './booking-detail-dialog'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 // ── Server-side sort mapping ─────────────────────────────────
 // Only these columns are sortable — the API `sort` param drives the order,
@@ -69,6 +70,7 @@ const bookingColumnHelper = createColumnHelper<
 // ── Main panel ───────────────────────────────────────────────
 
 export function TicketsPanel() {
+  const t = useT()
   const [filter, setFilter] = useState<AdminBookingFilter>({
     range: '30d',
     status: 'all',
@@ -105,10 +107,10 @@ export function TicketsPanel() {
     (v: string) => {
       setSearchInput(v)
       if (searchTimer) clearTimeout(searchTimer)
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         setFilter((f) => ({ ...f, search: v.trim() || undefined, offset: 0 }))
       }, 400)
-      setSearchTimer(t)
+      setSearchTimer(timer)
     },
     [searchTimer],
   )
@@ -152,7 +154,7 @@ export function TicketsPanel() {
     () =>
       bookingColumnHelper.columns([
         bookingColumnHelper.accessor('code', {
-          header: 'Mã vé',
+          header: t('booking.code'),
           cell: ({ getValue }) => (
             <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
               {getValue()}
@@ -160,10 +162,10 @@ export function TicketsPanel() {
           ),
           enableSorting: false,
           enableHiding: false,
-          meta: { label: 'Mã vé' },
+          meta: { label: t('booking.code') },
         }),
         bookingColumnHelper.accessor('contactName', {
-          header: 'Hành khách',
+          header: t('booking.passengers'),
           cell: ({ row }) => (
             <div>
               <div className="text-xs font-medium">{row.original.contactName ?? '—'}</div>
@@ -173,46 +175,46 @@ export function TicketsPanel() {
             </div>
           ),
           enableSorting: false,
-          meta: { label: 'Hành khách', cellClassName: 'hidden md:table-cell' },
+          meta: { label: t('booking.passengers'), cellClassName: 'hidden md:table-cell' },
         }),
         bookingColumnHelper.display({
           id: 'route',
-          header: 'Tuyến',
+          header: t('adminTickets.route'),
           cell: ({ row }) => (
             <div className="text-xs">
               {row.original.pickupName ?? '—'} → {row.original.dropoffName ?? '—'}
             </div>
           ),
-          meta: { label: 'Tuyến', cellClassName: 'hidden xl:table-cell' },
+          meta: { label: t('adminTickets.route'), cellClassName: 'hidden xl:table-cell' },
         }),
         bookingColumnHelper.accessor('createdAt', {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Ngày đặt" />
+            <DataTableColumnHeader column={column} title={t('adminTickets.bookedAt')} />
           ),
           cell: ({ getValue }) => (
             <span className="text-xs text-muted-foreground" title={getValue()}>
               {timeAgo(getValue())}
             </span>
           ),
-          meta: { label: 'Ngày đặt' },
+          meta: { label: t('adminTickets.bookedAt') },
         }),
         bookingColumnHelper.accessor('total', {
           header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Tổng tiền" />
+            <DataTableColumnHeader column={column} title={t('booking.totalAmount')} />
           ),
           cell: ({ getValue }) => (
             <div className="text-xs font-semibold tabular-nums">{formatVND(getValue())}</div>
           ),
-          meta: { label: 'Tổng tiền', align: 'right' },
+          meta: { label: t('booking.totalAmount'), align: 'right' },
         }),
         bookingColumnHelper.accessor('status', {
-          header: 'Trạng thái',
+          header: t('common.status'),
           cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
           enableSorting: false,
-          meta: { label: 'Trạng thái' },
+          meta: { label: t('common.status') },
         }),
       ]),
-    [],
+    [t],
   )
 
   const setDateRange = useCallback((from: string, to: string) => {
@@ -242,15 +244,18 @@ export function TicketsPanel() {
       const data = result.data
       if (!data) throw new Error('Export failed')
       downloadCSV(data.filename, data.csv)
-      toast.success('Xuất CSV thành công', {
-        description: `Đã xuất ${data.count} vé ra file ${data.filename}`,
+      toast.success(t('adminTickets.exportSuccess'), {
+        description: t('adminTickets.exportSuccessDesc', {
+          count: data.count,
+          file: data.filename,
+        }),
       })
     } catch (e) {
-      toast.error('Xuất CSV thất bại', {
-        description: getErrorMessage(e, 'Vui lòng thử lại'),
+      toast.error(t('adminTickets.exportFailed'), {
+        description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
       })
     }
-  }, [exportMutation])
+  }, [exportMutation, t])
 
   // KPI totals — come from the dedicated /stats endpoint
   // (`AdminBookingStatsResponse.totals`), not from the list response.
@@ -297,13 +302,13 @@ export function TicketsPanel() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-blue-600" />
-              Phân tích theo ngày
+              {t('adminTickets.dailyStatsTitle')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {/* Per-day mini chart */}
             <div>
-              <div className="text-xs text-muted-foreground mb-2">Số vé theo ngày</div>
+              <div className="text-xs text-muted-foreground mb-2">{t('adminTickets.ticketsPerDay')}</div>
               <div className="h-32 flex items-end gap-0.5">
                 {statsQuery.data.byDay.slice(-30).map((d) => {
                   const max = Math.max(...statsQuery.data!.byDay.map((x) => x.count), 1)
@@ -311,7 +316,11 @@ export function TicketsPanel() {
                   return (
                     <div
                       key={d.date}
-                      title={`${d.date}: ${d.count} vé, ${formatVND(d.revenue)}`}
+                      title={t('adminTickets.dayTooltip', {
+                        date: d.date,
+                        count: d.count,
+                        revenue: formatVND(d.revenue),
+                      })}
                       className="flex-1 min-w-1.5 rounded-t bg-blue-400 hover:bg-blue-600 transition-colors"
                       style={{ height: `${Math.max(2, h)}%` }}
                     />
@@ -328,7 +337,7 @@ export function TicketsPanel() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4" />
-            <span>Không tải được danh sách vé. Vui lòng thử lại.</span>
+            <span>{t('adminTickets.listLoadFailed')}</span>
           </div>
           <Button
             variant="outline"
@@ -337,7 +346,7 @@ export function TicketsPanel() {
             className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100"
           >
             <RefreshCw className="h-3.5 w-3.5 mr-1" />
-            Thử lại
+            {t('payment.retry')}
           </Button>
         </div>
       )}

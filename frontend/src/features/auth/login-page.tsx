@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import {
   ShieldCheck,
@@ -29,6 +30,7 @@ import { isStaffUser } from '@/lib/store'
 
 export function LoginPage() {
   const { user } = useApp()
+  const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('customer')
 
@@ -64,7 +66,7 @@ export function LoginPage() {
           className="inline-flex items-center gap-1.5 text-sm text-blue-600 mb-5"
         >
           <ArrowLeft className="h-4 w-4" />
-          Về trang chủ
+          {t('notFound.backHome')}
         </button>
 
         <div className="rounded-2xl bg-white overflow-hidden ring-1 ring-black/5">
@@ -78,7 +80,7 @@ export function LoginPage() {
               <div>
                 <h1 className="font-bold text-xl leading-tight">DatXeVui</h1>
                 <p className="text-[12px] text-blue-100 mt-0.5">
-                  Đăng nhập để quản lý vé, đánh giá và ưu đãi
+                  {t('authPage.headerSubtitle')}
                 </p>
               </div>
             </div>
@@ -90,13 +92,13 @@ export function LoginPage() {
               active={tab === 'customer'}
               onClick={() => setTab('customer')}
               icon={<User className="h-4 w-4" />}
-              label="Đăng nhập"
+              label={t('auth.login')}
             />
             <TabButton
               active={tab === 'register'}
               onClick={() => setTab('register')}
               icon={<UserPlus className="h-4 w-4" />}
-              label="Đăng ký"
+              label={t('auth.register')}
             />
           </div>
 
@@ -110,7 +112,7 @@ export function LoginPage() {
         {/* Trust note */}
         <div className="mt-5 flex items-center justify-center gap-2 text-xs text-blue-600">
           <ShieldCheck className="h-3.5 w-3.5" />
-          Thông tin cá nhân của bạn được bảo mật và mã hoá an toàn tuyệt đối.
+          {t('authPage.trustNote')}
         </div>
       </div>
     </div>

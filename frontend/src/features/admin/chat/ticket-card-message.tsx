@@ -9,6 +9,7 @@ import {
   Armchair,
   User as UserIcon,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import type { CreatedTicketPayload } from '@/features/admin/tickets/chat-ticket-picker'
@@ -45,6 +46,7 @@ export function TicketCardMessage({
   isEmployee: boolean
   onView?: (bookingCode: string) => void
 }) {
+  const t = useT()
   const total = payload.totalAmount ?? 0
   const seats = payload.seats ?? []
   const trip = payload.trip ?? ({} as CreatedTicketPayload['trip'])
@@ -62,7 +64,7 @@ export function TicketCardMessage({
         >
           <div className="flex items-center gap-1.5 text-xs font-semibold">
             <TicketIcon className="h-3.5 w-3.5" />
-            Vé điện tử
+            {t('adminChat.eTicket')}
           </div>
           {payload.status && <BookingStatusBadge status={payload.status} />}
         </div>
@@ -72,7 +74,7 @@ export function TicketCardMessage({
           {/* Booking code */}
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[10px] text-muted-foreground uppercase">Mã vé</div>
+              <div className="text-[10px] text-muted-foreground uppercase">{t('adminChat.bookingCode')}</div>
               <div className="font-mono font-bold text-blue-700 text-sm">
                 {payload.bookingCode || '—'}
               </div>
@@ -84,7 +86,7 @@ export function TicketCardMessage({
                 className="h-7 text-[11px] gap-1"
                 onClick={() => onView?.(payload.bookingCode)}
               >
-                Xem chi tiết
+                {t('adminChat.viewDetails')}
               </Button>
             )}
           </div>
@@ -108,7 +110,7 @@ export function TicketCardMessage({
               )}
               {trip?.departureDate && (
                 <div className="mt-0.5 text-[11px] text-muted-foreground">
-                  Khởi hành: {trip.departureDate}
+                  {t('adminChat.departureLabel')}: {trip.departureDate}
                   {trip?.departureAt
                     ? ` · ${String(trip.departureAt).slice(11, 16)}`
                     : ''}
@@ -144,7 +146,7 @@ export function TicketCardMessage({
           {/* Total */}
           {total > 0 && (
             <div className="flex items-center justify-between border-t pt-2">
-              <span className="text-xs text-muted-foreground">Tổng tiền</span>
+              <span className="text-xs text-muted-foreground">{t('adminChat.totalAmount')}</span>
               <span className="font-bold text-blue-700">
                 {new Intl.NumberFormat('vi-VN').format(total)}₫
               </span>

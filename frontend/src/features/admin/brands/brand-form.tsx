@@ -9,7 +9,7 @@
  * without manual refetch calls.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,13 +24,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   Form,
   FormField,
@@ -39,46 +33,54 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { Building2, Phone, Mail, Loader2, CheckCircle2 } from 'lucide-react'
+import { Building2, Phone, Mail, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { requiredText, optionalText } from '@/lib/forms'
+import { useT } from '@/lib/i18n'
+import { optionalText } from '@/lib/forms'
 import { useUpsertAdminBrand } from '@/lib/queries'
 import type { AdminBrandOut } from '@/lib/api'
 import { slugify } from './helpers'
 import { getErrorMessage } from '@/lib/error-message'
 
-const brandSchema = z.object({
-  name: requiredText('Tên hãng xe')
-    .min(2, 'Tên hãng cần ít nhất 2 ký tự')
-    .max(60, 'Tên hãng tối đa 60 ký tự'),
-  slug: requiredText('Slug')
-    .max(80, 'Slug tối đa 80 ký tự')
-    .regex(/^[a-z0-9-]+$/, 'Slug chỉ chứa chữ thường, số và dấu gạch ("-")'),
-  // Backend allows max 5000 chars for description.
-  description: optionalText(5000),
-  // contactPhone + contactEmail are OPTIONAL in the backend
-  // (`UpsertBrandRequest` marks them Optional). The previous version
-  // used `requiredText(...)` which marked them as required in the UI
-  // — misleading. Changed to optional with format validation only.
-  contactPhone: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(''))
-    .refine((v) => !v || /^0\d{8,10}$/.test(v), 'Số điện thoại không hợp lệ (vd: 0912345678)'),
-  contactEmail: z
-    .string()
-    .trim()
-    .optional()
-    .or(z.literal(''))
-    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Email không hợp lệ'),
-  accentColor: z
-    .string()
-    .trim()
-    .regex(/^#[0-9a-fA-F]{6}$/, 'Mã hex hợp lệ: #RRGGBB'),
-  status: z.enum(['active', 'inactive']),
-})
-type BrandFormValues = z.infer<typeof brandSchema>
+const makeBrandSchema = (t: ReturnType<typeof useT>) =>
+  z.object({
+    name: z
+      .string()
+      .trim()
+      .min(1, t('adminBrands.nameRequired'))
+      .min(2, t('adminBrands.nameMin'))
+      .max(60, t('adminBrands.nameMax')),
+    slug: z
+      .string()
+      .trim()
+      .min(1, t('adminBrands.slugRequired'))
+      .max(80, t('adminBrands.slugMax'))
+      .regex(/^[a-z0-9-]+$/, t('adminBrands.slugRegex')),
+    // Backend allows max 5000 chars for description.
+    description: optionalText(5000),
+    // contactPhone + contactEmail are OPTIONAL in the backend
+    // (`UpsertBrandRequest` marks them Optional). The previous version
+    // used `requiredText(...)` which marked them as required in the UI
+    // — misleading. Changed to optional with format validation only.
+    contactPhone: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(''))
+      .refine((v) => !v || /^0\d{8,10}$/.test(v), t('validation.phone')),
+    contactEmail: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal(''))
+      .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), t('validation.email')),
+    accentColor: z
+      .string()
+      .trim()
+      .regex(/^#[0-9a-fA-F]{6}$/, t('adminBrands.hexInvalid')),
+    status: z.enum(['active', 'inactive']),
+  })
+type BrandFormValues = z.infer<ReturnType<typeof makeBrandSchema>>
 
 export function BrandFormDialog({
   open,
@@ -91,9 +93,11 @@ export function BrandFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!brand
   const [slugTouched, setSlugTouched] = useState(false)
   const upsertMutation = useUpsertAdminBrand()
+  const brandSchema = useMemo(() => makeBrandSchema(t), [t])
 
   const form = useForm<BrandFormValues>({
     resolver: zodResolver(brandSchema),
@@ -150,10 +154,10 @@ export function BrandFormDialog({
         payload.id = brand!.id
       }
       await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
-      toast.success(isEdit ? 'Đã cập nhật hãng xe' : 'Đã thêm hãng xe mới')
+      toast.success(isEdit ? t('brandForm.updated') : t('brandForm.created'))
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu hãng xe'))
+      toast.error(getErrorMessage(e, t('brandForm.saveFailed')))
     }
   }
 
@@ -163,10 +167,10 @@ export function BrandFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-rose-600" />
-            {isEdit ? 'Sửa hãng xe' : 'Thêm hãng xe mới'}
+            {isEdit ? t('brandForm.editTitle') : t('brandForm.createTitle')}
           </DialogTitle>
           <DialogDescription>
-            Nhập thông tin hãng vận hành. Các trường đánh dấu * là bắt buộc.
+            {t('brandForm.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -181,10 +185,10 @@ export function BrandFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Tên hãng xe <span className="text-destructive">*</span>
+                    {t('brandForm.name')} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="VD: Phương Trang Express" />
+                    <Input {...field} placeholder={t('brandForm.namePh')} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -197,12 +201,12 @@ export function BrandFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Slug <span className="text-destructive">*</span>
+                    {t('brandForm.slug')} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
-                      placeholder="phuong-trang-express"
+                      placeholder={t('brandForm.slugPh')}
                       className="font-mono text-xs"
                       onChange={(e) => {
                         field.onChange(e)
@@ -211,7 +215,7 @@ export function BrandFormDialog({
                     />
                   </FormControl>
                   <p className="text-[11px] text-muted-foreground">
-                    Tự động tạo từ tên. Phải là duy nhất.
+                    {t('brandForm.slugHint')}
                   </p>
                   <FormMessage />
                 </FormItem>
@@ -223,12 +227,12 @@ export function BrandFormDialog({
               name="description"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
-                  <FormLabel>Mô tả</FormLabel>
+                  <FormLabel>{t('brandForm.descriptionField')}</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       value={field.value ?? ''}
-                      placeholder="Mô tả ngắn về hãng xe..."
+                      placeholder={t('adminBrands.descriptionPh')}
                       rows={3}
                     />
                   </FormControl>
@@ -244,7 +248,7 @@ export function BrandFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel className="flex items-center gap-1">
-                      <Phone className="h-3.5 w-3.5" /> Hotline
+                      <Phone className="h-3.5 w-3.5" /> {t('brandForm.hotline')}
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="1900 6067" />
@@ -259,7 +263,7 @@ export function BrandFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel className="flex items-center gap-1">
-                      <Mail className="h-3.5 w-3.5" /> Email
+                      <Mail className="h-3.5 w-3.5" /> {t('brandForm.email')}
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="info@brand.vn" />
@@ -276,7 +280,7 @@ export function BrandFormDialog({
                 name="accentColor"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Màu thương hiệu</FormLabel>
+                    <FormLabel>{t('brandForm.accentColor')}</FormLabel>
                     <FormControl>
                       <div className="flex items-center gap-2">
                         <input
@@ -301,22 +305,20 @@ export function BrandFormDialog({
                 name="status"
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
-                    <FormLabel>Trạng thái</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">
-                          <span className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" /> Hoạt động
-                          </span>
-                        </SelectItem>
-                        <SelectItem value="inactive">Ẩn</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>{t('common.status')}</FormLabel>
+                    <FormControl>
+                      <ComboboxField
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        items={[
+                          { value: 'active', label: t('common.active') },
+                          { value: 'inactive', label: t('common.inactive') },
+                        ]}
+                        placeholder={t('adminBrands.chooseStatus')}
+                        searchPlaceholder={t('combobox.search')}
+                        aria-label={t('common.status')}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -325,15 +327,15 @@ export function BrandFormDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsertMutation.isPending}>
-                Huỷ
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={upsertMutation.isPending} className="bg-rose-600 hover:bg-rose-700">
                 {upsertMutation.isPending ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                   </>
                 ) : (
-                  <>{isEdit ? 'Lưu thay đổi' : 'Thêm hãng xe'}</>
+                  <>{isEdit ? t('common.saveChanges') : t('brands.addBrand')}</>
                 )}
               </Button>
             </DialogFooter>

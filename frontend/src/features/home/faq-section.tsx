@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/accordion'
 import { Card } from '@/components/ui/card'
 import { Phone, Mail, MessageSquare, HelpCircle, Headphones } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 type Faq = {
   q: string
@@ -16,41 +17,18 @@ type Faq = {
 }
 
 const FAQS: Faq[] = [
-  {
-    q: 'Làm thế nào để đặt vé xe trên DatXeVui?',
-    a: 'Chỉ với 4 bước đơn giản: (1) Tìm chuyến xe phù hợp theo điểm đi/đến và ngày giờ. (2) Chọn ghế yêu thích trên sơ đồ ghế trực quan. (3) Thanh toán qua MoMo, VNPay, ZaloPay hoặc thẻ ngân hàng. (4) Nhận vé điện tử qua SMS và email ngay sau khi thanh toán thành công.',
-  },
-  {
-    q: 'Tôi có thể đổi hoặc hoàn vé không?',
-    a: 'Có. Bạn được đổi vé miễn phí trước 24 giờ so với giờ khởi hành. Với hoàn vé: thu phí 10% nếu hoàn trước 24 giờ, thu phí 30% nếu hoàn trong vòng 24 giờ, và không hoàn vé sau giờ khởi hành. Bạn có thể thực hiện đổi/hoàn trực tiếp trong mục "Vé của tôi".',
-  },
-  {
-    q: 'Những phương thức thanh toán nào được hỗ trợ?',
-    a: 'DatXeVui hỗ trợ MoMo, VNPay, ZaloPay, Visa, Mastercard và chuyển khoản ngân hàng. Tất cả giao dịch đều được mã hoá SSL 256-bit và tuân thủ chuẩn bảo mật PCI DSS, đảm bảo an toàn tuyệt đối cho thông tin thẻ và tài khoản của bạn.',
-  },
-  {
-    q: 'Vé điện tử có hợp lệ không?',
-    a: 'Có. Vé điện tử trên DatXeVui có mã QR và được Bộ GTVT cấp phép hoạt động. Bạn chỉ cần xuất trình mã QR trên điện thoại khi lên xe, nhân viên sẽ quét mã để xác nhận. Không cần in vé giấy, thân thiện với môi trường.',
-  },
-  {
-    q: 'Tôi có được chọn ghế cụ thể không?',
-    a: 'Có. DatXeVui hiển thị sơ đồ ghế chi tiết theo từng loại xe (limousine, giường nằm, ghế ngồi). Bạn có thể chọn ghế trực quan theo tầng, vị trí cửa sổ/lối đi, và xem ngay giá tương ứng với từng ghế trước khi xác nhận đặt vé.',
-  },
-  {
-    q: 'Trẻ em có được giảm giá không?',
-    a: 'Có chính sách ưu đãi cho trẻ em: trẻ dưới 2 tuổi đi miễn phí (không có chỗ ngồi riêng), trẻ từ 2-5 tuổi được giảm 50% giá vé, trẻ từ 6 tuổi trở lên mua vé như người lớn. Khi đặt vé, vui lòng khai báo đúng độ tuổi để nhận mức giá tương ứng.',
-  },
-  {
-    q: 'Nếu xe đến trễ thì sao?',
-    a: 'DatXeVui cam kết đền bù 100% giá vé nếu xe trễ quá 30 phút so với giờ khởi hành đã thông báo. Bạn vui lòng liên hệ hotline 1900 6067 hoặc chat trực tiếp với nhà xe trong phần "Theo dõi xe" để được hỗ trợ và nhận bồi thường theo quy định.',
-  },
-  {
-    q: 'Làm sao để theo dõi chuyến xe?',
-    a: 'Tính năng "Theo dõi xe trực tiếp" có sẵn trong trang chi tiết chuyến đi. Bạn sẽ thấy vị trí xe real-time trên bản đồ, dự kiến giờ đến trạm đón, và nhận thông báo push khi xe sắp tới nơi. Tính năng này cần nhà xe hỗ trợ GPS — áp dụng cho hơn 90% chuyến xe trên DatXeVui.',
-  },
+  { q: 'home.faqQ1', a: 'home.faqA1' },
+  { q: 'home.faqQ2', a: 'home.faqA2' },
+  { q: 'home.faqQ3', a: 'home.faqA3' },
+  { q: 'home.faqQ4', a: 'home.faqA4' },
+  { q: 'home.faqQ5', a: 'home.faqA5' },
+  { q: 'home.faqQ6', a: 'home.faqA6' },
+  { q: 'home.faqQ7', a: 'home.faqA7' },
+  { q: 'home.faqQ8', a: 'home.faqA8' },
 ]
 
 export const FaqSection = memo(function FaqSection() {
+  const t = useT()
   // Allow multiple items open at the same time for easier reading.
   const [openItems, setOpenItems] = useState<string[]>([])
 
@@ -61,16 +39,16 @@ export const FaqSection = memo(function FaqSection() {
         <div className="text-center mb-10 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-3 py-1 text-rose-700 text-xs font-semibold mb-4">
             <HelpCircle className="size-3.5" />
-            FAQ
+            {t('home.faqBadge')}
           </div>
           <h2
             id="faq-heading"
             className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900"
           >
-            Câu hỏi thường gặp
+            {t('home.faqTitle')}
           </h2>
           <p className="mt-3 text-slate-600 text-base md:text-lg">
-            Mọi thắc mắc của bạn được giải đáp
+            {t('home.faqSubtitle')}
           </p>
         </div>
 
@@ -91,11 +69,11 @@ export const FaqSection = memo(function FaqSection() {
                       <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
                         {i + 1}
                       </span>
-                      <span className="text-left">{faq.q}</span>
+                      <span className="text-left">{t(faq.q)}</span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent className="text-slate-600 leading-relaxed pl-7">
-                    {faq.a}
+                    {t(faq.a)}
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -117,11 +95,11 @@ export const FaqSection = memo(function FaqSection() {
                       <span className="mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
                         {i + 5}
                       </span>
-                      <span className="text-left">{faq.q}</span>
+                      <span className="text-left">{t(faq.q)}</span>
                     </span>
                   </AccordionTrigger>
                   <AccordionContent className="text-slate-600 leading-relaxed pl-7">
-                    {faq.a}
+                    {t(faq.a)}
                   </AccordionContent>
                 </AccordionItem>
               ))}
@@ -137,9 +115,9 @@ export const FaqSection = memo(function FaqSection() {
                 <Headphones className="size-6" />
               </div>
               <div>
-                <h3 className="text-lg md:text-xl font-bold">Liên hệ hỗ trợ</h3>
+                <h3 className="text-lg md:text-xl font-bold">{t('home.faqContactTitle')}</h3>
                 <p className="text-sm text-white/70 mt-1">
-                  Đội ngũ chăm sóc khách hàng sẵn sàng 24/7 để giải đáp mọi câu hỏi.
+                  {t('home.faqContactDesc')}
                 </p>
               </div>
             </div>
@@ -152,7 +130,7 @@ export const FaqSection = memo(function FaqSection() {
                 <Phone className="size-5 text-rose-300" />
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-white/60">
-                    Hotline
+                    {t('home.faqHotline')}
                   </div>
                   <div className="text-sm font-semibold">1900 6067</div>
                 </div>
@@ -164,7 +142,7 @@ export const FaqSection = memo(function FaqSection() {
                 <Mail className="size-5 text-rose-300" />
                 <div>
                   <div className="text-[11px] uppercase tracking-wide text-white/60">
-                    Email
+                    {t('home.faqEmail')}
                   </div>
                   <div className="text-sm font-semibold">cskh@datxevui.vn</div>
                 </div>
@@ -175,12 +153,12 @@ export const FaqSection = memo(function FaqSection() {
           <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-white/60 border-t border-white/10 pt-4">
             <span className="inline-flex items-center gap-1.5">
               <MessageSquare className="size-3.5" />
-              Chat trực tiếp với nhân viên
+              {t('home.faqChatDirect')}
             </span>
             <span>•</span>
-            <span>Phản hồi trong vòng 5 phút</span>
+            <span>{t('home.faqResponseTime')}</span>
             <span>•</span>
-            <span>Hỗ trợ tiếng Việt &amp; English</span>
+            <span>{t('home.faqLanguages')}</span>
           </div>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -64,16 +65,17 @@ export const NoResultsFound = memo(function NoResultsFound({
   onExplore?: () => void
   className?: string
 }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<MagnifyingGlassSVG />}
-      title="Không tìm thấy chuyến"
-      description="Thử đổi ngày đi, chọn thành phố lân cận hoặc bỏ bớt bộ lọc loại xe để có thêm lựa chọn phù hợp."
+      title={t('searchPage.noTripsFound')}
+      description={t('searchPage.noTripsDesc')}
       className={className}
     >
       {onReset && (
         <Button variant="outline" size="sm" className="gap-1.5" onClick={onReset}>
-          Xoá bộ lọc
+          {t('searchPage.clearFilters')}
         </Button>
       )}
       {onExplore && (
@@ -82,7 +84,7 @@ export const NoResultsFound = memo(function NoResultsFound({
           className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
           onClick={onExplore}
         >
-          Khám phá tuyến phổ biến
+          {t('searchPage.explorePopular')}
         </Button>
       )}
     </EmptyState>

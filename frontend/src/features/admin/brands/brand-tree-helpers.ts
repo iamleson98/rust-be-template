@@ -5,13 +5,20 @@
  */
 
 import { DAY_LABELS, VEHICLE_LABELS } from '@/features/admin/types'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+/** Resolve a dictionary key in the CURRENT app language (vi default).
+ *  Called at render/compute time so VI/EN switches re-localize. */
+const L = (key: string, params?: Record<string, string | number>) =>
+  translate(useApp.getState().lang, key, params)
 import type {
   AdminBrandOut,
   AdminRouteOut,
   AdminScheduleOut,
 } from '@/lib/api/types.gen'
 
-/** Sort keys for the schedule rows inside every expanded route group. */
+/** Sort-key labels — I18N KEYS (resolved by the consumer's `t`). */
 export type ScheduleSortKey = 'departureTime' | 'priceAdult' | 'effectiveFrom'
 
 export type ScheduleSortDir = 'asc' | 'desc'
@@ -22,9 +29,9 @@ export type ScheduleSort = {
 }
 
 export const SCHEDULE_SORT_LABELS: Record<ScheduleSortKey, string> = {
-  departureTime: 'Giờ khởi hành',
-  priceAdult: 'Giá vé người lớn',
-  effectiveFrom: 'Ngày hiệu lực',
+  departureTime: 'brands.sortDeparture',
+  priceAdult: 'brands.sortPrice',
+  effectiveFrom: 'brands.sortEffective',
 }
 
 /** Case/diacritic-insensitive needle for Vietnamese brand searches. */
@@ -106,19 +113,21 @@ export function nextScheduleSort(
 /** Pretty-prints a 7-char `daysOfWeek` bitmask (`1111111` = daily). */
 export function daysLabel(days: string | null | undefined): string {
   const d = days ?? ''
-  if (!d || d === '1111111') return 'Hàng ngày'
-  if (d === '0000000') return 'Không hoạt động'
-  if (d === '0000011') return 'Cuối tuần'
-  if (d === '1111100') return 'Ngày thường'
+  if (!d || d === '1111111') return L('map.daily')
+  if (d === '0000000') return L('adminShared.daysInactive')
+  if (d === '0000011') return L('adminSchedules.weekend')
+  if (d === '1111100') return L('adminSchedules.weekdays')
   const parts: string[] = []
-  for (let i = 0; i < 7; i++) if (d[i] === '1') parts.push(DAY_LABELS[i])
+  for (let i = 0; i < 7; i++) if (d[i] === '1') parts.push(L(DAY_LABELS[i]))
   return parts.join(', ')
 }
 
 /** Compact day chips for the schedule row (T2 T3 … CN). */
 export function dayChips(days: string | null | undefined): { label: string; active: boolean }[] {
   const d = days ?? '1111111'
-  return DAY_LABELS.map((label, i) => ({ label, active: d[i] === '1' }))
+  // Resolve the day keys at call time — the tree row re-renders on the
+  // VI/EN switch, which re-invokes this and re-localizes the chips.
+  return DAY_LABELS.map((key, i) => ({ label: L(key), active: d[i] === '1' }))
 }
 
 /** First → last stop summary for the schedule row's point sequence:
@@ -166,8 +175,8 @@ export function effectiveWindow(schedule: AdminScheduleOut): string {
   const from = schedule.effectiveFrom
   const to = schedule.effectiveTo
   if (from && to) return `${from} → ${to}`
-  if (from) return `từ ${from}`
-  if (to) return `đến ${to}`
+  if (from) return L('adminShared.fromDate', { date: from })
+  if (to) return L('adminShared.untilDate', { date: to })
   return '—'
 }
 
@@ -175,5 +184,6 @@ export function effectiveWindow(schedule: AdminScheduleOut): string {
  *  vehicle-type preset picker). */
 export function vehicleCodeLabel(code: string | null | undefined): string {
   if (!code) return '—'
-  return VEHICLE_LABELS[code] ?? code
+  const key = VEHICLE_LABELS[code]
+  return key ? L(key) : code
 }

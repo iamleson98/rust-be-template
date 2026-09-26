@@ -4,7 +4,7 @@
  * CustomerLogin — unified email + password login form for all users.
  *
  * Extracted from the original `login-page.tsx`. Uses the shared
- * `customerZodSchema` from `./_shared` so the validation rules stay
+ * `makeCustomerSchema` from `./_shared` so the validation rules stay
  * in sync with the registration form's email/password rules.
  *
  * Backend route: `POST /api/auth/login` with body `{ email, password }`
@@ -13,10 +13,11 @@
  * `refresh_token` httpOnly cookies.
  */
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { useLogin } from '@/lib/queries'
 import { isStaffUser } from '@/lib/store'
@@ -43,7 +44,7 @@ import {
   EyeOff,
 } from 'lucide-react'
 import {
-  customerZodSchema,
+  makeCustomerSchema,
   type CustomerFormValues,
 } from './_shared'
 import { SocialAuthButtons } from './social-buttons'
@@ -51,10 +52,12 @@ import { SocialAuthButtons } from './social-buttons'
 export function CustomerLogin() {
   const { setUser, setGuestPhone } = useApp()
   const navigate = useNavigate()
+  const t = useT()
   const [showPwd, setShowPwd] = useState(false)
+  const customerSchema = useMemo(() => makeCustomerSchema(t), [t])
 
   const form = useForm<CustomerFormValues>({
-    resolver: zodResolver(customerZodSchema),
+    resolver: zodResolver(customerSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
     defaultValues: { email: '', password: '' },
@@ -68,11 +71,11 @@ export function CustomerLogin() {
       if (!user) return
       setUser(user)
       if (user.phone) setGuestPhone(user.phone)
-      toast.success(`Chào ${user.name ?? 'bạn'}, đăng nhập thành công!`)
+      toast.success(t('authPage.loginWelcome', { name: user.name ?? t('authPage.you') }))
       navigate({ to: isStaffUser(user) ? '/admin' : '/bookings' })
     },
     onError: () => {
-      toast.error('Đăng nhập thất bại. Vui lòng kiểm tra email/mật khẩu.')
+      toast.error(t('authPage.loginFailedCheck'))
     },
   })
 
@@ -89,7 +92,7 @@ export function CustomerLogin() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Email <span className="text-destructive">*</span>
+                {t('auth.email')} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -113,7 +116,7 @@ export function CustomerLogin() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Mật khẩu <span className="text-destructive">*</span>
+                {t('auth.password')} <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -128,7 +131,7 @@ export function CustomerLogin() {
                 <button
                   type="button"
                   onClick={() => setShowPwd((s) => !s)}
-                  aria-label={showPwd ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  aria-label={showPwd ? t('authPage.hidePassword') : t('authPage.showPassword')}
                   aria-pressed={showPwd}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
@@ -145,26 +148,26 @@ export function CustomerLogin() {
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
           {loginMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          Đăng nhập
+          {t('auth.login')}
           <ChevronRight className="h-4 w-4" />
         </Button>
 
         <div className="pt-4 border-t border-slate-100 space-y-2">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Lợi ích khi đăng nhập
+            {t('authPage.benefitsTitle')}
           </div>
           <div className="space-y-1.5 text-xs text-slate-600">
             <div className="flex items-center gap-2">
               <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              Đồng bộ vé và lịch sử đặt vé trên mọi thiết bị
+              {t('authPage.benefitSync')}
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              Tích điểm thưởng và nhận ưu đãi độc quyền
+              {t('authPage.benefitPoints')}
             </div>
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              Quản lý đánh giá và phản hồi chuyến đi
+              {t('authPage.benefitReviews')}
             </div>
           </div>
         </div>

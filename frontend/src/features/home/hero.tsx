@@ -86,7 +86,7 @@ export function Hero() {
             <span className="relative flex h-2 w-2">
               <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
             </span>
-            <span className="text-white">Hơn {stats ? formatNum(stats.happyCustomers) : '125.000+'} hành khách tin dùng</span>
+            <span className="text-white">{t('hero.trustBadge', { count: stats ? formatNum(stats.happyCustomers) : '125.000+' })}</span>
           </div>
 
           <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] drop-">
@@ -122,10 +122,10 @@ export function Hero() {
         {/* Stats — static display */}
         {stats && (
           <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 text-white">
-            <HeroStat value={stats.brands} label="Hãng xe" />
-            <HeroStat value={stats.routes} label="Tuyến đường" />
-            <HeroStat value={stats.trips} label="Chuyến/ngày" />
-            <HeroStat value={stats.places} label="Địa điểm" />
+            <HeroStat value={stats.brands} label={t('home.statBrands')} />
+            <HeroStat value={stats.routes} label={t('home.statRoutes')} />
+            <HeroStat value={stats.trips} label={t('home.statTrips')} />
+            <HeroStat value={stats.places} label={t('home.statPlaces')} />
           </div>
         )}
 
@@ -137,9 +137,9 @@ export function Hero() {
           <button
             onClick={() => window.scrollTo({ top: window.innerHeight, behavior: 'smooth' })}
             className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
-            aria-label="Cuộn xuống"
+            aria-label={t('home.scrollDown')}
           >
-            <span className="text-[11px] font-bold uppercase tracking-widest">Khám phá</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest">{t('home.discover')}</span>
             <ChevronDown className="h-5 w-5 animate-bounce" />
           </button>
         </div>

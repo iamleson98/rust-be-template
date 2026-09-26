@@ -26,26 +26,21 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import { Armchair, Layers, Loader2, LayoutGrid } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAdminBrands, useAdminVehicleTypes, useUpsertAdminBusLayout, useUpdateAdminBusLayout } from '@/lib/queries'
 import type { AdminBusLayoutOut } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 /** Quick-pick presets that match the seeded vehicle-type catalog. */
-const PRESETS: { label: string; rows: number; cols: number; floors: number; vehicleCode: string }[] = [
-  { label: 'Limousine 9', rows: 3, cols: 3, floors: 1, vehicleCode: 'limousine' },
-  { label: 'Minivan 16', rows: 4, cols: 4, floors: 1, vehicleCode: 'minivan' },
-  { label: 'Ghế ngồi 40', rows: 10, cols: 4, floors: 1, vehicleCode: 'standard' },
-  { label: 'Giường nằm 40', rows: 5, cols: 4, floors: 2, vehicleCode: 'sleeper' },
+const PRESETS: { labelKey: string; rows: number; cols: number; floors: number; vehicleCode: string }[] = [
+  { labelKey: 'adminBusLayouts.presetLimousine9', rows: 3, cols: 3, floors: 1, vehicleCode: 'limousine' },
+  { labelKey: 'adminBusLayouts.presetMinivan16', rows: 4, cols: 4, floors: 1, vehicleCode: 'minivan' },
+  { labelKey: 'adminBusLayouts.presetSeater40', rows: 10, cols: 4, floors: 1, vehicleCode: 'standard' },
+  { labelKey: 'adminBusLayouts.presetSleeper40', rows: 5, cols: 4, floors: 2, vehicleCode: 'sleeper' },
 ]
 
 type GridState = { rows: number; cols: number; floors: number }
@@ -63,6 +58,7 @@ export function BusLayoutFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!layout
   const createMutation = useUpsertAdminBusLayout()
   const updateMutation = useUpdateAdminBusLayout()
@@ -105,7 +101,7 @@ export function BusLayoutFormDialog({
   const onSubmit = async () => {
     const trimmed = name.trim()
     if (!trimmed) {
-      toast.error('Vui lòng nhập tên sơ đồ ghế')
+      toast.error(t('adminBusLayouts.nameRequired'))
       return
     }
     try {
@@ -118,7 +114,7 @@ export function BusLayoutFormDialog({
             vehicleType: vehicleCode || null,
           },
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success('Đã cập nhật sơ đồ ghế')
+        toast.success(t('busLayouts.updated'))
       } else {
         await createMutation.mutateAsync({
           body: {
@@ -132,11 +128,11 @@ export function BusLayoutFormDialog({
             },
           },
         } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
-        toast.success(`Đã thêm sơ đồ ghế (${totalSeats} ghế)`)
+        toast.success(t('adminBusLayouts.createdWithSeats', { count: totalSeats }))
       }
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu sơ đồ ghế'))
+      toast.error(getErrorMessage(e, t('adminBusLayouts.saveFailed')))
     }
   }
 
@@ -146,73 +142,57 @@ export function BusLayoutFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-blue-600" />
-            {isEdit ? 'Sửa sơ đồ ghế' : 'Thêm sơ đồ ghế'}
+            {isEdit ? t('busLayouts.editTitle') : t('busLayouts.add')}
           </DialogTitle>
           <DialogDescription>
             {isEdit
-              ? 'Sửa thông tin sơ đồ. Lưới ghế không thể tạo lại sau khi đã dùng cho chuyến.'
-              : `Chọn kích thước lưới ghế — hệ thống sẽ tạo ${totalSeats} ghế cho sơ đồ này.`}
+              ? t('adminBusLayouts.editDesc')
+              : t('adminBusLayouts.createDesc', { count: totalSeats })}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
           <div className="grid gap-1.5">
             <Label htmlFor="layout-name">
-              Tên sơ đồ <span className="text-destructive">*</span>
+              {t('busLayouts.name')} <span className="text-destructive">*</span>
             </Label>
             <Input
               id="layout-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="VD: Giường nằm 40 biệt thự"
+              placeholder={t('busLayouts.namePh')}
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
-              <Label>Hãng xe</Label>
-              <Select value={brandId || 'none'} onValueChange={(v) => setBrandId(v === 'none' ? '' : v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn hãng">
-                    {(v: string | null | undefined) =>
-                      v === 'none' || !v
-                        ? 'Không thuộc hãng'
-                        : brands.find((b) => b.id === v)?.name ?? 'Hãng'
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Không thuộc hãng</SelectItem>
-                  {brands.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>{t('busLayouts.brand')}</Label>
+              <ComboboxField
+                value={brandId || 'none'}
+                onValueChange={(v) => setBrandId(v === 'none' ? '' : v)}
+                items={[
+                  { value: 'none', label: t('busLayouts.noBrand') },
+                  ...brands.map((b) => ({ value: b.id, label: b.name })),
+                ]}
+                placeholder={t('adminBusLayouts.chooseBrand')}
+                searchPlaceholder={t('adminBusLayouts.searchBrand')}
+                aria-label={t('busLayouts.brand')}
+              />
             </div>
 
             <div className="grid gap-1.5">
-              <Label>Loại xe</Label>
-              <Select value={vehicleCode || 'none'} onValueChange={(v) => setVehicleCode(v === 'none' ? '' : v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Chọn loại xe">
-                    {(v: string | null | undefined) =>
-                      v === 'none' || !v
-                        ? 'Không chọn'
-                        : vehicleTypes.find((t) => t.code === v)?.label ?? v
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Không chọn</SelectItem>
-                  {vehicleTypes.map((t) => (
-                    <SelectItem key={t.id} value={t.code}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>{t('busLayouts.vehicleType')}</Label>
+              <ComboboxField
+                value={vehicleCode || 'none'}
+                onValueChange={(v) => setVehicleCode(v === 'none' ? '' : v)}
+                items={[
+                  { value: 'none', label: t('adminBusLayouts.notSelected') },
+                  ...vehicleTypes.map((vt) => ({ value: vt.code, label: vt.label })),
+                ]}
+                placeholder={t('busLayouts.chooseVehicle')}
+                searchPlaceholder={t('adminBusLayouts.searchVehicleType')}
+                aria-label={t('busLayouts.vehicleType')}
+              />
             </div>
           </div>
 
@@ -220,11 +200,11 @@ export function BusLayoutFormDialog({
             <>
               {/* Presets */}
               <div>
-                <Label className="mb-1.5 block">Mẫu nhanh</Label>
+                <Label className="mb-1.5 block">{t('busLayouts.presets')}</Label>
                 <div className="flex flex-wrap gap-1.5">
                   {PRESETS.map((p) => (
                     <button
-                      key={p.label}
+                      key={p.labelKey}
                       type="button"
                       onClick={() => applyPreset(p)}
                       className={cn(
@@ -236,7 +216,7 @@ export function BusLayoutFormDialog({
                           : 'border-input text-muted-foreground hover:border-blue-300 hover:text-foreground',
                       )}
                     >
-                      {p.label}
+                      {t(p.labelKey)}
                     </button>
                   ))}
                 </div>
@@ -245,7 +225,7 @@ export function BusLayoutFormDialog({
               {/* Grid dimensions */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="grid gap-1.5">
-                  <Label htmlFor="grid-rows">Hàng ghế</Label>
+                  <Label htmlFor="grid-rows">{t('adminBusLayouts.gridRows')}</Label>
                   <Input
                     id="grid-rows"
                     type="number"
@@ -256,7 +236,7 @@ export function BusLayoutFormDialog({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="grid-cols">Ghế / hàng</Label>
+                  <Label htmlFor="grid-cols">{t('adminBusLayouts.gridCols')}</Label>
                   <Input
                     id="grid-cols"
                     type="number"
@@ -267,22 +247,21 @@ export function BusLayoutFormDialog({
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="grid-floors">Số tầng</Label>
-                  <Select
-                    value={String(grid.floors)}
-                    onValueChange={(v) => setGrid((g) => ({ ...g, floors: Number(v) }))}
-                  >
-                    <SelectTrigger id="grid-floors" className="w-full">
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
-                        <SelectValue />
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">1 tầng</SelectItem>
-                      <SelectItem value="2">2 tầng (giường nằm)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="grid-floors">{t('busLayouts.floors')}</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <ComboboxField
+                      value={String(grid.floors)}
+                      onValueChange={(v) => setGrid((g) => ({ ...g, floors: Number(v) }))}
+                      items={[
+                        { value: '1', label: t('busLayouts.floor1') },
+                        { value: '2', label: t('busLayouts.floor2') },
+                      ]}
+                      className="flex-1"
+                      aria-label={t('busLayouts.floors')}
+                      data-testid="grid-floors"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -291,10 +270,10 @@ export function BusLayoutFormDialog({
                 <div className="mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-1.5 text-xs font-semibold">
                     <Armchair className="h-3.5 w-3.5 text-blue-600" />
-                    Xem trước sơ đồ ghế
+                    {t('busLayouts.preview')}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {totalSeats} ghế · nhãn {seatLabels[0] ?? '—'}…
+                    {t('busLayouts.seatsTotal', { count: totalSeats, first: seatLabels[0] ?? '—' })}
                   </span>
                 </div>
                 <SeatGridPreview grid={grid} labels={seatLabels} />
@@ -305,15 +284,15 @@ export function BusLayoutFormDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Huỷ
+            {t('common.cancel')}
           </Button>
           <Button onClick={onSubmit} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
             {saving ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Đang lưu...
+                <Loader2 className="h-4 w-4 animate-spin" /> {t('common.saving')}
               </>
             ) : (
-              <>{isEdit ? 'Lưu thay đổi' : 'Thêm sơ đồ'}</>
+              <>{isEdit ? t('common.saveChanges') : t('adminBusLayouts.addButton')}</>
             )}
           </Button>
         </DialogFooter>
@@ -347,6 +326,7 @@ function buildPreviewLabels(grid: GridState): string[] {
 /** Mini seat-map preview: rows with an aisle gap after column 2 when
  *  the grid is 4+ seats wide (matches the customer-facing seat map). */
 function SeatGridPreview({ grid, labels }: { grid: GridState; labels: string[] }) {
+  const t = useT()
   let idx = 0
   return (
     <div className="space-y-2">
@@ -354,12 +334,12 @@ function SeatGridPreview({ grid, labels }: { grid: GridState; labels: string[] }
         <div key={f} className="rounded-md border bg-white p-2">
           {grid.floors > 1 && (
             <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {f === 0 ? 'Tầng dưới' : 'Tầng trên'}
+              {f === 0 ? t('adminBusLayouts.lowerDeck') : t('adminBusLayouts.upperDeck')}
             </div>
           )}
           <div className="flex justify-center">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-slate-800 px-3 py-0.5 text-[10px] font-semibold text-white">
-              Tài xế
+              {t('adminBusLayouts.driver')}
             </div>
           </div>
           <div className="flex flex-col items-center gap-1">

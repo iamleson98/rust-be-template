@@ -10,6 +10,7 @@
  */
 
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { Star, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency'
@@ -30,6 +31,7 @@ export function ActiveFilterChips({
   resetFilters: () => void
 }) {
   const { currency } = useApp()
+  const t = useT()
   return (
     <div
 
@@ -49,21 +51,21 @@ export function ActiveFilterChips({
           return (
             <FilterChip
               key={r}
-              label={opt?.label ?? r}
+              label={opt ? t(opt.labelKey) : r}
               onRemove={() => setFilters({ ...filters, timeRanges: filters.timeRanges.filter((x) => x !== r) })}
             />
           )
         })}
         {filters.minRating > 0 && (
           <FilterChip
-            label={`Đánh giá ${filters.minRating}+`}
+            label={t('searchPage.ratingPlus', { rating: filters.minRating })}
             icon={<Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
             onRemove={() => setFilters({ ...filters, minRating: 0 })}
           />
         )}
         {filters.availableOnly && (
           <FilterChip
-            label="Còn> 5 chỗ"
+            label={t('searchPage.availableOnlyChip')}
             onRemove={() => setFilters({ ...filters, availableOnly: false })}
           />
         )}
@@ -72,7 +74,7 @@ export function ActiveFilterChips({
           return (
             <FilterChip
               key={a}
-              label={opt?.label ?? a}
+              label={opt ? t(opt.labelKey) : a}
               icon={opt?.icon}
               onRemove={() => setFilters({ ...filters, amenities: filters.amenities.filter((x) => x !== a) })}
             />
@@ -84,7 +86,7 @@ export function ActiveFilterChips({
           onClick={resetFilters}
           className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2"
         >
-          Xoá tất cả
+          {t('searchPage.clearAll')}
         </Button>
       </div>
     </div>
@@ -94,6 +96,7 @@ export function ActiveFilterChips({
 /* ─── Filter Chip ─── */
 
 function FilterChip({ label, icon, onRemove }: { label: string; icon?: React.ReactNode; onRemove: () => void }) {
+  const t = useT()
   return (
     <div
 
@@ -106,7 +109,7 @@ function FilterChip({ label, icon, onRemove }: { label: string; icon?: React.Rea
       <button
         onClick={onRemove}
         className="ml-0.5 rounded-full hover:bg-blue-200 p-0.5 transition-colors"
-        aria-label={`Xoá bộ lọc ${label}`}
+        aria-label={t('searchPage.removeFilterAria', { label })}
       >
         <X className="h-3 w-3" />
       </button>

@@ -33,6 +33,9 @@
  * "(3) 💬 Tin nhắn mới" rather than starting 3 separate flashers).
  */
 
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
 let flashInterval: ReturnType<typeof setInterval> | null = null
 let originalTitle: string | null = null
 let unreadCount = 0
@@ -73,7 +76,7 @@ export function startTitleNotification(count = 1): void {
   flashInterval = setInterval(() => {
     toggle = !toggle
     if (toggle) {
-      document.title = `(${unreadCount}) 💬 Tin nhắn mới`
+      document.title = translate(useApp.getState().lang, 'notifications.unreadTitle', { count: unreadCount })
     } else if (originalTitle !== null) {
       document.title = originalTitle
     }

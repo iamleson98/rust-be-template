@@ -7,12 +7,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Bus, ArrowRightLeft, Clock, Star, Quote } from 'lucide-react'
 import { formatDateVN, formatDateTimeVN } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { ReviewItem, REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
 
 /* ───────────────────────────────────────────────────────────────────────
  * ReviewCard — single review written by the logged-in user. Display-only.
  * ─────────────────────────────────────────────────────────────────────── */
 export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
+  const t = useT()
   const accent = r.brand?.accentColor || '#2563eb'
   return (
     <Card className="overflow-hidden ring-1 ring-black/5 transition-all duration-300">
@@ -49,7 +51,7 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
                       style={{ background: accent }}
                     >
                       <Bus className="h-2.5 w-2.5" />
-                      {r.brand?.name || 'Nhà xe'}
+                      {r.brand?.name || t('bookingHistory.brandFallback')}
                     </span>
                     <span className="text-muted-foreground/60">•</span>
                     <span className="inline-flex items-center gap-1">
@@ -93,21 +95,21 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
 
             {r.tags.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                {r.tags.map((t, i) => {
-                  const meta = REVIEW_TAG_LABELS[t]
+                {r.tags.map((tag, i) => {
+                  const meta = REVIEW_TAG_LABELS[tag]
                   return (
                     <Badge
-                      key={`${t}-${i}`}
+                      key={`${tag}-${i}`}
                       variant="outline"
                       className="text-[11px] gap-1 px-2 py-0.5 bg-amber-50/60 border-amber-200/60 text-amber-800 font-medium"
                     >
                       {meta ? (
                         <>
                           <span>{meta.emoji}</span>
-                          {meta.label}
+                          {t(meta.labelKey)}
                         </>
                       ) : (
-                        t.replace(/_/g, ' ')
+                        tag.replace(/_/g, ' ')
                       )}
                     </Badge>
                   )

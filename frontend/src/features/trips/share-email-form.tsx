@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/form'
 import { emailSchema, optionalText } from '@/lib/forms'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { formatDateVN, formatTimeVN } from '@/lib/types'
 import { Mail, Send, Check } from 'lucide-react'
 import { toast } from 'sonner'
@@ -53,6 +54,7 @@ export function ShareEmailForm({
   shareInfo: { code: string; url: string } | null
   currency: 'VND' | 'USD'
 }) {
+  const t = useT()
   const [sendingEmail, setSendingEmail] = useState(false)
 
   const form = useForm<ShareEmailValues>({
@@ -79,24 +81,27 @@ export function ShareEmailForm({
 
   const onSendEmail = async (values: ShareEmailValues) => {
     if (!shareInfo || !shareTripData) {
-      toast.error('Không có thông tin chuyến đi để chia sẻ')
+      toast.error(t('trips.noTripToShare'))
       return
     }
     setSendingEmail(true)
     try {
       const subject = `DatXeVui — ${shareTripData.fromName} → ${shareTripData.toName} · ${shareTripData.brandName}`
-      const defaultBody = `Chào bạn,
-
-Tôi muốn chia sẻ chuyến đi trên DatXeVui:
-
-• Tuyến: ${shareTripData.fromName} → ${shareTripData.toName}
-• Hãng xe: ${shareTripData.brandName}
-• Khởi hành: ${shareTripData.departureTime || (shareTripData.departureAt ? formatTimeVN(shareTripData.departureAt) : '')}${shareTripData.departureAt ? ' — ' + formatDateVN(shareTripData.departureAt, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
-• Giá từ: ${formatCurrency(shareTripData.minPrice, currency)}
-
-Đặt vé tại: ${shareInfo.url}
-
-DatXeVui — Đặt vé xe khách online.`
+      const departureInfo = `${shareTripData.departureTime || (shareTripData.departureAt ? formatTimeVN(shareTripData.departureAt) : '')}${shareTripData.departureAt ? ' — ' + formatDateVN(shareTripData.departureAt, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}`
+      const defaultBody = [
+        t('trips.emailGreeting'),
+        '',
+        t('trips.emailIntro'),
+        '',
+        t('trips.emailRoute', { from: shareTripData.fromName, to: shareTripData.toName }),
+        t('trips.emailBrand', { brand: shareTripData.brandName }),
+        t('trips.emailDeparture', { time: departureInfo }),
+        t('trips.emailPrice', { price: formatCurrency(shareTripData.minPrice, currency) }),
+        '',
+        t('trips.emailBookingUrl', { url: shareInfo.url }),
+        '',
+        t('trips.emailFooter'),
+      ].join('\n')
       const body = values.message?.trim() ? `${values.message.trim()}\n\n${defaultBody}` : defaultBody
       const mailto = `mailto:${values.recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
       // Open the user's email client. We do NOT POST to any backend —
@@ -106,11 +111,11 @@ DatXeVui — Đặt vé xe khách online.`
       // runs only from the submit handler, hence the targeted disable.
       // eslint-disable-next-line react-hooks/immutability
       window.location.href = mailto
-      toast.success(`Đã mở ứng dụng email cho ${values.recipientEmail}`, {
-        description: 'Hoàn tất soạn thư trong trình email của bạn',
+      toast.success(t('trips.emailClientOpened', { email: values.recipientEmail }), {
+        description: t('trips.emailComposeHint'),
       })
     } catch {
-      toast.error('Không thể mở ứng dụng email')
+      toast.error(t('trips.emailOpenFailed'))
     } finally {
       setSendingEmail(false)
     }
@@ -124,7 +129,7 @@ DatXeVui — Đặt vé xe khách online.`
               >
                 <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <Mail className="h-3.5 w-3.5 text-blue-600" />
-                  Gửi qua email
+                  {t('trips.emailSection')}
                 </div>
                 <FormField
                   control={form.control}
@@ -132,7 +137,7 @@ DatXeVui — Đặt vé xe khách online.`
                   render={({ field }) => (
                     <FormItem className="space-y-1.5">
                       <FormLabel className="text-xs font-medium text-foreground">
-                        Email người nhận <span className="text-destructive">*</span>
+                        {t('trips.emailRecipient')} <span className="text-destructive">*</span>
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -141,7 +146,7 @@ DatXeVui — Đặt vé xe khách online.`
                           type="email"
                           inputMode="email"
                           autoComplete="email"
-                          placeholder="vd: banbe@example.com"
+                          placeholder={t('trips.emailRecipientPh')}
                         />
                       </FormControl>
                       <FormMessage />
@@ -154,20 +159,20 @@ DatXeVui — Đặt vé xe khách online.`
                   render={({ field }) => (
                     <FormItem className="space-y-1.5">
                       <FormLabel className="text-xs font-medium text-foreground">
-                        Lời nhắn (tuỳ chọn)
+                        {t('trips.emailMessageLabel')}
                       </FormLabel>
                       <FormControl>
                         <Textarea
                           {...field}
                           value={field.value ?? ''}
-                          placeholder="VD: Đây là chuyến đi mình vừa đặt, bạn tham khảo nhé!"
+                          placeholder={t('trips.emailMessagePh')}
                           rows={3}
                           maxLength={500}
                           className="resize-none"
                         />
                       </FormControl>
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                        <span>Tối đa 500 ký tự</span>
+                        <span>{t('trips.emailMaxChars')}</span>
                         <span>{(field.value ?? '').length}/500</span>
                       </div>
                       <FormMessage />
@@ -182,12 +187,12 @@ DatXeVui — Đặt vé xe khách online.`
                   {sendingEmail ? (
                     <>
                       <Check className="h-4 w-4 animate-pulse" />
-                      Đang mở...
+                      {t('trips.emailOpening')}
                     </>
                   ) : (
                     <>
                       <Send className="h-4 w-4" />
-                      Gửi email
+                      {t('trips.emailSend')}
                     </>
                   )}
                 </Button>

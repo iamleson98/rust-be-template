@@ -14,6 +14,7 @@
 
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/lib/i18n'
 import {
   Bus,
   IdCard,
@@ -34,12 +35,13 @@ import { amenityIcon } from './amenity-icons'
 /* ─── Seat shape for the diagram (helper) ─── */
 
 function SeatShape({ isSleeper, isLimousine }: { isSleeper: boolean; isLimousine: boolean }) {
+  const t = useT()
   if (isSleeper) {
     return (
       <div
         className="rounded-md border border-blue-500 bg-blue-500/20"
         style={{ width: 36, height: 22 }}
-        title="Giường nằm"
+        title={t('tripDetail.seatSleeper')}
       />
     )
   }
@@ -48,7 +50,7 @@ function SeatShape({ isSleeper, isLimousine }: { isSleeper: boolean; isLimousine
       <div
         className="rounded-lg border border-amber-500 bg-violet-500/20"
         style={{ width: 28, height: 24 }}
-        title="Ghế limousine"
+        title={t('tripDetail.seatLimousine')}
       />
     )
   }
@@ -56,12 +58,13 @@ function SeatShape({ isSleeper, isLimousine }: { isSleeper: boolean; isLimousine
     <div
       className="rounded-sm border border-blue-500 bg-blue-500/20"
       style={{ width: 22, height: 22 }}
-      title="Ghế ngồi"
+      title={t('tripDetail.seatStandard')}
     />
   )
 }
 
 export function BusInfoTab({ detail }: { detail: TripDetail }) {
+  const t = useT()
   // Deterministic mock data based on trip id
   const seed = useMemo(() => {
     let h = 0
@@ -80,8 +83,8 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
 
   const vehicleYear = 2018 + (seed % 7) // 2018-2024
   const hasToilet = seed % 3 === 0
-  const acType = seed % 2 === 0 ? 'Điều hòa trung tâm' : 'Điều hòa cassette'
-  const fuelType = seed % 3 === 0 ? 'Diesel' : seed % 3 === 1 ? 'CNG' : 'Điện hybrid'
+  const acType = seed % 2 === 0 ? t('tripDetail.acCentral') : t('tripDetail.acCassette')
+  const fuelType = seed % 3 === 0 ? 'Diesel' : seed % 3 === 1 ? 'CNG' : t('tripDetail.fuelHybrid')
   const maxSpeed = 80 + (seed % 21) // 80-100 km/h
   const mileage = (50000 + (seed % 200000)).toLocaleString('vi-VN')
 
@@ -91,27 +94,27 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
   const isSleeper = detail.busLayout.vehicleType === 'sleeper'
   const isLimousine = detail.busLayout.vehicleType === 'limousine'
 
-  const driverName = detail.trip.driverName ?? 'Tài xế chuyên nghiệp'
+  const driverName = detail.trip.driverName ?? t('tripDetail.defaultDriver')
 
   // Amenities with descriptions
   const amenityDescriptions: Record<string, string> = {
-    wifi: 'Wi-Fi miễn phí tốc độ cao trên suốt hành trình',
-    ac: 'Hệ thống điều hòa mát mẻ, có thể điều chỉnh riêng',
-    water: 'Nước suối miễn phí 1 chai/khách',
-    charging: 'Cổng sạc USB/Type-C tại mỗi ghế',
-    window: 'Cửa sổ kính mờ, rèm che chống nắng',
-    legroom: 'Khoảng để chân rộng rãi thoải mái',
-    recline: 'Ghế ngả sâu 135° - 160°',
-    curtain: 'Rèm che riêng tư từng ghế',
+    wifi: t('tripDetail.amenityWifi'),
+    ac: t('tripDetail.amenityAc'),
+    water: t('tripDetail.amenityWater'),
+    charging: t('tripDetail.amenityCharging'),
+    window: t('tripDetail.amenityWindow'),
+    legroom: t('tripDetail.amenityLegroom'),
+    recline: t('tripDetail.amenityRecline'),
+    curtain: t('tripDetail.amenityCurtain'),
   }
 
   const specs = [
-    { icon: <CalendarDays className="h-4 w-4" />, label: 'Năm sản xuất', value: String(vehicleYear) },
-    { icon: <Snowflake className="h-4 w-4" />, label: 'Loại điều hòa', value: acType },
-    { icon: <Fuel className="h-4 w-4" />, label: 'Nhiên liệu', value: fuelType },
-    { icon: <Gauge className="h-4 w-4" />, label: 'Tốc độ tối đa', value: `${maxSpeed} km/h` },
-    { icon: <Cog className="h-4 w-4" />, label: 'Số ghế', value: String(detail.busLayout.capacity) },
-    { icon: <Wrench className="h-4 w-4" />, label: 'Hành trình đã đi', value: `${mileage} km` },
+    { icon: <CalendarDays className="h-4 w-4" />, label: t('tripDetail.specYear'), value: String(vehicleYear) },
+    { icon: <Snowflake className="h-4 w-4" />, label: t('tripDetail.specAcType'), value: acType },
+    { icon: <Fuel className="h-4 w-4" />, label: t('tripDetail.specFuel'), value: fuelType },
+    { icon: <Gauge className="h-4 w-4" />, label: t('tripDetail.specMaxSpeed'), value: `${maxSpeed} km/h` },
+    { icon: <Cog className="h-4 w-4" />, label: t('tripDetail.specSeats'), value: String(detail.busLayout.capacity) },
+    { icon: <Wrench className="h-4 w-4" />, label: t('tripDetail.specMileage'), value: `${mileage} km` },
   ]
 
   return (
@@ -119,7 +122,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <Bus className="h-4 w-4 text-blue-700" />
-          Thông tin xe & tài xế
+          {t('tripDetail.busInfoTitle')}
         </h3>
         <div className="rounded-xl border bg-white overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
@@ -129,9 +132,9 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                 <IdCard className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Tài xế</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('trips.driver')}</div>
                 <div className="font-bold truncate">{driverName}</div>
-                <div className="text-xs text-muted-foreground">Kinh nghiệm 5+ năm</div>
+                <div className="text-xs text-muted-foreground">{t('tripDetail.driverExperience')}</div>
               </div>
             </div>
             {/* Plate number */}
@@ -140,7 +143,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                 <Bus className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Biển số xe</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('tripDetail.plateNumber')}</div>
                 <div className="font-bold font-mono text-base tracking-wider">{plateNumber}</div>
                 <div className="text-xs text-muted-foreground">{detail.brand.name}</div>
               </div>
@@ -153,7 +156,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <Gauge className="h-4 w-4 text-blue-700" />
-          Thông số kỹ thuật
+          {t('tripDetail.specsTitle')}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {specs.map((s, i) => (
@@ -167,8 +170,8 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
             <div className="text-blue-700 mb-1.5">
               {hasToilet ? <Wrench className="h-4 w-4" /> : <X className="h-4 w-4" />}
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Nhà vệ sinh</div>
-            <div className="font-bold text-sm">{hasToilet ? 'Có ở cuối xe' : 'Không'}</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('tripDetail.toiletLabel')}</div>
+            <div className="font-bold text-sm">{hasToilet ? t('tripDetail.toiletAtRear') : t('common.no')}</div>
           </div>
         </div>
       </div>
@@ -177,19 +180,19 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
       <div>
         <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
           <Armchair className="h-4 w-4 text-blue-700" />
-          Sơ đồ mặt bằng xe (top view)
+          {t('tripDetail.layoutTitle')}
         </h3>
         <div className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/50 p-4 overflow-x-auto">
           <div className="min-w-70 mx-auto" style={{ maxWidth: 360 }}>
             {/* Driver row */}
             <div className="flex items-center justify-between mb-3 pb-2 border-b-2 border-dashed border-slate-300">
               <div className="flex items-center gap-2">
-                <div className="h-10 w-10 rounded-full bg-slate-700 text-white inline-flex items-center justify-center" title="Ghế tài xế">
+                <div className="h-10 w-10 rounded-full bg-slate-700 text-white inline-flex items-center justify-center" title={t('tripDetail.driverSeat')}>
                   <IdCard className="h-5 w-5" />
                 </div>
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">Tài xế</div>
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">{t('trips.driver')}</div>
               </div>
-              <div className="text-[10px] text-muted-foreground">Mặt trước ↑</div>
+              <div className="text-[10px] text-muted-foreground">{t('tripDetail.frontLabel')}</div>
             </div>
 
             {/* Seat grid */}
@@ -214,7 +217,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
 
             {/* Back row */}
             <div className="mt-3 pt-2 border-t-2 border-dashed border-slate-300 flex items-center justify-between">
-              <div className="text-[10px] text-muted-foreground">Mặt sau ↓</div>
+              <div className="text-[10px] text-muted-foreground">{t('tripDetail.backLabel')}</div>
               {hasToilet && (
                 <div className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
                   <Wrench className="h-3 w-3" /> Toilet
@@ -227,15 +230,15 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
           <div className="mt-4 flex items-center justify-center gap-4 text-[10px] text-muted-foreground flex-wrap">
             <div className="flex items-center gap-1.5">
               <div className="h-3 w-3 rounded-sm bg-blue-500/30 border border-blue-500" />
-              Ghế thường
+              {t('tripDetail.seatRegular')}
             </div>
             <div className="flex items-center gap-1.5">
               <div className="h-3 w-3 rounded-sm bg-violet-500/30 border border-amber-500" />
-              Ghế VIP
+              {t('tripDetail.seatVip')}
             </div>
             <div className="flex items-center gap-1.5">
               <div className="h-3 w-3 rounded-sm bg-slate-200 border border-slate-300" />
-              Đã đặt
+              {t('trips.legendBooked')}
             </div>
           </div>
         </div>
@@ -246,7 +249,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
         <div>
           <h3 className="text-sm font-bold flex items-center gap-2 mb-3">
             <CheckCircle2 className="h-4 w-4 text-blue-700" />
-            Tiện nghi trên xe
+            {t('tripDetail.amenitiesTitle')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {detail.amenities.map((a) => (
@@ -260,7 +263,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                 <div className="min-w-0">
                   <div className="font-semibold text-sm">{a.label}</div>
                   <div className="text-xs text-muted-foreground">
-                    {amenityDescriptions[a.key] ?? 'Tiện nghi có sẵn trên xe'}
+                    {amenityDescriptions[a.key] ?? t('tripDetail.amenityFallback')}
                   </div>
                 </div>
               </div>
@@ -276,7 +279,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
             <PhoneCall className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">Hotline nhà xe</div>
+            <div className="text-xs text-muted-foreground">{t('tripDetail.brandHotline')}</div>
             <div className="font-bold text-blue-800">{detail.brand.contactPhone}</div>
           </div>
           <Button
@@ -285,7 +288,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
             className="border-blue-300 text-blue-800 hover:bg-blue-50"
             asChild
           >
-            <a href={`tel:${detail.brand.contactPhone}`}>Gọi ngay</a>
+            <a href={`tel:${detail.brand.contactPhone}`}>{t('tripDetail.callNow')}</a>
           </Button>
         </div>
       )}

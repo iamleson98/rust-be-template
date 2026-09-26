@@ -2,6 +2,7 @@
 
 // Extracted from the original 'loyalty-widget.tsx'.
 
+import { useT } from '@/lib/i18n'
 import type { Tier } from './loyalty-data'
 
 export function LoyaltyPointsCard({
@@ -13,9 +14,10 @@ export function LoyaltyPointsCard({
   currentTier: Tier
   nextTier: Tier | null
 }) {
+  const t = useT()
   return (
     <div className="rounded-xl border bg-linear-to-br from-blue-50 to-blue-50 p-4 text-center">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Số điểm hiện tại</div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('home.currentPoints')}</div>
       <div className="text-4xl font-extrabold text-blue-700 mt-1">
         {loyaltyPoints.toLocaleString('vi-VN')}
       </div>
@@ -37,7 +39,7 @@ export function LoyaltyPointsCard({
         <div className="mt-3">
           <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
             <span>{currentTier.name}</span>
-            <span>{nextTier.name} ({nextTier.max + 1} điểm)</span>
+            <span>{nextTier.name} ({nextTier.max + 1} {t('home.pointsUnit')})</span>
           </div>
           <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
             <div
@@ -48,7 +50,7 @@ export function LoyaltyPointsCard({
             />
           </div>
           <div className="text-[10px] text-muted-foreground mt-1">
-            Cần thêm {nextTier.max + 1 - loyaltyPoints} điểm để lên {nextTier.name}
+            {t('home.pointsToNextTier', { count: nextTier.max + 1 - loyaltyPoints, name: nextTier.name })}
           </div>
         </div>
       )}

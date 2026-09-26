@@ -18,6 +18,7 @@ import {
   CircleCheck,
   Phone,
 } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { CustomerChannel as Channel, View } from './_shared'
 
 export function ChatHeader({
@@ -48,7 +49,8 @@ export function ChatHeader({
   onClose: () => void
   onBackToList: () => void
 }) {
-  const title = view === 'conversation' && activeChannel ? activeChannel.topic : 'Hỗ trợ DatXeVui'
+  const t = useT()
+  const title = view === 'conversation' && activeChannel ? activeChannel.topic : t('chatWidget.supportTitle')
 
   return (
     <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">
@@ -57,7 +59,7 @@ export function ChatHeader({
           <button
             onClick={onBackToList}
             className="hover:bg-white/10 rounded p-1 -ml-1"
-            aria-label="Quay lại"
+            aria-label={t('common.back')}
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
@@ -75,23 +77,23 @@ export function ChatHeader({
               assigneeName ? (
                 <>
                   <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
-                  <span className="truncate">{assigneeName} đang hỗ trợ bạn</span>
+                  <span className="truncate">{t('chatWidget.assigneeHelping', { name: assigneeName })}</span>
                 </>
               ) : botActive ? (
                 <>
                   <CircleCheck className="h-3 w-3 text-violet-300 shrink-0" />
-                  <span>Trợ lý AI đang hỗ trợ — nhân viên sẽ tiếp nhận sớm</span>
+                  <span>{t('chatWidget.aiHelping')}</span>
                 </>
               ) : (
                 <>
                   <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
-                  <span>Nhân viên đang trực tuyến</span>
-                  {employeesOnline > 0 && <span className="ml-1 opacity-80">• {employeesOnline} NV</span>}
+                  <span>{t('chatWidget.staffOnline')}</span>
+                  {employeesOnline > 0 && <span className="ml-1 opacity-80">{t('chatWidget.staffCount', { count: employeesOnline })}</span>}
                 </>
               )
             ) : (
               <>
-                <WifiOff className="h-3 w-3" /> Đang kết nối...
+                <WifiOff className="h-3 w-3" /> {t('chatWidget.connecting')}
               </>
             )}
           </div>
@@ -103,16 +105,16 @@ export function ChatHeader({
             type="button"
             onClick={onCall}
             className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
-            aria-label="Gọi nhân viên hỗ trợ"
-            title="Gọi nhân viên hỗ trợ"
+            aria-label={t('chatWidget.callSupport')}
+            title={t('chatWidget.callSupport')}
           >
             <Phone className="h-4 w-4" />
           </button>
         )}
-        <button onClick={onMinimize} className="hover:bg-white/10 rounded p-1.5" aria-label="Thu nhỏ">
+        <button onClick={onMinimize} className="hover:bg-white/10 rounded p-1.5" aria-label={t('chatWidget.minimize')}>
           <Minus className="h-4 w-4" />
         </button>
-        <button onClick={onClose} className="hover:bg-white/10 rounded p-1.5" aria-label="Đóng">
+        <button onClick={onClose} className="hover:bg-white/10 rounded p-1.5" aria-label={t('common.close')}>
           <X className="h-4 w-4" />
         </button>
       </div>

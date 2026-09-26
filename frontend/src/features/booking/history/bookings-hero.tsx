@@ -3,6 +3,7 @@
 // Extracted from the original 'my-bookings.tsx'.
 
 import { Bus, User, Ticket } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 export function BookingsHero({
   isUserLoggedIn,
@@ -11,6 +12,7 @@ export function BookingsHero({
   isUserLoggedIn: boolean
   user: { name: string } | null | undefined
 }) {
+  const t = useT()
   return (
     <div className="relative overflow-hidden bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
       <div className="absolute inset-0 opacity-[0.06]">
@@ -34,22 +36,22 @@ export function BookingsHero({
             {isUserLoggedIn ? (
               <>
                 <User className="h-3.5 w-3.5" />
-                Xin chào, {user?.name}
+                {t('bookingHistory.greeting', { name: user?.name ?? '' })}
               </>
             ) : (
               <>
                 <Ticket className="h-3.5 w-3.5" />
-                Tra cứu vé xe trực tuyến
+                {t('bookingHistory.lookupBadge')}
               </>
             )}
           </div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3 leading-tight">
-            {isUserLoggedIn ? 'Lịch sử đặt vé của tôi' : 'Tra cứu vé đã đặt'}
+            {isUserLoggedIn ? t('bookingHistory.myBookingsTitle') : t('bookingHistory.lookupTitle')}
           </h1>
           <p className="text-blue-100 text-sm md:text-base leading-relaxed max-w-lg">
             {isUserLoggedIn
-              ? 'Xem lại các chuyến đi sắp đi, đã đi, đã hủy và để lại đánh giá cho từng chuyến hoàn thành.'
-              : 'Nhập mã vé hoặc số điện thoại để xem chi tiết đặt vé, trạng thái chuyến đi và thông tin hành khách'}
+              ? t('bookingHistory.myBookingsSubtitle')
+              : t('bookingHistory.lookupSubtitle')}
           </p>
         </div>
       </div>

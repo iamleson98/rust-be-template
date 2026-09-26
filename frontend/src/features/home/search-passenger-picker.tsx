@@ -3,6 +3,7 @@
 // Extracted from the original 'search-widget.tsx'.
 
 import type { UseFormReturn } from 'react-hook-form'
+import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -23,6 +24,7 @@ export function SearchPassengerPicker({
   paxOpen: boolean
   setPaxOpen: React.Dispatch<React.SetStateAction<boolean>>
 }) {
+  const t = useT()
   return (
     <>
       {/* Passengers */}
@@ -32,7 +34,7 @@ export function SearchPassengerPicker({
         render={({ field }) => (
           <FormItem className="space-y-1.5">
             <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
-              Khách
+              {t('search.passengers')}
             </FormLabel>
             <div className="relative group/pax">
               <Users className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10 text-muted-foreground group-hover/pax:text-blue-600 transition-colors" />
@@ -49,8 +51,8 @@ export function SearchPassengerPicker({
                 <PopoverContent className="w-64 p-4" align="start">
                   <div className="space-y-3">
                     <PaxRow
-                      label="Người lớn"
-                      sub="12 tuổi trở lên"
+                      label={t('search.adults')}
+                      sub={t('home.adultsHint')}
                       value={searchParams.adults}
                       onChange={(v) => {
                         const next = Math.max(1, v)
@@ -59,8 +61,8 @@ export function SearchPassengerPicker({
                       }}
                     />
                     <PaxRow
-                      label="Trẻ em"
-                      sub="0 - 11 tuổi"
+                      label={t('search.children')}
+                      sub={t('home.childrenHint')}
                       value={searchParams.children}
                       onChange={(v) => {
                         const next = Math.max(0, v)
@@ -69,7 +71,7 @@ export function SearchPassengerPicker({
                       }}
                     />
                     <Button type="button" className="w-full" onClick={() => setPaxOpen(false)}>
-                      Xong
+                      {t('home.done')}
                     </Button>
                   </div>
                 </PopoverContent>

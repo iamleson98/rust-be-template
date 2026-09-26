@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Headset, Send } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
 import {
   ChatTicketPicker,
@@ -144,6 +145,7 @@ export function ChatPanel({
    * structure-matched skeletons instead of empty/zero values. */
   channelsLoading?: boolean
 }) {
+  const t = useT()
   const [pickerOpen, setPickerOpen] = useState(false)
 
   // ── Channel-list infinite scroll (scroll DOWN = load more) ────
@@ -362,13 +364,13 @@ export function ChatPanel({
                   the scroll area is `xl:flex-1` (takes remaining space). */}
               <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
                 <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
-                  {['Xin chào, tôi có thể giúp gì?', 'Vui lòng cho mã đặt vé.', 'Chuyến đi đã xác nhận.', 'Tôi cần kiểm tra lại.'].map((t, i) => (
+                  {[t('adminChat.quickReplyGreeting'), t('adminChat.quickReplyBookingCode'), t('adminChat.quickReplyConfirmed'), t('adminChat.quickReplyChecking')].map((text, i) => (
                     <button
                       key={i}
-                      onClick={() => onSetReplyText(t)}
+                      onClick={() => onSetReplyText(text)}
                       className="shrink-0 rounded-full px-2.5 py-1 text-[11px] border bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors"
                     >
-                      {t.length > 30 ? t.slice(0, 30) + '…' : t}
+                      {text.length > 30 ? text.slice(0, 30) + '…' : text}
                     </button>
                   ))}
                 </div>
@@ -377,7 +379,7 @@ export function ChatPanel({
                     value={replyText}
                     onChange={(e) => onSetReplyText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendReply() } }}
-                    placeholder="Nhập phản hồi..."
+                    placeholder={t('adminChat.replyPlaceholder')}
                     className="flex-1"
                   />
                   <Button
@@ -397,8 +399,8 @@ export function ChatPanel({
                 <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
                   <Headset className="h-8 w-8 text-slate-400" />
                 </div>
-                <h3 className="font-semibold text-sm">Chọn cuộc trò chuyện</h3>
-                <p className="text-xs text-muted-foreground mt-1">Chọn một kênh từ danh sách để bắt đầu phản hồi</p>
+                <h3 className="font-semibold text-sm">{t('chat.selectChannel')}</h3>
+                <p className="text-xs text-muted-foreground mt-1">{t('chat.selectChannelDesc')}</p>
               </div>
             </div>
           )}

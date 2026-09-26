@@ -13,6 +13,7 @@ import type { PriceAlertForm } from './price-alert-schema'
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { TrendingDown } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { formatVND } from '@/lib/types'
 
 export function PriceAlertTargetField({
@@ -31,6 +32,7 @@ export function PriceAlertTargetField({
    */
   targetPrice: unknown
 }) {
+  const t = useT()
   const { control, setValue } = form
 
   const suggestedPrices = minPrice > 0
@@ -48,7 +50,7 @@ export function PriceAlertTargetField({
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
                     <FormLabel htmlFor="target-price" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Mức giá mục tiêu (VND) <span className="text-destructive">*</span>
+                      {t('priceAlert.targetPriceLabel')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <div className="relative">
                       <TrendingDown className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-blue-500 z-10" />
@@ -62,14 +64,14 @@ export function PriceAlertTargetField({
                           value={typeof field.value === 'number' && Number.isFinite(field.value) && field.value > 0 ? field.value : ''}
                           onChange={(e) => field.onChange(Math.max(0, Math.floor(Number(e.target.value))))}
                           onBlur={field.onBlur}
-                          placeholder="VD: 250000"
+                          placeholder={t('priceAlert.targetPricePh')}
                           className="pl-9"
                         />
                       </FormControl>
                     </div>
                     {suggestedPrices.length > 0 && (
                       <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                        <span className="text-[11px] text-muted-foreground mr-1">Gợi ý:</span>
+                        <span className="text-[11px] text-muted-foreground mr-1">{t('priceAlert.suggestions')}</span>
                         {suggestedPrices.map((s) => (
                           <button
                             key={s.pct}

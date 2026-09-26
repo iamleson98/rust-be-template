@@ -9,6 +9,7 @@
  */
 
 import { useApp, type TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { Sunrise, Sun, Sunset, Moon, Star, Users, Wifi, Snowflake, Droplet, Zap, BedDouble } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,23 +18,23 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency'
 import { getHourOfDeparture, matchesTimeRange, type Filters, type TimeRange } from './helpers'
 
-export const TIME_RANGE_OPTIONS: { key: TimeRange; label: string; icon: React.ReactNode }[] = [
-  { key: '0-6', label: 'Sáng sớm (0-6h)', icon: <Sunrise className="h-3.5 w-3.5" /> },
-  { key: '6-12', label: 'Ban ngày (6-12h)', icon: <Sun className="h-3.5 w-3.5" /> },
-  { key: '12-18', label: 'Chiều (12-18h)', icon: <Sunset className="h-3.5 w-3.5" /> },
-  { key: '18-24', label: 'Ban đêm (18-24h)', icon: <Moon className="h-3.5 w-3.5" /> },
+export const TIME_RANGE_OPTIONS: { key: TimeRange; labelKey: string; icon: React.ReactNode }[] = [
+  { key: '0-6', labelKey: 'search.filter.earlyMorning', icon: <Sunrise className="h-3.5 w-3.5" /> },
+  { key: '6-12', labelKey: 'search.filter.morning', icon: <Sun className="h-3.5 w-3.5" /> },
+  { key: '12-18', labelKey: 'search.filter.afternoon', icon: <Sunset className="h-3.5 w-3.5" /> },
+  { key: '18-24', labelKey: 'searchPage.timeEvening', icon: <Moon className="h-3.5 w-3.5" /> },
 ]
 
-export const AMENITY_OPTIONS: { key: string; label: string; icon: React.ReactNode }[] = [
-  { key: 'wifi', label: 'WiFi', icon: <Wifi className="h-3.5 w-3.5" /> },
-  { key: 'ac', label: 'Điều hòa', icon: <Snowflake className="h-3.5 w-3.5" /> },
-  { key: 'water', label: 'Nước uống', icon: <Droplet className="h-3.5 w-3.5" /> },
-  { key: 'charging', label: 'Cắm sạc', icon: <Zap className="h-3.5 w-3.5" /> },
-  { key: 'blanket', label: 'Chăn mền', icon: <BedDouble className="h-3.5 w-3.5" /> },
+export const AMENITY_OPTIONS: { key: string; labelKey: string; icon: React.ReactNode }[] = [
+  { key: 'wifi', labelKey: 'searchPage.amenityWifi', icon: <Wifi className="h-3.5 w-3.5" /> },
+  { key: 'ac', labelKey: 'searchPage.amenityAc', icon: <Snowflake className="h-3.5 w-3.5" /> },
+  { key: 'water', labelKey: 'searchPage.amenityWater', icon: <Droplet className="h-3.5 w-3.5" /> },
+  { key: 'charging', labelKey: 'searchPage.amenityCharging', icon: <Zap className="h-3.5 w-3.5" /> },
+  { key: 'blanket', labelKey: 'searchPage.amenityBlanket', icon: <BedDouble className="h-3.5 w-3.5" /> },
 ]
 
-const RATING_OPTIONS = [
-  { value: 0, label: 'Tất cả' },
+const RATING_OPTIONS: { value: number; label?: string; labelKey?: string }[] = [
+  { value: 0, labelKey: 'common.all' },
   { value: 4.0, label: '4.0+' },
   { value: 4.5, label: '4.5+' },
   { value: 4.8, label: '4.8+' },
@@ -55,6 +56,7 @@ export function FilterPanel({
   isMobile?: boolean
 }) {
   const { currency } = useApp()
+  const t = useT()
   const updatePrice = (val: number[]) => {
     setFilters({ ...filters, priceMin: val[0], priceMax: val[1] })
   }
@@ -77,23 +79,23 @@ export function FilterPanel({
 
   // Count results per filter option (independent of that filter being active)
   const countForTimeRange = (key: TimeRange) =>
-    searchResults.filter((t) => matchesTimeRange(getHourOfDeparture(t), key)).length
+    searchResults.filter((tr) => matchesTimeRange(getHourOfDeparture(tr), key)).length
 
   // `?? []` defends against incomplete API items — the search endpoint may
   // return minimal trip objects before enrichment fills in `amenities`.
-  const countForAmenity = (key: string) => searchResults.filter((t) => (t.amenities ?? []).includes(key)).length
+  const countForAmenity = (key: string) => searchResults.filter((tr) => (tr.amenities ?? []).includes(key)).length
 
   const countForRating = (value: number) =>
-    value === 0 ? searchResults.length : searchResults.filter((t) => t.brandRating >= value).length
+    value === 0 ? searchResults.length : searchResults.filter((tr) => tr.brandRating >= value).length
 
-  const countAvailableOnly = searchResults.filter((t) => t.availableSeats > 5).length
+  const countAvailableOnly = searchResults.filter((tr) => tr.availableSeats > 5).length
 
   return (
     <div className={cn('space-y-4', isMobile && 'space-y-5')}>
       {/* Price Range Slider */}
       <div>
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-xs font-semibold uppercase text-muted-foreground shrink-0">Khoảng giá</span>
+          <span className="text-xs font-semibold uppercase text-muted-foreground shrink-0">{t('searchPage.priceRange')}</span>
           <span className="text-[11px] font-medium text-blue-700 text-right tabular-nums leading-tight">
             {formatCurrency(effectivePriceRange[0], currency)}
             <span className="text-slate-400 mx-0.5">–</span>
@@ -116,7 +118,7 @@ export function FilterPanel({
 
       {/* Departure Time Range */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Giờ khởi hành</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('search.sort.departure')}</div>
         <div className="space-y-1.5">
           {TIME_RANGE_OPTIONS.map((opt) => {
             const active = filters.timeRanges.includes(opt.key)
@@ -130,7 +132,7 @@ export function FilterPanel({
                 />
                 <span className="flex items-center gap-1.5 group-hover:text-blue-700 transition-colors flex-1">
                   <span className="text-blue-500">{opt.icon}</span>
-                  {opt.label}
+                  {t(opt.labelKey)}
                 </span>
                 {count > 0 && (
                   <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
@@ -143,7 +145,7 @@ export function FilterPanel({
 
       {/* Minimum Rating */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Đánh giá tối thiểu</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.minRating')}</div>
         <RadioGroup
           value={String(filters.minRating)}
           onValueChange={(v) => setFilters({ ...filters, minRating: Number(v) })}
@@ -167,7 +169,7 @@ export function FilterPanel({
                   className="data-[state=checked]:border-blue-600 data-[state=checked]:text-blue-600"
                 />
                 {opt.value > 0 && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
-                <span className="flex-1">{opt.label}</span>
+                <span className="flex-1">{opt.labelKey ? t(opt.labelKey) : opt.label}</span>
                 {count > 0 && (
                   <span className="text-[10px] text-muted-foreground">{count}</span>
                 )}
@@ -179,7 +181,7 @@ export function FilterPanel({
 
       {/* Available Seats */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Số ghế trống</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.availableSeats')}</div>
         <label className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
           <Checkbox
             checked={filters.availableOnly}
@@ -188,7 +190,7 @@ export function FilterPanel({
           />
           <span className="flex items-center gap-1.5 group-hover:text-blue-700 transition-colors flex-1">
             <Users className="h-3.5 w-3.5 text-blue-500" />
-            Chỉ hiện chuyến còn &gt; 5 chỗ
+            {t('searchPage.availableOnlyLabel')}
           </span>
           {countAvailableOnly > 0 && (
             <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{countAvailableOnly}</span>
@@ -198,7 +200,7 @@ export function FilterPanel({
 
       {/* Amenities */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">Tiện ích</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.amenities')}</div>
         <div className="grid grid-cols-2 gap-1.5">
           {AMENITY_OPTIONS.map((opt) => {
             const active = filters.amenities.includes(opt.key)
@@ -219,7 +221,7 @@ export function FilterPanel({
                   className="h-3.5 w-3.5 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                 />
                 <span className="text-blue-500">{opt.icon}</span>
-                <span className="flex-1 truncate">{opt.label}</span>
+                <span className="flex-1 truncate">{t(opt.labelKey)}</span>
                 {count > 0 && (
                   <span className="text-[10px] text-muted-foreground">{count}</span>
                 )}

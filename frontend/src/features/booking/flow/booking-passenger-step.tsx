@@ -14,6 +14,7 @@ import type { FieldArrayWithId, UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Users, Copy, Sparkles, Plus, ChevronRight } from 'lucide-react'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { SeatSelector } from './seat-selector'
 import { PassengerSummary } from './passenger-list'
 import { PassengerFormCard } from './passenger-form-card'
@@ -54,6 +55,7 @@ export function BookingPassengerStep({
   copyContactToFirst: () => void
   gotoContact: () => void
 }) {
+  const t = useT()
   return (
     <div className="p-5 space-y-4">
       {/* Header + actions */}
@@ -61,10 +63,10 @@ export function BookingPassengerStep({
         <div>
           <h3 className="font-semibold text-sm flex items-center gap-1.5">
             <Users className="h-4 w-4 text-blue-600" />
-            Thông tin hành khách
+            {t('bookingFlow.passengerInfo')}
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {passengers.length}/{selectedSeatCodes.length} hành khách • {selectedSeatCodes.length} ghế đã chọn
+            {t('bookingFlow.passengerSeatSummary', { count: passengers.length, seats: selectedSeatCodes.length })}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -76,7 +78,7 @@ export function BookingPassengerStep({
             className="gap-1.5 h-8 text-xs"
           >
             <Copy className="h-3.5 w-3.5" />
-            Sao chép từ liên hệ
+            {t('bookingFlow.copyFromContact')}
           </Button>
           <Button
             variant="outline"
@@ -86,7 +88,7 @@ export function BookingPassengerStep({
             className="gap-1.5 h-8 text-xs"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            Tự ghép ghế
+            {t('bookingFlow.autoMatchSeats')}
           </Button>
         </div>
       </div>
@@ -124,7 +126,7 @@ export function BookingPassengerStep({
           className="w-full gap-1.5 border-dashed"
         >
           <Plus className="h-4 w-4" />
-          Thêm hành khách (còn {selectedSeatCodes.length - passengerFields.length} ghế)
+          {t('bookingFlow.addPassengerRemaining', { count: selectedSeatCodes.length - passengerFields.length })}
         </Button>
       )}
 
@@ -146,7 +148,7 @@ export function BookingPassengerStep({
           disabled={!canContinueStep1}
           className="gap-1 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
         >
-          Tiếp tục <ChevronRight className="h-4 w-4" />
+          {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>

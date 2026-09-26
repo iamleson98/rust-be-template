@@ -12,6 +12,7 @@
  */
 
 import { Armchair } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import {
   PASSENGER_TYPE_META,
   getPassengerType,
@@ -26,13 +27,14 @@ export function SeatSelector({
   selectedSeats: SelectedSeat[]
   passengers: PassengerFormValue[]
 }) {
+  const t = useT()
   if (selectedSeats.length === 0) return null
 
   return (
     <div className="rounded-lg border bg-slate-50 p-3">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-2 flex items-center gap-1.5">
         <Armchair className="h-3 w-3" />
-        Sơ đồ ghép ghế
+        {t('bookingFlow.seatMapTitle')}
       </div>
       <div className="flex flex-wrap gap-2">
         {selectedSeats.map((s) => {
@@ -52,8 +54,8 @@ export function SeatSelector({
               }`}
               title={
                 isAssigned && passenger
-                  ? `Ghế ${s.code} — ${passenger.name || 'Hành khách ' + (passengerIdx + 1)}`
-                  : `Ghế ${s.code} — chưa gắn`
+                  ? t('booking.seatAssigned', { code: s.code, name: passenger.name || t('booking.passenger', { n: passengerIdx + 1 }) })
+                  : t('booking.seatUnassigned', { code: s.code })
               }
             >
               <div className="font-mono font-bold text-xs">{s.code}</div>
@@ -62,10 +64,10 @@ export function SeatSelector({
                   className={`text-[10px] font-medium ${typeMeta.text} flex items-center justify-center gap-0.5`}
                 >
                   {typeMeta.icon}
-                  HP{passengerIdx + 1}
+                  {t('bookingFlow.hpLabel')}{passengerIdx + 1}
                 </div>
               ) : (
-                <div className="text-[10px] text-slate-400">chưa gắn</div>
+                <div className="text-[10px] text-slate-400">{t('bookingFlow.unassigned')}</div>
               )}
             </div>
           )

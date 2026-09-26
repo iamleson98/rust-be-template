@@ -5,6 +5,7 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { MapPin, X, ArrowRight, Search } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { Place } from './map-view-types'
 
 export function MapSelectedCityPopup({
@@ -20,6 +21,7 @@ export function MapSelectedCityPopup({
   quickSearch: (fromName: string, toName: string) => void
   setSelectedCity: React.Dispatch<React.SetStateAction<{ place: Place; routeCount: number; popularDests: string[] } | null>>
 }) {
+  const t = useT()
   return (
     selectedCity && (
       <div className="absolute top-3 left-3 md:left-72.5 z-1000 w-70 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden ">
@@ -35,23 +37,23 @@ export function MapSelectedCityPopup({
         <div className="p-3 space-y-2.5">
           <div className="flex items-center gap-2 text-xs">
             <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-              {selectedCity.place.type === 'city' ? 'Thành phố' : selectedCity.place.type === 'bus_station' ? 'Bến xe' : 'Địa điểm'}
+              {selectedCity.place.type === 'city' ? t('mapPage.ptCity') : selectedCity.place.type === 'bus_station' ? t('mapPage.ptBusStation') : t('mapPage.ptOther')}
             </Badge>
             {selectedCity.place.province && <span className="text-muted-foreground">{selectedCity.place.province}</span>}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-lg bg-blue-50 ring-1 ring-blue-100 p-2">
               <div className="text-lg font-bold text-blue-700 tabular-nums">{selectedCity.routeCount}</div>
-              <div className="text-[10px] text-muted-foreground">tuyến đường</div>
+              <div className="text-[10px] text-muted-foreground">{t('mapPage.statRoutes')}</div>
             </div>
             <div className="rounded-lg bg-amber-50 ring-1 ring-amber-100 p-2">
               <div className="text-lg font-bold text-amber-600 tabular-nums">{selectedCity.popularDests.length}</div>
-              <div className="text-[10px] text-muted-foreground">điểm đến</div>
+              <div className="text-[10px] text-muted-foreground">{t('mapPage.statDests')}</div>
             </div>
           </div>
           {selectedCity.popularDests.length > 0 ? (
             <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Điểm đến phổ biến</div>
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">{t('map.popularDest')}</div>
               <div className="flex flex-wrap gap-1">
                 {selectedCity.popularDests.map((d) => {
                   const destPlace = places.find((p) => p.name === d)
@@ -72,7 +74,7 @@ export function MapSelectedCityPopup({
               </div>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground italic">Chưa có tuyến đường nào đi qua địa điểm này.</p>
+            <p className="text-xs text-muted-foreground italic">{t('mapPage.noRoutesHere')}</p>
           )}
           {selectedCity.popularDests.length > 0 && (
             <Button
@@ -81,7 +83,7 @@ export function MapSelectedCityPopup({
               onClick={() => quickSearch(selectedCity.place.name, selectedCity.popularDests[0])}
             >
               <Search className="h-3.5 w-3.5" />
-              Tìm chuyến từ {selectedCity.place.name}
+              {t('mapPage.searchFromCity', { city: selectedCity.place.name })}
             </Button>
           )}
         </div>

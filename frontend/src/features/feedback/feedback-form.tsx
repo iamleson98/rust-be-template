@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCreateReview, useUpdateReview } from '@/lib/queries'
+import { useT } from '@/lib/i18n'
 import { BookingItem, ReviewSummary } from '@/features/booking/history/booking-types'
 import { feedbackSchema, type FeedbackValues } from './feedback-schema'
 import { ExistingReviewCard } from './existing-review-card'
@@ -55,6 +56,7 @@ type Props = {
  * read-only view in `existing-review-card.tsx`.
  */
 export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview, onSubmitted, onClose }: Props) {
+  const t = useT()
   const isEditingExisting = !!existingReview
   const [editMode, setEditMode] = useState(!isEditingExisting)
   const [hoverRating, setHoverRating] = useState(0)
@@ -68,10 +70,10 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
         ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
       if (review) onSubmitted?.(review)
       setSubmitted(true)
-      toast.success('Cảm ơn đánh giá của bạn!')
+      toast.success(t('feedbackForm.thanksToast'))
     },
     onError: () => {
-      toast.error('Không thể gửi đánh giá')
+      toast.error(t('feedbackForm.sendError'))
     },
   })
 
@@ -81,10 +83,10 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
         ((data ?? {}) as { data?: { review?: unknown } }).data?.review) as ReviewSummary | undefined
       if (review) onSubmitted?.(review)
       setSubmitted(true)
-      toast.success('Đã cập nhật đánh giá!')
+      toast.success(t('feedbackForm.updatedToast'))
     },
     onError: () => {
-      toast.error('Không thể cập nhật đánh giá')
+      toast.error(t('feedbackForm.updateError'))
     },
   })
 
@@ -109,7 +111,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
 
   const onSubmit = (values: FeedbackValues) => {
     if (!booking.trip?.routeId || !booking.trip?.brandId) {
-      toast.error('Thiếu thông tin tuyến/hãng để gửi đánh giá')
+      toast.error(t('feedbackForm.missingTripInfo'))
       return
     }
     const payload = {
@@ -165,14 +167,13 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
           <div className="inline-flex h-16 w-16 rounded-full bg-linear-to-br from-amber-400 to-orange-500 items-center justify-center mb-3">
             <Check className="h-8 w-8 text-white" strokeWidth={3} />
           </div>
-          <h4 className="font-bold text-lg mb-1">Cảm ơn đánh giá của bạn!</h4>
+          <h4 className="font-bold text-lg mb-1">{t('feedbackForm.thanksToast')}</h4>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-            Nhận xét của bạn giúp cộng đồng hành khách DatXeVui chọn chuyến đi tốt hơn và giúp hãng xe
-            cải thiện dịch vụ.
+            {t('feedbackForm.thanksDesc')}
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 ring-1 ring-amber-200 px-3 py-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs font-medium text-amber-700">+10 điểm tích lũy</span>
+            <span className="text-xs font-medium text-amber-700">{t('feedbackForm.pointsEarned')}</span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-2">
             <Button
@@ -183,7 +184,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                 reset()
               }}
             >
-              Đóng
+              {t('common.close')}
             </Button>
           </div>
         </CardContent>
@@ -201,12 +202,12 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
           <div>
             <h4 className="font-bold text-base flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              {existingReview ? 'Chỉnh sửa đánh giá' : 'Đánh giá chuyến đi'}
+              {existingReview ? t('feedbackForm.editTitle') : t('feedbackForm.formTitle')}
             </h4>
             <div className="mt-1 flex items-center gap-2 text-xs">
               <Badge variant="outline" className="gap-1 bg-blue-50">
                 <Bus className="h-3 w-3" />
-                {booking.trip?.brandName ?? 'Nhà xe'}
+                {booking.trip?.brandName ?? t('bookingHistory.brandFallback')}
               </Badge>
               <Badge variant="outline" className="gap-1 bg-slate-50">
                 <RouteIcon className="h-3 w-3" />
@@ -221,7 +222,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
               className="text-xs h-7"
               onClick={() => setEditMode(false)}
             >
-              Hủy chỉnh sửa
+              {t('feedbackForm.cancelEdit')}
             </Button>
           )}
         </div>
@@ -247,13 +248,13 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
               render={({ field }) => (
                 <FormItem className="space-y-1.5">
                   <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Tiêu đề (tuỳ chọn)
+                    {t('feedbackForm.titleLabel')}
                   </FormLabel>
                   <FormControl>
                     <Input
                       {...field}
                       value={field.value ?? ''}
-                      placeholder="VD: Chuyến đi tuyệt vời, đúng giờ!"
+                      placeholder={t('feedbackForm.titlePlaceholder')}
                       maxLength={80}
                     />
                   </FormControl>
@@ -283,7 +284,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
-                {existingReview ? 'Lưu chỉnh sửa' : 'Gửi đánh giá'}
+                {existingReview ? t('feedbackForm.saveEdit') : t('feedbackForm.submit')}
               </Button>
               {onClose && (
                 <Button
@@ -292,7 +293,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                   onClick={onClose}
                   disabled={submitting}
                 >
-                  Hủy
+                  {t('feedbackForm.cancel')}
                 </Button>
               )}
             </div>

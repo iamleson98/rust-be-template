@@ -13,6 +13,7 @@ import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
 import { useAdminBookings, type AdminBookingFilter } from '@/lib/queries'
 import type { AdminBookingOut } from '@/lib/api/types.gen'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
+import { useT } from '@/lib/i18n'
 import { PAGE_SIZE, formatVND } from './tickets-helpers'
 
 export function TicketsBookingsTable({
@@ -34,14 +35,15 @@ export function TicketsBookingsTable({
   handleSortingChange: (next: SortingState) => void
   setSelectedBookingId: Dispatch<SetStateAction<string | null>>
 }) {
+  const t = useT()
   return (
     <>
       <div className="flex items-center justify-between gap-2 pb-2">
         <h2 className="text-base font-semibold flex items-center gap-2">
           <TicketIcon className="h-4 w-4 text-blue-600" />
-          Danh sách vé đã bán
+          {t('adminTickets.soldTicketsTitle')}
           <Badge variant="secondary" className="text-[10px]">
-            {total} vé
+            {t('adminTickets.ticketCount', { count: total })}
           </Badge>
         </h2>
         <Button
@@ -52,13 +54,13 @@ export function TicketsBookingsTable({
           disabled={bookingsQuery.isFetching}
         >
           <RefreshCw className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`} />
-          Làm mới
+          {t('common.refresh')}
         </Button>
       </div>
       <DataTable
             columns={columns}
             data={bookingsQuery.data?.items ?? []}
-            rowNoun="vé"
+            rowNoun={t('adminTickets.rowNoun')}
             manualPagination
             totalRowCount={total}
             pageIndex={Math.floor(offset / PAGE_SIZE)}
@@ -73,10 +75,10 @@ export function TicketsBookingsTable({
             isError={bookingsQuery.isError}
             onRetry={() => bookingsQuery.refetch()}
             onRowClick={(b) => setSelectedBookingId(b.id)}
-            rowAriaLabel={(b) => `Xem chi tiết vé ${b.code}`}
+            rowAriaLabel={(b) => t('adminTickets.viewTicketDetail', { code: b.code })}
             rowClassName="card-hover-lift"
-            emptyTitle="Chưa có vé nào"
-            emptyDescription="Thử thay đổi bộ lọc hoặc mở rộng khoảng thời gian."
+            emptyTitle={t('adminTickets.emptyTitle')}
+            emptyDescription={t('adminTickets.emptyDescription')}
             emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
             toolbar={(table) => (
               <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">

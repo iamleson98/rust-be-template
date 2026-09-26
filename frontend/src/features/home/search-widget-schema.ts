@@ -2,6 +2,13 @@
 
 import { z } from 'zod'
 import { requiredText } from '@/lib/forms'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+// Error messages use Zod's functional `{ error: () => ... }` form so the
+// string is resolved (in the store's current language) at validation
+// time, not at module load.
+const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 /**
  * Search-widget schema.
@@ -17,22 +24,22 @@ import { requiredText } from '@/lib/forms'
  */
 export const searchSchema = z
   .object({
-    from: requiredText('Điểm đi'),
-    to: requiredText('Điểm đến'),
-    date: requiredText('Ngày đi'),
+    from: requiredText('search.from'),
+    to: requiredText('search.to'),
+    date: requiredText('search.date'),
     roundTrip: z.boolean(),
     returnDate: z.string(),
-    adults: z.number().int().min(1, 'Phải có ít nhất 1 người lớn'),
+    adults: z.number().int().min(1, { error: () => tSync('searchSchema.adultsMin') }),
     children: z.number().int().min(0),
     sort: z.enum(['departure', 'price', 'duration', 'rating']),
     vehicleTypes: z.array(z.string()),
   })
   .refine((d) => !d.roundTrip || d.returnDate !== '', {
-    message: 'Vui lòng chọn ngày về cho chuyến khứ hồi',
+    error: () => tSync('searchSchema.returnDateRequired'),
     path: ['returnDate'],
   })
   .refine((d) => !d.roundTrip || d.returnDate >= d.date, {
-    message: 'Ngày về phải sau ngày đi',
+    error: () => tSync('searchSchema.returnDateAfter'),
     path: ['returnDate'],
   })
 

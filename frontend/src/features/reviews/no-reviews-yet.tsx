@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -46,11 +47,12 @@ export const NoReviewsYet = memo(function NoReviewsYet({
   onWrite?: () => void
   className?: string
 }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<StarSVG />}
-      title="Chưa có đánh giá"
-      description="Hãy là người đầu tiên chia sẻ trải nghiệm chuyến đi của bạn."
+      title={t('reviews.emptyTitle')}
+      description={t('reviews.emptyDescription')}
       className={className}
       size="sm"
     >
@@ -60,7 +62,7 @@ export const NoReviewsYet = memo(function NoReviewsYet({
           className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
           onClick={onWrite}
         >
-          Viết đánh giá đầu tiên
+          {t('reviews.writeFirstReview')}
         </Button>
       )}
     </EmptyState>

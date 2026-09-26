@@ -12,6 +12,7 @@ import type { UseFormReturn } from 'react-hook-form'
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { Textarea } from '@/components/ui/textarea'
 import { AlertCircle } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { FeedbackValues } from './feedback-schema'
 
 export function FeedbackCommentField({
@@ -21,6 +22,7 @@ export function FeedbackCommentField({
   form: UseFormReturn<FeedbackValues>
   isShortComment: boolean
 }) {
+  const t = useT()
   return (
             <FormField
               control={form.control}
@@ -28,13 +30,13 @@ export function FeedbackCommentField({
               render={({ field }) => (
                 <FormItem className="space-y-1.5">
                   <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Nhận xét chi tiết (tuỳ chọn, tối thiểu 20 ký tự)
+                    {t('feedbackForm.commentLabel')}
                   </FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
                       value={field.value ?? ''}
-                      placeholder="Chia sẻ trải nghiệm của bạn về chuyến đi: thái độ tài xế, độ sạch sẽ, tiện nghi..."
+                      placeholder={t('feedbackForm.commentPlaceholder')}
                       rows={4}
                       className="resize-none"
                       maxLength={2000}
@@ -46,7 +48,7 @@ export function FeedbackCommentField({
                   {isShortComment && !form.formState.errors.content && (
                     <div className="flex items-center gap-1.5 text-[11px] text-amber-700">
                       <AlertCircle className="h-3 w-3" />
-                      Nội dung đánh giá cần ít nhất 20 ký tự để gửi.
+                      {t('feedbackForm.commentTooShort')}
                     </div>
                   )}
                   <FormMessage />

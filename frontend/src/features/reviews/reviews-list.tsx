@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { useT } from '@/lib/i18n'
 import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
 import { Lightbox } from '@/components/icons/lightbox'
 import { type Review, ReviewCard } from './review-card'
@@ -45,6 +46,7 @@ function computeDistribution(reviews: { rating?: number }[]): number[] {
 }
 
 export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandName, routeName, accentColor = '#2563eb' }: Props) {
+  const t = useT()
   const [page, setPage] = useState(1)
   const [helpfulMap, setHelpfulMap] = useState<Record<string, boolean>>({})
   const [lightboxOpen, setLightboxOpen] = useState(false)
@@ -116,7 +118,7 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <Loader2 className="h-7 w-7 animate-spin text-blue-600 mb-2" />
-        <p className="text-sm">Đang tải đánh giá...</p>
+        <p className="text-sm">{t('reviews.loading')}</p>
       </div>
     )
   }
@@ -125,9 +127,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center">
         <AlertCircle className="h-8 w-8 text-rose-500 mb-2" />
-        <p className="text-sm text-muted-foreground mb-3">Không thể tải đánh giá</p>
+        <p className="text-sm text-muted-foreground mb-3">{t('reviews.loadError')}</p>
         <Button size="sm" variant="outline" onClick={() => reviewsQuery.refetch()}>
-          Thử lại
+          {t('payment.retry')}
         </Button>
       </div>
     )
@@ -154,13 +156,13 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
               ))}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {aggregate.count.toLocaleString('vi-VN')} đánh giá
+              {t('reviews.countLabel', { count: aggregate.count.toLocaleString('vi-VN') })}
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5">{brandName}</div>
           </div>
           <div className="space-y-1.5">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
-              Phân bố sao
+              {t('reviews.ratingDistribution')}
             </div>
             {[5, 4, 3, 2, 1].map((star) => {
               const count = aggregate.distribution[star - 1] ?? 0
@@ -193,9 +195,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
           <div className="flex items-center justify-between">
             <h4 className="font-semibold text-sm flex items-center gap-1.5">
               <MessageSquareQuote className="h-4 w-4 text-amber-500" />
-              {total} đánh giá cho tuyến {routeName}
+              {t('reviews.reviewsForRoute', { count: total, route: routeName })}
             </h4>
-            <div className="text-xs text-muted-foreground">Trang {page}/{totalPages}</div>
+            <div className="text-xs text-muted-foreground">{t('reviews.pageIndicator', { page, totalPages })}</div>
           </div>
           <div className="space-y-3">
             {pageReviews.map((r) => (

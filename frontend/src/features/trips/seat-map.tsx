@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { SEAT_CLASS_LABELS, SEAT_CLASS_COLORS, formatVND } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import { SteeringWheel } from '@/components/icons/icons'
 import { Check, Info } from 'lucide-react'
 
@@ -28,15 +29,15 @@ type Props = {
 }
 
 export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Props) {
+  const t = useT()
   return (
     <div className="space-y-5">
       {/* Instructional banner — guides the user on how to select seats */}
       <div className="flex items-start gap-2 rounded-lg bg-info/5 border border-info/20 p-3 text-xs text-muted-foreground">
         <Info className="h-4 w-4 text-info shrink-0 mt-0.5" />
         <div>
-          <span className="font-medium text-info-foreground">Hướng dẫn chọn ghế:</span>{' '}
-          Nhấn vào ghế trống (viền trắng) để chọn. Ghế đã có người ngồi hiển thị mờ.
-          Tối đa {maxSeats} ghế mỗi lượt đặt.
+          <span className="font-medium text-info-foreground">{t('trips.seatGuideTitle')}</span>{' '}
+          {t('trips.seatGuideBody', { count: maxSeats })}
         </div>
       </div>
 
@@ -47,8 +48,8 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
           <div key={d.deck} className="rounded-xl border-2 border-slate-200 overflow-hidden">
             {decks.length > 1 && (
               <div className="bg-slate-100 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600 flex items-center justify-between">
-                <span>{d.deck === 1 ? 'Tầng dưới' : 'Tầng trên'}</span>
-                <span className="text-muted-foreground">Tầng {d.deck}</span>
+                <span>{d.deck === 1 ? t('trips.deckLower') : t('trips.deckUpper')}</span>
+                <span className="text-muted-foreground">{t('trips.deckLabel', { deck: d.deck })}</span>
               </div>
             )}
             <div className="p-3 sm:p-5 bg-linear-to-b from-slate-50 to-white">
@@ -56,7 +57,7 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
               <div className="flex justify-center mb-3">
                 <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-800 text-white text-xs font-semibold">
                   <SteeringWheel className="h-3.5 w-3.5" />
-                  Tài xế
+                  {t('trips.driver')}
                 </div>
               </div>
 
@@ -95,15 +96,15 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 text-xs">
-        <LegendItem className="bg-white border-2 border-slate-300" label="Còn trống" />
-        <LegendItem className="bg-primary text-primary-foreground" label="Đang chọn" />
-        <LegendItem className="bg-slate-300 text-slate-500" label="Đã đặt" />
-        <LegendItem className="bg-warning/30 border border-warning/50" label="Đang giữ" />
+        <LegendItem className="bg-white border-2 border-slate-300" label={t('trips.legendAvailable')} />
+        <LegendItem className="bg-primary text-primary-foreground" label={t('trips.legendSelected')} />
+        <LegendItem className="bg-slate-300 text-slate-500" label={t('trips.legendBooked')} />
+        <LegendItem className="bg-warning/30 border border-warning/50" label={t('trips.legendHeld')} />
         <div className="w-px h-4 bg-slate-300 mx-1" />
         {Object.entries(SEAT_CLASS_COLORS).map(([cls, color]) => (
           <div key={cls} className="flex items-center gap-1.5">
             <span className="h-3 w-3 rounded" style={{ background: color }} />
-            <span className="text-muted-foreground">{SEAT_CLASS_LABELS[cls]}</span>
+            <span className="text-muted-foreground">{t(SEAT_CLASS_LABELS[cls] ?? cls)}</span>
           </div>
         ))}
       </div>
@@ -124,6 +125,7 @@ function SeatButton({
   onClick: () => void
   staggerDelay?: number
 }) {
+  const t = useT()
   const status = seat.status
   const cls = seat.seatClass
   const color = SEAT_CLASS_COLORS[cls] ?? '#64748b'
@@ -133,8 +135,17 @@ function SeatButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={`${seat.code} • ${SEAT_CLASS_LABELS[cls] ?? cls} • ${formatVND(seat.finalPrice)}`}
-      aria-label={`Ghế ${seat.code}, ${SEAT_CLASS_LABELS[cls] ?? cls}, ${formatVND(seat.finalPrice)}, ${selected ? 'đang chọn' : status === 'available' ? 'còn trống' : 'đã có người'}`}
+      title={`${seat.code} • ${t(SEAT_CLASS_LABELS[cls] ?? cls)} • ${formatVND(seat.finalPrice)}`}
+      aria-label={t('trips.seatAriaLabel', {
+        code: seat.code,
+        seatClass: t(SEAT_CLASS_LABELS[cls] ?? cls),
+        price: formatVND(seat.finalPrice),
+        status: selected
+          ? t('trips.seatStatusSelected')
+          : status === 'available'
+            ? t('trips.seatStatusAvailable')
+            : t('trips.seatStatusOccupied'),
+      })}
       aria-pressed={selected}
       className={cn(
         'relative h-11 w-11 rounded-lg text-[10px] font-bold flex items-center justify-center transition-all',

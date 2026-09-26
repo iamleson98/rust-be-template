@@ -44,6 +44,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
@@ -80,6 +81,7 @@ import { getErrorMessage } from '@/lib/error-message'
 
 export function ChatWidget() {
   const { chatOpen, setChatOpen, callOpen, setCallOpen, user: storeUser, setUser: setStoreUser } = useApp()
+  const t = useT()
   const navigate = useNavigate()
   const qc = useQueryClient()
 
@@ -219,13 +221,13 @@ export function ChatWidget() {
   // ── Mutations ─────────────────────────────────────────────────────
   const createChannelMut = useCreateChatChannel<CreateChannelResponse, CreateChannelData>({
     onError: (err) => {
-      toast.error(getErrorMessage(err, 'Không thể tạo kênh chat'))
+      toast.error(getErrorMessage(err, t('chatWidget.createChannelError')))
     },
   })
 
   const postMessageMut = usePostChatMessage({
     onError: () => {
-      toast.error('Không thể gửi tin nhắn')
+      toast.error(t('chat.sendFailed'))
     },
   })
 
@@ -351,7 +353,7 @@ export function ChatWidget() {
       channelId: activeChannel.id,
       senderType: 'user',
       senderId: chatUser?.id ?? '',
-      senderName: chatUser?.name ?? 'Bạn',
+      senderName: chatUser?.name ?? t('chatWidget.you'),
       content,
       kind: 'text',
       createdAt: new Date().toISOString(),
@@ -431,7 +433,7 @@ export function ChatWidget() {
       ref={panelRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Hỗ trợ DatXeVui"
+      aria-label={t('chatWidget.supportTitle')}
       className="fixed bottom-0 right-0 sm:bottom-5 sm:right-5 z-50 w-full sm:w-100 h-screen sm:h-150 sm:max-h-[85vh] bg-white sm:rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300"
     >
       <ChatHeader
@@ -459,7 +461,7 @@ export function ChatWidget() {
       {callOpen && chatUser ? (
         <div id="customer-call-surface" className="flex min-h-0 flex-1 flex-col" />
       ) : authMe.isLoading || initializingChannel ? (
-        <div className="flex flex-1 items-center justify-center" aria-label="Đang kiểm tra đăng nhập">
+        <div className="flex flex-1 items-center justify-center" aria-label={t('chatWidget.checkingLogin')}>
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : view === 'list' ? (

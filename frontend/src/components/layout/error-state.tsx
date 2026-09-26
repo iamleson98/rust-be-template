@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/layout/empty-state'
+import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */
 
@@ -37,18 +38,19 @@ function WarningSVG() {
 
 export const ErrorState = memo(function ErrorState({
   onRetry,
-  description = 'Đã có lỗi xảy ra trong quá trình tải dữ liệu. Vui lòng thử lại.',
+  description,
   className,
 }: {
   onRetry?: () => void
   description?: string
   className?: string
 }) {
+  const t = useT()
   return (
     <EmptyState
       illustration={<WarningSVG />}
-      title="Đã có lỗi xảy ra"
-      description={description}
+      title={t('layout.error.title')}
+      description={description ?? t('layout.error.description')}
       className={className}
     >
       {onRetry && (
@@ -58,7 +60,7 @@ export const ErrorState = memo(function ErrorState({
           className="gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
           onClick={onRetry}
         >
-          Thử lại
+          {t('payment.retry')}
         </Button>
       )}
     </EmptyState>

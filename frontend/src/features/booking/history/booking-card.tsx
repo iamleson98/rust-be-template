@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { VEHICLE_TYPE_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import {
   Bus,
   User,
@@ -80,6 +81,7 @@ function BookingCardImpl({
   const sc = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.pending
   const canCancel = b.status === 'held' || b.status === 'pending' || b.status === 'confirmed'
   const canReview = isBookingReviewable(b)
+  const t = useT()
   const depTime = b.trip ? new Date(b.trip.departureAt) : null
   // Snapshot of 'now' taken once per mount — Date.now() directly in the
   // render body is impure (breaks memoization under React Compiler).
@@ -114,16 +116,16 @@ function BookingCardImpl({
                       {b.code}
                     </code>
                     <Badge className={`text-[11px] gap-1 px-2.5 py-0.5 ${sc.cls} border-0 font-semibold`}>
-                      <StatusIcon name={sc.icon} /> {sc.label}
+                      <StatusIcon name={sc.icon} /> {t(sc.labelKey)}
                     </Badge>
                     {isUpcoming && b.status !== 'cancelled' && (
                       <Badge className="text-[10px] gap-1 bg-blue-100 text-blue-700 border-0 font-semibold">
-                        <Sparkles className="h-3 w-3" /> Sắp đi
+                        <Sparkles className="h-3 w-3" /> {t('bookingHistory.upcoming')}
                       </Badge>
                     )}
                     {hasReview && (
                       <Badge className="text-[10px] gap-1 bg-amber-100 text-amber-700 border-0 font-semibold">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> Đã đánh giá
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {t('bookingHistory.reviewed')}
                       </Badge>
                     )}
                   </div>
@@ -151,7 +153,7 @@ function BookingCardImpl({
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                           <span className="font-medium text-foreground/80">{b.trip.brandName}</span>
                           <span className="text-muted-foreground/60">•</span>
-                          <span>{VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType}</span>
+                          <span>{t(VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType)}</span>
                         </div>
                       </div>
                     </div>
@@ -216,7 +218,7 @@ function BookingCardImpl({
                     {b.seats.length > 0 && (
                       <Badge variant="outline" className="text-[10px] gap-0.5 px-1.5 py-0">
                         <Hash className="h-2.5 w-2.5" />
-                        {b.seats.length} ghế
+                        {t('bookingHistory.seatsCount', { count: b.seats.length })}
                       </Badge>
                     )}
                   </div>
@@ -229,7 +231,7 @@ function BookingCardImpl({
                     {b.discount > 0 && (
                       <div className="text-xs text-blue-600 flex items-center gap-1 justify-end font-medium">
                         <Tag className="h-3 w-3" />
-                        Giảm {formatCurrency(b.discount, currency)}
+                        {t('bookingHistory.discountAmount', { amount: formatCurrency(b.discount, currency) })}
                       </div>
                     )}
                   </div>

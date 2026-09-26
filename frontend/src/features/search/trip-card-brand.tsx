@@ -10,6 +10,7 @@
  */
 
 import type { TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { VEHICLE_TYPE_ICONS } from '@/lib/types'
 import { Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -31,6 +32,7 @@ export function TripCardBrand({
   trip: TripResult
   onBrandClick: (e: React.MouseEvent) => void
 }) {
+  const t = useT()
   // Vehicle type emoji
   const vehicleEmoji = VEHICLE_TYPE_ICONS[trip.vehicleType] ?? '🚌'
 
@@ -49,7 +51,7 @@ export function TripCardBrand({
         <button
           onClick={onBrandClick}
           className="font-bold text-sm truncate hover:text-blue-700 hover:underline transition-colors text-left max-w-full block"
-          title={`Xem chi tiết ${trip.brandName}`}
+          title={t('searchPage.viewBrandDetails', { name: trip.brandName })}
         >
           {trip.brandName}
         </button>

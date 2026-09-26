@@ -8,6 +8,7 @@
  */
 
 import { Badge } from '@/components/ui/badge'
+import { useT } from '@/lib/i18n'
 import {
   CheckCircle2,
   Clock,
@@ -18,13 +19,14 @@ import {
 /* ─── Booking Status Badge ─── */
 
 export function BookingStatusBadge({ status }: { status: string }) {
+  const t = useT()
   const map: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
-    confirmed: { label: 'Xác nhận', cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3 w-3" /> },
-    paid: { label: 'Xác nhận', cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3 w-3" /> },
-    pending: { label: 'Chờ xử lý', cls: 'bg-amber-100 text-amber-700', icon: <Clock className="h-3 w-3" /> },
-    completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" /> },
-    cancelled: { label: 'Đã huỷ', cls: 'bg-rose-100 text-rose-700', icon: <Ban className="h-3 w-3" /> },
-    refunded: { label: 'Hoàn tiền', cls: 'bg-slate-100 text-slate-600', icon: <ArrowDownRight className="h-3 w-3" /> },
+    confirmed: { label: t('common.confirm'), cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3 w-3" /> },
+    paid: { label: t('common.confirm'), cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3 w-3" /> },
+    pending: { label: t('adminDash.statusPending'), cls: 'bg-amber-100 text-amber-700', icon: <Clock className="h-3 w-3" /> },
+    completed: { label: t('adminDash.statusCompleted'), cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3 w-3" /> },
+    cancelled: { label: t('adminDash.statusCancelled'), cls: 'bg-rose-100 text-rose-700', icon: <Ban className="h-3 w-3" /> },
+    refunded: { label: t('adminDash.statusRefunded'), cls: 'bg-slate-100 text-slate-600', icon: <ArrowDownRight className="h-3 w-3" /> },
   }
   const s = map[status] ?? map.pending
   return (

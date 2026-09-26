@@ -21,7 +21,8 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2, Send } from 'lucide-react'
-import { QUICK_ACTIONS } from './_shared'
+import { useT } from '@/lib/i18n'
+import { getQuickActions } from './_shared'
 
 /** Hard character limit for a single chat message. */
 export const MAX_MESSAGE_CHARS = 500
@@ -44,6 +45,7 @@ export function ChatInput({
   // Use Array.from to count code points (not UTF-16 code units) —
   // a Vietnamese message with diacritics would otherwise report a
   // misleadingly high count from `input.length`.
+  const t = useT()
   const charCount = Array.from(input).length
   const overLimit = charCount > MAX_MESSAGE_CHARS
 
@@ -51,9 +53,9 @@ export function ChatInput({
     <>
       {showQuickActions && (
         <div className="border-t px-3 py-2 bg-linear-to-b from-rose-50/50 to-white">
-          <div className="text-[10px] text-muted-foreground mb-1.5 font-medium">Chọn nhanh:</div>
+          <div className="text-[10px] text-muted-foreground mb-1.5 font-medium">{t('chat.quickActions')}</div>
           <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
-            {QUICK_ACTIONS.map((qa) => (
+            {getQuickActions().map((qa) => (
               <button
                 key={qa.label}
                 onClick={() => onQuickAction(qa.message)}
@@ -84,7 +86,7 @@ export function ChatInput({
                 if (!overLimit) onSend()
               }
             }}
-            placeholder="Nhập tin nhắn..."
+            placeholder={t('chat.inputPlaceholder')}
             // text-base = 16px → iOS Safari won't zoom on focus (it zooms
             // when the input font-size is <16px).
             className="flex-1 h-11 text-base"
@@ -107,7 +109,7 @@ export function ChatInput({
               aria-live="polite"
             >
               {charCount}/{MAX_MESSAGE_CHARS}
-              {overLimit && ' — vượt giới hạn'}
+              {overLimit && ' — ' + t('chatWidget.overLimit')}
             </div>
           )}
         </div>
@@ -119,14 +121,14 @@ export function ChatInput({
           size="icon"
           // h-11 w-11 = 44px — Apple HIG minimum touch target.
           className="bg-rose-600 hover:bg-rose-700 shrink-0 h-11 w-11"
-          aria-label="Gửi tin nhắn"
+          aria-label={t('chatWidget.sendMessage')}
         >
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>
       {overLimit && (
         <div className="px-3 pb-1 text-[11px] text-red-500">
-          Tin nhắn quá dài ({charCount}/{MAX_MESSAGE_CHARS}). Vui lòng rút gọn xuống {MAX_MESSAGE_CHARS} ký tự để gửi.
+          {t('chat.messageTooLong', { n: charCount, m: MAX_MESSAGE_CHARS })}
         </div>
       )}
     </>

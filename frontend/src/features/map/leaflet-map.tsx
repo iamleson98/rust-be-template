@@ -14,6 +14,7 @@ import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { search as sdkPlaceSearch, reverse as sdkReverseGeocode } from '@/lib/api/sdk.gen'
+import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
@@ -158,33 +159,37 @@ export function LeafletMap({
   )
 }
 
+/** i18n keys for humanising Tantivy place_type slugs in search results. */
+const PLACE_TYPE_KEYS: Record<string, string> = {
+  city: 'mapPage.ptCity', town: 'mapPage.ptTown', village: 'mapPage.ptVillage', hamlet: 'mapPage.ptHamlet',
+  suburb: 'mapPage.ptSuburb', quarter: 'mapPage.ptWard', neighbourhood: 'mapPage.ptNeighbourhood',
+  ward: 'mapPage.ptWard', district: 'mapPage.ptDistrict', province: 'mapPage.ptProvince',
+  bus_station: 'mapPage.ptBusStation', transit_stop: 'mapPage.ptTransitStop', rail_station: 'mapPage.ptRailStation',
+  airport: 'mapPage.ptAirport', road_primary: 'mapPage.ptRoadPrimary', road_secondary: 'mapPage.ptRoadSecondary',
+  road_tertiary: 'mapPage.ptRoadTertiary', road_residential: 'mapPage.ptRoadResidential',
+  road_motorway: 'mapPage.ptMotorway', road_trunk: 'mapPage.ptTrunk',
+  amenity_school: 'mapPage.ptSchool', amenity_hospital: 'mapPage.ptHospital',
+  amenity_university: 'mapPage.ptUniversity', amenity_college: 'mapPage.ptCollege',
+  amenity_marketplace: 'mapPage.ptMarket', amenity_townhall: 'mapPage.ptTownhall',
+}
+
 /** Humanise a Tantivy place_type slug for display in search results. */
-function formatPlaceType(t: string): string {
-  const MAP: Record<string, string> = {
-    city: 'Thành phố', town: 'Thị xã', village: 'Xã', hamlet: 'Thôn',
-    suburb: 'Khu vực', quarter: 'Phường', neighbourhood: 'Khu phố',
-    ward: 'Phường', district: 'Quận/Huyện', province: 'Tỉnh',
-    bus_station: 'Bến xe', transit_stop: 'Điểm dừng', rail_station: 'Ga tàu',
-    airport: 'Sân bay', road_primary: 'Đường chính', road_secondary: 'Đường phụ',
-    road_tertiary: 'Đường nhỏ', road_residential: 'Đường dân cư',
-    road_motorway: 'Cao tốc', road_trunk: 'Quốc lộ',
-    amenity_school: 'Trường học', amenity_hospital: 'Bệnh viện',
-    amenity_university: 'Trường đại học', amenity_college: 'Trường cao đẳng',
-    amenity_marketplace: 'Chợ', amenity_townhall: 'UBND',
-  }
-  if (MAP[t]) return MAP[t]
+function formatPlaceType(type: string, t: ReturnType<typeof useT>): string {
+  const key = PLACE_TYPE_KEYS[type]
+  if (key) return t(key)
   // Generic: strip prefix and replace _ with space
-  return t.replace(/^(road_|amenity_|tourism_|leisure_|shop_)/, '').replace(/_/g, ' ')
+  return type.replace(/^(road_|amenity_|tourism_|leisure_|shop_)/, '').replace(/_/g, ' ')
 }
 
 /** Search box that queries the Tantivy places index. */
 function MapSearchBox({
   onSelect,
-  placeholder = 'Tìm thành phố, bến xe…',
+  placeholder,
 }: {
   onSelect: (hit: PlaceHit) => void
   placeholder?: string
 }) {
+  const t = useT()
   const [q, setQ] = useState('')
   const [hits, setHits] = useState<PlaceHit[]>([])
   const [loading, setLoading] = useState(false)
@@ -231,7 +236,7 @@ function MapSearchBox({
           value={q}
           onChange={(e) => onInput(e.target.value)}
           onFocus={() => setOpen(true)}
-          placeholder={placeholder}
+          placeholder={placeholder ?? t('mapPage.searchPlaceholder')}
           className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
         />
         {loading && (
@@ -244,7 +249,7 @@ function MapSearchBox({
               setHits([])
             }}
             className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            aria-label="Xóa"
+            aria-label={t('mapPage.clear')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -268,7 +273,7 @@ function MapSearchBox({
                   <span className="text-muted-foreground">
                     {h.province
                       ? `, ${h.province}`
-                      : ` (${formatPlaceType(h.type)}, ${h.lat.toFixed(3)}, ${h.lon.toFixed(3)})`}
+                      : ` (${formatPlaceType(h.type, t)}, ${h.lat.toFixed(3)}, ${h.lon.toFixed(3)})`}
                   </span>
                 </span>
               </button>
@@ -318,8 +323,9 @@ type MapPickerProps = {
 }
 
 export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCancel }: MapPickerProps) {
+  const t = useT()
   const [picked, setPicked] = useState<PickedPlace | null>(
-    initial ? { name: initial.name ?? 'Vị trí đã chọn', lat: initial.lat, lon: initial.lon } : null,
+    initial ? { name: initial.name ?? t('map.selectedLocation'), lat: initial.lat, lon: initial.lon } : null,
   )
   const [reverseLoading, setReverseLoading] = useState(false)
   // When the user picks a new location (via search or "my location"), we want
@@ -330,12 +336,12 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
   )
 
   const handleMapClick = useCallback(async (lat: number, lon: number) => {
-    setPicked({ name: 'Đang tải tên địa điểm…', lat, lon })
+    setPicked({ name: t('map.loadingPlaceName'), lat, lon })
     setReverseLoading(true)
     const place = await reverseGeocode(lat, lon)
     setPicked(place)
     setReverseLoading(false)
-  }, [])
+  }, [t])
 
   const handleSearchSelect = useCallback((hit: PlaceHit) => {
     const place: PickedPlace = {
@@ -351,13 +357,13 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
 
   const handleMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
-      toast.error('Thiết bị không hỗ trợ định vị vị trí.')
+      toast.error(t('mapPage.noGeolocation'))
       return
     }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords
-        setPicked({ name: 'Đang tải tên địa điểm…', lat: latitude, lon: longitude })
+        setPicked({ name: t('map.loadingPlaceName'), lat: latitude, lon: longitude })
         setReverseLoading(true)
         const place = await reverseGeocode(latitude, longitude)
         setPicked(place)
@@ -368,13 +374,13 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         // The OS/browser refused or couldn't determine the position
         // (e.g. macOS kCLErrorLocationUnknown, permission denied, or
         // no GPS on desktops) — surface it instead of failing silently.
-        toast.error('Không thể xác định vị trí của bạn. Hãy chọn thủ công trên bản đồ.', {
-          description: 'Kiểm tra quyền định vị của trình duyệt hoặc kết nối GPS.',
+        toast.error(t('map.cannotLocate'), {
+          description: t('mapPage.cannotLocateDesc'),
         })
       },
       { enableHighAccuracy: true, timeout: 8000 },
     )
-  }, [])
+  }, [t])
 
   return (
     <div className="flex flex-col h-[70vh] md:h-[75vh]">
@@ -394,8 +400,8 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         <button
           onClick={handleMyLocation}
           className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-          title="Vị trí của tôi"
-          aria-label="Vị trí của tôi"
+          title={t('map.myLocation')}
+          aria-label={t('map.myLocation')}
         >
           <Crosshair className="h-5 w-5" />
         </button>
@@ -403,7 +409,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         {!picked && (
           <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 z-1000 rounded-full bg-slate-900/80 backdrop-blur px-4 py-2 text-xs font-medium text-white">
             <MapPin className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
-            Chạm vào bản đồ để chọn vị trí
+            {t('map.clickToPick')}
           </div>
         )}
       </div>
@@ -418,10 +424,10 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {title ?? 'Vị trí đã chọn'}
+            {title ?? t('map.selectedLocation')}
           </div>
           <div className="text-sm font-medium truncate text-foreground">
-            {picked ? picked.name : 'Chưa chọn vị trí'}
+            {picked ? picked.name : t('map.noLocationYet')}
           </div>
           {picked && (
             <div className="text-[11px] text-muted-foreground tabular-nums">
@@ -433,7 +439,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
           onClick={onCancel}
           className="h-10 px-4 rounded-lg border border-slate-200 text-sm font-medium text-muted-foreground hover:bg-slate-50 transition-colors"
         >
-          Hủy
+          {t('mapPage.cancel')}
         </button>
         <button
           onClick={() => picked && onConfirm(picked)}
@@ -441,7 +447,7 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
           className="inline-flex items-center gap-1.5 h-10 px-5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <Check className="h-4 w-4" />
-          Chọn
+          {t('mapPage.select')}
         </button>
       </div>
     </div>

@@ -19,6 +19,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+import { useT } from '@/lib/i18n'
+
 import type { DataTableColumnMeta, DataTableFeatures } from './data-table-features'
 
 export function DataTableViewOptions<TData extends RowData>({
@@ -28,6 +30,7 @@ export function DataTableViewOptions<TData extends RowData>({
   table: ReactTable<DataTableFeatures, TData>
   className?: string
 }) {
+  const t = useT()
   const hideableColumns = table
     .getAllColumns()
     .filter((column) => column.getCanHide())
@@ -42,15 +45,15 @@ export function DataTableViewOptions<TData extends RowData>({
             variant="outline"
             size="sm"
             className={className}
-            aria-label="Chọn cột hiển thị"
+            aria-label={t('dataTable.toggleColumns')}
           />
         }
       >
         <Settings2 className="size-3.5" />
-        Cột
+        {t('dataTable.columns')}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">
-        <DropdownMenuLabel>Hiển thị cột</DropdownMenuLabel>
+        <DropdownMenuLabel>{t('dataTable.showColumns')}</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {hideableColumns.map((column) => {
           const meta = column.columnDef.meta as DataTableColumnMeta | undefined

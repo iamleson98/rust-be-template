@@ -6,6 +6,12 @@
  * (renders bars / end-of-call text).
  */
 
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
+/** Resolve a dictionary key in the CURRENT app language (vi default). */
+const L = (key: string) => translate(useApp.getState().lang, key)
+
 /** Coarse network-health grade for the ACTIVE call. */
 export type QualityLevel = 'good' | 'fair' | 'poor'
 
@@ -52,35 +58,35 @@ export function hangupReasonText(
 ): string {
   switch (reason) {
     case 'declined':
-      return isAgent
-        ? 'Khách hàng từ chối cuộc gọi'
-        : 'Nhân viên từ chối cuộc gọi'
+      return isAgent ? L('call.customerDeclined') : L('call.agentDeclined')
     case 'busy':
-      return isAgent
-        ? 'Khách hàng đang bận'
-        : 'Nhân viên đang bận'
+      return isAgent ? L('call.customerBusy') : L('call.agentBusy')
     case 'timeout':
-      return 'Không nhấc máy — hết thời gian chờ'
+      return L('call.timeoutNoAnswer')
     case 'mic-denied':
-      return isAgent
-        ? 'Khách hàng không cấp quyền micro'
-        : 'Không truy cập được micro ở phía nhân viên'
+      return isAgent ? L('call.customerMicDenied') : L('call.agentMicDenied')
     case 'peer-offline':
-      return 'Mất kết nối với người gọi'
+      return L('call.peerOffline')
     case 'agent-offline':
-      return 'Nhân viên đã ngoại tuyến'
+      return L('call.agentOffline')
     case 'answered-elsewhere':
-      return 'Cuộc gọi đã được nhận ở nơi khác'
+      return L('call.answeredElsewhere')
     case 'expired':
-      return 'Cuộc gọi đã quá thời gian'
+      return L('call.expired')
     case 'replaced':
-      return 'Cuộc gọi đã được thay thế'
+      return L('call.replaced')
     case 'remote':
     default:
-      return 'Cuộc gọi đã kết thúc'
+      return L('call.ended')
   }
 }
 
-/** Actionable guidance shown when OUR side cannot open the microphone. */
-export const MIC_DENIED_GUIDANCE =
-  'Trình duyệt đang chặn micro. Nhấn biểu tượng micro/ổ khóa trên thanh địa chỉ → cho phép Micro → gọi lại.'
+/** Actionable guidance shown when OUR side cannot open the microphone —
+ *  language-reactive (vi default, English after the VI/EN switch). */
+export function micDeniedGuidance(): string {
+  return L('call.micDeniedGuidance')
+}
+
+/** Legacy module-level (Vietnamese) constant — kept for back-compat;
+ *  prefer `micDeniedGuidance()` at render time. */
+export const MIC_DENIED_GUIDANCE = micDeniedGuidance()

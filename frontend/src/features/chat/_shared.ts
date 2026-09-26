@@ -11,6 +11,9 @@
  * `user`, etc.).
  */
 
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
+
 export type CustomerChannel = {
   id: string
   topic: string
@@ -57,9 +60,20 @@ export function normalizeWsMessage(raw: Record<string, unknown>): Message {
   }
 }
 
-export const QUICK_ACTIONS = [
-  { label: 'Đặt vé xe', message: 'Xin chào, tôi muốn đặt vé xe' },
-  { label: 'Đổi/hoàn vé', message: 'Tôi cần đổi hoặc hoàn vé' },
-  { label: 'Kiểm tra chuyến', message: 'Tôi muốn kiểm tra tình trạng chuyến' },
-  { label: 'Khiếu nại', message: 'Tôi cần khiếu nại về dịch vụ' },
-] as const
+/**
+ * Quick-action chips for the first message of a fresh conversation.
+ *
+ * Labels are UI → translated via the non-React `translate(useApp.getState().lang, ...)`
+ * pattern. The `message` field is the canned message SENT to support — it is
+ * payload data (chat message content), so it stays as-is.
+ * Called at render time by `<ChatInput />` so labels follow language changes.
+ */
+export function getQuickActions() {
+  const lang = useApp.getState().lang
+  return [
+    { label: translate(lang, 'chatWidget.qaBookTicket'), message: 'Xin chào, tôi muốn đặt vé xe' },
+    { label: translate(lang, 'chatWidget.qaChangeRefund'), message: 'Tôi cần đổi hoặc hoàn vé' },
+    { label: translate(lang, 'chatWidget.qaCheckTrip'), message: 'Tôi muốn kiểm tra tình trạng chuyến' },
+    { label: translate(lang, 'chatWidget.qaComplaint'), message: 'Tôi cần khiếu nại về dịch vụ' },
+  ] as const
+}

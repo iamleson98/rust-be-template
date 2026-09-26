@@ -5,6 +5,7 @@
 import { Button } from '@/components/ui/button'
 import { Bus, ArrowRight, X, Navigation, Wallet, Search } from 'lucide-react'
 import { formatVND } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import type { RouteItem } from './map-view-types'
 
 export function MapSelectedRoutePopup({
@@ -16,6 +17,7 @@ export function MapSelectedRoutePopup({
   quickSearch: (fromName: string, toName: string) => void
   setSelectedRoute: React.Dispatch<React.SetStateAction<RouteItem | null>>
 }) {
+  const t = useT()
   return (
     selectedRoute && (
       <div className="absolute bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-1000 w-85 max-w-[calc(100vw-1.5rem)] rounded-xl bg-white ring-1 ring-black/5 overflow-hidden ">
@@ -40,21 +42,21 @@ export function MapSelectedRoutePopup({
           <div className="grid grid-cols-2 gap-1.5 mb-3">
             <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
               <Navigation className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-              <div className="text-[10px] text-muted-foreground">Chuyến/ngày</div>
+              <div className="text-[10px] text-muted-foreground">{t('mapPage.tripsPerDay')}</div>
               <div className="text-[11px] font-semibold">{selectedRoute.scheduleCount}</div>
             </div>
             {selectedRoute.minPrice > 0 ? (
               <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center">
                 <Wallet className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
                 <div className="text-[10px] text-muted-foreground">
-                  Giá{selectedRoute.maxPrice > selectedRoute.minPrice ? ' từ' : ''}
+                  {selectedRoute.maxPrice > selectedRoute.minPrice ? t('common.fromPrice') : t('mapPage.price')}
                 </div>
                 <div className="text-[11px] font-semibold">{formatVND(selectedRoute.minPrice)}</div>
               </div>
             ) : (
               <div className="rounded-md bg-slate-50 px-2 py-1.5 text-center opacity-60">
                 <Wallet className="h-3 w-3 text-slate-500 mx-auto mb-0.5" />
-                <div className="text-[10px] text-muted-foreground">Giá</div>
+                <div className="text-[10px] text-muted-foreground">{t('mapPage.price')}</div>
                 <div className="text-[11px] font-semibold">—</div>
               </div>
             )}
@@ -66,7 +68,7 @@ export function MapSelectedRoutePopup({
             onClick={() => quickSearch(selectedRoute.from.name, selectedRoute.to.name)}
           >
             <Search className="h-3.5 w-3.5" />
-            Tìm chuyến
+            {t('nav.searchTrips')}
           </Button>
         </div>
       </div>

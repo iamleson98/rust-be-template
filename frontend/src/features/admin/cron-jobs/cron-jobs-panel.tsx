@@ -45,6 +45,7 @@ import {
 } from './helpers'
 import { ScheduleEditDialog } from './schedule-edit-dialog'
 import { getErrorMessage } from '@/lib/error-message'
+import { useT } from '@/lib/i18n'
 
 function StatusBadge({ status }: { status: string }) {
   return (
@@ -69,11 +70,12 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function NextRunCell({ job }: { job: CronJobOut }) {
+  const t = useT()
   if (!job.enabled) {
-    return <span className="text-sm text-muted-foreground">— (đã tắt)</span>
+    return <span className="text-sm text-muted-foreground">{t('adminCronJobs.nextRunDisabled')}</span>
   }
   if (!job.nextRunAt) {
-    return <span className="text-sm text-muted-foreground">Chưa đặt lịch</span>
+    return <span className="text-sm text-muted-foreground">{t('adminCronJobs.noSchedule')}</span>
   }
   return (
     <span className="flex items-center gap-1.5 text-sm">
@@ -84,8 +86,9 @@ function NextRunCell({ job }: { job: CronJobOut }) {
 }
 
 function LastRunCell({ job }: { job: CronJobOut }) {
+  const t = useT()
   const last = job.lastRun
-  if (!last) return <span className="text-sm text-muted-foreground">Chưa chạy lần nào</span>
+  if (!last) return <span className="text-sm text-muted-foreground">{t('adminCronJobs.neverRun')}</span>
   const workTime =
     last.status === 'running' || last.status === 'queued'
       ? elapsedLabel(last.startedAt)
@@ -95,7 +98,7 @@ function LastRunCell({ job }: { job: CronJobOut }) {
       <StatusBadge status={last.status} />
       {workTime ? (
         <span className="text-xs text-muted-foreground tabular-nums">
-          {last.status === 'running' ? 'đã chạy ' : ''}
+          {last.status === 'running' ? t('adminCronJobs.runningFor') : ''}
           {workTime}
         </span>
       ) : null}
@@ -118,6 +121,7 @@ function JobCard({
   onToggle: (job: CronJobOut, enabled: boolean) => void
   busy: boolean
 }) {
+  const t = useT()
   const active = job.lastRun ? isActiveRun(job.lastRun.status) : false
   const progress = job.lastRun ? progressMessage(job.lastRun.detail) : null
   // Heading prefers a localised label; the catalog description (from
@@ -137,12 +141,13 @@ function JobCard({
               </code>
               {!job.enabled ? (
                 <Badge variant="outline" className="text-xs">
-                  Đã tắt
+                  {t('adminCronJobs.disabled')}
                 </Badge>
               ) : null}
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {scheduleIntervalLabel(job.intervalDays)} · lúc {timeLabel(job.atHour, job.atMinute)} (giờ Việt Nam)
+              {scheduleIntervalLabel(job.intervalDays)}
+              {t('adminCronJobs.scheduleAt', { time: timeLabel(job.atHour, job.atMinute) })}
             </p>
             {catalogNote ? (
               <p className="mt-0.5 truncate text-xs text-muted-foreground/80" title={catalogNote}>
@@ -157,10 +162,10 @@ function JobCard({
               size="sm"
               onClick={() => onTrigger(job)}
               disabled={busy || active}
-              title={active ? 'Một lượt chạy khác đang trong tiến trình' : 'Chạy ngay'}
+              title={active ? t('adminCronJobs.anotherRunTitle') : t('adminCronJobs.runNow')}
             >
               <Play className="h-4 w-4 mr-1.5" />
-              Chạy ngay
+              {t('adminCronJobs.runNow')}
             </Button>
             {active ? (
               <Button
@@ -168,26 +173,26 @@ function JobCard({
                 size="sm"
                 onClick={() => onCancel(job)}
                 disabled={busy}
-                title="Dừng lượt chạy đang chờ / đang chạy"
+                title={t('adminCronJobs.stopRunTitle')}
                 data-testid="cron-job-cancel"
                 className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
               >
                 <Square className="h-3.5 w-3.5 mr-1.5 fill-current" />
-                Dừng
+                {t('adminCronJobs.stop')}
               </Button>
             ) : null}
             <Button variant="outline" size="sm" onClick={() => onEdit(job)} disabled={busy}>
               <Settings2 className="h-4 w-4 mr-1.5" />
-              Sửa lịch
+              {t('adminCronJobs.editSchedule')}
             </Button>
             <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
               <Switch
                 checked={job.enabled}
                 onCheckedChange={(v) => onToggle(job, v)}
                 disabled={busy}
-                aria-label="Bật/tắt lịch chạy"
+                aria-label={t('adminCronJobs.toggleSchedule')}
               />
-              Bật
+              {t('adminCronJobs.on')}
             </label>
           </div>
         </div>
@@ -195,13 +200,13 @@ function JobCard({
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Lần chạy kế tiếp
+              {t('adminCronJobs.nextRun')}
             </p>
             <NextRunCell job={job} />
           </div>
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Lần chạy gần nhất
+              {t('adminCronJobs.lastRun')}
             </p>
             <LastRunCell job={job} />
           </div>
@@ -234,73 +239,76 @@ function JobCard({
 
 const runColumnHelper = createColumnHelper<DataTableFeatures, CronJobRunOut>()
 
-const runHistoryColumns = runColumnHelper.columns([
-  runColumnHelper.accessor('jobType', {
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Tác vụ" />,
-    cell: ({ getValue }) => <code className="text-xs">{getValue()}</code>,
-    sortFn: 'text',
-    meta: { label: 'Tác vụ' },
-  }),
-  runColumnHelper.accessor('status', {
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Trạng thái" />,
-    cell: ({ getValue }) => <StatusBadge status={getValue()} />,
-    sortFn: 'text',
-    meta: { label: 'Trạng thái' },
-  }),
-  runColumnHelper.accessor((run) => run.startedAt ?? run.createdAt, {
-    id: 'startedAt',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Bắt đầu" />,
-    cell: ({ row }) => (
-      <span className="text-sm tabular-nums">
-        {dateTimeLabel(row.original.startedAt ?? row.original.createdAt)}
-      </span>
-    ),
-    sortFn: 'datetime',
-    meta: { label: 'Bắt đầu' },
-  }),
-  runColumnHelper.accessor((run) => run.finishedAt ?? run.startedAt ?? run.createdAt, {
-    id: 'duration',
-    header: ({ column }) => <DataTableColumnHeader column={column} title="Thời lượng" />,
-    cell: ({ row }) => {
-      const run = row.original
-      return (
+/** Column defs are built per-render so labels follow the UI language. */
+const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
+  runColumnHelper.columns([
+    runColumnHelper.accessor('jobType', {
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colTask')} />,
+      cell: ({ getValue }) => <code className="text-xs">{getValue()}</code>,
+      sortFn: 'text',
+      meta: { label: t('adminCronJobs.colTask') },
+    }),
+    runColumnHelper.accessor('status', {
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
+      cell: ({ getValue }) => <StatusBadge status={getValue()} />,
+      sortFn: 'text',
+      meta: { label: t('common.status') },
+    }),
+    runColumnHelper.accessor((run) => run.startedAt ?? run.createdAt, {
+      id: 'startedAt',
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colStarted')} />,
+      cell: ({ row }) => (
         <span className="text-sm tabular-nums">
-          {run.status === 'running' || run.status === 'queued'
-            ? elapsedLabel(run.startedAt) ?? '—'
-            : durationLabel(run.startedAt, run.finishedAt) ?? '—'}
+          {dateTimeLabel(row.original.startedAt ?? row.original.createdAt)}
         </span>
-      )
-    },
-    sortFn: 'datetime',
-    meta: { label: 'Thời lượng' },
-  }),
-  runColumnHelper.display({
-    id: 'detail',
-    header: 'Chi tiết / lỗi',
-    cell: ({ row }) => {
-      const run = row.original
-      return run.error ? (
-        <span
-          className="block max-w-[320px] truncate text-xs text-rose-600 dark:text-rose-400"
-          title={run.error}
-        >
-          {run.error}
-        </span>
-      ) : (
-        <span
-          className="block max-w-[320px] truncate text-xs text-muted-foreground"
-          title={progressMessage(run.detail) ?? undefined}
-        >
-          {progressMessage(run.detail) ?? '—'}
-        </span>
-      )
-    },
-    enableSorting: false,
-    meta: { label: 'Chi tiết / lỗi' },
-  }),
-])
+      ),
+      sortFn: 'datetime',
+      meta: { label: t('adminCronJobs.colStarted') },
+    }),
+    runColumnHelper.accessor((run) => run.finishedAt ?? run.startedAt ?? run.createdAt, {
+      id: 'duration',
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colDuration')} />,
+      cell: ({ row }) => {
+        const run = row.original
+        return (
+          <span className="text-sm tabular-nums">
+            {run.status === 'running' || run.status === 'queued'
+              ? elapsedLabel(run.startedAt) ?? '—'
+              : durationLabel(run.startedAt, run.finishedAt) ?? '—'}
+          </span>
+        )
+      },
+      sortFn: 'datetime',
+      meta: { label: t('adminCronJobs.colDuration') },
+    }),
+    runColumnHelper.display({
+      id: 'detail',
+      header: t('adminCronJobs.colDetail'),
+      cell: ({ row }) => {
+        const run = row.original
+        return run.error ? (
+          <span
+            className="block max-w-[320px] truncate text-xs text-rose-600 dark:text-rose-400"
+            title={run.error}
+          >
+            {run.error}
+          </span>
+        ) : (
+          <span
+            className="block max-w-[320px] truncate text-xs text-muted-foreground"
+            title={progressMessage(run.detail) ?? undefined}
+          >
+            {progressMessage(run.detail) ?? '—'}
+          </span>
+        )
+      },
+      enableSorting: false,
+      meta: { label: t('adminCronJobs.colDetail') },
+    }),
+  ])
 
 export function CronJobsPanel() {
+  const t = useT()
   const jobsQuery = useAdminCronJobs()
   const runsQuery = useAdminCronJobRuns()
   const triggerMutation = useTriggerCronJob()
@@ -314,25 +322,26 @@ export function CronJobsPanel() {
   const runs = useMemo(() => runsQuery.data?.items ?? [], [runsQuery.data])
   const schedulerEnabled = jobsQuery.data?.schedulerEnabled ?? false
   const busy = triggerMutation.isPending || updateMutation.isPending || cancelMutation.isPending
+  const runHistoryColumns = useMemo(() => buildRunHistoryColumns(t), [t])
 
   const trigger = async (job: CronJobOut) => {
     try {
       await triggerMutation.mutateAsync({ path: { jobType: job.jobType } })
-      toast.success(`Đã đưa «${job.jobType}» vào hàng chờ`)
+      toast.success(t('adminCronJobs.queuedToast', { job: job.jobType }))
     } catch (e) {
       // 409 = already running; 503 = worker disabled — the API messages
       // are already human-readable Vietnamese/English strings.
-      toast.error(getErrorMessage(e, 'Không thể chạy tác vụ'))
+      toast.error(getErrorMessage(e, t('adminCronJobs.triggerFailed')))
     }
   }
 
   const cancel = async (job: CronJobOut) => {
     try {
       await cancelMutation.mutateAsync({ path: { jobType: job.jobType } })
-      toast.success(`Đã gửi yêu cầu dừng «${job.jobType}»`)
+      toast.success(t('adminCronJobs.stopToast', { job: job.jobType }))
     } catch (e) {
       // 404 = nothing queued/running to stop.
-      toast.error(getErrorMessage(e, 'Không thể dừng tác vụ'))
+      toast.error(getErrorMessage(e, t('adminCronJobs.stopFailed')))
     }
   }
 
@@ -342,9 +351,9 @@ export function CronJobsPanel() {
         path: { jobType: job.jobType },
         body: { enabled },
       })
-      toast.success(enabled ? 'Đã bật lịch chạy' : 'Đã tắt lịch chạy')
+      toast.success(enabled ? t('adminCronJobs.enabledToast') : t('adminCronJobs.disabledToast'))
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể cập nhật lịch'))
+      toast.error(getErrorMessage(e, t('adminCronJobs.updateFailed')))
     }
   }
 
@@ -355,10 +364,10 @@ export function CronJobsPanel() {
         path: { jobType: editJob.jobType },
         body,
       })
-      toast.success('Đã lưu lịch chạy')
+      toast.success(t('adminCronJobs.savedToast'))
       setEditOpen(false)
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu lịch'))
+      toast.error(getErrorMessage(e, t('adminCronJobs.saveFailed')))
     }
   }
 
@@ -369,10 +378,10 @@ export function CronJobsPanel() {
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
             <CalendarClock className="h-5 w-5 text-blue-600" />
-            Cron jobs
+            {t('admin.cronJobs')}
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Tác vụ nền định kỳ — tự động tải và đánh chỉ mục dữ liệu OSM hai tuần một lần vào ban đêm.
+            {t('adminCronJobs.subtitle')}
           </p>
         </div>
         <Button
@@ -385,7 +394,7 @@ export function CronJobsPanel() {
           disabled={jobsQuery.isFetching}
         >
           <RefreshCw className={`h-4 w-4 mr-1.5 ${jobsQuery.isFetching ? 'animate-spin' : ''}`} />
-          Làm mới
+          {t('common.refresh')}
         </Button>
       </div>
 
@@ -394,8 +403,9 @@ export function CronJobsPanel() {
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
           <p>
-            Bộ lập lịch đang tắt trên máy chủ này (<code>SCHEDULER_ENABLED=false</code>) — các lịch
-            sẽ không tự chạy và nút «Chạy ngay» bị từ chối.
+            {t('adminCronJobs.schedulerOffLead')}
+            <code>SCHEDULER_ENABLED=false</code>
+            {t('adminCronJobs.schedulerOffTail')}
           </p>
         </div>
       ) : null}
@@ -409,9 +419,9 @@ export function CronJobsPanel() {
             <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
               <CalendarClock className="h-5 w-5 text-blue-600" />
             </div>
-            <p className="font-medium">Chưa có tác vụ định kỳ nào</p>
+            <p className="font-medium">{t('adminCronJobs.emptyTitle')}</p>
             <p className="text-sm text-muted-foreground max-w-sm">
-              Các lịch mặc định được khởi tạo khi máy chủ khởi động cùng bộ lập lịch.
+              {t('adminCronJobs.emptyDesc')}
             </p>
           </CardContent>
         </Card>
@@ -438,7 +448,7 @@ export function CronJobsPanel() {
       <Card className="overflow-hidden">
         <CardHeader className="py-3 border-b">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Lịch sử chạy
+            {t('adminCronJobs.runHistory')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -450,10 +460,10 @@ export function CronJobsPanel() {
               bordered={false}
               columns={runHistoryColumns}
               data={runs}
-              rowNoun="lượt chạy"
+              rowNoun={t('adminCronJobs.rowNoun')}
               hidePagination
-              emptyTitle="Chưa có lượt chạy nào được ghi lại"
-              emptyDescription="Lịch sử sẽ xuất hiện sau lần chạy đầu tiên."
+              emptyTitle={t('adminCronJobs.noRuns')}
+              emptyDescription={t('adminCronJobs.noRunsDesc')}
               emptyIcon={<CalendarClock className="h-5 w-5" aria-hidden />}
             />
           )}
@@ -470,7 +480,7 @@ export function CronJobsPanel() {
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <CalendarClock className="h-3.5 w-3.5 animate-pulse" aria-hidden />
-        Tự làm mới mỗi 10 giây
+        {t('adminCronJobs.autoRefresh')}
       </p>
     </div>
   )

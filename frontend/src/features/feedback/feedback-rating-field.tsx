@@ -13,6 +13,7 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { FormField, FormItem, FormMessage } from '@/components/ui/form'
 import { Star } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { FeedbackValues } from './feedback-schema'
 
 export function FeedbackRatingField({
@@ -28,8 +29,16 @@ export function FeedbackRatingField({
   rating: number
   accent: string
 }) {
+  const t = useT()
   const displayRating = hoverRating || rating
-  const ratingLabels = ['', 'Rất tệ', 'Tệ', 'Bình thường', 'Tốt', 'Rất tốt']
+  const ratingLabels = [
+    '',
+    t('feedbackForm.ratingVeryBad'),
+    t('feedbackForm.ratingBad'),
+    t('feedbackForm.ratingOk'),
+    t('feedbackForm.ratingGood'),
+    t('feedbackForm.ratingVeryGood'),
+  ]
   const ratingEmojis = ['', '😣', '😕', '😐', '🙂', '🤩']
 
   return (
@@ -48,7 +57,7 @@ export function FeedbackRatingField({
                           onMouseLeave={() => setHoverRating(0)}
                           onClick={() => field.onChange(n)}
                           className="transition-transform hover:scale-110"
-                          aria-label={`Đánh giá ${n} sao`}
+                          aria-label={t('feedbackForm.rateAria', { count: n })}
                           type="button"
                         >
                           <Star

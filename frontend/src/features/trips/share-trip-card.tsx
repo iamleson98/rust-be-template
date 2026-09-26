@@ -10,6 +10,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { formatCurrency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 import { formatDateVN, formatTimeVN } from '@/lib/types'
 import {
   Bus,
@@ -31,6 +32,7 @@ export function ShareTripCard({
   shareInfo: { code: string; url: string }
   currency: 'VND' | 'USD'
 }) {
+  const t = useT()
   return (
             <div
               className="relative rounded-2xl overflow-hidden"
@@ -47,7 +49,7 @@ export function ShareTripCard({
                     <Bus className="h-4 w-4" />
                   </div>
                   <div className="text-sm font-extrabold tracking-wide">DatXeVui</div>
-                  <span className="text-[10px] text-white/80 ml-auto">Đặt vé xe online</span>
+                  <span className="text-[10px] text-white/80 ml-auto">{t('trips.tagline')}</span>
                 </div>
 
                 {/* White card */}
@@ -87,7 +89,7 @@ export function ShareTripCard({
                     {/* Departure + vehicle type */}
                     <div className="grid grid-cols-2 gap-3 text-xs mb-3 pb-3 border-b border-dashed">
                       <div>
-                        <div className="text-muted-foreground uppercase tracking-wide text-[9px]">Khởi hành</div>
+                        <div className="text-muted-foreground uppercase tracking-wide text-[9px]">{t('booking.departure')}</div>
                         <div className="font-semibold text-slate-900 flex items-center gap-1">
                           <Clock className="h-3 w-3 text-blue-600" />
                           {shareTripData.departureTime || (shareTripData.departureAt ? formatTimeVN(shareTripData.departureAt) : '')}
@@ -100,10 +102,10 @@ export function ShareTripCard({
                         )}
                       </div>
                       <div>
-                        <div className="text-muted-foreground uppercase tracking-wide text-[9px]">Loại xe</div>
+                        <div className="text-muted-foreground uppercase tracking-wide text-[9px]">{t('busLayouts.vehicleType')}</div>
                         <div className="font-semibold text-slate-900 flex items-center gap-1">
                           <Armchair className="h-3 w-3 text-blue-600" />
-                          {shareTripData.vehicleTypeLabel || 'Xe khách'}
+                          {shareTripData.vehicleTypeLabel || t('trips.defaultVehicleType')}
                         </div>
                       </div>
                     </div>
@@ -111,20 +113,20 @@ export function ShareTripCard({
                     {/* Price */}
                     <div className="rounded-lg bg-blue-50 p-3 flex items-end justify-between">
                       <div>
-                        <div className="text-[10px] uppercase tracking-wide text-blue-700 font-semibold">Giá từ</div>
+                        <div className="text-[10px] uppercase tracking-wide text-blue-700 font-semibold">{t('common.fromPrice')}</div>
                         <div className="text-2xl font-extrabold text-blue-700 leading-none">
                           {formatCurrency(shareTripData.minPrice, currency)}
                         </div>
                       </div>
                       <Badge className="bg-amber-100 text-amber-800 border-0 gap-0.5 text-[10px]">
                         <Sparkles className="h-3 w-3" />
-                        Ưu đãi hôm nay
+                        {t('trips.todayDeal')}
                       </Badge>
                     </div>
 
                     {/* Share code + URL */}
                     <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Mã: <span className="font-mono font-bold text-blue-700">{shareInfo.code}</span></span>
+                      <span>{t('trips.shareCodeLabel')} <span className="font-mono font-bold text-blue-700">{shareInfo.code}</span></span>
                       <span className="truncate ml-2">{shareInfo.url}</span>
                     </div>
                   </div>

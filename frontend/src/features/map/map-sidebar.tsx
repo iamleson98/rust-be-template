@@ -4,6 +4,7 @@
 
 import { Input } from '@/components/ui/input'
 import { MapPin, Search, X, Crosshair } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import type { Place } from './map-view-types'
 
 // ── Sidebar (brand filter + search) ───────────────────────
@@ -28,6 +29,7 @@ export function MapSidebar({
   open: boolean
   onClose: () => void
 }) {
+  const t = useT()
   const toggleBrand = (slug: string) => {
     const next = new Set(activeBrandSlugs)
     if (next.has(slug)) next.delete(slug)
@@ -54,7 +56,7 @@ export function MapSidebar({
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 flex items-center gap-1.5">
               <Search className="h-3.5 w-3.5" />
-              Tìm thành phố
+              {t('map.findCity')}
             </div>
             <div className="relative">
               {/* Leading lookup icon INSIDE the field — the field itself
@@ -63,15 +65,15 @@ export function MapSidebar({
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="VD: Hà Nội, Đà Nẵng..."
+                placeholder={t('map.searchPlaceholder')}
                 className="h-9 pl-9 pr-8 text-sm"
-                aria-label="Tìm thành phố trên bản đồ"
+                aria-label={t('map.findCity')}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600"
-                  aria-label="Xóa tìm kiếm"
+                  aria-label={t('map.clearSearch')}
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -99,13 +101,13 @@ export function MapSidebar({
           {/* Brand filter */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lọc theo hãng</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('map.filterByBrand')}</div>
               <button
                 onClick={() => setActiveBrandSlugs(new Set(brands.map((b) => b.slug)))}
                 className={`text-[10px] font-medium ${allActive ? 'text-slate-400' : 'text-blue-600 hover:text-blue-700'}`}
                 disabled={allActive}
               >
-                Chọn tất cả
+                {t('map.chooseAll')}
               </button>
             </div>
             <div className="space-y-1">
@@ -128,23 +130,23 @@ export function MapSidebar({
 
           {/* Legend */}
           <div className="pt-3 border-t border-slate-100">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Chú thích</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{t('map.legend')}</div>
             <div className="space-y-1.5 text-[11px] text-slate-700">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-white ring-2 ring-blue-600" />
-                Thành phố lớn
+                {t('map.bigCity')}
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2.5 w-2.5 rounded-full bg-white ring-2 ring-slate-400" />
-                Địa điểm nhỏ
+                {t('map.smallPlace')}
               </div>
               <div className="flex items-center gap-2">
                 <span className="block w-6 h-0.5 rounded-full" style={{ backgroundImage: 'repeating-linear-gradient(90deg, #2563eb 0 4px, transparent 4px 8px)' }} />
-                Tuyến đường
+                {t('map.routeLine')}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-1">
                 <Crosshair className="h-3 w-3" />
-                Nguồn bản đồ: OpenStreetMap · CARTO
+                {t('map.source')}
               </div>
             </div>
           </div>

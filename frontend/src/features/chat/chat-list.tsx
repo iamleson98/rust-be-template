@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MessageCircle, Phone, Mail, Circle } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { relativeTime } from '@/lib/types'
 import type { CustomerChannel as Channel } from './_shared'
 
@@ -27,6 +28,7 @@ export function ChatList({
   onOpenChannel: (ch: Channel) => void
   onStartNewChat: () => void
 }) {
+  const t = useT()
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="p-3 border-b">
@@ -35,7 +37,7 @@ export function ChatList({
           className="w-full gap-2 bg-linear-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800"
         >
           <MessageCircle className="h-4 w-4" />
-          Bắt đầu trò chuyện mới
+          {t('chatWidget.startNewChat')}
         </Button>
       </div>
 
@@ -46,9 +48,9 @@ export function ChatList({
               <div className="inline-flex h-14 w-14 rounded-full bg-rose-50 items-center justify-center mb-3">
                 <MessageCircle className="h-7 w-7 text-rose-600" />
               </div>
-              <h4 className="font-semibold text-sm">Chưa có cuộc trò chuyện</h4>
+              <h4 className="font-semibold text-sm">{t('chat.noChannels')}</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Bắt đầu trò chuyện để được nhân viên hỗ trợ đặt vé, đổi giờ, hoàn hủy...
+                {t('chatWidget.noChannelsHint')}
               </p>
             </div>
           ) : (
@@ -78,7 +80,7 @@ export function ChatList({
                     </div>
                     <div className="flex items-center justify-between gap-2 mt-0.5">
                       <div className="text-xs text-muted-foreground truncate">
-                        {ch.lastMessagePreview || 'Chưa có tin nhắn'}
+                        {ch.lastMessagePreview || t('chatWidget.noMessages')}
                       </div>
                       {ch.unreadUser > 0 && (
                         <Badge className="bg-rose-500 text-white text-[10px] h-4 min-w-4 px-1 justify-center">

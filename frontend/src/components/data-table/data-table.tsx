@@ -48,6 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import {
   dataTableFeatures,
@@ -149,7 +150,7 @@ export function DataTable<TData extends RowData>({
   skeletonRows = 6,
   isError,
   onRetry,
-  emptyTitle = 'Không có dữ liệu',
+  emptyTitle,
   emptyDescription,
   emptyIcon,
   emptyAction,
@@ -159,6 +160,8 @@ export function DataTable<TData extends RowData>({
   className,
   testId,
 }: DataTableProps<TData>) {
+  const t = useT()
+  const effectiveEmptyTitle = emptyTitle ?? t('dataTable.emptyTitle')
   const [internalSorting, setInternalSorting] = useState<SortingState>(defaultSorting ?? [])
   const [internalPagination, setInternalPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -245,7 +248,7 @@ export function DataTable<TData extends RowData>({
             data-slot="table-skeleton"
             role="status"
             aria-busy="true"
-            aria-label="Đang tải dữ liệu"
+            aria-label={t('dataTable.loadingData')}
           >
             {/* Header row */}
             <div className="flex items-center gap-4 border-b bg-muted/40 px-4 py-3">
@@ -334,13 +337,13 @@ export function DataTable<TData extends RowData>({
                   <TableCell colSpan={columns.length} className="p-0">
                     <div className="flex flex-col items-center justify-center gap-1.5 py-12 text-center">
                       <AlertCircle className="mb-1 size-8 text-muted-foreground/60" aria-hidden />
-                      <p className="text-sm font-medium">Không tải được dữ liệu</p>
+                      <p className="text-sm font-medium">{t('dataTable.loadError')}</p>
                       <p className="text-xs text-muted-foreground">
-                        Đã có lỗi xảy ra. Vui lòng thử lại.
+                        {t('dataTable.loadErrorDesc')}
                       </p>
                       {onRetry ? (
                         <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
-                          Thử lại
+                          {t('common.retry')}
                         </Button>
                       ) : null}
                     </div>
@@ -353,7 +356,7 @@ export function DataTable<TData extends RowData>({
                       <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
                         {emptyIcon ?? <Inbox className="size-5" aria-hidden />}
                       </div>
-                      <p className="text-sm font-medium">{emptyTitle}</p>
+                      <p className="text-sm font-medium">{effectiveEmptyTitle}</p>
                       {emptyDescription ? (
                         <p className="max-w-sm text-xs text-muted-foreground">{emptyDescription}</p>
                       ) : null}

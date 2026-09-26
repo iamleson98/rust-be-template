@@ -11,6 +11,7 @@
  */
 
 import type { TripResult } from '@/lib/store'
+import { useT } from '@/lib/i18n'
 import { AMENITY_LABELS } from '@/lib/types'
 import { MapPin, Users, TrendingUp, Wifi, Snowflake, Droplet, Zap } from 'lucide-react'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -40,13 +41,14 @@ export function TripCardAmenities({
   availBarColor: string
   seatAvailPct: number
 }) {
+  const t = useT()
   return (
     <div className="hidden lg:flex flex-col items-end gap-1.5 shrink-0">
       <div className="flex items-center gap-1">
         {trip.amenities.slice(0, maxVisibleAmenities).map((a) => (
           <span
             key={a}
-            title={AMENITY_LABELS[a] ?? a}
+            title={t(AMENITY_LABELS[a] ?? a)}
             className="h-6 w-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors"
           >
             {amenityIcon[a] ?? <MapPin className="h-3 w-3" />}
@@ -63,10 +65,10 @@ export function TripCardAmenities({
         {lowSeats ? (
           <span className="text-rose-600 font-semibold flex items-center gap-1">
             {sellingFast && <TrendingUp className="h-3 w-3" />}
-            Chỉ còn {trip.availableSeats} chỗ
+            {t('searchPage.onlySeatsLeft', { count: trip.availableSeats })}
           </span>
         ) : (
-          <span className="text-muted-foreground">{trip.availableSeats} chỗ trống</span>
+          <span className="text-muted-foreground">{trip.availableSeats} {t('common.seatsAvailable')}</span>
         )}
       </div>
       {/* Seat availability bar (desktop) — slim, muted */}
@@ -80,7 +82,7 @@ export function TripCardAmenities({
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {trip.availableSeats}/{trip.totalSeats} ghế trống ({Math.round(seatAvailPct)}%)
+          {t('searchPage.seatsTooltip', { avail: trip.availableSeats, total: trip.totalSeats, pct: Math.round(seatAvailPct) })}
         </TooltipContent>
       </Tooltip>
     </div>
@@ -105,13 +107,14 @@ export function TripCardAmenitiesMobile({
   availBarColor: string
   seatAvailPct: number
 }) {
+  const t = useT()
   return (
     <>
       <div className="lg:hidden mt-2.5 flex items-center gap-1.5 flex-wrap">
         {trip.amenities.slice(0, maxVisibleAmenities).map((a) => (
           <span
             key={a}
-            title={AMENITY_LABELS[a] ?? a}
+            title={t(AMENITY_LABELS[a] ?? a)}
             className="h-6 w-6 rounded-md bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors"
           >
             {amenityIcon[a] ?? <MapPin className="h-3 w-3" />}
@@ -127,10 +130,10 @@ export function TripCardAmenitiesMobile({
           {lowSeats ? (
             <span className="text-rose-600 font-semibold flex items-center gap-1">
               {sellingFast && <TrendingUp className="h-3 w-3" />}
-              Còn {trip.availableSeats} chỗ
+              {t('searchPage.seatsLeft', { count: trip.availableSeats })}
             </span>
           ) : (
-            <span>{trip.availableSeats} chỗ trống</span>
+            <span>{trip.availableSeats} {t('common.seatsAvailable')}</span>
           )}
         </span>
       </div>
@@ -146,7 +149,7 @@ export function TripCardAmenitiesMobile({
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {trip.availableSeats}/{trip.totalSeats} ghế trống ({Math.round(seatAvailPct)}%)
+            {t('searchPage.seatsTooltip', { avail: trip.availableSeats, total: trip.totalSeats, pct: Math.round(seatAvailPct) })}
           </TooltipContent>
         </Tooltip>
       </div>

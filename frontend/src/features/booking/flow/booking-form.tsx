@@ -8,6 +8,8 @@
 
 import { z } from 'zod'
 import { fullNameSchema, phoneSchema, emailSchema } from '@/lib/forms'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import {
   User,
   UserCheck,
@@ -41,19 +43,24 @@ export type Gender = 'male' | 'female' | 'other'
 // `<Input type="number">` onChange converts via `parseInt(... ) || 0`
 // before calling `field.onChange`, so the form value is always a
 // real `number`.
+// Error messages use Zod's functional `{ error: () => ... }` form so the
+// string is resolved (in the store's current language) at validation
+// time, not at module load.
+const tSync = (key: string) => translate(useApp.getState().lang, key)
+
 export const passengerSchema = z.object({
   name: fullNameSchema,
   age: z
     .number()
-    .int('Tuổi phải là số nguyên')
-    .min(0, 'Tuổi không hợp lệ')
-    .max(120, 'Tuổi không hợp lệ'),
+    .int({ error: () => tSync('bookingFlow.ageInteger') })
+    .min(0, { error: () => tSync('bookingFlow.ageInvalid') })
+    .max(120, { error: () => tSync('bookingFlow.ageInvalid') }),
   gender: z.enum(['male', 'female', 'other']),
-  seatId: z.string().min(1, 'Vui lòng chọn ghế'),
+  seatId: z.string().min(1, { error: () => tSync('bookingFlow.seatRequired') }),
 })
 
 export const bookingSchema = z.object({
-  passengers: z.array(passengerSchema).min(1, 'Cần ít nhất một hành khách'),
+  passengers: z.array(passengerSchema).min(1, { error: () => tSync('bookingFlow.minPassengers') }),
   contactName: fullNameSchema,
   contactPhone: phoneSchema,
   contactEmail: emailSchema.optional().or(z.literal('')),
@@ -69,12 +76,14 @@ export function getPassengerType(age: number): PassengerType {
   return 'adult'
 }
 
+// `label` holds an i18n key (not display text) — render it with
+// `t(PASSENGER_TYPE_META[type].label)`.
 export const PASSENGER_TYPE_META: Record<
   PassengerType,
   { label: string; gradient: string; border: string; pill: string; text: string; icon: React.ReactNode }
 > = {
   adult: {
-    label: 'Người lớn',
+    label: 'booking.passengerType.adult',
     gradient: 'from-blue-50 to-blue-50',
     border: 'border-blue-200',
     pill: 'bg-blue-100 text-blue-700',
@@ -82,7 +91,7 @@ export const PASSENGER_TYPE_META: Record<
     icon: <User className="h-3 w-3" />,
   },
   child: {
-    label: 'Trẻ em',
+    label: 'booking.passengerType.child',
     gradient: 'from-amber-50 to-orange-50',
     border: 'border-amber-200',
     pill: 'bg-amber-100 text-amber-700',
@@ -90,7 +99,7 @@ export const PASSENGER_TYPE_META: Record<
     icon: <UserCheck className="h-3 w-3" />,
   },
   infant: {
-    label: 'Em bé',
+    label: 'booking.passengerType.infant',
     gradient: 'from-pink-50 to-rose-50',
     border: 'border-rose-200',
     pill: 'bg-pink-100 text-pink-700',

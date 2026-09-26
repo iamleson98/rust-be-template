@@ -19,7 +19,7 @@
  * (name, brand, start/end city, status).
  */
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ComboboxField } from '@/components/ui/combobox'
 import {
   Form,
   FormField,
@@ -44,26 +44,32 @@ import {
 } from '@/components/ui/form'
 import { Route as RouteIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { requiredText } from '@/lib/forms'
+import { useT } from '@/lib/i18n'
 import { useUpsertAdminRoute, useUpdateAdminRoute } from '@/lib/queries'
 import type { AdminRouteOut } from '@/lib/api/types.gen'
 import type { AdminBrandOut } from '@/lib/api/types.gen'
-import { CitySelectContent, cityLabel } from './city-select-content'
+import { getCityGroups } from './city-select-content'
 import { getErrorMessage } from '@/lib/error-message'
 
-const routeSchema = z
-  .object({
-    name: requiredText('Tên tuyến')
-      .min(2, 'Tên tuyến cần ít nhất 2 ký tự')
-      .max(255, 'Tên tuyến tối đa 255 ký tự'),
-    startLocationId: requiredText('Điểm đi'),
-    endLocationId: requiredText('Điểm đến'),
-  })
-  .refine((d) => d.startLocationId !== d.endLocationId, {
-    message: 'Điểm đi và điểm đến phải khác nhau',
-    path: ['endLocationId'],
-  })
-type RouteFormValues = z.infer<typeof routeSchema>
+const makeRouteSchema = (t: ReturnType<typeof useT>) =>
+  z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1, t('adminRoutes.nameRequired'))
+        .min(2, t('adminRoutes.nameMin'))
+        .max(255, t('adminRoutes.nameMax')),
+      startLocationId: z.string().trim().min(1, t('adminRoutes.startRequired')),
+      endLocationId: z.string().trim().min(1, t('adminRoutes.endRequired')),
+    })
+    .refine((d) => d.startLocationId !== d.endLocationId, {
+      message: t('adminRoutes.startEndDiffer'),
+      path: ['endLocationId'],
+    })
+
+type RouteSchema = ReturnType<typeof makeRouteSchema>
+type RouteFormValues = z.infer<RouteSchema>
 
 export function RouteFormDialog({
   open,
@@ -78,12 +84,15 @@ export function RouteFormDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => void
 }) {
+  const t = useT()
   const isEdit = !!route
   const createMutation = useUpsertAdminRoute()
   const updateMutation = useUpdateAdminRoute()
   const saving = createMutation.isPending || updateMutation.isPending
+  const routeSchema = useMemo(() => makeRouteSchema(t), [t])
+  const cityGroups = useMemo(() => getCityGroups(t), [t])
 
-  const form = useForm<z.input<typeof routeSchema>, unknown, z.output<typeof routeSchema>>({
+  const form = useForm<z.input<RouteSchema>, unknown, z.output<RouteSchema>>({
     resolver: zodResolver(routeSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
@@ -106,7 +115,7 @@ export function RouteFormDialog({
 
   const onSubmit = async (values: RouteFormValues) => {
     if (!brand) {
-      toast.error('Chưa chọn hãng xe')
+      toast.error(t('routeForm.noBrand'))
       return
     }
     try {
@@ -127,14 +136,14 @@ export function RouteFormDialog({
           path: { id: route!.id },
           body: payload,
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
-        toast.success('Đã cập nhật tuyến')
+        toast.success(t('routeForm.updated'))
       } else {
         await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
-        toast.success('Đã thêm tuyến mới')
+        toast.success(t('routeForm.created'))
       }
       onSaved()
     } catch (e) {
-      toast.error(getErrorMessage(e, 'Không thể lưu tuyến'))
+      toast.error(getErrorMessage(e, t('routeForm.saveFailed')))
     }
   }
 
@@ -144,12 +153,12 @@ export function RouteFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <RouteIcon className="h-5 w-5 text-blue-600" />
-            {isEdit ? 'Sửa tuyến đường' : 'Thêm tuyến đường mới'}
+            {isEdit ? t('routeForm.editTitle') : t('routeForm.createTitle')}
           </DialogTitle>
           <DialogDescription>
             {brand ? (
               <>
-                Thuộc hãng:{' '}
+                {t('routeForm.belongsTo')}{' '}
                 <span className="font-medium" style={{ color: brand.accentColor ?? undefined }}>
                   {brand.name}
                 </span>
@@ -167,65 +176,59 @@ export function RouteFormDialog({
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Tên tuyến <span className="text-destructive">*</span>
+                    {t('routeForm.name')} <span className="text-destructive">*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} placeholder="Hà Nội → Đà Nẵng" />
+                    <Input {...field} placeholder={t('routeForm.namePh')} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Start location — city dropdown */}
+            {/* Start location — searchable city combobox */}
             <FormField
               control={form.control}
               name="startLocationId"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Điểm đi (thành phố) <span className="text-destructive">*</span>
+                    {t('routeForm.startCity')} <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Select
-                    value={field.value ?? ''}
-                    onValueChange={field.onChange}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn thành phố đi...">
-                          {(value: string | null | undefined) => cityLabel(value)}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <CitySelectContent />
-                  </Select>
+                  <FormControl>
+                    <ComboboxField
+                      value={field.value || null}
+                      onValueChange={field.onChange}
+                      items={cityGroups}
+                      placeholder={t('routeForm.chooseStart')}
+                      searchPlaceholder={t('routeForm.searchCity')}
+                      aria-label={t('brands.startPoint')}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* End location — city dropdown */}
+            {/* End location — searchable city combobox */}
             <FormField
               control={form.control}
               name="endLocationId"
               render={({ field }) => (
                 <FormItem className="grid gap-1.5">
                   <FormLabel>
-                    Điểm đến (thành phố) <span className="text-destructive">*</span>
+                    {t('routeForm.endCity')} <span className="text-destructive">*</span>
                   </FormLabel>
-                  <Select
-                    value={field.value ?? ''}
-                    onValueChange={field.onChange}
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn thành phố đến...">
-                          {(value: string | null | undefined) => cityLabel(value)}
-                        </SelectValue>
-                      </SelectTrigger>
-                    </FormControl>
-                    <CitySelectContent />
-                  </Select>
+                  <FormControl>
+                    <ComboboxField
+                      value={field.value || null}
+                      onValueChange={field.onChange}
+                      items={cityGroups}
+                      placeholder={t('routeForm.chooseEnd')}
+                      searchPlaceholder={t('routeForm.searchCity')}
+                      aria-label={t('brands.endPoint')}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -233,15 +236,15 @@ export function RouteFormDialog({
 
             <DialogFooter>
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-                Huỷ
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Đang lưu...
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                   </>
                 ) : (
-                  <>{isEdit ? 'Lưu thay đổi' : 'Thêm tuyến'}</>
+                  <>{isEdit ? t('common.saveChanges') : t('adminRoutes.addRoute')}</>
                 )}
               </Button>
             </DialogFooter>

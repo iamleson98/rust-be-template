@@ -13,6 +13,8 @@ export type Tier = {
   benefits: string[]
 }
 
+// Tier names (Platinum/Gold/Silver/Bronze) are proper nouns — not translated.
+// `benefits` holds i18n keys (home.benefit*) rendered via t() by consumers.
 export const TIERS: Tier[] = [
   {
     key: 'platinum',
@@ -22,7 +24,7 @@ export const TIERS: Tier[] = [
     icon: <Crown className="h-5 w-5" />,
     color: 'text-violet-600',
     bg: 'bg-violet-100',
-    benefits: ['Giảm 15% cho mọi chuyến', 'Ưu tiên chọn ghế', 'Hoàn vé miễn phí', 'Voucher 150K mỗi tháng'],
+    benefits: ['home.benefitDiscount15', 'home.benefitPrioritySeat', 'home.benefitFreeRefund', 'home.benefitVoucher150k'],
   },
   {
     key: 'gold',
@@ -32,7 +34,7 @@ export const TIERS: Tier[] = [
     icon: <Trophy className="h-5 w-5" />,
     color: 'text-amber-600',
     bg: 'bg-amber-100',
-    benefits: ['Giảm 10% cho mọi chuyến', 'Ưu tiên chọn ghế', 'Voucher 60K mỗi tháng'],
+    benefits: ['home.benefitDiscount10', 'home.benefitPrioritySeat', 'home.benefitVoucher60k'],
   },
   {
     key: 'silver',
@@ -42,7 +44,7 @@ export const TIERS: Tier[] = [
     icon: <Medal className="h-5 w-5" />,
     color: 'text-slate-500',
     bg: 'bg-slate-100',
-    benefits: ['Giảm 5% cho mọi chuyến', 'Voucher 25K mỗi tháng'],
+    benefits: ['home.benefitDiscount5', 'home.benefitVoucher25k'],
   },
   {
     key: 'bronze',
@@ -52,7 +54,7 @@ export const TIERS: Tier[] = [
     icon: <Star className="h-5 w-5" />,
     color: 'text-orange-600',
     bg: 'bg-orange-100',
-    benefits: ['Tích điểm mỗi chuyến', 'Đổi điểm lấy voucher'],
+    benefits: ['home.benefitEarnPoints', 'home.benefitRedeemVoucher'],
   },
 ]
 
@@ -75,12 +77,13 @@ export type PointsHistory = {
   date: string
 }
 
+// `description` holds i18n keys (home.history*) rendered via t() by consumers.
 export const MOCK_HISTORY: PointsHistory[] = [
-  { id: '1', description: 'Đặt vé HN→SG', amount: 150, date: '2025-07-15' },
-  { id: '2', description: 'Đặt vé ĐN→NT', amount: 85, date: '2025-07-10' },
-  { id: '3', description: 'Đổi voucher', amount: -500, date: '2025-07-08' },
-  { id: '4', description: 'Đặt vé SG→ĐL', amount: 120, date: '2025-07-01' },
-  { id: '5', description: 'Đặt vé HN→HP', amount: 30, date: '2025-06-25' },
+  { id: '1', description: 'home.historyBookedHnSg', amount: 150, date: '2025-07-15' },
+  { id: '2', description: 'home.historyBookedDnNt', amount: 85, date: '2025-07-10' },
+  { id: '3', description: 'home.historyRedeemVoucher', amount: -500, date: '2025-07-08' },
+  { id: '4', description: 'home.historyBookedSgDl', amount: 120, date: '2025-07-01' },
+  { id: '5', description: 'home.historyBookedHnHp', amount: 30, date: '2025-06-25' },
 ]
 
 export function getTier(points: number): Tier {

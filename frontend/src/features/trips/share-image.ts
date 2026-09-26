@@ -8,14 +8,16 @@
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currency'
 import { formatDateVN, formatTimeVN } from '@/lib/types'
+import { translate } from '@/lib/i18n'
 import { buildShareUrl } from './share-helpers'
-import type { useApp } from '@/lib/store'
+import { useApp } from '@/lib/store'
 
 /**
  * Render the trip card preview onto a canvas and download as PNG.
  * Uses standard 2D canvas API (no external libs).
  */
 export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.getState>['shareTripData']>) {
+  const lang = useApp.getState().lang
   const W = 1080
   const H = 1350
   const canvas = document.createElement('canvas')
@@ -23,7 +25,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   canvas.height = H
   const ctx = canvas.getContext('2d')
   if (!ctx) {
-    toast.error('Trình duyệt không hỗ trợ tải ảnh')
+    toast.error(translate(lang, 'trips.imageCanvasUnsupported'))
     return
   }
 
@@ -63,7 +65,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   ctx.fillText('DatXeVui', cardX + 40, cardY + 55)
   ctx.font = '20px sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
-  ctx.fillText('Đặt vé xe khách online', cardX + 240, cardY + 58)
+  ctx.fillText(translate(lang, 'trips.imageTagline'), cardX + 240, cardY + 58)
 
   // Brand accent stripe
   const accent = trip.brandAccent || '#2563eb'
@@ -112,7 +114,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   const depDate = trip.departureAt ? formatDateVN(trip.departureAt, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
   ctx.fillStyle = '#64748b'
   ctx.font = '22px sans-serif'
-  ctx.fillText('KHỞI HÀNH', cardX + 60, cardY + 460)
+  ctx.fillText(translate(lang, 'trips.imageDeparture'), cardX + 60, cardY + 460)
   ctx.fillStyle = '#0f172a'
   ctx.font = 'bold 38px sans-serif'
   ctx.fillText(depTime, cardX + 60, cardY + 500)
@@ -124,7 +126,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   if (trip.vehicleTypeLabel) {
     ctx.fillStyle = '#64748b'
     ctx.font = '22px sans-serif'
-    ctx.fillText('LOẠI XE', cardX + cardW - 360, cardY + 460)
+    ctx.fillText(translate(lang, 'trips.imageVehicleType'), cardX + cardW - 360, cardY + 460)
     ctx.fillStyle = '#0f172a'
     ctx.font = 'bold 32px sans-serif'
     ctx.fillText(trip.vehicleTypeLabel.slice(0, 22), cardX + cardW - 360, cardY + 500)
@@ -144,7 +146,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   ctx.fill()
   ctx.fillStyle = '#64748b'
   ctx.font = '24px sans-serif'
-  ctx.fillText('GIÁ TỪ', cardX + 100, priceBoxY + 60)
+  ctx.fillText(translate(lang, 'trips.imagePriceFrom'), cardX + 100, priceBoxY + 60)
   ctx.fillStyle = '#2563eb'
   ctx.font = 'bold 88px sans-serif'
   const priceStr = formatCurrency(trip.minPrice, 'VND')
@@ -154,7 +156,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   const { code, url } = buildShareUrl(trip.tripId)
   ctx.fillStyle = '#64748b'
   ctx.font = '20px sans-serif'
-  ctx.fillText('Mã chia sẻ:', cardX + 60, cardY + cardH - 90)
+  ctx.fillText(translate(lang, 'trips.imageShareCode'), cardX + 60, cardY + cardH - 90)
   ctx.fillStyle = '#2563eb'
   ctx.font = 'bold 26px sans-serif'
   ctx.fillText(code, cardX + 200, cardY + cardH - 90)
@@ -166,14 +168,14 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   ctx.fillStyle = 'rgba(255,255,255,0.85)'
   ctx.font = '24px sans-serif'
   ctx.textAlign = 'center'
-  ctx.fillText('Truy cập datxevui.vn để đặt vé ngay', W / 2, H - 36)
+  ctx.fillText(translate(lang, 'trips.imageFooter'), W / 2, H - 36)
   ctx.textAlign = 'left'
 
   // Download
   const filename = `vexevn-trip-${code}.png`
   canvas.toBlob((blob) => {
     if (!blob) {
-      toast.error('Không thể tạo ảnh')
+      toast.error(translate(lang, 'trips.imageCreateFailed'))
       return
     }
     const link = document.createElement('a')
@@ -183,7 +185,7 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(link.href)
-    toast.success('Đã tải ảnh chuyến đi', { description: filename })
+    toast.success(translate(lang, 'trips.imageDownloaded'), { description: filename })
   }, 'image/png')
 }
 

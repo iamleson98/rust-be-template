@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Headset, Activity, Clock } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 import { AdminStatsCardsSkeleton } from '@/features/admin/dashboard/stats-cards-skeleton'
 
 export function ChatStatsCards({
@@ -17,6 +18,7 @@ export function ChatStatsCards({
   assignedCount: number
   avgResponseSecs: number
 }) {
+  const t = useT()
   // Format the avg response time as "Mm Ss" (e.g. "1m 42s") or "N/A"
   // when no channels have a response yet (avgResponseSecs === 0).
   const formatResponseTime = (secs: number): string => {
@@ -34,30 +36,30 @@ export function ChatStatsCards({
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2"><Headset className="h-4 w-4 text-blue-600" /> Đang chờ</CardTitle>
+        <CardTitle className="text-sm flex items-center gap-2"><Headset className="h-4 w-4 text-blue-600" /> {t('chat.waiting')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-extrabold">{openCount}</div>
-        <div className="text-xs text-muted-foreground mt-1">Cuộc trò chuyện chưa phân công</div>
+        <div className="text-xs text-muted-foreground mt-1">{t('chat.unassigned')}</div>
       </CardContent>
     </Card>
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-amber-600" /> Đang xử lý</CardTitle>
+        <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-amber-600" /> {t('chat.processing')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-extrabold">{assignedCount}</div>
-        <div className="text-xs text-muted-foreground mt-1">Đã có nhân viên phụ trách</div>
+        <div className="text-xs text-muted-foreground mt-1">{t('chat.assigned')}</div>
       </CardContent>
     </Card>
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-rose-600" /> Thời gian phản hồi TB</CardTitle>
+        <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4 text-rose-600" /> {t('chat.avgResponseTime')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="text-3xl font-extrabold">{formatResponseTime(avgResponseSecs)}</div>
         <div className="text-xs text-muted-foreground mt-1">
-          Trung bình từ tin nhắn đầu tiên đến phản hồi
+          {t('chat.avgResponseTimeDesc')}
         </div>
       </CardContent>
     </Card>

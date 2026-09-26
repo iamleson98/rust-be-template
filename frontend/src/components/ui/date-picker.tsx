@@ -16,13 +16,15 @@
 
 import { useMemo, useState } from 'react'
 import { format, parse, isValid } from 'date-fns'
-import { vi } from 'date-fns/locale'
+import { enUS, vi } from 'date-fns/locale'
 import { CalendarIcon, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import { useApp } from '@/lib/store'
 
 const ISO_FMT = 'yyyy-MM-dd'
 
@@ -56,18 +58,24 @@ type DatePickerProps = {
 export function DatePicker({
   value,
   onChange,
-  placeholder = 'Chọn ngày…',
+  placeholder,
   minDate,
   maxDate,
   disabled,
   className,
-  displayFormat = 'EEEE, dd/MM/yyyy',
+  displayFormat,
   clearable = true,
   triggerClassName,
   id,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const selected = parseIsoDate(value)
+  const t = useT()
+  // Calendar locale + weekday names follow the VI/EN app language.
+  const lang = useApp((s) => s.lang)
+  const dateLocale = lang === 'en' ? enUS : vi
+  const effectiveFormat = displayFormat ?? (lang === 'en' ? 'EEEE, MM/dd/yyyy' : 'EEEE, dd/MM/yyyy')
+  const effectivePlaceholder = placeholder ?? t('ui.pickDate')
 
   const disabledDays = useMemo(() => {
     const min = minDate instanceof Date ? minDate : parseIsoDate(minDate)
@@ -90,13 +98,13 @@ export function DatePicker({
             )}
           >
             <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
-            {selected ? format(selected, displayFormat, { locale: vi }) : placeholder}
+            {selected ? format(selected, effectiveFormat, { locale: dateLocale }) : effectivePlaceholder}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
-            locale={vi}
+            locale={dateLocale}
             selected={selected ?? undefined}
             onSelect={(d) => {
               if (!d) return
@@ -111,7 +119,7 @@ export function DatePicker({
       {clearable && selected ? (
         <button
           type="button"
-          aria-label="Xoá ngày"
+          aria-label={t('ui.clearDate')}
           onClick={() => onChange(null)}
           className="h-6 w-6 shrink-0 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
         >

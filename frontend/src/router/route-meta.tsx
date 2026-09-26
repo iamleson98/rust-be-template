@@ -10,75 +10,61 @@
 import { useEffect } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { trackPageView } from '@/lib/analytics'
+import { useApp } from '@/lib/store'
+import { translate } from '@/lib/i18n'
 
+// Route → SEO i18n KEYS (not literal text). `RouteMeta` resolves them via
+// `t()` at render time, so titles/descriptions re-translate when the user
+// switches language. Keys live in `fragments/routes-router.json` (`seo.*`).
 export const ROUTE_META: Record<string, { title: string; description: string }> = {
-  '/': {
-    title: 'DatXeVui — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ',
-    description: 'Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, sleeper bus các tuyến Hà Nội, Đà Nẵng, Sài Gòn. Hỗ trợ 24/7.',
-  },
-  '/search': {
-    title: 'Tìm chuyến xe — DatXeVui',
-    description: 'So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.',
-  },
-  '/bookings': {
-    title: 'Vé của tôi — DatXeVui',
-    description: 'Quản lý vé đã đặt, lịch sử chuyến đi, đánh giá chuyến.',
-  },
-  '/admin': {
-    title: 'Quản trị — DatXeVui',
-    description: 'Bảng điều khiển quản trị hệ thống DatXeVui.',
-  },
-  '/admin/brands': { title: 'Hãng xe — Quản trị DatXeVui', description: 'Quản lý hãng xe, tuyến đường, lịch trình.' },
-  '/admin/cron-jobs': { title: 'Cron jobs — Quản trị DatXeVui', description: 'Quản lý tác vụ nền định kỳ.' },
-  '/admin/tickets': { title: 'Vé đã bán — Quản trị DatXeVui', description: 'Quản lý vé đã bán.' },
-  '/admin/chat': { title: 'Chat hỗ trợ — Quản trị DatXeVui', description: 'Hỗ trợ khách hàng qua chat.' },
-  '/admin/feedback': { title: 'Phản hồi — Quản trị DatXeVui', description: 'Quản lý phản hồi khách hàng.' },
-  '/admin/bus-layouts': { title: 'Sơ đồ ghế — Quản trị DatXeVui', description: 'Quản lý sơ đồ ghế xe.' },
-  '/admin/vehicle-types': { title: 'Loại xe — Quản trị DatXeVui', description: 'Quản lý danh mục loại xe.' },
-  '/admin/system': { title: 'Hệ thống — Quản trị DatXeVui', description: 'Theo dõi hệ thống.' },
-  '/admin/users': { title: 'Người dùng — Quản trị DatXeVui', description: 'Quản lý vai trò người dùng, nhân viên và quản trị viên.' },
-  '/admin/payments': { title: 'Thanh toán — Quản trị DatXeVui', description: 'Quản lý giao dịch thanh toán.' },
-  '/account': { title: 'Tài khoản — DatXeVui', description: 'Quản lý tài khoản và cài đặt.' },
-  '/account/wishlist': { title: 'Yêu thích — DatXeVui', description: 'Danh sách yêu thích.' },
-  '/account/loyalty': { title: 'Điểm thưởng — DatXeVui', description: 'Điểm tích lũy.' },
-  '/account/notifications': { title: 'Thông báo — DatXeVui', description: 'Cài đặt thông báo.' },
-  '/account/security': { title: 'Bảo mật — DatXeVui', description: 'Bảo mật tài khoản.' },
-  '/account/trips': { title: 'Lịch sử chuyến đi — DatXeVui', description: 'Lịch sử đặt vé và đánh giá chuyến đi.' },
-  '/account/feedback': { title: 'Phản hồi của tôi — DatXeVui', description: 'Lịch sử đánh giá các chuyến đi đã đi.' },
-  '/map': {
-    title: 'Bản đồ tuyến đường — DatXeVui',
-    description: 'Xem bản đồ các tuyến xe khách phổ biến trên khắp Việt Nam.',
-  },
-  '/login': {
-    title: 'Đăng nhập — DatXeVui',
-    description: 'Đăng nhập để đặt vé, xem vé của bạn và tích điểm thưởng.',
-  },
-  '/compare': {
-    title: 'So sánh chuyến xe — DatXeVui',
-    description: 'So sánh giá, giờ đi, tiện nghi của các chuyến xe.',
-  },
+  '/': { title: 'seo.home.title', description: 'seo.home.description' },
+  '/search': { title: 'seo.search.title', description: 'seo.search.description' },
+  '/bookings': { title: 'seo.bookings.title', description: 'seo.bookings.description' },
+  '/admin': { title: 'seo.admin.title', description: 'seo.admin.description' },
+  '/admin/brands': { title: 'seo.adminBrands.title', description: 'seo.adminBrands.description' },
+  '/admin/cron-jobs': { title: 'seo.adminCronJobs.title', description: 'seo.adminCronJobs.description' },
+  '/admin/tickets': { title: 'seo.adminTickets.title', description: 'seo.adminTickets.description' },
+  '/admin/chat': { title: 'seo.adminChat.title', description: 'seo.adminChat.description' },
+  '/admin/feedback': { title: 'seo.adminFeedback.title', description: 'seo.adminFeedback.description' },
+  '/admin/bus-layouts': { title: 'seo.adminBusLayouts.title', description: 'seo.adminBusLayouts.description' },
+  '/admin/vehicle-types': { title: 'seo.adminVehicleTypes.title', description: 'seo.adminVehicleTypes.description' },
+  '/admin/system': { title: 'seo.adminSystem.title', description: 'seo.adminSystem.description' },
+  '/admin/users': { title: 'seo.adminUsers.title', description: 'seo.adminUsers.description' },
+  '/admin/payments': { title: 'seo.adminPayments.title', description: 'seo.adminPayments.description' },
+  '/account': { title: 'seo.account.title', description: 'seo.account.description' },
+  '/account/wishlist': { title: 'seo.accountWishlist.title', description: 'seo.accountWishlist.description' },
+  '/account/loyalty': { title: 'seo.accountLoyalty.title', description: 'seo.accountLoyalty.description' },
+  '/account/notifications': { title: 'seo.accountNotifications.title', description: 'seo.accountNotifications.description' },
+  '/account/security': { title: 'seo.accountSecurity.title', description: 'seo.accountSecurity.description' },
+  '/account/trips': { title: 'seo.accountTrips.title', description: 'seo.accountTrips.description' },
+  '/account/feedback': { title: 'seo.accountFeedback.title', description: 'seo.accountFeedback.description' },
+  '/map': { title: 'seo.map.title', description: 'seo.map.description' },
+  '/login': { title: 'seo.login.title', description: 'seo.login.description' },
+  '/compare': { title: 'seo.compare.title', description: 'seo.compare.description' },
 }
 
 export function RouteMeta() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const { lang } = useApp()
   useEffect(() => {
     // Match either exact path or prefix for parameterized routes
     let meta = ROUTE_META[pathname]
     if (!meta) {
       if (pathname.startsWith('/trips/')) {
-        meta = { title: 'Chi tiết chuyến xe — DatXeVui', description: 'Xem sơ đồ ghế, lịch trình, đánh giá và đặt vé trực tuyến.' }
+        meta = { title: 'seo.tripDetail.title', description: 'seo.tripDetail.description' }
       } else if (pathname.startsWith('/brands/')) {
-        meta = { title: 'Hãng xe — DatXeVui', description: 'Thông tin hãng xe, tuyến đường, đánh giá khách hàng.' }
+        meta = { title: 'seo.brandDetail.title', description: 'seo.brandDetail.description' }
       } else if (pathname.startsWith('/bookings/')) {
-        meta = { title: 'Chi tiết vé — DatXeVui', description: 'Thông tin vé đã đặt.' }
+        meta = { title: 'seo.bookingDetail.title', description: 'seo.bookingDetail.description' }
       } else {
-        meta = { title: 'DatXeVui — Đặt vé xe khách online', description: ROUTE_META['/'].description }
+        meta = { title: 'seo.default.title', description: ROUTE_META['/'].description }
       }
     }
     if (typeof document !== 'undefined') {
-      document.title = meta.title
+      const title = translate(lang, meta.title)
+      document.title = title
       const descTag = document.querySelector('meta[name="description"]')
-      if (descTag) descTag.setAttribute('content', meta.description)
+      if (descTag) descTag.setAttribute('content', translate(lang, meta.description))
 
       // ── noindex for private routes (UIUX-017) ───────────────
       // Admin + account pages should never be indexed by search engines.
@@ -104,9 +90,9 @@ export function RouteMeta() {
       // Skip on private routes — admin/account activity shouldn't hit
       // analytics (PII + abuse-vector protection).
       if (!isPrivate) {
-        trackPageView(pathname, meta.title)
+        trackPageView(pathname, title)
       }
     }
-  }, [pathname])
+  }, [pathname, lang])
   return null
 }

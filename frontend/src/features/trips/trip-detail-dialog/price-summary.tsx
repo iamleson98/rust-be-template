@@ -14,6 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Armchair, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react'
 import { formatCurrency, type Currency } from '@/lib/currency'
+import { useT } from '@/lib/i18n'
 
 export function PriceSummary({
   selectedSeatsCount,
@@ -30,6 +31,7 @@ export function PriceSummary({
   onProceed: () => void
   currency: Currency
 }) {
+  const t = useT()
   return (
     <div className="border-t border-slate-200 bg-white/95 backdrop-blur supports-backdrop-filter:bg-white/80 px-4 md:px-6 py-3 md:py-3.5 flex items-center justify-between gap-3 md:gap-4 shrink-0">
       <div className="flex-1 min-w-0">
@@ -39,7 +41,7 @@ export function PriceSummary({
               <Armchair className="h-3.5 w-3.5" />
             </div>
             <span>
-              Vui lòng chọn <span className="font-semibold text-foreground">{maxSeats}</span> ghế để tiếp tục
+              {t('tripDetail.selectSeatsPrefix')} <span className="font-semibold text-foreground">{maxSeats}</span> {t('tripDetail.selectSeatsSuffix')}
             </span>
           </div>
         ) : (
@@ -50,24 +52,24 @@ export function PriceSummary({
               </div>
               <div>
                 <div className="font-semibold leading-tight text-slate-800">
-                  {selectedSeatsCount}/{maxSeats} ghế
+                  {t('tripDetail.seatsRatio', { selected: selectedSeatsCount, max: maxSeats })}
                 </div>
                 {selectedSeatsCount !== maxSeats ? (
                   <div className="text-[11px] text-amber-600 leading-tight flex items-center gap-1 mt-0.5">
                     <AlertTriangle className="h-3 w-3" />
-                    Cần chọn thêm {maxSeats - selectedSeatsCount} ghế
+                    {t('tripDetail.needMoreSeats', { count: maxSeats - selectedSeatsCount })}
                   </div>
                 ) : (
                   <div className="text-[11px] text-blue-600 leading-tight flex items-center gap-1 mt-0.5">
                     <CheckCircle2 className="h-3 w-3" />
-                    Đã đủ ghế
+                    {t('tripDetail.enoughSeats')}
                   </div>
                 )}
               </div>
             </div>
             <div className="h-9 w-px bg-slate-200" />
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">Tổng tiền</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{t('booking.totalAmount')}</div>
               <div className="font-extrabold text-blue-800 text-lg md:text-xl leading-tight">{formatCurrency(total, currency)}</div>
             </div>
           </div>
@@ -80,7 +82,7 @@ export function PriceSummary({
         size="lg"
       >
         <CheckCircle2 className="h-4 w-4" />
-        Đặt vé
+        {t('nav.bookTicket')}
         <ChevronRight className="h-4 w-4 -mr-1" />
       </Button>
     </div>

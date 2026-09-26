@@ -3,6 +3,7 @@
 // Extracted from the original 'search-widget.tsx'.
 
 import type { UseFormReturn } from 'react-hook-form'
+import { useT } from '@/lib/i18n'
 import { ArrowRight, Repeat2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SearchParams } from '@/lib/store'
@@ -17,6 +18,8 @@ export function SearchTripTypeToggle({
   searchParams: SearchParams
   setSearchParams: (p: Partial<SearchParams>) => void
 }) {
+  const t = useT()
+
   return (
     <div className="mb-3 flex items-center gap-2">
       <div className="inline-flex rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
@@ -34,7 +37,7 @@ export function SearchTripTypeToggle({
           )}
         >
           <ArrowRight className="h-3.5 w-3.5" />
-          Một chiều
+          {t('home.oneWay')}
         </button>
         <button
           type="button"
@@ -50,12 +53,12 @@ export function SearchTripTypeToggle({
           )}
         >
           <Repeat2 className="h-3.5 w-3.5" />
-          Khứ hồi
+          {t('search.roundTrip')}
         </button>
       </div>
       {searchParams.roundTrip && (
         <span className="text-[11px] text-blue-600 font-medium hidden sm:inline">
-          Tiết kiệm đến 10% khi đặt vé khứ hồi
+          {t('home.roundTripHint')}
         </span>
       )}
     </div>

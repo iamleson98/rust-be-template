@@ -32,6 +32,7 @@ import {
   Activity,
 } from 'lucide-react'
 import { formatNum } from '@/lib/types'
+import { useT } from '@/lib/i18n'
 import {
   useStats,
   useAdminBookingStats,
@@ -67,11 +68,12 @@ const BOOKING_STATUS_COLORS: Record<string, string> = {
   completed: '#16a34a',
 }
 
+// Map booking-status slug → i18n key (labels resolved via t() at render)
 const BOOKING_STATUS_LABELS: Record<string, string> = {
-  confirmed: 'Đã xác nhận',
-  pending: 'Chờ xử lý',
-  cancelled: 'Đã huỷ',
-  completed: 'Hoàn thành',
+  confirmed: 'adminDash.statusConfirmed',
+  pending: 'adminDash.statusPending',
+  cancelled: 'adminDash.statusCancelled',
+  completed: 'adminDash.statusCompleted',
 }
 
 export function StatsOverview({
@@ -81,6 +83,7 @@ export function StatsOverview({
   dateRange: DateRange
   onExportCSV: () => void
 }) {
+  const t = useT()
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   // Public stats (brands, routes, trips)
@@ -108,9 +111,18 @@ export function StatsOverview({
     if (byDay.length === 0) return []
     if (dateRange === '7d') {
       // Show every day with weekday labels
+      const weekdayLabels = [
+        t('adminDash.weekday.mon'),
+        t('adminDash.weekday.tue'),
+        t('adminDash.weekday.wed'),
+        t('adminDash.weekday.thu'),
+        t('adminDash.weekday.fri'),
+        t('adminDash.weekday.sat'),
+        t('adminDash.weekday.sun'),
+      ]
       return byDay.map((b) => {
         const d = new Date(b.date)
-        const label = isNaN(d.getTime()) ? b.date : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][((d.getDay() + 6) % 7)]
+        const label = isNaN(d.getTime()) ? b.date : weekdayLabels[((d.getDay() + 6) % 7)]
         return { label, value: b.revenue ?? 0, date: b.date }
       })
     }
@@ -128,7 +140,7 @@ export function StatsOverview({
       })
     }
     return out
-  }, [byDay, dateRange])
+  }, [byDay, dateRange, t])
 
   // Forecast from the last 7 actual revenue values (real data)
   const forecast = useMemo(() => {
@@ -157,12 +169,12 @@ export function StatsOverview({
     if (!totals) return []
     return (['confirmed', 'pending', 'cancelled', 'completed'] as const)
       .map((k) => ({
-        label: BOOKING_STATUS_LABELS[k] ?? k,
+        label: BOOKING_STATUS_LABELS[k] ? t(BOOKING_STATUS_LABELS[k]) : k,
         count: (totals as Record<string, number>)[k] ?? 0,
         color: BOOKING_STATUS_COLORS[k] ?? '#94a3b8',
       }))
       .filter((s) => s.count > 0)
-  }, [totals])
+  }, [totals, t])
   const statusSegmentTotal = statusSegments.reduce((a, b) => a + b.count, 0)
 
   // Live "current vs prev" trend — we don't have a `previous period` field
@@ -183,7 +195,7 @@ export function StatsOverview({
         <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
-            <span>Không tải được số liệu thống kê. Vui lòng thử lại.</span>
+            <span>{t('adminDash.statsLoadError')}</span>
           </div>
           <Button
             variant="outline"
@@ -191,7 +203,7 @@ export function StatsOverview({
             onClick={() => refetchStats()}
             className="h-7 text-xs border-rose-300 text-rose-700 hover:bg-rose-100"
           >
-            Thử lại
+            {t('payment.retry')}
           </Button>
         </div>
       )}
@@ -200,7 +212,7 @@ export function StatsOverview({
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard
           icon={<DollarSign className="h-5 w-5" />}
-          label="Doanh thu"
+          label={t('adminDash.revenue')}
           value={totals ? formatVNDShort(totals.revenue) : '—'}
           change={lastVsPrev?.delta == null ? '—' : `${Math.abs(lastVsPrev.delta).toFixed(1)}%`}
           up={(lastVsPrev?.delta ?? 0) >= 0}
@@ -209,27 +221,27 @@ export function StatsOverview({
         />
         <KpiCard
           icon={<Ticket className="h-5 w-5" />}
-          label="Vé đã bán"
+          label={t('admin.ticketsSold')}
           value={totals ? formatNum(totals.total) : '—'}
-          change={totals ? `${formatNum(totals.confirmed)} đã xác nhận` : '—'}
+          change={totals ? t('adminDash.confirmedCount', { count: formatNum(totals.confirmed) }) : '—'}
           up
           color="#2563eb"
           gradient="from-blue-500/10 to-blue-600/5"
         />
         <KpiCard
           icon={<Bus className="h-5 w-5" />}
-          label="Chuyến chạy"
+          label={t('adminDash.tripsRunning')}
           value={rawStats ? formatNum(rawStats.trips) : '—'}
-          change="Hiện hoạt động"
+          change={t('adminDash.currentlyActive')}
           up
           color="#7c3aed"
           gradient="from-violet-500/10 to-violet-600/5"
         />
         <KpiCard
           icon={<RouteIcon className="h-5 w-5" />}
-          label="Tuyến / Hãng"
+          label={t('adminDash.routesPerBrand')}
           value={rawStats ? `${formatNum(rawStats.routes)} / ${formatNum(rawStats.brands)}` : '—'}
-          change="Đang theo dõi"
+          change={t('adminDash.tracking')}
           up
           color="#0ea5e9"
           gradient="from-sky-500/10 to-sky-600/5"

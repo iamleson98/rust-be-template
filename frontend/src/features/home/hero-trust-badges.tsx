@@ -3,14 +3,16 @@
 // Extracted from the original 'hero.tsx'.
 
 import { ShieldCheck, Wallet, Headset, Star } from 'lucide-react'
+import { useT } from '@/lib/i18n'
 
 export function HeroTrustBadges() {
+  const t = useT()
   return (
     <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
-      <TrustBadge icon={<ShieldCheck className="h-5 w-5" />} title="Thanh toán an toàn" sub="Mã hoá SSL 256-bit" />
-      <TrustBadge icon={<Wallet className="h-5 w-5" />} title="Giá tốt nhất" sub="Cam kết hoàn tiền" />
-      <TrustBadge icon={<Headset className="h-5 w-5" />} title="Hỗ trợ 24/7" sub="Chat trực tuyến" />
-      <TrustBadge icon={<Star className="h-5 w-5" />} title="4.8/5 đánh giá" sub="12.500+ review" />
+      <TrustBadge icon={<ShieldCheck className="h-5 w-5" />} title={t('home.trustSecurePayment')} sub={t('home.trustSsl')} />
+      <TrustBadge icon={<Wallet className="h-5 w-5" />} title={t('home.trustBestPrice')} sub={t('home.trustMoneyBack')} />
+      <TrustBadge icon={<Headset className="h-5 w-5" />} title={t('nav.support247')} sub={t('home.trustChat')} />
+      <TrustBadge icon={<Star className="h-5 w-5" />} title={t('home.trustRating')} sub={t('home.trustReviews')} />
     </div>
   )
 }

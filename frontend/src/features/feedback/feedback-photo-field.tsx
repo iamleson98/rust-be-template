@@ -15,6 +15,7 @@ import type { UseFormReturn } from 'react-hook-form'
 import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Upload, X, Image as ImageIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { useT } from '@/lib/i18n'
 import type { FeedbackValues } from './feedback-schema'
 
 const MAX_PHOTOS = 3
@@ -25,6 +26,7 @@ export function FeedbackPhotoField({
 }: {
   form: UseFormReturn<FeedbackValues>
 }) {
+  const t = useT()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handlePickPhotos = useCallback(
@@ -33,25 +35,25 @@ export function FeedbackPhotoField({
       const current = form.getValues('photos')
       const slotsLeft = MAX_PHOTOS - current.length
       if (slotsLeft <= 0) {
-        toast.error(`Chỉ được đính kèm tối đa ${MAX_PHOTOS} ảnh`)
+        toast.error(t('feedbackForm.maxPhotosError', { count: MAX_PHOTOS }))
         return
       }
       const picked = Array.from(files).slice(0, slotsLeft)
       const next: string[] = []
       for (const f of picked) {
         if (!f.type.startsWith('image/')) {
-          toast.error(`"${f.name}" không phải ảnh`)
+          toast.error(t('feedbackForm.notAnImage', { name: f.name }))
           continue
         }
         if (f.size > MAX_PHOTO_SIZE) {
-          toast.error(`"${f.name}" vượt quá 2MB`)
+          toast.error(t('feedbackForm.fileTooLarge', { name: f.name }))
           continue
         }
         try {
           const dataUrl = await readAsDataURL(f)
           next.push(dataUrl)
         } catch {
-          toast.error(`Không thể đọc "${f.name}"`)
+          toast.error(t('feedbackForm.cannotReadFile', { name: f.name }))
         }
       }
       if (next.length > 0) {
@@ -60,7 +62,7 @@ export function FeedbackPhotoField({
       }
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
-    [form],
+    [form, t],
   )
 
   const removePhoto = (idx: number) => {
@@ -80,10 +82,10 @@ export function FeedbackPhotoField({
                 <FormItem className="space-y-2">
                   <div className="flex items-center justify-between">
                     <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Ảnh đi kèm (tuỳ chọn)
+                      {t('feedbackForm.photosLabel')}
                     </FormLabel>
                     <span className="text-[10px] text-muted-foreground">
-                      {(field.value ?? []).length}/{MAX_PHOTOS} ảnh · tối đa 2MB/ảnh
+                      {t('feedbackForm.photosCounter', { count: (field.value ?? []).length, max: MAX_PHOTOS })}
                     </span>
                   </div>
                   <input
@@ -101,9 +103,9 @@ export function FeedbackPhotoField({
                       className="w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors py-4 flex flex-col items-center justify-center gap-1 text-muted-foreground"
                     >
                       <Upload className="h-5 w-5" />
-                      <span className="text-xs font-medium">Thêm ảnh</span>
+                      <span className="text-xs font-medium">{t('feedbackForm.addPhotos')}</span>
                       <span className="text-[10px]">
-                        Nhấn để chọn tối đa {MAX_PHOTOS} ảnh từ thiết bị
+                        {t('feedbackForm.addPhotosHint', { count: MAX_PHOTOS })}
                       </span>
                     </button>
                   ) : (
@@ -115,7 +117,7 @@ export function FeedbackPhotoField({
                         >
                           <img
                             src={src}
-                            alt={`Ảnh ${i + 1}`}
+                            alt={t('reviews.photoAlt', { index: i + 1 })}
                             className="w-full h-full object-cover"
                             loading="lazy"
                             decoding="async"
@@ -124,7 +126,7 @@ export function FeedbackPhotoField({
                             type="button"
                             onClick={() => removePhoto(i)}
                             className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-rose-600 text-white inline-flex items-center justify-center transition-colors"
-                            aria-label="Xoá ảnh"
+                            aria-label={t('feedbackForm.removePhoto')}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -137,7 +139,7 @@ export function FeedbackPhotoField({
                           className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground"
                         >
                           <ImageIcon className="h-4 w-4" />
-                          <span className="text-[10px] font-medium">Thêm</span>
+                          <span className="text-[10px] font-medium">{t('common.add')}</span>
                         </button>
                       )}
                     </div>
