@@ -65,7 +65,7 @@ export function SearchActionsRow({
       <Button
         type="submit"
         disabled={submitting}
-        className="h-10 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white px-8 gap-2 relative overflow-hidden"
+        className="h-11 w-full shrink-0 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 gap-2 relative overflow-hidden shadow-lg shadow-blue-600/20 sm:w-auto"
       >
         {submitting ? (
           <span className="relative z-10 flex items-center gap-2">

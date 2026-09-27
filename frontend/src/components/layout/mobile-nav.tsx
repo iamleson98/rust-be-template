@@ -3,7 +3,7 @@
 import { useApp } from '@/lib/store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
-import { Home, Search, Ticket, Headset } from 'lucide-react'
+import { Home, Search, Ticket, Headset, LayoutDashboard } from 'lucide-react'
 
 type TabKey = 'home' | 'search' | 'bookings' | 'support'
 
@@ -24,10 +24,15 @@ export function MobileNav() {
 
   // Derive the active tab from the current URL path — the router is now
   // the source of truth for the active view (was `view` in the Zustand store).
+  // For signed-in users the middle tab is their personal console (/account);
+  // guests keep the /bookings ticket-lookup tab.
+  const consoleTab = !!user
+  const bookingsIcon = consoleTab ? LayoutDashboard : Ticket
+  const bookingsLabel = t(consoleTab ? 'nav.myConsole' : 'nav.tickets')
   const getActiveTab = (): TabKey => {
     if (pathname === '/') return 'home'
     if (pathname === '/search') return 'search'
-    if (pathname === '/bookings' || pathname.startsWith('/bookings/')) return 'bookings'
+    if (pathname === '/bookings' || pathname.startsWith('/bookings/') || pathname.startsWith('/account')) return 'bookings'
     return 'home'
   }
 
@@ -41,7 +46,7 @@ export function MobileNav() {
         navigate({ to: '/' })
         break
       case 'bookings':
-        navigate({ to: '/bookings' })
+        navigate({ to: consoleTab ? '/account' : '/bookings' })
         break
       case 'support':
         if (user) setChatOpen(true)
@@ -81,12 +86,15 @@ export function MobileNav() {
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.key
-            const Icon = tab.icon
+            // The middle tab is context-aware: console (signed in) vs
+            // ticket lookup (guest).
+            const Icon = tab.key === 'bookings' ? bookingsIcon : tab.icon
+            const label = tab.key === 'bookings' ? bookingsLabel : t(tab.labelKey)
             return (
               <button
                 key={tab.key}
                 onClick={() => handleTab(tab.key)}
-                aria-label={t(tab.labelKey)}
+                aria-label={label}
                 aria-current={isActive ? 'page' : undefined}
                 // min-h-12 ensures the touch target meets Apple HIG (44px)
                 // and Material Design (48px) guidelines even on dense layouts.
@@ -107,7 +115,7 @@ export function MobileNav() {
                     isActive ? 'text-blue-600' : 'text-slate-400'
                   }`}
                 >
-                  {t(tab.labelKey)}
+                  {label}
                 </span>
               </button>
             )

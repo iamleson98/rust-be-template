@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, Briefcase, CreditCard } from 'lucide-react'
+import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, Phone, Briefcase, CreditCard, History, MessageSquareHeart, ChevronRight } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,11 +46,10 @@ export const Header = memo(function Header() {
   const t = useT()
 
   // ── Active-route helpers ────────────────────────────────────────
-  // The previous `view === 'bookings'` checks mapped directly to the
-  // Zustand view state. Now that views are real URL paths, we derive the
-  // active state from the router's pathname (with prefix matching for
-  // parameterized routes like /bookings/:code).
-  const isBookings = pathname === '/bookings' || pathname.startsWith('/bookings/')
+  // The active state derives from the router's pathname (with prefix
+  // matching for parameterized routes like /bookings/:code). Note the
+  // customer Header is unmounted on /account pages (they render their
+  // own shell), so no console highlight is needed here.
   const isAdmin = pathname === '/admin'
 
   const handleLangChange = useCallback((newLang: 'vi' | 'en') => {
@@ -100,23 +99,14 @@ export const Header = memo(function Header() {
         </button>
 
         <nav className="hidden md:flex items-center gap-1">
-          {/* Logo is the home link, so we skip a redundant "Trang chủ" button */}
-          <NavBtn active={isBookings} onClick={() => navigate({ to: '/bookings' })} icon={<Ticket className="h-4 w-4" />}>
-            {t('nav.tickets')}
-          </NavBtn>
-          {/* Admin nav — only visible to employees */}
+          {/* Center bar kept intentionally minimal: the customer's links
+           * live behind the avatar dropdown (personal console), staff
+           * keep their Admin shortcut here. */}
           {isStaffUser(user) && (
             <NavBtn active={isAdmin} onClick={() => navigate({ to: '/admin' })} icon={<LayoutDashboard className="h-4 w-4" />}>
               {t('nav.admin')}
             </NavBtn>
           )}
-          {/* Online agents indicator */}
-          <div className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 ring-1 ring-blue-400/20 text-[11px] font-medium text-blue-200">
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-400">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60 animate-ping" />
-            </span>
-            {t('nav.support247')}
-          </div>
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
@@ -190,7 +180,7 @@ export const Header = memo(function Header() {
                   {user.name}
                 </span>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
@@ -226,22 +216,47 @@ export const Header = memo(function Header() {
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
+                {/* Personal console — the customer's own dashboard: active
+                 * tickets, purchase history, feedback, loyalty. Made the
+                 * FIRST and most prominent entry so it's always one click
+                 * behind the user's name. */}
+                <DropdownMenuItem
+                  onClick={() => navigate({ to: '/account' })}
+                  className="gap-2.5 bg-linear-to-r from-blue-50 to-indigo-50 focus:bg-blue-100/60 dark:from-blue-950/40 dark:to-indigo-950/40"
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
+                    <LayoutDashboard className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">{t('nav.myConsole')}</span>
+                    <span className="block text-[11px] text-muted-foreground">{t('nav.myConsoleDesc')}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })} className="gap-2">
                   <Ticket className="h-4 w-4" /> {t('nav.tickets')}
                 </DropdownMenuItem>
-                {isStaffUser(user) && (
-                  <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
-                    <LayoutDashboard className="h-4 w-4" /> {t('nav.admin')}
-                  </DropdownMenuItem>
-                )}
-                {isStaffUser(user) && (
-                  <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
-                    <CreditCard className="h-4 w-4" /> {t('nav.payments')}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={() => navigate({ to: '/' })} className="gap-2">
-                  <UserCircle className="h-4 w-4" /> {t('nav.profile')}
+                <DropdownMenuItem onClick={() => navigate({ to: '/account/trips' })} className="gap-2">
+                  <History className="h-4 w-4" /> {t('nav.purchaseHistory')}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: '/account/feedback' })} className="gap-2">
+                  <MessageSquareHeart className="h-4 w-4" /> {t('nav.tripFeedback')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: '/account/loyalty' })} className="gap-2">
+                  <Gift className="h-4 w-4" /> {t('nav.loyalty')}
+                </DropdownMenuItem>
+                {isStaffUser(user) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
+                      <Briefcase className="h-4 w-4" /> {t('nav.admin')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
+                      <CreditCard className="h-4 w-4" /> {t('nav.payments')}
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logoutMut.mutate()} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
                   <LogOut className="h-4 w-4" /> {t('nav.logout')}
@@ -271,9 +286,15 @@ export const Header = memo(function Header() {
               <DropdownMenuItem onClick={() => navigate({ to: '/' })}>
                 <HomeIcon className="h-4 w-4 mr-2" /> {t('nav.home')}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })}>
-                <Ticket className="h-4 w-4 mr-2" /> {t('nav.tickets')}
-              </DropdownMenuItem>
+              {user ? (
+                <DropdownMenuItem onClick={() => navigate({ to: '/account' })}>
+                  <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.myConsole')}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })}>
+                  <Ticket className="h-4 w-4 mr-2" /> {t('nav.tickets')}
+                </DropdownMenuItem>
+              )}
               {isStaffUser(user) && (
                 <DropdownMenuItem onClick={() => navigate({ to: '/admin' })}>
                   <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.admin')}

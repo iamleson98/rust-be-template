@@ -527,9 +527,12 @@ export function useReviewTags() {
 // Bookings
 // ─────────────────────────────────────────────────────────────
 
-export function useMyBookings(status?: string) {
+export function useMyBookings(status?: string, opts?: { enabled?: boolean }) {
   return useQuery({
     ...bookingsListOptions({ query: { status: status ?? "all" } }),
+    // `enabled` lets guest-facing surfaces (e.g. the home WelcomeBar)
+    // mount the hook unconditionally but only fetch when signed in.
+    enabled: opts?.enabled ?? true,
     staleTime: 30 * 1000,
   });
 }

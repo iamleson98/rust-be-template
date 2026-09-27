@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { SearchWidget } from '@/features/home/search-widget'
 import { TrustBar } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
@@ -8,7 +8,7 @@ import { useStats } from '@/lib/queries'
 import { formatNum } from '@/lib/types'
 import { ChevronDown } from 'lucide-react'
 import { HeroBackground } from './hero-background'
-import { HeroCountdown } from './hero-countdown'
+import { WelcomeBar } from './welcome-bar'
 import { HeroTrustBadges } from './hero-trust-badges'
 import { HeroStat } from './hero-stat'
 import { HeroTrustedBy } from './hero-trusted-by'
@@ -28,32 +28,11 @@ export function Hero() {
   const [stats, setStats] = useState<Stats | null>(null)
   const t = useT()
 
-  // Flash Sale countdown
-  const [countdown, setCountdown] = useState<{ hours: number; minutes: number; seconds: number } | null>(null)
-  const targetRef = useRef<number>(0)
-
-  const computeCountdown = useCallback((target: number) => {
-    const now = Date.now()
-    const diff = Math.max(0, target - now)
-    const hours = Math.floor(diff / 3600000)
-    const minutes = Math.floor((diff % 3600000) / 60000)
-    const seconds = Math.floor((diff % 60000) / 1000)
-    return { hours, minutes, seconds }
-  }, [])
-
-  useEffect(() => {
-    // Set target 23h59m from now
-    targetRef.current = Date.now() + 23 * 3600000 + 59 * 60000
-    setCountdown(computeCountdown(targetRef.current))
-    const interval = setInterval(() => {
-      const cd = computeCountdown(targetRef.current)
-      setCountdown(cd)
-      if (cd.hours === 0 && cd.minutes === 0 && cd.seconds === 0) {
-        clearInterval(interval)
-      }
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [computeCountdown])
+  // NOTE: the fabricated "Flash Sale" countdown that used to live here was
+  // removed — it set a fake 23h59m deadline not backed by any campaign API
+  // and its 1-second interval re-rendered the whole hero, hurting both
+  // honesty and load/CPU performance. The WelcomeBar below greets the
+  // visitor with REAL data instead (active tickets for signed-in users).
 
   const { data: statsData } = useStats()
   useEffect(() => {
@@ -101,8 +80,8 @@ export function Hero() {
           </p>
         </div>
 
-        {/* Flash Sale Countdown */}
-        <HeroCountdown countdown={countdown} />
+        {/* Friendly personalized welcome — real data, no timers */}
+        <WelcomeBar />
 
         {/* Search widget — z-40 lifts the whole widget (and its autocomplete
             dropdowns) above later siblings like TrustBadges that also create

@@ -24,7 +24,7 @@
  *   5. Quick links — notifications / security / full history
  */
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useApp } from '@/lib/store'
 import { useLoyalty, useMyBookings } from '@/lib/queries'
@@ -45,8 +45,12 @@ import {
   Star,
   ArrowRight,
   Sparkles,
+  Clock,
+  CalendarClock,
 } from 'lucide-react'
 import {
+  STATUS_CONFIG,
+  effectiveDeparture,
   isBookingReviewable,
   isBookingUpcoming,
   type BookingItem,
@@ -66,6 +70,45 @@ function formatDate(iso: string | null | undefined, locale: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return '—'
   return d.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function formatDateTime(iso: string | null | undefined, locale: string): string {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString(locale, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Time-of-day greeting key — recomputed on mount only (cheap). */
+function greetingKey(date = new Date()): 'Morning' | 'Afternoon' | 'Evening' {
+  const h = date.getHours()
+  if (h < 12) return 'Morning'
+  if (h < 18) return 'Afternoon'
+  return 'Evening'
+}
+
+/**
+ * Human "departs in …" label for an upcoming booking. Pure function of
+ * (departureMs, nowMs) so it is trivially testable; the live tile below
+ * re-invokes it on a coarse 30s tick (minute-level display is enough —
+ * a per-second tick would only burn CPU).
+ */
+function untilLabel(ms: number, t: (k: string, p?: Record<string, string | number>) => string): string {
+  const diff = Math.max(0, ms - Date.now())
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return t('accountPage.console.departingNow')
+  if (minutes < 60) return t('accountPage.console.inMinutes', { count: minutes })
+  const hours = Math.floor(minutes / 60)
+  const rem = minutes % 60
+  if (hours < 24) return t('accountPage.console.inHours', { hours, minutes: rem })
+  const days = Math.floor(hours / 24)
+  return t('accountPage.console.inDays', { count: days })
 }
 
 /* ── Stat card ─────────────────────────────────────────────────── */
@@ -109,6 +152,171 @@ function StatCard({
         />
       )}
     </button>
+  )
+}
+
+/**
+ * Whether the departure is within 24h (styles the chip solid). Wraps the
+ * impure `Date.now()` read the same way `isBookingUpcoming` does — kept in
+ * a shared helper so the component's render stays analytically pure.
+ */
+function isDepartureUrgent(ms: number): boolean {
+  return ms - Date.now() < 24 * 3600_000
+}
+
+/* ── Live "departs in …" chip ──────────────────────────────────── */
+
+/**
+ * Self-updating countdown chip for the nearest active ticket. Isolated in
+ * its own component so the 30s tick re-renders ONLY this tiny span — not
+ * the console page (and not anything visible elsewhere).
+ */
+function DepartureChip({ departureMs, t }: { departureMs: number; t: (k: string, p?: Record<string, string | number>) => string }) {
+  const [, forceTick] = useState(0)
+  useEffect(() => {
+    // Coarse tick — the label is minute-granular, so 30s keeps it honest
+    // without a per-second re-render storm.
+    const id = setInterval(() => forceTick((n) => n + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
+  const urgent = isDepartureUrgent(departureMs)
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums whitespace-nowrap',
+        urgent
+          ? 'bg-blue-600 text-white'
+          : 'bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20',
+      )}
+    >
+      <Clock className="size-3" aria-hidden />
+      {untilLabel(departureMs, t)}
+    </span>
+  )
+}
+
+/* ── Section: active tickets ───────────────────────────────────── */
+
+/**
+ * ActiveTicketsCard — upcoming bookings sorted by departure, with a live
+ * countdown on the nearest one. Every value comes from
+ * `GET /api/bookings` (see UserConsole header comment). Rows deep-link
+ * to `/bookings/{code}` where the ticket can actually be managed
+ * (cancel / view seats / pickup points).
+ */
+function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loading: boolean }) {
+  const t = useT()
+  const navigate = useNavigate()
+  const { lang } = useApp()
+  const locale = lang === 'en' ? 'en-US' : 'vi-VN'
+
+  const upcoming = useMemo(
+    () =>
+      bookings
+        .filter((b) => isBookingUpcoming(b))
+        .sort((a, b) => effectiveDeparture(a) - effectiveDeparture(b))
+        .slice(0, 3),
+    [bookings],
+  )
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="h-1 bg-linear-to-r from-sky-500 to-blue-600" />
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <CalendarClock className="h-4 w-4 text-blue-600" />
+          {t('accountPage.console.activeTickets')}
+          {upcoming.length > 0 && (
+            <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-bold text-blue-700 ring-1 ring-blue-500/20">
+              {upcoming.length}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {loading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : upcoming.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <div className="flex size-11 items-center justify-center rounded-full bg-sky-500/10 text-sky-600">
+              <CalendarClock className="size-5" aria-hidden />
+            </div>
+            <p className="text-xs text-muted-foreground">{t('accountPage.console.noActiveTickets')}</p>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate({ to: '/' })}>
+              <Bus className="h-3.5 w-3.5" /> {t('home.bookATrip')}
+            </Button>
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {upcoming.map((b, i) => {
+              const depMs = effectiveDeparture(b)
+              const statusCfg = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.confirmed
+              return (
+                <li key={b.id}>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: '/bookings/$code', params: { code: b.code } })}
+                    className="group flex w-full items-center gap-3 rounded-xl border bg-slate-50/60 p-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm"
+                  >
+                    <div
+                      className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
+                      style={{ background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)` }}
+                      aria-hidden
+                    >
+                      <Bus className="size-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">
+                        {b.trip?.routeName ?? t('accountPage.feedback.tripFallback')}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <CalendarClock className="size-3" aria-hidden />
+                          {formatDateTime(b.trip?.departureAt ?? b.trip?.departureDate, locale)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Ticket className="size-3" aria-hidden />
+                          {b.seats?.length ?? 0} {t('accountPage.console.seatsUnit')}
+                          <code className="font-mono">{b.code}</code>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5">
+                      {i === 0 && depMs > 0 ? (
+                        <DepartureChip departureMs={depMs} t={t} />
+                      ) : (
+                        <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide', statusCfg.cls)}>
+                          {t(statusCfg.labelKey)}
+                        </span>
+                      )}
+                      <span className="hidden items-center gap-0.5 text-[11px] font-medium text-blue-700 group-hover:flex sm:inline-flex">
+                        {t('accountPage.console.manageTicket')}
+                        <ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                      </span>
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+            <li>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-1 w-full gap-1 text-blue-700 hover:bg-blue-50"
+                onClick={() => navigate({ to: '/bookings' })}
+              >
+                {t('accountPage.console.viewAllTickets')}
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </li>
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -375,6 +583,10 @@ export function UserConsole() {
     ? user.name.split(' ').map((n) => n[0]).slice(-2).join('').toUpperCase()
     : 'U'
 
+  // Time-of-day greeting — a small, warm touch that makes the console
+  // feel personal instead of corporate.
+  const greeting = t(`accountPage.console.greeting${greetingKey()}`)
+
   // Real derived stats — no invented numbers.
   const stats = useMemo(() => {
     const completed = bookings.filter((b) => b.status === 'completed').length
@@ -425,10 +637,14 @@ export function UserConsole() {
               {t('accountPage.console.badge')}
             </div>
             <h1 className="mt-2 truncate text-2xl font-extrabold tracking-tight sm:text-3xl">
-              {t('bookingHistory.greeting', { name: user?.name ?? '' })}
+              <span className="mr-1.5" aria-hidden>👋</span>
+              {greeting}, {user?.name ?? ''}
             </h1>
             <p className="mt-1 truncate text-sm text-blue-100">
-              {user?.email || t('accountPage.console.subtitle')}
+              {t('accountPage.console.subtitleLine', {
+                active: stats.upcoming,
+                points: loyalty ? loyalty.points.toLocaleString(locale) : '0',
+              })}
             </p>
           </div>
 
@@ -459,19 +675,19 @@ export function UserConsole() {
       {/* ── Stat cards (all real) ────────────────────────────── */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
+          icon={<CalendarClock className="h-5 w-5 text-sky-600" />}
+          label={t('accountPage.console.activeTickets')}
+          value={bookingsLoading ? '—' : String(stats.upcoming)}
+          sub={stats.upcoming > 0 ? t('accountPage.console.activeTicketsSub') : t('accountPage.console.noActiveTickets')}
+          accent="bg-sky-500/10"
+          onClick={() => navigate({ to: '/bookings' })}
+        />
+        <StatCard
           icon={<Bus className="h-5 w-5 text-emerald-600" />}
           label={t('accountPage.console.completedTrips')}
           value={bookingsLoading ? '—' : String(stats.completed)}
           sub={loyalty ? `${t('home.earnRateExplainerShort')}` : undefined}
           accent="bg-emerald-500/10"
-          onClick={() => navigate({ to: '/account/trips' })}
-        />
-        <StatCard
-          icon={<Ticket className="h-5 w-5 text-blue-600" />}
-          label={t('accountPage.console.totalBookings')}
-          value={bookingsLoading ? '—' : String(bookings.length)}
-          sub={stats.upcoming > 0 ? t('accountPage.console.upcomingCount', { count: stats.upcoming }) : undefined}
-          accent="bg-blue-500/10"
           onClick={() => navigate({ to: '/account/trips' })}
         />
         <StatCard
@@ -490,6 +706,11 @@ export function UserConsole() {
           accent="bg-amber-500/10"
           onClick={() => navigate({ to: '/account/feedback' })}
         />
+      </div>
+
+      {/* ── Active tickets — the "check my active tickets" home ── */}
+      <div className="mb-5">
+        <ActiveTicketsCard bookings={bookings} loading={bookingsLoading} />
       </div>
 
       {/* ── Rate your trips (feedback after each trip done) ──── */}
