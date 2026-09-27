@@ -1,31 +1,34 @@
 'use client'
 
 /**
- * AdminDashboard — top-level shell for the admin "Bảng điều khiển" view.
+ * AdminDashboard — the `/admin` overview: a real-data summary report.
  *
- * This is the named-export entry point. Owns the dashboard-wide state
- * (channels, chat workspace) and orchestrates the StatsOverview + 4 tabs
- * (Chat / Brand CRUD / Campaigns / Reviews).
+ * Design rule (product decision 2026-09): the dashboard is a SUMMARY
+ * REPORT only. Every number on this page comes from a live backend
+ * endpoint — no client-side predictions, no mock series, and no
+ * duplicated management panels (each management surface lives on its
+ * own dedicated route):
  *
- * Migrated from Zustand view-state routing + manual fetch to TanStack
- * Router + TanStack Query. The `/api/stats` and `/api/campaigns` calls
- * are now backed by `useStats` / `useCampaigns` hooks (the campaigns list
- * is consumed directly inside `<CampaignsPanel />`). The chat channels
- * + chat messages endpoints have no TanStack Query hook yet, so they
- * remain on the manual `useEffect + fetch + useState` pattern — kept
- * verbatim from the original implementation.
+ *   - `useStats()`                     → `/api/stats`            (brands, routes, trips)
+ *   - `useAdminBookingStats(filter)`   → `/api/admin/bookings/stats` (totals + byDay)
+ *   - `useAdminBookings({ limit: 5 })` → `/api/admin/bookings`   (5 most-recent bookings)
+ *   - `useCampaigns()`                 → `/api/campaigns`        (live campaigns)
+ *
+ * What was intentionally REMOVED in the 2026-09 redesign:
+ *   - the "revenue forecast" card (a client-side linear regression —
+ *     a prediction, not backend data),
+ *   - the booking-volume sparkline + segmentation donut (duplicates of
+ *     the revenue bar chart and the booking-status donut),
+ *   - the four inline tabs (Tickets / Brands CRUD / Chat / Campaigns)
+ *     — replaced by the quick-links strip below; those panels are the
+ *     dedicated `/admin/tickets`, `/admin/brands`, `/admin/chat` pages.
  */
 
 import { memo, useCallback, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  useStats,
-  useAdminBookingExport,
-} from '@/lib/queries'
+import { useStats, useAdminBookingExport } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
-import { useAdminChatWorkspace } from '@/features/admin/chat/use-admin-chat-workspace'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   LayoutDashboard,
   Eye,
@@ -33,19 +36,56 @@ import {
   Download,
   Building2,
   MessageSquare,
-  TrendingUp,
+  MessageSquareWarning,
   Ticket,
+  CreditCard,
+  Activity,
+  Users,
+  ChevronRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
-import { AdminBrandManagement } from '@/features/admin/brands'
 import type { DateRange } from './types'
 import { downloadCSV } from './helpers'
 import { StatsOverview } from './stats-overview'
-import { ChatPanel } from '@/features/admin/chat/chat-panel'
-import { CampaignsPanel } from './campaigns-panel'
-import { TicketsPanel } from '@/features/admin/tickets/tickets-panel'
 import { getErrorMessage } from '@/lib/error-message'
+
+/** Quick-links to the dedicated management pages (mirrors the admin
+ *  sidebar; Users is admin-only, matching the sidebar + backend perms). */
+function QuickLinks() {
+  const navigate = useNavigate()
+  const t = useT()
+  const links = [
+    { title: t('admin.ticketsSold'), icon: Ticket, url: '/admin/tickets' as const },
+    { title: t('admin.chatOnline'), icon: MessageSquare, url: '/admin/chat' as const },
+    { title: t('admin.feedback'), icon: MessageSquareWarning, url: '/admin/feedback' as const },
+    { title: t('admin.brands'), icon: Building2, url: '/admin/brands' as const },
+    { title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' as const },
+    { title: t('admin.systemMonitoring'), icon: Activity, url: '/admin/system' as const },
+  ]
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+      {links.map((l) => {
+        const Icon = l.icon
+        return (
+          <button
+            key={l.url}
+            type="button"
+            onClick={() => navigate({ to: l.url })}
+            className="group flex items-center gap-2 rounded-lg border bg-white p-2.5 text-left text-xs font-medium transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm dark:bg-card"
+          >
+            <Icon className="size-4 shrink-0 text-blue-600" aria-hidden />
+            <span className="flex-1 truncate">{l.title}</span>
+            <ChevronRight
+              className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const navigate = useNavigate()
@@ -53,8 +93,6 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const statsQuery = useStats()
   const exportQuery = useAdminBookingExport({})
-
-  const chat = useAdminChatWorkspace()
 
   const handleExportCSV = useCallback(async () => {
     try {
@@ -77,6 +115,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
       <div className="space-y-3 p-3">
+        {/* ─── Header: title + date range + actions ─── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -117,76 +156,17 @@ export const AdminDashboard = memo(function AdminDashboard() {
           </div>
         </div>
 
+        {/* ─── Summary report (all real backend data) ─── */}
         <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
 
+        {/* ─── Quick links → dedicated management pages ─── */}
         <div>
-          <Tabs defaultValue="tickets">
-            <TabsList className="flex-wrap h-auto">
-              <TabsTrigger value="tickets" className="gap-1.5"><Ticket className="h-4 w-4" /> {t('admin.ticketsSold')}</TabsTrigger>
-              <TabsTrigger value="crud" className="gap-1.5"><Building2 className="h-4 w-4" /> {t('adminDash.brandsRoutesTab')}</TabsTrigger>
-              <TabsTrigger value="chat" className="gap-1.5"><MessageSquare className="h-4 w-4" /> {t('admin.chatOnline')}</TabsTrigger>
-              <TabsTrigger value="campaigns" className="gap-1.5"><TrendingUp className="h-4 w-4" /> {t('admin.campaigns')}</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="tickets">
-              <TicketsPanel />
-            </TabsContent>
-
-            <TabsContent value="chat">
-              <ChatPanel
-                channels={chat.channels}
-                channelsLoading={chat.channelsLoading}
-                activeChannel={chat.activeChannel}
-                chatMessages={chat.chatMessages}
-                replyText={chat.replyText}
-                sending={chat.sending}
-                onOpenChannel={chat.setActiveChannel}
-                onSendReply={chat.sendReply}
-                onBlockChannel={chat.blockChannel}
-                onSetReplyText={chat.setReplyText}
-                onSendTicketCard={chat.sendTicketCard}
-                typingUser={chat.typingUser}
-                userOnline={chat.userOnline}
-                unreadPulseChannels={chat.unreadPulseChannels}
-                hasMoreMessages={chat.hasMoreMessages}
-                isFetchingMoreMessages={chat.isFetchingMoreMessages}
-                onFetchMoreMessages={chat.fetchMoreMessages as unknown as () => Promise<void>}
-                chatStats={chat.chatStats}
-                onViewTicket={(code) => {
-                  const ev = new CustomEvent('admin:view-ticket', { detail: code })
-                  window.dispatchEvent(ev)
-                  if (typeof window !== 'undefined') {
-                    const tabEl = document.querySelector('[data-state="inactive"][value="tickets"]') as HTMLButtonElement | null
-                    tabEl?.click()
-                  }
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="crud">
-              <AdminBrandManagement />
-            </TabsContent>
-
-            <TabsContent value="campaigns">
-              <CampaignsPanel />
-            </TabsContent>
-
-          </Tabs>
+          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            {t('adminDash.quickLinksTitle')}
+          </div>
+          <QuickLinks />
         </div>
-
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          @keyframes scrollUp {
-            0% { transform: translateY(0); }
-            100% { transform: translateY(-50%); }
-          }
-          .animate-scroll-up {
-            animation: scrollUp 20s linear infinite;
-          }
-          .animate-scroll-up:hover {
-            animation-play-state: paused;
-          }
-        `}} />
       </div>
     </div>
   )

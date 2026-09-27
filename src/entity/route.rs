@@ -39,8 +39,6 @@ pub enum Relation {
     RoutePicture,
     #[sea_orm(has_many = "super::schedule::Entity")]
     Schedule,
-    #[sea_orm(has_many = "super::wishlist_item::Entity")]
-    WishlistItem,
 }
 
 impl Related<super::brand::Entity> for Entity {
@@ -76,12 +74,6 @@ impl Related<super::route_picture::Entity> for Entity {
 impl Related<super::schedule::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Schedule.def()
-    }
-}
-
-impl Related<super::wishlist_item::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::WishlistItem.def()
     }
 }
 

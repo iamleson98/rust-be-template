@@ -12,7 +12,6 @@ import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
 import { tripDetailOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { useNavigate } from '@tanstack/react-router'
-import { WishlistButton } from '@/features/wishlist/wishlist-button'
 import { toast } from 'sonner'
 import { TripCardAmenities, TripCardAmenitiesMobile } from './trip-card-amenities'
 import { TripCardPrice } from './trip-card-price'
@@ -182,11 +181,6 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
           >
             <Share2 className="h-3.5 w-3.5" />
           </button>
-          <WishlistButton
-            variant="icon"
-            presetLabel={`${trip.fromName} → ${trip.toName}`}
-            presetRouteId={trip.routeId}
-          />
         </div>
 
         <div className="flex flex-col md:flex-row">

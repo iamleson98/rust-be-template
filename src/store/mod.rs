@@ -4,7 +4,7 @@
 //!   `RefreshTokenStore`, `BrandStore`, `ChatStore`, `BookingStore`,
 //!   `ReviewStore`, `RouteStore`, `ScheduleStore`, `TripStore`,
 //!   `PlaceStore`, `PriceAlertStore`, `AuditStore`, `NotificationStore`,
-//!   `WishlistStore`.
+//!
 //! - Per-entity DB implementations: each one owns its SeaORM logic and
 //!   uses `#[retry]` on that entity's operations.
 //! - Per-entity cache wrappers: each one controls cache keys/invalidations
@@ -42,7 +42,6 @@ pub use self::staff_presence::{DbStaffPresenceStore, StaffPresenceStore, StaffPr
 pub use self::trip::{DbTripStore, TripStore};
 pub use self::users::{CacheUserStore, DbUserStore, UserStore};
 pub use self::vehicle_types::{DbVehicleTypeStore, VehicleTypePage, VehicleTypeStore};
-pub use self::wishlist::{DbWishlistStore, WishlistStore};
 
 /// Parse a `&str` UUID into a [`uuid::Uuid`], mapping failures to
 /// [`StoreError::Validation`].
@@ -84,4 +83,3 @@ pub(crate) mod staff_presence;
 mod trip;
 mod users;
 mod vehicle_types;
-mod wishlist;

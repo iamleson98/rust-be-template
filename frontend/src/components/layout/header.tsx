@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, MapPinned, Briefcase, CreditCard } from 'lucide-react'
+import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, UserCircle, Phone, Briefcase, CreditCard } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,6 @@ import { isStaffUser } from '@/lib/store'
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
 const NotificationBell = lazy(() => import('@/features/notifications/notification-bell').then((m) => ({ default: m.NotificationBell })))
-const WishlistButton = lazy(() => import('@/features/wishlist/wishlist-button').then((m) => ({ default: m.WishlistButton })))
 const LoyaltyWidget = lazy(() => import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
 
 export const Header = memo(function Header() {
@@ -52,7 +51,6 @@ export const Header = memo(function Header() {
   // active state from the router's pathname (with prefix matching for
   // parameterized routes like /bookings/:code).
   const isBookings = pathname === '/bookings' || pathname.startsWith('/bookings/')
-  const isMap = pathname === '/map'
   const isAdmin = pathname === '/admin'
 
   const handleLangChange = useCallback((newLang: 'vi' | 'en') => {
@@ -106,9 +104,6 @@ export const Header = memo(function Header() {
           <NavBtn active={isBookings} onClick={() => navigate({ to: '/bookings' })} icon={<Ticket className="h-4 w-4" />}>
             {t('nav.tickets')}
           </NavBtn>
-          <NavBtn active={isMap} onClick={() => navigate({ to: '/map' })} icon={<MapPinned className="h-4 w-4" />}>
-            {t('nav.map')}
-          </NavBtn>
           {/* Admin nav — only visible to employees */}
           {isStaffUser(user) && (
             <NavBtn active={isAdmin} onClick={() => navigate({ to: '/admin' })} icon={<LayoutDashboard className="h-4 w-4" />}>
@@ -140,9 +135,6 @@ export const Header = memo(function Header() {
             </button>
           )}
 
-          <Suspense fallback={null}>
-            <WishlistButton variant="icon" />
-          </Suspense>
           <Suspense fallback={null}>
             <NotificationBell />
           </Suspense>
@@ -281,9 +273,6 @@ export const Header = memo(function Header() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })}>
                 <Ticket className="h-4 w-4 mr-2" /> {t('nav.tickets')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({ to: '/map' })}>
-                <MapPinned className="h-4 w-4 mr-2" /> {t('nav.map')}
               </DropdownMenuItem>
               {isStaffUser(user) && (
                 <DropdownMenuItem onClick={() => navigate({ to: '/admin' })}>

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
@@ -45,6 +46,7 @@ type HoldBookingData = {
 
 export function BookingDialog() {
   const t = useT()
+  const qc = useQueryClient()
   const {
     bookingStep,
     setBookingStep,
@@ -57,7 +59,6 @@ export function BookingDialog() {
     setGuestName,
     insuranceLevel,
     setInsuranceLevel,
-    setLoyaltyPoints,
     currency,
   } = useApp()
 
@@ -280,9 +281,12 @@ export function BookingDialog() {
         }),
         duration: 5000,
       })
-      const earnedPoints = Math.max(10, Math.floor(holdData.total / 1000))
-      setLoyaltyPoints((prev) => prev + earnedPoints)
-      toast.success(t('bookingFlow.loyaltyEarned', { points: earnedPoints }), {
+      // Refresh the real loyalty summary + booking lists — points are
+      // earned per COMPLETED trip and are always computed by the
+      // backend (1 point / 10,000 VND), never incremented client-side.
+      qc.invalidateQueries({ queryKey: ['loyalty'] })
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      toast.success(t('bookingFlow.loyaltyEarned'), {
         description: t('bookingFlow.loyaltyEarnedDesc'),
         duration: 4000,
       })

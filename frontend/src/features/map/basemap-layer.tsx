@@ -4,17 +4,28 @@
  * BasemapLayer — free raster basemaps rendered as native Leaflet
  * TileLayers, with an optional style switcher.
  *
- * TILE-SERVICE RESEARCH (2026-09, round 2 — CARTO began returning
- * "API KEY REQUIRED" watermark tiles for keyless requests, which is
- * why the maps turned gray; OSM's tile.openstreetmap.org similarly
- * serves "Access blocked" tiles to datacenter ranges). Requirements:
- * free (no payment, no signup, no API key), effectively no rate
- * limit, beautiful, fast. Verified candidates:
+ * TILE-SERVICE RESEARCH (2026-09, round 3 — the product asked for the
+ * freshest map data; Esri's classic World_Street_Map renders are
+ * years-old in Vietnam). Requirements: free (no payment, no signup,
+ * no API key), no rate-limit issues in normal browser use, beautiful,
+ * fast, and above all CURRENT. Verified candidates:
  *
+ *   * tile.openstreetmap.org (CURRENT DEFAULT) — the canonical
+ *     OpenStreetMap raster service: community-mapped data that is
+ *     refreshed daily (new roads, bus stops and POIs appear within
+ *     days of being mapped), free, keyless, and served from a global
+ *     CDN. Verified: HTTP 200 in ~140ms per tile with real current
+ *     content at z10–z19 in Vietnam. Requests originate from end-user
+ *     browsers (Leaflet img tags carry a browser UA + Referer), which
+ *     is exactly the light interactive use the OSM tile usage policy
+ *     permits.
+ *   * Esri ArcGIS Online raster basemaps (kept as switcher options) —
+ *     free public tiled services, no API key, ~30ms/tile, but the
+ *     classic World_* renders are significantly older than OSM data
+ *     in Vietnam. Satellite imagery has no OSM equivalent, so
+ *     `satellite`/`hybrid` remain the go-to aerial styles.
  *   * CARTO raster basemaps       — REJECTED: watermark tiles since
  *     ~2026 unless an API key is supplied (paid tier at scale).
- *   * tile.openstreetmap.org      — REJECTED: "Access blocked" 403
- *     tiles from datacenter IPs; strict bulk-usage policy.
  *   * Stadia/Stamen, MapTiler,
  *     Thunderforest, Mapbox      — REJECTED: API key required.
  *   * OpenFreeMap                 — REJECTED: vector-tiles only; the
@@ -22,24 +33,21 @@
  *     (see git history).
  *   * OpenTopoMap / OSM.de / HOT  — REJECTED: ~1s per tile
  *     (community-hosted); too slow for a snappy product map.
- *   * Esri ArcGIS Online raster basemaps (CURRENT) — free public
- *     tiled services, no API key, no signup, no payment, attribution
- *     only, served from Esri's global CDN. Verified: ~30ms per tile,
- *     real map content at z10–z17 in Vietnam (no watermarks). These
- *     are the classic "World_*" tiled services, not the new
- *     key-gated basemap-style service.
  *   * CyclOSM (bonus variant)    — beautiful modern OSM style hosted
- *     by OpenStreetMap France; keyless and free, but community-hosted
- *     (~0.6–1s per tile), so it is offered as an opt-in style rather
- *     than the default.
+ *     by OpenStreetMap France; keyless and free with current OSM
+ *     data, but community-hosted (~0.6–1s per tile), so it stays an
+ *     opt-in style rather than the default.
  *
  * Variants (all keyless):
- *   - `street`   (default) — Esri World Street Map, the classic
- *     consumer street look; works to z19.
+ *   - `osm`     (default) — OpenStreetMap standard style, the freshest
+ *     street data available (updated daily by the OSM community);
+ *     native to z19.
  *   - `satellite`— Esri World Imagery (aerial photography) to z19.
  *   - `hybrid`  — satellite + Esri place labels + roads (the
  *     "Google-style" satellite view). Three stacked tile layers.
  *   - `topo`    — Esri World Topo Map (terrain + roads).
+ *   - `street`  — Esri World Street Map, the classic consumer street
+ *     look (older data than OSM); works to z19.
  *   - `light`   — Esri Light Gray Canvas + reference labels; ideal
  *     under dense data overlays (native to z16, then upscaled).
  *   - `dark`    — Esri Dark Gray Canvas + reference labels; night
@@ -69,10 +77,11 @@ import L from 'leaflet'
 import { useT } from '@/lib/i18n'
 
 export type BasemapVariant =
-  | 'street'
+  | 'osm'
   | 'satellite'
   | 'hybrid'
   | 'topo'
+  | 'street'
   | 'light'
   | 'dark'
   | 'natgeo'
@@ -88,6 +97,7 @@ type TileSpec = {
 const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
 
 const ATTR = {
+  osm: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
   street: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, HERE, Garmin, USGS, NGA',
   imagery:
     'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
@@ -105,10 +115,12 @@ const ERROR_TILE =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
 
 const VARIANTS: Record<BasemapVariant, TileSpec[]> = {
-  street: [
+  osm: [
     {
-      url: `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`,
-      attribution: ATTR.street,
+      // Canonical OpenStreetMap raster tiles — the freshest free
+      // street data available (community-mapped, refreshed daily).
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: ATTR.osm,
       maxNativeZoom: 19,
     },
   ],
@@ -140,6 +152,13 @@ const VARIANTS: Record<BasemapVariant, TileSpec[]> = {
     {
       url: `${ESRI}/World_Topo_Map/MapServer/tile/{z}/{y}/{x}`,
       attribution: ATTR.topo,
+      maxNativeZoom: 19,
+    },
+  ],
+  street: [
+    {
+      url: `${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`,
+      attribution: ATTR.street,
       maxNativeZoom: 19,
     },
   ],
@@ -186,10 +205,11 @@ const VARIANTS: Record<BasemapVariant, TileSpec[]> = {
 
 /** i18n keys for the style switcher labels (translated at render time). */
 const VARIANT_LABEL_KEYS: Record<BasemapVariant, string> = {
-  street: 'map.style.street',
+  osm: 'map.style.osm',
   satellite: 'map.style.satellite',
   hybrid: 'map.style.hybrid',
   topo: 'map.style.topo',
+  street: 'map.style.street',
   light: 'map.style.light',
   dark: 'map.style.dark',
   natgeo: 'map.style.natgeo',
@@ -201,7 +221,15 @@ const STORAGE_KEY = 'bus_basemap'
 function readStoredVariant(fallback: BasemapVariant): BasemapVariant {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw && raw in VARIANTS) return raw as BasemapVariant
+    if (raw && raw in VARIANTS) {
+      // Migration: `street` (the old Esri default) was never an
+      // explicit user choice worth preserving — remap it to the new
+      // OpenStreetMap default so existing users actually see the
+      // fresher map data. Anyone who genuinely prefers Esri street
+      // can re-pick it from the style switcher (one click).
+      if (raw === 'street') return 'osm'
+      return raw as BasemapVariant
+    }
   } catch {
     /* localStorage unavailable (SSR / privacy mode) — keep fallback */
   }
@@ -209,21 +237,21 @@ function readStoredVariant(fallback: BasemapVariant): BasemapVariant {
 }
 
 type BasemapLayerProps = {
-  /** Basemap style. Defaults to `street` (or the user's stored pick). */
+  /** Basemap style. Defaults to `osm` (or the user's stored pick). */
   variant?: BasemapVariant
   /** Render the compact style switcher (bottom-left). Defaults to true. */
   switcher?: boolean
 }
 
 export function BasemapLayer({
-  variant = 'street',
+  variant = 'osm',
   switcher = true,
 }: BasemapLayerProps) {
   const [active, setActive] = useState<BasemapVariant>(() =>
     readStoredVariant(variant),
   )
 
-  const specs = VARIANTS[active] ?? VARIANTS.street
+  const specs = VARIANTS[active] ?? VARIANTS.osm
 
   // Stable callback (module-level helper) so the Leaflet control is
   // created exactly once per map instead of on every re-render.

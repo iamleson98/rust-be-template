@@ -52,6 +52,7 @@ mod m20260905_000011_create_push_devices;
 mod m20260910_000012_create_route_pictures;
 mod m20260912_000013_create_staff_presence_state;
 mod m20260926_000014_add_bus_layouts_write_permission;
+mod m20260927_000015_drop_wishlist_item;
 
 pub struct Migrator;
 
@@ -73,6 +74,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260910_000012_create_route_pictures::Migration),
             Box::new(m20260912_000013_create_staff_presence_state::Migration),
             Box::new(m20260926_000014_add_bus_layouts_write_permission::Migration),
+            Box::new(m20260927_000015_drop_wishlist_item::Migration),
         ]
     }
 }

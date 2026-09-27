@@ -52,18 +52,6 @@ export type AdminChannel = {
   assignedToMe?: boolean
 }
 
-export type AdminCampaignRow = {
-  id: string
-  code: string
-  name: string
-  type: string
-  value: number
-  usedCount: number
-  usageLimitTotal: number
-  status: string
-  brand?: { name: string | null } | null
-}
-
 export type AdminChatMessage = {
   id: string
   content: string

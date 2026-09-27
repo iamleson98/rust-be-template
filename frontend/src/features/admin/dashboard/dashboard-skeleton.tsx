@@ -93,52 +93,27 @@ export const AdminDashboardSkeleton = memo(function AdminDashboardSkeleton() {
           </Card>
         </div>
 
-        {/* Recent bookings table */}
-        <Card className="overflow-hidden mb-4">
-          <Shimmer className="h-1 w-full rounded-none" />
-          <div className="p-6 pb-3">
-            <div className="flex items-center gap-2">
-              <Shimmer className="h-4 w-4 rounded" />
-              <Shimmer className="h-5 w-36" />
-            </div>
-          </div>
-          <div className="p-6 pt-0 space-y-2.5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex items-center justify-between gap-3">
-                <Shimmer className="h-4 w-24" />
-                <Shimmer className="h-4 w-32 hidden md:block" />
-                <Shimmer className="h-4 w-28 hidden md:block" />
-                <Shimmer className="h-4 w-20" />
-                <Shimmer className="h-5 w-16 rounded-full" />
-                <Shimmer className="h-3 w-16 hidden sm:block" />
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        {/* Bottom row */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Row 2: recent bookings + campaigns summary */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
           <Card className="lg:col-span-3 overflow-hidden">
             <Shimmer className="h-1 w-full rounded-none" />
-            <div className="p-6">
-              <div className="flex items-center gap-2 mb-4">
+            <div className="p-6 pb-3">
+              <div className="flex items-center gap-2">
                 <Shimmer className="h-4 w-4 rounded" />
-                <Shimmer className="h-5 w-52" />
+                <Shimmer className="h-5 w-36" />
               </div>
-              <div className="space-y-3.5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Shimmer className="h-6 w-6 rounded-md" />
-                        <Shimmer className="h-4 w-32" />
-                      </div>
-                      <Shimmer className="h-4 w-12" />
-                    </div>
-                    <Shimmer className="h-2.5 w-full rounded-full" />
-                  </div>
-                ))}
-              </div>
+            </div>
+            <div className="p-6 pt-0 space-y-2.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between gap-3">
+                  <Shimmer className="h-4 w-24" />
+                  <Shimmer className="h-4 w-32 hidden md:block" />
+                  <Shimmer className="h-4 w-28 hidden md:block" />
+                  <Shimmer className="h-4 w-20" />
+                  <Shimmer className="h-5 w-16 rounded-full" />
+                  <Shimmer className="h-3 w-16 hidden sm:block" />
+                </div>
+              ))}
             </div>
           </Card>
           <Card className="lg:col-span-2 overflow-hidden">
@@ -149,7 +124,7 @@ export const AdminDashboardSkeleton = memo(function AdminDashboardSkeleton() {
                 <Shimmer className="h-5 w-40" />
               </div>
               <div className="space-y-2.5">
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="flex items-start gap-2.5">
                     <Shimmer className="h-7 w-7 rounded-full" />
                     <div className="flex-1 space-y-1.5">
@@ -161,6 +136,13 @@ export const AdminDashboardSkeleton = memo(function AdminDashboardSkeleton() {
               </div>
             </div>
           </Card>
+        </div>
+
+        {/* Quick links strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Shimmer key={i} className="h-11 w-full rounded-lg" />
+          ))}
         </div>
       </div>
     </div>

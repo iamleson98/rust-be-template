@@ -40,6 +40,7 @@ use utoipa::OpenApi;
         crate::routes::reviews::tags,
         // bookings
         crate::routes::bookings::list,
+        crate::routes::loyalty::summary,
         crate::routes::bookings::hold,
         crate::routes::bookings::lookup,
         crate::routes::bookings::detail,
@@ -75,10 +76,6 @@ use utoipa::OpenApi;
         crate::routes::push_devices::register_device,
         crate::routes::push_devices::unregister_device,
         crate::routes::notifications::mark_read,
-        // wishlist
-        crate::routes::wishlist::list,
-        crate::routes::wishlist::toggle,
-        crate::routes::wishlist::remove,
         // places
         crate::routes::places::list,
         crate::routes::places::search,
@@ -217,6 +214,9 @@ use utoipa::OpenApi;
         crate::dto::review::ReviewTagsResponse,
         // bookings
         crate::dto::booking::HoldReq,
+        crate::dto::loyalty::LoyaltyTierOut,
+        crate::dto::loyalty::LoyaltyHistoryEntry,
+        crate::dto::loyalty::LoyaltyResponse,
         crate::dto::booking::PassengerReq,
         crate::dto::booking::ConfirmReq,
         crate::dto::booking::CancelReq,
@@ -315,12 +315,6 @@ use utoipa::OpenApi;
         crate::dto::push_device::RegisterDeviceResponse,
         crate::dto::push_device::UnregisterDeviceResponse,
         crate::dto::notification::MarkNotificationsReadResponse,
-        // wishlist
-        crate::dto::wishlist::WishlistItemOut,
-        crate::dto::wishlist::WishlistListResponse,
-        crate::dto::wishlist::ToggleWishlistRequest,
-        crate::dto::wishlist::ToggleWishlistResponse,
-        crate::dto::wishlist::DeleteWishlistResponse,
         // admin
         crate::dto::admin::AdminBrandOut,
         crate::dto::admin::AdminBrandListResponse,
@@ -392,12 +386,12 @@ use utoipa::OpenApi;
         (name = "system", description = "Health & readiness"),
         (name = "reviews", description = "Review management"),
         (name = "bookings", description = "Booking management"),
+        (name = "loyalty", description = "Booking-derived loyalty points, tiers and history"),
         (name = "payments", description = "Payment intents + provider webhooks (VNPay/MoMo/ZaloPay/VietQR/COD)"),
         (name = "vitals", description = "Web Vitals RUM (real-user monitoring)"),
         (name = "seo", description = "SEO — sitemap.xml, robots.txt, PWA manifest"),
         (name = "chat", description = "Chat channels & messages"),
         (name = "notifications", description = "User notifications"),
-        (name = "wishlist", description = "Saved routes / trips"),
         (name = "places", description = "Place search & geocoding (OSM)"),
         (name = "public", description = "Public catalog (brands, routes, trips, campaigns)"),
         (name = "routing", description = "Routing & directions (Valhalla proxy)"),

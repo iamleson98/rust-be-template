@@ -21,7 +21,6 @@ import {
 import {
   UserCircle,
   Ticket,
-  Heart,
   Gift,
   Bell,
   ShieldCheck,
@@ -32,10 +31,12 @@ import {
   MessageSquareHeart,
   PanelLeftClose,
   PanelLeft,
+  Globe,
+  Check,
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useLogout } from '@/lib/queries'
-import { useT } from '@/lib/i18n'
+import { useT, type Lang } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 /** Nav groups — labels resolve through the i18n dictionary so the
@@ -44,7 +45,7 @@ const NAV_GROUPS = (t: (k: string) => string) => [
   {
     label: t('auth.account'),
     items: [
-      { title: t('layout.account.profile'), icon: UserCircle, url: '/account' },
+      { title: t('layout.account.overview'), icon: UserCircle, url: '/account' },
       { title: t('layout.account.tripHistory'), icon: History, url: '/account/trips' },
       { title: t('nav.tickets'), icon: Ticket, url: '/bookings' },
     ],
@@ -58,7 +59,6 @@ const NAV_GROUPS = (t: (k: string) => string) => [
   {
     label: t('layout.account.utilities'),
     items: [
-      { title: t('account.wishlist'), icon: Heart, url: '/account/wishlist' },
       { title: t('nav.loyalty'), icon: Gift, url: '/account/loyalty' },
     ],
   },
@@ -73,7 +73,7 @@ const NAV_GROUPS = (t: (k: string) => string) => [
 
 export function AccountShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { user } = useApp()
+  const { user, lang, setLang } = useApp()
   const logoutMut = useLogout()
   const t = useT()
 
@@ -250,6 +250,30 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           <span className="text-sm font-medium text-muted-foreground truncate">
             {user?.name || t('auth.account')}
           </span>
+          {/* Language switch — lives on the header bar (the admin shell's
+              duplicate switcher was removed; the customer site's switch is
+              in the shared Header, which is hidden on /account routes). */}
+          <div className="ml-auto inline-flex items-center rounded-lg border bg-muted/40 p-0.5">
+            <Globe className="mx-1.5 size-3.5 text-muted-foreground" aria-hidden />
+            {(['vi', 'en'] as const).map((code) => (
+              <button
+                key={code}
+                type="button"
+                onClick={() => setLang(code as Lang)}
+                aria-pressed={lang === code}
+                title={code === 'vi' ? 'Tiếng Việt' : 'English'}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
+                  lang === code
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {lang === code && <Check className="size-3" aria-hidden />}
+                {code === 'vi' ? 'VI' : 'EN'}
+              </button>
+            ))}
+          </div>
         </header>
         <div className="flex-1 overflow-y-auto overscroll-contain">
           {children}

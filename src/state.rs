@@ -5,9 +5,9 @@ use axum::extract::FromRef;
 use crate::config::Config;
 use crate::rbac::RbacChecker;
 use crate::service::{
-    AdminService, AuthService, BookingService, ChatService, JobService, NotificationService,
-    PaymentService, PlaceService, PostService, PriceAlertService, PublicService, ReviewService,
-    RouteMediaService, RoutingService, UserService, WishlistService,
+    AdminService, AuthService, BookingService, ChatService, JobService, LoyaltyService,
+    NotificationService, PaymentService, PlaceService, PostService, PriceAlertService,
+    PublicService, ReviewService, RouteMediaService, RoutingService, UserService,
 };
 
 /// The single application state object shared across handlers.
@@ -71,12 +71,12 @@ pub struct AppState {
     pub admin: Arc<AdminService>,
     pub reviews: Arc<ReviewService>,
     pub bookings: Arc<BookingService>,
+    pub loyalty: Arc<LoyaltyService>,
     pub public: Arc<PublicService>,
     pub routing: Arc<RoutingService>,
     pub places: Arc<PlaceService>,
     pub price_alerts: Arc<PriceAlertService>,
     pub notifications: Arc<NotificationService>,
-    pub wishlist: Arc<WishlistService>,
     pub payments: Arc<PaymentService>,
     pub chats: Arc<ChatService>,
     /// Recurring background jobs (admin cron-jobs page + scheduler).
@@ -110,12 +110,12 @@ impl AppState {
         admin: Arc<AdminService>,
         reviews: Arc<ReviewService>,
         bookings: Arc<BookingService>,
+        loyalty: Arc<LoyaltyService>,
         public: Arc<PublicService>,
         routing: Arc<RoutingService>,
         places: Arc<PlaceService>,
         price_alerts: Arc<PriceAlertService>,
         notifications: Arc<NotificationService>,
-        wishlist: Arc<WishlistService>,
         payments: Arc<PaymentService>,
         chats: Arc<ChatService>,
         jobs: Arc<JobService>,
@@ -130,12 +130,12 @@ impl AppState {
             admin,
             reviews,
             bookings,
+            loyalty,
             public,
             routing,
             places,
             price_alerts,
             notifications,
-            wishlist,
             payments,
             chats,
             jobs,
@@ -218,9 +218,9 @@ impl FromRef<AppState> for Arc<NotificationService> {
     }
 }
 
-impl FromRef<AppState> for Arc<WishlistService> {
+impl FromRef<AppState> for Arc<LoyaltyService> {
     fn from_ref(state: &AppState) -> Self {
-        state.wishlist.clone()
+        state.loyalty.clone()
     }
 }
 

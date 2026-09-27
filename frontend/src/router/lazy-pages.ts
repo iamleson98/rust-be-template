@@ -26,7 +26,6 @@ export const BrandDetailPage = lazy(() => import('../routes/brand-detail').then(
 export const BookingsPage = lazy(() => import('../routes/bookings').then((m) => ({ default: m.BookingsPage })))
 export const BookingDetailPage = lazy(() => import('../routes/booking-detail').then((m) => ({ default: m.BookingDetailPage })))
 export const ComparePage = lazy(() => import('../routes/compare').then((m) => ({ default: m.ComparePage })))
-export const MapPage = lazy(() => import('../routes/map').then((m) => ({ default: m.MapPage })))
 export const AdminPage = lazy(() => import('../routes/admin').then((m) => ({ default: m.AdminPage })))
 export const AdminBrandsPage = lazy(() => import('../routes/admin/brands').then((m) => ({ default: m.AdminBrandsPage })))
 export const AdminCronJobsPage = lazy(() => import('../routes/admin/cron-jobs').then((m) => ({ default: m.AdminCronJobsPage })))
@@ -40,7 +39,6 @@ export const AdminUsersPage = lazy(() => import('../routes/admin/users').then((m
 export const AdminPaymentsPage = lazy(() => import('../routes/admin/payments').then((m) => ({ default: m.AdminPaymentsPage })))
 // Account pages
 export const AccountPage = lazy(() => import('../routes/account').then((m) => ({ default: m.AccountPage })))
-export const AccountWishlistPage = lazy(() => import('../routes/account/wishlist').then((m) => ({ default: m.AccountWishlistPage })))
 export const AccountLoyaltyPage = lazy(() => import('../routes/account/loyalty').then((m) => ({ default: m.AccountLoyaltyPage })))
 export const AccountNotificationsPage = lazy(() => import('../routes/account/notifications').then((m) => ({ default: m.AccountNotificationsPage })))
 export const AccountSecurityPage = lazy(() => import('../routes/account/security').then((m) => ({ default: m.AccountSecurityPage })))

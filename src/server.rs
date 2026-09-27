@@ -21,9 +21,9 @@ use crate::payment::zalopay::ZalopayProvider;
 use crate::rbac::RbacChecker;
 use crate::routes::build_router;
 use crate::service::{
-    AdminService, AuthService, BookingService, ChatService, JobService, NotificationService,
-    PaymentService, PlaceService, PostService, PriceAlertService, PublicService, ReviewService,
-    RouteMediaService, RoutingService, UserService, WishlistService,
+    AdminService, AuthService, BookingService, ChatService, JobService, LoyaltyService,
+    NotificationService, PaymentService, PlaceService, PostService, PriceAlertService,
+    PublicService, ReviewService, RouteMediaService, RoutingService, UserService,
 };
 use crate::state::AppState;
 use crate::store::{
@@ -32,7 +32,7 @@ use crate::store::{
     DbAuditStore, DbBookingStore, DbBrandStore, DbChatStore, DbJobStore, DbNotificationStore,
     DbPaymentStore, DbPlaceStore, DbPostStore, DbPriceAlertStore, DbRbacStore, DbRefreshTokenStore,
     DbReviewStore, DbRoutePictureStore, DbRouteStore, DbScheduleStore, DbStaffPresenceStore,
-    DbTripStore, DbUserStore, DbVehicleTypeStore, DbWishlistStore, JobStore, PostStore, RbacStore,
+    DbTripStore, DbUserStore, DbVehicleTypeStore, JobStore, PostStore, RbacStore,
     RefreshTokenStore, RoutePictureStore, StaffPresenceStore, UserStore,
 };
 use crate::worker::WorkerRunner;
@@ -157,7 +157,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         std::option::Option::from(config.audio_call.fcm_credentials_json.as_str())
             .filter(|s| !s.is_empty()),
     );
-    let wishlist_store = Arc::new(DbWishlistStore::new(db.clone()));
     let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
     let address_store = Arc::new(DbAddressStore::new(db.clone()));
     let vehicle_type_store = Arc::new(DbVehicleTypeStore::new(db.clone()));
@@ -180,7 +179,6 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         price_alert_store,
         audit_store,
         notification_store,
-        wishlist_store,
         payment_store,
         address_store,
         vehicle_type_store,
@@ -310,12 +308,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
     let booking_service = Arc::new(BookingService::new(store.clone()));
+    let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));
     let public_service = Arc::new(PublicService::new(store.clone()));
     let routing_service = Arc::new(RoutingService::new(&config));
     let place_service = Arc::new(PlaceService::with_searcher(store.clone(), place_searcher));
     let price_alert_service = Arc::new(PriceAlertService::new(store.clone()));
     let notification_service = Arc::new(NotificationService::new(store.clone()));
-    let wishlist_service = Arc::new(WishlistService::new(store.clone()));
 
     // ---- Payment providers + service ────────────────────────────────
     let vnpay_provider = Arc::new(VnpayProvider::new(&config.payment.vnpay));
@@ -422,12 +420,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
         admin_service,
         review_service,
         booking_service,
+        loyalty_service,
         public_service,
         routing_service,
         place_service,
         price_alert_service,
         notification_service,
-        wishlist_service,
         payment_service,
         chat_service,
         job_service,

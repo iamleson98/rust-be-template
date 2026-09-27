@@ -10,7 +10,7 @@
  * ── Why two-pass rendering (not `renderToString` alone) ───────────
  * The app uses `React.lazy()` + `<Suspense>` for code-splitting both
  * route components (HomePage, SearchPage, …) and persistent shell
- * pieces (Header's NotificationBell / WishlistButton / LoyaltyWidget,
+ * pieces (Header's NotificationBell / LoyaltyWidget,
  * Footer, MobileNav, SupportFab). The legacy `renderToString` API is
  * synchronous and predates Suspense — it throws
  *   "The server used renderToString which does not support Suspense"
@@ -131,7 +131,6 @@ export async function render(url: string = '/'): Promise<string> {
     import('./components/layout/mobile-nav'),
     import('./components/layout/support-fab'),
     import('./features/notifications/notification-bell'),
-    import('./features/wishlist/wishlist-button'),
     import('./features/home/loyalty-widget'),
   ])
 

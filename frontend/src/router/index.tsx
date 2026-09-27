@@ -23,7 +23,6 @@
  *   /bookings               My bookings (auth-guarded)
  *   /bookings/$code         Single booking detail (deep-linkable)
  *   /compare                Trip comparison
- *   /map                    Live map view
  *   /admin                  Admin dashboard (employee-guarded)
  *   /login                  Login page
  *
@@ -50,8 +49,8 @@ import { Suspense } from 'react'
 import { IslandFallback } from '@/routes/_fallback'
 import { rootRoute } from './root-route'
 import { adminLayoutRoute, adminIndexRoute, adminBrandsRoute, adminRoutesRedirectRoute, adminSchedulesRedirectRoute, adminVehicleTypesRoute, adminCronJobsRoute, adminTicketsRoute, adminChatRoute, adminFeedbackRoute, adminBusLayoutsRoute, adminSystemRoute, adminUsersRoute, adminPaymentsRoute } from './admin-routes'
-import { accountLayoutRoute, accountIndexRoute, accountWishlistRoute, accountLoyaltyRoute, accountNotificationsRoute, accountSecurityRoute, accountTripsRoute, accountFeedbackRoute } from './account-routes'
-import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingsPage, BookingDetailPage, ComparePage, MapPage, LoginPage } from './lazy-pages'
+import { accountLayoutRoute, accountIndexRoute, accountLoyaltyRoute, accountNotificationsRoute, accountSecurityRoute, accountTripsRoute, accountFeedbackRoute } from './account-routes'
+import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingsPage, BookingDetailPage, ComparePage, LoginPage } from './lazy-pages'
 
 // ── Public routes ──────────────────────────────────────────────
 
@@ -172,16 +171,6 @@ const compareRoute = createRoute({
   ),
 })
 
-const mapRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/map',
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <MapPage />
-    </Suspense>
-  ),
-})
-
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -212,7 +201,6 @@ export const routeTree = rootRoute.addChildren([
   ]),
   accountLayoutRoute.addChildren([
     accountIndexRoute,
-    accountWishlistRoute,
     accountLoyaltyRoute,
     accountNotificationsRoute,
     accountSecurityRoute,
@@ -226,7 +214,6 @@ export const routeTree = rootRoute.addChildren([
   bookingsRoute,
   bookingDetailRoute,
   compareRoute,
-  mapRoute,
   loginRoute,
 ])
 

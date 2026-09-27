@@ -31,6 +31,7 @@ import {
 // own useInfiniteQuery) are the exception: they call the raw SDK list
 // functions directly.
 import {
+  summary2 as loyaltySummarySdk,
   list as listAddresses,
   list10 as listVehicleTypes,
   listChannels as listChannelsSdk,
@@ -78,6 +79,7 @@ import {
   holdMutation,
   confirmMutation,
   cancel2Mutation,
+  // loyalty (summary2 = GET /api/loyalty — booking-derived points/tiers)
   // price alerts (list14 = /api/price-alerts, create7 = POST /api/price-alerts)
   list14Options as priceAlertsListOptions,
   list14QueryKey as priceAlertsListQueryKey,
@@ -87,11 +89,6 @@ import {
   list12Options as notificationsListOptions,
   list12QueryKey as notificationsListQueryKey,
   markRead2Mutation as notificationsMarkReadMutation,
-  // wishlist (list16 = /api/wishlist)
-  list16Options as wishlistListOptions,
-  list16QueryKey as wishlistListQueryKey,
-  toggleMutation as wishlistToggleMutation,
-  remove3Mutation as wishlistRemoveMutation,
   // stats (stats2 = /api/stats — public, stats = /api/admin/bookings/stats)
   stats2Options,
   // admin — brands (list3/create2/delete2/update2)
@@ -200,7 +197,9 @@ import type {
   TripResult,
   UpsertBrandRequest,
   UpsertPickupPointRequest,
-  WishlistItemOut,
+  LoyaltyHistoryEntry,
+  LoyaltyResponse,
+  LoyaltyTierOut,
   AdminBrandOut,
   AdminBookingExportResponse,
   AdminBookingListResponse,
@@ -235,8 +234,10 @@ export type {
   PlaceSearchHit,
   ReviewOut as ReviewItem,
   NotificationOut as NotificationItem,
-  WishlistItemOut as WishlistItem,
   PriceAlertOut as PriceAlert,
+  LoyaltyResponse as LoyaltySummary,
+  LoyaltyTierOut as LoyaltyTier,
+  LoyaltyHistoryEntry as LoyaltyHistoryItem,
   AdminBrandOut as AdminBrand,
   AdminRouteOut as AdminRoute,
   AdminScheduleOut as AdminSchedule,
@@ -541,6 +542,29 @@ export function useBooking(code: string | undefined) {
   });
 }
 
+// ─────────────────────────────────────────────────────────────
+// Loyalty  (generated TanStack client — @hey-api/openapi-ts)
+// ─────────────────────────────────────────────────────────────
+
+/** The user's real loyalty summary — points / tiers / earning history
+ *  computed by the backend from completed bookings (GET /api/loyalty).
+ *  `enabled` defaults to true; callers pass `false` to skip the fetch
+ *  (e.g. when no user is logged in). */
+export function useLoyalty(opts?: { enabled?: boolean }) {
+  // Plain stable key (not the generated object key) so mutations can
+  // invalidate with invalidateQueries({ queryKey: ['loyalty'] }).
+  return useQuery<LoyaltyResponse, Error, LoyaltyResponse, readonly unknown[]>({
+    queryKey: ['loyalty'],
+    queryFn: async () => {
+      const { data } = await loyaltySummarySdk();
+      if (!data) throw new Error("Loyalty summary request failed");
+      return data;
+    },
+    enabled: opts?.enabled ?? true,
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useGuestBookings(phone: string | undefined, code?: string) {
   return useQuery({
     ...bookingLookupOptions({
@@ -643,35 +667,6 @@ export function useMarkNotificationsRead() {
     ...notificationsMarkReadMutation(),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: notificationsListQueryKey() }),
-  });
-}
-
-// ─────────────────────────────────────────────────────────────
-// Wishlist
-// ─────────────────────────────────────────────────────────────
-
-export function useWishlist(opts?: { enabled?: boolean }) {
-  return useQuery({
-    ...wishlistListOptions(),
-    queryKey: [...wishlistListQueryKey()],
-    enabled: opts?.enabled ?? true,
-    staleTime: 60 * 1000,
-  });
-}
-
-export function useToggleWishlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    ...wishlistToggleMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: wishlistListQueryKey() }),
-  });
-}
-
-export function useRemoveWishlist() {
-  const qc = useQueryClient();
-  return useMutation({
-    ...wishlistRemoveMutation(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: wishlistListQueryKey() }),
   });
 }
 

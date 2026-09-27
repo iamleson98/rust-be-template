@@ -32,13 +32,11 @@ export const ROUTE_META: Record<string, { title: string; description: string }> 
   '/admin/users': { title: 'seo.adminUsers.title', description: 'seo.adminUsers.description' },
   '/admin/payments': { title: 'seo.adminPayments.title', description: 'seo.adminPayments.description' },
   '/account': { title: 'seo.account.title', description: 'seo.account.description' },
-  '/account/wishlist': { title: 'seo.accountWishlist.title', description: 'seo.accountWishlist.description' },
   '/account/loyalty': { title: 'seo.accountLoyalty.title', description: 'seo.accountLoyalty.description' },
   '/account/notifications': { title: 'seo.accountNotifications.title', description: 'seo.accountNotifications.description' },
   '/account/security': { title: 'seo.accountSecurity.title', description: 'seo.accountSecurity.description' },
   '/account/trips': { title: 'seo.accountTrips.title', description: 'seo.accountTrips.description' },
   '/account/feedback': { title: 'seo.accountFeedback.title', description: 'seo.accountFeedback.description' },
-  '/map': { title: 'seo.map.title', description: 'seo.map.description' },
   '/login': { title: 'seo.login.title', description: 'seo.login.description' },
   '/compare': { title: 'seo.compare.title', description: 'seo.compare.description' },
 }

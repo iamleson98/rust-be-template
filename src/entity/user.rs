@@ -68,8 +68,6 @@ pub enum Relation {
     UserRoles,
     #[sea_orm(has_many = "super::user_verification::Entity")]
     UserVerification,
-    #[sea_orm(has_many = "super::wishlist_item::Entity")]
-    WishlistItem,
 }
 
 impl Related<super::booking::Entity> for Entity {
@@ -141,12 +139,6 @@ impl Related<super::user_roles::Entity> for Entity {
 impl Related<super::user_verification::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::UserVerification.def()
-    }
-}
-
-impl Related<super::wishlist_item::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::WishlistItem.def()
     }
 }
 

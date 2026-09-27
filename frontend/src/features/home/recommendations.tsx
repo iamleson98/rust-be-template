@@ -13,7 +13,6 @@ import {
   ArrowRight,
   Bus,
   TrendingUp,
-  Heart,
   History,
   Compass,
   ChevronRight,
@@ -24,13 +23,12 @@ import { buildSearchInput } from '@/lib/search-params'
 // Deterministic reason picker — `TripResult` from the generated SDK doesn't
 // include a `reason` field, so we derive one from the tripId hash for display
 // (keeps the visual variety the UI was designed for).
-const REASONS = ['recent', 'wishlist', 'booking', 'trending'] as const
+const REASONS = ['recent', 'booking', 'trending'] as const
 type Reason = (typeof REASONS)[number]
 
 // REASON_LABELS values are i18n keys (home.reason*) — rendered via t().
 const REASON_LABELS: Record<Reason, string> = {
   recent: 'home.reasonRecent',
-  wishlist: 'home.reasonWishlist',
   booking: 'home.reasonBooking',
   trending: 'home.reasonTrending',
 }
@@ -44,12 +42,6 @@ const REASON_STYLES: Record<
     badgeBg: 'bg-violet-100',
     badgeText: 'text-violet-700',
     icon: History,
-  },
-  wishlist: {
-    gradient: 'from-rose-500 to-pink-500',
-    badgeBg: 'bg-rose-100',
-    badgeText: 'text-rose-700',
-    icon: Heart,
   },
   booking: {
     gradient: 'from-blue-500 to-blue-500',

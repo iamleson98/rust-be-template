@@ -1,10 +1,10 @@
 'use client'
 
 /**
- * StatsOverview — the "above the tabs" section of the AdminDashboard.
+ * StatsOverview — the summary-report body of the AdminDashboard.
  *
- * All numbers and charts are driven by REAL backend data only — no mock
- * arrays, no hardcoded revenue series, no fake VIP customers.
+ * All numbers and charts are driven by REAL backend data only — no
+ * mock arrays, no hardcoded revenue series, no client-side forecasts.
  *
  * Data sources (TanStack Query hooks from `@/lib/queries`):
  *   - `useStats()`                       → `/api/stats` (public)
@@ -12,8 +12,8 @@
  *   - `useAdminBookingStats(filter)`     → `/api/admin/bookings/stats`
  *       { totals: { total, confirmed, pending, cancelled, completed, revenue },
  *         byDay: [{ date, count, revenue, confirmed, pending, cancelled, completed }] }
- *       → KPI cards (revenue, total bookings) + revenue bar chart + forecast
- *         + booking-status donut + booking-volume sparkline
+ *       → KPI cards (revenue, total bookings) + revenue bar chart
+ *         + booking-status donut
  *   - `useAdminBookings({ limit: 5 })`   → `/api/admin/bookings`
  *       → "Recent bookings" table (5 most-recent rows by created_at desc)
  *
@@ -41,17 +41,13 @@ import {
 } from '@/lib/queries'
 import type { AdminBookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/lib/api/types.gen'
 import type { DateRange } from './types'
-import { simpleLinearForecast, formatVNDShort } from './helpers'
+import { formatVNDShort } from './helpers'
 import { KpiCard } from './kpi-card'
 import type { DonutSegment } from './segmentation-donut'
-import { RevenueForecastCard } from './revenue-forecast-card'
-import { BookingVolumeCard } from './booking-volume-card'
 import { RevenueBarChartCard } from './revenue-bar-chart-card'
 import { BookingStatusDonutCard } from './booking-status-donut-card'
-import { BookingSegmentationCard } from './booking-segmentation-card'
 import { RecentBookingsCard } from './recent-bookings-card'
-
-// Map dashboard UI date-range preset → admin bookings filter `range` value
+import { CampaignsSummaryCard } from './campaigns-summary-card'
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
@@ -89,7 +85,7 @@ export function StatsOverview({
   // Public stats (brands, routes, trips)
   const { data: rawStats, isError: statsErr, refetch: refetchStats } = useStats()
 
-  // Admin booking stats — drives revenue + booking-volume charts + donut
+  // Admin booking stats — drives revenue chart + status donut
   const filter: AdminBookingFilter = useMemo(
     () => ({ range: rangeToApi(dateRange), status: 'all', sort: 'created_desc', limit: 5, offset: 0 }),
     [dateRange],
@@ -104,7 +100,6 @@ export function StatsOverview({
 
   // Revenue series (in VND) — derived from real byDay buckets
   const revenueSeries = useMemo(() => byDay.map((b) => b.revenue ?? 0), [byDay])
-  const bookingVolumeSeries = useMemo(() => byDay.map((b) => b.count ?? 0), [byDay])
 
   // Bar chart data — bucket into ~10 max so 30d/90d remain readable
   const aggregatedRevenue = useMemo<{ label: string; value: number; date?: string }[]>(() => {
@@ -142,17 +137,6 @@ export function StatsOverview({
     return out
   }, [byDay, dateRange, t])
 
-  // Forecast from the last 7 actual revenue values (real data)
-  const forecast = useMemo(() => {
-    const sample = revenueSeries.slice(-7)
-    if (sample.length === 0) {
-      return { forecast: [], lower: [], upper: [], actualSeries: [], actualLabels: [] }
-    }
-    const fc = simpleLinearForecast(sample, 7)
-    const labels = sample.map((_, i) => `D${revenueSeries.length - sample.length + i + 1}`)
-    return { ...fc, actualSeries: sample, actualLabels: labels }
-  }, [revenueSeries])
-
   const totalRangeRevenue = useMemo(
     () => revenueSeries.reduce((a, b) => a + b, 0),
     [revenueSeries],
@@ -160,9 +144,6 @@ export function StatsOverview({
   const maxBarValue = aggregatedRevenue.length
     ? Math.max(...aggregatedRevenue.map((b) => b.value))
     : 1
-  const peakIdx = bookingVolumeSeries.length
-    ? bookingVolumeSeries.indexOf(Math.max(...bookingVolumeSeries))
-    : -1
 
   // Booking-status donut segments — from real `totals`
   const statusSegments: DonutSegment[] = useMemo(() => {
@@ -209,7 +190,7 @@ export function StatsOverview({
       )}
 
       {/* ─── KPI Cards (real backend numbers) ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <KpiCard
           icon={<DollarSign className="h-5 w-5" />}
           label={t('adminDash.revenue')}
@@ -248,20 +229,6 @@ export function StatsOverview({
         />
       </div>
 
-      {/* ─── Row 0: Revenue Forecast + Booking Volume (real byDay data) ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
-        <div className="lg:col-span-3">
-          <RevenueForecastCard forecast={forecast} />
-        </div>
-        <div className="lg:col-span-2">
-          <BookingVolumeCard
-            bookingVolumeSeries={bookingVolumeSeries}
-            peakIdx={peakIdx}
-            dateRange={dateRange}
-          />
-        </div>
-      </div>
-
       {/* ─── Row 1: Revenue Bar Chart + Booking-status Donut (real byDay + totals) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
         <div className="lg:col-span-3">
@@ -282,19 +249,16 @@ export function StatsOverview({
         </div>
       </div>
 
-      {/* ─── Booking-status SegmentationDonut (real totals) + Recent Bookings ─── */}
+      {/* ─── Row 2: Recent Bookings + live Campaigns (both real) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
-        <div className="lg:col-span-2">
-          <BookingSegmentationCard
-            statusSegments={statusSegments}
-            statusSegmentTotal={statusSegmentTotal}
-          />
-        </div>
         <div className="lg:col-span-3">
           <RecentBookingsCard
             recentBookings={recentBookings}
             onExportCSV={onExportCSV}
           />
+        </div>
+        <div className="lg:col-span-2">
+          <CampaignsSummaryCard />
         </div>
       </div>
     </>

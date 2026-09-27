@@ -52,7 +52,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useLogout } from '@/lib/queries'
-import { useT, type Lang } from '@/lib/i18n'
+import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 /** Nav groups — labels resolve through the i18n dictionary so the
@@ -104,7 +104,7 @@ const adminOnlyItems = (t: (k: string) => string) => [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const { user, lang, setLang } = useApp()
+  const { user } = useApp()
   const logoutMut = useLogout()
   const t = useT()
 
@@ -206,26 +206,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Footer */}
       <div className="border-t border-border/40 px-2 py-2 shrink-0">
         <div className="space-y-0.5">
-          {/* Language switcher — VI/EN, persisted via the app store. */}
-          <div className={cn('flex items-center rounded-lg transition-all h-9', collapsed ? 'justify-center px-0' : 'px-2 gap-1')}>
-            {(['vi', 'en'] as const).map((code) => (
-              <button
-                key={code}
-                type="button"
-                onClick={() => setLang(code as Lang)}
-                aria-pressed={lang === code}
-                title={code === 'vi' ? 'Tiếng Việt' : 'English'}
-                className={cn(
-                  'flex-1 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors',
-                  lang === code
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {code === 'vi' ? 'VI' : 'EN'}
-              </button>
-            ))}
-          </div>
           <Link
             to="/"
             onClick={() => setMobileOpen(false)}

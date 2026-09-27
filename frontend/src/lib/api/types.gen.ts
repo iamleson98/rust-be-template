@@ -1148,13 +1148,6 @@ export type DatabaseStats = {
 };
 
 /**
- * Response of `DELETE /api/wishlist/{id}`.
- */
-export type DeleteWishlistResponse = {
-    ok: boolean;
-};
-
-/**
  * Turn-by-turn driving directions.
  *
  * Returned by `GET /api/routing/directions`. The `valhalla` field
@@ -1525,6 +1518,93 @@ export type LogoutRequest = {
      * cookies. Browsers rely on the httpOnly `refresh_token` cookie.
      */
     refresh_token?: string | null;
+};
+
+/**
+ * One completed booking that earned points (history entry).
+ */
+export type LoyaltyHistoryEntry = {
+    bookingCode: string;
+    bookingId: string;
+    /**
+     * Brand name of the operated trip, when resolvable.
+     */
+    brandName?: string | null;
+    currency: string;
+    /**
+     * Departure timestamp (actual, or scheduled as fallback).
+     */
+    departureAt?: string | null;
+    /**
+     * Points earned by this booking (`total / 10_000`, floored).
+     */
+    points: number;
+    /**
+     * Route name (e.g. "Hà Nội → Đà Nẵng"), when resolvable.
+     */
+    routeName?: string | null;
+    /**
+     * Booking total in the booking's currency (points base).
+     */
+    total: number;
+};
+
+/**
+ * Response of `GET /api/loyalty`.
+ */
+export type LoyaltyResponse = {
+    /**
+     * Number of completed bookings behind the balance.
+     */
+    completedTrips: number;
+    /**
+     * Currency of the underlying bookings (all bookings are VND).
+     */
+    currency: string;
+    /**
+     * Most-recent earning events (completed bookings, newest first).
+     */
+    history: Array<LoyaltyHistoryEntry>;
+    nextTier?: null | LoyaltyTierOut;
+    /**
+     * Current point balance (sum of all earned points).
+     */
+    points: number;
+    /**
+     * The tier the current point balance falls into.
+     */
+    tier: LoyaltyTierOut;
+    /**
+     * Sum of the completed bookings' totals (points base).
+     */
+    totalSpent: number;
+};
+
+/**
+ * A loyalty tier band (returned by `GET /api/loyalty`).
+ *
+ * `name` is a proper noun (Platinum / Gold / Silver / Bronze) and is
+ * intentionally NOT translated. `benefit_codes` are language-neutral
+ * codes the frontend maps onto its i18n dictionary — the tier→benefit
+ * mapping itself is backend-owned data.
+ */
+export type LoyaltyTierOut = {
+    /**
+     * Benefit codes attached to this tier (language-neutral).
+     */
+    benefitCodes: Array<string>;
+    /**
+     * Tier key: `bronze` | `silver` | `gold` | `platinum`.
+     */
+    key: string;
+    /**
+     * Minimum point balance for this tier (inclusive lower bound).
+     */
+    minPoints: number;
+    /**
+     * Tier display name (proper noun, untranslated).
+     */
+    name: string;
 };
 
 /**
@@ -2495,34 +2575,6 @@ export type SystemUptime = {
     seconds: number;
 };
 
-/**
- * Request body for `POST /api/wishlist`. Toggles the route in the
- * user's wishlist — if it's already wishlisted, the existing item is
- * removed (toggle off); otherwise a new item is created (toggle on).
- */
-export type ToggleWishlistRequest = {
-    fromName?: string | null;
-    routeId?: string | null;
-    toName?: string | null;
-    tripId?: string | null;
-};
-
-/**
- * Response of `POST /api/wishlist`.
- */
-export type ToggleWishlistResponse = {
-    /**
-     * `true` when the route is now in the wishlist; `false` when it was
-     * removed by the toggle.
-     */
-    added: boolean;
-    /**
-     * The wishlist item id (present when `added=true`).
-     */
-    id?: string | null;
-    ok: boolean;
-};
-
 export type TripAmenity = {
     key: string;
     label: string;
@@ -3044,26 +3096,6 @@ export type WebsocketStats = {
      * one joined socket). Empty rooms are cleaned up by the hub GC.
      */
     rooms: number;
-};
-
-/**
- * A wishlist item, as returned by `GET /api/wishlist`.
- */
-export type WishlistItemOut = {
-    createdAt: string;
-    id: string;
-    routeId: string;
-    userId: string;
-};
-
-/**
- * Response of `GET /api/wishlist`.
- */
-export type WishlistListResponse = {
-    items: Array<WishlistItemOut>;
-    limit: number;
-    offset: number;
-    total: number;
 };
 
 export type ListData = {
@@ -5631,6 +5663,29 @@ export type ReleaseChannelResponses = {
 
 export type ReleaseChannelResponse = ReleaseChannelResponses[keyof ReleaseChannelResponses];
 
+export type Summary2Data = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/loyalty';
+};
+
+export type Summary2Errors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+};
+
+export type Summary2Responses = {
+    /**
+     * Loyalty summary
+     */
+    200: LoyaltyResponse;
+};
+
+export type Summary2Response = Summary2Responses[keyof Summary2Responses];
+
 export type ServeData = {
     body?: never;
     path: {
@@ -6970,87 +7025,6 @@ export type ReportVitalsResponses = {
 };
 
 export type ReportVitalsResponse = ReportVitalsResponses[keyof ReportVitalsResponses];
-
-export type List16Data = {
-    body?: never;
-    path?: never;
-    query?: {
-        limit?: number;
-        offset?: number;
-    };
-    url: '/api/wishlist';
-};
-
-export type List16Errors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-};
-
-export type List16Responses = {
-    /**
-     * Wishlist items
-     */
-    200: WishlistListResponse;
-};
-
-export type List16Response = List16Responses[keyof List16Responses];
-
-export type ToggleData = {
-    body: ToggleWishlistRequest;
-    path?: never;
-    query?: never;
-    url: '/api/wishlist';
-};
-
-export type ToggleErrors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-};
-
-export type ToggleResponses = {
-    /**
-     * Toggled
-     */
-    200: ToggleWishlistResponse;
-};
-
-export type ToggleResponse = ToggleResponses[keyof ToggleResponses];
-
-export type Remove3Data = {
-    body?: never;
-    path: {
-        /**
-         * Wishlist item ID
-         */
-        id: string;
-    };
-    query?: never;
-    url: '/api/wishlist/{id}';
-};
-
-export type Remove3Errors = {
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Not found
-     */
-    404: unknown;
-};
-
-export type Remove3Responses = {
-    /**
-     * Removed
-     */
-    200: DeleteWishlistResponse;
-};
-
-export type Remove3Response = Remove3Responses[keyof Remove3Responses];
 
 export type HealthData = {
     body?: never;

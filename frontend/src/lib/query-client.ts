@@ -90,7 +90,6 @@ export const queryKeys = {
     detail: (code: string) => ['bookings', code] as const,
   },
   notifications: ['notifications'] as const,
-  wishlist: ['wishlist'] as const,
   priceAlerts: ['price-alerts'] as const,
   recommendations: ['recommendations'] as const,
   stats: (range: string) => ['stats', range] as const,

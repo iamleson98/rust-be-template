@@ -27,6 +27,7 @@ pub mod admin;
 pub mod booking;
 pub mod chat;
 pub mod job;
+pub mod loyalty;
 pub mod notification;
 pub mod nullclaw;
 pub mod payment;
@@ -37,7 +38,6 @@ pub mod review;
 pub mod route_media;
 pub mod routing;
 pub mod system;
-pub mod wishlist;
 
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};

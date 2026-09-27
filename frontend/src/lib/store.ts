@@ -95,15 +95,11 @@ type AppState = {
   notifOpen: boolean
   setNotifOpen: (b: boolean) => void
 
-  // ── Wishlist panel ──
-  wishlistOpen: boolean
-  setWishlistOpen: (b: boolean) => void
-
   // ── Loyalty panel ──
+  // (The point balance itself is backend-owned — see GET /api/loyalty.
+  //  Only the panel's open state lives here.)
   loyaltyOpen: boolean
   setLoyaltyOpen: (b: boolean) => void
-  loyaltyPoints: number
-  setLoyaltyPoints: (p: number | ((prev: number) => number)) => void
 
   // ── Insurance level in booking flow ──
   insuranceLevel: 'none' | 'basic' | 'comprehensive'
@@ -376,16 +372,8 @@ export const useApp = create<AppState>((set) => ({
   notifOpen: false,
   setNotifOpen: (b) => set({ notifOpen: b }),
 
-  wishlistOpen: false,
-  setWishlistOpen: (b) => set({ wishlistOpen: b }),
-
   loyaltyOpen: false,
   setLoyaltyOpen: (b) => set({ loyaltyOpen: b }),
-  loyaltyPoints: 0,
-  setLoyaltyPoints: (p) =>
-    set((s) => ({
-      loyaltyPoints: typeof p === 'function' ? p(s.loyaltyPoints) : p,
-    })),
 
   insuranceLevel: 'none',
   setInsuranceLevel: (l) => set({ insuranceLevel: l }),

@@ -14,7 +14,6 @@ import { Outlet, createRoute } from '@tanstack/react-router'
 import { AccountShell, AccountContentSkeleton } from './lazy-pages'
 import {
   AccountPage,
-  AccountWishlistPage,
   AccountLoyaltyPage,
   AccountNotificationsPage,
   AccountSecurityPage,
@@ -48,16 +47,6 @@ export const accountIndexRoute = createRoute({
   component: () => (
     <Suspense fallback={<AccountContentSkeleton />}>
       <AccountPage />
-    </Suspense>
-  ),
-})
-
-export const accountWishlistRoute = createRoute({
-  getParentRoute: () => accountLayoutRoute,
-  path: '/wishlist',
-  component: () => (
-    <Suspense fallback={<AccountContentSkeleton />}>
-      <AccountWishlistPage />
     </Suspense>
   ),
 })

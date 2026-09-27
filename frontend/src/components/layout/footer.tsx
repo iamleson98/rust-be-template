@@ -12,7 +12,7 @@ import {
   Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
   CreditCard, Heart, Globe, FileText, HelpCircle, MessageCircle,
   Award, Send, Headphones, Stamp, TrendingUp,
-  Sparkles, Users, Route as RouteIcon, Building2, MapPinned
+  Sparkles, Users, Route as RouteIcon, Building2
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -206,15 +206,6 @@ export const Footer = memo(function Footer() {
                   </li>
                 )
               })}
-              <li>
-                <button
-                  onClick={() => navigate({ to: '/map' })}
-                  className="relative inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
-                >
-                  <MapPinned className="h-3.5 w-3.5" />
-                  {t('mapPage.title')}
-                </button>
-              </li>
             </ul>
           </div>
 
