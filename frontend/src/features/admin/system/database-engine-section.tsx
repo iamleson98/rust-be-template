@@ -68,7 +68,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <Database className="h-5 w-5" aria-hidden />
         {t('adminSystem.dbEngineTitle')}
-        <Badge variant="outline" className="max-w-[280px] truncate font-normal" title={engine.version}>
+        <Badge variant="outline" className="max-w-70 truncate font-normal" title={engine.version}>
           {engine.version.split(' ').slice(0, 2).join(' ')}
         </Badge>
       </h2>

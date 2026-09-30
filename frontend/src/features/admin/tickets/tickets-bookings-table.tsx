@@ -58,65 +58,65 @@ export function TicketsBookingsTable({
         </Button>
       </div>
       <DataTable
-            columns={columns}
-            data={bookingsQuery.data?.items ?? []}
-            rowNoun={t('adminTickets.rowNoun')}
-            manualPagination
-            totalRowCount={total}
-            pageIndex={Math.floor(offset / PAGE_SIZE)}
-            onPageIndexChange={(next) =>
-              setFilter((f) => ({ ...f, offset: next * PAGE_SIZE }))
-            }
-            pageSize={PAGE_SIZE}
-            manualSorting
-            sorting={sorting}
-            onSortingChange={handleSortingChange}
-            isLoading={bookingsQuery.isLoading}
-            isError={bookingsQuery.isError}
-            onRetry={() => bookingsQuery.refetch()}
-            onRowClick={(b) => setSelectedBookingId(b.id)}
-            rowAriaLabel={(b) => t('adminTickets.viewTicketDetail', { code: b.code })}
-            rowClassName="card-hover-lift"
-            emptyTitle={t('adminTickets.emptyTitle')}
-            emptyDescription={t('adminTickets.emptyDescription')}
-            emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
-            toolbar={(table) => (
-              <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
-                <DataTableViewOptions table={table} className="ml-auto h-8" />
-              </div>
-            )}
-            mobileList={
-              <div className="divide-y">
-                {(bookingsQuery.data?.items ?? []).map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => setSelectedBookingId(b.id)}
-                    className="w-full p-3 text-left hover:bg-slate-50 transition-colors dark:hover:bg-accent/40"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
-                            {b.code}
-                          </span>
-                          <BookingStatusBadge status={b.status} />
-                        </div>
-                        <div className="text-xs font-medium mt-1 truncate">
-                          {b.contactName ?? '—'} · {b.contactPhone ?? ''}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">
-                          {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-semibold text-xs">{formatVND(b.total)}</div>
-                      </div>
+        columns={columns}
+        data={bookingsQuery.data?.items ?? []}
+        rowNoun={t('adminTickets.rowNoun')}
+        manualPagination
+        totalRowCount={total}
+        pageIndex={Math.floor(offset / PAGE_SIZE)}
+        onPageIndexChange={(next) =>
+          setFilter((f) => ({ ...f, offset: next * PAGE_SIZE }))
+        }
+        pageSize={PAGE_SIZE}
+        manualSorting
+        sorting={sorting}
+        onSortingChange={handleSortingChange}
+        isLoading={bookingsQuery.isLoading}
+        isError={bookingsQuery.isError}
+        onRetry={() => bookingsQuery.refetch()}
+        onRowClick={(b) => setSelectedBookingId(b.id)}
+        rowAriaLabel={(b) => t('adminTickets.viewTicketDetail', { code: b.code })}
+        rowClassName="card-hover-lift"
+        emptyTitle={t('adminTickets.emptyTitle')}
+        emptyDescription={t('adminTickets.emptyDescription')}
+        emptyIcon={<TicketIcon className="h-5 w-5" aria-hidden />}
+        toolbar={(table) => (
+          <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+            <DataTableViewOptions table={table} className="ml-auto h-8" />
+          </div>
+        )}
+        mobileList={
+          <div className="divide-y">
+            {(bookingsQuery.data?.items ?? []).map((b) => (
+              <button
+                key={b.id}
+                onClick={() => setSelectedBookingId(b.id)}
+                className="w-full p-3 text-left hover:bg-slate-50 transition-colors dark:hover:bg-accent/40"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400">
+                        {b.code}
+                      </span>
+                      <BookingStatusBadge status={b.status} />
                     </div>
-                  </button>
-                ))}
-              </div>
-            }
-          />
+                    <div className="text-xs font-medium mt-1 truncate">
+                      {b.contactName ?? '—'} · {b.contactPhone ?? ''}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {b.pickupName ?? '—'} → {b.dropoffName ?? '—'}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-semibold text-xs">{formatVND(b.total)}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        }
+      />
     </>
   )
 }

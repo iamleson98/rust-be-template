@@ -144,7 +144,7 @@ export function UsersPanel() {
                       label: `${t(r.labelKey)} — ${t(r.hintKey)}`,
                       disabled: r.value === 'admin' && isSelf,
                     }))}
-                    className="h-7 w-[130px] text-xs"
+                    className="h-7 w-32.5 text-xs"
                     placeholder={t('adminUsers.role')}
                     searchPlaceholder={t('combobox.search')}
                     aria-label={t('users.changeRoleOf', { name: u.fullName })}
