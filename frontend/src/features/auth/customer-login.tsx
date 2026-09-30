@@ -72,7 +72,7 @@ export function CustomerLogin() {
       setUser(user)
       if (user.phone) setGuestPhone(user.phone)
       toast.success(t('authPage.loginWelcome', { name: user.name ?? t('authPage.you') }))
-      navigate({ to: isStaffUser(user) ? '/admin' : '/bookings' })
+      navigate({ to: isStaffUser(user) ? '/admin' : '/account' })
     },
     onError: () => {
       toast.error(t('authPage.loginFailedCheck'))

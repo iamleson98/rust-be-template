@@ -16,11 +16,11 @@ import { IslandFallback } from './_fallback'
 const RecentlyViewed = lazy(() => import('@/features/home/recently-viewed').then((m) => ({ default: m.RecentlyViewed })))
 const PopularRoutes = lazy(() => import('@/features/home/popular-routes').then((m) => ({ default: m.PopularRoutes })))
 const CampaignsBanner = lazy(() => import('@/features/home/campaigns-banner').then((m) => ({ default: m.CampaignsBanner })))
-const Features = lazy(() => import('@/features/home/features').then((m) => ({ default: m.Features })))
+// const Features = lazy(() => import('@/features/home/features').then((m) => ({ default: m.Features })))
 const BrandShowcase = lazy(() => import('@/features/brand/brand-showcase').then((m) => ({ default: m.BrandShowcase })))
 const Testimonials = lazy(() => import('@/features/home/testimonials').then((m) => ({ default: m.Testimonials })))
 const Recommendations = lazy(() => import('@/features/home/recommendations').then((m) => ({ default: m.Recommendations })))
-const FaqSection = lazy(() => import('@/features/home/faq-section').then((m) => ({ default: m.FaqSection })))
+// const FaqSection = lazy(() => import('@/features/home/faq-section').then((m) => ({ default: m.FaqSection })))
 // const AppDownload = lazy(() => import('@/features/home/app-download').then((m) => ({ default: m.AppDownload })))
 
 export function HomePage() {
@@ -36,9 +36,9 @@ export function HomePage() {
       <Suspense fallback={<IslandFallback minHeight={200} />}>
         <CampaignsBanner />
       </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={300} />}>
+      {/* <Suspense fallback={<IslandFallback minHeight={300} />}>
         <Features />
-      </Suspense>
+      </Suspense> */}
       <Suspense fallback={<IslandFallback minHeight={300} />}>
         <BrandShowcase />
       </Suspense>
@@ -48,9 +48,9 @@ export function HomePage() {
       <Suspense fallback={<IslandFallback minHeight={300} />}>
         <Recommendations />
       </Suspense>
-      <Suspense fallback={<IslandFallback minHeight={400} />}>
+      {/* <Suspense fallback={<IslandFallback minHeight={400} />}>
         <FaqSection />
-      </Suspense>
+      </Suspense> */}
       {/* <Suspense fallback={<IslandFallback minHeight={300} />}>
         <AppDownload />
       </Suspense> */}

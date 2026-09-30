@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n'
 import { exchangeRateNote } from '@/lib/currency'
 import {
   Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
-  CreditCard, Heart, Globe, FileText, HelpCircle, MessageCircle,
+  CreditCard, Heart, Globe, HelpCircle, MessageCircle,
   Award, Send, Headphones, Stamp, TrendingUp,
   Sparkles, Users, Route as RouteIcon, Building2
 } from 'lucide-react'
@@ -230,11 +230,6 @@ export const Footer = memo(function Footer() {
               </li>
               <li className="flex items-center gap-1.5 text-slate-400">
                 <MapPin className="h-3.5 w-3.5" /> Hà Nội, Việt Nam
-              </li>
-              <li>
-                <button onClick={() => navigate({ to: '/bookings' })} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
-                  <FileText className="h-3.5 w-3.5" /> {t('bookingHistory.lookupAria')}
-                </button>
               </li>
             </ul>
           </div>

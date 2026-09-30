@@ -36,7 +36,7 @@
  *     finds its resolved component in the cache and renders inline —
  *     NO Suspense boundary is hit, so `renderToString` works fine. The
  *     output is fully inlined HTML: the home page's marketing copy
- *     (hero, popular routes, brands, testimonials, FAQ, …) is plain,
+ *     (hero, popular routes, brands, recommendations, …) is plain,
  *     crawler-visible HTML inside `<main>`. Maximum SEO.
  *
  * Client hydration + code-splitting behaviour is unchanged — the lazy

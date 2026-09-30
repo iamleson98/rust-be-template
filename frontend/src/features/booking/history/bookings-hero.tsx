@@ -2,16 +2,10 @@
 
 // Extracted from the original 'my-bookings.tsx'.
 
-import { Bus, User, Ticket } from 'lucide-react'
+import { Bus, User } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
-export function BookingsHero({
-  isUserLoggedIn,
-  user,
-}: {
-  isUserLoggedIn: boolean
-  user: { name: string } | null | undefined
-}) {
+export function BookingsHero({ user }: { user?: { name: string } | null }) {
   const t = useT()
   return (
     <div className="relative overflow-hidden bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
@@ -33,25 +27,14 @@ export function BookingsHero({
       <div className="container mx-auto px-4 py-12 md:py-16 relative">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold ring-1 ring-white/20 mb-5">
-            {isUserLoggedIn ? (
-              <>
-                <User className="h-3.5 w-3.5" />
-                {t('bookingHistory.greeting', { name: user?.name ?? '' })}
-              </>
-            ) : (
-              <>
-                <Ticket className="h-3.5 w-3.5" />
-                {t('bookingHistory.lookupBadge')}
-              </>
-            )}
+            <User className="h-3.5 w-3.5" />
+            {t('bookingHistory.greeting', { name: user?.name ?? '' })}
           </div>
           <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3 leading-tight">
-            {isUserLoggedIn ? t('bookingHistory.myBookingsTitle') : t('bookingHistory.lookupTitle')}
+            {t('bookingHistory.myBookingsTitle')}
           </h1>
           <p className="text-blue-100 text-sm md:text-base leading-relaxed max-w-lg">
-            {isUserLoggedIn
-              ? t('bookingHistory.myBookingsSubtitle')
-              : t('bookingHistory.lookupSubtitle')}
+            {t('bookingHistory.myBookingsSubtitle')}
           </p>
         </div>
       </div>

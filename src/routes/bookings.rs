@@ -6,7 +6,7 @@ use validator::Validate;
 
 use crate::dto::booking::{
     BookingCancelResponse, BookingConfirmResponse, BookingDetailResponse, BookingHoldResponse,
-    BookingListItem, BookingListResponse, BookingLookupResponse, CancelReq, ConfirmReq, HoldReq,
+    BookingListItem, BookingListResponse, CancelReq, ConfirmReq, HoldReq,
 };
 use crate::error::AppError;
 use crate::middleware::AuthUser;
@@ -66,34 +66,6 @@ pub async fn hold(
     // Bind the booking to the authenticated caller so subsequent cancel/
     // confirm calls can verify ownership (BOLA defense).
     Ok(Json(st.bookings.hold_with_user(uid, &body).await?))
-}
-
-#[derive(Deserialize, utoipa::IntoParams)]
-pub struct LookupQuery {
-    pub phone: Option<String>,
-    pub code: Option<String>,
-}
-
-/// `GET /api/bookings/lookup` — lookup a booking by phone or code.
-#[utoipa::path(
-    get,
-    path = "/api/bookings/lookup",
-    tag = "bookings",
-    params(LookupQuery),
-    responses(
-        (status = 200, description = "Booking found", body = BookingLookupResponse),
-        (status = 404, description = "Not found"),
-    )
-)]
-pub async fn lookup(
-    State(st): State<AppState>,
-    Query(q): Query<LookupQuery>,
-) -> Result<Json<BookingLookupResponse>, AppError> {
-    Ok(Json(
-        st.bookings
-            .lookup(q.phone.as_deref(), q.code.as_deref())
-            .await?,
-    ))
 }
 
 /// `GET /api/bookings/{id}` — get booking detail.
@@ -170,15 +142,20 @@ pub async fn confirm(
 
 /// Build the bookings router.
 ///
-/// Mounts both `/` (list + hold + lookup) and `/{id}` (detail + cancel +
+/// Mounts both `/` (list + hold) and `/{id}` (detail + cancel +
 /// confirm). The `/hold` alias is kept for backward compatibility with
 /// older frontend code that POSTs to `/api/bookings/hold` directly.
+///
+/// NOTE: the old `GET /lookup` (find a booking by phone/code without
+/// authenticating) was removed — `hold` requires an authenticated
+/// caller, so every booking belongs to an account and "check ticket by
+/// phone number" had nothing to find. Users see their bookings on the
+/// account console instead.
 pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::{get, post};
     axum::Router::new()
         .route("/", get(list).post(hold))
         .route("/hold", post(hold))
-        .route("/lookup", get(lookup))
         .route("/{id}", get(detail))
         .route("/{id}/cancel", post(cancel))
         .route("/{id}/confirm", post(confirm))

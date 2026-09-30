@@ -18,6 +18,8 @@ export type Filters = {
   minRating: number
   availableOnly: boolean
   amenities: string[]
+  /** Brand slugs to include (empty = all brands). */
+  brands: string[]
 }
 
 /** Shape of the typed search params coming from the /search route. */
@@ -27,7 +29,7 @@ export type RouteSearch = {
   date: string
   adults: number
   children: number
-  sort: 'departure' | 'price' | 'duration' | 'rating'
+  sort: 'departure' | 'price' | 'rating'
   vehicleTypes: string[]
   roundTrip: boolean
   returnDate: string
@@ -37,10 +39,9 @@ export type NavigateFn = UseNavigateResult<string>
 
 /** Sort options rendered by the filter sidebar + mobile filter sheet.
  * Labels are i18n keys — translated at render time by the consumers. */
-export const sortOptions: { key: 'departure' | 'price' | 'duration' | 'rating'; labelKey: string; icon: string }[] = [
+export const sortOptions: { key: 'departure' | 'price' | 'rating'; labelKey: string; icon: string }[] = [
   { key: 'departure', labelKey: 'searchPage.departureTime', icon: '🕐' },
   { key: 'price', labelKey: 'searchPage.sortCheapest', icon: '💰' },
-  { key: 'duration', labelKey: 'searchPage.sortFastest', icon: '⚡' },
   { key: 'rating', labelKey: 'searchPage.rating', icon: '⭐' },
 ]
 

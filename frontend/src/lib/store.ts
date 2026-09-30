@@ -36,7 +36,7 @@ export type SearchParams = {
   returnDate: string
   adults: number
   children: number
-  sort: 'departure' | 'price' | 'duration' | 'rating'
+  sort: 'departure' | 'price' | 'rating'
   vehicleTypes: string[]
 }
 
@@ -265,7 +265,7 @@ export function hydrateFromStorage() {
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) searchParams.date = date
       if (adults) searchParams.adults = Math.max(1, parseInt(adults, 10) || 1)
       if (children) searchParams.children = Math.max(0, parseInt(children, 10) || 0)
-      if (sort && ['departure', 'price', 'duration', 'rating'].includes(sort)) searchParams.sort = sort as SearchParams['sort']
+      if (sort && ['departure', 'price', 'rating'].includes(sort)) searchParams.sort = sort as SearchParams['sort']
       if (vt) searchParams.vehicleTypes = vt.split(',').map((s) => s.trim()).filter(Boolean)
       searchParams.roundTrip = roundTrip
       if (returnDate && /^\d{4}-\d{2}-\d{2}$/.test(returnDate)) searchParams.returnDate = returnDate

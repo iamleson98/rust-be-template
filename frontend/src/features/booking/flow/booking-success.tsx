@@ -192,7 +192,7 @@ export function BookingSuccess({
             if (code) {
               navigate({ to: '/bookings/$code', params: { code } })
             } else {
-              navigate({ to: '/bookings' })
+              navigate({ to: '/account/trips' })
             }
             window.scrollTo({ top: 0, behavior: 'smooth' })
           }}

@@ -75,6 +75,11 @@ pub struct RouteOut {
     pub from: RouteEndpoint,
     pub to: RouteEndpoint,
     pub schedule_count: usize,
+    /// Lowest adult base price across the route's schedules (VND).
+    /// `None` when the route has no schedules yet — the frontend must
+    /// NOT invent a price in that case.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub price_from: Option<i64>,
 }
 
 /// Brand preview embedded in `RouteOut`.

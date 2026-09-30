@@ -23,7 +23,6 @@ export const HomePage = lazy(() => import('../routes/home').then((m) => ({ defau
 export const SearchPage = lazy(() => import('../routes/search').then((m) => ({ default: m.SearchPage })))
 export const TripDetailPage = lazy(() => import('../routes/trip-detail').then((m) => ({ default: m.TripDetailPage })))
 export const BrandDetailPage = lazy(() => import('../routes/brand-detail').then((m) => ({ default: m.BrandDetailPage })))
-export const BookingsPage = lazy(() => import('../routes/bookings').then((m) => ({ default: m.BookingsPage })))
 export const BookingDetailPage = lazy(() => import('../routes/booking-detail').then((m) => ({ default: m.BookingDetailPage })))
 export const ComparePage = lazy(() => import('../routes/compare').then((m) => ({ default: m.ComparePage })))
 export const AdminPage = lazy(() => import('../routes/admin').then((m) => ({ default: m.AdminPage })))

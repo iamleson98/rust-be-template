@@ -8,6 +8,7 @@ import { buildSearchInput } from '@/lib/search-params'
 import { Bell, GitCompare, Heart, Sparkles, X } from 'lucide-react'
 import { SearchWidget } from '@/features/home/search-widget'
 import { DatePriceCompare } from '@/features/search/date-price-compare'
+import { RouteDirectory } from '@/features/search/route-directory'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { getHourOfDeparture, matchesTimeRange, type Filters, type NavigateFn, type RouteSearch } from './helpers'
@@ -33,8 +34,13 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
   // re-runs this query. `placeholderData: keepPreviousData` (set inside
   // the hook) keeps the previous results visible while the new ones load,
   // so filter changes feel instantaneous.
+  //
+  // BROWSE MODE: when from/to aren't both set there is nothing to
+  // search for — instead of a dead-end "no results" page, the
+  // RouteDirectory below renders the full active-route catalog.
+  const browseMode = !routeSearch.from || !routeSearch.to
   const tripSearchParams: TripSearchParams | null =
-    routeSearch.from || routeSearch.to
+    routeSearch.from && routeSearch.to
       ? {
         from: routeSearch.from,
         to: routeSearch.to,
@@ -49,6 +55,15 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
       : null
   const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
   const searchResults = searchData?.items ?? EMPTY_ITEMS
+
+  // slug → display name for the active brand chips.
+  const brandNames = useMemo(() => {
+    const m: Record<string, string> = {}
+    for (const tr of searchResults) {
+      if (tr.brandSlug && !(tr.brandSlug in m)) m[tr.brandSlug] = tr.brandName || tr.brandSlug
+    }
+    return m
+  }, [searchResults])
 
   // Cache results in window global so compare can read them without refetch
   useEffect(() => {
@@ -98,6 +113,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
     minRating: 0,
     availableOnly: false,
     amenities: [],
+    brands: [],
   })
 
   // Effective price range used for slider display + filtering (clamped to bounds)
@@ -139,6 +155,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
         if (!matched) return false
       }
       if (filters.minRating > 0 && tr.brandRating < filters.minRating) return false
+      if (filters.brands.length > 0 && !filters.brands.includes(tr.brandSlug)) return false
       if (filters.availableOnly && tr.availableSeats <= 5) return false
       if (filters.amenities.length > 0) {
         const trAmenities = tr.amenities ?? []
@@ -155,6 +172,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
     if (effectivePriceRange[0] > priceBounds[0] || effectivePriceRange[1] < priceBounds[1]) count++
     if (filters.timeRanges.length > 0) count += filters.timeRanges.length
     if (filters.minRating > 0) count++
+    if (filters.brands.length > 0) count += filters.brands.length
     if (filters.availableOnly) count++
     if (filters.amenities.length > 0) count += filters.amenities.length
     return count
@@ -168,6 +186,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
       minRating: 0,
       availableOnly: false,
       amenities: [],
+      brands: [],
     })
   }
 
@@ -230,14 +249,22 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
         </div>
       </div>
 
-      {/* Date price comparison */}
-      <div className="bg-white/80 backdrop-blur border-b">
-        <div className="container mx-auto px-4 py-3">
-          <DatePriceCompare />
+      {/* Browse mode — no from/to picked yet: the full route catalog
+          (real schedule counts + real prices) instead of a dead end. */}
+      {browseMode ? (
+        <div className="container mx-auto px-4 py-6">
+          <RouteDirectory />
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Date price comparison */}
+          <div className="bg-white/80 backdrop-blur border-b">
+            <div className="container mx-auto px-4 py-3">
+              <DatePriceCompare />
+            </div>
+          </div>
 
-      <div className="container mx-auto px-4 py-6">
+          <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Sidebar filters (desktop) */}
           <FiltersSidebar
@@ -341,6 +368,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                 effectivePriceRange={effectivePriceRange}
                 priceBounds={priceBounds}
                 resetFilters={resetFilters}
+                brandNames={brandNames}
               />
             )}
             {/* Saved Searches (collapsible list) */}
@@ -395,7 +423,9 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
             />
           </div>
         </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

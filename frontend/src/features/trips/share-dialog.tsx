@@ -28,7 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { formatCurrency, EXCHANGE_RATE } from '@/lib/currency'
-import { Share2, Phone } from 'lucide-react'
+import { Share2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { buildShareUrl } from './share-helpers'
 import { downloadTripImage } from './share-image'
@@ -169,10 +169,10 @@ export function ShareDialog() {
               currency={currency}
             />
 
-            {/* Exchange rate note */}
+            {/* Exchange rate note (contact info lives in the site
+                footer — no hotline repetition here) */}
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-muted-foreground pt-1">
-              <Phone className="h-3 w-3" />
-              {t('trips.shareHotlineRate', { rate: EXCHANGE_RATE.toLocaleString('vi-VN') })}
+              {t('trips.shareRateNote', { rate: EXCHANGE_RATE.toLocaleString('vi-VN') })}
             </div>
           </div>
         )}

@@ -9,8 +9,6 @@ import {
 import { Badge } from '@/components/ui/badge'
 import {
   Star,
-  Phone,
-  Mail,
   Bus,
   Route as RouteIcon,
   MessageSquareQuote,
@@ -103,18 +101,6 @@ export function BrandDialogHeader({
                     ({t('reviews.countLabel', { count: reviewCount })})
                   </span>
                 </span>
-                {brand.contactPhone && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Phone className="h-3 w-3" />
-                    {brand.contactPhone}
-                  </span>
-                )}
-                {brand.contactEmail && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Mail className="h-3 w-3" />
-                    {brand.contactEmail}
-                  </span>
-                )}
               </div>
 
               {brand.description && (

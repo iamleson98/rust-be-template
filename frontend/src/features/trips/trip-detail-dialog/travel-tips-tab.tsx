@@ -234,7 +234,6 @@ function defaultTips(t: ReturnType<typeof useT>): TravelTipData {
     emergency: [
       { label: t('tripDetail.tips.police'), phone: '113' },
       { label: t('tripDetail.tips.emergency'), phone: '115' },
-      { label: t('tripDetail.tips.hotlineDatXeVui'), phone: '1900 6067' },
     ],
     payment: t('tripDetail.tips.def.payment'),
   }

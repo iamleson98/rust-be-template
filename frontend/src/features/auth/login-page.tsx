@@ -39,7 +39,7 @@ export function LoginPage() {
   useEffect(() => {
     if (user) {
       if (isStaffUser(user)) navigate({ to: '/admin' })
-      else navigate({ to: '/bookings' })
+      else navigate({ to: '/account' })
     }
   }, [user, navigate])
 

@@ -13,7 +13,6 @@
  */
 
 import { useMemo } from 'react'
-import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import {
   Bus,
@@ -27,7 +26,6 @@ import {
   X,
   CheckCircle2,
   Armchair,
-  PhoneCall,
 } from 'lucide-react'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { amenityIcon } from './amenity-icons'
@@ -272,26 +270,6 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
         </div>
       )}
 
-      {/* Brand contact */}
-      {detail.brand.contactPhone && (
-        <div className="rounded-xl bg-linear-to-r from-blue-50 to-blue-50 ring-1 ring-blue-200/50 p-4 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-blue-700 text-white inline-flex items-center justify-center shrink-0">
-            <PhoneCall className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">{t('tripDetail.brandHotline')}</div>
-            <div className="font-bold text-blue-800">{detail.brand.contactPhone}</div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-blue-300 text-blue-800 hover:bg-blue-50"
-            asChild
-          >
-            <a href={`tel:${detail.brand.contactPhone}`}>{t('tripDetail.callNow')}</a>
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

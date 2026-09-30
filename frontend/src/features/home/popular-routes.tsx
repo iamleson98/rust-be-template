@@ -5,14 +5,13 @@ import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
 import { usePopularRoutes, type RouteItem } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from '@/lib/query-client'
 import { searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/layout/error-state'
 import { formatCurrency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import { ArrowRight, Star, Bus, ChevronRight, TrendingUp } from 'lucide-react'
+import { ArrowRight, Star, Bus, ChevronRight } from 'lucide-react'
 import { PopularRoutesSkeleton } from '@/features/home/components/popular-routes-skeleton'
 import { buildSearchInput } from '@/lib/search-params'
 
@@ -45,40 +44,21 @@ export const PopularRoutes = memo(function PopularRoutes() {
     [setSearchParams, navigate],
   )
 
-  // Prefetch search results on hover so clicking feels instant.
-  // Uses the same query key as `useTripSearch` so the cache is shared.
+  // Prefetch search results on hover so clicking feels instant. Uses
+  // the SAME options object (hence query key) as useTripSearch — the
+  // previous bespoke key (queryKeys.trips.search) never matched the
+  // hook's generated key, so every "prefetch" was a wasted request.
   const handleHoverPrefetch = useCallback(
     (from: string, to: string) => {
       const tomorrow = new Date()
       tomorrow.setDate(tomorrow.getDate() + 1)
       const date = tomorrow.toISOString().slice(0, 10)
-      const params = { from, to, date, adults: 1, children: 0, sort: 'departure' as const }
-      queryClient.prefetchQuery({
-        queryKey: queryKeys.trips.search(params),
-        queryFn: async () => {
-          const opts = searchTripsOptions({ query: { from, to, date, sort: 'departure', minSeats: 1 } })
-          if (!opts.queryFn) throw new Error('queryFn missing')
-          return opts.queryFn({
-    queryKey: opts.queryKey,
-    signal: new AbortController().signal,
-  } as unknown as Parameters<NonNullable<typeof opts.queryFn>>[0])
-        },
-        staleTime: 30 * 1000,
-      })
+      queryClient.prefetchQuery(
+        searchTripsOptions({ query: { from, to, date, sort: 'departure', minSeats: 1 } }),
+      )
     },
     [queryClient],
   )
-
-  // Deterministic price from route id hash
-  const getPriceFromHash = (id: string): number => {
-    let hash = 0
-    for (let i = 0; i < id.length; i++) {
-      hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
-    }
-    // Map hash to price range 150.000 - 850.000 in 25.000 increments
-    const steps = Math.abs(hash) % 29 // 0-28
-    return 150000 + steps * 25000
-  }
 
   // group by from-to pair, take unique routes
   const seen = new Set<string>()
@@ -88,9 +68,6 @@ export const PopularRoutes = memo(function PopularRoutes() {
     seen.add(key)
     return true
   }).slice(0, 8)
-
-  // Max scheduleCount for popularity bar normalization
-  const maxSchedules = Math.max(...unique.map((r) => r.scheduleCount), 1)
 
   return (
     <section className="bg-white">
@@ -159,29 +136,21 @@ export const PopularRoutes = memo(function PopularRoutes() {
                         <span className="font-medium text-blue-600">{t('home.tripsPerDay', { count: r.scheduleCount })}</span>
                       </div>
 
-                      {/* Price display */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-blue-700">
-                          {t('home.priceFrom')} {formatCurrency(getPriceFromHash(r.id), currency)}
-                        </span>
-                        <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-medium">
-                          <TrendingUp className="h-3 w-3" />
-                          {t('home.popularBadge')}
-                        </span>
-                      </div>
-
-                      {/* Popularity bar */}
-                      <div className="space-y-1">
-                        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-linear-to-r from-blue-400 to-blue-400 transition-all"
-                            style={{ width: `${Math.round((r.scheduleCount / maxSchedules) * 100)}%` }}
-                          />
+                      {/* REAL price — lowest schedule price from the API.
+                          No price is shown when a route has no schedules
+                          yet (never a made-up number). */}
+                      {r.priceFrom != null ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-bold text-blue-700">
+                            {t('home.priceFrom')} {formatCurrency(r.priceFrom, currency)}
+                          </span>
+                          <span className="text-[10px] text-amber-500 font-medium">
+                            {t('home.popularBadge')}
+                          </span>
                         </div>
-                        <div className="text-[10px] text-muted-foreground text-right">
-                          {t('home.demandPercent', { count: Math.round((r.scheduleCount / maxSchedules) * 100) })}
-                        </div>
-                      </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">{t('searchPage.noSchedulesYet')}</div>
+                      )}
                     </div>
                   </Card>
                 </button>

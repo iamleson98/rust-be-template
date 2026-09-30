@@ -31,7 +31,7 @@ export const searchSchema = z
     returnDate: z.string(),
     adults: z.number().int().min(1, { error: () => tSync('searchSchema.adultsMin') }),
     children: z.number().int().min(0),
-    sort: z.enum(['departure', 'price', 'duration', 'rating']),
+    sort: z.enum(['departure', 'price', 'rating']),
     vehicleTypes: z.array(z.string()),
   })
   .refine((d) => !d.roundTrip || d.returnDate !== '', {

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { MessageCircle, Phone, Mail, Circle } from 'lucide-react'
+import { MessageCircle, Circle } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { relativeTime } from '@/lib/types'
 import type { CustomerChannel as Channel } from './_shared'
@@ -95,11 +95,6 @@ export function ChatList({
           )}
         </div>
       </ScrollArea>
-
-      <div className="border-t p-3 bg-slate-50 text-xs text-muted-foreground flex items-center justify-between">
-        <span className="flex items-center gap-1.5"><Phone className="h-3 w-3" /> 1900 6067</span>
-        <span className="flex items-center gap-1.5"><Mail className="h-3 w-3" /> cskh@datxevui.vn</span>
-      </div>
     </div>
   )
 }

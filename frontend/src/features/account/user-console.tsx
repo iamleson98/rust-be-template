@@ -307,7 +307,7 @@ function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loa
                 variant="ghost"
                 size="sm"
                 className="mt-1 w-full gap-1 text-blue-700 hover:bg-blue-50"
-                onClick={() => navigate({ to: '/bookings' })}
+                onClick={() => navigate({ to: '/account/trips' })}
               >
                 {t('accountPage.console.viewAllTickets')}
                 <ChevronRight className="h-3.5 w-3.5" />
@@ -680,7 +680,7 @@ export function UserConsole() {
           value={bookingsLoading ? '—' : String(stats.upcoming)}
           sub={stats.upcoming > 0 ? t('accountPage.console.activeTicketsSub') : t('accountPage.console.noActiveTickets')}
           accent="bg-sky-500/10"
-          onClick={() => navigate({ to: '/bookings' })}
+          onClick={() => navigate({ to: '/account/trips' })}
         />
         <StatCard
           icon={<Bus className="h-5 w-5 text-emerald-600" />}
@@ -734,7 +734,7 @@ export function UserConsole() {
             icon={<Ticket className="h-4 w-4 text-blue-600" />}
             label={t('nav.tickets')}
             desc={t('accountPage.qkBookingsDesc')}
-            onClick={() => navigate({ to: '/bookings' })}
+            onClick={() => navigate({ to: '/account/trips' })}
           />
           <QuickLink
             icon={<History className="h-4 w-4 text-blue-600" />}

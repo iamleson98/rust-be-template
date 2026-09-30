@@ -73,7 +73,7 @@ export function BookingDetailPage() {
     return (
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> {t('nav.tickets')}</Link>
+          <Link to="/account/trips"><ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}</Link>
         </Button>
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="h-12 w-12 text-rose-400 mb-3" />
@@ -111,7 +111,7 @@ export function BookingDetailPage() {
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/bookings"><ArrowLeft className="h-4 w-4 mr-1" /> {t('nav.tickets')}</Link>
+        <Link to="/account/trips"><ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}</Link>
       </Button>
 
       <div className="flex items-center justify-between mb-6">

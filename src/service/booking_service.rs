@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 use crate::dto::booking::{
     BookingBrandPreview, BookingBusLayoutPreview, BookingCancelResponse, BookingConfirmResponse,
-    BookingHoldResponse, BookingListItem, BookingListResponse, BookingLookupResponse,
-    BookingRoutePreview, BookingSeatOut, BookingTripPreview, HoldReq, PickupPointOut,
+    BookingHoldResponse, BookingListItem, BookingListResponse, BookingRoutePreview, BookingSeatOut,
+    BookingTripPreview, HoldReq, PickupPointOut,
 };
 use crate::entity::{booking, booking_seat, seat, seat_inventory, trip_session};
 use crate::error::{AppError, AppResult};
@@ -104,31 +104,6 @@ impl BookingService {
         // optional). Previously `total = items.len()` was misleadingly
         // reporting the page size as the total matching-row count.
         Ok(BookingListResponse::new(items))
-    }
-
-    /// Guest lookup by booking code and/or phone.
-    pub async fn lookup(
-        &self,
-        phone: Option<&str>,
-        code: Option<&str>,
-    ) -> AppResult<BookingLookupResponse> {
-        let code = code.map(|s| s.trim()).filter(|s| !s.is_empty());
-        let phone = phone.map(|s| s.trim()).filter(|s| !s.is_empty());
-
-        if code.is_none() && phone.is_none() {
-            return Ok(BookingLookupResponse { items: Vec::new() });
-        }
-
-        let bookings = self
-            .store
-            .booking_store()
-            .lookup_bookings(code, phone, 20)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let items = self.serialize_bookings_batched(&bookings, false).await?;
-
-        Ok(BookingLookupResponse { items })
     }
 
     /// Full booking detail with seats, pickup points, trip + brand info.

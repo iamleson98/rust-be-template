@@ -20,8 +20,8 @@
  *   /search                 Search results (typed search params)
  *   /trips/$tripId          Trip detail + seat selection (deep-linkable)
  *   /brands/$slug           Brand detail (deep-linkable)
- *   /bookings               My bookings (auth-guarded)
- *   /bookings/$code         Single booking detail (deep-linkable)
+ *   /bookings/$code         Single booking detail (deep-linkable; the
+ *                          list lives on the account console instead)
  *   /compare                Trip comparison
  *   /admin                  Admin dashboard (employee-guarded)
  *   /login                  Login page
@@ -50,7 +50,7 @@ import { IslandFallback } from '@/routes/_fallback'
 import { rootRoute } from './root-route'
 import { adminLayoutRoute, adminIndexRoute, adminBrandsRoute, adminRoutesRedirectRoute, adminSchedulesRedirectRoute, adminVehicleTypesRoute, adminCronJobsRoute, adminTicketsRoute, adminChatRoute, adminFeedbackRoute, adminBusLayoutsRoute, adminSystemRoute, adminUsersRoute, adminPaymentsRoute } from './admin-routes'
 import { accountLayoutRoute, accountIndexRoute, accountLoyaltyRoute, accountNotificationsRoute, accountSecurityRoute, accountTripsRoute, accountFeedbackRoute } from './account-routes'
-import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingsPage, BookingDetailPage, ComparePage, LoginPage } from './lazy-pages'
+import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingDetailPage, ComparePage, LoginPage } from './lazy-pages'
 
 // ── Public routes ──────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ const searchRoute = createRoute({
     date?: string
     adults?: number
     children?: number
-    sort?: 'departure' | 'price' | 'duration' | 'rating'
+    sort?: 'departure' | 'price' | 'rating'
     vehicleTypes?: string[]
     roundTrip?: boolean
     returnDate?: string
@@ -99,7 +99,7 @@ const searchRoute = createRoute({
     }
     if (typeof search.sort === 'string') {
       const s = search.sort
-      if (s === 'price' || s === 'duration' || s === 'rating') out.sort = s
+      if (s === 'price' || s === 'rating') out.sort = s
     }
     if (typeof search.vt === 'string') {
       const list = search.vt.split(',').map((s) => s.trim()).filter(Boolean)
@@ -132,21 +132,6 @@ const brandDetailRoute = createRoute({
   component: () => (
     <Suspense fallback={<IslandFallback minHeight={500} />}>
       <BrandDetailPage />
-    </Suspense>
-  ),
-})
-
-const bookingsRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/bookings',
-  beforeLoad: () => {
-    // Soft guard — the page itself handles the guest lookup fallback,
-    // but if we have a cached user who is NOT logged in server-side,
-    // we still allow access (guests can look up by code+phone).
-  },
-  component: () => (
-    <Suspense fallback={<IslandFallback minHeight={500} />}>
-      <BookingsPage />
     </Suspense>
   ),
 })
@@ -211,7 +196,6 @@ export const routeTree = rootRoute.addChildren([
   searchRoute,
   tripDetailRoute,
   brandDetailRoute,
-  bookingsRoute,
   bookingDetailRoute,
   compareRoute,
   loginRoute,

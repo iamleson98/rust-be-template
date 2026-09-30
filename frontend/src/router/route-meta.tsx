@@ -19,7 +19,6 @@ import { translate } from '@/lib/i18n'
 export const ROUTE_META: Record<string, { title: string; description: string }> = {
   '/': { title: 'seo.home.title', description: 'seo.home.description' },
   '/search': { title: 'seo.search.title', description: 'seo.search.description' },
-  '/bookings': { title: 'seo.bookings.title', description: 'seo.bookings.description' },
   '/admin': { title: 'seo.admin.title', description: 'seo.admin.description' },
   '/admin/brands': { title: 'seo.adminBrands.title', description: 'seo.adminBrands.description' },
   '/admin/cron-jobs': { title: 'seo.adminCronJobs.title', description: 'seo.adminCronJobs.description' },

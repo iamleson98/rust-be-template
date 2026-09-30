@@ -3,14 +3,14 @@
 import { useApp } from '@/lib/store'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
-import { Home, Search, Ticket, Headset, LayoutDashboard } from 'lucide-react'
+import { Home, Search, LogIn, Headset, LayoutDashboard } from 'lucide-react'
 
 type TabKey = 'home' | 'search' | 'bookings' | 'support'
 
 const tabs: { key: TabKey; icon: React.ElementType; labelKey: string }[] = [
   { key: 'home', icon: Home, labelKey: 'nav.home' },
   { key: 'search', icon: Search, labelKey: 'nav.searchTrips' },
-  { key: 'bookings', icon: Ticket, labelKey: 'nav.tickets' },
+  { key: 'bookings', icon: LogIn, labelKey: 'nav.login' },
   { key: 'support', icon: Headset, labelKey: 'nav.support' },
 ]
 
@@ -23,16 +23,17 @@ export function MobileNav() {
   if (chatOpen) return null
 
   // Derive the active tab from the current URL path — the router is now
-  // the source of truth for the active view (was `view` in the Zustand store).
-  // For signed-in users the middle tab is their personal console (/account);
-  // guests keep the /bookings ticket-lookup tab.
+  // the source of truth for the active view. For signed-in users the
+  // middle tab is their personal console (/account); guests get a Login
+  // shortcut (their tickets live behind the account console — the old
+  // phone-number ticket lookup was removed).
   const consoleTab = !!user
-  const bookingsIcon = consoleTab ? LayoutDashboard : Ticket
-  const bookingsLabel = t(consoleTab ? 'nav.myConsole' : 'nav.tickets')
+  const bookingsIcon = consoleTab ? LayoutDashboard : LogIn
+  const bookingsLabel = t(consoleTab ? 'nav.myConsole' : 'nav.login')
   const getActiveTab = (): TabKey => {
     if (pathname === '/') return 'home'
     if (pathname === '/search') return 'search'
-    if (pathname === '/bookings' || pathname.startsWith('/bookings/') || pathname.startsWith('/account')) return 'bookings'
+    if (pathname === '/login' || pathname.startsWith('/bookings/') || pathname.startsWith('/account')) return 'bookings'
     return 'home'
   }
 
@@ -42,11 +43,13 @@ export function MobileNav() {
         navigate({ to: '/' })
         break
       case 'search':
-        // The "search" tab returns to the homepage where the SearchWidget lives.
-        navigate({ to: '/' })
+        // Straight to the search page — it carries its own compact
+        // search widget AND a full route directory when no from/to is
+        // set (browsing schedules without knowing what to type).
+        navigate({ to: '/search' })
         break
       case 'bookings':
-        navigate({ to: consoleTab ? '/account' : '/bookings' })
+        navigate({ to: consoleTab ? '/account' : '/login' })
         break
       case 'support':
         if (user) setChatOpen(true)

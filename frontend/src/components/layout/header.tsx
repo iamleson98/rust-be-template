@@ -3,12 +3,12 @@
 import { memo, lazy, Suspense, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useApp } from '@/lib/store'
-import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Ticket, Gift, Check, LogIn, LogOut, Phone, Briefcase, CreditCard, History, MessageSquareHeart, ChevronRight } from 'lucide-react'
+import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Gift, Check, LogIn, LogOut, Phone, Briefcase, CreditCard, ChevronRight, Search as SearchIcon } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,15 +42,7 @@ export const Header = memo(function Header() {
     setUser: s.setUser,
   })))
   const navigate = useNavigate()
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const t = useT()
-
-  // ── Active-route helpers ────────────────────────────────────────
-  // The active state derives from the router's pathname (with prefix
-  // matching for parameterized routes like /bookings/:code). Note the
-  // customer Header is unmounted on /account pages (they render their
-  // own shell), so no console highlight is needed here.
-  const isAdmin = pathname === '/admin'
 
   const handleLangChange = useCallback((newLang: 'vi' | 'en') => {
     setLang(newLang)
@@ -98,16 +90,16 @@ export const Header = memo(function Header() {
           </div>
         </button>
 
-        <nav className="hidden md:flex items-center gap-1">
-          {/* Center bar kept intentionally minimal: the customer's links
-           * live behind the avatar dropdown (personal console), staff
-           * keep their Admin shortcut here. */}
+        {/* <nav className="hidden md:flex items-center gap-1">
+          <NavBtn active={pathname === '/search'} onClick={() => navigate({ to: '/search' })} icon={<SearchIcon className="h-4 w-4" />}>
+            {t('nav.searchTrips')}
+          </NavBtn>
           {isStaffUser(user) && (
             <NavBtn active={isAdmin} onClick={() => navigate({ to: '/admin' })} icon={<LayoutDashboard className="h-4 w-4" />}>
               {t('nav.admin')}
             </NavBtn>
           )}
-        </nav>
+        </nav> */}
 
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Compare quick-access button */}
@@ -216,10 +208,6 @@ export const Header = memo(function Header() {
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                {/* Personal console — the customer's own dashboard: active
-                 * tickets, purchase history, feedback, loyalty. Made the
-                 * FIRST and most prominent entry so it's always one click
-                 * behind the user's name. */}
                 <DropdownMenuItem
                   onClick={() => navigate({ to: '/account' })}
                   className="gap-2.5 bg-linear-to-r from-blue-50 to-indigo-50 focus:bg-blue-100/60 dark:from-blue-950/40 dark:to-indigo-950/40"
@@ -232,19 +220,6 @@ export const Header = memo(function Header() {
                     <span className="block text-[11px] text-muted-foreground">{t('nav.myConsoleDesc')}</span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" />
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })} className="gap-2">
-                  <Ticket className="h-4 w-4" /> {t('nav.tickets')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/account/trips' })} className="gap-2">
-                  <History className="h-4 w-4" /> {t('nav.purchaseHistory')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/account/feedback' })} className="gap-2">
-                  <MessageSquareHeart className="h-4 w-4" /> {t('nav.tripFeedback')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/account/loyalty' })} className="gap-2">
-                  <Gift className="h-4 w-4" /> {t('nav.loyalty')}
                 </DropdownMenuItem>
                 {isStaffUser(user) && (
                   <>
@@ -265,15 +240,6 @@ export const Header = memo(function Header() {
             </DropdownMenu>
           )}
 
-          {/* <Button
-            onClick={() => setChatOpen(true)}
-            size="sm"
-            className="bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white gap-1.5 transition-all"
-          >
-            <Headset className="h-4 w-4" />
-            <span className="hidden sm:inline">{t('nav.support')}</span>
-          </Button> */}
-
           <Suspense fallback={null}>
             <LoyaltyWidget />
           </Suspense>
@@ -286,13 +252,12 @@ export const Header = memo(function Header() {
               <DropdownMenuItem onClick={() => navigate({ to: '/' })}>
                 <HomeIcon className="h-4 w-4 mr-2" /> {t('nav.home')}
               </DropdownMenuItem>
-              {user ? (
+              <DropdownMenuItem onClick={() => navigate({ to: '/search' })}>
+                <SearchIcon className="h-4 w-4 mr-2" /> {t('nav.searchTrips')}
+              </DropdownMenuItem>
+              {user && (
                 <DropdownMenuItem onClick={() => navigate({ to: '/account' })}>
                   <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.myConsole')}
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => navigate({ to: '/bookings' })}>
-                  <Ticket className="h-4 w-4 mr-2" /> {t('nav.tickets')}
                 </DropdownMenuItem>
               )}
               {isStaffUser(user) && (
@@ -308,20 +273,5 @@ export const Header = memo(function Header() {
         </div>
       </div>
     </header>
-  )
-})
-
-const NavBtn = memo(function NavBtn({ active, onClick, icon, children }: { active: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${active
-        ? 'bg-white/15 text-white '
-        : 'text-blue-100 hover:bg-white/10 hover:text-white'
-        }`}
-    >
-      {icon}
-      {children}
-    </button>
   )
 })

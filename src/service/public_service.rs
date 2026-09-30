@@ -94,6 +94,31 @@ fn parse_amenities(raw: &Option<String>) -> Vec<String> {
 /// since the route entity no longer carries a `duration_min`. Callers
 /// that need an arrival estimate should derive it from a Valhalla
 /// directions request between the route's start/end points.
+/// Minutes-since-midnight of a trip's departure, for sorting.
+///
+/// Prefers the schedule's `HH:mm` string; falls back to the ISO
+/// `departure_at`. Unparseable/missing values sort last (i32::MAX) so
+/// incomplete data never shadows complete data.
+fn departure_minutes(t: &TripResult) -> i32 {
+    let src = t
+        .departure_time
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .or(t.departure_at.as_deref());
+    let Some(s) = src else { return i32::MAX };
+    // Take "HH:mm" from the front — works for both "08:30" and
+    // "2026-01-02T08:30:00" (the time follows the last 'T').
+    let hm = s.rsplit('T').next().unwrap_or(s);
+    let mut parts = hm.split(':');
+    let h: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(-1);
+    let m: i32 = parts.next().and_then(|p| p.parse().ok()).unwrap_or(-1);
+    if h < 0 || m < 0 {
+        i32::MAX
+    } else {
+        h * 60 + m
+    }
+}
+
 fn compute_iso_timestamps(
     departure_date: &Option<String>,
     departure_time: &Option<String>,
@@ -263,16 +288,38 @@ impl PublicService {
         for s in &schedules {
             *schedule_count.entry(s.route_id).or_insert(0) += 1;
         }
+        // Lowest adult base price per route — the REAL "from" price for
+        // route cards (never fabricated client-side).
+        let mut price_from: std::collections::HashMap<Uuid, i64> = std::collections::HashMap::new();
+        for s in &schedules {
+            let entry = price_from.entry(s.route_id).or_insert(i64::MAX);
+            if s.base_price_adult < *entry {
+                *entry = s.base_price_adult;
+            }
+        }
 
         let items: Vec<RouteOut> = routes
             .iter()
             .map(|r| {
                 let brand = r.brand_id.and_then(|bid| brands.get(&bid));
-                let (from_name, to_name) = r
-                    .name
-                    .split_once(" → ")
-                    .map(|(f, t)| (f.to_string(), t.to_string()))
-                    .unwrap_or_else(|| (r.name.clone(), String::new()));
+                // Resolve endpoints from the route's STRUCTURED city
+                // slugs (the admin form's canonical pick) — not by
+                // splitting the free-text route name. Falls back to the
+                // legacy "A → B" name-split for rows whose slugs don't
+                // resolve (corrupt data), so something always renders.
+                let (from_name, to_name) = (
+                    crate::cities::name_for_slug(&r.start_location_id),
+                    crate::cities::name_for_slug(&r.end_location_id),
+                );
+                let (from_name, to_name) =
+                    if from_name == r.start_location_id && to_name == r.end_location_id {
+                        r.name
+                            .split_once(" → ")
+                            .map(|(f, t)| (f.to_string(), t.to_string()))
+                            .unwrap_or_else(|| (r.name.clone(), String::new()))
+                    } else {
+                        (from_name, to_name)
+                    };
 
                 RouteOut {
                     id: r.id,
@@ -296,6 +343,9 @@ impl PublicService {
                         lon: 0.0,
                     },
                     schedule_count: schedule_count.get(&r.id).copied().unwrap_or(0),
+                    // `filter` guards the i64::MAX sentinel (a route whose
+                    // every schedule costs i64::MAX is not a real route).
+                    price_from: price_from.get(&r.id).copied().filter(|p| *p != i64::MAX),
                 }
             })
             .collect();
@@ -521,19 +571,31 @@ impl PublicService {
             return Err(AppError::BadRequest("missing departure date".into()));
         }
         let limit = limit.clamp(1, 100);
-        let _sort = if sort.is_empty() { "departure" } else { sort };
+        let sort_key = if sort.is_empty() { "departure" } else { sort };
         let min_seats = min_seats.max(1);
 
-        // SQL-side route search — replaces the previous "load 1000 routes
-        // and filter with to_lowercase().contains() in Rust" pattern.
-        // The SQL LOWER(name) LIKE '%from%' AND LOWER(name) LIKE '%to%'
-        // does the filtering server-side, returning only matching routes.
+        // SQL-side route search — two OR'd strategies:
+        // 1. Name path: `LOWER(name) LIKE '%from%' AND LOWER(name) LIKE '%to%'`.
+        // 2. Slug path: the query is resolved to city slugs
+        //    (`cities::match_city_slugs` handles diacritics + colloquial
+        //    aliases like "Sài Gòn" → `ho-chi-minh`) and matched against
+        //    the route's structured `start_location_id`/`end_location_id`.
+        //    This is what makes search find trips for users who type a
+        //    city name that doesn't literally appear in the route name.
         let from_lower = from.to_lowercase();
         let to_lower = to.to_lowercase();
+        let from_slugs: Vec<String> = crate::cities::match_city_slugs(from)
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        let to_slugs: Vec<String> = crate::cities::match_city_slugs(to)
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
         let matching_routes = self
             .store
             .route_store()
-            .search_active_routes_by_name(&from_lower, &to_lower, 1000)
+            .search_active_routes(&from_lower, &to_lower, &from_slugs, &to_slugs, 1000)
             .await?;
 
         if matching_routes.is_empty() {
@@ -571,11 +633,20 @@ impl PublicService {
             .filter_map(|s| Uuid::parse_str(s).ok())
             .collect();
 
-        // Find trip sessions for these schedules on the given date
+        // Find trip sessions for these schedules on the given date.
+        //
+        // SORTING CONTRACT: fetch a wider page than `limit` because the
+        // sort happens AFTER two Rust-side stages — the vehicle-type
+        // filter (drops rows the SQL can't see) and the comparator
+        // below. Fetching exactly `limit` rows in DB order would make
+        // `sort=price` rank only the first-N-by-insertion, silently
+        // hiding cheaper trips. 500 is plenty for a day's departures on
+        // a from/to pair; the final truncate enforces the real limit.
+        let fetch_cap: u64 = 500;
         let trips = self
             .store
             .trip_store()
-            .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, limit)
+            .list_trips_by_schedule_ids(schedule_uuids, date, min_seats, fetch_cap)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -735,6 +806,35 @@ impl PublicService {
                 })
             })
             .collect();
+
+        // ── Sort (server-side, the REAL implementation) ─────────────
+        //
+        // `sort` used to be parsed into `_sort` and silently ignored —
+        // the UI offered price/rating sorts that did nothing. Now the
+        // fetched page (see the fetch_cap note above) is sorted by the
+        // requested key with a deterministic tie-break on departure
+        // time, then truncated to the requested limit.
+        //
+        // No "duration" key: the schedule model has no arrival time,
+        // so trip duration is genuinely unknowable — the frontend no
+        // longer offers that option rather than pretending to sort by
+        // it.
+        let mut items = items;
+        match sort_key {
+            "price" => items.sort_by(|a, b| {
+                a.min_price
+                    .cmp(&b.min_price)
+                    .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
+            }),
+            "rating" => items.sort_by(|a, b| {
+                b.brand_rating
+                    .partial_cmp(&a.brand_rating)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
+            }),
+            _ => items.sort_by_key(departure_minutes),
+        }
+        items.truncate(limit as usize);
 
         Ok(TripSearchResponse { items })
     }

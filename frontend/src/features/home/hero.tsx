@@ -1,11 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { SearchWidget } from '@/features/home/search-widget'
 import { TrustBar } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
 import { useStats } from '@/lib/queries'
-import { formatNum } from '@/lib/types'
 import { ChevronDown } from 'lucide-react'
 import { HeroBackground } from './hero-background'
 import { WelcomeBar } from './welcome-bar'
@@ -13,19 +11,7 @@ import { HeroTrustBadges } from './hero-trust-badges'
 import { HeroStat } from './hero-stat'
 import { HeroTrustedBy } from './hero-trusted-by'
 
-type Stats = {
-  brands: number
-  routes: number
-  trips: number
-  places: number
-  campaigns: number
-  bookings: number
-  revenue: number
-  happyCustomers: number
-}
-
 export function Hero() {
-  const [stats, setStats] = useState<Stats | null>(null)
   const t = useT()
 
   // NOTE: the fabricated "Flash Sale" countdown that used to live here was
@@ -34,24 +20,10 @@ export function Hero() {
   // honesty and load/CPU performance. The WelcomeBar below greets the
   // visitor with REAL data instead (active tickets for signed-in users).
 
+  // Real platform stats (brands / routes / trips straight from
+  // GET /api/stats). The previous version ALSO showed a made-up
+  // "125.000+ passengers" badge and a "Places: 0" stat tile — both gone.
   const { data: statsData } = useStats()
-  useEffect(() => {
-    if (statsData) {
-      // Intentional effect-synced state (dialog reset-on-open /
-      // server-data snapshot / DOM-availability gate).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStats({
-        brands: Number(statsData.brands) || 0,
-        routes: Number(statsData.routes) || 0,
-        trips: Number(statsData.trips) || 0,
-        places: 0,
-        campaigns: 0,
-        bookings: 0,
-        revenue: 0,
-        happyCustomers: 0,
-      })
-    }
-  }, [statsData])
 
   return (
     <section className="relative overflow-hidden isolate">
@@ -61,14 +33,7 @@ export function Hero() {
 
       <div className="relative container mx-auto px-4 pt-12 pb-16 md:pt-20 md:pb-24">
         <div className="max-w-3xl text-white">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-md px-3.5 py-1.5 text-xs font-semibold ring-1 ring-white/30 mb-5">
-            <span className="relative flex h-2 w-2">
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
-            </span>
-            <span className="text-white">{t('hero.trustBadge', { count: stats ? formatNum(stats.happyCustomers) : '125.000+' })}</span>
-          </div>
-
-          <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05] drop-">
+          <h1 className="text-balance text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.05]">
             <span className="text-white">{t('hero.title')}</span>
             <br />
             <span className="bg-linear-to-r from-amber-300 via-yellow-200 to-amber-300 bg-clip-text text-transparent">
@@ -83,12 +48,9 @@ export function Hero() {
         {/* Friendly personalized welcome — real data, no timers */}
         <WelcomeBar />
 
-        {/* Search widget — z-40 lifts the whole widget (and its autocomplete
-            dropdowns) above later siblings like TrustBadges that also create
-            their own stacking contexts via backdrop-blur. Without this, the
-            PlaceAutocomplete dropdown gets trapped inside the widget's own
-            backdrop-blur stacking context and is painted UNDER the trust
-            badges that follow in the DOM. */}
+        {/* Search widget — z-40 lifts the whole widget (and its city
+            picker popup) above later siblings like TrustBadges that
+            also create their own stacking contexts via backdrop-blur. */}
         <div className="relative z-40 mt-8 md:mt-10">
           <div className="rounded-3xl p-1.5 md:p-2 bg-white/15 ring-1 ring-white/25 backdrop-blur-md">
             <SearchWidget />
@@ -98,17 +60,16 @@ export function Hero() {
         {/* Trust badges */}
         <HeroTrustBadges />
 
-        {/* Stats — static display */}
-        {stats && (
-          <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 text-white">
-            <HeroStat value={stats.brands} label={t('home.statBrands')} />
-            <HeroStat value={stats.routes} label={t('home.statRoutes')} />
-            <HeroStat value={stats.trips} label={t('home.statTrips')} />
-            <HeroStat value={stats.places} label={t('home.statPlaces')} />
+        {/* Stats — real numbers from the platform */}
+        {statsData && (
+          <div className="mt-10 grid grid-cols-3 gap-4 text-white">
+            <HeroStat value={Number(statsData.brands) || 0} label={t('home.statBrands')} />
+            <HeroStat value={Number(statsData.routes) || 0} label={t('home.statRoutes')} />
+            <HeroStat value={Number(statsData.trips) || 0} label={t('home.statTrips')} />
           </div>
         )}
 
-        {/* Trusted-by logos strip */}
+        {/* Trusted-by logos strip — REAL brands from the API */}
         <HeroTrustedBy />
 
         {/* Scroll down indicator */}

@@ -20,7 +20,6 @@ import {
 } from '@/components/ui/sheet'
 import {
   UserCircle,
-  Ticket,
   Gift,
   Bell,
   ShieldCheck,
@@ -47,7 +46,6 @@ const NAV_GROUPS = (t: (k: string) => string) => [
     items: [
       { title: t('layout.account.overview'), icon: UserCircle, url: '/account' },
       { title: t('layout.account.tripHistory'), icon: History, url: '/account/trips' },
-      { title: t('nav.tickets'), icon: Ticket, url: '/bookings' },
     ],
   },
   {

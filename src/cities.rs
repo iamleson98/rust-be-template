@@ -527,6 +527,82 @@ pub fn name_for_slug(slug: &str) -> String {
         .unwrap_or_else(|| slug.to_string())
 }
 
+/// Colloquial nicknames that don't derive from the official name.
+///
+/// `Sài Gòn` never appears in any official city name, and abbreviations
+/// like `hcm` / `tphcm` don't survive substring matching — they need an
+/// explicit table. Everything else (`Hà Nội` → `hanoi`, `Đà Nẵng` →
+/// `danang`, …) is handled by diacritic-stripping + alnum-only
+/// normalization in [`normalize_for_match`].
+const CITY_ALIASES: &[(&str, &[&str])] = &[
+    (
+        "ho-chi-minh",
+        &["saigon", "sagon", "sg", "hcm", "hcmc", "tphcm"],
+    ),
+    ("ha-noi", &["hn"]),
+    ("da-nang", &["dn"]),
+    ("hai-phong", &["hp"]),
+    ("can-tho", &["ct"]),
+];
+
+/// Normalize a free-text place query for matching: lowercase, strip
+/// Vietnamese diacritics, drop everything that isn't a letter/digit.
+///
+/// `"TP. Hồ Chí Minh"` → `"tphochiminh"`, `"Đà Nẵng"` → `"danang"`,
+/// `"Sài Gòn"` → `"saigon"`. Mirrors the frontend's accent-insensitive
+/// city filtering so both sides agree on the same canonical form.
+pub fn normalize_for_match(input: &str) -> String {
+    crate::service::admin_service::slugify(input)
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .collect()
+}
+
+/// Resolve a free-text from/to query to the city slugs it could mean.
+///
+/// Match rules (first hit wins per city, all matching cities returned):
+/// 1. **Exact** — normalized query equals the normalized official name
+///    or one of the city's aliases (`"TP. Hồ Chí Minh"`, `"saigon"`,
+///    `"hcm"` → `ho-chi-minh`).
+/// 2. **Containment** — for queries ≥ 4 chars, the query contains the
+///    city name or vice versa (`"danangairport"` → `da-nang`,
+///    `"hochiminh"` → `ho-chi-minh`). Short queries are exempt to avoid
+///    noise (`"an"` would otherwise match half of Vietnam).
+///
+/// This powers trip search: routes store `start_location_id` /
+/// `end_location_id` as these slugs, so resolving the user's typing to
+/// slugs lets the backend match routes structurally instead of relying
+/// on the route NAME containing the same string the user typed.
+pub fn match_city_slugs(query: &str) -> Vec<&'static str> {
+    let q = normalize_for_match(query);
+    if q.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for city in CITIES.iter() {
+        let cname = normalize_for_match(city.name);
+        let slug_norm = city.slug.replace('-', "");
+        let alias_hit = CITY_ALIASES
+            .iter()
+            .filter(|(slug, _)| *slug == city.slug)
+            .flat_map(|(_, aliases)| aliases.iter())
+            .any(|a| *a == q);
+        let exact = cname == q || slug_norm == q || alias_hit;
+        // Containment only for reasonably long queries AND reasonably
+        // long city forms — short names would otherwise match almost
+        // any longer string. The slug form catches prefixed official
+        // names: `"hochiminhcity"` contains `"hochiminh"` even though
+        // the display name is `"TP. Hồ Chí Minh"`.
+        let contains = q.len() >= 4
+            && ((cname.len() >= 5 && (cname.contains(q.as_str()) || q.contains(cname.as_str())))
+                || (slug_norm.len() >= 5 && q.contains(&slug_norm)));
+        if exact || contains {
+            out.push(city.slug);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,5 +688,52 @@ mod tests {
             "expected 61 Vietnamese cities — if you added/removed one, \
              update this count and the frontend's VIETNAMESE_CITIES list"
         );
+    }
+
+    // ── match_city_slugs — the search-entry resolver ──────────────
+
+    #[test]
+    fn official_name_matches_with_and_without_diacritics() {
+        // Exact official name (what the city selector sends).
+        assert_eq!(match_city_slugs("Hà Nội"), vec!["ha-noi"]);
+        assert_eq!(match_city_slugs("Đà Nẵng"), vec!["da-nang"]);
+        assert_eq!(match_city_slugs("TP. Hồ Chí Minh"), vec!["ho-chi-minh"]);
+        // Same name typed without diacritics.
+        assert_eq!(match_city_slugs("Da Nang"), vec!["da-nang"]);
+        assert_eq!(match_city_slugs("Can Tho"), vec!["can-tho"]);
+    }
+
+    #[test]
+    fn colloquial_aliases_match() {
+        assert_eq!(match_city_slugs("Sài Gòn"), vec!["ho-chi-minh"]);
+        assert_eq!(match_city_slugs("Sai Gon"), vec!["ho-chi-minh"]);
+        assert_eq!(match_city_slugs("saigon"), vec!["ho-chi-minh"]);
+        assert_eq!(match_city_slugs("hcm"), vec!["ho-chi-minh"]);
+        assert_eq!(match_city_slugs("tphcm"), vec!["ho-chi-minh"]);
+        assert_eq!(match_city_slugs("hn"), vec!["ha-noi"]);
+    }
+
+    #[test]
+    fn containment_matches_longer_queries() {
+        // The query contains the city name…
+        assert!(match_city_slugs("danangairport").contains(&"da-nang"));
+        // …or the city name contains the query.
+        assert!(match_city_slugs("hochiminhcity").contains(&"ho-chi-minh"));
+    }
+
+    #[test]
+    fn short_or_unknown_queries_do_not_match_everything() {
+        // ≤3 normalized chars: no containment matching.
+        assert!(match_city_slugs("an").is_empty());
+        // Nonsense doesn't resolve.
+        assert!(match_city_slugs("ben xe khong ton tai").is_empty());
+    }
+
+    #[test]
+    fn station_style_queries_still_resolve_their_city() {
+        // What the OSM autocomplete used to produce — a station name in
+        // a province. The containment rule still catches the city.
+        let hits = match_city_slugs("ben xe my dinh ha noi");
+        assert!(hits.contains(&"ha-noi"), "got {hits:?}");
     }
 }

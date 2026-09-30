@@ -203,7 +203,7 @@ export function NotificationBell() {
                             }
                           })()
                           if (link?.includes('my-bookings')) {
-                            navigate({ to: '/bookings' })
+                            navigate({ to: '/account/trips' })
                             setNotifOpen(false)
                           }
                         }}
@@ -236,7 +236,7 @@ export function NotificationBell() {
               </div>
               <button
                 onClick={() => {
-                  navigate({ to: '/bookings' })
+                  navigate({ to: '/account/trips' })
                   setNotifOpen(false)
                 }}
                 className="text-[11px] font-medium text-blue-700 hover:text-blue-800"

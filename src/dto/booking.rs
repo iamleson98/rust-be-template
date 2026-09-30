@@ -239,8 +239,8 @@ pub struct BookingListItem {
 pub struct BookingListResponse {
     pub items: Vec<BookingListItem>,
     /// Total matching-row count (independent of pagination). Omitted from
-    /// the JSON when the server didn't compute it (e.g. for the lookup
-    /// endpoint). Use `with_total(...)` to set it.
+    /// the JSON when the server didn't compute it. Use `with_total(...)`
+    /// to set it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub total: Option<u64>,
 }
@@ -254,14 +254,6 @@ impl BookingListResponse {
         self.total = Some(total);
         self
     }
-}
-
-/// Response of `GET /api/bookings/lookup`. Same shape as the list, but
-/// without the `total` field (the lookup endpoint doesn't paginate).
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct BookingLookupResponse {
-    pub items: Vec<BookingListItem>,
 }
 
 /// Response of `GET /api/bookings/{id}`. Carries the full enriched

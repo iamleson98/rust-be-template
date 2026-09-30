@@ -81,14 +81,22 @@ pub trait RouteStore: Send + Sync {
         offset: u64,
     ) -> StoreResult<RoutePage>;
 
-    /// Search active routes where the name contains both `from` and `to`
-    /// substrings (case-insensitive). Replaces the previous "load 1000
-    /// active routes and filter in Rust" pattern that allocated
-    /// `to_lowercase()` strings on every iteration.
-    async fn search_active_routes_by_name(
+    /// Search active routes matching a from/to query. A route matches
+    /// when EITHER holds:
+    /// 1. **Name path** — `LOWER(name)` contains both `from_lower` and
+    ///    `to_lower` (case-insensitive substring, legacy behavior).
+    /// 2. **Slug path** — the route's structured endpoints match:
+    ///    `start_location_id IN from_slugs AND end_location_id IN to_slugs`.
+    ///    The slugs come from `cities::match_city_slugs`, which resolves
+    ///    diacritic-stripped names and colloquial aliases (`Sài Gòn` →
+    ///    `ho-chi-minh`) — this is what makes search find routes whose
+    ///    NAME doesn't happen to contain the exact string the user typed.
+    async fn search_active_routes(
         &self,
         from_lower: &str,
         to_lower: &str,
+        from_slugs: &[String],
+        to_slugs: &[String],
         limit: u64,
     ) -> StoreResult<Vec<route::Model>>;
     async fn insert_route(&self, model: route::ActiveModel) -> StoreResult<()>;
@@ -275,34 +283,71 @@ impl RouteStore for DbRouteStore {
         Ok(RoutePage { items, total })
     }
 
-    async fn search_active_routes_by_name(
+    async fn search_active_routes(
         &self,
         from_lower: &str,
         to_lower: &str,
+        from_slugs: &[String],
+        to_slugs: &[String],
         limit: u64,
     ) -> StoreResult<Vec<route::Model>> {
-        // SQL-side ILIKE filter — both from and to must appear in the
-        // route name (case-insensitive). Replaces the previous
-        // "load 1000 routes + to_lowercase().contains() in Rust" pattern.
-        // On SQLite, LIKE is case-insensitive for ASCII by default; on
-        // Postgres ILIKE would be; LOWER() is the engine-compatible form.
+        // Two independent match strategies, OR'd together:
         //
-        // NOTE: wildcards are pre-baked into the bound parameters. The
-        // previous `'%' || ? || '%'` form parsed as `(name LIKE '%') || ?
-        // || '%'` on the rustqlite engine (LIKE binds tighter than `||`
-        // there), which is always truthy — the from/to filter silently
-        // matched every route.
-        use sea_orm::sea_query::Expr;
+        // 1. Name path — SQL-side ILIKE filter: both from and to must
+        //    appear in the route name (case-insensitive). On SQLite,
+        //    LIKE is case-insensitive for ASCII by default; on Postgres
+        //    ILIKE would be; LOWER() is the engine-compatible form.
+        //
+        //    NOTE: wildcards are pre-baked into the bound parameters. The
+        //    previous `'%' || ? || '%'` form parsed as `(name LIKE '%') || ?
+        //    || '%'` on the rustqlite engine (LIKE binds tighter than `||`
+        //    there), which is always truthy — the from/to filter silently
+        //    matched every route.
+        //
+        // 2. Slug path — structured endpoint match: the route's
+        //    `start_location_id` / `end_location_id` (city slugs set by
+        //    the admin form) must fall in the resolved from/to slug sets.
+        //    `cities::match_city_slugs` resolves diacritic-stripped names
+        //    and colloquial aliases (`Sài Gòn` → `ho-chi-minh`), which is
+        //    what makes search find routes whose NAME doesn't contain the
+        //    exact string the user typed.
+        use sea_orm::sea_query::{Cond, Expr};
+
+        let mut cond = Cond::any().add(
+            Cond::all()
+                .add(Expr::cust_with_values(
+                    "LOWER(name) LIKE ?",
+                    [format!("%{}%", from_lower)],
+                ))
+                .add(Expr::cust_with_values(
+                    "LOWER(name) LIKE ?",
+                    [format!("%{}%", to_lower)],
+                )),
+        );
+
+        // Only when BOTH sides resolved to at least one city slug — an
+        // unresolvable query (no city match) falls back to name-only.
+        if !from_slugs.is_empty() && !to_slugs.is_empty() {
+            let start_in = Expr::cust_with_values(
+                format!(
+                    "start_location_id IN ({})",
+                    vec!["?"; from_slugs.len()].join(", ")
+                ),
+                from_slugs,
+            );
+            let end_in = Expr::cust_with_values(
+                format!(
+                    "end_location_id IN ({})",
+                    vec!["?"; to_slugs.len()].join(", ")
+                ),
+                to_slugs,
+            );
+            cond = cond.add(Cond::all().add(start_in).add(end_in));
+        }
+
         Ok(route::Entity::find()
             .filter(route::Column::Status.eq("active"))
-            .filter(Expr::cust_with_values(
-                "LOWER(name) LIKE ?",
-                [format!("%{}%", from_lower)],
-            ))
-            .filter(Expr::cust_with_values(
-                "LOWER(name) LIKE ?",
-                [format!("%{}%", to_lower)],
-            ))
+            .filter(cond)
             .limit(limit)
             .all(self.db.as_ref())
             .await?)

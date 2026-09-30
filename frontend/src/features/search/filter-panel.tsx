@@ -10,7 +10,8 @@
 
 import { useApp, type TripResult } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { Sunrise, Sun, Sunset, Moon, Star, Users, Wifi, Snowflake, Droplet, Zap, BedDouble } from 'lucide-react'
+import { useMemo } from 'react'
+import { Sunrise, Sun, Sunset, Moon, Star, Users, Wifi, Snowflake, Droplet, Zap, BedDouble, Building2 } from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -76,6 +77,32 @@ export function FilterPanel({
       amenities: exists ? filters.amenities.filter((x) => x !== key) : [...filters.amenities, key],
     })
   }
+
+  const toggleBrand = (slug: string) => {
+    const exists = filters.brands.includes(slug)
+    setFilters({
+      ...filters,
+      brands: exists ? filters.brands.filter((x) => x !== slug) : [...filters.brands, slug],
+    })
+  }
+
+  // Distinct brands among the current results (slug + display name),
+  // sorted by how many trips they run — the brand discovery filter.
+  const brandOptions = useMemo(() => {
+    const byslug = new Map<string, { slug: string; name: string; count: number }>()
+    for (const tr of searchResults) {
+      if (!tr.brandSlug) continue
+      const entry = byslug.get(tr.brandSlug)
+      if (entry) {
+        entry.count += 1
+      } else {
+        byslug.set(tr.brandSlug, { slug: tr.brandSlug, name: tr.brandName || tr.brandSlug, count: 1 })
+      }
+    }
+    return [...byslug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+  }, [searchResults])
+
+  const countForBrand = (slug: string) => searchResults.filter((tr) => tr.brandSlug === slug).length
 
   // Count results per filter option (independent of that filter being active)
   const countForTimeRange = (key: TimeRange) =>
@@ -178,6 +205,41 @@ export function FilterPanel({
           })}
         </RadioGroup>
       </div>
+
+      {/* Brands */}
+      {brandOptions.length > 1 && (
+        <div className="pt-3 border-t">
+          <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.brandFilter')}</div>
+          <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+            {brandOptions.map((b) => {
+              const active = filters.brands.includes(b.slug)
+              const count = countForBrand(b.slug)
+              return (
+                <label
+                  key={b.slug}
+                  className={cn(
+                    'flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md border text-xs transition-all',
+                    active
+                      ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  )}
+                >
+                  <Checkbox
+                    checked={active}
+                    onCheckedChange={() => toggleBrand(b.slug)}
+                    className="h-3.5 w-3.5 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+                  />
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  <span className="flex-1 truncate">{b.name}</span>
+                  {count > 0 && (
+                    <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
+                  )}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Available Seats */}
       <div className="pt-3 border-t">

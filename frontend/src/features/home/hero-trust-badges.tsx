@@ -2,17 +2,24 @@
 
 // Extracted from the original 'hero.tsx'.
 
-import { ShieldCheck, Wallet, Headset, Star } from 'lucide-react'
+import { ShieldCheck, Wallet } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
+/**
+ * Trust badges under the search widget — payment security and best-price
+ * promise only.
+ *
+ * The "24/7 Support" badge was removed (contact/support belongs to the
+ * footer and the chat launcher, per the contact policy), and the
+ * "4.8/5 rating · 12,500+ reviews" badge was removed with it: those
+ * numbers weren't derived from any API.
+ */
 export function HeroTrustBadges() {
   const t = useT()
   return (
-    <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="mt-8 grid grid-cols-2 gap-3">
       <TrustBadge icon={<ShieldCheck className="h-5 w-5" />} title={t('home.trustSecurePayment')} sub={t('home.trustSsl')} />
       <TrustBadge icon={<Wallet className="h-5 w-5" />} title={t('home.trustBestPrice')} sub={t('home.trustMoneyBack')} />
-      <TrustBadge icon={<Headset className="h-5 w-5" />} title={t('nav.support247')} sub={t('home.trustChat')} />
-      <TrustBadge icon={<Star className="h-5 w-5" />} title={t('home.trustRating')} sub={t('home.trustReviews')} />
     </div>
   )
 }

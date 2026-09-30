@@ -666,3 +666,262 @@ async fn media_proxy_serves_upload_with_etag_and_304() -> anyhow::Result<()> {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     Ok(())
 }
+
+/// Search matches routes by their STRUCTURED city endpoints, not just
+/// the route NAME. A route named "Limousine Express" (no city names in
+/// the name) with start `ha-noi` / end `da-nang` must be found when the
+/// user searches "Hà Nội" → "Đà Nẵng" — and equally for colloquial
+/// aliases like "Sài Gòn" that never appear in any official name.
+#[tokio::test]
+async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    // A seeded vehicle type — gives the layout-less schedules a
+    // capacity fallback (no type + no layout = 0 seats = no trips).
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    // Route whose NAME deliberately contains NO city names.
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Limousine Express".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    st.admin
+        .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+            route_id: Some(route.id),
+            departure_time: Some("09:00".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: Some("1111111".into()),
+            bus_layout_id: None,
+            vehicle_type_id: Some(vt_id),
+            base_price_adult: Some(400_000),
+            base_price_child: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+
+    // Official names (differ from the route name entirely).
+    let res = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "departure", 1)
+        .await?;
+    assert_eq!(
+        res.items.len(),
+        1,
+        "slug-path search must find the route (name path alone can't)"
+    );
+    assert_eq!(res.items[0].route_name, "Limousine Express");
+
+    // The public routes list exposes the real lowest schedule price.
+    let routes = st.public.list_routes(None, 50).await?;
+    let listed = routes
+        .items
+        .iter()
+        .find(|r| r.id == route.id)
+        .ok_or_else(|| anyhow::anyhow!("route missing from public list"))?;
+    assert_eq!(listed.price_from, Some(400_000));
+    assert_eq!(listed.schedule_count, 1);
+
+    // Colloquial alias: Sài Gòn must resolve to ho-chi-minh and match
+    // a route with those endpoints (again with an opaque name).
+    let sg_route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Night Sleeper Deluxe".into()),
+            brand_id: None,
+            start_location_id: Some("ho-chi-minh".into()),
+            end_location_id: Some("can-tho".into()),
+            status: None,
+        })
+        .await?;
+    st.admin
+        .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+            route_id: Some(sg_route.id),
+            departure_time: Some("21:30".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: Some("1111111".into()),
+            bus_layout_id: None,
+            vehicle_type_id: Some(vt_id),
+            base_price_adult: Some(180_000),
+            base_price_child: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+    let res = st
+        .public
+        .search_trips("Sài Gòn", "Cần Thơ", &today, 20, vec![], "departure", 1)
+        .await?;
+    assert_eq!(
+        res.items.len(),
+        1,
+        "colloquial alias 'Sài Gòn' must resolve to ho-chi-minh and match"
+    );
+
+    // Direction still matters: the reverse direction must NOT match.
+    let res = st
+        .public
+        .search_trips("Đà Nẵng", "Hà Nội", &today, 20, vec![], "departure", 1)
+        .await?;
+    assert!(
+        res.items.iter().all(|t| t.route_id != route.id),
+        "reverse direction must not match a directional route"
+    );
+
+    Ok(())
+}
+
+/// Search results honor the `sort` parameter — price ascending,
+/// rating descending — with a deterministic departure-time tie-break.
+/// (The `sort` argument used to be parsed into `_sort` and ignored;
+/// this test pins the real behavior.)
+#[tokio::test]
+async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    // Two brands with different ratings, one route with two schedules
+    // at different prices/times.
+    let b1 = st
+        .admin
+        .create_brand(&backend::dto::admin::UpsertBrandRequest {
+            name: Some("Sort Test A".into()),
+            slug: Some("sort-test-a".into()),
+            rating: Some(3.0),
+            ..Default::default()
+        })
+        .await?;
+    let b2 = st
+        .admin
+        .create_brand(&backend::dto::admin::UpsertBrandRequest {
+            name: Some("Sort Test B".into()),
+            slug: Some("sort-test-b".into()),
+            rating: Some(5.0),
+            ..Default::default()
+        })
+        .await?;
+
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng".into()),
+            brand_id: Some(b1.id),
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+    // Route 2: same corridor, DIFFERENT (higher-rated) brand — the
+    // rating sort must rank this one first.
+    let route2 = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng Express".into()),
+            brand_id: Some(b2.id),
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    // Route 1: expensive 08:00, cheap 21:00 — cheap must come FIRST
+    // under sort=price even though it departs later.
+    for (time, price) in [("08:00", 500_000i64), ("21:00", 200_000)] {
+        st.admin
+            .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+                route_id: Some(route.id),
+                departure_time: Some(time.into()),
+                effective_from: None,
+                effective_to: None,
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: None,
+                vehicle_type_id: Some(vt_id),
+                base_price_adult: Some(price),
+                base_price_child: None,
+                amenities: None,
+                points: None,
+            })
+            .await?;
+    }
+    // Route 2 (higher-rated brand): mid price.
+    st.admin
+        .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+            route_id: Some(route2.id),
+            departure_time: Some("12:00".into()),
+            effective_from: None,
+            effective_to: None,
+            days_of_week: Some("1111111".into()),
+            bus_layout_id: None,
+            vehicle_type_id: Some(vt_id),
+            base_price_adult: Some(300_000),
+            base_price_child: None,
+            amenities: None,
+            points: None,
+        })
+        .await?;
+
+    // sort=price → ascending min_price.
+    let res = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "price", 1)
+        .await?;
+    let prices: Vec<i64> = res.items.iter().map(|t| t.min_price).collect();
+    let mut sorted = prices.clone();
+    sorted.sort();
+    assert_eq!(prices, sorted, "sort=price must return ascending prices");
+    assert_eq!(prices.first(), Some(&200_000), "cheapest first");
+
+    // sort=rating → the higher-rated brand's trip first (matches both
+    // cities via name or slugs — Huế route only matches by name here).
+    let res = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "rating", 1)
+        .await?;
+    if let Some(first) = res.items.first() {
+        assert_eq!(first.brand_slug, "sort-test-b", "highest rating first");
+    }
+
+    // sort=departure (default) → 08:00 before 21:00 on the same route.
+    let res = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "departure", 1)
+        .await?;
+    let times: Vec<&str> = res
+        .items
+        .iter()
+        .map(|t| t.departure_time.as_deref().unwrap_or(""))
+        .collect();
+    let mut sorted_times = times.clone();
+    sorted_times.sort();
+    assert_eq!(times, sorted_times, "sort=departure must be chronological");
+
+    Ok(())
+}

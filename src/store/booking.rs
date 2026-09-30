@@ -65,12 +65,6 @@ pub trait BookingStore: Send + Sync {
         limit: u64,
         offset: u64,
     ) -> StoreResult<Vec<booking::Model>>;
-    async fn lookup_bookings(
-        &self,
-        code: Option<&str>,
-        phone: Option<&str>,
-        limit: u64,
-    ) -> StoreResult<Vec<booking::Model>>;
     async fn insert_booking(&self, model: booking::ActiveModel) -> StoreResult<()>;
     async fn update_booking(&self, model: booking::ActiveModel) -> StoreResult<booking::Model>;
 
@@ -261,26 +255,6 @@ impl BookingStore for DbBookingStore {
             .offset(offset)
             .all(self.db.as_ref())
             .await?)
-    }
-
-    async fn lookup_bookings(
-        &self,
-        code: Option<&str>,
-        phone: Option<&str>,
-        limit: u64,
-    ) -> StoreResult<Vec<booking::Model>> {
-        // Exact-match lookups (indexed). Avoids `LIKE '%phone%'` which
-        // forces a full table scan and can't use the index.
-        let mut query = booking::Entity::find();
-
-        if let Some(c) = code {
-            query = query.filter(booking::Column::Code.eq(c.to_string()));
-        }
-        if let Some(p) = phone {
-            query = query.filter(booking::Column::ContactPhone.eq(p.to_string()));
-        }
-
-        Ok(query.limit(limit).all(self.db.as_ref()).await?)
     }
 
     #[store_macros::no_retry]

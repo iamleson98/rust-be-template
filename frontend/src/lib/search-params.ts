@@ -15,7 +15,7 @@ export type SearchRouteParams = {
   date?: string
   adults?: number
   children?: number
-  sort?: 'departure' | 'price' | 'duration' | 'rating'
+  sort?: 'departure' | 'price' | 'rating'
   vehicleTypes?: string[]
   roundTrip?: boolean
   returnDate?: string
@@ -28,7 +28,7 @@ export type SearchRouteOutput = Partial<{
   date: string
   adults: number
   children: number
-  sort: 'departure' | 'price' | 'duration' | 'rating'
+  sort: 'departure' | 'price' | 'rating'
   vehicleTypes: string[]
   roundTrip: boolean
   returnDate: string
