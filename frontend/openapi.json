@@ -3012,54 +3012,6 @@
         }
       }
     },
-    "/api/bookings/lookup": {
-      "get": {
-        "tags": [
-          "bookings"
-        ],
-        "summary": "`GET /api/bookings/lookup` — lookup a booking by phone or code.",
-        "operationId": "lookup",
-        "parameters": [
-          {
-            "name": "phone",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          {
-            "name": "code",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Booking found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BookingLookupResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found"
-          }
-        }
-      }
-    },
     "/api/bookings/{id}": {
       "get": {
         "tags": [
@@ -7672,23 +7624,8 @@
               "null"
             ],
             "format": "int64",
-            "description": "Total matching-row count (independent of pagination). Omitted from\nthe JSON when the server didn't compute it (e.g. for the lookup\nendpoint). Use `with_total(...)` to set it.",
+            "description": "Total matching-row count (independent of pagination). Omitted from\nthe JSON when the server didn't compute it. Use `with_total(...)`\nto set it.",
             "minimum": 0
-          }
-        }
-      },
-      "BookingLookupResponse": {
-        "type": "object",
-        "description": "Response of `GET /api/bookings/lookup`. Same shape as the list, but\nwithout the `total` field (the lookup endpoint doesn't paginate).",
-        "required": [
-          "items"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BookingListItem"
-            }
           }
         }
       },
@@ -11120,6 +11057,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "priceFrom": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Lowest adult base price across the route's schedules (VND).\n`None` when the route has no schedules yet — the frontend must\nNOT invent a price in that case."
           },
           "scheduleCount": {
             "type": "integer",

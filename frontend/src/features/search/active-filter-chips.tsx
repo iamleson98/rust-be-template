@@ -23,12 +23,15 @@ export function ActiveFilterChips({
   effectivePriceRange,
   priceBounds,
   resetFilters,
+  brandNames,
 }: {
   filters: Filters
   setFilters: (f: Filters) => void
   effectivePriceRange: [number, number]
   priceBounds: [number, number]
   resetFilters: () => void
+  /** slug → display name for the active brand chips. */
+  brandNames: Record<string, string>
 }) {
   const { currency } = useApp()
   const t = useT()
@@ -40,6 +43,13 @@ export function ActiveFilterChips({
       className="overflow-hidden"
     >
       <div className="flex flex-wrap items-center gap-2">
+        {filters.brands.map((slug) => (
+          <FilterChip
+            key={slug}
+            label={brandNames[slug] ?? slug}
+            onRemove={() => setFilters({ ...filters, brands: filters.brands.filter((x) => x !== slug) })}
+          />
+        ))}
         {(effectivePriceRange[0] > priceBounds[0] || effectivePriceRange[1] < priceBounds[1]) && (
           <FilterChip
             label={`${formatCurrency(effectivePriceRange[0], currency)} - ${formatCurrency(effectivePriceRange[1], currency)}`}

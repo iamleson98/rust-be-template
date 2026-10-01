@@ -616,14 +616,6 @@ export type BookingListResponse = {
 };
 
 /**
- * Response of `GET /api/bookings/lookup`. Same shape as the list, but
- * without the `total` field (the lookup endpoint doesn't paginate).
- */
-export type BookingLookupResponse = {
-    items: Array<BookingListItem>;
-};
-
-/**
  * Route preview embedded in `BookingTripPreview`.
  */
 export type BookingRoutePreview = {
@@ -2261,6 +2253,12 @@ export type RouteOut = {
     from: RouteEndpoint;
     id: string;
     name: string;
+    /**
+     * Lowest adult base price across the route's schedules (VND).
+     * `None` when the route has no schedules yet — the frontend must
+     * NOT invent a price in that case.
+     */
+    priceFrom?: number | null;
     scheduleCount: number;
     to: RouteEndpoint;
 };
@@ -5195,32 +5193,6 @@ export type HoldResponses = {
 };
 
 export type HoldResponse = HoldResponses[keyof HoldResponses];
-
-export type LookupData = {
-    body?: never;
-    path?: never;
-    query?: {
-        phone?: string | null;
-        code?: string | null;
-    };
-    url: '/api/bookings/lookup';
-};
-
-export type LookupErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-};
-
-export type LookupResponses = {
-    /**
-     * Booking found
-     */
-    200: BookingLookupResponse;
-};
-
-export type LookupResponse = LookupResponses[keyof LookupResponses];
 
 export type DetailData = {
     body?: never;

@@ -75,7 +75,6 @@ import {
   // bookings (list11 = GET /api/bookings — the user's own bookings)
   list11Options as bookingsListOptions,
   detailOptions as bookingDetailOptions,
-  lookupOptions as bookingLookupOptions,
   holdMutation,
   confirmMutation,
   cancel2Mutation,
@@ -565,16 +564,6 @@ export function useLoyalty(opts?: { enabled?: boolean }) {
     },
     enabled: opts?.enabled ?? true,
     staleTime: 60 * 1000,
-  });
-}
-
-export function useGuestBookings(phone: string | undefined, code?: string) {
-  return useQuery({
-    ...bookingLookupOptions({
-      query: { phone: phone ?? undefined, code: code ?? undefined },
-    }),
-    enabled: !!phone || !!code,
-    staleTime: 30 * 1000,
   });
 }
 
