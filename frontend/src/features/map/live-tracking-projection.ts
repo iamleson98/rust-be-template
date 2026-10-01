@@ -75,8 +75,10 @@ export function useLiveTrackingProjection(detail: TripDetail, progress: number) 
       pad + ((maxLat - lat) / latRange) * (H - 2 * pad),
     ]
 
-    const routePoints = geometry.map(project)
-    const stopPts = pickupPoints.map((p) => ({ ...p, xy: project([p.lat, p.lon]) }))
+    const routePoints = (geometry ?? []).map(project)
+    const stopPts = pickupPoints
+      .filter((p) => p.lat != null && p.lon != null)
+      .map((p) => ({ ...p, xy: project([p.lat as number, p.lon as number]) }))
 
     // Cumulative segment lengths along the path
     const cumLengths = [0]

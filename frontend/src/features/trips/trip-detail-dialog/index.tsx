@@ -136,8 +136,8 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                   tripId: detail.trip.id,
                   fromName: detail.from.name,
                   toName: detail.to.name,
-                  departureAt: detail.trip.departureAt,
-                  departureTime: detail.trip.departureTime,
+                  departureAt: detail.trip.departureAt ?? undefined,
+                  departureTime: detail.trip.departureTime ?? undefined,
                   brandName: detail.brand.name,
                   brandAccent: detail.brand.accentColor,
                   brandRating: detail.brand.rating,
@@ -206,13 +206,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
                     <TabsContent value="route" className="m-0 p-4 space-y-5">
                       <RouteMapPreview
-                        geometry={detail.route.geometry}
+                        geometry={detail.route.geometry ?? [[detail.from.lat, detail.from.lon], [detail.to.lat, detail.to.lon]]}
                         pickupPoints={detail.pickupPoints}
                         fromName={detail.from.name}
                         toName={detail.to.name}
                         accentColor={detail.brand.accentColor}
                       />
                       <RouteTimeline
+                        departureDate={detail.trip.departureDate}
                         departureTime={detail.trip.departureTime}
                         arrivalTime={detail.trip.arrivalTime}
                         fromName={detail.from.name}
@@ -230,7 +231,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                     </TabsContent>
 
                     <TabsContent value="weather" className="m-0 p-4">
-                      <WeatherTab destination={detail.to.name} arrivalDate={detail.trip.arrivalAt} />
+                      <WeatherTab destination={detail.to.name} arrivalDate={detail.trip.arrivalAt ?? detail.trip.departureAt} />
                     </TabsContent>
 
                     <TabsContent value="tips" className="m-0 p-4">
@@ -245,10 +246,10 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                           { label: t('tripDetail.childFare'), value: formatCurrency(detail.pricing.basePriceChild, currency) },
                         ]}
                       />
-                      {detail.discountPrograms.length > 0 && (
+                      {(detail.discountPrograms?.length ?? 0) > 0 && (
                         <PolicyBlock
                           title={t('tripDetail.specialOffers')}
-                          items={detail.discountPrograms.map((dp) => ({
+                          items={(detail.discountPrograms ?? []).map((dp) => ({
                             label: `${dp.passengerType === 'child' ? t('booking.passengerType.child') : dp.passengerType === 'student' ? t('tripDetail.passengerStudent') : t('tripDetail.passengerSenior')} ${t('tripDetail.ageRange', { min: dp.minAge, max: dp.maxAge })}`,
                             value: t('tripDetail.discountValue', { value: dp.value }),
                           }))}

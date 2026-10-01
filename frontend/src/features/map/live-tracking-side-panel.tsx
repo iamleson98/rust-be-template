@@ -96,7 +96,7 @@ export function LiveTrackingSidePanel({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('liveTracking.seats')}</span>
-            <span className="font-medium">{t('liveTracking.seatsCount', { count: detail.busLayout.capacity })}</span>
+            <span className="font-medium">{t('liveTracking.seatsCount', { count: detail.busLayout.capacity ?? 0 })}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('liveTracking.fleet')}</span>
@@ -123,7 +123,8 @@ export function LiveTrackingSidePanel({
             <span>
               {t('liveTracking.arriveIn', {
                 time: (() => {
-                  const depTs = new Date(detail.trip.departureAt).getTime()
+                  const depTsRaw = new Date(detail.trip.departureAt ?? 0).getTime()
+                  const depTs = Number.isNaN(depTsRaw) ? 0 : depTsRaw
                   const stopTs = depTs + nextStop.etaOffsetMin * 60_000
                   const secToStop = Math.max(0, Math.floor((stopTs - now) / 1000))
                   return formatCountdown(secToStop)

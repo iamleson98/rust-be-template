@@ -93,23 +93,49 @@ export function formatDuration(min: number): string {
   return mins > 0 ? `${hours}h ${mins}p` : `${hours}h`
 }
 
+// Parse a date-ish value defensively → null when empty/unparseable.
+// Backend timestamps (departureAt/arrivalAt…) are Option<String> and
+// arrival is currently always null (no route-level duration), so every
+// formatter must tolerate missing values instead of throwing
+// `RangeError: Invalid time value` on `new Date('')`.
+//
+// Timezone note: the backend emits timezone-less ISO strings
+// ("2026-10-02T20:00:00") meaning Vietnam local time. JS parses those
+// in the BROWSER's timezone, so on a UTC machine an evening departure
+// rolls over to the next day when formatted for Asia/Ho_Chi_Minh.
+// Pin naive datetimes to +07:00 to make the interpretation
+// deterministic; date-only strings stay as-is (UTC midnight → correct
+// date parts in VN).
+const NAIVE_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/
+
+export function parseDateSafe(dateStr: string | Date | null | undefined): Date | null {
+  if (dateStr == null) return null
+  if (dateStr instanceof Date) return Number.isNaN(dateStr.getTime()) ? null : dateStr
+  let s = dateStr
+  if (NAIVE_DATETIME.test(s)) s += '+07:00'
+  const d = new Date(s)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 // Format a date string (ISO or yyyy-mm-dd) — locale follows the app
 // language (vi-VN default). IMPORTANT: Always use Asia/Ho_Chi_Minh
 // timezone to keep date and time parts in sync.
-export function formatDateVN(dateStr: string, opts?: Intl.DateTimeFormatOptions): string {
-  const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
+export function formatDateVN(dateStr: string | Date | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
+  const d = parseDateSafe(dateStr)
+  if (!d) return ''
   return new Intl.DateTimeFormat(currentLocale(), {
     timeZone: 'Asia/Ho_Chi_Minh',
     ...(opts ?? { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }),
   }).format(d)
 }
 
-export function formatTimeVN(dateStr: string): string {
-  const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
+export function formatTimeVN(dateStr: string | Date | null | undefined): string {
+  const d = parseDateSafe(dateStr)
+  if (!d) return '—'
   return new Intl.DateTimeFormat(currentLocale(), { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }).format(d)
 }
 
-export function formatDateTimeVN(dateStr: string): string {
+export function formatDateTimeVN(dateStr: string | Date | null | undefined): string {
   return `${formatDateVN(dateStr)} • ${formatTimeVN(dateStr)}`
 }
 

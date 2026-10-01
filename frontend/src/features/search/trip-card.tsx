@@ -4,7 +4,7 @@ import { memo, useCallback } from 'react'
 import type { TripResult } from '@/lib/store'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatTimeVN } from '@/lib/types'
+import { formatTimeVN, parseDateSafe } from '@/lib/types'
 import { GitCompare, Sparkles, Share2 } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
@@ -17,9 +17,13 @@ import { TripCardAmenities, TripCardAmenitiesMobile } from './trip-card-amenitie
 import { TripCardPrice } from './trip-card-price'
 import { TripCardBrand } from './trip-card-brand'
 
-/** Format a date to short dd/mm for overnight trip display */
-function formatShortDate(dateStr: string): string {
-  const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
+/** Format a date to short dd/mm for overnight trip display ('' when
+ *  the value is missing/unparseable — e.g. arrivalAt is currently always
+ *  null because the backend no longer computes it). Parses via
+ *  parseDateSafe so timezone-less ISO strings are read as Vietnam time. */
+function formatShortDate(dateStr: string | null | undefined): string {
+  const d = parseDateSafe(dateStr)
+  if (!d) return ''
   return new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -27,10 +31,13 @@ function formatShortDate(dateStr: string): string {
   }).format(d)
 }
 
-/** Check if arrival date differs from departure date (overnight trip) */
-function isOvernight(departureAt: string, arrivalAt: string): boolean {
-  const dep = new Date(departureAt)
-  const arr = new Date(arrivalAt)
+/** Check if arrival date differs from departure date (overnight trip).
+ *  False when either timestamp is missing — no arrival info means we
+ *  can't know, so we simply don't badge it. */
+function isOvernight(departureAt: string | null | undefined, arrivalAt: string | null | undefined): boolean {
+  const dep = parseDateSafe(departureAt)
+  const arr = parseDateSafe(arrivalAt)
+  if (!dep || !arr) return false
   const fmt = (d: Date) =>
     new Intl.DateTimeFormat('vi-VN', {
       day: '2-digit',
@@ -73,13 +80,13 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
   }, [queryClient, trip.tripId])
 
   // Overnight trip detection
-  const overnight = isOvernight(trip.departureAt ?? '', trip.arrivalAt ?? '')
+  const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
   // Date differs from search date?
   const searchDateShort = searchParams.date ? formatShortDate(searchParams.date + 'T00:00:00+07:00') : null
-  const departureDateShort = formatShortDate(trip.departureAt ?? '')
-  const arrivalDateShort = formatShortDate(trip.arrivalAt ?? '')
-  const showDepartureDate = searchDateShort && departureDateShort !== searchDateShort
-  const showArrivalDate = departureDateShort !== arrivalDateShort
+  const departureDateShort = formatShortDate(trip.departureAt)
+  const arrivalDateShort = formatShortDate(trip.arrivalAt)
+  const showDepartureDate = !!(searchDateShort && departureDateShort && departureDateShort !== searchDateShort)
+  const showArrivalDate = !!(departureDateShort && arrivalDateShort && departureDateShort !== arrivalDateShort)
 
   // Amenities overflow
   const maxVisibleAmenities = 4

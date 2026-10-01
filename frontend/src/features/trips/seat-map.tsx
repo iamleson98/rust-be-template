@@ -128,17 +128,20 @@ function SeatButton({
   const t = useT()
   const status = seat.status
   const cls = seat.seatClass
-  const color = SEAT_CLASS_COLORS[cls] ?? '#64748b'
+  const color = SEAT_CLASS_COLORS[cls ?? 'standard'] ?? '#64748b'
+  // Grid-generated seats carry no seatClass — label them "standard"
+  // instead of rendering a literal "undefined" in title/aria-label.
+  const classLabelKey = SEAT_CLASS_LABELS[cls ?? 'standard'] ?? 'types.seatStandard'
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={`${seat.code} • ${t(SEAT_CLASS_LABELS[cls] ?? cls)} • ${formatVND(seat.finalPrice)}`}
+      title={`${seat.code} • ${t(classLabelKey)} • ${formatVND(seat.finalPrice)}`}
       aria-label={t('trips.seatAriaLabel', {
         code: seat.code,
-        seatClass: t(SEAT_CLASS_LABELS[cls] ?? cls),
+        seatClass: t(classLabelKey),
         price: formatVND(seat.finalPrice),
         status: selected
           ? t('trips.seatStatusSelected')

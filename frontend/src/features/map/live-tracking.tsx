@@ -95,8 +95,23 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     etaSeconds,
     currentLocationName,
   } = useMemo(() => {
-    const depTs = new Date(detail.trip.departureAt).getTime()
-    const arrTs = new Date(detail.trip.arrivalAt).getTime()
+    // Arrival is currently always null in the API (no route-level
+    // duration), so simulate an ETA: last pickup's offset (+30 min
+    // buffer), else a 4h default — keeps the tracker meaningful.
+    const depTsRaw = new Date(detail.trip.departureAt ?? 0).getTime()
+    const depTs = Number.isNaN(depTsRaw) ? 0 : depTsRaw
+    const lastOffset = detail.pickupPoints.reduce(
+      (max, pt) => Math.max(max, pt.etaOffsetMin),
+      0,
+    )
+    const fallbackDurationMs =
+      (lastOffset > 0 ? lastOffset + 30 : 240) * 60_000
+    const arrTsRaw = detail.trip.arrivalAt
+      ? new Date(detail.trip.arrivalAt).getTime()
+      : NaN
+    const arrTs = Number.isNaN(arrTsRaw)
+      ? depTs + fallbackDurationMs
+      : arrTsRaw
     const nowTs = now
 
     let s: TrackingStatus

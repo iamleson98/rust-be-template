@@ -11,7 +11,7 @@
 
 import { useMemo } from 'react'
 import { Clock, Timer, ArrowDown } from 'lucide-react'
-import { formatDuration, formatTimeVN } from '@/lib/types'
+import { formatDuration, formatTimeVN, parseDateSafe } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 
 type RouteTimelinePoint = {
@@ -22,15 +22,34 @@ type RouteTimelinePoint = {
   pickupType: string
 }
 
+/** Combine a yyyy-mm-dd date + "HH:MM" time (or an ISO string) into a
+ *  valid Date — null when either part is missing/unparseable. Time-only
+ *  strings like "08:00" are NOT valid Dates on their own. Parsed via
+ *  parseDateSafe so naive datetimes are pinned to Vietnam time. */
+function resolveDepartureDate(departureDate: string | null | undefined, departureTime: string | null | undefined): Date | null {
+  if (!departureDate) return null
+  const day = departureDate.slice(0, 10)
+  if (departureTime) {
+    const d = parseDateSafe(`${day}T${departureTime.length === 5 ? `${departureTime}:00` : departureTime}`)
+    if (d) return d
+  }
+  return parseDateSafe(departureDate)
+}
+
 export function RouteTimeline({
+  departureDate,
   departureTime,
   arrivalTime,
   fromName,
   toName,
   pickupPoints,
 }: {
-  departureTime: string
-  arrivalTime: string
+  /** Trip's yyyy-mm-dd date — the anchor every stop time is derived from. */
+  departureDate: string | null
+  /** "HH:MM" schedule departure time (nullable per the API). */
+  departureTime: string | null
+  /** ISO arrival timestamp — currently always null (no route duration). */
+  arrivalTime: string | null
   fromName: string
   toName: string
   pickupPoints: RouteTimelinePoint[]
@@ -38,11 +57,11 @@ export function RouteTimeline({
   const t = useT()
   // Compute time for each stop: departure + etaOffsetMin
   const timelineItems = useMemo(() => {
-    const depDate = new Date(departureTime)
+    const depDate = resolveDepartureDate(departureDate, departureTime)
     const items: {
       id: string
       name: string
-      time: Date
+      time: Date | null
       offsetMin: number
       type: 'start' | 'pickup' | 'drop' | 'end'
     }[] = []
@@ -63,7 +82,7 @@ export function RouteTimeline({
       .sort((a, b) => a.stopOrder - b.stopOrder)
 
     for (const p of midPoints) {
-      const t = new Date(depDate.getTime() + p.etaOffsetMin * 60_000)
+      const t = depDate ? new Date(depDate.getTime() + p.etaOffsetMin * 60_000) : null
       items.push({
         id: p.id,
         name: p.name,
@@ -75,18 +94,29 @@ export function RouteTimeline({
 
     // Ending point — no route-level duration anymore, so we anchor it
     // at the trip's arrival time when present (otherwise fall back to
-    // the last pickup's time + offset).
-    const arrDate = new Date(arrivalTime)
+    // the last pickup's time + offset, else just the departure).
+    let endDate: Date | null = null
+    if (arrivalTime) {
+      endDate = parseDateSafe(arrivalTime)
+    }
+    if (!endDate) {
+      const last = items[items.length - 1]
+      if (last?.time) {
+        endDate = new Date(last.time.getTime() + 30 * 60_000)
+      } else {
+        endDate = depDate
+      }
+    }
     items.push({
       id: 'end',
       name: toName,
-      time: arrDate,
+      time: endDate,
       offsetMin: 0,
       type: 'end',
     })
 
     return items
-  }, [departureTime, arrivalTime, fromName, toName, pickupPoints])
+  }, [departureDate, departureTime, arrivalTime, fromName, toName, pickupPoints])
 
   return (
     <div>
@@ -173,7 +203,7 @@ export function RouteTimeline({
                     </div>
                     <div className="text-xs text-muted-foreground shrink-0 flex items-center gap-1 font-mono">
                       <Clock className="h-3 w-3" />
-                      {formatTimeVN(item.time.toISOString())}
+                      {item.time ? formatTimeVN(item.time) : '—'}
                     </div>
                   </div>
 

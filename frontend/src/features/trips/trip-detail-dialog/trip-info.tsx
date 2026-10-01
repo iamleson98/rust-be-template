@@ -60,7 +60,7 @@ export function TripInfo({
                 <span>•</span>
                 <span>{detail.busLayout.vehicleTypeLabel}</span>
                 <span>•</span>
-                <span>{detail.busLayout.name}</span>
+                <span>{detail.busLayout.name ?? detail.busLayout.vehicleTypeLabel}</span>
               </div>
             </div>
           </div>

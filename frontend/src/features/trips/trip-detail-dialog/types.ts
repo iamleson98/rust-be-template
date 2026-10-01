@@ -16,10 +16,14 @@ export type TripDetailDialogData = {
   trip: {
     id: string
     departureDate: string
-    departureAt: string
-    departureTime: string
-    arrivalAt: string
-    arrivalTime: string
+    /** ISO timestamp — null when the schedule has no departure time. */
+    departureAt: string | null
+    /** "HH:MM" time-only string — null when the schedule omits it. */
+    departureTime: string | null
+    /** ISO timestamp — null: the backend no longer computes arrivals
+     *  (no route-level duration; see compute_iso_timestamps). */
+    arrivalAt: string | null
+    arrivalTime: string | null
     status: string
     driverName: string | null
     totalSeats: number
@@ -28,9 +32,11 @@ export type TripDetailDialogData = {
   route: {
     id: string
     name: string
-    slug: string
-    code: string
-    geometry: [number, number][]
+    /** Not emitted by the API (no route geometry column) — kept
+     *  optional so the map preview can degrade to an endpoint line. */
+    slug?: string | null
+    code?: string | null
+    geometry?: [number, number][] | null
   }
   brand: {
     id: string
@@ -45,10 +51,10 @@ export type TripDetailDialogData = {
   from: { name: string; lat: number; lon: number }
   to: { name: string; lat: number; lon: number }
   busLayout: {
-    id: string
-    name: string
-    capacity: number
-    deckCount: number
+    id?: string | null
+    name?: string | null
+    capacity?: number | null
+    deckCount?: number
     vehicleType: string
     vehicleTypeLabel: string
   }
@@ -59,8 +65,9 @@ export type TripDetailDialogData = {
     name: string
     stopOrder: number
     etaOffsetMin: number
-    lat: number
-    lon: number
+    /** Nullable per the API — points without coords can't be mapped. */
+    lat: number | null
+    lon: number | null
     pickupType: string
     address: string | null
   }[]
@@ -80,7 +87,8 @@ export type TripDetailDialogData = {
     bannerColor: string
     brandId: string | null
   }[]
-  discountPrograms: {
+  /** Not emitted by the current API — optional so consumers guard. */
+  discountPrograms?: {
     id: string
     passengerType: string
     discountType: string

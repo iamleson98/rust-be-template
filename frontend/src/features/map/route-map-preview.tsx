@@ -6,14 +6,16 @@ import { MapPin, Navigation } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 type Props = {
-  geometry: [number, number][] // [lat, lon][]
+  /** Route polyline [lat, lon][]. Null/empty → the caller's fallback
+   *  (typically the two endpoints) or the "no data" message. */
+  geometry: [number, number][] | null | undefined
   pickupPoints: {
     id: string
     name: string
     stopOrder: number
     etaOffsetMin: number
-    lat: number
-    lon: number
+    lat: number | null
+    lon: number | null
     pickupType: string
   }[]
   fromName: string
@@ -26,7 +28,11 @@ type Props = {
 export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, accentColor }: Props) {
   const t = useT()
   const { points, viewBox, stops } = useMemo(() => {
-    const allPts = [...geometry, ...pickupPoints.map((p) => [p.lat, p.lon] as [number, number])]
+    const geo = geometry ?? []
+    const mapped = pickupPoints
+      .filter((p) => p.lat != null && p.lon != null)
+      .map((p) => ({ ...p, lat: p.lat as number, lon: p.lon as number }))
+    const allPts = [...geo, ...mapped.map((p) => [p.lat, p.lon] as [number, number])]
     if (allPts.length === 0) {
       return { points: [], viewBox: '0 0 100 100', stops: [] }
     }
@@ -48,8 +54,8 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
       const y = pad + ((maxLat - lat) / latRange) * (H - 2 * pad)
       return [x, y]
     }
-    const routePoints = geometry.map(project)
-    const stopPts = pickupPoints.map((p) => ({
+    const routePoints = geo.map(project)
+    const stopPts = mapped.map((p) => ({
       ...p,
       xy: project([p.lat, p.lon]),
     }))

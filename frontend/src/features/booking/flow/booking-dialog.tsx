@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
-import { useForm, useFieldArray } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApp } from '@/lib/store'
@@ -70,7 +70,6 @@ export function BookingDialog() {
   const { data: rawTripDetail } = useTripDetail(bookingContext?.tripId)
   const trip = rawTripDetail as unknown as TripDetail | null | undefined
 
-  const [selectedSeatCodes, setSelectedSeatCodes] = useState<SelectedSeat[]>([])
   const [campaignCode, setCampaignCode] = useState('')
   const [campaignResult, setCampaignResult] = useState<CampaignValidateResponse | null>(null)
   const [checkingCampaign, setCheckingCampaign] = useState(false)
@@ -103,10 +102,24 @@ export function BookingDialog() {
     replace,
   } = useFieldArray({ control: form.control, name: 'passengers' })
 
-  // `watch` gives us the latest passenger values for derived UI state
+  // Seats picked in the trip dialog — DERIVED (not state): it resets by
+  // itself when bookingContext/trip change, so no setState-in-effect and
+  // no manual clearing in close().
+  const selectedSeatCodes: SelectedSeat[] = useMemo(() => {
+    if (!bookingContext || !trip) return []
+    return trip.seatMap.decks
+      .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
+      .filter((s) => bookingContext.seatIds.includes(s.id))
+      .map((s) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass ?? 'standard' }))
+  }, [bookingContext, trip])
+
+  // `useWatch` gives us the latest passenger values for derived UI state
   // (counts, unassigned, duplicate-seats) — `passengerFields` alone is
-  // structural and can lag behind value edits.
-  const watchedPassengers = form.watch('passengers') ?? []
+  // structural and can lag behind value edits. NOTE: useWatch (not
+  // form.watch) — in RHF 7.89 form.watch('passengers') does NOT
+  // re-render on nested passengers.N.name edits, which left the
+  // "Tiếp tục" gate stuck on stale values.
+  const watchedPassengers = useWatch({ control: form.control, name: 'passengers' }) ?? []
   const passengers: PassengerFormValue[] = watchedPassengers as PassengerFormValue[]
 
   // When trip detail arrives (or booking context changes), map the
@@ -119,7 +132,6 @@ export function BookingDialog() {
       .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
       .filter((s) => bookingContext.seatIds.includes(s.id))
       .map((s) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass ?? 'standard' }))
-    setSelectedSeatCodes(seats)
 
     // init passengers — auto-assign seats sequentially
     const initPassengers: PassengerFormValue[] = []
@@ -371,8 +383,8 @@ export function BookingDialog() {
     setBookingContext(null)
     // Note: `trip` is now derived from useTripDetail(bookingContext?.tripId),
     // so it auto-clears when bookingContext is set to null above (the hook
-    // becomes disabled). No need to manually reset local state.
-    setSelectedSeatCodes([])
+    // becomes disabled). selectedSeatCodes is likewise derived and resets
+    // on its own. No need to manually reset local state.
     form.reset({ passengers: [], contactName: '', contactPhone: '', contactEmail: '' })
     setCampaignCode('')
     setCampaignResult(null)
@@ -476,7 +488,7 @@ export function BookingDialog() {
                 error={error}
                 submitting={submitting}
                 onGoBack={() => setBookingStep('contact')}
-                onSubmit={form.handleSubmit(onSubmit)}
+                onSubmit={() => form.handleSubmit(onSubmit)()}
               />
             )}
           </Form>

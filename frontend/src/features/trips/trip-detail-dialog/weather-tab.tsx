@@ -27,7 +27,7 @@ import {
   Lightbulb,
   CheckCircle2,
 } from 'lucide-react'
-import { formatTimeVN, formatDateVN } from '@/lib/types'
+import { formatTimeVN, formatDateVN, parseDateSafe } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 
 type WeatherCondition = 'sunny' | 'partly_cloudy' | 'cloudy' | 'rainy'
@@ -98,8 +98,8 @@ function hashString(s: string): number {
   return Math.abs(h)
 }
 
-function getWeather(destination: string, arrivalDate: string): Weather {
-  const baseKey = `${destination}|${arrivalDate.slice(0, 10)}`
+function getWeather(destination: string, arrivalDate: string | null | undefined): Weather {
+  const baseKey = `${destination}|${(arrivalDate ?? '').slice(0, 10)}`
   const seed = hashString(baseKey)
   const conditions: WeatherCondition[] = ['sunny', 'partly_cloudy', 'cloudy', 'rainy']
 
@@ -109,10 +109,11 @@ function getWeather(destination: string, arrivalDate: string): Weather {
   const todayWind = 5 + (seed % 26) // 5-30
   const todayFeelsLike = todayTemp + (todayHumidity > 70 ? 2 : -1)
 
-  const arrival = new Date(arrivalDate)
+  const arrival = parseDateSafe(arrivalDate)
+  const arrivalTs = arrival ? arrival.getTime() : Date.now()
   const forecast = Array.from({ length: 3 }).map((_, i) => {
     const s = hashString(baseKey + ':' + i)
-    const d = new Date(arrival.getTime() + i * 24 * 60 * 60 * 1000)
+    const d = new Date(arrivalTs + i * 24 * 60 * 60 * 1000)
     return {
       date: d.toISOString(),
       dayLabel: new Intl.DateTimeFormat('vi-VN', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(d),
@@ -136,7 +137,7 @@ function getWeather(destination: string, arrivalDate: string): Weather {
   }
 }
 
-export function WeatherTab({ destination, arrivalDate }: { destination: string; arrivalDate: string }) {
+export function WeatherTab({ destination, arrivalDate }: { destination: string; arrivalDate: string | null }) {
   const t = useT()
   const weather = useMemo(() => getWeather(destination, arrivalDate), [destination, arrivalDate])
 

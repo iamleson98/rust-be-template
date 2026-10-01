@@ -4,16 +4,18 @@
 export type TripDetail = {
   trip: {
     id: string
-    departureAt: string
-    arrivalAt: string
-    departureTime: string
-    arrivalTime: string
+    departureAt: string | null
+    arrivalAt: string | null
+    departureTime: string | null
+    arrivalTime: string | null
     driverName: string | null
   }
   route: {
     id: string
     name: string
-    geometry: [number, number][]
+    /** Not emitted by the current API — the tracker falls back to a
+     *  straight endpoint line when absent. */
+    geometry?: [number, number][] | null | undefined
   }
   brand: {
     id: string
@@ -24,8 +26,8 @@ export type TripDetail = {
   from: { name: string; lat: number; lon: number }
   to: { name: string; lat: number; lon: number }
   busLayout: {
-    name: string
-    capacity: number
+    name?: string | null
+    capacity?: number | null
     vehicleType: string
     vehicleTypeLabel: string
   }
@@ -34,8 +36,8 @@ export type TripDetail = {
     name: string
     stopOrder: number
     etaOffsetMin: number
-    lat: number
-    lon: number
+    lat: number | null
+    lon: number | null
     pickupType: string
     address: string | null
   }[]
