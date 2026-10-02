@@ -22,9 +22,6 @@ import {
   getPassengerType,
 } from './booking-form'
 import {
-  type InsuranceLevel,
-} from './price-summary'
-import {
   PaymentMethodStep,
   type PaymentMethodKey,
 } from './payment-method'
@@ -57,8 +54,6 @@ export function BookingDialog() {
     setLastBooking,
     setGuestPhone,
     setGuestName,
-    insuranceLevel,
-    setInsuranceLevel,
     currency,
   } = useApp()
 
@@ -231,14 +226,14 @@ export function BookingDialog() {
   const canContinueStep1 =
     allNamesFilled && unassignedCount === 0 && !hasDuplicateSeats && passengers.length > 0
 
-  // Insurance cost calculation
-  const insuranceCostMap = { none: 0, basic: 5000, comprehensive: 15000 } as const
-  const insuranceCost = insuranceCostMap[insuranceLevel]
+  // No insurance add-on: the backend `HoldReq` has no insurance field —
+  // a client-side-only fee would make the displayed total diverge from
+  // the real booking total returned by the server.
 
   const subtotal = selectedSeatCodes.reduce((s, x) => s + x.price, 0)
   const discount = campaignResult?.valid ? (campaignResult.discount ?? 0) : 0
   const fees = 0
-  const total = Math.max(0, subtotal - discount + fees + insuranceCost)
+  const total = Math.max(0, subtotal - discount + fees)
 
   const validateCampaignMut = useValidateCampaign<CampaignValidateResponse>({
     onSuccess: (data) => {
@@ -388,7 +383,6 @@ export function BookingDialog() {
     form.reset({ passengers: [], contactName: '', contactPhone: '', contactEmail: '' })
     setCampaignCode('')
     setCampaignResult(null)
-    setInsuranceLevel('none')
     setError('')
   }
 
@@ -419,7 +413,7 @@ export function BookingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-3xl w-[95vw] max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* Header */}
         <BookingStepHeader
           bookingStep={bookingStep}
@@ -427,7 +421,10 @@ export function BookingDialog() {
           selectedSeatCodes={selectedSeatCodes}
         />
 
-        <div className="overflow-y-auto max-h-[calc(92vh-220px)]">
+        {/* Body scrolls under the fixed header — no magic header-height
+            arithmetic; the flex column + min-h-0 chain sizes it for any
+            viewport (and dvh tracks the iOS dynamic toolbar). */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <Form {...form}>
             {/* Step: passengers */}
             {bookingStep === 'passengers' && (
@@ -456,8 +453,6 @@ export function BookingDialog() {
               <BookingContactStep
                 form={form}
                 setBookingStep={setBookingStep}
-                insuranceLevel={insuranceLevel}
-                setInsuranceLevel={setInsuranceLevel}
                 currency={currency}
                 campaignCode={campaignCode}
                 setCampaignCode={setCampaignCode}
@@ -478,8 +473,6 @@ export function BookingDialog() {
                 onSetPaymentMethod={setPaymentMethod}
                 seatCount={selectedSeatCodes.length}
                 subtotal={subtotal}
-                insuranceLevel={insuranceLevel as unknown as InsuranceLevel}
-                insuranceCost={insuranceCost}
                 campaignCode={campaignCode}
                 discount={discount}
                 fees={fees}
@@ -500,8 +493,6 @@ export function BookingDialog() {
               lastBooking={lastBooking as LastBooking}
               selectedSeats={selectedSeatCodes}
               currency={currency}
-              insuranceLevel={insuranceLevel as unknown as InsuranceLevel}
-              insuranceCost={insuranceCost}
               onClose={close}
             />
           )}

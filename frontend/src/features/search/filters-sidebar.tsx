@@ -95,6 +95,8 @@ export function FiltersSidebar({
                 {[
                   { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
                   { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
+                  { key: 'semi_sleeper', labelKey: 'searchPage.vehicleSemiSleeper', emoji: '🛌' },
+                  { key: 'minivan', labelKey: 'searchPage.vehicleMinivan', emoji: '🚐' },
                   { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
                 ].map((v) => {
                   const active = (routeSearch.vehicleTypes ?? []).includes(v.key)

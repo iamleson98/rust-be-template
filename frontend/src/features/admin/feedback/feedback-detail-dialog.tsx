@@ -48,7 +48,7 @@ export function FeedbackDetailDialog({
   const t = useT()
   return (
     <Dialog open={!!selected} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
         {selected && (
           <>
             <DialogHeader>

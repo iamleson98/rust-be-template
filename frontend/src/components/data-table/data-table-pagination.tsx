@@ -109,7 +109,7 @@ export function DataTablePagination<TData extends RowData>({
             <Button
               variant="outline"
               size="icon"
-              className="hidden size-7 lg:flex"
+              className="hidden size-8 lg:flex"
               onClick={() => table.firstPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -119,7 +119,7 @@ export function DataTablePagination<TData extends RowData>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="size-8"
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
             >
@@ -129,7 +129,7 @@ export function DataTablePagination<TData extends RowData>({
             <Button
               variant="outline"
               size="icon"
-              className="size-7"
+              className="size-8"
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
             >
@@ -139,7 +139,7 @@ export function DataTablePagination<TData extends RowData>({
             <Button
               variant="outline"
               size="icon"
-              className="hidden size-7 lg:flex"
+              className="hidden size-8 lg:flex"
               onClick={() => table.lastPage()}
               disabled={!table.getCanLastPage()}
             >

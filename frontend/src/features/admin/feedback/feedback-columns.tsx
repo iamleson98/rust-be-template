@@ -65,7 +65,7 @@ export function useFeedbackColumns() {
                 {(r.tags?.length ?? 0) > 0 && (
                   <div className="flex flex-wrap gap-1">
                     {(r.tags ?? []).slice(0, 3).map((t) => (
-                      <Badge key={t} variant="secondary" className="text-[9px] font-normal px-1.5">
+                      <Badge key={t} variant="secondary" className="text-[10px] font-normal px-1.5">
                         {t}
                       </Badge>
                     ))}

@@ -86,7 +86,7 @@ export function RoutePickupPointsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={(o) => !deleting && onOpenChange(o)}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
               <MapPin className="h-4 w-4 text-rose-600" />
@@ -134,7 +134,7 @@ export function RoutePickupPointsDialog({
                       <span className="truncate text-sm font-medium">{p.name}</span>
                       <Badge
                         variant="outline"
-                        className={`h-4 px-1 text-[9px] ${
+                        className={`h-4 px-1 text-[10px] ${
                           p.kind === 'station'
                             ? 'bg-blue-50 text-blue-700'
                             : p.kind === 'curb'

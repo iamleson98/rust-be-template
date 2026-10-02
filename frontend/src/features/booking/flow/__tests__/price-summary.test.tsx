@@ -9,8 +9,6 @@ describe('PriceSummary', () => {
   const baseProps = {
     seatCount: 2,
     subtotal: 300000,
-    insuranceLevel: 'none' as const,
-    insuranceCost: 0,
     campaignCode: '',
     discount: 0,
     fees: 0,
@@ -23,23 +21,6 @@ describe('PriceSummary', () => {
     // The amount 300.000 appears in both subtotal and total
     const matches = screen.getAllByText(/300\.000/)
     expect(matches.length).toBeGreaterThanOrEqual(1)
-  })
-
-  it('hides insurance when cost is 0', () => {
-    render(<PriceSummary {...baseProps} />)
-    expect(screen.queryByText(/bảo hiểm/i)).toBeNull()
-  })
-
-  it('shows insurance when cost > 0', () => {
-    render(
-      <PriceSummary
-        {...baseProps}
-        insuranceLevel="basic"
-        insuranceCost={5000}
-        total={305000}
-      />,
-    )
-    expect(screen.getByText(/Bảo hiểm cơ bản/i)).toBeInTheDocument()
   })
 
   it('hides discount when 0', () => {
@@ -58,5 +39,23 @@ describe('PriceSummary', () => {
     )
     // The discount amount should appear somewhere
     expect(screen.getByText(/30\.000/)).toBeInTheDocument()
+  })
+
+  it('hides the service-fees row when fees are 0 (no permanent 0₫ noise)', () => {
+    render(<PriceSummary {...baseProps} />)
+    expect(screen.queryByText(/phí dịch vụ/i)).toBeNull()
+  })
+
+  it('shows the service-fees row when fees > 0', () => {
+    render(
+      <PriceSummary
+        {...baseProps}
+        fees={10000}
+        total={310000}
+      />,
+    )
+    expect(screen.getByText(/phí dịch vụ/i)).toBeInTheDocument()
+    // NB: 310.000 also contains "10.000" — assert on the exact fee cell.
+    expect(screen.getByText(/^10\.000 ₫$/)).toBeInTheDocument()
   })
 })

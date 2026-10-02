@@ -51,7 +51,7 @@ export function RevenueBarChartCard({
                   onMouseEnter={() => setHoveredBar(i)}
                   onMouseLeave={() => setHoveredBar(null)}
                 >
-                  <div className="text-[9px] sm:text-[10px] font-semibold text-muted-foreground truncate">
+                  <div className="text-[10px] sm:text-[10px] font-semibold text-muted-foreground truncate">
                     {formatVNDMillions(b.value)}M
                   </div>
                   <div className="w-full relative" style={{ height: '120px' }}>
@@ -70,7 +70,7 @@ export function RevenueBarChartCard({
                       </div>
                     </div>
                   </div>
-                  <div className="text-[9px] sm:text-[11px] font-medium text-muted-foreground truncate w-full text-center">
+                  <div className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate w-full text-center">
                     {b.label}
                   </div>
                 </div>

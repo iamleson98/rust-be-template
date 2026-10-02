@@ -34,6 +34,8 @@ import {
 } from 'lucide-react'
 import { PaymentDialog } from '@/features/booking/flow/payment-dialog'
 import { useBookingPayments } from '@/lib/queries/payments'
+import { formatDateTimeVN } from '@/lib/types'
+import { getErrorMessage } from '@/lib/error-message'
 
 export function BookingDetailPage() {
   const { code } = useParams({ from: '/bookings/$code' })
@@ -79,7 +81,9 @@ export function BookingDetailPage() {
           <AlertCircle className="h-12 w-12 text-rose-400 mb-3" />
           <h2 className="text-lg font-semibold">{t('bookingDetail.notFoundTitle')}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {(error as Error)?.message ?? t('bookingDetail.invalidCode', { code })}
+            {(error as Error)?.message
+              ? getErrorMessage(error, t('bookingDetail.invalidCode', { code }))
+              : t('bookingDetail.invalidCode', { code })}
           </p>
         </div>
       </div>
@@ -147,7 +151,7 @@ export function BookingDetailPage() {
               <Calendar className="h-4 w-4 text-violet-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">{t('booking.departure')}</div>
-                <div className="font-medium">{departureAt ?? '—'}</div>
+                <div className="font-medium">{departureAt ? formatDateTimeVN(departureAt) : '—'}</div>
               </div>
             </div>
             <div className="flex items-start gap-2">

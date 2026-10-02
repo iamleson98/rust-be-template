@@ -87,7 +87,7 @@ export function TimePicker({
           type="button"
           aria-label={t('ui.clearTime')}
           onClick={() => onChange(null)}
-          className="h-6 w-6 shrink-0 rounded text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center"
+          className="size-8 shrink-0 rounded text-muted-foreground hover:text-foreground hover:bg-accent flex items-center justify-center"
         >
           <X className="h-3.5 w-3.5" />
         </button>

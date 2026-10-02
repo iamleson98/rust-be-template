@@ -17,6 +17,7 @@
  * while loading (never a blank-white spinner).
  */
 import { lazy, Suspense, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { formatCurrency } from '@/lib/currency'
 import { useMyBookings, useMyReviews } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
@@ -84,7 +85,7 @@ function PendingRideCard({
   const t = useT()
   const trip = booking.trip
   return (
-    <Card className="group ring-1 ring-black/5 overflow-hidden transition-shadow hover:shadow-md">
+    <Card className="group ring-1 ring-black/5 overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
@@ -154,7 +155,7 @@ function SentFeedbackCard({
   const status = REVIEW_STATUS[review.status] ?? REVIEW_STATUS.pending
   const canEdit = !!booking && review.status !== 'approved'
   return (
-    <Card className="ring-1 ring-black/5 overflow-hidden transition-shadow hover:shadow-md">
+    <Card className="ring-1 ring-black/5 overflow-hidden">
       <div className="px-4 py-4 space-y-3">
         {/* Ride context line */}
         <div className="flex items-center justify-between gap-3">
@@ -361,7 +362,7 @@ export function AccountFeedbackContent() {
         <TabsList className="h-10 rounded-lg bg-muted p-1">
           <TabsTrigger
             value="pending"
-            className="gap-1.5 data-[state=active]:shadow-sm rounded-md px-4"
+            className="gap-1.5 rounded-md px-4"
           >
             <Clock className="size-3.5" />
             {t('accountPage.feedback.tabPending')}
@@ -373,7 +374,7 @@ export function AccountFeedbackContent() {
           </TabsTrigger>
           <TabsTrigger
             value="sent"
-            className="gap-1.5 data-[state=active]:shadow-sm rounded-md px-4"
+            className="gap-1.5 rounded-md px-4"
           >
             <Star className="size-3.5" />
             {t('accountPage.feedback.tabSent')} ({total})
@@ -485,15 +486,16 @@ export function AccountFeedbackContent() {
         </TabsContent>
       </Tabs>
 
-      {/* Cross-link back to rides */}
+      {/* Cross-link back to rides — router Link (a raw <a href> causes a
+          full page reload inside the SPA). */}
       <div className="pt-1 text-center">
-        <a
-          href="/account/trips"
+        <Link
+          to="/account/trips"
           className="inline-flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
         >
           {t('accountPage.feedback.viewTrips')}
           <ArrowRight className="size-3.5" />
-        </a>
+        </Link>
       </div>
     </div>
   )

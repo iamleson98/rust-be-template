@@ -123,7 +123,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
-      <DialogContent className="max-w-4xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent className="max-w-4xl w-[95vw] max-h-[92dvh] p-0 gap-0 overflow-hidden">
         {isLoading || !brand ? (
           <>
             <DialogTitle className="sr-only">{t('brandDetail.loadingTitle')}</DialogTitle>
@@ -180,7 +180,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                 </TabsTrigger>
               </TabsList>
 
-              <ScrollArea className="flex-1 max-h-[55vh]">
+              <ScrollArea className="flex-1 max-h-[55dvh]">
                 {/* Routes tab */}
                 <BrandRoutesTab
                   isLoading={routesQuery.isLoading}
@@ -310,9 +310,9 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                       {r.content}
                                     </div>
                                   )}
-                                  {r.tags.length > 0 && (
+                                  {(r.tags?.length ?? 0) > 0 && (
                                     <div className="mt-2 flex flex-wrap gap-1">
-                                      {r.tags.map((tag) => (
+                                      {(r.tags ?? []).map((tag) => (
                                         <Badge
                                           key={tag}
                                           variant="outline"

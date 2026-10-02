@@ -116,11 +116,14 @@ function RootComponent() {
       {!isAccountRoute && <Header />}
 
       <main
+        id="main-content"
+        tabIndex={-1}
         className={cn(
-          'flex-1',
-          // Bottom padding clears the customer MobileNav bar — only
-          // needed on routes that actually render it.
-          !isAppShellRoute && 'pb-16 md:pb-0',
+          'flex-1 outline-none',
+          // Bottom padding clears the customer MobileNav bar (h-16 = 4rem)
+          // plus the iOS home-indicator safe-area inset — only needed on
+          // routes that actually render it.
+          !isAppShellRoute && 'pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0',
         )}
       >
         <Outlet />

@@ -248,7 +248,7 @@ export function ChatConversation({
                     )}
                     <div
                       className={cn(
-                        'rounded-2xl px-3 py-2 text-sm wrap-break-word shadow-sm',
+                        'rounded-2xl px-3 py-2 text-sm wrap-break-word',
                         isSystem
                           ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100'
                           : isMe
@@ -261,7 +261,7 @@ export function ChatConversation({
                       {m.content}
                     </div>
                     {isMe && (
-                      <div className="text-[9px] text-muted-foreground mt-0.5 px-1 text-right flex items-center justify-end gap-0.5">
+                      <div className="text-[10px] text-muted-foreground mt-0.5 px-1 text-right flex items-center justify-end gap-0.5">
                         {m.id.startsWith('tmp-') ? (
                           <Check className="h-2.5 w-2.5" />
                         ) : (
@@ -279,7 +279,7 @@ export function ChatConversation({
             })}
             {typing && (
               <div className="flex justify-start">
-                <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5 shadow-sm">
+                <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
                   <div className="flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />

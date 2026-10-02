@@ -178,7 +178,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
             onClick={handleCompareToggle}
             title={t('searchPage.addToCompare')}
             aria-pressed={inCompare}
-            className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
+            className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${inCompare
               ? 'bg-violet-600 text-white'
               : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
               }`}
@@ -188,7 +188,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
           <button
             onClick={handleShare}
             title={t('searchPage.shareTrip')}
-            className="h-7 w-7 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
+            className="h-9 w-9 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
           >
             <Share2 className="h-3.5 w-3.5" />
           </button>
@@ -205,7 +205,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                 onClick={handleCompareToggle}
                 title={t('searchPage.addToCompare')}
                 aria-pressed={inCompare}
-                className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
+                className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${inCompare
                   ? 'bg-violet-600 text-white'
                   : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
                   }`}
@@ -215,7 +215,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
               <button
                 onClick={handleShare}
                 title={t('searchPage.shareTrip')}
-                className="h-7 w-7 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
+                className="h-9 w-9 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
               >
                 <Share2 className="h-3.5 w-3.5" />
               </button>

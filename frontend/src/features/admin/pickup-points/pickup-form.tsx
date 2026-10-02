@@ -185,7 +185,7 @@ export function PickupPointFormDialog({
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1"
+            className="grid gap-3 max-h-[60dvh] overflow-y-auto pr-1"
           >
             <FormField
               control={form.control}

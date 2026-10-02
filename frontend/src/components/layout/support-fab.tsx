@@ -15,10 +15,11 @@ export function SupportFab() {
   return (
     <button
       type="button"
+      data-slot="fab"
       onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })}
       aria-label={t('layout.support.open')}
       title={t('chat.title')}
-      className="group fixed z-60 right-4 bottom-20 md:right-5 md:bottom-5 inline-flex h-11 w-11 md:h-14 md:w-14 items-center justify-center rounded-full bg-linear-to-br from-amber-500 via-orange-500 to-blue-500 text-white ring-1 ring-white/40 transition-transform hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/60"
+      className="group fixed z-60 right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] md:right-5 md:bottom-5 inline-flex h-11 w-11 md:h-14 md:w-14 items-center justify-center rounded-full bg-linear-to-br from-amber-500 via-orange-500 to-blue-500 text-white ring-1 ring-white/40 transition-transform hover:scale-105 focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/60"
     >
       {/* Pulse ring (draws attention) */}
       <span

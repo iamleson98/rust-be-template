@@ -41,7 +41,7 @@ export function BookingStepHeader({
         <Ticket className="h-5 w-5 text-primary" />
         {bookingStep === 'success' ? t('booking.success') : t('bookingFlow.completeBooking')}
       </DialogTitle>
-      <DialogDescription className="text-xs mt-1">
+      <DialogDescription className="text-xs mt-1 pr-12">
         {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : t('common.loading')}
       </DialogDescription>
 

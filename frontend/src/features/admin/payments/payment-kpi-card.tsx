@@ -13,11 +13,14 @@ export function KpiCard({
   label,
   value,
   color,
+  hint,
 }: {
   icon: React.ReactNode
   label: string
   value: string
   color: string
+  /** Small qualifier under the value (e.g. "current page only"). */
+  hint?: string
 }) {
   return (
     <Card>
@@ -29,6 +32,7 @@ export function KpiCard({
           <div className="min-w-0">
             <div className="text-[11px] text-muted-foreground truncate">{label}</div>
             <div className="text-base font-bold tabular-nums truncate">{value}</div>
+            {hint && <div className="text-[10px] text-muted-foreground/80 truncate">{hint}</div>}
           </div>
         </div>
       </CardContent>

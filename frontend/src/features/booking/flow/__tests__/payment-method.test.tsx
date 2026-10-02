@@ -11,8 +11,6 @@ describe('PaymentMethodStep', () => {
     onSetPaymentMethod: vi.fn(),
     seatCount: 2,
     subtotal: 300000,
-    insuranceLevel: 'none' as const,
-    insuranceCost: 0,
     campaignCode: '',
     discount: 0,
     fees: 0,
@@ -74,12 +72,12 @@ describe('PaymentMethodStep', () => {
   it('calls onSubmit when pay button is clicked', () => {
     const onSubmit = vi.fn()
     const { container } = render(<PaymentMethodStep {...baseProps} onSubmit={onSubmit} />)
-    // Find the pay button — it's the last button and contains "Thanh toán" + amount
+    // Find the confirm-booking button — it contains "Xác nhận đặt vé" + amount
     // (not "Quay lại" which is the back button).
     const btns = container.querySelectorAll('button')
     const payBtn = Array.from(btns).find(
       (b) =>
-        b.textContent?.includes('Thanh toán') &&
+        b.textContent?.includes('Xác nhận đặt vé') &&
         !b.textContent?.includes('Quay lại') &&
         b.textContent?.includes('300'),
     )

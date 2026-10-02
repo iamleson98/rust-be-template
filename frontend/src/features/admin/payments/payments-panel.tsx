@@ -33,6 +33,7 @@ import { useT } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 import {
   useAdminPayments,
+  useMarkCodCollected,
   useUpdatePaymentStatus,
 } from '@/lib/queries/payments'
 import type {
@@ -85,6 +86,10 @@ export function AdminPaymentsPanel() {
 
   const { data, isLoading, isError, refetch, isFetching } = useAdminPayments(query)
   const updateStatus = useUpdatePaymentStatus()
+  // Goes through the shared SDK client (cookie auth + token refresh +
+  // error parsing) — the previous raw `fetch` bypassed all of it, so an
+  // expired access token surfaced as a bare "HTTP 401" toast.
+  const markCollected = useMarkCodCollected()
 
   const items = data?.items ?? EMPTY_ITEMS
   const total = data?.total ?? 0
@@ -122,16 +127,10 @@ export function AdminPaymentsPanel() {
         toast.success(t('adminPayments.refundedToast'))
       } else if (type === 'mark_collected') {
         const amount = actionAmount ? parseInt(actionAmount, 10) : payment.amount
-        const res = await fetch(
-          `/api/payments/${encodeURIComponent(payment.id)}/mark-cod-collected`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amountCollected: amount }),
-          },
-        )
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        await markCollected.mutateAsync({
+          id: payment.id,
+          body: { amountCollected: amount },
+        } as unknown as { id: string; body: { amountCollected?: number } })
         toast.success(t('adminPayments.collectedToast'))
       }
       setActionDialog(null)
@@ -182,23 +181,29 @@ export function AdminPaymentsPanel() {
           value={kpis.totalCount.toString()}
           color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
         />
+        {/* These three are computed from the CURRENT PAGE's rows (the
+            endpoint has no aggregate endpoint) — labeled honestly instead
+            of masquerading as platform-wide totals. */}
         <KpiCard
           icon={<CheckCircle2 className="h-4 w-4" />}
           label={t('adminPayments.kpiCompleted')}
           value={kpis.completedCount.toString()}
           color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+          hint={t('adminPayments.kpiCurrentPage')}
         />
         <KpiCard
           icon={<Clock className="h-4 w-4" />}
           label={t('admin.stats.openCount')}
           value={kpis.pendingCount.toString()}
           color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+          hint={t('adminPayments.kpiCurrentPage')}
         />
         <KpiCard
           icon={<Wallet className="h-4 w-4" />}
           label={t('adminPayments.kpiRevenue')}
           value={formatCurrency(kpis.revenue, currency)}
           color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
+          hint={t('adminPayments.kpiCurrentPage')}
         />
       </div>
       )}

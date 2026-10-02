@@ -538,7 +538,7 @@ function Expander({
       aria-label={label}
       className={cn(
         'flex items-center justify-center rounded transition-colors',
-        small ? 'h-6 w-6' : 'h-7 w-7',
+        small ? 'h-8 w-8' : 'h-8 w-8',
         disabled ? 'text-muted-foreground/30' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
@@ -572,7 +572,7 @@ function IconAction({
       title={label}
       aria-label={label}
       className={cn(
-        'flex h-7 w-7 items-center justify-center rounded transition-colors',
+        'flex h-8 w-8 items-center justify-center rounded transition-colors',
         danger
           ? 'text-muted-foreground hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground',

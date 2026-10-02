@@ -500,7 +500,10 @@ export function AudioCallWidget() {
           onClick={() => setOpen(true)}
           aria-label={t('layout.call.support')}
           className={cn(
-            'fixed z-40 right-4 md:right-6 flex items-center justify-center',
+            // Sits to the LEFT of the SupportFab (which owns the bottom-right
+            // corner on customer pages) so agents can always reach it —
+            // previously it was fully buried underneath the support FAB.
+            'fixed z-40 right-[4.25rem] md:right-[5.25rem] flex items-center justify-center',
             'h-10 w-10 md:h-12 md:w-12 rounded-full',
             agentInCall
               ? 'bg-amber-600 hover:bg-amber-700 border-amber-400/30'
@@ -508,7 +511,7 @@ export function AudioCallWidget() {
             'text-white',
             'transition-all hover:scale-105 active:scale-95',
             'border',
-            'bottom-20 md:bottom-6',
+            'bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-6',
             // Safe area on iOS.
             'mb-[env(safe-area-inset-bottom)]',
           )}
@@ -529,7 +532,7 @@ export function AudioCallWidget() {
           <div
             className={cn(
               isAgent
-                ? 'fixed z-50 right-3 left-3 bottom-3 mb-[env(safe-area-inset-bottom)] rounded-2xl border border-zinc-200 bg-white p-4 md:left-auto md:bottom-6 md:w-80 md:p-5 dark:border-zinc-800 dark:bg-zinc-900'
+                ? 'fixed z-[70] right-3 left-3 bottom-3 mb-[env(safe-area-inset-bottom)] rounded-2xl border border-zinc-200 bg-white p-4 md:left-auto md:bottom-6 md:w-80 md:p-5 dark:border-zinc-800 dark:bg-zinc-900'
                 : 'flex min-h-0 flex-1 flex-col justify-center bg-white px-6 py-8 dark:bg-zinc-900',
             )}
             role="dialog"

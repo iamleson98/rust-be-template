@@ -22,7 +22,7 @@ import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { PriceSummary, type InsuranceLevel } from './price-summary'
+import { PriceSummary } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
@@ -72,8 +72,6 @@ export function PaymentMethodStep({
   onSetPaymentMethod,
   seatCount,
   subtotal,
-  insuranceLevel,
-  insuranceCost,
   campaignCode,
   discount,
   fees,
@@ -88,8 +86,6 @@ export function PaymentMethodStep({
   onSetPaymentMethod: (m: PaymentMethodKey) => void
   seatCount: number
   subtotal: number
-  insuranceLevel: InsuranceLevel
-  insuranceCost: number
   campaignCode: string
   discount: number
   fees: number
@@ -119,7 +115,7 @@ export function PaymentMethodStep({
                 className={cn(
                   'flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all',
                   selected
-                    ? 'border-primary bg-primary/5 ring-2 ring-primary/15 shadow-sm'
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
                     : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50',
                 )}
               >
@@ -147,8 +143,6 @@ export function PaymentMethodStep({
       <PriceSummary
         seatCount={seatCount}
         subtotal={subtotal}
-        insuranceLevel={insuranceLevel}
-        insuranceCost={insuranceCost}
         campaignCode={campaignCode}
         discount={discount}
         fees={fees}
@@ -180,7 +174,7 @@ export function PaymentMethodStep({
         <Button
           onClick={onSubmit}
           disabled={submitting}
-          className="gap-2 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25"
+          className="gap-2 bg-primary hover:bg-primary/90"
         >
           {submitting ? (
             <>

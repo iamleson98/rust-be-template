@@ -22,7 +22,9 @@ export default function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster position="top-right" richColors closeButton />
+      {/* offset clears the sticky header (h-16 = 4rem) so toasts never
+          cover the logo / account actions. */}
+      <Toaster position="top-right" offset="72px" richColors closeButton />
     </>
   )
 }

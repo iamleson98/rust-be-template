@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -231,20 +232,26 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
 
       {/* Map picker dialog */}
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="max-w-3xl p-0 gap-0 overflow-hidden">
-          <DialogHeader className="px-4 py-3 border-b bg-white">
+        <DialogContent className="max-w-3xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-4 py-3 pr-12 border-b bg-white shrink-0">
             <DialogTitle className="text-base flex items-center gap-2">
               <MapPin className={cn('h-4 w-4', pinColor === 'red' ? 'text-rose-600' : 'text-blue-600')} />
               {t('searchPage.pickLocationOnMap')}
             </DialogTitle>
+            {/* Description (also satisfies aria-describedby) */}
+            <DialogDescription className="sr-only">
+              {t('searchPage.pickLocationOnMapDesc')}
+            </DialogDescription>
           </DialogHeader>
-          <Suspense fallback={MapPickerFallback}>
-            <MapPicker
-              pinColor={pinColor}
-              onConfirm={handleMapConfirm}
-              onCancel={() => setMapOpen(false)}
-            />
-          </Suspense>
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <Suspense fallback={MapPickerFallback}>
+              <MapPicker
+                pinColor={pinColor}
+                onConfirm={handleMapConfirm}
+                onCancel={() => setMapOpen(false)}
+              />
+            </Suspense>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -3,6 +3,7 @@
 // Extracted from the original 'booking-card.tsx'.
 
 import { Button } from '@/components/ui/button'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Eye,
   Loader2,
@@ -22,6 +23,7 @@ import { useT } from '@/lib/i18n'
     component.
 */
 export function BookingCardActions({
+  bookingCode,
   canCancel,
   cancelling,
   onCancelClick,
@@ -32,6 +34,9 @@ export function BookingCardActions({
   extraActions,
   onExploreOther,
 }: {
+  /** Booking code — powers the (previously dead) View-details + QR
+   *  buttons, which now deep-link to `/bookings/$code`. */
+  bookingCode: string
   canCancel: boolean
   cancelling?: boolean
   onCancelClick?: () => void
@@ -43,14 +48,14 @@ export function BookingCardActions({
   onExploreOther?: () => void
 }) {
   const t = useT()
+  const navigate = useNavigate()
+  const goToDetail = () => navigate({ to: '/bookings/$code', params: { code: bookingCode } })
   return (
     <div className="flex items-center gap-2 pt-2 flex-wrap">
       <Button
         size="sm"
         className="gap-1.5 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
-        onClick={() => {
-          // Could open a detail modal in future
-        }}
+        onClick={goToDetail}
       >
         <Eye className="h-3.5 w-3.5" />
         {t('bookingHistory.viewDetails')}
@@ -99,7 +104,9 @@ export function BookingCardActions({
         </Button>
       )}
 
-      <Button variant="outline" size="sm" className="gap-1.5">
+      {/* The real scannable QR lives on the booking-detail page —
+          this button deep-links there (it was a decorative no-op). */}
+      <Button variant="outline" size="sm" className="gap-1.5" onClick={goToDetail}>
         <QrCode className="h-3.5 w-3.5" />
         {t('bookingHistory.qrCode')}
       </Button>

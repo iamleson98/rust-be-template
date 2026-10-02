@@ -60,7 +60,7 @@ export function SearchRouteFields({
         <button
           type="button"
           onClick={swap}
-          className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 hover:rotate-180 transition-all duration-300 flex items-center justify-center text-blue-600 shadow-sm"
+          className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 hover:rotate-180 transition-all duration-300 flex items-center justify-center text-blue-600"
           title={t('home.swapDirection')}
           aria-label={t('home.swapDirection')}
         >

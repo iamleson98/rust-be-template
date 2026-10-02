@@ -22,7 +22,7 @@
  *   - Ctrl+B keyboard shortcut to toggle collapse
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -104,6 +104,13 @@ const adminOnlyItems = (t: (k: string) => string) => [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  // Scroll container of the content pane — reset to top on admin-page
+  // navigation (the router's global ScrollRestoration only touches
+  // window, which never scrolls inside this shell).
+  const contentScrollRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    contentScrollRef.current?.scrollTo({ top: 0 })
+  }, [pathname])
   const { user } = useApp()
   const logoutMut = useLogout()
   const t = useT()
@@ -301,7 +308,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {user?.name || 'Admin'} · DatXeVui Admin
           </span>
         </header>
-        <div className="flex-1 overflow-y-auto overscroll-contain">
+        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
           {children}
         </div>
       </div>

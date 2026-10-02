@@ -128,7 +128,7 @@ export function ChatChannelListCard({
                         )}
                         {c.assignedTo?.fullName && (
                           <Badge
-                            className={`text-[9px] border-0 ${c.assignedToMe ? 'bg-blue-600 text-white' : 'bg-indigo-100 text-indigo-700'}`}
+                            className={`text-[10px] border-0 ${c.assignedToMe ? 'bg-blue-600 text-white' : 'bg-indigo-100 text-indigo-700'}`}
                             title={t('adminChat.assignedTo', { name: c.assignedTo.fullName })}
                           >
                             {c.assignedToMe ? t('adminChat.mine') : c.assignedTo.fullName}

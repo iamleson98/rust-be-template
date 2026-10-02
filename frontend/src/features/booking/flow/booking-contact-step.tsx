@@ -3,12 +3,14 @@
 /**
  * BookingContactStep — step 2 (contact + campaign) of the BookingDialog:
  * the privacy trust signal, the contact-info form section (name / phone /
- * email), the travel-insurance picker, the campaign (promo code) box and
- * the back / continue CTAs.
+ * email), the campaign (promo code) box and the back / continue CTAs.
  *
  * Extracted from the original `booking-dialog.tsx` — the parent owns the
- * RHF form (`form` is passed down), the campaign state and the store
- * setters for the insurance level.
+ * RHF form (`form` is passed down), the campaign state.
+ *
+ * NOTE: the travel-insurance upsell was removed — the backend `HoldReq`
+ * has no insurance field, so the fee was never charged and the displayed
+ * total could diverge from the real booking total.
  */
 
 import type { UseFormReturn } from 'react-hook-form'
@@ -25,15 +27,13 @@ import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Tag, X, User, Phone, Mail, Shield, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Tag, X, User, Phone, Mail } from 'lucide-react'
 import { type BookingValues } from './booking-form'
 import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 
 export function BookingContactStep({
   form,
   setBookingStep,
-  insuranceLevel,
-  setInsuranceLevel,
   currency,
   campaignCode,
   setCampaignCode,
@@ -47,8 +47,6 @@ export function BookingContactStep({
 }: {
   form: UseFormReturn<BookingValues>
   setBookingStep: (step: 'idle' | 'passengers' | 'contact' | 'payment' | 'success') => void
-  insuranceLevel: 'none' | 'basic' | 'comprehensive'
-  setInsuranceLevel: (level: 'none' | 'basic' | 'comprehensive') => void
   currency: Currency
   campaignCode: string
   setCampaignCode: (code: string) => void
@@ -138,69 +136,6 @@ export function BookingContactStep({
         </div>
       </div>
 
-      {/* Travel Insurance */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <ShieldCheck className="h-4 w-4 text-blue-600" />
-          <span className="font-semibold text-sm">{t('bookingFlow.insuranceTitle')}</span>
-        </div>
-        <div role="radiogroup" aria-label={t('bookingFlow.insuranceTitle')} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {([
-            {
-              key: 'none' as const,
-              label: t('bookingFlow.insuranceNone'),
-              cost: 0,
-              desc: t('bookingFlow.insuranceNoneDesc'),
-              icon: <Shield className="h-5 w-5" />,
-              tile: 'bg-slate-100 text-slate-500 ring-slate-200',
-            },
-            {
-              key: 'basic' as const,
-              label: t('bookingFlow.insuranceBasic'),
-              cost: 5000,
-              desc: t('bookingFlow.insuranceBasicDesc'),
-              icon: <ShieldCheck className="h-5 w-5" />,
-              tile: 'bg-blue-100 text-blue-600 ring-blue-200',
-            },
-            {
-              key: 'comprehensive' as const,
-              label: t('bookingFlow.insuranceComprehensive'),
-              cost: 15000,
-              desc: t('bookingFlow.insuranceComprehensiveDesc'),
-              icon: <ShieldAlert className="h-5 w-5" />,
-              tile: 'bg-indigo-100 text-indigo-600 ring-indigo-200',
-            },
-          ]).map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              role="radio"
-              aria-checked={insuranceLevel === opt.key}
-              onClick={() => setInsuranceLevel(opt.key)}
-              className={`rounded-xl border p-3 text-left transition-all ${insuranceLevel === opt.key
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary/15 shadow-sm'
-                  : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50'
-                }`}
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`h-8 w-8 shrink-0 rounded-lg ring-1 flex items-center justify-center ${opt.tile}`}>{opt.icon}</span>
-                <span className="font-semibold text-xs">{opt.label}</span>
-                {/* Selection dot — same semantics as the payment picker */}
-                <span
-                  className={`ml-auto h-3.5 w-3.5 shrink-0 rounded-full border-2 transition-colors ${insuranceLevel === opt.key
-                    ? 'border-primary bg-primary'
-                    : 'border-slate-300 bg-white'
-                  }`}
-                  aria-hidden
-                />
-              </div>
-              <div className="text-[11px] text-muted-foreground">{opt.desc}</div>
-              <div className="mt-1.5 font-bold text-sm text-primary">{opt.cost === 0 ? formatCurrency(0, currency) : `${formatCurrency(opt.cost, currency)}${t('bookingFlow.perTrip')}`}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Campaign */}
       <div className="rounded-lg border bg-amber-50/50 p-3">
         <div className="flex items-center gap-2 mb-2">
@@ -244,7 +179,7 @@ export function BookingContactStep({
         <Button variant="outline" onClick={() => setBookingStep('passengers')} className="gap-1">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
-        <Button onClick={gotoPayment} className="gap-1 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25">
+        <Button onClick={gotoPayment} className="gap-1 bg-primary hover:bg-primary/90">
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

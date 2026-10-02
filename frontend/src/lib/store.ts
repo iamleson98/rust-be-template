@@ -101,10 +101,6 @@ type AppState = {
   loyaltyOpen: boolean
   setLoyaltyOpen: (b: boolean) => void
 
-  // ── Insurance level in booking flow ──
-  insuranceLevel: 'none' | 'basic' | 'comprehensive'
-  setInsuranceLevel: (l: AppState['insuranceLevel']) => void
-
   // ── Language + currency (persisted) ──
   lang: 'vi' | 'en'
   setLang: (l: 'vi' | 'en') => void
@@ -374,9 +370,6 @@ export const useApp = create<AppState>((set) => ({
 
   loyaltyOpen: false,
   setLoyaltyOpen: (b) => set({ loyaltyOpen: b }),
-
-  insuranceLevel: 'none',
-  setInsuranceLevel: (l) => set({ insuranceLevel: l }),
 
   lang: 'vi',
   setLang: (l) => {

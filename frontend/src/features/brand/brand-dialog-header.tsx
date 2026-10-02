@@ -50,7 +50,9 @@ export function BrandDialogHeader({
           className="h-1.5 w-full"
           style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
         />
-        <div className="px-5 py-4 relative">
+        {/* pr-12 keeps the name/badge row clear of the dialog's close (X)
+            button in the top-right corner. */}
+        <div className="px-5 py-4 pr-12 relative">
           <div className="flex items-start gap-4">
             {/* Logo / initials */}
             <div

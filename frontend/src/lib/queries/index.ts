@@ -486,6 +486,19 @@ export function useReviewsByBrand(brandId: string | undefined) {
 }
 
 /**
+ * Latest public reviews across the whole platform — used by the
+ * homepage testimonials section (real data instead of the previously
+ * hardcoded fake personas).
+ */
+export function useLatestReviews(limit = 6) {
+  return useQuery({
+    ...reviewsListOptions({ query: { limit } }),
+    queryKey: [...reviewsListQueryKey({ query: { limit } })],
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
  * The caller's OWN reviews — server-side paginated via
  * `GET /api/reviews/mine` (user scope forced by the backend, never
  * spoofable via query params). Returns `{ items, total, limit, offset }`

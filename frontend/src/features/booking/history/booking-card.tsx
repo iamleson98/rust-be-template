@@ -131,7 +131,7 @@ function BookingCardImpl({
                   </div>
                   {/* QR placeholder */}
                   <div className="h-10 w-10 rounded-lg bg-slate-100 ring-1 ring-black/5 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
-                    <span className="text-[9px] font-bold text-slate-400 group-hover:text-blue-500 transition-colors">
+                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-blue-500 transition-colors">
                       QR
                     </span>
                   </div>

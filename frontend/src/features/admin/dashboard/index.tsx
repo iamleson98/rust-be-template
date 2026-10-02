@@ -72,7 +72,7 @@ function QuickLinks() {
             key={l.url}
             type="button"
             onClick={() => navigate({ to: l.url })}
-            className="group flex items-center gap-2 rounded-lg border bg-white p-2.5 text-left text-xs font-medium transition-all hover:border-blue-300 hover:bg-blue-50 hover:shadow-sm dark:bg-card"
+            className="group flex items-center gap-2 rounded-lg border bg-white p-2.5 text-left text-xs font-medium transition-all hover:border-blue-300 hover:bg-blue-50 dark:bg-card"
           >
             <Icon className="size-4 shrink-0 text-blue-600" aria-hidden />
             <span className="flex-1 truncate">{l.title}</span>

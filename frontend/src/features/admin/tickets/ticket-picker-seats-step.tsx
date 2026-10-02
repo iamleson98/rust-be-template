@@ -75,7 +75,7 @@ export function SeatsStep({
               <div className="space-y-1">
                 {deck.rows.map((row) => (
                   <div key={row.row} className="flex items-center gap-1.5 justify-center">
-                    <span className="text-[9px] text-muted-foreground w-3">{row.row}</span>
+                    <span className="text-[10px] text-muted-foreground w-3">{row.row}</span>
                     {row.seats.map((seat) => {
                       const isAvailable = seat.status === 'available'
                       const isSelected = selectedIds.has(seat.id)
@@ -96,7 +96,7 @@ export function SeatsStep({
                               finalPrice: seat.finalPrice,
                             })
                           }
-                          className={`h-7 w-7 rounded text-[9px] font-mono font-bold transition-all ${!isAvailable
+                          className={`h-7 w-7 rounded text-[10px] font-mono font-bold transition-all ${!isAvailable
                             ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                             : isSelected
                               ? 'bg-blue-600 text-white ring-2 ring-blue-300'

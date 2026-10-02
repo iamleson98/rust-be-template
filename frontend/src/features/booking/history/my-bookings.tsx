@@ -45,7 +45,7 @@ const EMPTY_ITEMS: never[] = []
 type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
 export function MyBookings() {
-  const { setCancelDialogOpen, setCancelBookingId, currency } = useApp()
+  const { setCancelDialogOpen, setCancelBookingId, currency, user } = useApp()
   const t = useT()
   const navigate = useNavigate()
 
@@ -137,8 +137,9 @@ export function MyBookings() {
   // ── Render ─────────────────────────────────────────────
   return (
     <div className="min-h-[60vh] bg-linear-to-b from-slate-50 via-white to-slate-50">
-      {/* Hero Header */}
-      <BookingsHero />
+      {/* Hero Header — pass the user so the greeting shows a real name
+          (previously always rendered "Chào , ..." with an empty name). */}
+      <BookingsHero user={user ? { name: user.name } : null} />
 
       <div className="container mx-auto px-4 -mt-8 relative z-10">
         <Tabs value={userTab} onValueChange={(v) => setUserTab(v as UserTab)} className="w-full">
@@ -186,12 +187,22 @@ export function MyBookings() {
             >
               {feedbackOpenId && (
                 <Suspense fallback={FeedbackFormFallback}>
-                  <FeedbackForm
-                    booking={userBookings.find((b) => b.id === feedbackOpenId)!}
-                    existingReview={userBookings.find((b) => b.id === feedbackOpenId)?.review ?? null}
-                    onSubmitted={(review) => handleFeedbackSubmitted(feedbackOpenId, review)}
-                    onClose={() => setFeedbackOpenId(null)}
-                  />
+                  {/* Guard the non-null lookup: if the bookings refetch
+                      removes this booking while the form is open, the old
+                      `find(...)!` would pass undefined into FeedbackForm
+                      and crash on `booking.id`. */}
+                  {(() => {
+                    const feedbackBooking = userBookings.find((b) => b.id === feedbackOpenId)
+                    if (!feedbackBooking) return null
+                    return (
+                      <FeedbackForm
+                        booking={feedbackBooking}
+                        existingReview={feedbackBooking.review ?? null}
+                        onSubmitted={(review) => handleFeedbackSubmitted(feedbackOpenId, review)}
+                        onClose={() => setFeedbackOpenId(null)}
+                      />
+                    )
+                  })()}
                 </Suspense>
               )}
             </BookingList>

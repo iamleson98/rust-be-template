@@ -1,11 +1,11 @@
 'use client'
 
-import { memo, useEffect, useState, useRef, useCallback } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { useCampaigns, type Campaign } from '@/lib/queries'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/layout/error-state'
-import { Tag, Copy, Check, Zap, Timer, Flame } from 'lucide-react'
+import { Tag, Copy, Check, Zap, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { CampaignsSkeleton } from '@/features/home/components/campaigns-skeleton'
@@ -45,20 +45,15 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
   const { data, isLoading, isError, refetch } = useCampaigns()
   const items: Campaign[] = data?.items ?? []
   const [copied, setCopied] = useState<string | null>(null)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const scrollRef = useRef<HTMLDivElement>(null)
 
-  /* Auto-scroll carousel for campaign cards */
-  useEffect(() => {
-    if (items.length <= 3) return
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % items.length)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [items.length])
-
+  /* Copy a campaign code — guarded: navigator.clipboard is undefined on
+     non-secure contexts (http:// LAN access) and would throw on click. */
   const copy = (code: string) => {
-    navigator.clipboard.writeText(code)
+    try {
+      navigator.clipboard?.writeText(code)
+    } catch {
+      /* non-fatal — the code is shown in the card */
+    }
     setCopied(code)
     toast.success(t('home.campaignCopiedToast'), {
       description: t('home.campaignCopiedToastDesc', { code }),
@@ -74,19 +69,6 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
     if (kind === 'seat_upgrade') return t('home.discountSeatUpgrade')
     return t('home.discountDefault')
   }
-
-  /* Generate deterministic end time for each campaign (24-72h from now) */
-  const getEndTime = useCallback((id: string) => {
-    let hash = 0
-    for (let i = 0; i < id.length; i++) {
-      hash = id.charCodeAt(i) + ((hash << 5) - hash)
-    }
-    const hoursOffset = 24 + (Math.abs(hash) % 48)
-    return Date.now() + hoursOffset * 3600000
-  }, [])
-
-  // Deterministic "featured" flag (every 3rd card is hot)
-  const isFeatured = (_id: string, i: number) => i % 3 === 0
 
   return (
     <section className="bg-linear-to-br from-amber-50 via-orange-50 to-rose-50 border-y border-amber-100/80">
@@ -108,37 +90,19 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                 </div>
                 <p className="text-muted-foreground text-sm">{t('home.campaignsSubtitle')}</p>
               </div>
-              {/* Carousel dots indicator */}
-              {items.length > 3 && (
-                <div className="hidden sm:flex items-center gap-1.5">
-                  {items.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setActiveIndex(i)}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${i === activeIndex ? 'w-4 bg-rose-500' : 'w-1.5 bg-rose-300/40 hover:bg-rose-400/60'
-                        }`}
-                      aria-label={t('home.viewCampaign', { index: i + 1 })}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
-            <div
-              ref={scrollRef}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
-            >
-              {items.map((c, i) => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.map((c) => {
                 // `CampaignOut` only exposes `code`, `discountType`,
                 // `discountValue`, `endsAt`, `id`. We use a fixed rose banner color
                 // since the API no longer returns one.
                 const bannerColor = '#f43f5e'
+                // Real server-provided expiry (ISO string) — campaigns without
+                // an end date simply don't render a countdown.
+                const endsAtMs = c.endsAt ? Date.parse(c.endsAt) : NaN
                 return (
-                  <div
-                    key={c.id}
-                    className={i === activeIndex ? 'ring-2 ring-rose-400/30 rounded-xl' : ''}
-                  >
-                    <Card className="relative overflow-hidden border-0 h-full">
+                  <Card key={c.id} className="relative overflow-hidden border-0 h-full">
                       {/* Shimmer sweep overlay */}
                       <div className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-1500 bg-linear-to-r from-transparent via-white/40 to-transparent skew-x-12 pointer-events-none z-10" />
 
@@ -156,15 +120,8 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                         style={{ background: bannerColor }}
                       />
 
-                      {/* "Hot" badge with pulse animation on featured campaigns */}
-                      {isFeatured(c.id, i) && (
-                        <div className="absolute top-3 right-3 z-20">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-linear-to-r from-rose-500 to-orange-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                            <Flame className="h-3 w-3" />
-                            {t('home.hotBadge')}
-                          </span>
-                        </div>
-                      )}
+                      {/* "Hot" badge removed — a fabricated "every 3rd card is
+                          featured" rule presented invented urgency. */}
 
                       <div className="p-5 pl-6 relative">
                         <div className="flex items-start justify-between gap-3">
@@ -178,8 +135,8 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                             </Badge>
                             <h3 className="font-bold text-base leading-snug">{c.code}</h3>
                           </div>
-                          {/* Countdown timer */}
-                          <CampaignCountdown endTime={getEndTime(c.id)} />
+                          {/* Countdown timer — only when the server provided an end date */}
+                          {Number.isFinite(endsAtMs) && <CampaignCountdown endTime={endsAtMs} />}
                         </div>
 
                         <div className="mt-4 flex items-center justify-between gap-2">
@@ -209,8 +166,7 @@ export const CampaignsBanner = memo(function CampaignsBanner() {
                         </div>
                       </div>
                     </Card>
-                  </div>
-                )
+                  )
               })}
             </div>
           </>

@@ -175,7 +175,7 @@ export function PriceAlertDialog() {
 
   return (
     <Dialog open={priceAlertOpen} onOpenChange={(o) => setPriceAlertOpen(o)}>
-      <DialogContent className="max-w-lg w-[95vw] max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-lg w-[95vw] max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-linear-to-br from-blue-500 to-blue-500 text-white flex items-center justify-center shrink-0">

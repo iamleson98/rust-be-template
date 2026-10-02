@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -284,6 +285,7 @@ function CustomDateRange({
   onChange: (from: string, to: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
   const t = useT()
   const lang = useApp((s) => s.lang)
   const dateLocale = lang === 'en' ? enUS : vi
@@ -303,6 +305,8 @@ function CustomDateRange({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
+        {/* Single month on phones — two stacked months overflowed the
+            popover past the viewport with no scroll. */}
         <Calendar
           mode="range"
           selected={{ from, to }}
@@ -312,7 +316,7 @@ function CustomDateRange({
             onChange(f, toIso)
             if (f && toIso) setOpen(false)
           }}
-          numberOfMonths={2}
+          numberOfMonths={isMobile ? 1 : 2}
           locale={dateLocale}
         />
       </PopoverContent>

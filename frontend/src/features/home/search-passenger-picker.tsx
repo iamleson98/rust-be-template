@@ -102,7 +102,7 @@ function PaxRow({ label, sub, value, onChange }: { label: string; sub: string; v
         <button
           type="button"
           onClick={() => onChange(value - 1)}
-          className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-accent disabled:opacity-40"
+          className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-accent disabled:opacity-40"
           disabled={value <= 0}
         >
           <Minus className="h-3 w-3" />
@@ -111,7 +111,7 @@ function PaxRow({ label, sub, value, onChange }: { label: string; sub: string; v
         <button
           type="button"
           onClick={() => onChange(value + 1)}
-          className="h-8 w-8 rounded-full border flex items-center justify-center hover:bg-accent"
+          className="h-9 w-9 rounded-full border flex items-center justify-center hover:bg-accent"
         >
           <Plus className="h-3 w-3" />
         </button>

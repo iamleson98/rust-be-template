@@ -24,9 +24,8 @@ export function AccountSecurityPage() {
                   <div className="text-xs text-muted-foreground">{t('accountPage.changePasswordDesc')}</div>
                 </div>
               </div>
-              <button className="text-xs text-primary font-medium hover:underline">
-                {t('accountPage.changePassword')}
-              </button>
+              {/* No dead affordance: there is no change-password endpoint in
+                  the API contract, so nothing to trigger — informational only. */}
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

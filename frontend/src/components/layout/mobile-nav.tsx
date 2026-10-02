@@ -33,7 +33,13 @@ export function MobileNav() {
   const getActiveTab = (): TabKey => {
     if (pathname === '/') return 'home'
     if (pathname === '/search') return 'search'
-    if (pathname === '/login' || pathname.startsWith('/bookings/') || pathname.startsWith('/account')) return 'bookings'
+    if (
+      pathname === '/login' ||
+      pathname === '/bookings' ||
+      pathname.startsWith('/bookings/') ||
+      pathname.startsWith('/account')
+    )
+      return 'bookings'
     return 'home'
   }
 
@@ -62,22 +68,6 @@ export function MobileNav() {
 
   return (
     <>
-      {/* Floating CTA button */}
-      {/* <div className="md:hidden fixed bottom-20 left-1/2 -translate-x-1/2 z-50">
-        <button
-          onClick={() => navigate({ to: '/' })}
-          className="h-14 w-14 rounded-full bg-linear-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center ring-4 ring-white/20"
-          aria-label={t('nav.bookTicket')}
-        >
-          <Bus className="h-6 w-6" />
-        </button>
-        <div className="text-center mt-1">
-          <span className="text-[9px] font-bold text-blue-600 uppercase tracking-wider">
-            {t('nav.bookTicket')}
-          </span>
-        </div>
-      </div> */}
-
       {/* Bottom nav bar — touch targets are ≥48px (Apple HIG + Material). */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-slate-200/60"

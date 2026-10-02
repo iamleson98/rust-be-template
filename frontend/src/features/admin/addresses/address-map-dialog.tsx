@@ -272,8 +272,11 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
 
   return (
     <Dialog open={open} onOpenChange={(o) => !createMutation.isPending && onOpenChange(o)}>
-      <DialogContent className="max-w-4xl p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-5 py-4 border-b bg-white">
+      {/* max-h + internal scroll — previously unbounded: the stacked
+          mobile layout (form + 420px map + footer) ran ~1100px tall, so
+          the Save/Cancel footer was unreachable on phones. */}
+      <DialogContent className="max-w-4xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-5 py-4 pr-12 border-b bg-white shrink-0">
           <DialogTitle className="flex items-center gap-2 text-base">
             <MapPin className="h-4 w-4 text-blue-600" />
             {t('adminAddresses.createTitle')}
@@ -288,7 +291,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr]">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] flex-1 min-h-0 overflow-y-auto overscroll-contain">
           {/* ── Form ──────────────────────────────────────────── */}
           <div className="p-5 space-y-4 md:border-r">
             <div className="grid gap-1.5">
@@ -367,7 +370,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
           </div>
 
           {/* ── Map + search overlay ──────────────────────────── */}
-          <div className="relative h-105 md:h-auto md:min-h-120 bg-slate-100">
+          <div className="relative h-[45dvh] md:h-auto md:min-h-120 bg-slate-100">
             <Suspense fallback={MapFallback}>
               <LeafletMap
                 className="h-full w-full"

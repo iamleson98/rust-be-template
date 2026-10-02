@@ -112,7 +112,7 @@ function FilterChip({ label, icon, onRemove }: { label: string; icon?: React.Rea
       <span>{label}</span>
       <button
         onClick={onRemove}
-        className="ml-0.5 rounded-full hover:bg-blue-200 p-0.5 transition-colors"
+        className="-mr-1 ml-0.5 grid size-6 place-items-center rounded-full hover:bg-blue-200 transition-colors"
         aria-label={t('searchPage.removeFilterAria', { label })}
       >
         <X className="h-3 w-3" />

@@ -415,6 +415,12 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
               activeFilterCount={activeFilterCount}
               resetFilters={resetFilters}
               navigate={navigate}
+              // When no date is picked the search query is disabled — the
+              // list shows a "pick a date" prompt instead of the generic
+              // "no trips found" empty state.
+              awaitingDate={
+                !browseMode && (!routeSearch.date || String(routeSearch.date).trim() === '')
+              }
             />
           </div>
         </div>

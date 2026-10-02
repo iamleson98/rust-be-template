@@ -35,7 +35,7 @@ const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
 }
 
 export function NotificationBell() {
-  const { notifOpen, setNotifOpen, user } = useApp()
+  const { notifOpen, setNotifOpen, setChatOpen, user } = useApp()
   const navigate = useNavigate()
   const t = useT()
   const isLoggedIn = !!user
@@ -123,7 +123,7 @@ export function NotificationBell() {
       >
         <Bell className={unread > 0 ? 'h-4 w-4 text-amber-300' : 'h-4 w-4'} />
         {unread > 0 && (
-          <span className="absolute top-1 right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-rose-500 text-white text-[9px] font-bold ring-2 ring-white">
+          <span className="absolute top-1 right-1 min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-rose-500 text-white text-[10px] font-bold ring-2 ring-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -132,7 +132,7 @@ export function NotificationBell() {
       {notifOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setNotifOpen(false)} />
-          <div className="fixed right-2 sm:right-4 top-16 z-50 w-[calc(100vw-1rem)] sm:w-100 max-h-[80vh] bg-white rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">
+          <div className="fixed right-2 sm:right-4 top-16 z-50 w-[calc(100vw-1rem)] sm:w-100 max-h-[80dvh] bg-white rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50">
               <div className="flex items-center gap-2">
@@ -155,7 +155,7 @@ export function NotificationBell() {
                 )}
                 <button
                   onClick={() => setNotifOpen(false)}
-                  className="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-slate-200 text-muted-foreground"
+                  className="grid size-9 place-items-center rounded-md hover:bg-slate-200 text-muted-foreground"
                   aria-label={t('common.close')}
                 >
                   <X className="h-4 w-4" />
@@ -164,7 +164,7 @@ export function NotificationBell() {
             </div>
 
             {/* List */}
-            <ScrollArea className="flex-1 max-h-[60vh]">
+            <ScrollArea className="flex-1 max-h-[60dvh]">
               {isLoading ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
               ) : isError ? (
@@ -205,6 +205,33 @@ export function NotificationBell() {
                           if (link?.includes('my-bookings')) {
                             navigate({ to: '/account/trips' })
                             setNotifOpen(false)
+                            return
+                          }
+                          // Kind-based routing so every notification type has a
+                          // sensible destination (previously only the
+                          // my-bookings deep link ever navigated — chat replies,
+                          // promos, reminders and badges did nothing on click).
+                          switch (n.type) {
+                            case 'chat_reply':
+                              setChatOpen(true)
+                              setNotifOpen(false)
+                              break
+                            case 'booking_confirmed':
+                            case 'booking_cancelled':
+                            case 'trip_reminder':
+                              navigate({ to: '/account/trips' })
+                              setNotifOpen(false)
+                              break
+                            case 'price_drop':
+                              navigate({ to: '/search' })
+                              setNotifOpen(false)
+                              break
+                            case 'promo':
+                              navigate({ to: '/' })
+                              setNotifOpen(false)
+                              break
+                            default:
+                              break
                           }
                         }}
                         className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors ${isUnread ? 'bg-blue-50/40' : ''

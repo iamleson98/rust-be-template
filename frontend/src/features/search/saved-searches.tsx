@@ -76,10 +76,11 @@ export function SavedSearchesList({
             <span className="text-muted-foreground">• {s.date}</span>
             <button
               onClick={() => removeSavedSearch(s.id)}
-              className="text-muted-foreground hover:text-rose-600"
+              className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-rose-50 hover:text-rose-600"
               title={t('common.delete')}
+              aria-label={t('common.delete')}
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}

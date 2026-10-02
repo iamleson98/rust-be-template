@@ -89,7 +89,7 @@ export function ShareTripCard({
             {/* Departure + vehicle type */}
             <div className="grid grid-cols-2 gap-3 text-xs mb-3 pb-3 border-b border-dashed">
               <div>
-                <div className="text-muted-foreground uppercase tracking-wide text-[9px]">{t('booking.departure')}</div>
+                <div className="text-muted-foreground uppercase tracking-wide text-[10px]">{t('booking.departure')}</div>
                 <div className="font-semibold text-slate-900 flex items-center gap-1">
                   <Clock className="h-3 w-3 text-blue-600" />
                   {shareTripData.departureTime || (shareTripData.departureAt ? formatTimeVN(shareTripData.departureAt) : '')}
@@ -102,7 +102,7 @@ export function ShareTripCard({
                 )}
               </div>
               <div>
-                <div className="text-muted-foreground uppercase tracking-wide text-[9px]">{t('busLayouts.vehicleType')}</div>
+                <div className="text-muted-foreground uppercase tracking-wide text-[10px]">{t('busLayouts.vehicleType')}</div>
                 <div className="font-semibold text-slate-900 flex items-center gap-1">
                   <Armchair className="h-3 w-3 text-blue-600" />
                   {shareTripData.vehicleTypeLabel || t('trips.defaultVehicleType')}

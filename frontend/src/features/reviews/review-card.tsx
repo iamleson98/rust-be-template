@@ -19,7 +19,8 @@ export type Review = {
   rating: number
   title: string
   content: string
-  tags: string[]
+  /** Optional in the API contract (`tags?: string[]`) — always guard. */
+  tags?: string[]
   photos?: string[]
   authorName: string
   helpfulCount: number
@@ -92,9 +93,9 @@ export function ReviewCard({
               {r.content}
             </div>
           )}
-          {r.tags.length > 0 && (
+          {(r.tags?.length ?? 0) > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
-              {r.tags.map((tag) => {
+              {(r.tags ?? []).map((tag) => {
                 const tl = TAG_LABELS[tag]
                 return (
                   <Badge key={tag} variant="outline" className="text-[10px] gap-1 bg-slate-50 font-normal">

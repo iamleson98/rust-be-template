@@ -138,7 +138,7 @@ export function BusLayoutFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
-      <DialogContent className="max-w-lg max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-blue-600" />
@@ -345,7 +345,7 @@ function SeatGridPreview({ grid, labels }: { grid: GridState; labels: string[] }
           <div className="flex flex-col items-center gap-1">
             {Array.from({ length: grid.rows }).map((_, r) => (
               <div key={r} className="flex items-center gap-1">
-                <span className="w-4 text-right text-[9px] text-slate-400">{r + 1}</span>
+                <span className="w-4 text-right text-[10px] text-slate-400">{r + 1}</span>
                 {Array.from({ length: grid.cols }).map((_, c) => {
                   const label = labels[idx++] ?? ''
                   return (
@@ -353,7 +353,7 @@ function SeatGridPreview({ grid, labels }: { grid: GridState; labels: string[] }
                       {/* Aisle gap after column 2 on 4+ wide grids */}
                       {grid.cols >= 4 && c === 2 && <span className="w-3" aria-hidden />}
                       <span
-                        className="flex h-6 w-9 items-center justify-center rounded border border-slate-300 bg-white text-[9px] font-bold text-slate-600"
+                        className="flex h-6 w-9 items-center justify-center rounded border border-slate-300 bg-white text-[10px] font-bold text-slate-600"
                         title={label}
                       >
                         {label}

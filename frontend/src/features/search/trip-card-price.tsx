@@ -63,7 +63,7 @@ export function TripCardPrice({
         <Button
           onClick={onSelect}
           size="sm"
-          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 transition-all w-full md:w-auto h-9 shadow-sm shadow-primary/20"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 transition-all w-full md:w-auto h-9"
         >
           <span className="flex items-center gap-1">
             {t('searchPage.selectTrip')}

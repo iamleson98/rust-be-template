@@ -133,7 +133,7 @@ function StatCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'group flex items-center gap-3 rounded-xl border bg-white p-4 text-left transition-all hover:shadow-md dark:bg-card',
+        'group flex items-center gap-3 rounded-xl border bg-white p-4 text-left transition-all dark:bg-card',
         onClick && 'cursor-pointer hover:border-blue-300',
       )}
     >
@@ -260,7 +260,7 @@ function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loa
                   <button
                     type="button"
                     onClick={() => navigate({ to: '/bookings/$code', params: { code: b.code } })}
-                    className="group flex w-full items-center gap-3 rounded-xl border bg-slate-50/60 p-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-sm"
+                    className="group flex w-full items-center gap-3 rounded-xl border bg-slate-50/60 p-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40"
                   >
                     <div
                       className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
@@ -445,7 +445,9 @@ function RecentPurchasesCard({ bookings, loading }: { bookings: BookingItem[]; l
                   <div className="shrink-0 text-right">
                     <div className="text-sm font-semibold tabular-nums">{formatVND(b.total)}</div>
                     <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                      {b.status}
+                      {/* Localized status — the raw enum ("held"/"pending")
+                          leaked English internals before. */}
+                      {t((STATUS_CONFIG[b.status] ?? STATUS_CONFIG.confirmed).labelKey)}
                     </div>
                   </div>
                 </li>

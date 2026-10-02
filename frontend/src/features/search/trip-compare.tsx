@@ -6,6 +6,9 @@ import { useT, translate } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { tripDetail } from '@/lib/api'
+import type { TripDetail as TripDetailOut } from '@/lib/api/types.gen'
+import { cn } from '@/lib/utils'
 import {
     X,
     GitCompare,
@@ -19,6 +22,42 @@ import {
     Loader2,
 } from 'lucide-react'
 import { formatVND, VEHICLE_TYPE_LABELS, formatTimeVN } from '@/lib/types'
+
+/** Map a `GET /api/trips/{id}` detail response onto the search-result
+ *  row shape the compare table renders. */
+function detailToResult(d: TripDetailOut): TripResult {
+    return {
+        tripId: d.trip.id,
+        amenities: (d.amenities ?? []).map((a) => a.label),
+        arrivalAt: d.trip.arrivalAt ?? undefined,
+        availableSeats: d.trip.availableSeats,
+        brandAccent: d.brand.accentColor ?? '#2563eb',
+        brandId: d.brand.id ?? undefined,
+        brandName: d.brand.name ?? '',
+        brandRating: d.brand.rating,
+        brandSlug: d.brand.slug ?? '',
+        busLayoutId: d.busLayout.id,
+        capacity: d.busLayout.capacity ?? undefined,
+        departureAt: d.trip.departureAt ?? undefined,
+        departureDate: d.trip.departureDate,
+        departureTime: d.trip.departureTime ?? undefined,
+        fromLat: d.from.lat,
+        fromLon: d.from.lon,
+        fromName: d.from.name,
+        maxPrice: d.pricing.basePriceAdult,
+        minPrice: d.pricing.basePriceAdult,
+        priceAdult: d.pricing.basePriceAdult,
+        priceChild: d.pricing.basePriceChild,
+        routeId: d.route.id,
+        routeName: d.route.name,
+        scheduleId: d.trip.id,
+        toLat: d.to.lat,
+        toLon: d.to.lon,
+        toName: d.to.name,
+        totalSeats: d.trip.totalSeats,
+        vehicleType: d.busLayout.vehicleType ?? 'standard',
+    } as unknown as TripResult
+}
 
 type CompareRow = {
     labelKey: string
@@ -96,7 +135,7 @@ const COMPARE_ROWS: CompareRow[] = [
         render: (t) => (
             <div className="flex flex-wrap gap-1 justify-center">
                 {t.amenities.slice(0, 4).map((a) => (
-                    <Badge key={a} variant="outline" className="text-[9px] font-normal px-1 py-0">
+                    <Badge key={a} variant="outline" className="text-[10px] font-normal px-1 py-0">
                         {a}
                     </Badge>
                 ))}
@@ -105,24 +144,41 @@ const COMPARE_ROWS: CompareRow[] = [
     },
 ]
 
-export const TripCompare = memo(function TripCompare() {
+export const TripCompare = memo(function TripCompare({ inline = false }: { inline?: boolean }) {
     const { compareList, compareOpen, setCompareOpen, toggleCompare, clearCompare } = useApp()
     const navigate = useNavigate()
     const t = useT()
     const [trips, setTrips] = useState<TripResult[]>([])
     const [loading, setLoading] = useState(false)
 
+    // `inline` = the standalone `/compare` page. The overlay mode is gated
+    // by `compareOpen`; the page mode is always open (it previously
+    // rendered a permanently blank screen after a reload / deep link).
+    const open = inline || compareOpen
+
     useEffect(() => {
         let cancelled = false
         if (compareList.length === 0) {
+            setTrips([])
             return
         }
+        setLoading(true)
         Promise.all(
             compareList.map(async (tripId) => {
-                // Use search results first if available; otherwise fetch detail
+                // Search results (still on the same session) are preferred —
+                // they are already in memory; otherwise fetch the trip
+                // detail so a reload / deep link still produces a full table
+                // (previously the table rendered zero columns).
                 const cached = window.__lastSearchResults as TripResult[] | undefined
                 const fromCache = cached?.find((tr) => tr.tripId === tripId)
-                return fromCache
+                if (fromCache) return fromCache
+                try {
+                    const res = await tripDetail({ path: { id: tripId } })
+                    if (res.data) return detailToResult(res.data as unknown as TripDetailOut)
+                } catch {
+                    /* failed fetch → filtered out below */
+                }
+                return null
             })
         )
             .then((rows) => {
@@ -158,14 +214,21 @@ export const TripCompare = memo(function TripCompare() {
 
     return (
         <>
-            {compareOpen && (
+            {open && (
                 <>
+                    {!inline && (
+                        <div
+                            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+                            onClick={() => setCompareOpen(false)}
+                        />
+                    )}
                     <div
-                        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-                        onClick={() => setCompareOpen(false)}
-                    />
-                    <div
-                        className="fixed inset-0 sm:inset-x-4 sm:top-8 sm:bottom-8 sm:m-auto z-50 sm:max-w-5xl bg-background sm:rounded-2xl ring-1 ring-black/10 dark:ring-white/10 shadow-2xl flex flex-col overflow-hidden"
+                        className={cn(
+                            'bg-background flex flex-col overflow-hidden ring-1 ring-black/10 dark:ring-white/10',
+                            inline
+                                ? 'relative w-full max-w-5xl mx-auto rounded-2xl max-h-[85dvh]'
+                                : 'fixed inset-0 z-50 sm:inset-x-4 sm:top-8 sm:bottom-8 sm:m-auto sm:max-w-5xl sm:rounded-2xl',
+                        )}
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b bg-linear-to-r from-violet-600 to-fuchsia-600 text-white">

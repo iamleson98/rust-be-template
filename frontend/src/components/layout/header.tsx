@@ -111,7 +111,7 @@ export const Header = memo(function Header() {
             >
               <span aria-hidden>⚖️</span>
               <span className="hidden sm:inline">{t('nav.compare')}</span>
-              <span className="min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[9px] font-bold">
+              <span className="min-w-4 h-4 px-1 inline-flex items-center justify-center rounded-full bg-violet-500 text-white text-[10px] font-bold">
                 {compareList.length}
               </span>
             </button>

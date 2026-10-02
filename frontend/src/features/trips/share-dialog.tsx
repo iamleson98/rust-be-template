@@ -135,8 +135,10 @@ export function ShareDialog() {
 
   return (
     <Dialog open={shareOpen} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-md w-[95vw] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="px-5 py-4 border-b bg-linear-to-r from-blue-50 to-blue-50">
+      {/* flex + internal scroll — previously `overflow-hidden` with no
+          max-height clipped the email form + rate note on phones. */}
+      <DialogContent className="max-w-md w-[95vw] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-5 py-4 pr-12 border-b bg-linear-to-r from-blue-50 to-blue-50 shrink-0">
           <DialogTitle className="text-base font-extrabold flex items-center gap-2">
             <Share2 className="h-4 w-4 text-blue-600" />
             {t('trips.shareTrip')}
@@ -147,7 +149,7 @@ export function ShareDialog() {
         </DialogHeader>
 
         {shareTripData && shareInfo && (
-          <div className="p-5 space-y-4">
+          <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
             {/* Trip Card Preview */}
             <ShareTripCard shareTripData={shareTripData} shareInfo={shareInfo} currency={currency} />
 

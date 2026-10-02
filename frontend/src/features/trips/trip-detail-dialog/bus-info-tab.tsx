@@ -203,7 +203,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                     {layoutCols >= 3 && <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />}
                   </div>
                   {/* Aisle */}
-                  <div className="w-3 text-center text-[8px] text-slate-300">·</div>
+                  <div className="w-3 text-center text-[10px] text-slate-300">·</div>
                   <div className="flex gap-1.5">
                     {/* Right side seats */}
                     {layoutCols >= 3 && <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />}

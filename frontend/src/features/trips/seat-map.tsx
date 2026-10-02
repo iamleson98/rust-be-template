@@ -229,7 +229,7 @@ function SeatButton({
           right on the map instead of a hover-only tooltip. */}
       {priceDiff > 0 && !selected && (
         <span
-          className="absolute -top-2 -left-2 rounded-full bg-amber-500 text-white text-[8px] font-bold px-1 py-px leading-none ring-1 ring-white shadow-sm"
+          className="absolute -top-2 -left-2 rounded-full bg-amber-500 text-white text-[10px] font-bold px-1 py-px leading-none ring-1 ring-white"
           aria-hidden
         >
           {formatPriceDiff(priceDiff)}

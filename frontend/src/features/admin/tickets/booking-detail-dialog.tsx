@@ -82,7 +82,7 @@ export function BookingDetailDialog({
 
   return (
     <Dialog open={!!bookingId} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TicketIcon className="h-5 w-5 text-blue-600" />
@@ -192,7 +192,7 @@ export function BookingDetailDialog({
                 {booking.contactName && (
                   <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground bg-blue-50/50 rounded-md px-2 py-1.5">
                     <Avatar className="h-5 w-5">
-                      <AvatarFallback className="text-[9px] bg-blue-100 text-blue-700">
+                      <AvatarFallback className="text-[10px] bg-blue-100 text-blue-700">
                         {booking.contactName?.[0] ?? 'U'}
                       </AvatarFallback>
                     </Avatar>
@@ -237,7 +237,7 @@ export function BookingDetailDialog({
                         </Badge>
                         <span className="font-medium">{s.passengerName ?? '—'}</span>
                         {s.passengerType && (
-                          <Badge variant="secondary" className="text-[9px]">
+                          <Badge variant="secondary" className="text-[10px]">
                             {s.passengerType === 'adult' ? t('booking.passengerType.adult') : s.passengerType === 'child' ? t('booking.passengerType.child') : s.passengerType}
                           </Badge>
                         )}

@@ -12,7 +12,6 @@ import { Search } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
 import { searchSchema, type SearchFormValues } from './search-widget-schema'
-import { SearchTripTypeToggle } from './search-trip-type-toggle'
 import { SearchRouteFields } from './search-route-fields'
 import { SearchDateFields } from './search-date-fields'
 import { SearchPassengerPicker } from './search-passenger-picker'
@@ -127,12 +126,6 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 remain fully available in the results-page filter sidebar /
                 mobile filter sheet, so no functionality is lost. ── */
             <>
-              <SearchTripTypeToggle
-                compact
-                form={form}
-                searchParams={searchParams}
-                setSearchParams={setSearchParams}
-              />
               <div
                 className={cn(
                   'grid grid-cols-1 gap-2 md:gap-2.5 md:items-end',
@@ -162,7 +155,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="h-10 w-full lg:w-auto lg:min-w-36 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-5 gap-2 font-semibold shadow-sm shadow-primary/25"
+                  className="h-10 w-full lg:w-auto lg:min-w-36 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-5 gap-2 font-semibold"
                 >
                   <Search className="h-4 w-4" />
                   <span>{submitting ? t('home.searching') : t('search.btn')}</span>
@@ -172,11 +165,6 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
           ) : (
             /* ── Full widget (home page) ── */
             <>
-              <SearchTripTypeToggle
-                form={form}
-                searchParams={searchParams}
-                setSearchParams={setSearchParams}
-              />
 
               <div
                 className={cn(

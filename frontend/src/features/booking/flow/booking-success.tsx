@@ -7,7 +7,7 @@
  *   - The "Đặt vé thành công!" hero with the booking code + copy button
  *   - A boarding-pass ticket stub (the REAL scannable QR lives on the
  *     booking-detail page — a random-noise "QR" here was misleading)
- *   - The booking summary (route, departure, seats, brand, insurance)
+ *   - The booking summary (route, departure, seats, brand)
  *   - Two CTAs: "Đặt vé khác" (closes the dialog) + "Xem vé của tôi"
  *     (navigates to the booking detail page)
  */
@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import {
   CheckCircle2,
   Copy,
-  ShieldCheck,
   Ticket,
 } from 'lucide-react'
 import { formatDateTimeVN } from '@/lib/types'
@@ -26,7 +25,6 @@ import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import type { TripDetail, SelectedSeat } from './booking-form'
-import { INSURANCE_LABEL_MAP, type InsuranceLevel } from './price-summary'
 
 export type LastBooking = {
   code: string
@@ -38,16 +36,12 @@ export function BookingSuccess({
   lastBooking,
   selectedSeats,
   currency,
-  insuranceLevel,
-  insuranceCost,
   onClose,
 }: {
   trip: TripDetail | null | undefined
   lastBooking: LastBooking
   selectedSeats: SelectedSeat[]
   currency: Currency
-  insuranceLevel: InsuranceLevel
-  insuranceCost: number
   onClose: () => void
 }) {
   const t = useT()
@@ -103,11 +97,17 @@ export function BookingSuccess({
           <code className="font-mono font-bold text-lg text-primary">{lastBooking.code}</code>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(lastBooking.code)
+              // Clipboard API is undefined on non-secure contexts
+              // (http:// LAN deploys) — guard instead of crashing.
+              try {
+                navigator.clipboard?.writeText(lastBooking.code)
+              } catch {
+                /* non-fatal — the code is visible right above */
+              }
               setCopied(true)
               setTimeout(() => setCopied(false), 1500)
             }}
-            className="ml-1 p-1 rounded hover:bg-white"
+            className="ml-1 grid size-8 place-items-center rounded hover:bg-white"
             aria-label={t('bookingFlow.copyTicketCode')}
           >
             {copied ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
@@ -119,7 +119,7 @@ export function BookingSuccess({
           real scannable QR is one tap away (booking-detail page, via the
           CTA below), so we deliberately do NOT fake one here. */}
       <div className="flex justify-center my-4">
-        <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-linear-to-br from-slate-50 to-white shadow-sm relative overflow-hidden">
+        <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-linear-to-br from-slate-50 to-white relative overflow-hidden">
           {/* Ticket perforation — dashed cut line with side notches */}
           <div className="absolute left-[68%] top-0 bottom-0 border-l-2 border-dashed border-slate-200" aria-hidden />
           <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200" aria-hidden />
@@ -176,17 +176,6 @@ export function BookingSuccess({
             <span className="text-muted-foreground">{t('bookingFlow.brandLabel')}</span>
             <span className="font-medium">{trip.brand.name}</span>
           </div>
-          {insuranceLevel !== 'none' && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-                {t('bookingFlow.insuranceLabel')}
-              </span>
-              <span className="font-medium text-primary">
-                {t(INSURANCE_LABEL_MAP[insuranceLevel])} ({formatCurrency(insuranceCost, currency)})
-              </span>
-            </div>
-          )}
           <div className="flex justify-between border-t pt-2 font-bold text-base">
             <span>{t('bookingFlow.totalDue')}</span>
             <span className="text-primary">{formatCurrency(lastBooking.total, currency)}</span>
@@ -199,7 +188,7 @@ export function BookingSuccess({
           {t('bookingFlow.bookAnother')}
         </Button>
         <Button
-          className="flex-1 gap-1 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25"
+          className="flex-1 gap-1 bg-primary hover:bg-primary/90"
           onClick={() => {
             const code = lastBooking?.code
             onClose()

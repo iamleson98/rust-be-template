@@ -45,7 +45,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { stopTitleNotification } from '@/lib/title-notifier'
@@ -82,7 +81,6 @@ import { getErrorMessage } from '@/lib/error-message'
 export function ChatWidget() {
   const { chatOpen, setChatOpen, callOpen, setCallOpen, user: storeUser, setUser: setStoreUser } = useApp()
   const t = useT()
-  const navigate = useNavigate()
   const qc = useQueryClient()
 
   // The chat session user. Initialised from storeUser so the first
@@ -149,7 +147,10 @@ export function ChatWidget() {
       setChatUser(null)
       setCallOpen(false)
       setChatOpen(false)
-      navigate({ to: '/login' })
+      // A transient network failure used to hard-redirect to /login —
+      // jarring and wrong when the session is fine. A toast + manual
+      // retry is enough; the router guards still catch real logouts.
+      toast.error(t('chat.authCheckFailed'))
       return
     }
     if (authMe.data?.user) {
@@ -157,7 +158,7 @@ export function ChatWidget() {
       setChatUser(u)
       if (!storeUser) setStoreUser(u as unknown as Parameters<typeof setStoreUser>[0])
     }
-  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, setCallOpen, navigate])
+  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, setCallOpen, t])
 
   // Hide the chat button entirely for employees (they have the admin workspace)
   const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)

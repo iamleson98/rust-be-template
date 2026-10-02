@@ -52,7 +52,7 @@ export function MobileFiltersSheet({
           <Filter className="h-3.5 w-3.5" />
           {t('searchPage.filter')}
           {activeFilterCount > 0 && (
-            <Badge className="bg-blue-600 text-white text-[9px] h-4 min-w-4 px-1 flex items-center justify-center absolute -top-1 -right-1">
+            <Badge className="bg-blue-600 text-white text-[10px] h-4 min-w-4 px-1 flex items-center justify-center absolute -top-1 -right-1">
               {activeFilterCount}
             </Badge>
           )}
@@ -95,6 +95,8 @@ export function MobileFiltersSheet({
               {[
                 { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
                 { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
+                { key: 'semi_sleeper', labelKey: 'searchPage.vehicleSemiSleeper', emoji: '🛌' },
+                { key: 'minivan', labelKey: 'searchPage.vehicleMinivan', emoji: '🚐' },
                 { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
               ].map((v) => {
                 const active = (routeSearch.vehicleTypes ?? []).includes(v.key)

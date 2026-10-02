@@ -69,7 +69,10 @@ const cancelMutation = useCancelBooking({
       if (d?.success) {
         setRefundPercent(d.refundPercent ?? 0)
         setRefundAmount(d.refundAmount ?? 0)
-        setRefCode(d.refCode || `HX-${Date.now().toString(36).toUpperCase()}`)
+        // Only show a refund reference when the SERVER provides one —
+        // fabricating `HX-{timestamp}` client-side presented an invented
+        // code as authoritative.
+        setRefCode(d.refCode ?? '')
         setStep(3)
         toast.success(t('cancel.successTitle'))
       } else {

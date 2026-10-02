@@ -104,7 +104,7 @@ export function UsersPanel() {
                   <div className="flex items-center gap-1.5 font-medium truncate">
                     <span className="truncate">{u.fullName}</span>
                     {u.isBot && (
-                      <Badge className="text-[9px] px-1 py-0 border-violet-200 bg-violet-50 text-violet-700">
+                      <Badge className="text-[10px] px-1 py-0 border-violet-200 bg-violet-50 text-violet-700">
                         BOT
                       </Badge>
                     )}

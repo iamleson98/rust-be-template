@@ -62,7 +62,7 @@ export function StaffPresenceStrip({
                   }`}
               />
               {st.name}
-              {st.role === 'admin' && <span className="text-[8px] uppercase">admin</span>}
+              {st.role === 'admin' && <span className="text-[10px] uppercase">admin</span>}
             </span>
           ))}
           {(staffPresence.offline ?? []).map((st) => (

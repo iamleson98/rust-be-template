@@ -33,22 +33,22 @@ import { ReviewsList } from '@/features/reviews/reviews-list'
 import { TripDetailSkeleton } from './trip-detail-skeleton'
 import { LiveTracking } from '@/features/map/live-tracking'
 import { formatCurrency } from '@/lib/currency'
+import { ErrorState } from '@/components/layout/error-state'
 import {
   Bus,
   MapPin,
   Radar,
-  Cloud,
   Compass,
   CheckCircle2,
   MessageSquareQuote,
   Users,
+  ArrowLeftRight,
 } from 'lucide-react'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { TripInfo } from './trip-info'
-import { BoardingPoints } from './boarding-points'
+import { BoardingPoints, BoardingPointsInline } from './boarding-points'
 import { PriceSummary } from './price-summary'
 import { BusInfoTab } from './bus-info-tab'
-import { WeatherTab } from './weather-tab'
 import { TravelTipsTab } from './travel-tips-tab'
 import { RouteTimeline } from './route-timeline'
 import { PolicyBlock } from './policy-block'
@@ -70,7 +70,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   // `@/lib/queries/types` is out of sync with the actual backend response
   // (it lacks `seatMap.decks`, `route.geometry`, `pricing.basePriceAdult`,
   // `discountPrograms`, etc.). The local type matches the backend exactly.
-  const { data: rawDetail, isLoading: loading } = useTripDetail(tripId)
+  const { data: rawDetail, isLoading: loading, isError, refetch } = useTripDetail(tripId)
   const detail = rawDetail as unknown as TripDetail | undefined
 
   // When detail data arrives (or changes), reset seat selection + default
@@ -118,15 +118,30 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-7xl w-[97vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-7xl w-[97vw] max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
         {loading || !detail ? (
-          <>
-            <DialogTitle className="sr-only">{t('tripDetail.loadingTitle')}</DialogTitle>
-            <DialogDescription className="sr-only">
-              {t('tripDetail.loadingDesc')}
-            </DialogDescription>
-            <TripDetailSkeleton />
-          </>
+          isError ? (
+            // Error branch — previously a 404/network failure left the
+            // skeleton spinning forever (e.g. stale "recently viewed"
+            // entries or old share links).
+            <>
+              <DialogTitle className="sr-only">{t('tripDetail.errorTitle')}</DialogTitle>
+              <div className="flex min-h-60 flex-1 items-center justify-center p-6">
+                <ErrorState
+                  description={t('tripDetail.errorDesc')}
+                  onRetry={() => refetch()}
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <DialogTitle className="sr-only">{t('tripDetail.loadingTitle')}</DialogTitle>
+              <DialogDescription className="sr-only">
+                {t('tripDetail.loadingDesc')}
+              </DialogDescription>
+              <TripDetailSkeleton />
+            </>
+          )
         ) : (
           <>
             <TripInfo
@@ -153,10 +168,18 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
               {/* Left: seat map / route / info tabs */}
               <div className="overflow-hidden md:border-r flex flex-col min-h-0">
                 <Tabs defaultValue="seats" className="flex-1 flex flex-col min-h-0">
-                  <ScrollArea className="shrink-0">
+                  {/* Horizontal-scrollable tab strip (9 tabs on mobile) —
+                      plain overflow-x beats a ScrollArea here. */}
+                  <div className="shrink-0 overflow-x-auto overscroll-x-contain">
                     <TabsList className="rounded-none border-b bg-slate-50 justify-start px-3 h-auto py-2 w-max">
                       <TabsTrigger value="seats" className="gap-1.5">
                         <Bus className="h-4 w-4" /> {t('booking.seatSelector')}
+                      </TabsTrigger>
+                      {/* Mobile-only tab — pickup/drop-off selection used to be
+                          desktop-only (hidden md:flex right rail), so phone
+                          users could never change boarding points. */}
+                      <TabsTrigger value="points" className="gap-1.5 md:hidden">
+                        <ArrowLeftRight className="h-4 w-4" /> {t('tripDetail.tabPoints')}
                       </TabsTrigger>
                       <TabsTrigger value="route" className="gap-1.5">
                         <MapPin className="h-4 w-4" /> {t('tripDetail.tabRoute')}
@@ -166,9 +189,6 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                       </TabsTrigger>
                       <TabsTrigger value="businfo" className="gap-1.5">
                         <Bus className="h-4 w-4" /> {t('tripDetail.tabBusInfo')}
-                      </TabsTrigger>
-                      <TabsTrigger value="weather" className="gap-1.5">
-                        <Cloud className="h-4 w-4" /> {t('tripDetail.tabWeather')}
                       </TabsTrigger>
                       <TabsTrigger value="tips" className="gap-1.5">
                         <Compass className="h-4 w-4" /> {t('tripDetail.tabTips')}
@@ -180,9 +200,12 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         <MessageSquareQuote className="h-4 w-4" /> {t('tripDetail.tabReviews')}
                       </TabsTrigger>
                     </TabsList>
-                  </ScrollArea>
+                  </div>
 
-                  <ScrollArea className="flex-1 max-h-[55vh] lg:max-h-[calc(92vh-280px)]">
+                  {/* The tab body fills the remaining dialog height and scrolls —
+                      flex chain instead of magic max-h arithmetic; dvh tracks the
+                      iOS dynamic toolbar. */}
+                  <ScrollArea className="flex-1 min-h-0">
                     <TabsContent value="seats" className="m-0 p-4">
                       <div className="mb-3 flex items-center justify-between text-sm">
                         <div className="font-semibold">
@@ -201,6 +224,18 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         selectedSeatIds={selectedSeats}
                         onToggleSeat={toggleSeat}
                         maxSeats={maxSeats}
+                      />
+                    </TabsContent>
+
+                    {/* Mobile-only boarding/dropping tab (mirrors the md+
+                        right rail — see comment on the tab trigger). */}
+                    <TabsContent value="points" className="m-0 p-4 md:hidden">
+                      <BoardingPointsInline
+                        detail={detail}
+                        boardingPoint={boardingPoint}
+                        droppingPoint={droppingPoint}
+                        onSetBoardingPoint={setBoardingPoint}
+                        onSetDroppingPoint={setDroppingPoint}
                       />
                     </TabsContent>
 
@@ -230,9 +265,9 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                       <BusInfoTab detail={detail} />
                     </TabsContent>
 
-                    <TabsContent value="weather" className="m-0 p-4">
-                      <WeatherTab destination={detail.to.name} arrivalDate={detail.trip.arrivalAt ?? detail.trip.departureAt} />
-                    </TabsContent>
+                    {/* The mock weather tab was removed — it fabricated a
+                        deterministic "forecast" from a string hash and
+                        presented it as real advice. */}
 
                     <TabsContent value="tips" className="m-0 p-4">
                       <TravelTipsTab destination={detail.to.name} />

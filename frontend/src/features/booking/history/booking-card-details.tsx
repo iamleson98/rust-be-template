@@ -235,6 +235,7 @@ export function BookingCardDetails({
             </div>
 
             <BookingCardActions
+              bookingCode={b.code}
               canCancel={canCancel}
               cancelling={cancelling}
               onCancelClick={onCancelClick}

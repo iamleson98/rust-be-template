@@ -39,8 +39,10 @@ export function TripInfo({
   onShare: () => void
 }) {
   const t = useT()
+  // pr-16 on the root reserves the top-right corner for the dialog's close
+  // (X) button — previously the X overlapped the Share button's hit area.
   return (
-    <div className="px-5 py-4 border-b bg-linear-to-r from-slate-50 to-white shrink-0">
+    <div className="px-5 py-4 pr-16 border-b bg-linear-to-r from-slate-50 to-white shrink-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1.5">

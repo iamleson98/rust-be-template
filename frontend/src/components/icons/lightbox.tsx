@@ -94,13 +94,13 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
 
 
 
-            className="max-w-[92vw] max-h-[82vh]"
+            className="max-w-[92vw] max-h-[82dvh]"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={images[idx]}
               alt={t('lightbox.imageAlt', { index: idx + 1 })}
-              className="max-w-[92vw] max-h-[82vh] object-contain rounded-lg"
+              className="max-w-[92vw] max-h-[82dvh] object-contain rounded-lg"
               loading="eager"
               decoding="async"
             />
