@@ -53,11 +53,13 @@ exactly).
    every time `cargo test` runs. The gate diffs the working tree
    afterwards — if the committed file differs, the backend API changed
    without regenerating the contract. Fix:
+
    ```sh
    cargo test --lib dump_openapi_spec_for_the_frontend_sdk
    cd frontend && bun run openapi     # regenerate the TS SDK
    git add ../frontend/openapi.json src/lib/api && git commit
    ```
+
 2. **OpenAPI SDK freshness** (frontend job): regenerates `src/lib/api`
    from the committed `openapi.json` and diffs — catches "spec was
    regenerated but the SDK wasn't". Fix: `cd frontend && bun run openapi`.

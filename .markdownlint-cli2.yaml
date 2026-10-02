@@ -13,11 +13,14 @@ globs:
   - "**/*.md"
   # The engine is a submodule — its docs are upstream's business.
   - "!rust-sql/**"
-  # Tooling noise.
+  # Tooling noise + build outputs (target/doc ships rustdoc's vendored
+  # upstream license .md files).
+  - "!target/**"
   - "!frontend/node_modules/**"
   - "!frontend/e2e-report/**"
   - "!frontend/playwright-report/**"
   - "!frontend/test-results/**"
+  - "!frontend/dist/**"
 
 config:
   default: true
