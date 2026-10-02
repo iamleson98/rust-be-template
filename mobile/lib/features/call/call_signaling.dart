@@ -43,8 +43,9 @@ class CallSignalingService {
       if (msg['type'] == 'registered') {
         final servers = parseIceServers(msg['iceServers']);
         if (servers.isNotEmpty) iceServers = servers;
-        if (msg['onlineAgents'] is int)
+        if (msg['onlineAgents'] is int) {
           onlineAgents = msg['onlineAgents'] as int;
+        }
       }
       return msg;
     }).asBroadcastStream();
