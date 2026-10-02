@@ -2349,6 +2349,76 @@
         }
       }
     },
+    "/api/admin/system/database": {
+      "get": {
+        "tags": [
+          "crate::routes::system"
+        ],
+        "summary": "`GET /api/admin/system/database` — file sizes, pager pragmas, dbstat\ntop-25, and (with `?probe=1`) the ground-truth compacted size.",
+        "operationId": "database_size",
+        "parameters": [
+          {
+            "name": "probe",
+            "in": "query",
+            "description": "1 = run a VACUUM INTO compaction probe (extra IO; skip under heavy write load)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Database size report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatabaseSizeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/admin/system/database/vacuum": {
+      "post": {
+        "tags": [
+          "crate::routes::system"
+        ],
+        "summary": "`POST /api/admin/system/database/vacuum` — guarded in-place\ncompaction. Rebuilds the file (drops freelist + fragmentation\nslack); expect IO ≈ one full-DB read + write for the duration.\nRuns on the shared single-writer engine: concurrent writers queue on\nthe engine's own write lock — run it in a quiet window.",
+        "operationId": "database_vacuum",
+        "responses": {
+          "200": {
+            "description": "VACUUM completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VacuumResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "VACUUM failed (reported in body)"
+          }
+        }
+      }
+    },
     "/api/admin/system/memory": {
       "get": {
         "tags": [
@@ -8772,6 +8842,53 @@
           }
         }
       },
+      "DatabaseSizeResponse": {
+        "type": "object",
+        "description": "Full `GET /api/admin/system/database` report.",
+        "required": [
+          "engine",
+          "urlMasked",
+          "files",
+          "pragmas"
+        ],
+        "properties": {
+          "engine": {
+            "type": "string",
+            "description": "Engine identity (rust-sql build)."
+          },
+          "files": {
+            "$ref": "#/components/schemas/DbFilesOut"
+          },
+          "pragmas": {
+            "$ref": "#/components/schemas/DbPragmasOut"
+          },
+          "probe": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DbProbeOut",
+                "description": "Present only with `?probe=1`."
+              }
+            ]
+          },
+          "topTables": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/DbTableSizeOut"
+            },
+            "description": "Top-25 largest objects (tables + indexes) from `dbstat`; `None`\nwhen the engine build lacks the dbstat virtual table."
+          },
+          "urlMasked": {
+            "type": "string",
+            "description": "Masked DATABASE_URL (password-free display form)."
+          }
+        }
+      },
       "DatabaseStats": {
         "type": "object",
         "required": [
@@ -8823,6 +8940,141 @@
           "urlMasked": {
             "type": "string",
             "description": "Masked DB URL (password hidden)."
+          }
+        }
+      },
+      "DbFilesOut": {
+        "type": "object",
+        "description": "File-size block of the report.",
+        "required": [
+          "dbPath",
+          "dbBytes",
+          "walBytes",
+          "shmBytes"
+        ],
+        "properties": {
+          "dbBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Main DB file size in bytes.",
+            "minimum": 0
+          },
+          "dbPath": {
+            "type": "string",
+            "description": "Resolved on-disk path of the main database file (from DATABASE_URL)."
+          },
+          "shmBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Shared-memory index size in bytes (present while WAL is active).",
+            "minimum": 0
+          },
+          "walBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Write-ahead log size in bytes (WAL mode; checkpoints bound it).",
+            "minimum": 0
+          }
+        }
+      },
+      "DbPragmasOut": {
+        "type": "object",
+        "description": "Pager-level pragmas that size/fragmentation questions need.",
+        "required": [
+          "pageSize",
+          "pageCount",
+          "freelistPages",
+          "journalMode",
+          "cacheKib"
+        ],
+        "properties": {
+          "cacheKib": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Configured engine-wide page-cache budget in KiB\n(DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per\nfile across the pool, so this is a single budget, not per-conn)."
+          },
+          "freelistPages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pages on the freelist — reusable by future writes, but still\noccupying file space until a VACUUM."
+          },
+          "journalMode": {
+            "type": "string",
+            "description": "`journal_mode` (expect `wal`)."
+          },
+          "pageCount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total pages currently in the file (`page_size * page_count` ≈\nthe on-disk size, modulo preallocation)."
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Page size in bytes (fixed at file creation)."
+          }
+        }
+      },
+      "DbProbeOut": {
+        "type": "object",
+        "description": "`?probe=1` result: the ground-truth compacted size.",
+        "required": [
+          "compactedBytes",
+          "liveRatio",
+          "reclaimable",
+          "probeSeconds"
+        ],
+        "properties": {
+          "compactedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the `VACUUM INTO` copy — the same live data, fully\ncompacted, on the SAME engine. This is the number to compare\n`dbBytes` against.",
+            "minimum": 0
+          },
+          "liveRatio": {
+            "type": "number",
+            "format": "double",
+            "description": "`compacted_bytes / db_bytes` — how much of the current file is\nlive, compacted data."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Non-fatal probe errors (dbstat unavailable, wal missing, …)."
+          },
+          "probeSeconds": {
+            "type": "number",
+            "format": "double",
+            "description": "Wall time of the probe (the VACUUM INTO write)."
+          },
+          "reclaimable": {
+            "type": "boolean",
+            "description": "`true` when live_ratio < 0.9 (≥ 10% of the file is freelist /\nfragmentation / slack) — a VACUUM would meaningfully shrink it."
+          }
+        }
+      },
+      "DbTableSizeOut": {
+        "type": "object",
+        "description": "One table's footprint from the `dbstat` virtual table.",
+        "required": [
+          "name",
+          "pages",
+          "bytes"
+        ],
+        "properties": {
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes used by this object."
+          },
+          "name": {
+            "type": "string",
+            "description": "Table (or index) name."
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Pages used by this object."
           }
         }
       },
@@ -13000,6 +13252,41 @@
           "status": {
             "type": "string",
             "description": "Account status (`active` / `blocked`)."
+          }
+        }
+      },
+      "VacuumResponse": {
+        "type": "object",
+        "description": "`POST /api/admin/system/database/vacuum` result.",
+        "required": [
+          "beforeBytes",
+          "afterBytes",
+          "reclaimedBytes",
+          "seconds"
+        ],
+        "properties": {
+          "afterBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size after the VACUUM + a WAL checkpoint (db + wal).",
+            "minimum": 0
+          },
+          "beforeBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size before the VACUUM (db + wal).",
+            "minimum": 0
+          },
+          "reclaimedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "`before - after` (can legitimately be small: WAL + freelist were\nalready bounded).",
+            "minimum": 0
+          },
+          "seconds": {
+            "type": "number",
+            "format": "double",
+            "description": "Wall time of the VACUUM (s) — expect roughly one full-DB\nread + write; plan the maintenance window around it."
           }
         }
       },

@@ -519,6 +519,15 @@ pub struct NullClawConfig {
     pub timeout_ms: u64,
     pub max_history: usize,
     pub fallback_online_employees: usize,
+    /// Max CONCURRENT in-flight LLM replies (`NULLCLAW_MAX_CONCURRENT`,
+    /// default 4). Every customer message with no staff online spawns a
+    /// detached task that calls the LLM API — a message flood used to
+    /// spawn UNLIMITED concurrent LLM calls (each holding history +
+    /// buffers for up to `timeout_ms`), an unbounded RAM + API-spend
+    /// spike from a single chatty/bot account. Over the cap the reply is
+    /// SKIPPED with a warning (the message is still persisted; a human
+    /// or the next message's reply covers it).
+    pub max_concurrent: usize,
 }
 
 impl Default for NullClawConfig {
@@ -543,6 +552,7 @@ impl Default for NullClawConfig {
             timeout_ms: env_parse("NULLCLAW_TIMEOUT_MS").unwrap_or(15_000),
             max_history: env_parse("NULLCLAW_MAX_HISTORY").unwrap_or(12),
             fallback_online_employees: env_parse("NULLCLAW_FALLBACK_ONLINE_EMPLOYEES").unwrap_or(1),
+            max_concurrent: env_parse("NULLCLAW_MAX_CONCURRENT").unwrap_or(4),
         }
     }
 }
@@ -580,6 +590,34 @@ pub struct AudioCallConfig {
     /// (one DashMap scan of a usually-empty map). 0 disables the
     /// janitor entirely (both expiries above stop working).
     pub janitor_interval_sec: u64,
+    /// TURN credential mode (`AUDIO_CALL_TURN_AUTH_MODE`, `static` |
+    /// `rest`, default `static`).
+    ///
+    /// * `static` — one shared long-lived username/credential pair baked
+    ///   into `AUDIO_CALL_ICE_SERVERS` and pushed to every peer unchanged
+    ///   (the pre-existing behaviour; coturn runs `--user=…`). Any leaked
+    ///   credential is valid until manually rotated.
+    /// * `rest` — draft-uberti-behave-turn-rest: the backend mints a
+    ///   per-USER, time-limited credential
+    ///   `base64(HMAC-SHA1(TURN_SECRET, "expiry:userId"))` and injects it
+    ///   into the `registered` frame's iceServers (coturn runs
+    ///   `--use-auth-secret --static-auth-secret`). A credential leak then
+    ///   only impersonates ONE user until its expiry, and staff-side
+    ///   credential rotation is just a secret change + reconnect.
+    ///
+    /// Requires a coordinated flip (coturn must challenge with the SAME
+    /// secret the backend signs with): see deploy/turn.sh
+    /// `--use-auth-secret`.
+    pub turn_auth_mode: String,
+    /// Shared HMAC secret for `rest` mode (`TURN_SECRET` — the same
+    /// value turn.sh writes to .env for coturn's
+    /// `--static-auth-secret`). Empty in `rest` mode disables minting and
+    /// falls back to the static iceServers (logged loudly).
+    pub turn_shared_secret: String,
+    /// Lifetime of minted TURN credentials in seconds
+    /// (`AUDIO_CALL_TURN_CRED_TTL_SECS`, default 3600 — one hour comfortably
+    /// covers a shift's calls; reconnects mint fresh ones).
+    pub turn_cred_ttl_sec: u64,
 }
 
 impl Default for AudioCallConfig {
@@ -596,6 +634,11 @@ impl Default for AudioCallConfig {
             // a zombie ACTIVE session's agent-busy leak to one shift.
             max_call_duration_sec: env_parse("AUDIO_CALL_MAX_CALL_DURATION_SECS").unwrap_or(14_400),
             janitor_interval_sec: env_parse("AUDIO_CALL_JANITOR_INTERVAL_SECS").unwrap_or(15),
+            turn_auth_mode: env_var("AUDIO_CALL_TURN_AUTH_MODE")
+                .unwrap_or_else(|| "static".into())
+                .to_ascii_lowercase(),
+            turn_shared_secret: env_var("TURN_SECRET").unwrap_or_default(),
+            turn_cred_ttl_sec: env_parse("AUDIO_CALL_TURN_CRED_TTL_SECS").unwrap_or(3600),
         }
     }
 }
@@ -644,6 +687,84 @@ impl AudioCallConfig {
             }
         }
     }
+
+    /// Whether the backend should mint per-user TURN REST credentials.
+    /// Both the mode flag AND a non-empty shared secret are required —
+    /// `rest` with no secret would silently push credential-less
+    /// iceServers (every allocation 401s), so we degrade to static and
+    /// log once at first use instead.
+    pub fn uses_rest_turn_auth(&self) -> bool {
+        self.turn_auth_mode == "rest" && !self.turn_shared_secret.is_empty()
+    }
+
+    /// iceServers for one specific user: static JSON passthrough, or the
+    /// REST-mode list with a freshly-minted per-user credential on every
+    /// entry. Called once per `/ws-call` upgrade (the value is pushed in
+    /// the `registered` frame) — minting is one HMAC-SHA1 over ~40 bytes.
+    pub fn ice_servers_for(&self, user_id: &str) -> serde_json::Value {
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0)
+            + self.turn_cred_ttl_sec.max(60);
+        self.ice_servers_for_at(user_id, expiry)
+    }
+
+    /// Deterministic core of [`Self::ice_servers_for`] (explicit expiry —
+    /// keeps the credential formula unit-testable). When `rest` mode is
+    /// requested but the shared secret is empty, logs + falls back to the
+    /// static list (a misconfigured deploy must not break calls for
+    /// everyone; operators see the error and fix the env).
+    pub fn ice_servers_for_at(&self, user_id: &str, expiry_unix: u64) -> serde_json::Value {
+        let base = self.ice_servers_json();
+        if !self.uses_rest_turn_auth() {
+            if self.turn_auth_mode == "rest" {
+                // rest requested but TURN_SECRET missing — degrade loudly.
+                tracing::error!(
+                    "AUDIO_CALL_TURN_AUTH_MODE=rest but TURN_SECRET is empty — \
+                     falling back to static iceServers credentials; \
+                     set TURN_SECRET (same value as coturn --static-auth-secret)"
+                );
+            }
+            return base;
+        }
+        let username = format!("{expiry_unix}:{user_id}");
+        let credential = mint_turn_credential(&self.turn_shared_secret, &username);
+        let mut out = match base {
+            serde_json::Value::Array(a) => a,
+            other => vec![other],
+        };
+        for server in out.iter_mut() {
+            if let Some(obj) = server.as_object_mut() {
+                obj.insert(
+                    "username".into(),
+                    serde_json::Value::String(username.clone()),
+                );
+                obj.insert(
+                    "credential".into(),
+                    serde_json::Value::String(credential.clone()),
+                );
+            }
+        }
+        serde_json::Value::Array(out)
+    }
+}
+
+/// TURN REST credential per draft-uberti-behave-turn-rest (the exact
+/// formula coturn's `--use-auth-secret` verifies):
+/// `credential = base64(HMAC-SHA1(shared_secret, username))` where
+/// `username = "<expiry-unix>:<user-id>"`. Public so unit tests can pin
+/// the wire format against a known-good vector — if either side of this
+/// formula drifts, every TURN allocation starts failing 401 and calls
+/// behind CGNAT die on "connecting".
+pub fn mint_turn_credential(shared_secret: &str, username: &str) -> String {
+    use base64::Engine as _;
+    use hmac::{Hmac, Mac};
+    type HmacSha1 = Hmac<sha1::Sha1>;
+    let mut mac = HmacSha1::new_from_slice(shared_secret.as_bytes())
+        .expect("HMAC accepts keys of any length");
+    mac.update(username.as_bytes());
+    base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes())
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
@@ -689,6 +810,27 @@ pub struct WsConfig {
     pub idle_timeout_sec: u64,
     pub max_message_bytes: usize,
     pub max_frame_bytes: usize,
+    /// Per-socket tungstenite write buffer, in KiB (`WS_WRITE_BUFFER_KIB`,
+    /// default 16). The axum/tungstenite default is 128 KiB PER SOCKET —
+    /// at 10k idle call-center sockets that is 1.25 GiB of write buffers
+    /// held for peers that are mostly waiting on pings. 16 KiB still
+    /// absorbs a full chat burst + one SDP offer (~4-8 KiB) without
+    /// back-pressure, and a genuinely fast consumer drains it in one
+    /// syscall. Keep in mind the WS frame cap (`max_frame_bytes`, 64 KiB)
+    /// exceeds this buffer: tungstenite just splits large frames across
+    /// writes — no error, only a second poll.
+    pub write_buffer_kib: usize,
+    /// Slow-consumer reaping threshold (`WS_SLOW_CONSUMER_THRESHOLD`,
+    /// default 128, `0` = disabled): when a session's outbound queue
+    /// drops this many messages within one 60 s accounting window, the
+    /// idem-GC sweep sends it a close sentinel — the socket is torn down
+    /// through the normal path (presence, rooms, slots released) instead
+    /// of pinning a full bounded channel + a wedged write pump in RAM
+    /// forever. The heartbeat/idle timeouts alone only catch DEAD
+    /// sockets; a live-but-never-reading client (backgrounded browser
+    /// tab under GC pressure, throttled mobile WebView) keeps answering
+    /// WS pings at the TCP layer while its JS never drains the queue.
+    pub slow_consumer_threshold: usize,
 }
 
 impl Default for WsConfig {
@@ -714,7 +856,19 @@ impl Default for WsConfig {
             idle_timeout_sec: env_parse("WS_IDLE_TIMEOUT_SEC").unwrap_or(90),
             max_message_bytes: env_parse("WS_MAX_MESSAGE_BYTES").unwrap_or(64 * 1024),
             max_frame_bytes: env_parse("WS_MAX_FRAME_BYTES").unwrap_or(64 * 1024),
+            write_buffer_kib: env_parse("WS_WRITE_BUFFER_KIB").unwrap_or(16),
+            slow_consumer_threshold: env_parse("WS_SLOW_CONSUMER_THRESHOLD").unwrap_or(128),
         }
+    }
+}
+
+impl WsConfig {
+    /// Per-socket tungstenite write buffer in BYTES (clamped to a 4 KiB
+    /// floor — `write_buffer_size(0)` would be rejected by the upgrade
+    /// builder). Passed to `WebSocketUpgrade::write_buffer_size` on both
+    /// `/ws` and `/ws-call`.
+    pub fn write_buffer_bytes(&self) -> usize {
+        self.write_buffer_kib.max(4) * 1024
     }
 }
 
@@ -1089,6 +1243,7 @@ fn mask_db_url(url: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::mask_db_url;
+    use super::{mint_turn_credential, AudioCallConfig};
 
     #[test]
     fn masks_postgres_password() {
@@ -1121,5 +1276,110 @@ mod tests {
         let url = "sqlite::memory:";
         let masked = mask_db_url(url);
         assert_eq!(masked, url);
+    }
+
+    // ── TURN REST credential formula (draft-uberti-behave-turn-rest) ──
+    //
+    // These three tests PIN the wire format: coturn (--use-auth-secret)
+    // verifies `base64(HMAC-SHA1(secret, "expiry:userId"))`. If the
+    // backend's formula drifts (hex instead of base64, username field
+    // order, …), every TURN allocation starts failing 401 and calls
+    // behind CGNAT die on "connecting" — nothing on the backend side
+    // would notice otherwise.
+
+    /// Fixed known-good vector (generated with python
+    /// `hmac.new(secret, username, hashlib.sha1)` + `base64.b64encode`).
+    #[test]
+    fn turn_rest_credential_matches_reference_vector() {
+        let secret = "test-shared-secret-0123456789abcdef";
+        let username = "3600:11111111-2222-3333-4444-555555555555";
+        assert_eq!(
+            mint_turn_credential(secret, username),
+            "gHC31URKEERd2Bd2sW5XGEpsros=",
+            "credential formula drifted — coturn would 401 every allocation"
+        );
+    }
+
+    /// `rest` mode injects a per-user, expiry-scoped credential into every
+    /// iceServers entry, replacing any static username/credential.
+    #[test]
+    fn rest_mode_mints_per_user_credentials() {
+        let cfg = AudioCallConfig {
+            ice_servers: r#"[{"urls":["turns:turn.example.com:443?transport=tcp"],"username":"static-user","credential":"static-secret"},{"urls":["stun:turn.example.com:3478"]}]"#.into(),
+            turn_auth_mode: "rest".into(),
+            turn_shared_secret: "topsecret".into(),
+            turn_cred_ttl_sec: 3600,
+            ..AudioCallConfig::default()
+        };
+        let uid = "11111111-2222-3333-4444-555555555555";
+        let servers = cfg.ice_servers_for_at(uid, 3600);
+        let arr = servers.as_array().expect("array");
+        assert_eq!(arr.len(), 2);
+        for server in arr {
+            let obj = server.as_object().expect("object");
+            assert_eq!(
+                obj.get("username").and_then(|v| v.as_str()),
+                Some("3600:11111111-2222-3333-4444-555555555555"),
+                "username must be expiry:userId"
+            );
+            let cred = obj.get("credential").and_then(|v| v.as_str()).unwrap();
+            assert_eq!(
+                cred,
+                mint_turn_credential("topsecret", "3600:11111111-2222-3333-4444-555555555555")
+            );
+            assert_ne!(cred, "static-secret", "static credential must be replaced");
+        }
+        // Different user → different credential (per-USER scoping).
+        let other = cfg
+            .ice_servers_for_at("99999999-2222-3333-4444-555555555555", 3600)
+            .as_array()
+            .unwrap()[0]
+            .as_object()
+            .unwrap()
+            .get("credential")
+            .and_then(|v| v.as_str())
+            .unwrap()
+            .to_string();
+        let first = arr[0]
+            .as_object()
+            .unwrap()
+            .get("credential")
+            .and_then(|v| v.as_str())
+            .unwrap();
+        assert_ne!(other, first);
+    }
+
+    /// `static` mode (default) is a byte-for-byte passthrough — the
+    /// pre-existing behaviour, and the fallback when `rest` is requested
+    /// without TURN_SECRET.
+    #[test]
+    fn static_mode_passes_ice_servers_through() {
+        let raw = r#"[{"urls":["turn:turn.example.com:3478?transport=udp"],"username":"static-user","credential":"static-secret"}]"#;
+        let cfg = AudioCallConfig {
+            ice_servers: raw.into(),
+            ..AudioCallConfig::default()
+        };
+        assert_eq!(cfg.turn_auth_mode, "static", "default mode is static");
+        let out = cfg.ice_servers_for_at("some-user", 3600);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(raw).unwrap(),
+            out,
+            "static mode must not touch the iceServers JSON"
+        );
+
+        // rest requested but secret missing → loud fallback to static.
+        let cfg_rest_no_secret = AudioCallConfig {
+            ice_servers: raw.into(),
+            turn_auth_mode: "rest".into(),
+            turn_shared_secret: String::new(),
+            ..AudioCallConfig::default()
+        };
+        assert!(!cfg_rest_no_secret.uses_rest_turn_auth());
+        let out2 = cfg_rest_no_secret.ice_servers_for_at("some-user", 3600);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(raw).unwrap(),
+            out2,
+            "rest-without-secret must degrade to the static list"
+        );
     }
 }

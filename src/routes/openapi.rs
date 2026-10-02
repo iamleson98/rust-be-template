@@ -174,6 +174,10 @@ use utoipa::OpenApi;
         // Appended LAST on purpose (see the addresses comment above):
         // appending keeps the existing SDK function numbers stable.
         crate::routes::system::system_metrics,
+        // system — database size / compaction diagnostics + guarded
+        // VACUUM (appended last, same ordering rule).
+        crate::routes::system::database_size,
+        crate::routes::system::database_vacuum,
         // admin — bus layout CRUD (create with seat-grid generation,
         // metadata update, guarded delete). Appended LAST on purpose
         // (see the addresses comment above): appending keeps the
@@ -372,6 +376,13 @@ use utoipa::OpenApi;
         // system — live host metrics (admin server-monitoring page)
         crate::dto::system::SystemMetrics,
         crate::dto::system::DiskInfo,
+        // system — database size / compaction diagnostics (same rule)
+        crate::routes::system::DatabaseSizeResponse,
+        crate::routes::system::DbFilesOut,
+        crate::routes::system::DbPragmasOut,
+        crate::routes::system::DbTableSizeOut,
+        crate::routes::system::DbProbeOut,
+        crate::routes::system::VacuumResponse,
         // admin — bus layout CRUD (appended last, same ordering rule)
         crate::dto::admin::UpsertBusLayoutRequest,
         crate::dto::admin::SeatGridSpec,

@@ -47,11 +47,11 @@
 //! agent stuck busy forever).
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::OnceLock;
-use std::time::Instant;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 
 use crate::presence::presence;
 use tokio::sync::mpsc;
@@ -119,6 +119,20 @@ impl Peer {
 static HUB: OnceLock<CallHub> = OnceLock::new();
 static HUB_CFG: OnceLock<(usize, usize)> = OnceLock::new();
 
+// ── presence-broadcast coalescing state (see broadcast_presence) ────
+// Process-global (the hub is a process singleton in production; test
+// instances share the throttle, which only ever DELAYS a duplicate
+// broadcast — it never redirects one to the wrong hub).
+/// Min gap between real presence fan-outs (250 ms ⇒ ≤ 4 Hz).
+static PRESENCE_COALESCE: Duration = Duration::from_millis(250);
+/// A change landed inside the window; the trailing broadcast must fire.
+static PRESENCE_DIRTY: AtomicBool = AtomicBool::new(false);
+/// A trailing broadcast task is scheduled (guards against stacking one
+/// task per event during a burst).
+static PRESENCE_TRAILING: AtomicBool = AtomicBool::new(false);
+/// Last real fan-out timestamp.
+static PRESENCE_LAST: Mutex<Option<Instant>> = Mutex::new(None);
+
 /// Fetch the global hub (initialised lazily on first call).
 pub fn call_hub() -> &'static CallHub {
     HUB.get_or_init(|| {
@@ -168,6 +182,13 @@ pub struct CallHub {
     max_per_ip: usize,
     /// Per-IP live connection counts — mirrors the chat hub.
     ip_conns: DashMap<String, AtomicUsize>,
+    /// Agent user ids currently online (one entry per user, regardless
+    /// of how many devices they hold). Every presence question
+    /// (`online_agent_count`, `is_agent_in_call`, agent picking, agent
+    /// names) used to answer by scanning ALL peers — O(customers) on a
+    /// hub whose population is overwhelmingly customers. The index is
+    /// O(agents) and maintained in `register`/`unregister`.
+    agent_ids: DashSet<String>,
 }
 
 impl CallHub {
@@ -183,6 +204,7 @@ impl CallHub {
             global_conns: AtomicUsize::new(0),
             max_per_ip,
             ip_conns: DashMap::new(),
+            agent_ids: DashSet::new(),
         }
     }
 
@@ -249,9 +271,17 @@ impl CallHub {
     pub fn release_ip(&self, ip: &str) {
         if let Some(entry) = self.ip_conns.get(ip) {
             let prev = entry.fetch_sub(1, Ordering::AcqRel);
-            if prev <= 1 {
-                drop(entry);
-                self.ip_conns.remove(ip);
+            let hit_zero = prev <= 1;
+            drop(entry);
+            if hit_zero {
+                // `remove_if` re-checks under the shard write lock: the
+                // old unconditional `remove(ip)` raced a concurrent
+                // `try_acquire_ip` (T2 CASes 0→1 on the same entry; T1's
+                // remove then deletes T2's slot — the per-IP cap silently
+                // erodes and `ip_conns` undercounts). Same fix as the chat
+                // hub's `release_ip`.
+                self.ip_conns
+                    .remove_if(ip, |_, v| v.load(Ordering::Acquire) == 0);
             }
         }
     }
@@ -280,18 +310,35 @@ impl CallHub {
     /// Number of agents currently online (sockets, one per device —
     /// an agent on two devices counts once per device for presence
     /// gauges; availability routing de-dupes by user id).
+    ///
+    /// O(agents) via the `agent_ids` index (was: a full scan of every
+    /// peer — customers included — on each presence broadcast, and the
+    /// broadcast fired on every customer register too).
     pub fn online_agent_count(&self) -> usize {
-        self.peers
-            .iter()
-            .filter(|p| p.role == CallRole::Agent)
-            .count()
+        let mut sockets = 0;
+        for uid in self.agent_ids.iter() {
+            sockets += self.user_socket_count(uid.key());
+        }
+        sockets
     }
 
     /// Whether any agent is currently in an active call.
+    /// O(agents): `in_call` is a per-USER property (`set_in_call` stamps
+    /// every socket of the user), so checking one socket per agent is
+    /// sufficient.
     pub fn is_agent_in_call(&self) -> bool {
-        self.peers
-            .iter()
-            .any(|p| p.role == CallRole::Agent && p.in_call)
+        for uid in self.agent_ids.iter() {
+            if let Some(sids) = self.by_user.get(uid.key()) {
+                if let Some(first) = sids.iter().next() {
+                    if let Some(p) = self.peers.get(first) {
+                        if p.in_call {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Total connections accepted since boot (for metrics).
@@ -319,6 +366,7 @@ impl CallHub {
 
         if role == CallRole::Agent {
             presence().call_socket_connected(&user, sid);
+            self.agent_ids.insert(user_id.clone());
         }
 
         self.peers.insert(
@@ -379,6 +427,10 @@ impl CallHub {
             // devices, so their sessions must survive.
             if user_has_sockets {
                 return None;
+            }
+            // Last socket gone → the AGENT index entry goes with it.
+            if removed == Some(CallRole::Agent) {
+                self.agent_ids.remove(user_id);
             }
         }
         removed
@@ -470,7 +522,74 @@ impl CallHub {
     /// - `onlineAgents`: number of agents currently online
     /// - `agentInCall`: whether any agent is in an active call (customers
     ///   use this to show "employees are busy" + disable their call buttons)
+    ///
+    /// ## Coalescing (≤ 4 Hz)
+    ///
+    /// Each broadcast used to cost FOUR O(all-peers) scans
+    /// (`broadcast_staff_presence`'s session filter, `online_agent_count`,
+    /// `is_agent_in_call`, `pick_available_agent_id`) plus an O(N) chat-hub
+    /// fan-out — and it fired on EVERY customer `register`, which is the
+    /// one event that changes NOTHING in the payload (customers are not in
+    /// it). Under a customer connect storm that is O(customers × peers)
+    /// pure waste. Two fixes, in order of impact:
+    ///   1. call sites gate on AGENT state changes (handler.rs);
+    ///   2. this method coalesces bursts: a leading broadcast goes out
+    ///      immediately (single events — and every test — stay
+    ///      synchronous), and anything arriving within the following
+    ///      250 ms only marks a dirty flag + schedules ONE trailing
+    ///      broadcast — max 4 broadcasts/sec no matter the event rate.
+    ///      When no tokio runtime is available (sync unit tests), the
+    ///      trailing path degrades to an immediate inline broadcast.
     pub fn broadcast_presence(&self) {
+        let mut last = PRESENCE_LAST
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let since = last.map(|t| t.elapsed()).unwrap_or(Duration::MAX);
+        if since >= PRESENCE_COALESCE {
+            *last = Some(Instant::now());
+            drop(last);
+            self.broadcast_presence_now();
+            return;
+        }
+        drop(last);
+        // Inside the coalescing window — a trailing broadcast will cover
+        // this change (and every other one that lands before it fires).
+        PRESENCE_DIRTY.store(true, Ordering::Release);
+        if PRESENCE_TRAILING.swap(true, Ordering::AcqRel) {
+            return; // trailing broadcast already scheduled
+        }
+        let wait = PRESENCE_COALESCE.saturating_sub(since);
+        match tokio::runtime::Handle::try_current() {
+            Ok(handle) => {
+                handle.spawn(async move {
+                    tokio::time::sleep(wait).await;
+                    PRESENCE_TRAILING.store(false, Ordering::Release);
+                    if PRESENCE_DIRTY.swap(false, Ordering::AcqRel) {
+                        let hub = call_hub();
+                        let mut last = PRESENCE_LAST
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner());
+                        *last = Some(Instant::now());
+                        drop(last);
+                        hub.broadcast_presence_now();
+                    }
+                });
+            }
+            Err(_) => {
+                // No tokio runtime (sync tests / off-runtime callers) —
+                // broadcast inline instead of arming a flag nothing will
+                // ever consume (the "half-armed dirty flag": broadcasts
+                // silently stop happening).
+                PRESENCE_TRAILING.store(false, Ordering::Release);
+                if PRESENCE_DIRTY.swap(false, Ordering::AcqRel) {
+                    self.broadcast_presence_now();
+                }
+            }
+        }
+    }
+
+    /// The actual fan-out (leading + trailing paths converge here).
+    fn broadcast_presence_now(&self) {
         // CHAT-HUB FAN-OUT (production staleness bug): call events used
         // to update the shared presence registry + this hub's own
         // `presence` frames, but NEVER re-broadcast `staff_presence` on
@@ -514,12 +633,20 @@ impl CallHub {
     }
 
     /// Snapshot of online agent names (for the `/health` endpoint + logs).
+    /// O(agents) via the index, de-duped per user (a staff member on two
+    /// devices is one name, not two).
     pub fn online_agent_names(&self) -> Vec<String> {
-        self.peers
-            .iter()
-            .filter(|p| p.role == CallRole::Agent)
-            .map(|p| p.user.name.clone())
-            .collect()
+        let mut names = Vec::new();
+        for uid in self.agent_ids.iter() {
+            if let Some(sids) = self.by_user.get(uid.key()) {
+                if let Some(first) = sids.iter().next() {
+                    if let Some(p) = self.peers.get(first) {
+                        names.push(p.user.name.clone());
+                    }
+                }
+            }
+        }
+        names
     }
 
     /// Look up the role of a registered peer (any of their sockets).
@@ -552,19 +679,17 @@ impl CallHub {
         // shared presence registry + not excluded. Ranked with the SAME
         // ordering the chat router uses (chat load → recency → employees
         // first). De-duped per user (a user on two devices is one agent).
-        // Collect the agent user ids FIRST (no nested same-map access —
-        // DashMap guards don't nest across an `iter()`).
-        let mut agent_ids: Vec<String> = Vec::new();
-        for p in self.peers.iter() {
-            if p.value().role == CallRole::Agent {
-                let uid = p.value().user.id.to_string();
-                if !agent_ids.contains(&uid) && !exclude.contains(&uid) {
-                    agent_ids.push(uid);
-                }
-            }
-        }
-        let mut candidates: Vec<(String, crate::presence::StaffEntry)> = agent_ids
-            .into_iter()
+        //
+        // O(agents) straight off the `agent_ids` index: the previous full
+        // peers scan allocated a fresh UUID String for EVERY session
+        // (customers included) on every customer call attempt + every
+        // presence broadcast (which also calls this to compute
+        // `agentsAvailable`).
+        let mut candidates: Vec<(String, crate::presence::StaffEntry)> = self
+            .agent_ids
+            .iter()
+            .map(|uid| uid.key().clone())
+            .filter(|uid| !exclude.contains(uid))
             .filter_map(|id| presence().get(&id).map(|s| (id, s)))
             .filter(|(_, s)| s.available())
             .collect();
@@ -580,14 +705,9 @@ impl CallHub {
             .or_else(|| self.any_online_agent_id())
     }
 
-    /// Find any online agent's user id (busy or not).
+    /// Find any online agent's user id (busy or not). O(agents).
     pub fn any_online_agent_id(&self) -> Option<String> {
-        for p in self.peers.iter() {
-            if p.value().role == CallRole::Agent {
-                return Some(p.value().user.id.to_string());
-            }
-        }
-        None
+        self.agent_ids.iter().next().map(|uid| uid.key().clone())
     }
 }
 

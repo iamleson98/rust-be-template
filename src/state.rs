@@ -63,6 +63,12 @@ pub struct AppState {
     // ---- Shared infrastructure ----
     pub config: Arc<Config>,
     pub rbac: Arc<RbacChecker>,
+    /// The shared DB connection pool — needed by the admin system
+    /// endpoints that run engine-level diagnostics (`PRAGMA page_count`
+    /// / freelist, `VACUUM INTO` probes, dbstat) directly against the
+    /// rust-sql engine. Services keep their own `Arc` clones; this is
+    /// the raw pool for routes that predate any service abstraction.
+    pub db: Arc<sea_orm::DatabaseConnection>,
 
     // ---- Domain services (pre-built, shared via Arc) ----
     pub auth: Arc<AuthService>,
@@ -104,6 +110,7 @@ impl AppState {
     pub fn new(
         config: Arc<Config>,
         rbac: Arc<RbacChecker>,
+        db: Arc<sea_orm::DatabaseConnection>,
         auth: Arc<AuthService>,
         posts: Arc<PostService>,
         users: Arc<UserService>,
@@ -124,6 +131,7 @@ impl AppState {
         Self {
             config,
             rbac,
+            db,
             auth,
             posts,
             users,

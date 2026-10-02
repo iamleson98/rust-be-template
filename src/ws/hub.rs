@@ -8,7 +8,7 @@
 //! scaling behind multiple instances, swap this for a Redis Pub/Sub fan-out
 //! (the `broadcast_to_room` call site is the only place that needs changing).
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
@@ -37,6 +37,19 @@ pub struct Session {
     pub tx: ClientTx,
     /// IP for per-IP accounting (released on disconnect).
     pub ip: String,
+    /// Dropped-delivery counter for the slow-consumer reaper: incremented
+    /// every time a broadcast `try_send` hits a FULL queue. Reset every
+    /// 60 s window; ≥ `slow_consumer_threshold` drops in one window → the
+    /// reaper sends a close sentinel (see `reap_slow_consumers`).
+    pub dropped: AtomicUsize,
+    /// Start of the current 60 s accounting window for `dropped`.
+    dropped_window: Instant,
+    /// Best-effort priority close channel (the handler's `close_tx`): a
+    /// dedicated 1-slot channel so the reaper can close a socket EVEN
+    /// when the bounded outbound queue is completely full (an empty-Bytes
+    /// sentinel could not be queued then). `None` for sessions registered
+    /// without one (tests).
+    close: Option<mpsc::Sender<()>>,
 }
 
 /// The shared chat hub. Cheap to clone (`&'static` via [`hub()`]).
@@ -46,6 +59,19 @@ pub struct Session {
 pub struct ChatHub {
     sessions: DashMap<u64, Session>,
     rooms: DashMap<String, DashSet<u64>>,
+    /// `userId → socket ids` — the routing index. Every user-targeted
+    /// fan-out (`send_to_user`, `sockets_of_user`) used to scan ALL
+    /// sessions and `to_string()` every UUID per candidate — O(N) per
+    /// message on the hot chat-send path.
+    by_user: DashMap<String, DashSet<u64>>,
+    /// `userId → socket ids` for STAFF sockets (employees + admins).
+    /// `broadcast_to_staff_raw` used to filter the full session map per
+    /// call; with thousands of customers online that turned every
+    /// staff-presence change into an O(N) scan.
+    staff_sockets: DashMap<String, DashSet<u64>>,
+    /// `userId → socket ids` for ADMIN sockets — same story for
+    /// `broadcast_to_admins`.
+    admin_sockets: DashMap<String, DashSet<u64>>,
     ip_conns: DashMap<String, std::sync::atomic::AtomicUsize>,
     idempotency: DashMap<String, (Instant, Option<String>)>, // (stored_at, value)
     next_id: std::sync::atomic::AtomicU64,
@@ -53,6 +79,13 @@ pub struct ChatHub {
     global_conns: AtomicUsize,
     /// Hard cap on `global_conns` (read once at init from config; 0 = unlimited).
     max_global_conns: usize,
+    /// Slow-consumer reaping threshold for the 60 s window (0 = disabled).
+    /// Wired from `WS_SLOW_CONSUMER_THRESHOLD` via `init_with_config`.
+    slow_consumer_threshold: usize,
+    /// Cumulative count of sockets reaped for slow consuming (exposed in
+    /// `stats()` — a non-zero, growing number is the ops signal that
+    /// clients are not draining their queues fast enough).
+    slow_reaped: AtomicU64,
     /// Cache of "channel_id exists" lookups — short-circuits the
     /// `SELECT * FROM ChatChannel WHERE id = ?` on every `join`.
     /// Maps `channel_id → inserted_at`; entries older than
@@ -63,19 +96,20 @@ pub struct ChatHub {
 }
 
 static HUB: OnceLock<ChatHub> = OnceLock::new();
-static HUB_CFG: OnceLock<(usize, u64)> = OnceLock::new();
+static HUB_CFG: OnceLock<(usize, u64, usize)> = OnceLock::new();
 
 /// Process-global hub accessor (lazily initialised on first call).
 ///
 /// If `init_with_config` was called BEFORE the first `hub()` call (the
 /// normal boot order in `server.rs::bootstrap`), the configured
 /// `WsConfig.max_connections` is used. Otherwise the hardcoded fallback
-/// (50_000 connections, 60s channel-cache TTL) applies — useful for tests
-/// that don't go through the full bootstrap.
+/// (50_000 connections, 60s channel-cache TTL, 128-msg slow-consumer
+/// threshold) applies — useful for tests that don't go through the full
+/// bootstrap.
 pub fn hub() -> &'static ChatHub {
     HUB.get_or_init(|| {
-        let (max, ttl) = *HUB_CFG.get().unwrap_or(&(50_000, 60));
-        ChatHub::with_limits(max, ttl)
+        let (max, ttl, slow) = *HUB_CFG.get().unwrap_or(&(50_000, 60, 128));
+        ChatHub::with_limits(max, ttl, slow)
     })
 }
 
@@ -88,22 +122,36 @@ pub fn hub() -> &'static ChatHub {
 /// the hub was hardcoded to 50_000 and an operator setting
 /// `WS__MAX_CONNECTIONS=10000` to match a memory-constrained deploy had no
 /// effect on the actual cap.
-pub fn init_with_config(max_global: usize, channel_cache_ttl_sec: u64) {
-    let _ = HUB_CFG.set((max_global, channel_cache_ttl_sec));
+pub fn init_with_config(
+    max_global: usize,
+    channel_cache_ttl_sec: u64,
+    slow_consumer_threshold: usize,
+) {
+    let _ = HUB_CFG.set((max_global, channel_cache_ttl_sec, slow_consumer_threshold));
 }
 
 impl ChatHub {
-    /// Construct with explicit global-connection cap and channel-cache TTL.
-    /// Called from `hub()` (defaults) and from tests that want isolated limits.
-    pub fn with_limits(max_global: usize, channel_cache_ttl_sec: u64) -> Self {
+    /// Construct with explicit global-connection cap, channel-cache TTL
+    /// and slow-consumer threshold. Called from `hub()` (defaults) and
+    /// from tests that want isolated limits.
+    pub fn with_limits(
+        max_global: usize,
+        channel_cache_ttl_sec: u64,
+        slow_consumer_threshold: usize,
+    ) -> Self {
         Self {
             sessions: DashMap::new(),
             rooms: DashMap::new(),
+            by_user: DashMap::new(),
+            staff_sockets: DashMap::new(),
+            admin_sockets: DashMap::new(),
             ip_conns: DashMap::new(),
             idempotency: DashMap::new(),
             next_id: std::sync::atomic::AtomicU64::new(1),
             global_conns: AtomicUsize::new(0),
             max_global_conns: max_global,
+            slow_consumer_threshold,
+            slow_reaped: AtomicU64::new(0),
             channel_exists_cache: DashMap::new(),
             channel_cache_ttl: Duration::from_secs(channel_cache_ttl_sec.max(1)),
         }
@@ -190,9 +238,21 @@ impl ChatHub {
         use std::sync::atomic::Ordering;
         if let Some(entry) = self.ip_conns.get(ip) {
             let prev = entry.fetch_sub(1, Ordering::AcqRel);
-            if prev <= 1 {
-                drop(entry);
-                self.ip_conns.remove(ip);
+            let hit_zero = prev <= 1;
+            drop(entry);
+            if hit_zero {
+                // `remove_if` re-checks emptiness under the shard write
+                // lock. The previous unconditional `remove(ip)` raced a
+                // concurrent `try_acquire_ip`: T2 grabs the same entry's
+                // read guard, CASes 0 → 1 (its slot!), and T1's remove
+                // then DELETES that entry — T2's slot evaporates (the
+                // next acquire sees a fresh 0-entry and the per-IP cap
+                // silently erodes; `distinct_ips` undercounts too).
+                // `remove_if(v == 0)` either sees T2's 1 and keeps the
+                // entry, or removes before T2 lands (T2 then re-creates
+                // via `entry().or_default()`) — both orderings correct.
+                self.ip_conns
+                    .remove_if(ip, |_, v| v.load(Ordering::Acquire) == 0);
             }
         }
     }
@@ -204,6 +264,9 @@ impl ChatHub {
     pub fn register(&self, user: SessionUser, ip: String, tx: ClientTx) -> u64 {
         use std::sync::atomic::Ordering;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let user_id = user.id.to_string();
+        let is_staff = user.is_staff();
+        let is_admin = user.is_admin();
         self.sessions.insert(
             id,
             Session {
@@ -211,9 +274,40 @@ impl ChatHub {
                 channel_id: None,
                 tx,
                 ip,
+                dropped: AtomicUsize::new(0),
+                dropped_window: Instant::now(),
+                close: None,
             },
         );
+        // Maintain the routing indexes (lock-step with `unregister`):
+        // user-targeted + staff/admin fan-outs become O(recipients)
+        // instead of O(all sessions) — with a UUID `to_string()` per
+        // scanned session on the old path.
+        self.by_user.entry(user_id.clone()).or_default().insert(id);
+        if is_staff {
+            self.staff_sockets
+                .entry(user_id.clone())
+                .or_default()
+                .insert(id);
+        }
+        if is_admin {
+            self.admin_sockets.entry(user_id).or_default().insert(id);
+        }
         id
+    }
+
+    /// Attach a priority close channel to a session (the handler's
+    /// `close_tx`, cloned before the write pump takes ownership of the
+    /// original). Enables the slow-consumer reaper to close a socket even
+    /// when its outbound queue is completely full. Called right after
+    /// `register` in `handle_socket`; a no-op for unknown/already-closed
+    /// sessions.
+    pub fn set_closer(&self, id: u64, close: mpsc::Sender<()>) {
+        if let Some(mut sess) = self.sessions.get_mut(&id) {
+            if sess.close.is_none() {
+                sess.close = Some(close);
+            }
+        }
     }
 
     /// Tear down a connection: leave any joined room, remove the staff
@@ -226,6 +320,19 @@ impl ChatHub {
         if let Some(cid) = &sess.channel_id {
             self.leave_room(cid, id);
         }
+        // Maintain the routing indexes (lock-step with `register`):
+        // drop this sid from the user/staff/admin sets and reclaim the
+        // index entries when they go empty (an empty DashSet per user ever
+        // seen would be the same permanent-RSS leak `leave_room` fixed for
+        // rooms).
+        let user_id = sess.user.id.to_string();
+        self.drop_index(&self.by_user, &user_id, id);
+        if sess.user.is_staff() {
+            self.drop_index(&self.staff_sockets, &user_id, id);
+        }
+        if sess.user.is_admin() {
+            self.drop_index(&self.admin_sockets, &user_id, id);
+        }
         // Remove the presence socket (whole entry drops when the staff
         // member's last socket of either family goes away).
         if sess.user.is_staff() {
@@ -234,6 +341,21 @@ impl ChatHub {
         self.release_ip(&sess.ip);
         self.release_global();
         Some((sess.user, sess.channel_id))
+    }
+
+    /// Remove `id` from `index[user_id]`'s set and reclaim the whole
+    /// index entry when it goes empty. Shared by the three routing
+    /// indexes (DashMap shards differ per map, so passing the map as an
+    /// argument keeps one implementation).
+    fn drop_index(&self, index: &DashMap<String, DashSet<u64>>, user_id: &str, id: u64) {
+        if let Some(set) = index.get(user_id) {
+            set.remove(&id);
+            let now_empty = set.is_empty();
+            drop(set);
+            if now_empty {
+                index.remove_if(user_id, |_, s| s.is_empty());
+            }
+        }
     }
 
     /// Attach (or re-attach) a socket to a channel room, leaving the previous
@@ -280,21 +402,33 @@ impl ChatHub {
     /// Serialisation is done once by the caller; we only clone the `String`.
     /// Uses **non-blocking `try_send`** so a single slow consumer cannot stall
     /// the broadcast for everyone else — a full channel drops the message
-    /// (the heartbeat sweep will reap the slow socket shortly).
+    /// (and counts it on the session's slow-consumer meter; the reaper
+    /// sweep force-closes the socket once the 60 s threshold is exceeded).
     ///
     /// Returns the number of recipients the message was delivered to.
     pub fn broadcast_to_room_raw(&self, channel_id: &str, payload: &str) -> usize {
         // Pre-serialise once; `Bytes::clone()` per recipient is just an
         // atomic refcount bump — no heap allocation, no memcpy.
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        self.broadcast_bytes_to_room(channel_id, &bytes)
+    }
+
+    /// Shared-`Bytes` fan-out core (the payload buffer is refcounted by
+    /// every recipient — one allocation total per broadcast).
+    fn broadcast_bytes_to_room(&self, channel_id: &str, bytes: &bytes::Bytes) -> usize {
         let mut delivered = 0;
         if let Some(set) = self.rooms.get(channel_id) {
             for sid in set.iter() {
                 if let Some(sess) = self.sessions.get(&sid) {
-                    // try_send: non-blocking. On Full, drop the message (slow
-                    // consumer). On Closed, the read loop will reap it.
-                    if sess.tx.try_send(bytes.clone()).is_ok() {
-                        delivered += 1;
+                    // try_send: non-blocking. On Full, drop the message +
+                    // count it (slow-consumer meter). On Closed, the read
+                    // loop will reap it.
+                    match sess.tx.try_send(bytes.clone()) {
+                        Ok(()) => delivered += 1,
+                        Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                            sess.dropped.fetch_add(1, Ordering::Relaxed);
+                        }
+                        Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {}
                     }
                 }
             }
@@ -324,9 +458,46 @@ impl ChatHub {
                     continue;
                 }
                 if let Some(sess) = self.sessions.get(&sid) {
-                    let _ = sess.tx.try_send(bytes.clone());
+                    self.try_send_counted(&sess, bytes.clone());
                 }
             }
+        }
+    }
+
+    /// Push an already-serialised payload to every socket in a room
+    /// **except** `except_id`, sharing ONE `Bytes` allocation across all
+    /// recipients (serialise once at the call site). Slow consumers are
+    /// counted, never blocked. Used by the chat-message hot path, where
+    /// the same broadcast also feeds a `send_to_user` targeted copy —
+    /// one serialisation, zero per-recipient allocation.
+    pub fn broadcast_to_room_except_bytes(
+        &self,
+        channel_id: &str,
+        bytes: &bytes::Bytes,
+        except_id: u64,
+    ) {
+        if let Some(set) = self.rooms.get(channel_id) {
+            for sid in set.iter() {
+                if *sid == except_id {
+                    continue;
+                }
+                if let Some(sess) = self.sessions.get(&sid) {
+                    self.try_send_counted(&sess, bytes.clone());
+                }
+            }
+        }
+    }
+
+    /// `try_send` + slow-consumer accounting (shared by every fan-out
+    /// path — a Full queue is the one signal the reaper acts on).
+    fn try_send_counted(&self, sess: &Session, bytes: bytes::Bytes) -> bool {
+        match sess.tx.try_send(bytes) {
+            Ok(()) => true,
+            Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
+                sess.dropped.fetch_add(1, Ordering::Relaxed);
+                false
+            }
+            Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => false,
         }
     }
 
@@ -345,7 +516,7 @@ impl ChatHub {
     pub fn broadcast_all(&self, payload: &str) {
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
         for entry in self.sessions.iter() {
-            let _ = entry.tx.try_send(bytes.clone());
+            self.try_send_counted(entry.value(), bytes.clone());
         }
     }
 
@@ -354,9 +525,10 @@ impl ChatHub {
     ///   - the "new message arrived in another channel" attention signal,
     ///   - `staff_presence` fan-out when availability changes.
     ///
-    /// Iterates the session map and filters `user.is_staff()`. Each
-    /// socket gets one delivery (multiple tabs = multiple deliveries,
-    /// intentional so every tab updates its UI).
+    /// Routes through the `staff_sockets` index — O(staff) instead of the
+    /// previous O(all sessions) filter scan. Each socket gets one delivery
+    /// (multiple tabs = multiple deliveries, intentional so every tab
+    /// updates its UI).
     pub fn broadcast_to_staff(&self, msg: &serde_json::Value) {
         let payload = serde_json::to_string(msg).unwrap_or_default();
         self.broadcast_to_staff_raw(&payload);
@@ -366,26 +538,65 @@ impl ChatHub {
     /// pre-serialised by the caller).
     pub fn broadcast_to_staff_raw(&self, payload: &str) {
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
-        for entry in self.sessions.iter() {
-            if entry.value().user.is_staff() {
-                let _ = entry.value().tx.try_send(bytes.clone());
-            }
-        }
+        self.fanout_indexed(&self.staff_sockets, &bytes);
     }
 
     /// Send a JSON message to EVERY live socket of one user (all their
     /// tabs). Used for targeted routing — e.g. a new message in a
     /// channel assigned to employee X goes to X's sockets, not to all
     /// staff. Returns the number of sockets it was queued to.
+    ///
+    /// Routes through the `by_user` index — O(the user's sockets)
+    /// instead of the previous O(all sessions) scan with a UUID
+    /// `to_string()` per candidate (that allocation-per-candidate was
+    /// the chat hot path's hidden cost at every send).
     pub fn send_to_user(&self, user_id: &str, msg: &serde_json::Value) -> usize {
         let payload = serde_json::to_string(msg).unwrap_or_default();
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
+        self.fanout_user(user_id, &bytes)
+    }
+
+    /// Shared fan-out over one of the routing indexes. Returns the number
+    /// of sockets the payload was queued to.
+    fn fanout_indexed(&self, index: &DashMap<String, DashSet<u64>>, bytes: &bytes::Bytes) -> usize {
         let mut delivered = 0;
-        for entry in self.sessions.iter() {
-            if entry.value().user.id.to_string() == user_id
-                && entry.value().tx.try_send(bytes.clone()).is_ok()
-            {
-                delivered += 1;
+        for entry in index.iter() {
+            for sid in entry.value().iter() {
+                if let Some(sess) = self.sessions.get(&sid) {
+                    if self.try_send_counted(&sess, bytes.clone()) {
+                        delivered += 1;
+                    }
+                }
+            }
+        }
+        delivered
+    }
+
+    /// Send an already-serialised payload to every socket of one user
+    /// (see [`Self::send_to_user`] — this variant shares ONE `Bytes`
+    /// allocation with other fan-outs in the same send path).
+    pub fn send_to_user_bytes(&self, user_id: &str, bytes: &bytes::Bytes) -> usize {
+        self.fanout_user(user_id, bytes)
+    }
+
+    /// Broadcast an already-serialised payload to every ADMIN socket,
+    /// sharing ONE `Bytes` allocation with other fan-outs in the same
+    /// send path (the `channel_message` notify goes to BOTH the assignee
+    /// and the admins — serialise once, refcount everywhere).
+    pub fn broadcast_to_admins_bytes(&self, bytes: &bytes::Bytes) {
+        self.fanout_indexed(&self.admin_sockets, bytes);
+    }
+
+    /// Shared fan-out to one user's sockets via the `by_user` index.
+    fn fanout_user(&self, user_id: &str, bytes: &bytes::Bytes) -> usize {
+        let mut delivered = 0;
+        if let Some(set) = self.by_user.get(user_id) {
+            for sid in set.iter() {
+                if let Some(sess) = self.sessions.get(&sid) {
+                    if self.try_send_counted(&sess, bytes.clone()) {
+                        delivered += 1;
+                    }
+                }
             }
         }
         delivered
@@ -395,24 +606,21 @@ impl ChatHub {
     /// brand). Admins monitor the whole support queue, so they keep
     /// receiving channel notifications even for channels assigned to
     /// a specific employee.
+    ///
+    /// Routes through the `admin_sockets` index — O(admins).
     pub fn broadcast_to_admins(&self, msg: &serde_json::Value) {
         let payload = serde_json::to_string(msg).unwrap_or_default();
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());
-        for entry in self.sessions.iter() {
-            if entry.value().user.is_admin() {
-                let _ = entry.value().tx.try_send(bytes.clone());
-            }
-        }
+        self.fanout_indexed(&self.admin_sockets, &bytes);
     }
 
     /// Collect the socket ids of a user's live sessions (used for
     /// targeted sends from the assignment logic).
     pub fn sockets_of_user(&self, user_id: &str) -> Vec<u64> {
-        self.sessions
-            .iter()
-            .filter(|e| e.value().user.id.to_string() == user_id)
-            .map(|e| *e.key())
-            .collect()
+        self.by_user
+            .get(user_id)
+            .map(|set| set.iter().map(|sid| *sid).collect())
+            .unwrap_or_default()
     }
 
     /// Request every live socket to close. The actual close happens when
@@ -512,17 +720,21 @@ impl ChatHub {
     pub fn idem_claim(&self, client_msg_id: &str) -> Option<Option<String>> {
         use dashmap::mapref::entry::Entry;
         match self.idempotency.entry(client_msg_id.to_string()) {
-            Entry::Occupied(e) => {
+            Entry::Occupied(mut e) => {
                 // Already claimed/stored — check TTL.
-                let (stored_at, val) = e.get();
+                let (stored_at, val) = e.get().clone();
                 if stored_at.elapsed() > Self::IDEM_TTL {
-                    // Stale — overwrite with a fresh claim.
-                    drop(e);
-                    self.idempotency
-                        .insert(client_msg_id.to_string(), (Instant::now(), None));
+                    // Stale — overwrite IN PLACE, still holding the shard
+                    // write lock. The previous drop(e) + insert() pair
+                    // released the lock in between: a concurrent fresh
+                    // claim landing in that gap got silently clobbered by
+                    // our insert, and BOTH senders then proceeded to
+                    // insert the message row (the exact duplicate the
+                    // idempotency map exists to prevent).
+                    e.insert((Instant::now(), None));
                     None
                 } else {
-                    Some(val.clone())
+                    Some(val)
                 }
             }
             Entry::Vacant(v) => {
@@ -613,6 +825,93 @@ impl ChatHub {
         }
     }
 
+    // ── slow-consumer reaping ────────────────────────────
+
+    /// Length of one slow-consumer accounting window.
+    const SLOW_WINDOW: Duration = Duration::from_secs(60);
+
+    /// Force-close sockets whose outbound queue dropped ≥ `threshold`
+    /// messages within the last 60 s window. Runs from the supervised
+    /// `idem_gc` tick (every 60 s).
+    ///
+    /// This is the reaper the bounded-queue design always promised but
+    /// never shipped: `try_send`-on-Full drops messages but nothing ever
+    /// acted on the count, so a live-but-never-reading client (throttled
+    /// mobile WebView, backgrounded tab under GC pressure) pinned its
+    /// full 256-message queue + write-pump task + hub session in RAM
+    /// for the socket's whole (heartbeat-answered) lifetime.
+    ///
+    /// Closing goes through the NORMAL teardown path — the write pump
+    /// gets a Close frame out, the read loop observes the socket close,
+    /// and `handle_socket` unregisters the session (rooms, presence,
+    /// per-IP + global slots all released). Returns the number of sockets
+    /// reaped; also bumps the cumulative `stats().slow_consumers_reaped`
+    /// counter.
+    pub fn reap_slow_consumers(&self) -> usize {
+        let threshold = self.slow_consumer_threshold;
+        if threshold == 0 {
+            return 0; // disabled via WS_SLOW_CONSUMER_THRESHOLD=0
+        }
+        let now = Instant::now();
+        // First pass under one iter_mut: collect victims + roll windows.
+        // (Victim actions happen AFTER the loop — never call back into
+        // `sessions` while an iter_mut guard is live on it.)
+        let mut victims: Vec<(u64, usize, Option<mpsc::Sender<()>>, ClientTx)> = Vec::new();
+        for mut entry in self.sessions.iter_mut() {
+            let dropped = entry.dropped.load(Ordering::Acquire);
+            if now.duration_since(entry.dropped_window) >= Self::SLOW_WINDOW {
+                // Window rolled — reset the meter (a slow consumer from
+                // the PREVIOUS window starts fresh in this one).
+                entry.dropped.store(0, Ordering::Release);
+                entry.dropped_window = now;
+            } else if dropped >= threshold {
+                victims.push((*entry.key(), dropped, entry.close.clone(), entry.tx.clone()));
+            }
+        }
+        let mut reaped = 0;
+        for (sid, dropped, closer, tx) in victims {
+            // Prefer the dedicated close channel (works even when the
+            // outbound queue is full — the reaping condition itself);
+            // fall back to the empty-Bytes sentinel (tests register
+            // without a closer).
+            let sentinel_queued = match closer {
+                Some(c) => c.try_send(()).is_ok(),
+                None => tx.try_send(bytes::Bytes::new()).is_ok(),
+            };
+            // Reset the meter so we don't re-log the same victim every
+            // sweep while teardown lands (and retry later if it couldn't).
+            if let Some(mut sess) = self.sessions.get_mut(&sid) {
+                sess.dropped.store(0, Ordering::Release);
+                sess.dropped_window = Instant::now();
+            }
+            if sentinel_queued {
+                reaped += 1;
+                self.slow_reaped.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    socket_id = sid,
+                    dropped,
+                    threshold,
+                    "slow consumer reaped — close sentinel queued \
+                     (client not draining its outbound queue)"
+                );
+            } else {
+                tracing::warn!(
+                    socket_id = sid,
+                    dropped,
+                    threshold,
+                    "slow consumer identified but close sentinel undeliverable \
+                     (queue full + close channel exhausted) — retrying next sweep"
+                );
+            }
+        }
+        reaped
+    }
+
+    /// Cumulative slow-consumer reaps since boot (for `stats()`).
+    pub fn slow_reaped_total(&self) -> u64 {
+        self.slow_reaped.load(Ordering::Acquire)
+    }
+
     // ── stats / observability ──────────────────────────────────
 
     /// Snapshot of hub state for the `/health` endpoint + periodic log.
@@ -624,6 +923,7 @@ impl ChatHub {
             idempotency_entries: self.idempotency.len(),
             online_staff: presence().len(),
             distinct_ips: self.ip_conns.len(),
+            slow_consumers_reaped: self.slow_reaped.load(Ordering::Acquire),
         }
     }
 
@@ -663,6 +963,10 @@ pub struct HubStats {
     pub idempotency_entries: usize,
     pub online_staff: usize,
     pub distinct_ips: usize,
+    /// Cumulative sockets force-closed for slow consuming since boot.
+    /// Steadily growing under load = clients that cannot keep up with
+    /// their room's message rate (see `WS_SLOW_CONSUMER_THRESHOLD`).
+    pub slow_consumers_reaped: u64,
 }
 
 #[cfg(test)]
@@ -676,8 +980,10 @@ mod tests {
     /// isolation we instantiate `ChatHub::new()` directly.
     fn fresh_hub() -> ChatHub {
         // Use a small global cap so the cap-rejection tests are meaningful
-        // without each test needing to spin up 50_000 connections.
-        ChatHub::with_limits(3, 60)
+        // without each test needing to spin up 50_000 connections. Slow-
+        // consumer threshold 128 keeps the normal tests away from the
+        // reaper; the reaper test builds its own hub with a tiny one.
+        ChatHub::with_limits(3, 60, 128)
     }
 
     fn sample_user(id: &str, actor: &str) -> SessionUser {
@@ -1268,7 +1574,7 @@ mod tests {
     #[test]
     fn try_acquire_global_zero_means_unlimited() {
         // cap=0 = unlimited (counter still increments).
-        let h = ChatHub::with_limits(0, 60);
+        let h = ChatHub::with_limits(0, 60, 128);
         assert!(h.try_acquire_global());
         assert!(h.try_acquire_global());
         assert!(h.try_acquire_global());
@@ -1365,5 +1671,146 @@ mod tests {
         // And the message actually arrived.
         let m = rx2.try_recv().expect("u2 must receive");
         assert!(std::str::from_utf8(&m).unwrap_or("").contains("ping"));
+    }
+
+    // ── routing indexes (O(recipients) fan-out) ──────────────────
+
+    #[test]
+    fn unregister_reclaims_routing_index_entries() {
+        // The user/staff/admin index entries must not outlive their last
+        // socket — an empty DashSet per user ever seen is the same
+        // permanent-RSS leak leave_room fixed for rooms.
+        let h = fresh_hub();
+        let (tx, _rx) = make_tx();
+        let id = h.register(sample_user("staff1", "employee"), "1.1.1.1".into(), tx);
+        assert_eq!(h.by_user.len(), 1);
+        assert_eq!(h.staff_sockets.len(), 1);
+        assert_eq!(h.admin_sockets.len(), 0, "employee is not admin");
+        h.unregister(id);
+        assert_eq!(h.by_user.len(), 0, "by_user entry must be reclaimed");
+        assert_eq!(h.staff_sockets.len(), 0, "staff entry must be reclaimed");
+
+        // Multi-socket user: entry survives until the LAST socket drops.
+        let (tx1, _rx1) = make_tx();
+        let (tx2, _rx2) = make_tx();
+        let id1 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx1);
+        let id2 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx2);
+        assert_eq!(h.by_user.len(), 1, "same user = one entry");
+        h.unregister(id1);
+        assert_eq!(h.by_user.len(), 1, "entry survives while one socket lives");
+        assert_eq!(h.sockets_of_user(&sample_user_id("uA")), vec![id2]);
+        h.unregister(id2);
+        assert_eq!(h.by_user.len(), 0);
+    }
+
+    #[test]
+    fn sockets_of_user_is_indexed_not_scanned() {
+        let h = fresh_hub();
+        let (tx1, _rx1) = make_tx();
+        let (tx2, _rx2) = make_tx();
+        let (tx3, _rx3) = make_tx();
+        let id1 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx1);
+        let _other = h.register(sample_user("uB", "user"), "2.2.2.2".into(), tx2);
+        let id3 = h.register(sample_user("uA", "user"), "1.1.1.1".into(), tx3);
+        let mut sockets = h.sockets_of_user(&sample_user_id("uA"));
+        sockets.sort();
+        let mut expected = vec![id1, id3];
+        expected.sort();
+        assert_eq!(sockets, expected);
+        // Unknown user → empty, not an error.
+        assert!(h.sockets_of_user("nope").is_empty());
+    }
+
+    // ── slow-consumer reaper ─────────────────────────────────────
+
+    #[test]
+    fn reaper_closes_socket_past_threshold_after_queue_drains() {
+        // Threshold 4, queue capacity 4: 10 broadcasts → 4 queued + 6
+        // dropped ≥ threshold. The sentinel fallback needs queue space,
+        // so the test drains first (the write pump does exactly this in
+        // production) — then the reaper must deliver the empty-Bytes
+        // close sentinel and count the reap.
+        let h = ChatHub::with_limits(3, 60, 4);
+        let (tx, mut rx) = mpsc::channel(4);
+        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        h.join_room("room", id);
+        for _ in 0..10 {
+            h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
+        }
+        // Drain the queued messages (the write pump's job).
+        let mut seen = 0;
+        while rx.try_recv().is_ok() {
+            seen += 1;
+        }
+        assert_eq!(seen, 4, "capacity bounded the queue");
+        let reaped = h.reap_slow_consumers();
+        assert_eq!(reaped, 1, "socket over threshold must be reaped");
+        assert_eq!(h.slow_reaped_total(), 1);
+        // The close sentinel arrives as an empty Bytes payload.
+        let sentinel = rx.try_recv().expect("close sentinel must be queued");
+        assert!(
+            sentinel.is_empty(),
+            "sentinel is the empty-Bytes close marker"
+        );
+
+        // Meter was reset: a few more drops WITHOUT hitting the threshold
+        // must NOT reap again.
+        for _ in 0..3 {
+            h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
+        }
+        let _ = rx.try_recv();
+        assert_eq!(h.reap_slow_consumers(), 0, "below threshold = no reap");
+    }
+
+    #[test]
+    fn reaper_uses_priority_close_channel_even_with_full_queue() {
+        // The production wiring: handle_socket registers a dedicated
+        // 1-slot close channel via set_closer — the sentinel MUST go out
+        // even when the outbound queue is completely full (a full queue
+        // is the reaping condition itself).
+        let h = ChatHub::with_limits(3, 60, 4);
+        let (tx, mut rx) = mpsc::channel(2);
+        let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
+        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        h.set_closer(id, close_tx);
+        h.join_room("room", id);
+        // Fill the queue (2 queued) + 5 dropped.
+        for _ in 0..7 {
+            h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
+        }
+        // Do NOT drain — queue stays full. The dedicated close channel
+        // still delivers.
+        let reaped = h.reap_slow_consumers();
+        assert_eq!(reaped, 1);
+        close_rx
+            .try_recv()
+            .expect("priority close channel must fire despite full queue");
+        // The outbound queue still holds ONLY the two original messages:
+        // the empty-Bytes sentinel could not fit (queue full — that is
+        // the reaping condition), so the close went exclusively through
+        // the priority channel.
+        let mut drained = Vec::new();
+        while let Ok(m) = rx.try_recv() {
+            drained.push(m);
+        }
+        assert_eq!(drained.len(), 2, "queue holds only the 2 original messages");
+        assert!(
+            drained.iter().all(|m| !m.is_empty()),
+            "no close sentinel was queued into the full outbound queue"
+        );
+        assert_eq!(h.slow_reaped_total(), 1);
+    }
+
+    #[test]
+    fn reaper_disabled_when_threshold_zero() {
+        let h = ChatHub::with_limits(3, 60, 0);
+        let (tx, _rx) = mpsc::channel(2);
+        let id = h.register(sample_user("u1", "user"), "1.1.1.1".into(), tx);
+        h.join_room("room", id);
+        for _ in 0..10 {
+            h.broadcast_to_room_raw("room", "{\"type\":\"ping\"}");
+        }
+        assert_eq!(h.reap_slow_consumers(), 0, "threshold 0 = reaper off");
+        assert_eq!(h.slow_reaped_total(), 0);
     }
 }

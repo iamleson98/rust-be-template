@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
+        ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
         ConnectInfo, Query, State,
     },
     http::HeaderMap,
@@ -171,13 +171,23 @@ pub async fn ws_upgrade(
     // ── Clamp frame/message sizes (defense vs. malicious SDP) ───────────
     let ws = ws
         .max_message_size(st.config.ws.max_message_bytes)
-        .max_frame_size(st.config.ws.max_frame_bytes);
+        .max_frame_size(st.config.ws.max_frame_bytes)
+        // 16 KiB per-socket write buffer (WS_WRITE_BUFFER_KIB) instead of
+        // tungstenite's 128 KiB default — same rationale as the chat WS:
+        // at call-center scale the default alone pins ~1.25 GiB of
+        // buffers for sockets that mostly wait on pings. An SDP offer
+        // (~4-8 KiB) still fits without back-pressure.
+        .write_buffer_size(st.config.ws.write_buffer_bytes());
 
     let heartbeat_sec = st.config.ws.heartbeat_sec.max(5);
     let idle_timeout_sec = st.config.ws.idle_timeout_sec.max(heartbeat_sec * 2 + 1);
 
     // STUN/TURN servers pushed to the peer in the `registered` message.
-    let ice_servers = st.config.audio_call.ice_servers_json();
+    // Per-USER list: in `rest` auth mode the backend mints a fresh,
+    // time-limited HMAC credential scoped to this user + this socket's
+    // expected lifetime (see `AudioCallConfig::ice_servers_for`); in the
+    // default `static` mode it is the plain env JSON passthrough.
+    let ice_servers = st.config.audio_call.ice_servers_for(&user.id.to_string());
     // Channel capacity from config — was previously hardcoded to 64.
     let channel_capacity = st.config.ws.channel_capacity.max(1);
 
@@ -229,10 +239,23 @@ pub async fn handle_socket(
                 maybe_msg = rx.recv() => {
                     match maybe_msg {
                         Some(msg) => {
-                            let text = std::str::from_utf8(&msg)
-                                .unwrap_or("");
-                            if sink.send(Message::Text(text.into())).await.is_err() {
-                                break;
+                            // Zero-copy: re-use the SAME refcounted
+                            // allocation (Bytes → Utf8Bytes validates
+                            // cheaply; `From<&str>` would re-allocate +
+                            // memcpy every frame — buffers we already
+                            // own).
+                            match Utf8Bytes::try_from(msg) {
+                                Ok(text) => {
+                                    if sink.send(Message::Text(text)).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::error!(
+                                        error = %e,
+                                        "ws-call write pump: non-UTF-8 frame dropped"
+                                    );
+                                }
                             }
                         }
                         None => break,
@@ -342,7 +365,20 @@ pub async fn handle_socket(
                                                 })
                                                 .to_string(),
                                             ));
-                                            call_hub().broadcast_presence();
+                                            // Presence fan-out ONLY for agent
+                                            // registrations: a customer
+                                            // register changes NOTHING in
+                                            // the presence payload
+                                            // (onlineAgents / agentInCall /
+                                            // agentsAvailable are all
+                                            // agent-side facts) — firing a
+                                            // full O(peers) + O(staff-chat)
+                                            // broadcast per customer used
+                                            // to make connect storms
+                                            // quadratic.
+                                            if role == CallRole::Agent {
+                                                call_hub().broadcast_presence();
+                                            }
                                         }
                                         Err(msg) => {
                                             let _ = tx.try_send(
@@ -531,7 +567,14 @@ pub async fn handle_socket(
             }
         }
     }
-    call_hub().broadcast_presence();
+    // Presence fan-out only when an AGENT's state actually changed
+    // (agent socket dropped / freed from a call). Customer-side
+    // teardowns that ENDED an agent's session already broadcast via
+    // `agent_session_cleanup`; a bare customer socket dropping changes
+    // nothing in the presence payload.
+    if matches!(role, Some(CallRole::Agent)) {
+        call_hub().broadcast_presence();
+    }
 
     tokio::select! {
         _ = &mut write_task => { }

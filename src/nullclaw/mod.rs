@@ -240,15 +240,25 @@ pub struct DirectLLMProvider {
     pub timeout: Duration,
     pub max_history: usize,
     pub client: reqwest::Client,
+    /// Concurrency cap (`NULLCLAW_MAX_CONCURRENT`, default 4): every
+    /// staff-less customer message spawns a detached LLM call; without a
+    /// cap a message flood spawns unbounded concurrent requests (each
+    /// holding conversation history + response buffers for up to
+    /// `timeout`). `try_acquire` — over the cap the reply is skipped
+    /// with a warning instead of queued (queueing would trade an
+    /// unbounded-TASK problem for an unbounded-QUEUE one).
+    concurrency: tokio::sync::Semaphore,
 }
 
 impl DirectLLMProvider {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         base_url: String,
         api_key: String,
         model: String,
         timeout_ms: u64,
         max_history: usize,
+        max_concurrent: usize,
     ) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(timeout_ms))
@@ -258,6 +268,7 @@ impl DirectLLMProvider {
             base_url,
             api_key,
             model,
+            concurrency: tokio::sync::Semaphore::new(max_concurrent.max(1)),
             timeout: Duration::from_millis(timeout_ms),
             max_history,
             client,
@@ -353,6 +364,23 @@ impl NullClawProvider for DirectLLMProvider {
             );
             return Ok(None);
         }
+
+        // 1b. Concurrency cap: each staff-less message spawns a detached
+        // LLM call — a flood from one account must not turn into
+        // unbounded concurrent requests (RAM + API spend). Over the cap
+        // we SKIP (the message is already persisted; a human or the next
+        // message's reply covers it) rather than queue.
+        let _reply_permit = match self.concurrency.try_acquire() {
+            Ok(permit) => permit,
+            Err(_) => {
+                tracing::warn!(
+                    channel_id,
+                    available = self.concurrency.available_permits(),
+                    "nullclaw: concurrency cap reached — skipping bot reply for this message"
+                );
+                return Ok(None);
+            }
+        };
 
         // 2. Safety check — block prompt injection attempts.
         if Self::is_blocked(user_text) {
@@ -572,6 +600,7 @@ pub fn init(cfg: &NullClawConfig) {
             cfg.model.clone(),
             cfg.timeout_ms,
             cfg.max_history,
+            cfg.max_concurrent,
         ))
     } else {
         tracing::info!(
@@ -617,6 +646,7 @@ mod tests {
             "gemini-2.0-flash".into(),
             15000,
             12,
+            4,
         );
         assert!(p.is_enabled());
         assert_eq!(p.name(), "direct-llm");

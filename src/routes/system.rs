@@ -16,9 +16,9 @@
 //! live host-level metrics (CPU / RAM / disks / process / host info)
 //! for the admin server-monitoring page, ported from pdf-tts.
 
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::audio_call::hub::call_hub;
@@ -807,13 +807,400 @@ pub async fn system_metrics(
     ))
 }
 
+// ── Database size / compaction diagnostics ──────────────────────────
+//
+// Answers "is the DB file size normal?" with NUMBERS instead of guesswork:
+// file sizes (db + wal + shm), the pager's own accounting (page size,
+// page count, freelist), a per-table dbstat breakdown, and — with
+// `?probe=1` — a ground-truth compaction probe (`VACUUM INTO` a throwaway
+// file, measure, delete). The probe is the one number that settles the
+// "is my file bloated" debate: probe_bytes is what the SAME live data
+// costs on a fresh, fully-compacted copy of the SAME engine.
+//
+// See deploy/DB-SIZE-RUNBOOK.md for the operating procedure (when to
+// probe, how to read the ratio, how to run the guarded VACUUM).
+
+/// Query params for `GET /api/admin/system/database`.
+#[derive(Debug, Default, Deserialize)]
+pub struct DatabaseSizeParams {
+    /// `probe=1` → run a `VACUUM INTO` compaction probe (writes a
+    /// throwaway copy next to the temp dir, measures it, deletes it).
+    /// Costs one full-DB read + one compacted write + free disk ≈
+    /// compacted size. Skip on a full disk / under heavy write load.
+    pub probe: Option<u8>,
+}
+
+/// File-size block of the report.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DbFilesOut {
+    /// Resolved on-disk path of the main database file (from DATABASE_URL).
+    pub db_path: String,
+    /// Main DB file size in bytes.
+    pub db_bytes: u64,
+    /// Write-ahead log size in bytes (WAL mode; checkpoints bound it).
+    pub wal_bytes: u64,
+    /// Shared-memory index size in bytes (present while WAL is active).
+    pub shm_bytes: u64,
+}
+
+/// Pager-level pragmas that size/fragmentation questions need.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DbPragmasOut {
+    /// Page size in bytes (fixed at file creation).
+    pub page_size: i64,
+    /// Total pages currently in the file (`page_size * page_count` ≈
+    /// the on-disk size, modulo preallocation).
+    pub page_count: i64,
+    /// Pages on the freelist — reusable by future writes, but still
+    /// occupying file space until a VACUUM.
+    pub freelist_pages: i64,
+    /// `journal_mode` (expect `wal`).
+    pub journal_mode: String,
+    /// Configured engine-wide page-cache budget in KiB
+    /// (DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per
+    /// file across the pool, so this is a single budget, not per-conn).
+    pub cache_kib: i64,
+}
+
+/// One table's footprint from the `dbstat` virtual table.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DbTableSizeOut {
+    /// Table (or index) name.
+    pub name: String,
+    /// Pages used by this object.
+    pub pages: i64,
+    /// Bytes used by this object.
+    pub bytes: i64,
+}
+
+/// `?probe=1` result: the ground-truth compacted size.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DbProbeOut {
+    /// Size of the `VACUUM INTO` copy — the same live data, fully
+    /// compacted, on the SAME engine. This is the number to compare
+    /// `dbBytes` against.
+    pub compacted_bytes: u64,
+    /// `compacted_bytes / db_bytes` — how much of the current file is
+    /// live, compacted data.
+    pub live_ratio: f64,
+    /// `true` when live_ratio < 0.9 (≥ 10% of the file is freelist /
+    /// fragmentation / slack) — a VACUUM would meaningfully shrink it.
+    pub reclaimable: bool,
+    /// Wall time of the probe (the VACUUM INTO write).
+    pub probe_seconds: f64,
+    /// Non-fatal probe errors (dbstat unavailable, wal missing, …).
+    pub note: Option<String>,
+}
+
+/// Full `GET /api/admin/system/database` report.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct DatabaseSizeResponse {
+    /// Engine identity (rust-sql build).
+    pub engine: String,
+    /// Masked DATABASE_URL (password-free display form).
+    pub url_masked: String,
+    pub files: DbFilesOut,
+    pub pragmas: DbPragmasOut,
+    /// Top-25 largest objects (tables + indexes) from `dbstat`; `None`
+    /// when the engine build lacks the dbstat virtual table.
+    pub top_tables: Option<Vec<DbTableSizeOut>>,
+    /// Present only with `?probe=1`.
+    pub probe: Option<DbProbeOut>,
+}
+
+/// `POST /api/admin/system/database/vacuum` result.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VacuumResponse {
+    /// File size before the VACUUM (db + wal).
+    pub before_bytes: u64,
+    /// File size after the VACUUM + a WAL checkpoint (db + wal).
+    pub after_bytes: u64,
+    /// `before - after` (can legitimately be small: WAL + freelist were
+    /// already bounded).
+    pub reclaimed_bytes: u64,
+    /// Wall time of the VACUUM (s) — expect roughly one full-DB
+    /// read + write; plan the maintenance window around it.
+    pub seconds: f64,
+}
+
+/// Resolve the main DB file path from the configured URL
+/// (`sqlite://./app.db?mode=rwc` → `./app.db`).
+fn db_file_path(url: &str) -> String {
+    url.strip_prefix("sqlite://")
+        .or_else(|| url.strip_prefix("sqlite:"))
+        .unwrap_or(url)
+        .split('?')
+        .next()
+        .unwrap_or("app.db")
+        .to_string()
+}
+
+/// Read one integer PRAGMA (`PRAGMA page_count` → column `page_count`).
+async fn pragma_i64(
+    db: &sea_orm::DatabaseConnection,
+    name: &'static str,
+) -> Result<i64, sea_orm::DbErr> {
+    use sea_orm::{ConnectionTrait, Statement};
+    let rows = db
+        .query_all(Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            format!("PRAGMA {name}"),
+        ))
+        .await?;
+    rows.first()
+        .and_then(|r| r.try_get::<i64>("", name).ok())
+        .ok_or_else(|| sea_orm::DbErr::Custom(format!("PRAGMA {name} returned no rows")))
+}
+
+/// Read one string PRAGMA (`PRAGMA journal_mode`).
+async fn pragma_str(
+    db: &sea_orm::DatabaseConnection,
+    name: &'static str,
+) -> Result<String, sea_orm::DbErr> {
+    use sea_orm::{ConnectionTrait, Statement};
+    let rows = db
+        .query_all(Statement::from_string(
+            sea_orm::DatabaseBackend::Sqlite,
+            format!("PRAGMA {name}"),
+        ))
+        .await?;
+    rows.first()
+        .and_then(|r| r.try_get::<String>("", name).ok())
+        .ok_or_else(|| sea_orm::DbErr::Custom(format!("PRAGMA {name} returned no rows")))
+}
+
+/// `db + wal` on-disk footprint in bytes.
+fn db_footprint_bytes(db_path: &str) -> u64 {
+    let main = std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0);
+    let wal = std::fs::metadata(format!("{db_path}-wal"))
+        .map(|m| m.len())
+        .unwrap_or(0);
+    main + wal
+}
+
+/// Compaction probe: `VACUUM INTO` a uniquely-named temp file, measure,
+/// delete. Returns (compacted_bytes, elapsed_seconds).
+async fn vacuum_into_probe(db: &sea_orm::DatabaseConnection) -> Result<(u64, f64), String> {
+    use sea_orm::ConnectionTrait;
+    let started = std::time::Instant::now();
+    let tmp = std::env::temp_dir().join(format!(
+        "dbsize-probe-{}-{}.rsql",
+        std::process::id(),
+        chrono::Utc::now().timestamp_millis()
+    ));
+    // Single-quote the path per SQL string literals; strip quotes from
+    // the (already temporary-dir-derived) path defensively.
+    let safe: String = tmp
+        .display()
+        .to_string()
+        .chars()
+        .map(|c| if c == '\'' { ' ' } else { c })
+        .collect();
+    let sql = format!("VACUUM INTO '{}';", safe);
+    let res = db.execute_unprepared(&sql).await;
+    let elapsed = started.elapsed().as_secs_f64();
+    match res {
+        Ok(_) => {
+            let bytes = std::fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0);
+            let _ = std::fs::remove_file(&tmp);
+            Ok((bytes, elapsed))
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            Err(format!("VACUUM INTO failed: {e}"))
+        }
+    }
+}
+
+/// `GET /api/admin/system/database` — file sizes, pager pragmas, dbstat
+/// top-25, and (with `?probe=1`) the ground-truth compacted size.
+#[utoipa::path(
+    get,
+    path = "/api/admin/system/database",
+    params(
+        ("probe" = Option<u8>, Query, description = "1 = run a VACUUM INTO compaction probe (extra IO; skip under heavy write load)")
+    ),
+    responses(
+        (status = 200, description = "Database size report", body = DatabaseSizeResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden")
+    )
+)]
+pub async fn database_size(
+    State(st): State<AppState>,
+    admin: AdminUser,
+    Query(params): Query<DatabaseSizeParams>,
+) -> AppResult<Json<DatabaseSizeResponse>> {
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .await?;
+
+    let db_path = db_file_path(&st.config.database.url);
+    let db_bytes = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+    let wal_bytes = std::fs::metadata(format!("{db_path}-wal"))
+        .map(|m| m.len())
+        .unwrap_or(0);
+    let shm_bytes = std::fs::metadata(format!("{db_path}-shm"))
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+    let page_size = pragma_i64(&st.db, "page_size").await.unwrap_or(0);
+    let page_count = pragma_i64(&st.db, "page_count").await.unwrap_or(0);
+    let freelist_pages = pragma_i64(&st.db, "freelist_count").await.unwrap_or(0);
+    let journal_mode = pragma_str(&st.db, "journal_mode").await.unwrap_or_default();
+
+    // dbstat top-25 by footprint (tables + indexes). The rust-sql engine
+    // may not build the dbstat virtual table — degrade to `None`.
+    let top_tables: Option<Vec<DbTableSizeOut>> = {
+        use sea_orm::{ConnectionTrait, Statement};
+        let sql = "SELECT name, COUNT(*) AS pages, SUM(pgsize) AS bytes \
+                   FROM dbstat GROUP BY name ORDER BY bytes DESC LIMIT 25;";
+        match st
+            .db
+            .query_all(Statement::from_string(
+                sea_orm::DatabaseBackend::Sqlite,
+                sql,
+            ))
+            .await
+        {
+            Ok(rows) => Some(
+                rows.into_iter()
+                    .filter_map(|r| {
+                        let name: String = r.try_get("", "name").ok()?;
+                        let pages: i64 = r.try_get("", "pages").ok()?;
+                        let bytes: i64 = r.try_get("", "bytes").ok()?;
+                        Some(DbTableSizeOut { name, pages, bytes })
+                    })
+                    .collect(),
+            ),
+            Err(_) => None,
+        }
+    };
+
+    let probe = if params.probe.unwrap_or(0) == 1 {
+        match vacuum_into_probe(&st.db).await {
+            Ok((compacted_bytes, probe_seconds)) => {
+                let live_ratio = if db_bytes > 0 {
+                    compacted_bytes as f64 / db_bytes as f64
+                } else {
+                    1.0
+                };
+                Some(DbProbeOut {
+                    compacted_bytes,
+                    live_ratio,
+                    reclaimable: live_ratio < 0.9,
+                    probe_seconds,
+                    note: None,
+                })
+            }
+            Err(err) => Some(DbProbeOut {
+                compacted_bytes: 0,
+                live_ratio: 0.0,
+                reclaimable: false,
+                probe_seconds: 0.0,
+                note: Some(err),
+            }),
+        }
+    } else {
+        None
+    };
+
+    Ok(Json(DatabaseSizeResponse {
+        engine: crate::db::engine_source_id().to_string(),
+        url_masked: mask_db_url(&st.config.database.url),
+        files: DbFilesOut {
+            db_path,
+            db_bytes,
+            wal_bytes,
+            shm_bytes,
+        },
+        pragmas: DbPragmasOut {
+            page_size,
+            page_count,
+            freelist_pages,
+            journal_mode,
+            cache_kib: st.config.database.cache_kib,
+        },
+        top_tables,
+        probe,
+    }))
+}
+
+/// `POST /api/admin/system/database/vacuum` — guarded in-place
+/// compaction. Rebuilds the file (drops freelist + fragmentation
+/// slack); expect IO ≈ one full-DB read + write for the duration.
+/// Runs on the shared single-writer engine: concurrent writers queue on
+/// the engine's own write lock — run it in a quiet window.
+#[utoipa::path(
+    post,
+    path = "/api/admin/system/database/vacuum",
+    responses(
+        (status = 200, description = "VACUUM completed", body = VacuumResponse),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden"),
+        (status = 500, description = "VACUUM failed (reported in body)")
+    )
+)]
+pub async fn database_vacuum(
+    State(st): State<AppState>,
+    admin: AdminUser,
+) -> AppResult<Json<VacuumResponse>> {
+    use sea_orm::ConnectionTrait;
+
+    st.rbac
+        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
+        .await?;
+
+    let db_path = db_file_path(&st.config.database.url);
+    let before_bytes = db_footprint_bytes(&db_path);
+    let started = std::time::Instant::now();
+
+    // The engine is single-writer: a VACUUM takes the write lock for its
+    // duration. Failure surfaces as a 500 with the engine's own error.
+    st.db
+        .execute_unprepared("VACUUM;")
+        .await
+        .map_err(|e| crate::error::AppError::Internal(format!("VACUUM failed: {e}")))?;
+
+    // Roll the WAL into the main file so `after_bytes` reflects reality.
+    let _ = st
+        .db
+        .execute_unprepared("PRAGMA wal_checkpoint(TRUNCATE);")
+        .await;
+
+    let seconds = started.elapsed().as_secs_f64();
+    let after_bytes = db_footprint_bytes(&db_path);
+    tracing::info!(
+        before_bytes,
+        after_bytes,
+        reclaimed_bytes = before_bytes.saturating_sub(after_bytes),
+        seconds,
+        "admin-triggered database VACUUM completed"
+    );
+    Ok(Json(VacuumResponse {
+        before_bytes,
+        after_bytes,
+        reclaimed_bytes: before_bytes.saturating_sub(after_bytes),
+        seconds,
+    }))
+}
+
 /// Build the system monitoring router (`/api/admin/system` +
-/// `/api/admin/system/metrics` + `/api/admin/chat/stats`).
+/// `/api/admin/system/metrics` + `/api/admin/system/chat/stats` +
+/// `/api/admin/system/database` + `/api/admin/system/database/vacuum`).
 pub fn router() -> axum::Router<crate::state::AppState> {
-    use axum::routing::get;
+    use axum::routing::{get, post};
     axum::Router::new()
         .route("/", get(system_status))
         .route("/metrics", get(system_metrics))
         .route("/memory", get(process_memory))
         .route("/chat/stats", get(chat_stats))
+        .route("/database", get(database_size))
+        .route("/database/vacuum", post(database_vacuum))
 }

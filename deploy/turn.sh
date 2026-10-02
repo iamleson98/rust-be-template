@@ -49,6 +49,27 @@ set -euo pipefail
 
 cd "$(cd "$(dirname "$0")" && pwd)"
 
+# ── 0. TURN REST auth mode flag ──────────────────────────────────────
+#
+# `--use-auth-secret` (or TURN_USE_AUTH_SECRET=1) switches BOTH sides to
+# draft-uberti-behave-turn-rest credentials:
+#   * coturn: --use-auth-secret --static-auth-secret=$TURN_SECRET
+#     (no fixed --user; it challenges, then verifies
+#     base64(HMAC-SHA1(secret, "<expiry>:<userId>")) itself);
+#   * backend: AUDIO_CALL_TURN_AUTH_MODE=rest in .env → the backend mints
+#     per-user, time-limited credentials into the `registered` frame
+#     (config.rs ice_servers_for).
+#
+# This is a COORDINATED flip — run it while you can restart the backend:
+#   1. ./turn.sh --use-auth-secret        (recreates coturn + writes env)
+#   2. deploy.sh (stack deploy picks up AUDIO_CALL_TURN_AUTH_MODE=rest)
+# A half-flip (backend mints, coturn still static — or vice versa) fails
+# every TURN allocation with 401; calls fall back to STUN-only and break
+# behind CGNAT. Re-running WITHOUT the flag flips both back to static.
+USE_AUTH_SECRET=0
+[ "${1:-}" = "--use-auth-secret" ] && USE_AUTH_SECRET=1
+[ "${TURN_USE_AUTH_SECRET:-0}" = "1" ] && USE_AUTH_SECRET=1
+
 STACK=datxevui
 CONTAINER=coturn-vexevn
 IMAGE=coturn/coturn:4.6-alpine
@@ -114,6 +135,14 @@ ensure_env TURN_USERNAME "$TURN_USERNAME"
 ensure_env TURN_SECRET "$TURN_SECRET"
 ensure_env PUBLIC_IP "$PUBLIC_IP"
 ensure_env TURN_DOMAIN "$TURN_DOMAIN"
+# Persist the auth mode so the stack deploy + backend see the same mode
+# coturn runs in (the coordinated flip, step 2 is `deploy.sh`).
+if [ "$USE_AUTH_SECRET" = "1" ]; then
+  ensure_env AUDIO_CALL_TURN_AUTH_MODE rest
+else
+  # No flag → static mode (also heals a stray `rest` left in .env).
+  ensure_env AUDIO_CALL_TURN_AUTH_MODE static
+fi
 
 # ── 2. AUDIO_CALL_ICE_SERVERS → this TURN server ─────────────────────
 # The backend reads this env at boot and pushes it to every WebRTC peer
@@ -216,7 +245,16 @@ fi
 # 16341 ports + listeners + margin needs a lifted limit — the docker
 # default can be as low as 1024 on some hosts, which would cap relay
 # ports long before the range does. 1M matches the backend container.
-base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=65500 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} --lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET} --user-quota=0 --total-quota=0 --no-dtls"
+# REST mode swaps the fixed --user for the shared-secret HMAC flow: the
+# backend mints "<expiry>:<userId>" + base64(HMAC-SHA1(secret, ...)) per
+# user per hour; coturn verifies the same formula. Static mode keeps the
+# long-lived shared pair (documented, deliberate — see ICE above).
+if [ "$USE_AUTH_SECRET" = "1" ]; then
+  auth_args="--lt-cred-mech --use-auth-secret --static-auth-secret=${TURN_SECRET}"
+else
+  auth_args="--lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET}"
+fi
+base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=65500 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} ${auth_args} --user-quota=0 --total-quota=0 --no-dtls"
 tls_args="--tls-listening-port=5349 --cert=/etc/cert/fullchain.pem --pkey=/etc/cert/privkey.pem"
 desired_cmd="$base_cmd $tls_args"
 

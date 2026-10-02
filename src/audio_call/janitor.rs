@@ -269,7 +269,30 @@ pub fn spawn_janitor(ring_timeout: Duration, max_duration: Duration, interval: D
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            let report = sweep_once(ring_timeout, max_duration);
+            // Panic-supervised: the janitor is the safety net that
+            // guarantees call state (and the agent's in_call flag) is
+            // ALWAYS released. A panicking sweep used to kill this task —
+            // and with it every future sweep — silently re-opening the
+            // zombie-session leak the janitor exists to close.
+            let report = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                sweep_once(ring_timeout, max_duration)
+            })) {
+                Ok(report) => report,
+                Err(payload) => {
+                    let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                        (*s).to_string()
+                    } else if let Some(s) = payload.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        "<non-string panic payload>".to_string()
+                    };
+                    tracing::error!(
+                        panic = %msg,
+                        "call-janitor sweep panicked — supervised (janitor continues)"
+                    );
+                    continue;
+                }
+            };
             if report.anything() {
                 tracing::warn!(
                     ring_expired = report.ring_expired,

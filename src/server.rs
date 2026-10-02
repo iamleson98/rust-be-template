@@ -228,7 +228,11 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // Wire WsConfig.max_connections into the hub BEFORE the first WS
     // upgrade arrives. Previously the hub was hardcoded to 50_000 and an
     // operator setting WS__MAX_CONNECTIONS=10000 had no effect.
-    ws::init_with_config(config.ws.max_connections, 60);
+    ws::init_with_config(
+        config.ws.max_connections,
+        60,
+        config.ws.slow_consumer_threshold,
+    );
 
     // Same caps for the call-WS hub: `/ws-call` previously had NO
     // admission control (every authenticated account could hold
@@ -433,6 +437,7 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let state = AppState::new(
         config_arc,
         rbac.clone(),
+        db.clone(),
         auth_service,
         post_service,
         user_service,

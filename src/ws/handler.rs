@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use axum::{
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
+        ws::{Message, Utf8Bytes, WebSocket, WebSocketUpgrade},
         ConnectInfo, Query, State,
     },
     http::HeaderMap,
@@ -205,7 +205,13 @@ pub async fn ws_upgrade(
 
     let ws = ws
         .max_message_size(st.config.ws.max_message_bytes)
-        .max_frame_size(st.config.ws.max_frame_bytes);
+        .max_frame_size(st.config.ws.max_frame_bytes)
+        // 16 KiB per-socket write buffer (WS_WRITE_BUFFER_KIB) instead of
+        // tungstenite's 128 KiB default: at call-center scale the default
+        // alone reserves ~1.25 GiB of buffers for sockets that are mostly
+        // waiting on pings. 16 KiB still fits a chat burst + one SDP offer;
+        // larger frames just take an extra write poll.
+        .write_buffer_size(st.config.ws.write_buffer_bytes());
 
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, st, user, ip, limits)))
 }
@@ -225,8 +231,15 @@ pub async fn handle_socket(
 
     let (sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(limits.channel_cap.max(1));
+    let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
     let sid = hub().register(user.clone(), ip.clone(), tx);
+    // Give the reaper a priority close path that works even when the
+    // outbound queue is completely full (the reaping condition itself):
+    // the write pump's `close_rx` select branch sends a proper Close
+    // frame + breaks, and the read loop observes the socket close — the
+    // NORMAL teardown path, so rooms/presence/slots are all released.
+    hub().set_closer(sid, close_tx.clone());
 
     // If this is staff (employee OR admin), register their presence
     // socket and let every staff dashboard know availability changed.
@@ -247,10 +260,8 @@ pub async fn handle_socket(
         "ws connected"
     );
 
-    let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
-
     // ── Write pump ──────────────────────────────────────────────────────
-    let write_task = {
+    let mut write_task = {
         let mut sink = sink;
         let mut heartbeat = tokio::time::interval(Duration::from_secs(limits.heartbeat_sec.max(1)));
         heartbeat.tick().await; // consume immediate tick
@@ -259,17 +270,36 @@ pub async fn handle_socket(
             loop {
                 tokio::select! {
                     Some(msg) = rx.recv() => {
-                        // Empty Bytes = close sentinel from close_all().
-                        // Non-empty = a pre-serialised JSON text frame.
+                        // Empty Bytes = close sentinel from close_all() or
+                        // the slow-consumer reaper. Non-empty = a
+                        // pre-serialised JSON text frame.
                         if msg.is_empty() {
                             break;
                         }
-                        // Convert Bytes → &str → Utf8Bytes (axum's ws Text
-                        // type). This is a zero-copy deref, no allocation.
-                        let text = std::str::from_utf8(&msg)
-                            .unwrap_or("");
-                        if sink.send(Message::Text(text.into())).await.is_err() {
-                            break;
+                        // Zero-copy hand-off: Bytes → Utf8Bytes re-uses the
+                        // SAME refcounted allocation (one cheap validation
+                        // pass, no re-allocation + memcpy). The previous
+                        // `str::from_utf8(&msg)` + `.into()` looked
+                        // zero-copy, but `Utf8Bytes: From<&str>` must COPY
+                        // the bytes into a fresh allocation — one heap
+                        // allocation + memcpy per outbound frame, on every
+                        // socket, for buffers we already own.
+                        match Utf8Bytes::try_from(msg) {
+                            Ok(text) => {
+                                if sink.send(Message::Text(text)).await.is_err() {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                // Our own serde_json output is always valid
+                                // UTF-8; if this ever fires it is memory
+                                // corruption — drop the frame, keep the
+                                // socket.
+                                tracing::error!(
+                                    error = %e,
+                                    "ws write pump: non-UTF-8 outbound frame dropped"
+                                );
+                            }
                         }
                     }
                     _ = heartbeat.tick() => {
@@ -328,7 +358,22 @@ pub async fn handle_socket(
 
     // ── Teardown ─────────────────────────────────────────────────────────
     let _ = close_tx.send(()).await;
-    let _ = write_task.await;
+    // BOUNDED teardown (mirrors `/ws-call`): a wedged write pump — TCP
+    // backpressure from a client that still answers pings at the kernel
+    // level but never reads — must not hold this task (and the hub
+    // session, and the per-IP/global slots) hostage forever. The
+    // previous unbounded `write_task.await` did exactly that: the
+    // session was only unregistered AFTER the write pump exited, so one
+    // undrained socket leaked its session, its channel and this whole
+    // task — permanently. 500 ms is ample for a healthy pump to drain a
+    // full 16 KiB buffer; after that we abort (the OS closes the socket
+    // and the peer discovers it via its own timeouts).
+    tokio::select! {
+        _ = &mut write_task => {}
+        _ = tokio::time::sleep(Duration::from_millis(500)) => {
+            write_task.abort();
+        }
+    }
     // Remove the session from the hub. `unregister` is the ONE release
     // path: it leaves the joined room, drops the staff presence socket,
     // and releases the per-IP + global connection slots (hub.rs).
@@ -643,15 +688,20 @@ async fn handle_message(
             "preview": preview,
             "createdAt": now,
         });
+        // Serialise the notify frame ONCE and share the buffer across
+        // BOTH fan-outs (assignee + admins): `Bytes` clones are refcount
+        // bumps, so the second fan-out costs zero serialisation and zero
+        // per-recipient allocation.
+        let notify_bytes = bytes::Bytes::copy_from_slice(notify.to_string().as_bytes());
         match &outcome {
             crate::service::chat_service::RoutingOutcome::ToAssignee { employee_id } => {
-                hub().send_to_user(employee_id, &notify);
+                hub().send_to_user_bytes(employee_id, &notify_bytes);
                 // Admins still monitor the whole queue.
-                hub().broadcast_to_admins(&notify);
+                hub().broadcast_to_admins_bytes(&notify_bytes);
             }
             crate::service::chat_service::RoutingOutcome::NewlyAssigned { employee_id } => {
-                hub().send_to_user(employee_id, &notify);
-                hub().broadcast_to_admins(&notify);
+                hub().send_to_user_bytes(employee_id, &notify_bytes);
+                hub().broadcast_to_admins_bytes(&notify_bytes);
                 let name = presence()
                     .get(employee_id)
                     .map(|p| p.name)
@@ -918,11 +968,43 @@ pub fn spawn_idem_gc() {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
-            hub().idem_gc();
-            hub().channel_cache_gc();
-            crate::guard::AbuseGuard::shared().sweep_inert();
+            supervised_sweep("idem_gc", || hub().idem_gc());
+            supervised_sweep("channel_cache_gc", || hub().channel_cache_gc());
+            supervised_sweep("abuse_guard_sweep", || {
+                crate::guard::AbuseGuard::shared().sweep_inert()
+            });
+            supervised_sweep("slow_consumer_reaper", || {
+                hub().reap_slow_consumers();
+            });
         }
     });
+}
+
+/// Run one background sweep under `catch_unwind`, logging instead of
+/// propagating. These sweeps used to run bare inside the tick loop: one
+/// panicking sweep killed the whole task — and because the task OWNS the
+/// tick loop, idempotency GC, cache GC, the abuse-guard reclaim AND the
+/// slow-consumer reaper all silently stopped for the remaining process
+/// lifetime (the maps then grow unbounded — the exact failure class
+/// this loop exists to prevent).
+fn supervised_sweep<F: FnOnce() -> T, T>(name: &'static str, sweep: F) {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(sweep)) {
+        Ok(_) => {}
+        Err(payload) => {
+            let msg = if let Some(s) = payload.downcast_ref::<&str>() {
+                (*s).to_string()
+            } else if let Some(s) = payload.downcast_ref::<String>() {
+                s.clone()
+            } else {
+                "<non-string panic payload>".to_string()
+            };
+            tracing::error!(
+                sweep = name,
+                panic = %msg,
+                "background sweep panicked — supervised (tick loop continues)"
+            );
+        }
+    }
 }
 
 /// Periodic metrics logger (every 60s).

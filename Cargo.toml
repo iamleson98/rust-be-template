@@ -97,6 +97,9 @@ jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
 hmac = "0.12"
 sha2 = "0.10"
+# TURN REST auth (draft-uberti-behave-turn-rest): per-user time-limited
+# relay credentials = base64(HMAC-SHA1(shared_secret, "expiry:userId")).
+sha1 = "0.10"
 base64 = "0.22"
 rand = "0.8"
 constant_time_eq = "0.3"
