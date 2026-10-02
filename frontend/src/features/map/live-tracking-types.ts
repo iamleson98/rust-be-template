@@ -43,9 +43,4 @@ export type TripDetail = {
   }[]
 }
 
-export type TrackingStatus =
-  | 'not_departed'
-  | 'running'
-  | 'stopped'
-  | 'arriving_soon'
-  | 'arrived'
+export type TrackingStatus = 'not_departed' | 'running' | 'stopped' | 'arriving_soon' | 'arrived'

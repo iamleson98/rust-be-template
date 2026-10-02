@@ -61,7 +61,12 @@ export function FiltersSidebar({
               )}
             </div>
             {activeFilterCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetFilters}
+                className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+              >
                 {t('searchPage.clearAll')}
               </Button>
             )}
@@ -69,7 +74,9 @@ export function FiltersSidebar({
 
           <div className="space-y-3">
             <div>
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.sort')}</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+                {t('searchPage.sort')}
+              </div>
               <div className="space-y-1">
                 {sortOptions.map((o) => (
                   <button
@@ -79,7 +86,7 @@ export function FiltersSidebar({
                       'w-full text-left px-3 py-1.5 rounded-md text-sm transition-all duration-200',
                       routeSearch.sort === o.key
                         ? 'bg-blue-50 text-blue-700 font-medium '
-                        : 'hover:bg-slate-100'
+                        : 'hover:bg-slate-100',
                     )}
                   >
                     <span className="mr-1.5">{o.icon}</span>
@@ -90,7 +97,9 @@ export function FiltersSidebar({
             </div>
 
             <div className="pt-3 border-t">
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.vehicleType')}</div>
+              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+                {t('searchPage.vehicleType')}
+              </div>
               <div className="space-y-1.5">
                 {[
                   { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
@@ -100,9 +109,14 @@ export function FiltersSidebar({
                   { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
                 ].map((v) => {
                   const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                  const count = searchResults.filter((tr) => (tr.vehicleType ?? null) === v.key).length
+                  const count = searchResults.filter(
+                    (tr) => (tr.vehicleType ?? null) === v.key,
+                  ).length
                   return (
-                    <label key={v.key} className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
+                    <label
+                      key={v.key}
+                      className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
+                    >
                       <Checkbox
                         checked={active}
                         onCheckedChange={() => {
@@ -113,9 +127,13 @@ export function FiltersSidebar({
                         }}
                         className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                       />
-                      <span className="group-hover:text-blue-700 transition-colors">{v.emoji} {t(v.labelKey)}</span>
+                      <span className="group-hover:text-blue-700 transition-colors">
+                        {v.emoji} {t(v.labelKey)}
+                      </span>
                       {count > 0 && (
-                        <span className="ml-auto text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
+                        <span className="ml-auto text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
+                          {count}
+                        </span>
                       )}
                     </label>
                   )
@@ -134,15 +152,21 @@ export function FiltersSidebar({
             {/* Quick stats */}
             {searchResults.length > 0 && (
               <div className="pt-3 border-t">
-                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.summary')}</div>
+                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+                  {t('searchPage.summary')}
+                </div>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span>{t('common.fromPrice')}</span>
-                    <span className="font-semibold text-blue-700">{formatCurrency(minPrice, currency)}</span>
+                    <span className="font-semibold text-blue-700">
+                      {formatCurrency(minPrice, currency)}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{t('searchPage.mostSeats')}</span>
-                    <span className="font-semibold">{t('searchPage.seatsCount', { count: maxAvail })}</span>
+                    <span className="font-semibold">
+                      {t('searchPage.seatsCount', { count: maxAvail })}
+                    </span>
                   </div>
                 </div>
               </div>

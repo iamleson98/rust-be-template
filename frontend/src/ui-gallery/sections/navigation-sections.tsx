@@ -6,11 +6,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   Menubar,
   MenubarCheckboxItem,
@@ -28,11 +24,7 @@ import {
   NavigationMenuList,
   navigationMenuTriggerStyle,
 } from '@/components/ui/navigation-menu'
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from '@/components/ui/resizable'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -119,8 +111,7 @@ export function NavigationSections() {
               Can I cancel my ticket?
             </AccordionTrigger>
             <AccordionContent data-testid="accordion-content-1">
-              Yes — over 24h before departure you get a 90% refund, over 4h a
-              50% refund.
+              Yes — over 24h before departure you get a 90% refund, over 4h a 50% refund.
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="item-2">
@@ -142,11 +133,7 @@ export function NavigationSections() {
         </Accordion>
       </Section>
 
-      <Section
-        id="collapsible"
-        title="Collapsible"
-        description="Single expand/collapse block."
-      >
+      <Section id="collapsible" title="Collapsible" description="Single expand/collapse block.">
         <Collapsible
           open={collapsibleOpen}
           onOpenChange={setCollapsibleOpen}
@@ -160,8 +147,7 @@ export function NavigationSections() {
           </CollapsibleTrigger>
           <CollapsibleContent data-testid="collapsible-content">
             <p className="text-muted-foreground border rounded-md p-4 text-sm">
-              Refunds are processed to the original payment method within 3–5
-              business days.
+              Refunds are processed to the original payment method within 3–5 business days.
             </p>
           </CollapsibleContent>
         </Collapsible>
@@ -217,9 +203,7 @@ export function NavigationSections() {
         <div className="flex flex-wrap items-center gap-4">
           <Menubar data-testid="menubar-demo">
             <MenubarMenu>
-              <MenubarTrigger data-testid="menubar-file-trigger">
-                File
-              </MenubarTrigger>
+              <MenubarTrigger data-testid="menubar-file-trigger">File</MenubarTrigger>
               <MenubarContent data-testid="menubar-file-content">
                 <MenubarItem
                   data-testid="menubar-new"
@@ -246,26 +230,20 @@ export function NavigationSections() {
               </MenubarContent>
             </MenubarMenu>
             <MenubarMenu>
-              <MenubarTrigger data-testid="menubar-edit-trigger">
-                Edit
-              </MenubarTrigger>
+              <MenubarTrigger data-testid="menubar-edit-trigger">Edit</MenubarTrigger>
               <MenubarContent>
                 <MenubarItem onClick={() => setMenubarAction('undo')}>
                   Undo
                   <MenubarShortcut>⌘Z</MenubarShortcut>
                 </MenubarItem>
-                <MenubarItem onClick={() => setMenubarAction('redo')}>
-                  Redo
-                </MenubarItem>
+                <MenubarItem onClick={() => setMenubarAction('redo')}>Redo</MenubarItem>
               </MenubarContent>
             </MenubarMenu>
           </Menubar>
           <span className="text-sm">
             Action: <Mirror testId="menubar-mirror">{menubarAction}</Mirror>
             {' · '}
-            Stats: <Mirror testId="menubar-checked-mirror">
-              {menubarChecked ? 'on' : 'off'}
-            </Mirror>
+            Stats: <Mirror testId="menubar-checked-mirror">{menubarChecked ? 'on' : 'off'}</Mirror>
           </span>
         </div>
       </Section>
@@ -280,9 +258,7 @@ export function NavigationSections() {
             <NavigationMenuItem>
               <NavigationMenuLink
                 className={navigationMenuTriggerStyle()}
-                render={
-                  <a href="#sec-navigation-menu" data-testid="nav-link-home" />
-                }
+                render={<a href="#sec-navigation-menu" data-testid="nav-link-home" />}
               >
                 Home
               </NavigationMenuLink>
@@ -290,12 +266,7 @@ export function NavigationSections() {
             <NavigationMenuItem>
               <NavigationMenuLink
                 className={navigationMenuTriggerStyle()}
-                render={
-                  <a
-                    href="#sec-navigation-menu"
-                    data-testid="nav-link-search"
-                  />
-                }
+                render={<a href="#sec-navigation-menu" data-testid="nav-link-search" />}
               >
                 Search trips
               </NavigationMenuLink>
@@ -303,12 +274,7 @@ export function NavigationSections() {
             <NavigationMenuItem>
               <NavigationMenuLink
                 className={navigationMenuTriggerStyle()}
-                render={
-                  <a
-                    href="#sec-navigation-menu"
-                    data-testid="nav-link-support"
-                  />
-                }
+                render={<a href="#sec-navigation-menu" data-testid="nav-link-support" />}
               >
                 Support
               </NavigationMenuLink>

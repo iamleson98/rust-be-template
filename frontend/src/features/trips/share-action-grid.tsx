@@ -11,13 +11,7 @@
 
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
-import {
-  Copy,
-  Check,
-  Download,
-  Facebook,
-  MessageCircle,
-} from 'lucide-react'
+import { Copy, Check, Download, Facebook, MessageCircle } from 'lucide-react'
 
 /* WhatsApp icon (lucide-react doesn't ship one) */
 function WhatsAppIcon({ className }: { className?: string }) {

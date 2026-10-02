@@ -47,7 +47,10 @@ export function RouteDirectory() {
     const q = norm(filter.trim())
     if (!q) return all
     return all.filter(
-      (r) => norm(r.from.name).includes(q) || norm(r.to.name).includes(q) || norm(r.brand.name ?? '').includes(q),
+      (r) =>
+        norm(r.from.name).includes(q) ||
+        norm(r.to.name).includes(q) ||
+        norm(r.brand.name ?? '').includes(q),
     )
   }, [data, filter])
 
@@ -76,7 +79,9 @@ export function RouteDirectory() {
       <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold">{t('searchPage.directoryTitle')}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('searchPage.directorySubtitle')}</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {t('searchPage.directorySubtitle')}
+          </p>
         </div>
         <div className="relative w-full sm:w-72">
           <Input
@@ -114,17 +119,30 @@ export function RouteDirectory() {
               <Card className="group overflow-hidden border-border/60 hover:border-blue-400 hover:-translate-y-0.5 transition-all duration-200">
                 <div
                   className="h-1"
-                  style={{ background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)` }}
+                  style={{
+                    background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)`,
+                  }}
                 />
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
                       {r.brand.logoUrl ? (
-                        <img src={r.brand.logoUrl} alt="" className="h-5 w-5 shrink-0 rounded object-contain" loading="lazy" />
+                        <img
+                          src={r.brand.logoUrl}
+                          alt=""
+                          className="h-5 w-5 shrink-0 rounded object-contain"
+                          loading="lazy"
+                        />
                       ) : (
-                        <Bus className="h-3.5 w-3.5 shrink-0" style={{ color: r.brand.accentColor ?? '#64748b' }} />
+                        <Bus
+                          className="h-3.5 w-3.5 shrink-0"
+                          style={{ color: r.brand.accentColor ?? '#64748b' }}
+                        />
                       )}
-                      <span className="truncate" style={{ color: r.brand.accentColor ?? '#64748b' }}>
+                      <span
+                        className="truncate"
+                        style={{ color: r.brand.accentColor ?? '#64748b' }}
+                      >
                         {r.brand.name ?? '—'}
                       </span>
                     </span>
@@ -153,7 +171,9 @@ export function RouteDirectory() {
                         {t('home.priceFrom')} {formatCurrency(r.priceFrom, currency)}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">{t('searchPage.noSchedulesYet')}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t('searchPage.noSchedulesYet')}
+                      </span>
                     )}
                     <span className="text-[11px] font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
                       {t('searchPage.searchThisRoute')} →

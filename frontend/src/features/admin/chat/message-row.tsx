@@ -73,19 +73,24 @@ export const MessageRow = memo(function MessageRow({
               onView={onViewTicket}
             />
             {time && (
-              <div className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}>{time}</div>
+              <div
+                className={`text-[10px] text-slate-400 ${isEmployee ? 'text-right' : 'text-left'}`}
+              >
+                {time}
+              </div>
             )}
           </div>
         ) : (
           <div
-            className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${isEmployee
-              ? 'bg-blue-600 text-white rounded-br-sm'
-              : message.senderType === 'system'
-                ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
-                : message.senderType === 'assistant'
-                  ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
-                  : 'bg-white border rounded-bl-sm '
-              }`}
+            className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm wrap-break-word ${
+              isEmployee
+                ? 'bg-blue-600 text-white rounded-br-sm'
+                : message.senderType === 'system'
+                  ? 'bg-amber-50 text-amber-800 text-center text-xs border border-amber-100 mx-auto rounded-lg'
+                  : message.senderType === 'assistant'
+                    ? 'bg-violet-50 text-violet-900 border border-violet-100 rounded-bl-sm'
+                    : 'bg-white border rounded-bl-sm '
+            }`}
           >
             {message.content}
             {time && <div className={`mt-0.5 text-[10px] ${timeClass}`}>{time}</div>}
@@ -94,7 +99,11 @@ export const MessageRow = memo(function MessageRow({
       </div>
       {/* Accessibility: the last message's timestamp doubles as the
           live region's data anchor (screen readers announce changes). */}
-      {isLast && <span className="sr-only" aria-live="polite">{time}</span>}
+      {isLast && (
+        <span className="sr-only" aria-live="polite">
+          {time}
+        </span>
+      )}
     </>
   )
 })

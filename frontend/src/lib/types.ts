@@ -123,7 +123,10 @@ export function parseDateSafe(dateStr: string | Date | null | undefined): Date |
 // Format a date string (ISO or yyyy-mm-dd) — locale follows the app
 // language (vi-VN default). IMPORTANT: Always use Asia/Ho_Chi_Minh
 // timezone to keep date and time parts in sync.
-export function formatDateVN(dateStr: string | Date | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
+export function formatDateVN(
+  dateStr: string | Date | null | undefined,
+  opts?: Intl.DateTimeFormatOptions,
+): string {
   const d = parseDateSafe(dateStr)
   if (!d) return ''
   return new Intl.DateTimeFormat(currentLocale(), {
@@ -135,7 +138,12 @@ export function formatDateVN(dateStr: string | Date | null | undefined, opts?: I
 export function formatTimeVN(dateStr: string | Date | null | undefined): string {
   const d = parseDateSafe(dateStr)
   if (!d) return '—'
-  return new Intl.DateTimeFormat(currentLocale(), { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' }).format(d)
+  return new Intl.DateTimeFormat(currentLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh',
+  }).format(d)
 }
 
 export function formatDateTimeVN(dateStr: string | Date | null | undefined): string {

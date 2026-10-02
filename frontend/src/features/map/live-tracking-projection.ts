@@ -17,7 +17,7 @@ function positionAt(
   progress: number,
   points: [number, number][],
   totalLength: number,
-  cumLengths: number[]
+  cumLengths: number[],
 ): [number, number] {
   if (points.length === 0) return [300, 180]
   if (progress <= 0) return points[0]
@@ -54,10 +54,7 @@ export function useLiveTrackingProjection(detail: TripDetail, progress: number) 
         pathD: '',
       }
     }
-    const allPts = [
-      ...geometry,
-      ...pickupPoints.map((p) => [p.lat, p.lon] as [number, number]),
-    ]
+    const allPts = [...geometry, ...pickupPoints.map((p) => [p.lat, p.lon] as [number, number])]
     const lats = allPts.map((p) => p[0])
     const lons = allPts.map((p) => p[1])
     const minLat = Math.min(...lats)

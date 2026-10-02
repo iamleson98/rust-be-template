@@ -16,12 +16,8 @@ test.describe('Dialog', () => {
     const content = page.getByTestId('dialog-content')
     await expect(content).toBeVisible()
     await expect(content).toHaveAttribute('role', 'dialog')
-    await expect(
-      content.getByRole('heading', { name: 'Confirm your booking' }),
-    ).toBeVisible()
-    await expect(
-      content.getByText('Seat 12A · Hà Nội → Huế · 350,000₫'),
-    ).toBeVisible()
+    await expect(content.getByRole('heading', { name: 'Confirm your booking' })).toBeVisible()
+    await expect(content.getByText('Seat 12A · Hà Nội → Huế · 350,000₫')).toBeVisible()
     await content.getByTestId('dialog-cancel').click()
     await expect(content).toBeHidden()
   })
@@ -50,9 +46,7 @@ test.describe('Dialog', () => {
   test('focus moves inside the dialog when opened', async ({ page }) => {
     await page.getByTestId('dialog-trigger').click()
     const content = page.getByTestId('dialog-content')
-    const focusedInDialog = await content.evaluate(
-      (el) => el.contains(document.activeElement),
-    )
+    const focusedInDialog = await content.evaluate((el) => el.contains(document.activeElement))
     expect(focusedInDialog).toBe(true)
   })
 })
@@ -77,9 +71,7 @@ test.describe('Sheet', () => {
     const content = page.getByTestId('sheet-content')
     await expect(content).toBeVisible()
     await expect(content).toHaveAttribute('role', 'dialog')
-    await expect(
-      content.getByRole('heading', { name: 'Hà Nội → Huế express' }),
-    ).toBeVisible()
+    await expect(content.getByRole('heading', { name: 'Hà Nội → Huế express' })).toBeVisible()
     // Panel is anchored to the right edge of the viewport
     const box = await content.boundingBox()
     expect(box).toBeTruthy()
@@ -94,9 +86,7 @@ test.describe('Drawer', () => {
     await page.getByTestId('drawer-trigger').click()
     const content = page.getByTestId('drawer-content')
     await expect(content).toBeVisible()
-    await expect(
-      content.getByRole('heading', { name: 'Filter trips' }),
-    ).toBeVisible()
+    await expect(content.getByRole('heading', { name: 'Filter trips' })).toBeVisible()
     await content.getByTestId('drawer-close').click()
     await expect(content).toBeHidden()
   })
@@ -155,9 +145,7 @@ test.describe('Tooltip', () => {
     const trigger = page.getByTestId('tooltip-trigger')
     await trigger.hover()
     await expect(page.getByTestId('tooltip-content')).toBeVisible()
-    await expect(page.getByTestId('tooltip-content')).toHaveText(
-      'Seats are held for 10 minutes',
-    )
+    await expect(page.getByTestId('tooltip-content')).toHaveText('Seats are held for 10 minutes')
     // Move the mouse far away — tooltip should close
     await page.mouse.move(640, 500)
     await expect(page.getByTestId('tooltip-content')).toBeHidden()

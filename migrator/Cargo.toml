@@ -3,6 +3,7 @@ name = "migrator"
 version = "0.1.0"
 edition = "2021"
 description = "Standalone database migration CLI — independent of the main backend"
+license = "MIT"
 
 [[bin]]
 name = "migrator"
@@ -57,8 +58,16 @@ dotenvy = "0.15"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1"
-url = "2"
 
-# Observability
-tracing = "0.1"
+# Observability — `tracing` (the facade macros) was removed 2026-10:
+# zero usages; tracing-subscriber is initialized directly in main.rs.
+# (`url` was removed the same day — DATABASE_URL parsing uses plain
+# String + starts_with, not the url crate.)
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# ── cargo-machete false positives ──
+# `rustqlite-compat` — LINK-ONLY dependency (see the comment above at
+# its declaration): no Rust source names the crate, but it must stay
+# on the link line or the migrator binary cannot resolve sqlite3_* FFI.
+[package.metadata.cargo-machete]
+ignored = ["rustqlite-compat"]

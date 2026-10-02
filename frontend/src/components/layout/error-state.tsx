@@ -26,7 +26,15 @@ function WarningSVG() {
         strokeLinejoin="round"
       />
       {/* Exclamation */}
-      <line x1="60" y1="50" x2="60" y2="70" stroke="oklch(0.65 0.21 25)" strokeWidth="4" strokeLinecap="round" />
+      <line
+        x1="60"
+        y1="50"
+        x2="60"
+        y2="70"
+        stroke="oklch(0.65 0.21 25)"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
       <circle cx="60" cy="80" r="2.5" fill="oklch(0.65 0.21 25)" />
       {/* Decorative dots */}
       <circle cx="20" cy="40" r="2" fill="oklch(0.65 0.21 25 / 0.4)" />

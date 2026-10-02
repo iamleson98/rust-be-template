@@ -139,8 +139,10 @@ export function DatePriceCompare() {
           // Send credentials so the httpOnly JWT cookie is attached.
           // (handled by the SDK's default client config)
         })
-        const items: { minPrice: number }[] = ((data ?? {}) as { items?: Array<{ minPrice: number }> }).items ?? []
-        const minPrice = items.length > 0 ? items.reduce((min, tr) => Math.min(min, tr.minPrice), Infinity) : null
+        const items: { minPrice: number }[] =
+          ((data ?? {}) as { items?: Array<{ minPrice: number }> }).items ?? []
+        const minPrice =
+          items.length > 0 ? items.reduce((min, tr) => Math.min(min, tr.minPrice), Infinity) : null
         return { date: d.date, price: minPrice }
       } catch {
         if (controller.signal.aborted) return { date: d.date, price: null }
@@ -156,9 +158,7 @@ export function DatePriceCompare() {
     // so ties don't result in every card showing the "Rẻ nhất" badge.
     const validPrices = results.filter((r) => r.price !== null)
     const cheapest = validPrices.length > 0 ? Math.min(...validPrices.map((r) => r.price!)) : null
-    const cheapestDateIdx = cheapest !== null
-      ? results.findIndex((r) => r.price === cheapest)
-      : -1
+    const cheapestDateIdx = cheapest !== null ? results.findIndex((r) => r.price === cheapest) : -1
 
     const finalPrices: DatePrice[] = dates.map((d, i) => ({
       ...d,
@@ -207,8 +207,12 @@ export function DatePriceCompare() {
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 ring-1 ring-blue-100">
           <TrendingDown className="h-3.5 w-3.5 text-blue-600" />
         </div>
-        <span className="text-sm font-semibold text-slate-700">{t('searchPage.compareNearbyDates')}</span>
-        <span className="text-[11px] text-slate-400 hidden sm:inline">{t('searchPage.cheapestDayHint')}</span>
+        <span className="text-sm font-semibold text-slate-700">
+          {t('searchPage.compareNearbyDates')}
+        </span>
+        <span className="text-[11px] text-slate-400 hidden sm:inline">
+          {t('searchPage.cheapestDayHint')}
+        </span>
       </div>
 
       <div className="flex gap-2 sm:gap-2.5 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-thin">
@@ -235,7 +239,7 @@ export function DatePriceCompare() {
                     ? 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed'
                     : dp.isCheapest
                       ? 'bg-blue-50 text-blue-900 border-blue-300 hover:bg-blue-100 hover:border-blue-400 hover:-translate-y-0.5'
-                      : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50/50 hover:border-blue-300 hover:text-blue-700 hover:-translate-y-0.5'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50/50 hover:border-blue-300 hover:text-blue-700 hover:-translate-y-0.5',
               )}
             >
               {/* Cheapest badge */}
@@ -250,7 +254,13 @@ export function DatePriceCompare() {
               <span
                 className={cn(
                   'text-[11px] font-semibold uppercase tracking-wide leading-none',
-                  isSelected ? 'text-blue-100' : isDisabled ? 'text-slate-300' : dp.isCheapest ? 'text-blue-600' : 'text-slate-500'
+                  isSelected
+                    ? 'text-blue-100'
+                    : isDisabled
+                      ? 'text-slate-300'
+                      : dp.isCheapest
+                        ? 'text-blue-600'
+                        : 'text-slate-500',
                 )}
               >
                 {DOW_LABELS[dp.dow] ?? dp.dow}
@@ -260,7 +270,7 @@ export function DatePriceCompare() {
               <span
                 className={cn(
                   'text-[15px] font-bold leading-tight tabular-nums',
-                  isSelected ? 'text-white' : isDisabled ? 'text-slate-300' : 'text-slate-900'
+                  isSelected ? 'text-white' : isDisabled ? 'text-slate-300' : 'text-slate-900',
                 )}
               >
                 {dp.label}
@@ -275,7 +285,11 @@ export function DatePriceCompare() {
                     <span
                       className={cn(
                         'text-[12px] font-bold tabular-nums leading-none',
-                        isSelected ? 'text-white' : dp.isCheapest ? 'text-blue-700' : 'text-slate-700'
+                        isSelected
+                          ? 'text-white'
+                          : dp.isCheapest
+                            ? 'text-blue-700'
+                            : 'text-slate-700',
                       )}
                     >
                       {formatPriceCompact(dp.price!, currency)}
@@ -284,7 +298,7 @@ export function DatePriceCompare() {
                       <span
                         className={cn(
                           'text-[10px] font-medium leading-none',
-                          isSelected ? 'text-blue-100' : 'text-slate-500'
+                          isSelected ? 'text-blue-100' : 'text-slate-500',
                         )}
                       >
                         đ

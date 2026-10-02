@@ -95,7 +95,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const searchBoxRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const result = parseLatLong(debounced);
+    const result = parseLatLong(debounced)
     if (result.ok) {
       // Intentional effect-synced state (dialog reset-on-open /
       // server-data snapshot / DOM-availability gate).
@@ -113,17 +113,17 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             lat,
             lon,
           }))
-        }).finally(() => setReverseLoading(false));
+        })
+        .finally(() => setReverseLoading(false))
     }
 
     // return null;
-  }, [debounced]);
+  }, [debounced])
 
   const { data: searchData, isLoading: searchLoading } = usePlaceSearch(debounced, {
     enabled: open && debounced.trim().length >= 2 && !LatLongRegex.test(debounced),
   })
   const hits: PlaceSearchHit[] = searchData?.items ?? []
-
 
   const createMutation = useCreateAdminAddress()
 
@@ -158,21 +158,24 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
     setForm((f) => ({ ...f, [key]: value }))
 
   /** Map click → exact lat/lon + reverse-geocoded display name (never moves the pin). */
-  const handleMapClick = useCallback(async (lat: number, lon: number) => {
-    setForm((f) => ({ ...f, lat, lon }))
-    setPicked({ name: t('adminAddresses.lookingUp'), lat, lon })
-    setReverseLoading(true)
-    const place = await reverseGeocode(lat, lon)
-    setReverseLoading(false)
-    setPicked({ name: place.name, lat, lon })
-    setForm((f) => ({
-      ...f,
-      // Pre-fill name/hierarchy only when still empty — never clobber
-      // what the user already typed.
-      name: f.name.trim() ? f.name : place.name,
-      province: f.province.trim() ? f.province : (place.province ?? ''),
-    }))
-  }, [t])
+  const handleMapClick = useCallback(
+    async (lat: number, lon: number) => {
+      setForm((f) => ({ ...f, lat, lon }))
+      setPicked({ name: t('adminAddresses.lookingUp'), lat, lon })
+      setReverseLoading(true)
+      const place = await reverseGeocode(lat, lon)
+      setReverseLoading(false)
+      setPicked({ name: place.name, lat, lon })
+      setForm((f) => ({
+        ...f,
+        // Pre-fill name/hierarchy only when still empty — never clobber
+        // what the user already typed.
+        name: f.name.trim() ? f.name : place.name,
+        province: f.province.trim() ? f.province : (place.province ?? ''),
+      }))
+    },
+    [t],
+  )
 
   /** Search result click → drop the marker on the result + prefill the form. */
   const handleSearchSelect = useCallback((hit: PlaceSearchHit) => {
@@ -203,7 +206,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         setFlyTarget([latitude, longitude])
         void handleMapClick(latitude, longitude)
       },
-      () => { },
+      () => {},
       { enableHighAccuracy: true, timeout: 8000 },
     )
   }, [handleMapClick])
@@ -281,14 +284,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             <MapPin className="h-4 w-4 text-blue-600" />
             {t('adminAddresses.createTitle')}
             {brandName ? (
-              <span className="ml-1 text-xs font-normal text-muted-foreground">
-                · {brandName}
-              </span>
+              <span className="ml-1 text-xs font-normal text-muted-foreground">· {brandName}</span>
             ) : null}
           </DialogTitle>
-          <DialogDescription>
-            {t('adminAddresses.createDesc')}
-          </DialogDescription>
+          <DialogDescription>{t('adminAddresses.createDesc')}</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1.4fr] flex-1 min-h-0 overflow-y-auto overscroll-contain">
@@ -383,7 +382,10 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
             </Suspense>
 
             {/* Full-text search overlay */}
-            <div ref={searchBoxRef} className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-1.5rem))]">
+            <div
+              ref={searchBoxRef}
+              className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-1.5rem))]"
+            >
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
@@ -469,9 +471,7 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
                   <Check className="h-4 w-4 text-emerald-600 shrink-0" />
                 )}
                 <div className="min-w-0">
-                  <div className="text-xs font-medium truncate text-foreground">
-                    {picked.name}
-                  </div>
+                  <div className="text-xs font-medium truncate text-foreground">{picked.name}</div>
                   <div className="text-[10px] text-muted-foreground tabular-nums">
                     {picked.lat.toFixed(4)}, {picked.lon.toFixed(4)}
                   </div>
@@ -482,12 +482,22 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         </div>
 
         <DialogFooter className="px-5 py-4 border-t bg-white">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={createMutation.isPending}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={createMutation.isPending}
+          >
             {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSave}
-            disabled={createMutation.isPending || !form.name.trim() || form.lat == null || form.lon == null || !brandId}
+            disabled={
+              createMutation.isPending ||
+              !form.name.trim() ||
+              form.lat == null ||
+              form.lon == null ||
+              !brandId
+            }
             className={cn('bg-blue-600 hover:bg-blue-700')}
           >
             {createMutation.isPending ? (

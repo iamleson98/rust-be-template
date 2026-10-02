@@ -17,5 +17,9 @@ export function PriorityBadge({ priority }: { priority: string }) {
     low: { label: t('adminDash.priorityLow'), cls: 'bg-slate-100 text-slate-500' },
   }
   const p = map[priority] ?? map.normal
-  return <Badge variant="outline" className={`text-[10px] ${p.cls} border-0`}>{p.label}</Badge>
+  return (
+    <Badge variant="outline" className={`text-[10px] ${p.cls} border-0`}>
+      {p.label}
+    </Badge>
+  )
 }

@@ -9,13 +9,7 @@
 
 import { MemoryStick } from 'lucide-react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { formatBytes, usageTone } from './metric-helpers'
 
@@ -27,10 +21,10 @@ export function MemoryCard({
   totalBytes,
   availableBytes,
 }: {
-  usagePercent: number;
-  usedBytes: number;
-  totalBytes: number;
-  availableBytes: number;
+  usagePercent: number
+  usedBytes: number
+  totalBytes: number
+  availableBytes: number
 }) {
   return (
     <Card data-testid="metric-memory-card">

@@ -10,13 +10,7 @@
 import { HardDrive } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { SystemMetricDisk } from '@/lib/queries'
 import { formatBytes, usagePercent, usageTone } from './metric-helpers'
@@ -41,10 +35,7 @@ export function DisksCard({ disks }: { disks: SystemMetricDisk[] }) {
         ) : (
           <div className="space-y-4">
             {disks.map((disk) => {
-              const pct = usagePercent(
-                disk.totalBytes - disk.availableBytes,
-                disk.totalBytes,
-              );
+              const pct = usagePercent(disk.totalBytes - disk.availableBytes, disk.totalBytes)
               return (
                 <div key={disk.mountPoint} className="space-y-1.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -62,9 +53,7 @@ export function DisksCard({ disks }: { disks: SystemMetricDisk[] }) {
                     <span className="text-sm text-muted-foreground tabular-nums">
                       {formatBytes(disk.totalBytes - disk.availableBytes)} /{' '}
                       {formatBytes(disk.totalBytes)}{' '}
-                      <span className={`font-medium ${usageTone(pct)}`}>
-                        ({pct.toFixed(1)}%)
-                      </span>
+                      <span className={`font-medium ${usageTone(pct)}`}>({pct.toFixed(1)}%)</span>
                     </span>
                   </div>
                   <Progress value={pct} className="h-2" />
@@ -72,7 +61,7 @@ export function DisksCard({ disks }: { disks: SystemMetricDisk[] }) {
                     {formatBytes(disk.availableBytes)} available
                   </p>
                 </div>
-              );
+              )
             })}
           </div>
         )}

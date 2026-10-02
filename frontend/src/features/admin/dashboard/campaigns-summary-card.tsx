@@ -27,7 +27,10 @@ function formatDiscount(c: CampaignOut): string {
   return `-${c.discountValue}`
 }
 
-function formatExpiry(endsAt: string | null | undefined, t: ReturnType<typeof useT>): string | null {
+function formatExpiry(
+  endsAt: string | null | undefined,
+  t: ReturnType<typeof useT>,
+): string | null {
   if (!endsAt) return null
   const d = new Date(endsAt)
   if (Number.isNaN(d.getTime())) return null

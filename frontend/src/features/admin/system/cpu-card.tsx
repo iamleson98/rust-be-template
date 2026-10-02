@@ -9,13 +9,7 @@
 
 import { Cpu } from 'lucide-react'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { barTone } from './metric-helpers'
 
@@ -27,10 +21,10 @@ export function CpuCard({
   physicalCores,
   perCoreUsagePercent,
 }: {
-  cpuUsagePercent: number;
-  logicalCores: number;
-  physicalCores: number;
-  perCoreUsagePercent: number[];
+  cpuUsagePercent: number
+  logicalCores: number
+  physicalCores: number
+  perCoreUsagePercent: number[]
 }) {
   return (
     <Card data-testid="metric-cpu-card">
@@ -45,9 +39,7 @@ export function CpuCard({
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-baseline justify-between">
-          <span className="text-3xl font-semibold tabular-nums">
-            {cpuUsagePercent.toFixed(1)}%
-          </span>
+          <span className="text-3xl font-semibold tabular-nums">{cpuUsagePercent.toFixed(1)}%</span>
           <span className="text-xs text-muted-foreground">across all cores</span>
         </div>
         <Progress value={cpuUsagePercent} className="h-2" />
@@ -65,9 +57,7 @@ export function CpuCard({
                     style={{ height: `${Math.max(core, 2)}%` }}
                   />
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                  {core.toFixed(0)}%
-                </span>
+                <span className="text-[10px] text-muted-foreground">{core.toFixed(0)}%</span>
               </div>
             ))}
           </div>

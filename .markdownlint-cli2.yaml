@@ -1,0 +1,49 @@
+# markdownlint-cli2 — repo-wide Markdown linting.
+#
+# CI gate (hygiene job): run from frontend/ (where the tool is installed)
+#   bunx markdownlint-cli2 --config ../.markdownlint-cli2.yaml
+# Local fix: add `--fix` to the same command.
+#
+# Deliberately tolerant where the docs' prose style is intentional
+# (Vietnamese headings, long lines, inline HTML in READMEs); strict
+# where drift is a real defect (duplicate headings, inconsistent
+# list indentation, broken reference links).
+
+globs:
+  - "**/*.md"
+  # The engine is a submodule — its docs are upstream's business.
+  - "!rust-sql/**"
+  # Tooling noise.
+  - "!frontend/node_modules/**"
+  - "!frontend/e2e-report/**"
+  - "!frontend/playwright-report/**"
+  - "!frontend/test-results/**"
+
+config:
+  default: true
+  # Long lines are the norm in these docs (URLs, code, Vietnamese prose).
+  MD013: false
+  # Inline HTML is used deliberately in READMEs (kbd/br/img tags).
+  MD033: false
+  # Bare URLs in docs are fine (README badges etc.).
+  MD034: false
+  # First line need not be a top heading (files open with prose).
+  MD041: false
+  # Bullets mix -/*/+ across files; unification is churn.
+  MD004: false
+  # Headings may end with : or — (Vietnamese style).
+  MD026: false
+  # Emphasis-as-heading is used in a few runbooks; accepted.
+  MD036: false
+  # Some fenced blocks are intentionally language-less (shell transcripts).
+  MD040: false
+  # Duplicate headings — only flag within the same parent section.
+  MD024:
+    siblings_only: true
+  # Ol prefix style: mixed single-all vs progressive; unification is churn.
+  MD029: false
+  # Table style "padded": spaces around every pipe, but columns are NOT
+  # required to align by width (aligned-style would churn every wide table
+  # with long Vietnamese cells on every edit).
+  MD060:
+    style: "padded"

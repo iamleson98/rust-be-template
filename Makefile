@@ -139,3 +139,111 @@ time-build:
 	@$(TIME_BUILD_COMMAND)
 
 .PHONY: build-dev build-release build-production build-release-incremental run-dev run-release check clean size-release time-build
+## --- Quality Harness (local parity with GitHub CI) ---
+#
+# The CI gates (.github/workflows/ci.yml) are runnable locally so you
+# never discover a failure 40 minutes into a CI run. Full matrix and
+# fix recipes: docs/CI.md.
+#
+#   make lint      — everything CI checks for style/lints (fast, no builds)
+#   make fmt       — auto-fix formatting everywhere it can
+#   make test      — backend + frontend unit tests
+#   make ci        — the complete local approximation of the CI pipeline
+
+# Binary locations for the standalone linters (none of these ship with
+# the Rust toolchain). Overridable: make LINT_BIN=/usr/local/bin taplo ...
+LINT_BIN ?= $(HOME)/.local/bin
+
+# ── Format ───────────────────────────────────────────────────────────────
+
+fmt: fmt-rust fmt-toml fmt-web fmt-mobile
+	@echo "✅ all formatting applied (rust, toml, web, mobile)"
+
+fmt-rust:
+	cargo fmt --all
+
+fmt-toml:
+	$(LINT_BIN)/taplo fmt
+
+fmt-web:
+	cd frontend && bun run format
+
+fmt-mobile:
+	cd mobile && dart format .
+
+fmt-check: fmt-check-rust fmt-check-toml fmt-check-web fmt-check-mobile
+	@echo "✅ formatting clean everywhere"
+
+fmt-check-rust:
+	cargo fmt --all -- --check
+
+fmt-check-toml:
+	$(LINT_BIN)/taplo fmt --check
+
+fmt-check-web:
+	cd frontend && bun run format:check
+
+fmt-check-mobile:
+	cd mobile && dart format --output=none --set-exit-if-changed .
+
+# ── Lint ─────────────────────────────────────────────────────────────────
+
+lint: lint-rust lint-toml lint-shell lint-docker lint-workflows lint-web lint-mobile lint-docs lint-deps
+	@echo "✅ all lints clean (rust, toml, shell, docker, workflows, web, mobile, docs, deps)"
+
+lint-rust:
+	cargo clippy --workspace --all-targets -- -D warnings
+
+lint-toml:
+	$(LINT_BIN)/taplo fmt --check
+
+lint-shell:
+	@status=0; \
+	for f in $$(git ls-files '*.sh'); do \
+		$(LINT_BIN)/shellcheck -S warning "$$f" || status=1; \
+	done; \
+	exit $$status
+
+lint-docker:
+	$(LINT_BIN)/hadolint Dockerfile
+
+lint-workflows:
+	$(LINT_BIN)/actionlint
+
+lint-web:
+	cd frontend && bun run lint
+
+lint-mobile:
+	cd mobile && flutter analyze --fatal-infos
+
+lint-docs:
+	cd frontend && bun install --frozen-lockfile >/dev/null 2>&1; \
+	cd .. && frontend/node_modules/.bin/markdownlint-cli2
+
+lint-deps:
+	cargo deny --log-level error check advisories licenses sources
+	@echo "(cargo-machete runs in CI; locally: $(LINT_BIN)/cargo-machete --skip-target-dir)"
+
+# ── Test ─────────────────────────────────────────────────────────────────
+
+test: test-rust test-web test-mobile
+	@echo "✅ all unit tests pass (rust, web, mobile)"
+
+test-rust:
+	cargo test --workspace --all-targets
+
+test-web:
+	cd frontend && bunx vitest run
+
+test-mobile:
+	cd mobile && flutter test
+
+# ── Everything CI runs (minus docker build + e2e + codeql) ──────────────
+
+ci: fmt-check lint test
+	cd frontend && bunx tsc --noEmit && bunx knip --include files,dependencies
+	@echo "✅ local CI approximation complete — push with confidence"
+
+.PHONY: fmt fmt-rust fmt-toml fmt-web fmt-mobile fmt-check fmt-check-rust fmt-check-toml fmt-check-web fmt-check-mobile \
+        lint lint-rust lint-toml lint-shell lint-docker lint-workflows lint-web lint-mobile lint-docs lint-deps \
+        test test-rust test-web test-mobile ci

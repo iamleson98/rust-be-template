@@ -13,7 +13,7 @@
 //!
 //! ## Setup
 //!
-//! 1. Create a Facebook App at https://developers.facebook.com/
+//! 1. Create a Facebook App at <<https://developers.facebook.com/>>
 //! 2. Add Messenger product
 //! 3. Set webhook URL to `https://yourdomain.com/api/webhooks/messenger`
 //! 4. Set `MESSENGER_VERIFY_TOKEN` + `MESSENGER_PAGE_ACCESS_TOKEN` +

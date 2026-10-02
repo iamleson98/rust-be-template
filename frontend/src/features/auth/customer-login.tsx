@@ -43,10 +43,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react'
-import {
-  makeCustomerSchema,
-  type CustomerFormValues,
-} from './_shared'
+import { makeCustomerSchema, type CustomerFormValues } from './_shared'
 import { SocialAuthButtons } from './social-buttons'
 
 export function CustomerLogin() {
@@ -67,7 +64,8 @@ export function CustomerLogin() {
   const loginMut = useLogin({
     onSuccess: (data) => {
       const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
-      ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as Parameters<typeof setUser>[0] | undefined
+        ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as
+        Parameters<typeof setUser>[0] | undefined
       if (!user) return
       setUser(user)
       if (user.phone) setGuestPhone(user.phone)
@@ -80,7 +78,9 @@ export function CustomerLogin() {
   })
 
   const onSubmit = (values: CustomerFormValues) => {
-    loginMut.mutate({ body: { email: values.email, password: values.password } } as unknown as Parameters<typeof loginMut.mutate>[0])
+    loginMut.mutate({
+      body: { email: values.email, password: values.password },
+    } as unknown as Parameters<typeof loginMut.mutate>[0])
   }
 
   return (
@@ -147,7 +147,11 @@ export function CustomerLogin() {
           disabled={loginMut.isPending}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
-          {loginMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+          {loginMut.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="h-4 w-4" />
+          )}
           {t('auth.login')}
           <ChevronRight className="h-4 w-4" />
         </Button>

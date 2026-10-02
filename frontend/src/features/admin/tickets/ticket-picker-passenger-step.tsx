@@ -43,7 +43,9 @@ export function PassengerStep({
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div>
-            <Label className="text-[10px] text-muted-foreground uppercase">{t('adminTickets.bookerName')}</Label>
+            <Label className="text-[10px] text-muted-foreground uppercase">
+              {t('adminTickets.bookerName')}
+            </Label>
             <Input
               value={contactName}
               onChange={(e) => setContactName(e.target.value)}
@@ -52,7 +54,9 @@ export function PassengerStep({
             />
           </div>
           <div>
-            <Label className="text-[10px] text-muted-foreground uppercase">{t('adminTickets.phoneLabel')}</Label>
+            <Label className="text-[10px] text-muted-foreground uppercase">
+              {t('adminTickets.phoneLabel')}
+            </Label>
             <Input
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
@@ -61,7 +65,9 @@ export function PassengerStep({
             />
           </div>
           <div className="sm:col-span-2">
-            <Label className="text-[10px] text-muted-foreground uppercase">{t('adminTickets.emailOptional')}</Label>
+            <Label className="text-[10px] text-muted-foreground uppercase">
+              {t('adminTickets.emailOptional')}
+            </Label>
             <Input
               type="email"
               value={contactEmail}
@@ -93,9 +99,7 @@ export function PassengerStep({
                   value={p.name}
                   onChange={(e) =>
                     setPassengers((prev) =>
-                      prev.map((x) =>
-                        x.seatId === p.seatId ? { ...x, name: e.target.value } : x,
-                      ),
+                      prev.map((x) => (x.seatId === p.seatId ? { ...x, name: e.target.value } : x)),
                     )
                   }
                   placeholder={t('adminTickets.passengerNamePh')}

@@ -9,12 +9,7 @@
 
 import { LoaderCircle } from 'lucide-react'
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 // ─── Host ───────────────────────────────────────────────────────────
 
@@ -25,12 +20,12 @@ export function HostCard({
   timestamp,
   refreshing = false,
 }: {
-  hostname: string;
-  osName: string;
-  kernelVersion: string;
+  hostname: string
+  osName: string
+  kernelVersion: string
   /** ISO timestamp of the current metrics snapshot. */
-  timestamp: string;
-  refreshing?: boolean;
+  timestamp: string
+  refreshing?: boolean
 }) {
   return (
     <Card data-testid="metric-host-card">

@@ -79,19 +79,18 @@ class CallUiState {
     bool clearOffer = false,
     bool clearError = false,
     bool clearReason = false,
-  }) =>
-      CallUiState(
-        status: status ?? this.status,
-        peerId: peerId ?? this.peerId,
-        peerName: peerName ?? this.peerName,
-        channelId: channelId ?? this.channelId,
-        remoteOffer: clearOffer ? null : (remoteOffer ?? this.remoteOffer),
-        startedAt: startedAt ?? this.startedAt,
-        micEnabled: micEnabled ?? this.micEnabled,
-        speakerOn: speakerOn ?? this.speakerOn,
-        endedReason: clearReason ? null : (endedReason ?? this.endedReason),
-        error: clearError ? null : (error ?? this.error),
-      );
+  }) => CallUiState(
+    status: status ?? this.status,
+    peerId: peerId ?? this.peerId,
+    peerName: peerName ?? this.peerName,
+    channelId: channelId ?? this.channelId,
+    remoteOffer: clearOffer ? null : (remoteOffer ?? this.remoteOffer),
+    startedAt: startedAt ?? this.startedAt,
+    micEnabled: micEnabled ?? this.micEnabled,
+    speakerOn: speakerOn ?? this.speakerOn,
+    endedReason: clearReason ? null : (endedReason ?? this.endedReason),
+    error: clearError ? null : (error ?? this.error),
+  );
 }
 
 /// Default STUN servers when the backend pushes none via

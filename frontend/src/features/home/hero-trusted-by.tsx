@@ -39,7 +39,12 @@ export function HeroTrustedBy() {
             className="inline-flex items-center gap-1.5 rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 hover:ring-white/30 transition-colors cursor-default"
           >
             {b.logoUrl ? (
-              <img src={b.logoUrl} alt="" className="h-3.5 w-3.5 rounded-full object-contain" loading="lazy" />
+              <img
+                src={b.logoUrl}
+                alt=""
+                className="h-3.5 w-3.5 rounded-full object-contain"
+                loading="lazy"
+              />
             ) : (
               <Bus className="h-3 w-3 text-amber-300" />
             )}

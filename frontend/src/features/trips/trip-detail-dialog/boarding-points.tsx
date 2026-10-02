@@ -20,10 +20,7 @@
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MapPin, Flag } from 'lucide-react'
-import {
-  formatDuration,
-  SEAT_CLASS_LABELS,
-} from '@/lib/types'
+import { formatDuration, SEAT_CLASS_LABELS } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 import { formatCurrency, type Currency } from '@/lib/currency'
 import type { SeatInv } from '@/features/trips/seat-map'
@@ -68,18 +65,28 @@ function PointLists({
               >
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="min-w-0 flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-blue-600' : 'bg-slate-300 group-hover:bg-blue-400'}`} />
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-blue-600' : 'bg-slate-300 group-hover:bg-blue-400'}`}
+                    />
                     <div className="min-w-0">
-                      <div className={`font-medium truncate ${selected ? 'text-blue-900' : 'text-slate-800'}`}>{p.name}</div>
+                      <div
+                        className={`font-medium truncate ${selected ? 'text-blue-900' : 'text-slate-800'}`}
+                      >
+                        {p.name}
+                      </div>
                       {p.address && (
-                        <div className="text-xs text-muted-foreground truncate mt-0.5">{p.address}</div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                          {p.address}
+                        </div>
                       )}
                     </div>
                   </div>
                   {/* ETA offset — only when the API provides one
                       (today it doesn't) — never render a fake value. */}
                   {p.etaOffsetMin != null && (
-                    <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}>
+                    <div
+                      className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}
+                    >
                       +{formatDuration(p.etaOffsetMin)}
                     </div>
                   )}
@@ -113,14 +120,22 @@ function PointLists({
               >
                 <div className="flex items-center justify-between gap-2.5">
                   <div className="min-w-0 flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-rose-500' : 'bg-slate-300 group-hover:bg-rose-400'}`} />
+                    <span
+                      className={`h-2 w-2 rounded-full shrink-0 transition-colors ${selected ? 'bg-rose-500' : 'bg-slate-300 group-hover:bg-rose-400'}`}
+                    />
                     <div className="min-w-0">
-                      <div className={`font-medium truncate ${selected ? 'text-rose-900' : 'text-slate-800'}`}>{p.name}</div>
+                      <div
+                        className={`font-medium truncate ${selected ? 'text-rose-900' : 'text-slate-800'}`}
+                      >
+                        {p.name}
+                      </div>
                     </div>
                   </div>
                   {/* ETA offset — only when the API provides one. */}
                   {p.etaOffsetMin != null && (
-                    <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-rose-100 text-rose-700' : 'text-muted-foreground'}`}>
+                    <div
+                      className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-rose-100 text-rose-700' : 'text-muted-foreground'}`}
+                    >
                       +{formatDuration(p.etaOffsetMin)}
                     </div>
                   )}
@@ -211,7 +226,9 @@ export function BoardingPoints({
                         {t(SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass)}
                       </span>
                     </div>
-                    <div className="font-semibold text-blue-800">{formatCurrency(s.finalPrice, currency)}</div>
+                    <div className="font-semibold text-blue-800">
+                      {formatCurrency(s.finalPrice, currency)}
+                    </div>
                   </div>
                 ))}
               </div>

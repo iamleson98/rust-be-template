@@ -14,7 +14,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Clock, Calendar } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
-const FREQUENCY_OPTIONS: { value: Frequency; labelKey: string; descKey: string; icon: React.ReactNode }[] = [
+const FREQUENCY_OPTIONS: {
+  value: Frequency
+  labelKey: string
+  descKey: string
+  icon: React.ReactNode
+}[] = [
   {
     value: 'immediate',
     labelKey: 'priceAlert.freqImmediate',
@@ -64,26 +69,23 @@ export function PriceAlertFrequencyField({
                 <label
                   key={opt.value}
                   htmlFor={`freq-${opt.value}`}
-                  className={`flex items-start gap-3 rounded-lg border p-2.5 cursor-pointer transition-all ${frequency === opt.value
-                    ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/30'
-                    : 'border-slate-200 hover:border-blue-300'
-                    }`}
+                  className={`flex items-start gap-3 rounded-lg border p-2.5 cursor-pointer transition-all ${
+                    frequency === opt.value
+                      ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/30'
+                      : 'border-slate-200 hover:border-blue-300'
+                  }`}
                 >
-                  <RadioGroupItem
-                    id={`freq-${opt.value}`}
-                    value={opt.value}
-                    className="mt-0.5"
-                  />
+                  <RadioGroupItem id={`freq-${opt.value}`} value={opt.value} className="mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className={`text-blue-600 ${frequency === opt.value ? '' : 'text-slate-400'}`}>
+                      <span
+                        className={`text-blue-600 ${frequency === opt.value ? '' : 'text-slate-400'}`}
+                      >
                         {opt.icon}
                       </span>
                       <span className="text-sm font-medium">{t(opt.labelKey)}</span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {t(opt.descKey)}
-                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">{t(opt.descKey)}</div>
                   </div>
                 </label>
               ))}

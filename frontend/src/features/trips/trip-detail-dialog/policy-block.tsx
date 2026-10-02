@@ -8,7 +8,13 @@
  * (lines 1704-1718). Pure refactor.
  */
 
-export function PolicyBlock({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+export function PolicyBlock({
+  title,
+  items,
+}: {
+  title: string
+  items: { label: string; value: string }[]
+}) {
   return (
     <div>
       <h4 className="font-semibold text-sm mb-2">{title}</h4>

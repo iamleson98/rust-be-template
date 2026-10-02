@@ -35,9 +35,7 @@ describe('i18n dictionaries', () => {
         .join(',')
     for (const [key, viValue] of Object.entries(viDict)) {
       const enValue = enDict[key]
-      expect(placeholders(viValue), `placeholder mismatch for ${key}`).toBe(
-        placeholders(enValue),
-      )
+      expect(placeholders(viValue), `placeholder mismatch for ${key}`).toBe(placeholders(enValue))
     }
   })
 })

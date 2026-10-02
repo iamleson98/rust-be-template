@@ -153,7 +153,9 @@ export function BrandFormDialog({
       if (isEdit) {
         payload.id = brand!.id
       }
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<
+        typeof upsertMutation.mutateAsync
+      >[0])
       toast.success(isEdit ? t('brandForm.updated') : t('brandForm.created'))
       onSaved()
     } catch (e) {
@@ -169,16 +171,11 @@ export function BrandFormDialog({
             <Building2 className="h-5 w-5 text-rose-600" />
             {isEdit ? t('brandForm.editTitle') : t('brandForm.createTitle')}
           </DialogTitle>
-          <DialogDescription>
-            {t('brandForm.description')}
-          </DialogDescription>
+          <DialogDescription>{t('brandForm.description')}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="grid gap-3"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-3">
             <FormField
               control={form.control}
               name="name"
@@ -214,9 +211,7 @@ export function BrandFormDialog({
                       }}
                     />
                   </FormControl>
-                  <p className="text-[11px] text-muted-foreground">
-                    {t('brandForm.slugHint')}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">{t('brandForm.slugHint')}</p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -326,10 +321,18 @@ export function BrandFormDialog({
             </div>
 
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={upsertMutation.isPending}>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={upsertMutation.isPending}
+              >
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={upsertMutation.isPending} className="bg-rose-600 hover:bg-rose-700">
+              <Button
+                type="submit"
+                disabled={upsertMutation.isPending}
+                className="bg-rose-600 hover:bg-rose-700"
+              >
                 {upsertMutation.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}

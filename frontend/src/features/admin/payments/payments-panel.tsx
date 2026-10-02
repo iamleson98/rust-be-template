@@ -36,11 +36,7 @@ import {
   useMarkCodCollected,
   useUpdatePaymentStatus,
 } from '@/lib/queries/payments'
-import type {
-  AdminPaymentOut,
-  PaymentProvider,
-  PaymentStatus,
-} from '@/lib/queries/payments'
+import type { AdminPaymentOut, PaymentProvider, PaymentStatus } from '@/lib/queries/payments'
 import { KpiCard } from './payment-kpi-card'
 import { PROVIDER_OPTIONS } from './payment-badges'
 import { usePaymentColumns } from './payment-columns'
@@ -48,7 +44,6 @@ import { PaymentMobileList } from './payment-mobile-list'
 import { PaymentDetailDialog } from './payment-detail-dialog'
 import { PaymentActionDialog } from './payment-action-dialog'
 import type { PaymentAction } from './types'
-
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
@@ -154,9 +149,7 @@ export function AdminPaymentsPanel() {
             {t('admin.payments')}
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">{t('adminPayments.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminPayments.subtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminPayments.subtitle')}</p>
         </div>
         <Button
           variant="outline"
@@ -174,38 +167,38 @@ export function AdminPaymentsPanel() {
       {isLoading ? (
         <AdminStatsCardsSkeleton count={4} />
       ) : (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KpiCard
-          icon={<TrendingUp className="h-4 w-4" />}
-          label={t('adminPayments.kpiTotal')}
-          value={kpis.totalCount.toString()}
-          color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
-        />
-        {/* These three are computed from the CURRENT PAGE's rows (the
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            icon={<TrendingUp className="h-4 w-4" />}
+            label={t('adminPayments.kpiTotal')}
+            value={kpis.totalCount.toString()}
+            color="text-blue-600 bg-blue-50 dark:bg-blue-950/30"
+          />
+          {/* These three are computed from the CURRENT PAGE's rows (the
             endpoint has no aggregate endpoint) — labeled honestly instead
             of masquerading as platform-wide totals. */}
-        <KpiCard
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          label={t('adminPayments.kpiCompleted')}
-          value={kpis.completedCount.toString()}
-          color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
-          hint={t('adminPayments.kpiCurrentPage')}
-        />
-        <KpiCard
-          icon={<Clock className="h-4 w-4" />}
-          label={t('admin.stats.openCount')}
-          value={kpis.pendingCount.toString()}
-          color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
-          hint={t('adminPayments.kpiCurrentPage')}
-        />
-        <KpiCard
-          icon={<Wallet className="h-4 w-4" />}
-          label={t('adminPayments.kpiRevenue')}
-          value={formatCurrency(kpis.revenue, currency)}
-          color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
-          hint={t('adminPayments.kpiCurrentPage')}
-        />
-      </div>
+          <KpiCard
+            icon={<CheckCircle2 className="h-4 w-4" />}
+            label={t('adminPayments.kpiCompleted')}
+            value={kpis.completedCount.toString()}
+            color="text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30"
+            hint={t('adminPayments.kpiCurrentPage')}
+          />
+          <KpiCard
+            icon={<Clock className="h-4 w-4" />}
+            label={t('admin.stats.openCount')}
+            value={kpis.pendingCount.toString()}
+            color="text-amber-600 bg-amber-50 dark:bg-amber-950/30"
+            hint={t('adminPayments.kpiCurrentPage')}
+          />
+          <KpiCard
+            icon={<Wallet className="h-4 w-4" />}
+            label={t('adminPayments.kpiRevenue')}
+            value={formatCurrency(kpis.revenue, currency)}
+            color="text-violet-600 bg-violet-50 dark:bg-violet-950/30"
+            hint={t('adminPayments.kpiCurrentPage')}
+          />
+        </div>
       )}
 
       {/* ── Filter bar ─────────────────────────────────────── */}
@@ -217,7 +210,10 @@ export function AdminPaymentsPanel() {
           </div>
           <ComboboxField
             value={statusFilter}
-            onValueChange={(v) => { setStatusFilter(v); setPage(0) }}
+            onValueChange={(v) => {
+              setStatusFilter(v)
+              setPage(0)
+            }}
             items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
             className="w-45 h-8 text-xs"
             placeholder={t('common.status')}
@@ -227,8 +223,14 @@ export function AdminPaymentsPanel() {
           />
           <ComboboxField
             value={providerFilter}
-            onValueChange={(v) => { setProviderFilter(v); setPage(0) }}
-            items={PROVIDER_OPTIONS.map((o) => ({ value: o.value, label: o.labelKey ? t(o.labelKey) : (o.label ?? o.value) }))}
+            onValueChange={(v) => {
+              setProviderFilter(v)
+              setPage(0)
+            }}
+            items={PROVIDER_OPTIONS.map((o) => ({
+              value: o.value,
+              label: o.labelKey ? t(o.labelKey) : (o.label ?? o.value),
+            }))}
             className="w-40 h-8 text-xs"
             placeholder={t('adminPayments.method')}
             searchPlaceholder={t('combobox.search')}
@@ -243,42 +245,44 @@ export function AdminPaymentsPanel() {
 
       {/* ── Table / Cards — the DataTable renders its own bordered surface. ─── */}
       <DataTable
-            columns={columns}
-            data={items}
-            rowNoun={t('adminPayments.rowNoun')}
-            manualPagination
-            totalRowCount={total}
-            pageIndex={page}
-            onPageIndexChange={setPage}
-            pageSize={PAGE_SIZE}
-            isLoading={isLoading}
-            isError={isError}
-            onRetry={() => refetch()}
-            onRowClick={(p) => setSelectedPayment(p)}
-            rowAriaLabel={(p) => t('adminPayments.rowAriaLabel', { code: p.bookingCode ?? p.bookingId.slice(0, 8) })}
-            emptyTitle={t('adminPayments.emptyTitle')}
-            emptyDescription={
-              statusFilter !== 'all' || providerFilter !== 'all'
-                ? t('adminPayments.emptyFiltered')
-                : t('adminPayments.emptyDescription')
-            }
-            emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
-            toolbar={(table) => (
-              <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
-                <DataTableViewOptions table={table} className="ml-auto h-8" />
-              </div>
-            )}
-            mobileList={
-              <PaymentMobileList
-                items={items}
-                currency={currency}
-                updateStatus={updateStatus}
-                setActionDialog={setActionDialog}
-                setActionAmount={setActionAmount}
-                setSelectedPayment={setSelectedPayment}
-              />
-            }
+        columns={columns}
+        data={items}
+        rowNoun={t('adminPayments.rowNoun')}
+        manualPagination
+        totalRowCount={total}
+        pageIndex={page}
+        onPageIndexChange={setPage}
+        pageSize={PAGE_SIZE}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => refetch()}
+        onRowClick={(p) => setSelectedPayment(p)}
+        rowAriaLabel={(p) =>
+          t('adminPayments.rowAriaLabel', { code: p.bookingCode ?? p.bookingId.slice(0, 8) })
+        }
+        emptyTitle={t('adminPayments.emptyTitle')}
+        emptyDescription={
+          statusFilter !== 'all' || providerFilter !== 'all'
+            ? t('adminPayments.emptyFiltered')
+            : t('adminPayments.emptyDescription')
+        }
+        emptyIcon={<CreditCard className="h-5 w-5" aria-hidden />}
+        toolbar={(table) => (
+          <div className="flex items-center justify-end border-b bg-muted/20 px-4 py-2">
+            <DataTableViewOptions table={table} className="ml-auto h-8" />
+          </div>
+        )}
+        mobileList={
+          <PaymentMobileList
+            items={items}
+            currency={currency}
+            updateStatus={updateStatus}
+            setActionDialog={setActionDialog}
+            setActionAmount={setActionAmount}
+            setSelectedPayment={setSelectedPayment}
           />
+        }
+      />
 
       {/* ── Detail dialog ──────────────────────────────────── */}
       <PaymentDetailDialog

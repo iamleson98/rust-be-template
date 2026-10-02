@@ -5,7 +5,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── Testimonials Skeleton — testimonial cards ─── */
-export const TestimonialsSkeleton = memo(function TestimonialsSkeleton({ count = 3 }: { count?: number }) {
+export const TestimonialsSkeleton = memo(function TestimonialsSkeleton({
+  count = 3,
+}: {
+  count?: number
+}) {
   return (
     <section className="relative container mx-auto px-4 py-16">
       <div className="text-center max-w-2xl mx-auto mb-10">

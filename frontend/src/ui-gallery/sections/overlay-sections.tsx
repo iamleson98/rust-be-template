@@ -53,11 +53,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer'
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Sheet,
@@ -97,23 +93,16 @@ export function OverlaySections() {
             <DialogContent data-testid="dialog-content">
               <DialogHeader>
                 <DialogTitle>Confirm your booking</DialogTitle>
-                <DialogDescription>
-                  Seat 12A · Hà Nội → Huế · 350,000₫
-                </DialogDescription>
+                <DialogDescription>Seat 12A · Hà Nội → Huế · 350,000₫</DialogDescription>
               </DialogHeader>
-              <div className="text-sm">
-                This action will hold your seat for 10 minutes.
-              </div>
+              <div className="text-sm">This action will hold your seat for 10 minutes.</div>
               <DialogFooter>
                 <DialogClose asChild>
                   <Button variant="outline" data-testid="dialog-cancel">
                     Cancel
                   </Button>
                 </DialogClose>
-                <Button
-                  data-testid="dialog-confirm"
-                  onClick={() => setDialogResult('booked')}
-                >
+                <Button data-testid="dialog-confirm" onClick={() => setDialogResult('booked')}>
                   Confirm seat hold
                 </Button>
               </DialogFooter>
@@ -139,12 +128,10 @@ export function OverlaySections() {
             </AlertDialogTrigger>
             <AlertDialogContent data-testid="alert-dialog-content">
               <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Are you sure you want to delete your account?
-                </AlertDialogTitle>
+                <AlertDialogTitle>Are you sure you want to delete your account?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. All bookings and saved routes
-                  will be permanently removed.
+                  This action cannot be undone. All bookings and saved routes will be permanently
+                  removed.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -166,11 +153,7 @@ export function OverlaySections() {
         </div>
       </Section>
 
-      <Section
-        id="sheet"
-        title="Sheet"
-        description="Side panel for navigation / detail drawers."
-      >
+      <Section id="sheet" title="Sheet" description="Side panel for navigation / detail drawers.">
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="outline" data-testid="sheet-trigger">
@@ -180,9 +163,7 @@ export function OverlaySections() {
           <SheetContent side="right" data-testid="sheet-content">
             <SheetHeader>
               <SheetTitle>Hà Nội → Huế express</SheetTitle>
-              <SheetDescription>
-                Departs 06:00 from Mỹ Đình station
-              </SheetDescription>
+              <SheetDescription>Departs 06:00 from Mỹ Đình station</SheetDescription>
             </SheetHeader>
             <div className="px-4 text-sm">
               <p>2 rest stops · Wi-Fi onboard · 22 seats</p>
@@ -205,9 +186,7 @@ export function OverlaySections() {
           <DrawerContent data-testid="drawer-content">
             <DrawerHeader>
               <DrawerTitle>Filter trips</DrawerTitle>
-              <DrawerDescription>
-                Narrow down by departure time or price.
-              </DrawerDescription>
+              <DrawerDescription>Narrow down by departure time or price.</DrawerDescription>
             </DrawerHeader>
             <DrawerFooter>
               <DrawerClose asChild>
@@ -226,9 +205,7 @@ export function OverlaySections() {
         <div className="flex flex-wrap items-center gap-3">
           <DropdownMenu>
             <DropdownMenuTrigger
-              render={
-                <Button variant="outline" data-testid="dropdown-trigger" />
-              }
+              render={<Button variant="outline" data-testid="dropdown-trigger" />}
             >
               Trip options
             </DropdownMenuTrigger>
@@ -280,32 +257,22 @@ export function OverlaySections() {
                 Show hidden items
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                onClick={() => setDropdownAction('deleted')}
-              >
+              <DropdownMenuItem variant="destructive" onClick={() => setDropdownAction('deleted')}>
                 <Trash2Icon />
                 Delete trip
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <span className="text-sm">
-            Action:{' '}
-            <Mirror testId="dropdown-mirror">{dropdownAction}</Mirror>
+            Action: <Mirror testId="dropdown-mirror">{dropdownAction}</Mirror>
             {' · '}
             Hidden items:{' '}
-            <Mirror testId="dropdown-hidden-mirror">
-              {showHidden ? 'shown' : 'hidden'}
-            </Mirror>
+            <Mirror testId="dropdown-hidden-mirror">{showHidden ? 'shown' : 'hidden'}</Mirror>
           </span>
         </div>
       </Section>
 
-      <Section
-        id="popover"
-        title="Popover"
-        description="Anchored non-modal floating panel."
-      >
+      <Section id="popover" title="Popover" description="Anchored non-modal floating panel.">
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" data-testid="popover-trigger">
@@ -325,11 +292,7 @@ export function OverlaySections() {
         </Popover>
       </Section>
 
-      <Section
-        id="tooltip"
-        title="Tooltip"
-        description="Hover hint with delayed show."
-      >
+      <Section id="tooltip" title="Tooltip" description="Hover hint with delayed show.">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="outline" data-testid="tooltip-trigger">
@@ -401,10 +364,7 @@ export function OverlaySections() {
                 Share trip link
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem
-                variant="destructive"
-                onClick={() => setContextAction('cancelled')}
-              >
+              <ContextMenuItem variant="destructive" onClick={() => setContextAction('cancelled')}>
                 Cancel booking
               </ContextMenuItem>
             </ContextMenuContent>

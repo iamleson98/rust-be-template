@@ -101,10 +101,15 @@ export const AdminDashboard = memo(function AdminDashboard() {
       if (!data) throw new Error('Export failed')
       downloadCSV(data.filename, data.csv)
       toast.success(t('adminDash.exportCsvSuccess'), {
-        description: t('adminDash.exportCsvSuccessDesc', { count: data.count, file: data.filename }),
+        description: t('adminDash.exportCsvSuccessDesc', {
+          count: data.count,
+          file: data.filename,
+        }),
       })
     } catch (e) {
-      toast.error(t('adminDash.exportCsvFailed'), { description: getErrorMessage(e, t('adminDash.pleaseRetry')) })
+      toast.error(t('adminDash.exportCsvFailed'), {
+        description: getErrorMessage(e, t('adminDash.pleaseRetry')),
+      })
     }
   }, [exportQuery, t])
 
@@ -122,30 +127,41 @@ export const AdminDashboard = memo(function AdminDashboard() {
               <LayoutDashboard className="h-3.5 w-3.5" />
               {t('admin.dashboard')}
             </div>
-            <h1 className="text-2xl font-extrabold tracking-tight">{t('adminDash.overviewTitle')}</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              {t('adminDash.overviewTitle')}
+            </h1>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* Date range selector */}
-            <div className="inline-flex items-center rounded-lg border bg-white p-0.5" role="group" aria-label={t('adminDash.dateRangeLabel')}>
+            <div
+              className="inline-flex items-center rounded-lg border bg-white p-0.5"
+              role="group"
+              aria-label={t('adminDash.dateRangeLabel')}
+            >
               <CalendarRange className="h-3.5 w-3.5 text-muted-foreground mx-2" />
-              {([
+              {[
                 { key: '7d' as DateRange, label: t('adminDash.range7d') },
                 { key: '30d' as DateRange, label: t('adminDash.range30d') },
                 { key: '90d' as DateRange, label: t('adminDash.range90d') },
-              ]).map((opt) => (
+              ].map((opt) => (
                 <button
                   key={opt.key}
                   onClick={() => setDateRange(opt.key)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${dateRange === opt.key
-                    ? 'bg-blue-600 text-white '
-                    : 'text-muted-foreground hover:text-blue-700 hover:bg-blue-50'
-                    }`}
+                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-all ${
+                    dateRange === opt.key
+                      ? 'bg-blue-600 text-white '
+                      : 'text-muted-foreground hover:text-blue-700 hover:bg-blue-50'
+                  }`}
                 >
                   {opt.label}
                 </button>
               ))}
             </div>
-            <Button variant="outline" onClick={handleExportCSV} className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50">
+            <Button
+              variant="outline"
+              onClick={handleExportCSV}
+              className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
               <Download className="h-4 w-4" />
               {t('adminDash.exportCsv')}
             </Button>

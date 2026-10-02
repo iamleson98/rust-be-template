@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+
 import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -179,8 +181,7 @@ class _NavItemState extends State<_NavItem> {
                     curve: Curves.easeOut,
                     style: theme.typography.body.xs.copyWith(
                       color: fg,
-                      fontWeight:
-                          selected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                       fontSize: 11,
                       letterSpacing: -0.1,
                     ),

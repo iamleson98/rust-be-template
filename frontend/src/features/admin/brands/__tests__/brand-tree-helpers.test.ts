@@ -54,7 +54,10 @@ describe('matchesBrandSearch', () => {
     expect(matchesBrandSearch(brand, 'phương trang')).toBe(true)
     // 'Đà' folds to 'da' — typing without tones still finds the brand.
     expect(
-      matchesBrandSearch({ name: 'Đà Nẵng Express', slug: 'dn-express', contactPhone: null }, 'da nang'),
+      matchesBrandSearch(
+        { name: 'Đà Nẵng Express', slug: 'dn-express', contactPhone: null },
+        'da nang',
+      ),
     ).toBe(true)
   })
 
@@ -81,9 +84,24 @@ describe('brandMatchesRouteFilter', () => {
 
 describe('sortSchedules', () => {
   const schedules = [
-    schedule({ id: 'a', departureTime: '21:00', basePriceAdult: 180000, effectiveFrom: '2026-11-01' }),
-    schedule({ id: 'b', departureTime: '06:30', basePriceAdult: 350000, effectiveFrom: '2026-10-01' }),
-    schedule({ id: 'c', departureTime: '13:45', basePriceAdult: 250000, effectiveFrom: '2026-12-01' }),
+    schedule({
+      id: 'a',
+      departureTime: '21:00',
+      basePriceAdult: 180000,
+      effectiveFrom: '2026-11-01',
+    }),
+    schedule({
+      id: 'b',
+      departureTime: '06:30',
+      basePriceAdult: 350000,
+      effectiveFrom: '2026-10-01',
+    }),
+    schedule({
+      id: 'c',
+      departureTime: '13:45',
+      basePriceAdult: 250000,
+      effectiveFrom: '2026-12-01',
+    }),
   ]
 
   it('sorts by departure time ascending and descending', () => {
@@ -110,7 +128,10 @@ describe('sortSchedules', () => {
   })
 
   it('treats missing keys as empty (sorts first ascending)', () => {
-    const withMissing = [schedule({ id: 'x', departureTime: '09:00' }), schedule({ id: 'y', departureTime: '' })]
+    const withMissing = [
+      schedule({ id: 'x', departureTime: '09:00' }),
+      schedule({ id: 'y', departureTime: '' }),
+    ]
     const asc = sortSchedules(withMissing, { key: 'departureTime', dir: 'asc' })
     expect(asc[0].id).toBe('y')
   })
@@ -125,7 +146,10 @@ describe('nextScheduleSort', () => {
 
   it('flips asc → desc on the same key', () => {
     const current: ScheduleSort = { key: 'departureTime', dir: 'asc' }
-    expect(nextScheduleSort(current, 'departureTime')).toEqual({ key: 'departureTime', dir: 'desc' })
+    expect(nextScheduleSort(current, 'departureTime')).toEqual({
+      key: 'departureTime',
+      dir: 'desc',
+    })
   })
 
   it('returns asc after desc on the same key', () => {
@@ -279,8 +303,12 @@ describe('routeDirection / effectiveWindow', () => {
 
   it('formats the effective window tolerantly', () => {
     expect(effectiveWindow(schedule())).toBe('2026-10-01 → 2026-12-01')
-    expect(effectiveWindow(schedule({ effectiveFrom: '2026-10-01', effectiveTo: null }))).toBe('từ 2026-10-01')
-    expect(effectiveWindow(schedule({ effectiveFrom: null, effectiveTo: '2026-12-01' }))).toBe('đến 2026-12-01')
+    expect(effectiveWindow(schedule({ effectiveFrom: '2026-10-01', effectiveTo: null }))).toBe(
+      'từ 2026-10-01',
+    )
+    expect(effectiveWindow(schedule({ effectiveFrom: null, effectiveTo: '2026-12-01' }))).toBe(
+      'đến 2026-12-01',
+    )
     expect(effectiveWindow(schedule({ effectiveFrom: null, effectiveTo: null }))).toBe('—')
   })
 })

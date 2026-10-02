@@ -20,7 +20,9 @@ export function LiveTrackingMap({
   detail: TripDetail
   progress: number
   status: TrackingStatus
-  stopsWithStatus: (TripDetail['pickupPoints'][number] & { status: 'passed' | 'current' | 'upcoming' })[]
+  stopsWithStatus: (TripDetail['pickupPoints'][number] & {
+    status: 'passed' | 'current' | 'upcoming'
+  })[]
   speed: number
   etaSeconds: number
   lastUpdatedText: string
@@ -171,12 +173,7 @@ export function LiveTrackingMap({
                     keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"
                   />
                 )}
-                <circle
-                  r="13"
-                  fill="white"
-                  stroke={accentColor}
-                  strokeWidth="2.5"
-                />
+                <circle r="13" fill="white" stroke={accentColor} strokeWidth="2.5" />
                 <text
                   textAnchor="middle"
                   dy="5"

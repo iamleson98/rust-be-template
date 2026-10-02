@@ -60,29 +60,27 @@ export interface SlotProps extends HTMLAttributes<HTMLElement> {
   asChild?: boolean
 }
 
-export const Slot = forwardRef<HTMLElement, SlotProps>(
-  ({ asChild, children, ...props }, ref) => {
-    if (!asChild || !isValidElement(children)) {
-      return (
-        <div ref={ref as Ref<HTMLDivElement>} {...props}>
-          {children}
-        </div>
-      )
-    }
+export const Slot = forwardRef<HTMLElement, SlotProps>(({ asChild, children, ...props }, ref) => {
+  if (!asChild || !isValidElement(children)) {
+    return (
+      <div ref={ref as Ref<HTMLDivElement>} {...props}>
+        {children}
+      </div>
+    )
+  }
 
-    const child = children as ReactElement<Record<string, unknown>>
-    const mergedProps = mergeProps(props, child.props)
+  const child = children as ReactElement<Record<string, unknown>>
+  const mergedProps = mergeProps(props, child.props)
 
-    const childRef = child.props.ref as Ref<HTMLElement>
-    const composedRef: Ref<HTMLElement> = (node) => {
-      if (typeof ref === 'function') ref(node)
-      else if (ref) (ref as RefObject<HTMLElement | null>).current = node
-      if (typeof childRef === 'function') childRef(node)
-      else if (childRef) (childRef as RefObject<HTMLElement | null>).current = node
-    }
+  const childRef = child.props.ref as Ref<HTMLElement>
+  const composedRef: Ref<HTMLElement> = (node) => {
+    if (typeof ref === 'function') ref(node)
+    else if (ref) (ref as RefObject<HTMLElement | null>).current = node
+    if (typeof childRef === 'function') childRef(node)
+    else if (childRef) (childRef as RefObject<HTMLElement | null>).current = node
+  }
 
-    return cloneElement(child, { ...mergedProps, ref: composedRef })
-  },
-)
+  return cloneElement(child, { ...mergedProps, ref: composedRef })
+})
 
 Slot.displayName = 'Slot'

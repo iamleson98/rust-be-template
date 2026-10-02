@@ -16,7 +16,12 @@ export function ComparePage() {
   return (
     <div className="page-transition">
       <div className="container mx-auto px-4 py-6">
-        <Button variant="ghost" size="sm" asChild className="gap-1.5 mb-4 text-muted-foreground hover:text-foreground">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="gap-1.5 mb-4 text-muted-foreground hover:text-foreground"
+        >
           <Link to="/search">
             <ArrowLeft className="h-4 w-4" />
             {t('common.back')}

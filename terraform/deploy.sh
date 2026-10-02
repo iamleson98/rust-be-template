@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # ─── deploy.sh — deprecated Terraform provisioning helper ───────────
 #
 # Deployment is now documented in deploy/README.md and uses the files in

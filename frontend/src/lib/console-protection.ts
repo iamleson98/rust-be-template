@@ -76,7 +76,7 @@ function logWarning(): void {
 
   // Fire a GA4 event (if analytics is configured).
   if (typeof window !== 'undefined' && window.gtag) {
-    ;window.gtag('event', 'devtools_opened', {
+    window.gtag('event', 'devtools_opened', {
       event_category: 'security',
       event_label: window.location.pathname,
     })
@@ -164,7 +164,14 @@ export function initConsoleProtection(): void {
   // (browsers can't truly block these shortcuts without extensions).
   document.addEventListener('keydown', (e) => {
     const isDevtoolsShortcut =
-      (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+      (e.ctrlKey &&
+        e.shiftKey &&
+        (e.key === 'I' ||
+          e.key === 'i' ||
+          e.key === 'J' ||
+          e.key === 'j' ||
+          e.key === 'C' ||
+          e.key === 'c')) ||
       e.key === 'F12'
 
     if (isDevtoolsShortcut) {

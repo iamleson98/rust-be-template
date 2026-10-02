@@ -18,7 +18,9 @@ import { toast } from 'sonner'
 
 // Leaflet touches `window` at import time, so we must load the MapPicker
 // client-side only.
-const MapPicker = lazy(() => import('@/features/map/leaflet-map').then((m) => ({ default: m.MapPicker })))
+const MapPicker = lazy(() =>
+  import('@/features/map/leaflet-map').then((m) => ({ default: m.MapPicker })),
+)
 const MapPickerFallback = (
   <div className="flex items-center justify-center h-[70vh] text-muted-foreground">
     <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
@@ -43,7 +45,14 @@ type Props = {
   className?: string
 }
 
-export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor = 'blue', className }: Props) {
+export function PlaceAutocomplete({
+  value,
+  onChange,
+  placeholder,
+  icon,
+  pinColor = 'blue',
+  className,
+}: Props) {
   const t = useT()
   const [query, setQuery] = useState(value)
   const [open, setOpen] = useState(false)
@@ -160,10 +169,7 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
             }
           }}
           placeholder={placeholder}
-          className={cn(
-            icon ? 'pl-10' : '',
-            'bg-white/95 backdrop-blur pr-11',
-          )}
+          className={cn(icon ? 'pl-10' : '', 'bg-white/95 backdrop-blur pr-11')}
         />
         {/* "Pick on map" button — sits inside the input on the right */}
         <button
@@ -222,8 +228,14 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
           <div className="px-3 py-3 flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" style={{ animationDelay: '0.18s' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" style={{ animationDelay: '0.36s' }} />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-blue-500"
+                style={{ animationDelay: '0.18s' }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-blue-500"
+                style={{ animationDelay: '0.36s' }}
+              />
             </span>
             <span>{t('searchPage.searchingPlaces')}</span>
           </div>
@@ -235,7 +247,9 @@ export function PlaceAutocomplete({ value, onChange, placeholder, icon, pinColor
         <DialogContent className="max-w-3xl max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
           <DialogHeader className="px-4 py-3 pr-12 border-b bg-white shrink-0">
             <DialogTitle className="text-base flex items-center gap-2">
-              <MapPin className={cn('h-4 w-4', pinColor === 'red' ? 'text-rose-600' : 'text-blue-600')} />
+              <MapPin
+                className={cn('h-4 w-4', pinColor === 'red' ? 'text-rose-600' : 'text-blue-600')}
+              />
               {t('searchPage.pickLocationOnMap')}
             </DialogTitle>
             {/* Description (also satisfies aria-describedby) */}

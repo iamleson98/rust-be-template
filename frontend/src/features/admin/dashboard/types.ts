@@ -7,10 +7,7 @@
  * reviews moderation panel — are kept here.
  */
 
-import type {
-  AdminBookingStatsResponse,
-  StatsResponse,
-} from '@/lib/api/types.gen'
+import type { AdminBookingStatsResponse, StatsResponse } from '@/lib/api/types.gen'
 
 // Re-export the generated stats response shape under the short name the
 // dashboard components expect. This keeps the public-facing `/api/stats`

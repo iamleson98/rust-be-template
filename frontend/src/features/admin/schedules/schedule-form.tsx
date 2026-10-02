@@ -213,7 +213,7 @@ export function ScheduleFormDialog({
     const target = index + delta
     if (target < 0 || target >= middlePoints.length) return
     const next = [...middlePoints]
-      ;[next[index], next[target]] = [next[target], next[index]]
+    ;[next[index], next[target]] = [next[target], next[index]]
     form.setValue('middlePoints', next, { shouldDirty: true })
   }
 
@@ -283,7 +283,9 @@ export function ScheduleFormDialog({
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
         toast.success(t('adminSchedules.updated'))
       } else {
-        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
+        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
+          typeof createMutation.mutateAsync
+        >[0])
         toast.success(t('adminSchedules.created'))
       }
       onSaved()
@@ -311,10 +313,9 @@ export function ScheduleFormDialog({
             <DialogDescription>
               {route ? (
                 <>
-                  {t('adminSchedules.routePrefix')} <span className="font-medium">{route.name}</span>
-                  {brandName ? (
-                    <span className="text-muted-foreground"> · {brandName}</span>
-                  ) : null}
+                  {t('adminSchedules.routePrefix')}{' '}
+                  <span className="font-medium">{route.name}</span>
+                  {brandName ? <span className="text-muted-foreground"> · {brandName}</span> : null}
                 </>
               ) : null}
             </DialogDescription>

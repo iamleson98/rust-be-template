@@ -43,12 +43,16 @@ export function PriceSummary({
     <div className={`rounded-lg border bg-slate-50 p-4 space-y-2 ${className ?? ''}`}>
       <h4 className="font-semibold text-sm mb-2">{t('bookingFlow.priceDetails')}</h4>
       <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">{t('bookingFlow.subtotalSeats', { count: seatCount })}</span>
+        <span className="text-muted-foreground">
+          {t('bookingFlow.subtotalSeats', { count: seatCount })}
+        </span>
         <span>{formatCurrency(subtotal, currency)}</span>
       </div>
       {discount > 0 && (
         <div className="flex justify-between text-sm text-blue-700">
-          <span className="text-muted-foreground">{t('bookingFlow.discountLabel', { code: campaignCode })}</span>
+          <span className="text-muted-foreground">
+            {t('bookingFlow.discountLabel', { code: campaignCode })}
+          </span>
           <span>-{formatCurrency(discount, currency)}</span>
         </div>
       )}

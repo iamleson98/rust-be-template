@@ -16,18 +16,22 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  FormField,
-  FormControl,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormControl, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { PrivacyNotice } from '@/components/seo/trust-signals'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import { CheckCircle2, ChevronLeft, ChevronRight, Loader2, Tag, X, User, Phone, Mail } from 'lucide-react'
+import {
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Tag,
+  X,
+  User,
+  Phone,
+  Mail,
+} from 'lucide-react'
 import { type BookingValues } from './booking-form'
 import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 
@@ -74,12 +78,18 @@ export function BookingContactStep({
               <FormItem className="space-y-1.5 sm:col-span-2">
                 <FormLabel>
                   {t('bookingFlow.contactPersonName')}{' '}
-                  <span className="text-destructive" aria-hidden="true">*</span>
+                  <span className="text-destructive" aria-hidden="true">
+                    *
+                  </span>
                 </FormLabel>
                 <div className="relative">
                   <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
                   <FormControl>
-                    <Input {...field} placeholder={t('bookingFlow.contactNamePh')} className="pl-8" />
+                    <Input
+                      {...field}
+                      placeholder={t('bookingFlow.contactNamePh')}
+                      className="pl-8"
+                    />
                   </FormControl>
                 </div>
                 <FormMessage />
@@ -93,7 +103,9 @@ export function BookingContactStep({
               <FormItem className="space-y-1.5">
                 <FormLabel>
                   {t('booking.contactPhone')}{' '}
-                  <span className="text-destructive" aria-hidden="true">*</span>
+                  <span className="text-destructive" aria-hidden="true">
+                    *
+                  </span>
                 </FormLabel>
                 <div className="relative">
                   <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
@@ -145,12 +157,23 @@ export function BookingContactStep({
         <div className="flex gap-2">
           <Input
             value={campaignCode}
-            onChange={(e) => { setCampaignCode(e.target.value); setCampaignResult(null) }}
+            onChange={(e) => {
+              setCampaignCode(e.target.value)
+              setCampaignResult(null)
+            }}
             placeholder={t('bookingFlow.promoCodePh')}
             className="bg-white"
           />
-          <Button variant="outline" onClick={checkCampaign} disabled={checkingCampaign || !campaignCode.trim()}>
-            {checkingCampaign ? <Loader2 className="h-4 w-4 animate-spin" /> : t('bookingFlow.apply')}
+          <Button
+            variant="outline"
+            onClick={checkCampaign}
+            disabled={checkingCampaign || !campaignCode.trim()}
+          >
+            {checkingCampaign ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              t('bookingFlow.apply')
+            )}
           </Button>
         </div>
         {campaignResult?.valid && discount > 0 && (
@@ -158,7 +181,9 @@ export function BookingContactStep({
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-blue-600" />
               <div>
-                <div className="font-medium text-blue-800">{t('bookingFlow.promoApplied', { code: campaignCode.trim().toUpperCase() })}</div>
+                <div className="font-medium text-blue-800">
+                  {t('bookingFlow.promoApplied', { code: campaignCode.trim().toUpperCase() })}
+                </div>
                 <div className="text-xs text-blue-600">{t('bookingFlow.promoAppliedDesc')}</div>
               </div>
             </div>
@@ -173,7 +198,11 @@ export function BookingContactStep({
         )}
       </div>
 
-      {error && <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">{error}</div>}
+      {error && (
+        <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+          {error}
+        </div>
+      )}
 
       <div className="flex justify-between">
         <Button variant="outline" onClick={() => setBookingStep('passengers')} className="gap-1">

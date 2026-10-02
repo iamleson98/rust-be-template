@@ -136,9 +136,7 @@ describe('DataTable', () => {
   })
 
   it('paginates client-side with a Vietnamese range label', async () => {
-    render(
-      <DataTable columns={columns} data={payments} defaultPageSize={2} showPageSize />,
-    )
+    render(<DataTable columns={columns} data={payments} defaultPageSize={2} showPageSize />)
 
     expect(screen.getByText(/hiển thị 1–2 \/ 3 dòng/i)).toBeInTheDocument()
 
@@ -227,7 +225,11 @@ describe('DataTable', () => {
         columns={columns}
         data={payments}
         toolbar={(table) => (
-          <Button variant="outline" size="sm" onClick={() => table.getColumn('email')?.toggleVisibility(false)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.getColumn('email')?.toggleVisibility(false)}
+          >
             Hide email
           </Button>
         )}

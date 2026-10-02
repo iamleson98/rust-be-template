@@ -19,7 +19,12 @@ import { Activity } from 'lucide-react'
 import { DatabaseEngineSection } from '@/features/admin/system/database-engine-section'
 import { SystemMetricsSection } from '@/features/admin/system/system-metrics-section'
 import { SystemStatusSkeleton } from '@/features/admin/system/system-status-skeleton'
-import { CallCard, DatabaseCard, UptimeCard, WebSocketCard } from '@/features/admin/system/system-status-cards'
+import {
+  CallCard,
+  DatabaseCard,
+  UptimeCard,
+  WebSocketCard,
+} from '@/features/admin/system/system-status-cards'
 import { useSystemStatus } from '@/lib/queries'
 
 export function AdminSystemPage() {

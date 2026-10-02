@@ -81,8 +81,19 @@ type AppState = {
   setGuestName: (n: string | null) => void
 
   // ── Recently viewed trips (persisted) ──
-  recentlyViewed: { tripId: string; routeId: string; label: string; brandName: string; seenAt: number }[]
-  pushRecentlyViewed: (r: { tripId: string; routeId: string; label: string; brandName: string }) => void
+  recentlyViewed: {
+    tripId: string
+    routeId: string
+    label: string
+    brandName: string
+    seenAt: number
+  }[]
+  pushRecentlyViewed: (r: {
+    tripId: string
+    routeId: string
+    label: string
+    brandName: string
+  }) => void
 
   // ── Compare list (in-memory) ──
   compareList: string[] // tripIds
@@ -153,7 +164,6 @@ type AppState = {
     employeeRole?: string | null
   } | null
   setUser: (u: AppState['user']) => void
-
 }
 
 const today = new Date()
@@ -178,9 +188,7 @@ const fmtDate = (d: Date) => d.toISOString().slice(0, 10)
  *  checks so the three-role model stays consistent app-wide.
  *  Accepts the generated SDK `SessionUser` too (its `type` is a loose
  *  `string`), hence the wide parameter type. */
-export function isStaffUser(
-  user: { type: string } | null | undefined,
-): boolean {
+export function isStaffUser(user: { type: string } | null | undefined): boolean {
   return user?.type === 'employee' || user?.type === 'admin'
 }
 
@@ -193,8 +201,8 @@ export function hydrateFromStorage() {
   // Read lang from localStorage first, then fall back to the cookie
   // (set by `setLang`). The cookie survives across subdomains +
   // can be read by the server for SSR / localized error messages.
-  const langRaw = localStorage.getItem('bus_lang')
-    ?? (document.cookie.match(/bus_lang=(vi|en)/)?.[1] ?? null)
+  const langRaw =
+    localStorage.getItem('bus_lang') ?? document.cookie.match(/bus_lang=(vi|en)/)?.[1] ?? null
   const lang = langRaw === 'en' ? 'en' : 'vi'
   // Sync the <html lang="..."> attribute so screen readers + search
   // engines know the page's language. The attribute is hardcoded to
@@ -202,7 +210,13 @@ export function hydrateFromStorage() {
   document.documentElement.lang = lang
   const currency = localStorage.getItem('bus_currency') === 'USD' ? 'USD' : 'VND'
 
-  let recentlyViewed: { tripId: string; routeId: string; label: string; brandName: string; seenAt: number }[] = []
+  let recentlyViewed: {
+    tripId: string
+    routeId: string
+    label: string
+    brandName: string
+    seenAt: number
+  }[] = []
   try {
     const raw = localStorage.getItem('bus_recently_viewed')
     recentlyViewed = raw ? JSON.parse(raw) : []
@@ -214,7 +228,8 @@ export function hydrateFromStorage() {
     const parsed = raw ? JSON.parse(raw) : null
     if (parsed) {
       // Three-role model: employees + admins are staff.
-      const type = parsed.type === 'employee' ? 'employee' : parsed.type === 'admin' ? 'admin' : 'user'
+      const type =
+        parsed.type === 'employee' ? 'employee' : parsed.type === 'admin' ? 'admin' : 'user'
       const role = type === 'user' ? 'user' : type
       user = {
         id: parsed.id,
@@ -261,8 +276,13 @@ export function hydrateFromStorage() {
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) searchParams.date = date
       if (adults) searchParams.adults = Math.max(1, parseInt(adults, 10) || 1)
       if (children) searchParams.children = Math.max(0, parseInt(children, 10) || 0)
-      if (sort && ['departure', 'price', 'rating'].includes(sort)) searchParams.sort = sort as SearchParams['sort']
-      if (vt) searchParams.vehicleTypes = vt.split(',').map((s) => s.trim()).filter(Boolean)
+      if (sort && ['departure', 'price', 'rating'].includes(sort))
+        searchParams.sort = sort as SearchParams['sort']
+      if (vt)
+        searchParams.vehicleTypes = vt
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
       searchParams.roundTrip = roundTrip
       if (returnDate && /^\d{4}-\d{2}-\d{2}$/.test(returnDate)) searchParams.returnDate = returnDate
     } else {
@@ -275,7 +295,16 @@ export function hydrateFromStorage() {
     }
   } catch {}
 
-  useApp.setState({ chatUserId: chatUser, guestPhone, guestName, lang, currency, recentlyViewed, user, searchParams })
+  useApp.setState({
+    chatUserId: chatUser,
+    guestPhone,
+    guestName,
+    lang,
+    currency,
+    recentlyViewed,
+    user,
+    searchParams,
+  })
 }
 
 export const useApp = create<AppState>((set) => ({

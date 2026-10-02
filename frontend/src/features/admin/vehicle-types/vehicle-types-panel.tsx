@@ -29,15 +29,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import {
-  DataTable,
-  DataTableColumnHeader,
-  type DataTableFeatures,
-} from '@/components/data-table'
-import {
-  useAdminVehicleTypes,
-  useDeleteAdminVehicleType,
-} from '@/lib/queries'
+import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
+import { useAdminVehicleTypes, useDeleteAdminVehicleType } from '@/lib/queries'
 import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
 
 import { VehicleTypeFormDialog } from './vehicle-type-form'
@@ -124,7 +117,9 @@ export function VehicleTypesPanel() {
           meta: { label: t('adminVehicleTypes.displayName') },
         }),
         columnHelper.accessor('code', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminVehicleTypes.code')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminVehicleTypes.code')} />
+          ),
           cell: ({ getValue }) => (
             <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               {getValue()}
@@ -209,9 +204,7 @@ export function VehicleTypesPanel() {
             <Bus className="h-5 w-5 text-blue-600" />
             {t('admin.vehicleTypes')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminVehicleTypes.subtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminVehicleTypes.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -249,27 +242,27 @@ export function VehicleTypesPanel() {
 
       {/* Table — the DataTable renders its own bordered surface. */}
       <DataTable
-            columns={columns}
-            data={items}
-            testId="vehicle-types-table"
-            rowNoun={t('adminVehicleTypes.rowNoun')}
-            manualPagination
-            totalRowCount={total}
-            pageIndex={page}
-            onPageIndexChange={setPage}
-            pageSize={PAGE_SIZE}
-            hidePaginationOnSinglePage={false}
-            isLoading={query.isLoading}
-            isError={query.isError}
-            onRetry={() => query.refetch()}
-            emptyTitle={search ? t('adminVehicleTypes.emptySearchTitle') : t('adminVehicleTypes.emptyTitle')}
-            emptyDescription={
-              search
-                ? t('adminVehicleTypes.emptySearchDesc')
-                : t('adminVehicleTypes.emptyDesc')
-            }
-            emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
-          />
+        columns={columns}
+        data={items}
+        testId="vehicle-types-table"
+        rowNoun={t('adminVehicleTypes.rowNoun')}
+        manualPagination
+        totalRowCount={total}
+        pageIndex={page}
+        onPageIndexChange={setPage}
+        pageSize={PAGE_SIZE}
+        hidePaginationOnSinglePage={false}
+        isLoading={query.isLoading}
+        isError={query.isError}
+        onRetry={() => query.refetch()}
+        emptyTitle={
+          search ? t('adminVehicleTypes.emptySearchTitle') : t('adminVehicleTypes.emptyTitle')
+        }
+        emptyDescription={
+          search ? t('adminVehicleTypes.emptySearchDesc') : t('adminVehicleTypes.emptyDesc')
+        }
+        emptyIcon={<Bus className="h-5 w-5" aria-hidden />}
+      />
 
       {/* Create / edit dialog */}
       <VehicleTypeFormDialog
@@ -286,15 +279,18 @@ export function VehicleTypesPanel() {
       />
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!busy && !open) setDeleteTarget(null) }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!busy && !open) setDeleteTarget(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('common.confirmDeleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
               {t('adminVehicleTypes.deleteConfirmLead')}{' '}
-              <span className="font-semibold text-foreground">
-                {deleteTarget?.label}
-              </span>
+              <span className="font-semibold text-foreground">{deleteTarget?.label}</span>
               {t('adminVehicleTypes.deleteConfirmTail')}
             </AlertDialogDescription>
           </AlertDialogHeader>

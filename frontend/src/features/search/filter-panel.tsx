@@ -11,7 +11,20 @@
 import { useApp, type TripResult } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useMemo } from 'react'
-import { Sunrise, Sun, Sunset, Moon, Star, Users, Wifi, Snowflake, Droplet, Zap, BedDouble, Building2 } from 'lucide-react'
+import {
+  Sunrise,
+  Sun,
+  Sunset,
+  Moon,
+  Star,
+  Users,
+  Wifi,
+  Snowflake,
+  Droplet,
+  Zap,
+  BedDouble,
+  Building2,
+} from 'lucide-react'
 import { Slider } from '@/components/ui/slider'
 import { Checkbox } from '@/components/ui/checkbox'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -30,8 +43,16 @@ export const AMENITY_OPTIONS: { key: string; labelKey: string; icon: React.React
   { key: 'wifi', labelKey: 'searchPage.amenityWifi', icon: <Wifi className="h-3.5 w-3.5" /> },
   { key: 'ac', labelKey: 'searchPage.amenityAc', icon: <Snowflake className="h-3.5 w-3.5" /> },
   { key: 'water', labelKey: 'searchPage.amenityWater', icon: <Droplet className="h-3.5 w-3.5" /> },
-  { key: 'charging', labelKey: 'searchPage.amenityCharging', icon: <Zap className="h-3.5 w-3.5" /> },
-  { key: 'blanket', labelKey: 'searchPage.amenityBlanket', icon: <BedDouble className="h-3.5 w-3.5" /> },
+  {
+    key: 'charging',
+    labelKey: 'searchPage.amenityCharging',
+    icon: <Zap className="h-3.5 w-3.5" />,
+  },
+  {
+    key: 'blanket',
+    labelKey: 'searchPage.amenityBlanket',
+    icon: <BedDouble className="h-3.5 w-3.5" />,
+  },
 ]
 
 const RATING_OPTIONS: { value: number; label?: string; labelKey?: string }[] = [
@@ -66,7 +87,9 @@ export function FilterPanel({
     const exists = filters.timeRanges.includes(key)
     setFilters({
       ...filters,
-      timeRanges: exists ? filters.timeRanges.filter((x) => x !== key) : [...filters.timeRanges, key],
+      timeRanges: exists
+        ? filters.timeRanges.filter((x) => x !== key)
+        : [...filters.timeRanges, key],
     })
   }
 
@@ -96,7 +119,11 @@ export function FilterPanel({
       if (entry) {
         entry.count += 1
       } else {
-        byslug.set(tr.brandSlug, { slug: tr.brandSlug, name: tr.brandName || tr.brandSlug, count: 1 })
+        byslug.set(tr.brandSlug, {
+          slug: tr.brandSlug,
+          name: tr.brandName || tr.brandSlug,
+          count: 1,
+        })
       }
     }
     return [...byslug.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
@@ -110,10 +137,13 @@ export function FilterPanel({
 
   // `?? []` defends against incomplete API items — the search endpoint may
   // return minimal trip objects before enrichment fills in `amenities`.
-  const countForAmenity = (key: string) => searchResults.filter((tr) => (tr.amenities ?? []).includes(key)).length
+  const countForAmenity = (key: string) =>
+    searchResults.filter((tr) => (tr.amenities ?? []).includes(key)).length
 
   const countForRating = (value: number) =>
-    value === 0 ? searchResults.length : searchResults.filter((tr) => tr.brandRating >= value).length
+    value === 0
+      ? searchResults.length
+      : searchResults.filter((tr) => tr.brandRating >= value).length
 
   const countAvailableOnly = searchResults.filter((tr) => tr.availableSeats > 5).length
 
@@ -122,7 +152,9 @@ export function FilterPanel({
       {/* Price Range Slider */}
       <div>
         <div className="flex items-center justify-between mb-2 gap-2">
-          <span className="text-xs font-semibold uppercase text-muted-foreground shrink-0">{t('searchPage.priceRange')}</span>
+          <span className="text-xs font-semibold uppercase text-muted-foreground shrink-0">
+            {t('searchPage.priceRange')}
+          </span>
           <span className="text-[11px] font-medium text-blue-700 text-right tabular-nums leading-tight">
             {formatCurrency(effectivePriceRange[0], currency)}
             <span className="text-slate-400 mx-0.5">–</span>
@@ -145,13 +177,18 @@ export function FilterPanel({
 
       {/* Departure Time Range */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('search.sort.departure')}</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+          {t('search.sort.departure')}
+        </div>
         <div className="space-y-1.5">
           {TIME_RANGE_OPTIONS.map((opt) => {
             const active = filters.timeRanges.includes(opt.key)
             const count = countForTimeRange(opt.key)
             return (
-              <label key={opt.key} className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
+              <label
+                key={opt.key}
+                className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
+              >
                 <Checkbox
                   checked={active}
                   onCheckedChange={() => toggleTimeRange(opt.key)}
@@ -162,7 +199,9 @@ export function FilterPanel({
                   {t(opt.labelKey)}
                 </span>
                 {count > 0 && (
-                  <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
+                  <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
+                    {count}
+                  </span>
                 )}
               </label>
             )
@@ -172,7 +211,9 @@ export function FilterPanel({
 
       {/* Minimum Rating */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.minRating')}</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+          {t('searchPage.minRating')}
+        </div>
         <RadioGroup
           value={String(filters.minRating)}
           onValueChange={(v) => setFilters({ ...filters, minRating: Number(v) })}
@@ -187,7 +228,7 @@ export function FilterPanel({
                   'flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md border text-sm transition-all',
                   filters.minRating === opt.value
                     ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
-                    : 'border-transparent hover:bg-slate-100'
+                    : 'border-transparent hover:bg-slate-100',
                 )}
               >
                 <RadioGroupItem
@@ -197,9 +238,7 @@ export function FilterPanel({
                 />
                 {opt.value > 0 && <Star className="h-3 w-3 fill-amber-400 text-amber-400" />}
                 <span className="flex-1">{opt.labelKey ? t(opt.labelKey) : opt.label}</span>
-                {count > 0 && (
-                  <span className="text-[10px] text-muted-foreground">{count}</span>
-                )}
+                {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
               </label>
             )
           })}
@@ -209,7 +248,9 @@ export function FilterPanel({
       {/* Brands */}
       {brandOptions.length > 1 && (
         <div className="pt-3 border-t">
-          <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.brandFilter')}</div>
+          <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+            {t('searchPage.brandFilter')}
+          </div>
           <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
             {brandOptions.map((b) => {
               const active = filters.brands.includes(b.slug)
@@ -221,7 +262,7 @@ export function FilterPanel({
                     'flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md border text-xs transition-all',
                     active
                       ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-slate-200 hover:bg-slate-50'
+                      : 'border-slate-200 hover:bg-slate-50',
                   )}
                 >
                   <Checkbox
@@ -232,7 +273,9 @@ export function FilterPanel({
                   <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-500" />
                   <span className="flex-1 truncate">{b.name}</span>
                   {count > 0 && (
-                    <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
+                    <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
+                      {count}
+                    </span>
                   )}
                 </label>
               )
@@ -243,7 +286,9 @@ export function FilterPanel({
 
       {/* Available Seats */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.availableSeats')}</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+          {t('searchPage.availableSeats')}
+        </div>
         <label className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
           <Checkbox
             checked={filters.availableOnly}
@@ -255,14 +300,18 @@ export function FilterPanel({
             {t('searchPage.availableOnlyLabel')}
           </span>
           {countAvailableOnly > 0 && (
-            <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{countAvailableOnly}</span>
+            <span className="text-[10px] text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
+              {countAvailableOnly}
+            </span>
           )}
         </label>
       </div>
 
       {/* Amenities */}
       <div className="pt-3 border-t">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.amenities')}</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+          {t('searchPage.amenities')}
+        </div>
         <div className="grid grid-cols-2 gap-1.5">
           {AMENITY_OPTIONS.map((opt) => {
             const active = filters.amenities.includes(opt.key)
@@ -274,7 +323,7 @@ export function FilterPanel({
                   'flex items-center gap-1.5 cursor-pointer px-2 py-1.5 rounded-md border text-xs transition-all',
                   active
                     ? 'border-blue-400 bg-blue-50 text-blue-700 font-medium'
-                    : 'border-slate-200 hover:bg-slate-50'
+                    : 'border-slate-200 hover:bg-slate-50',
                 )}
               >
                 <Checkbox
@@ -284,9 +333,7 @@ export function FilterPanel({
                 />
                 <span className="text-blue-500">{opt.icon}</span>
                 <span className="flex-1 truncate">{t(opt.labelKey)}</span>
-                {count > 0 && (
-                  <span className="text-[10px] text-muted-foreground">{count}</span>
-                )}
+                {count > 0 && <span className="text-[10px] text-muted-foreground">{count}</span>}
               </label>
             )
           })}

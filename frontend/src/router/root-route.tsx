@@ -146,7 +146,7 @@ function RootComponent() {
           <ChatWidget />
         </Suspense>
       )}
-        {/* Keep call signaling mounted so staff can receive inbound calls;
+      {/* Keep call signaling mounted so staff can receive inbound calls;
             customers open the call panel from the support-chat header. */}
       <Suspense fallback={null}>
         <AudioCallWidget />

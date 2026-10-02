@@ -4,7 +4,7 @@
 //!
 //! 1. **Diacritic-insensitive**: typing `"hanoi"`, `"Ha Noi"`, `"Hà Nội"`
 //!    should all match the same documents. We pre-normalize the query
-//!    via [`vn_text::normalize`](crate::osm::vn_text::normalize)
+//!    via [`vn_text::normalize`]
 //!    before parsing.
 //! 2. **Cross-field conjunction**: `"Lê Lợi Hà Nội"` should match a street
 //!    named "Lê Lợi" whose city is "Hà Nội". We use a multi-field
@@ -25,7 +25,7 @@
 //! [`PlaceSearcher`] is the long-lived, request-path handle: it keeps the
 //! Tantivy [`Index`] + [`IndexReader`] open (the reader reloads
 //! automatically on commit via [`ReloadPolicy::OnCommitWithDelay`]) and is
-//! stored in [`AppState`](crate::auth::AppState) behind an `Arc`. The
+//! stored in [`AppState`](crate::state::AppState) behind an `Arc`. The
 //! one-shot [`search_dir`] helper re-opens the index per call and is meant
 //! for CLI / debugging use only.
 
@@ -169,7 +169,7 @@ struct SearchCore {
 /// [`IndexReader`] that auto-reloads on commit.
 ///
 /// Open once at boot and share via `Arc<PlaceSearcher>` in
-/// [`AppState`](crate::auth::AppState). All query methods are synchronous
+/// [`AppState`](crate::state::AppState). All query methods are synchronous
 /// and read-only — they can be called from any thread.
 ///
 /// ## Live reload

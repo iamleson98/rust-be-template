@@ -35,7 +35,15 @@ export function RevenueBarChartCard({
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-600" />
-          {t('adminDash.revenueLast', { range: t(dateRange === '7d' ? 'adminDash.range7d' : dateRange === '30d' ? 'adminDash.range30d' : 'adminDash.range90d') })}
+          {t('adminDash.revenueLast', {
+            range: t(
+              dateRange === '7d'
+                ? 'adminDash.range7d'
+                : dateRange === '30d'
+                  ? 'adminDash.range30d'
+                  : 'adminDash.range90d',
+            ),
+          })}
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
@@ -56,15 +64,17 @@ export function RevenueBarChartCard({
                   </div>
                   <div className="w-full relative" style={{ height: '120px' }}>
                     <div
-                      className={`absolute bottom-0 left-0 right-0 rounded-t-md bg-linear-to-t cursor-pointer group transition-all ${isHover
-                        ? 'from-blue-500 to-blue-300 scale-[1.03]'
-                        : 'from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300'
-                        }`}
+                      className={`absolute bottom-0 left-0 right-0 rounded-t-md bg-linear-to-t cursor-pointer group transition-all ${
+                        isHover
+                          ? 'from-blue-500 to-blue-300 scale-[1.03]'
+                          : 'from-blue-600 to-blue-400 hover:from-blue-500 hover:to-blue-300'
+                      }`}
                       style={{ height: `${heightPct}%` }}
                     >
                       <div
-                        className={`absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded transition-opacity ${isHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          }`}
+                        className={`absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded transition-opacity ${
+                          isHover ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                        }`}
                       >
                         {formatVNDShort(b.value)}
                       </div>

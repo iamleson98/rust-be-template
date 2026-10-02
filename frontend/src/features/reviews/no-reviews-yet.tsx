@@ -35,7 +35,12 @@ function StarSVG() {
         fill="oklch(0.596 0.12 220 / 0.4)"
       />
       {/* Sparkle */}
-      <path d="M100 32 L100 38 M97 35 L103 35" stroke="oklch(0.596 0.12 220)" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M100 32 L100 38 M97 35 L103 35"
+        stroke="oklch(0.596 0.12 220)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }

@@ -1,11 +1,11 @@
-"use client"
+'use client'
 
-import { type ComponentProps } from "react"
-import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group"
-import { Radio as RadioPrimitive } from "@base-ui/react/radio"
-import { CircleIcon } from "lucide-react"
+import { type ComponentProps } from 'react'
+import { RadioGroup as RadioGroupPrimitive } from '@base-ui/react/radio-group'
+import { Radio as RadioPrimitive } from '@base-ui/react/radio'
+import { CircleIcon } from 'lucide-react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 /**
  * Radix-compat wrapper around Base UI's RadioGroup + Radio primitives.
@@ -22,35 +22,26 @@ import { cn } from "@/lib/utils"
  * attribute is ALSO emitted via the `render` prop for consumer CSS compat.
  */
 
-function RadioGroup({
-  className,
-  ...props
-}: ComponentProps<typeof RadioGroupPrimitive>) {
+function RadioGroup({ className, ...props }: ComponentProps<typeof RadioGroupPrimitive>) {
   return (
     <RadioGroupPrimitive
       data-slot="radio-group"
-      className={cn("grid gap-3", className)}
+      className={cn('grid gap-3', className)}
       {...props}
     />
   )
 }
 
-function RadioGroupItem({
-  className,
-  ...props
-}: ComponentProps<typeof RadioPrimitive.Root>) {
+function RadioGroupItem({ className, ...props }: ComponentProps<typeof RadioPrimitive.Root>) {
   return (
     <RadioPrimitive.Root
       data-slot="radio-group-item"
       render={(componentProps, state) => (
-        <span
-          {...componentProps}
-          data-state={state.checked ? "checked" : "unchecked"}
-        />
+        <span {...componentProps} data-state={state.checked ? 'checked' : 'unchecked'} />
       )}
       className={cn(
-        "border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
-        className
+        'border-input text-primary focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 aspect-square size-4 shrink-0 rounded-full border  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        className,
       )}
       {...props}
     >

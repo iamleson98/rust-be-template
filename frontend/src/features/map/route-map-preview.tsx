@@ -73,11 +73,21 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
   return (
     <div>
       <div className="rounded-xl overflow-hidden border bg-linear-to-br from-blue-50 to-blue-50 relative">
-        <svg viewBox={viewBox} className="w-full h-auto block" style={{ background: 'linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%)' }}>
+        <svg
+          viewBox={viewBox}
+          className="w-full h-auto block"
+          style={{ background: 'linear-gradient(135deg, #ecfeff 0%, #f0fdf4 100%)' }}
+        >
           {/* Grid lines */}
           <defs>
             <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#cbd5e1" strokeWidth="0.5" opacity="0.4" />
+              <path
+                d="M 40 0 L 0 0 0 40"
+                fill="none"
+                stroke="#cbd5e1"
+                strokeWidth="0.5"
+                opacity="0.4"
+              />
             </pattern>
             <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor={accentColor} stopOpacity="0.4" />
@@ -88,9 +98,25 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
           <rect width="100%" height="100%" fill="url(#grid)" />
 
           {/* Route shadow */}
-          <path d={pathD} fill="none" stroke={accentColor} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" opacity="0.15" transform="translate(2,2)" />
+          <path
+            d={pathD}
+            fill="none"
+            stroke={accentColor}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.15"
+            transform="translate(2,2)"
+          />
           {/* Route line */}
-          <path d={pathD} fill="none" stroke="url(#routeGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d={pathD}
+            fill="none"
+            stroke="url(#routeGrad)"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
           {/* Animated dot */}
           <circle r="5" fill={accentColor}>
             <animateMotion dur="6s" repeatCount="indefinite" path={pathD} />
@@ -106,7 +132,12 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
               <g key={s.id}>
                 {(isFirst || isLast) && (
                   <circle cx={x} cy={y} r="14" fill={isFirst ? '#2563eb' : '#ef4444'} opacity="0.2">
-                    <animate attributeName="r" values="10;16;10" dur="2s" repeatCount="indefinite" />
+                    <animate
+                      attributeName="r"
+                      values="10;16;10"
+                      dur="2s"
+                      repeatCount="indefinite"
+                    />
                   </circle>
                 )}
                 <circle
@@ -143,7 +174,9 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
 
       {/* Stop list */}
       <div className="mt-4 space-y-1">
-        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('mapNav.detailedSchedule')}</div>
+        <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+          {t('mapNav.detailedSchedule')}
+        </div>
         {stops.map((s, i) => (
           <div key={s.id} className="flex items-center gap-3 py-1.5">
             <div className="flex flex-col items-center">
@@ -152,12 +185,14 @@ export function RouteMapPreview({ geometry, pickupPoints, fromName, toName, acce
                   i === 0 ? 'bg-blue-500' : i === stops.length - 1 ? 'bg-rose-500' : 'bg-slate-300'
                 }`}
               />
-                {i < stops.length - 1 && <div className="w-px h-6 bg-slate-200" />}
+              {i < stops.length - 1 && <div className="w-px h-6 bg-slate-200" />}
             </div>
             <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">{s.name}</div>
-                <div className="text-[11px] text-muted-foreground capitalize">{s.pickupType.replace('_', ' ')}</div>
+                <div className="text-[11px] text-muted-foreground capitalize">
+                  {s.pickupType.replace('_', ' ')}
+                </div>
               </div>
               <div className="text-xs text-muted-foreground shrink-0 flex items-center gap-1">
                 <MapPin className="h-3 w-3" />

@@ -46,7 +46,8 @@ export const vi: TranslationMap = {
   'search.sort.price': 'Giá vé',
   'hero.title': 'Đặt vé xe khách',
   'hero.titleHighlight': 'toàn Việt Nam',
-  'hero.subtitle': 'So sánh giá giữa các hãng xe uy tín, chọn ghế trực quan, thanh toán an toàn — vé điện tử sẵn sàng trong vài phút.',
+  'hero.subtitle':
+    'So sánh giá giữa các hãng xe uy tín, chọn ghế trực quan, thanh toán an toàn — vé điện tử sẵn sàng trong vài phút.',
   'booking.passengers': 'Hành khách',
   'booking.payment': 'Thanh toán',
   'booking.complete': 'Hoàn tất',
@@ -162,7 +163,8 @@ export const vi: TranslationMap = {
   'cancel.confirmWarning': 'Bạn có chắc chắn muốn huỷ vé? Hành động này không thể hoàn tác.',
   'cancel.refundAmount': 'Số tiền hoàn lại',
   'cancel.successTitle': 'Huỷ vé thành công',
-  'cancel.successDesc': 'Vé của bạn đã được huỷ. Số tiền hoàn lại sẽ được chuyển về tài khoản trong 3-5 ngày làm việc.',
+  'cancel.successDesc':
+    'Vé của bạn đã được huỷ. Số tiền hoàn lại sẽ được chuyển về tài khoản trong 3-5 ngày làm việc.',
   'cancel.refCode': 'Mã tham chiếu huỷ',
   'validation.required': 'Trường này là bắt buộc',
   'validation.email': 'Email không hợp lệ',
@@ -232,7 +234,8 @@ export const vi: TranslationMap = {
   'map.style.cyclosm': 'CyclOSM',
   'notFound.backHome': 'Về trang chủ',
   'brands.title': 'Hãng xe & Tuyến đường',
-  'brands.subtitle': 'Mở rộng từng hãng để quản lý tuyến đường và lịch trình (điểm đón/trả, giờ chạy, giá vé).',
+  'brands.subtitle':
+    'Mở rộng từng hãng để quản lý tuyến đường và lịch trình (điểm đón/trả, giờ chạy, giá vé).',
   'brands.addBrand': 'Thêm hãng xe',
   'brands.searchBrand': 'Tìm hãng xe…',
   'brands.searchLabel': 'Tìm hãng xe theo tên',
@@ -279,11 +282,13 @@ export const vi: TranslationMap = {
   'brandForm.logoReplace': 'Đổi ảnh',
   'brandForm.logoRemove': 'Xoá ảnh',
   'brandForm.logoEmpty': 'Chưa có logo',
-  'brandForm.logoHint': 'JPEG / PNG / WebP tối đa 10 MB. Hiển thị trên thẻ hãng xe và kết quả chuyến.',
+  'brandForm.logoHint':
+    'JPEG / PNG / WebP tối đa 10 MB. Hiển thị trên thẻ hãng xe và kết quả chuyến.',
   'brandForm.logoAlt': 'Logo của {name}',
   'brandForm.logoBadFormat': 'Chỉ chấp nhận ảnh JPEG, PNG hoặc WebP',
   'brandForm.logoTooLarge': 'Ảnh vượt quá {size} MB',
-  'brandForm.logoSaveSkipped': 'Đã bỏ qua thay đổi logo — không xác định được mã hãng. Hãy mở lại form và thử lại.',
+  'brandForm.logoSaveSkipped':
+    'Đã bỏ qua thay đổi logo — không xác định được mã hãng. Hãy mở lại form và thử lại.',
   'brandForm.created': 'Đã thêm hãng xe mới',
   'brandForm.updated': 'Đã cập nhật hãng xe',
   'brandForm.saveFailed': 'Không thể lưu hãng xe',
@@ -356,17 +361,21 @@ export const vi: TranslationMap = {
   'accountPage.feedback.brandReplied': '{brand} đã phản hồi',
   'accountPage.feedback.brandFallback': 'Nhà xe',
   'accountPage.feedback.heroTitle': 'Chuyến đi của bạn thế nào?',
-  'accountPage.feedback.heroDesc': 'Chia sẻ trải nghiệm của bạn để giúp các nhà xe phục vụ tốt hơn — và giúp hàng nghìn hành khách khác chọn đúng chuyến xe.',
+  'accountPage.feedback.heroDesc':
+    'Chia sẻ trải nghiệm của bạn để giúp các nhà xe phục vụ tốt hơn — và giúp hàng nghìn hành khách khác chọn đúng chuyến xe.',
   'accountPage.feedback.avgGiven': '/ 5 trung bình',
   'accountPage.feedback.sentCount': 'phản hồi đã gửi',
   'accountPage.feedback.publicCount': 'được hiển thị công khai',
   'accountPage.feedback.tabPending': 'Chưa đánh giá',
   'accountPage.feedback.tabSent': 'Đã gửi',
   'accountPage.feedback.allRatedTitle': 'Bạn đã đánh giá tất cả chuyến đi 🎉',
-  'accountPage.feedback.allRatedDesc': 'Cảm ơn bạn đã chia sẻ trải nghiệm! Các phản hồi mới sẽ xuất hiện ở đây sau khi bạn hoàn thành chuyến đi tiếp theo.',
-  'accountPage.feedback.pendingHint': '💡 Chỉ những chuyến bạn đã đi (đã khởi hành, không bị hủy) mới hiển thị để đánh giá.',
+  'accountPage.feedback.allRatedDesc':
+    'Cảm ơn bạn đã chia sẻ trải nghiệm! Các phản hồi mới sẽ xuất hiện ở đây sau khi bạn hoàn thành chuyến đi tiếp theo.',
+  'accountPage.feedback.pendingHint':
+    '💡 Chỉ những chuyến bạn đã đi (đã khởi hành, không bị hủy) mới hiển thị để đánh giá.',
   'accountPage.feedback.emptySentTitle': 'Chưa có phản hồi nào',
-  'accountPage.feedback.emptySentDesc': 'Hãy bắt đầu với chuyến đi gần nhất của bạn ở tab "Chưa đánh giá".',
+  'accountPage.feedback.emptySentDesc':
+    'Hãy bắt đầu với chuyến đi gần nhất của bạn ở tab "Chưa đánh giá".',
   'accountPage.feedback.showing': 'Hiển thị {from}–{to} / {total} phản hồi',
   'accountPage.feedback.viewTrips': 'Xem lịch sử chuyến đi',
   'accountPage.fallbackUserName': 'Người dùng',
@@ -392,10 +401,12 @@ export const vi: TranslationMap = {
   'accountPage.console.awaitingFeedbackSub': 'Đánh giá các chuyến gần đây',
   'accountPage.console.allCaughtUp': 'Đã cập nhật đủ',
   'accountPage.console.rateYourTrips': 'Đánh giá chuyến đi của bạn',
-  'accountPage.console.rateYourTripsDesc': 'Những chuyến đã đi nhưng bạn chưa đánh giá — phản hồi của bạn giúp các hành khách khác.',
+  'accountPage.console.rateYourTripsDesc':
+    'Những chuyến đã đi nhưng bạn chưa đánh giá — phản hồi của bạn giúp các hành khách khác.',
   'accountPage.console.giveFeedbackCta': 'Đánh giá ngay',
   'accountPage.console.recentPurchases': 'Mua vé gần đây',
-  'accountPage.console.noPurchasesYet': 'Chưa có giao dịch nào — chuyến đầu tiên của bạn cách một lần tìm kiếm.',
+  'accountPage.console.noPurchasesYet':
+    'Chưa có giao dịch nào — chuyến đầu tiên của bạn cách một lần tìm kiếm.',
   'accountPage.console.viewAllPurchases': 'Xem toàn bộ lịch sử mua vé',
   'accountPage.console.viewLoyaltyDetails': 'Xem chi tiết điểm thưởng',
   'accountPage.console.qkTripsDesc': 'Mọi chuyến bạn đã đặt',
@@ -406,7 +417,8 @@ export const vi: TranslationMap = {
   'accountPage.qkSecurity': 'Bảo mật & Mật khẩu',
   'accountPage.qkSecurityDesc': 'Đổi mật khẩu, xác thực 2 bước, quyền dữ liệu',
   'accountPage.notificationSettings': 'Cài đặt thông báo',
-  'accountPage.notificationSettingsDesc': 'Quản lý loại thông báo bạn muốn nhận: xác nhận vé, nhắc lịch trình, khuyến mãi, cảnh báo giá.',
+  'accountPage.notificationSettingsDesc':
+    'Quản lý loại thông báo bạn muốn nhận: xác nhận vé, nhắc lịch trình, khuyến mãi, cảnh báo giá.',
   'accountPage.securityTitle': 'Bảo mật tài khoản',
   'accountPage.changePasswordDesc': 'Đổi mật khẩu định kỳ để bảo mật',
   'accountPage.changePassword': 'Đổi mật khẩu',
@@ -414,7 +426,8 @@ export const vi: TranslationMap = {
   'accountPage.twoFactorDesc': 'Bảo vệ thêm bằng SMS hoặc app',
   'accountPage.notEnabled': 'Chưa bật',
   'accountPage.dataRights': 'Quyền dữ liệu cá nhân',
-  'accountPage.dataRightsDesc': 'Dữ liệu cá nhân của bạn được xử lý theo Nghị định 13/2023/NĐ-CP. Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu bất cứ lúc nào. Chúng tôi không chia sẻ thông tin của bạn với bên thứ ba.',
+  'accountPage.dataRightsDesc':
+    'Dữ liệu cá nhân của bạn được xử lý theo Nghị định 13/2023/NĐ-CP. Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu bất cứ lúc nào. Chúng tôi không chia sẻ thông tin của bạn với bên thứ ba.',
   'authPage.passwordRequired': 'Vui lòng nhập mật khẩu',
   'authPage.phoneInvalid': 'Số điện thoại không hợp lệ',
   'authPage.confirmPasswordRequired': 'Vui lòng xác nhận mật khẩu',
@@ -438,7 +451,8 @@ export const vi: TranslationMap = {
   'authPage.passwordMin6': 'Tối thiểu 6 ký tự',
   'authPage.confirmPasswordPh': 'Nhập lại mật khẩu',
   'authPage.createAccount': 'Tạo tài khoản',
-  'authPage.termsAgree': 'Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của DatXeVui.',
+  'authPage.termsAgree':
+    'Bằng việc đăng ký, bạn đồng ý với Điều khoản dịch vụ và Chính sách bảo mật của DatXeVui.',
   'authPage.or': 'hoặc',
   'authPage.loginWithFacebook': 'Đăng nhập bằng Facebook',
   'authPage.loginWithGoogle': 'Đăng nhập bằng Google',
@@ -498,7 +512,8 @@ export const vi: TranslationMap = {
   'adminBrands.chooseStatus': 'Chọn trạng thái',
   'adminBrands.loadingBrands': 'Đang tải hãng xe',
   'adminBrands.emptyFiltered': 'Không có hãng xe khớp bộ lọc',
-  'adminBrands.emptyFilteredHint': 'Thử đổi từ khoá hoặc xoá bộ lọc điểm đi/điểm đến để xem tất cả hãng.',
+  'adminBrands.emptyFilteredHint':
+    'Thử đổi từ khoá hoặc xoá bộ lọc điểm đi/điểm đến để xem tất cả hãng.',
   'adminBrands.emptyAllHint': 'Thêm hãng xe đầu tiên để bắt đầu tạo tuyến đường và lịch trình.',
   'adminBrands.colSchedules': 'Lịch chạy',
   'adminBrands.colPoints': 'Điểm đón → trả',
@@ -516,8 +531,10 @@ export const vi: TranslationMap = {
   'adminBrands.deleteFailed': 'Không thể xoá',
   'adminBrands.filterSummary': '{brands} hãng · {routes} tuyến {from} → {to}',
   'adminBrands.deleteConfirmQ': 'Bạn có chắc muốn xoá',
-  'adminBrands.deleteBrandCascade': 'Tất cả tuyến đường, lịch trình, loại xe và điểm đón/trả thuộc hãng này cũng sẽ bị xoá theo.',
-  'adminBrands.deleteRouteCascade': 'Tất cả lịch trình và điểm đón/trả thuộc tuyến này cũng sẽ bị xoá theo.',
+  'adminBrands.deleteBrandCascade':
+    'Tất cả tuyến đường, lịch trình, loại xe và điểm đón/trả thuộc hãng này cũng sẽ bị xoá theo.',
+  'adminBrands.deleteRouteCascade':
+    'Tất cả lịch trình và điểm đón/trả thuộc tuyến này cũng sẽ bị xoá theo.',
   'adminBrands.pickupDeleted': 'Đã xoá điểm đón/trả',
   'adminBrands.pickupDeleteFailed': 'Không thể xoá điểm đón/trả',
   'adminBrands.pickupPointsTitle': 'Điểm đón / trả',
@@ -671,20 +688,25 @@ export const vi: TranslationMap = {
   'adminDash.priorityLow': 'Thấp',
   'adminBusLayouts.addButton': 'Thêm sơ đồ',
   'adminBusLayouts.chooseBrand': 'Chọn hãng',
-  'adminBusLayouts.createDesc': 'Chọn kích thước lưới ghế — hệ thống sẽ tạo {count} ghế cho sơ đồ này.',
+  'adminBusLayouts.createDesc':
+    'Chọn kích thước lưới ghế — hệ thống sẽ tạo {count} ghế cho sơ đồ này.',
   'adminBusLayouts.createdWithSeats': 'Đã thêm sơ đồ ghế ({count} ghế)',
-  'adminBusLayouts.deleteConfirmTail': '? Các ghế của sơ đồ cũng sẽ bị xoá. Hành động này không thể hoàn tác.',
+  'adminBusLayouts.deleteConfirmTail':
+    '? Các ghế của sơ đồ cũng sẽ bị xoá. Hành động này không thể hoàn tác.',
   'adminBusLayouts.deleteLayout': 'Xoá sơ đồ ghế',
   'adminBusLayouts.driver': 'Tài xế',
-  'adminBusLayouts.editDesc': 'Sửa thông tin sơ đồ. Lưới ghế không thể tạo lại sau khi đã dùng cho chuyến.',
-  'adminBusLayouts.emptyDesc': 'Thêm sơ đồ ghế đầu tiên — chọn lưới ghế, hệ thống tự sinh các ghế để bán vé.',
+  'adminBusLayouts.editDesc':
+    'Sửa thông tin sơ đồ. Lưới ghế không thể tạo lại sau khi đã dùng cho chuyến.',
+  'adminBusLayouts.emptyDesc':
+    'Thêm sơ đồ ghế đầu tiên — chọn lưới ghế, hệ thống tự sinh các ghế để bán vé.',
   'adminBusLayouts.filterByBrand': 'Lọc theo hãng',
   'adminBusLayouts.gridCols': 'Ghế / hàng',
   'adminBusLayouts.gridRows': 'Hàng ghế',
   'adminBusLayouts.lowerDeck': 'Tầng dưới',
   'adminBusLayouts.nameRequired': 'Vui lòng nhập tên sơ đồ ghế',
   'adminBusLayouts.notSelected': 'Không chọn',
-  'adminBusLayouts.pageSubtitle': 'Các sơ đồ ghế của hãng xe dùng để chọn chỗ khi đặt vé — tạo mới kèm lưới ghế tự động.',
+  'adminBusLayouts.pageSubtitle':
+    'Các sơ đồ ghế của hãng xe dùng để chọn chỗ khi đặt vé — tạo mới kèm lưới ghế tự động.',
   'adminBusLayouts.presetLimousine9': 'Limousine 9',
   'adminBusLayouts.presetMinivan16': 'Minivan 16',
   'adminBusLayouts.presetSeater40': 'Ghế ngồi 40',
@@ -709,7 +731,8 @@ export const vi: TranslationMap = {
   'adminCronJobs.editDialogDesc': 'Chu kỳ + giờ chạy của «{job}»',
   'adminCronJobs.editDialogTitle': 'Chỉnh lịch chạy',
   'adminCronJobs.editSchedule': 'Sửa lịch',
-  'adminCronJobs.emptyDesc': 'Các lịch mặc định được khởi tạo khi máy chủ khởi động cùng bộ lập lịch.',
+  'adminCronJobs.emptyDesc':
+    'Các lịch mặc định được khởi tạo khi máy chủ khởi động cùng bộ lập lịch.',
   'adminCronJobs.emptyTitle': 'Chưa có tác vụ định kỳ nào',
   'adminCronJobs.enabledToast': 'Đã bật lịch chạy',
   'adminCronJobs.everyDays': 'Mỗi {days} ngày',
@@ -735,7 +758,8 @@ export const vi: TranslationMap = {
   'adminCronJobs.osmImportLabel': 'Làm mới chỉ mục địa điểm OSM',
   'adminCronJobs.queuedToast': 'Đã đưa «{job}» vào hàng chờ',
   'adminCronJobs.resetNextRun': 'Đặt lại lần chạy kế tiếp',
-  'adminCronJobs.resetNextRunHint': 'Lần chạy tiếp theo sẽ tính từ bây giờ theo giờ mới (bỏ qua lịch cũ).',
+  'adminCronJobs.resetNextRunHint':
+    'Lần chạy tiếp theo sẽ tính từ bây giờ theo giờ mới (bỏ qua lịch cũ).',
   'adminCronJobs.rowNoun': 'lượt chạy',
   'adminCronJobs.runHistory': 'Lịch sử chạy',
   'adminCronJobs.runNow': 'Chạy ngay',
@@ -754,7 +778,8 @@ export const vi: TranslationMap = {
   'adminCronJobs.stopFailed': 'Không thể dừng tác vụ',
   'adminCronJobs.stopRunTitle': 'Dừng lượt chạy đang chờ / đang chạy',
   'adminCronJobs.stopToast': 'Đã gửi yêu cầu dừng «{job}»',
-  'adminCronJobs.subtitle': 'Tác vụ nền định kỳ — tự động tải và đánh chỉ mục dữ liệu OSM hai tuần một lần vào ban đêm.',
+  'adminCronJobs.subtitle':
+    'Tác vụ nền định kỳ — tự động tải và đánh chỉ mục dữ liệu OSM hai tuần một lần vào ban đêm.',
   'adminCronJobs.toggleSchedule': 'Bật/tắt lịch chạy',
   'adminCronJobs.triggerFailed': 'Không thể chạy tác vụ',
   'adminCronJobs.updateFailed': 'Không thể cập nhật lịch',
@@ -802,7 +827,8 @@ export const vi: TranslationMap = {
   'adminSystem.writerSlot': 'Writer slot',
   'adminSystem.writesExecuted': 'Writes executed',
   'adminSystem.writesPerSec': 'writes/s',
-  'adminUsers.adminNote': 'Chỉ quản trị viên mới đổi được vai trò. Không thể hạ quyền quản trị của chính mình hoặc của quản trị viên cuối cùng.',
+  'adminUsers.adminNote':
+    'Chỉ quản trị viên mới đổi được vai trò. Không thể hạ quyền quản trị của chính mình hoặc của quản trị viên cuối cùng.',
   'adminUsers.createdAt': 'Ngày tạo',
   'adminUsers.emptyDesc': 'Tài khoản sẽ xuất hiện ở đây khi có người đăng ký.',
   'adminUsers.emptyTitle': 'Chưa có người dùng nào',
@@ -811,7 +837,8 @@ export const vi: TranslationMap = {
   'adminUsers.roleChangeFailed': 'Không thể cập nhật vai trò',
   'adminUsers.roleChangedOf': 'Đã cập nhật vai trò của «{name}»',
   'adminUsers.rowNoun': 'người dùng',
-  'adminUsers.subtitle': 'Quản lý vai trò: khách hàng đặt vé, nhân viên hỗ trợ chat/call, quản trị toàn quyền. Tài khoản đầu tiên của hệ thống là quản trị viên.',
+  'adminUsers.subtitle':
+    'Quản lý vai trò: khách hàng đặt vé, nhân viên hỗ trợ chat/call, quản trị toàn quyền. Tài khoản đầu tiên của hệ thống là quản trị viên.',
   'adminVehicleTypes.active': 'Đang dùng',
   'adminVehicleTypes.add': 'Thêm loại xe',
   'adminVehicleTypes.chooseStatus': 'Chọn trạng thái',
@@ -824,7 +851,8 @@ export const vi: TranslationMap = {
   'adminVehicleTypes.created': 'Đã thêm loại xe mới',
   'adminVehicleTypes.delete': 'Xoá loại xe',
   'adminVehicleTypes.deleteConfirmLead': 'Bạn có chắc muốn xoá loại xe',
-  'adminVehicleTypes.deleteConfirmTail': '? Các lịch trình đang dùng loại xe này sẽ quay lại dùng loại xe từ sơ đồ ghế của hãng.',
+  'adminVehicleTypes.deleteConfirmTail':
+    '? Các lịch trình đang dùng loại xe này sẽ quay lại dùng loại xe từ sơ đồ ghế của hãng.',
   'adminVehicleTypes.deleteFailed': 'Không thể xoá loại xe',
   'adminVehicleTypes.deletedToast': 'Đã xoá loại xe «{name}»',
   'adminVehicleTypes.descMax': 'Tối đa 1000 ký tự',
@@ -849,7 +877,8 @@ export const vi: TranslationMap = {
   'adminVehicleTypes.sortNumber': 'Thứ tự phải là số',
   'adminVehicleTypes.sortOrder': 'Thứ tự',
   'adminVehicleTypes.sortOrderLabel': 'Thứ tự hiển thị',
-  'adminVehicleTypes.subtitle': 'Danh mục loại phương tiện cho form tạo lịch trình và bộ lọc tìm kiếm (limousine, giường nằm, xe 11 chỗ…).',
+  'adminVehicleTypes.subtitle':
+    'Danh mục loại phương tiện cho form tạo lịch trình và bộ lọc tìm kiếm (limousine, giường nằm, xe 11 chỗ…).',
   'adminVehicleTypes.updated': 'Đã cập nhật loại xe',
   'adminPayments.title': 'Quản lý giao dịch',
   'adminPayments.subtitle': 'Theo dõi và quản lý tất cả giao dịch thanh toán',
@@ -926,13 +955,15 @@ export const vi: TranslationMap = {
   'adminFeedback.replySentToast': 'Đã gửi phản hồi',
   'adminFeedback.sendReply': 'Gửi phản hồi',
   'adminFeedback.title': 'Phản hồi khách hàng',
-  'adminFeedback.subtitle': 'Phản hồi của hành khách theo từng hãng xe — kiểm duyệt, trả lời và theo dõi chất lượng dịch vụ.',
+  'adminFeedback.subtitle':
+    'Phản hồi của hành khách theo từng hãng xe — kiểm duyệt, trả lời và theo dõi chất lượng dịch vụ.',
   'adminFeedback.updateFailed': 'Cập nhật thất bại',
   'adminFeedback.rowNoun': 'phản hồi',
   'adminFeedback.rowAriaLabel': 'Phản hồi của {name}',
   'adminFeedback.emptyTitle': 'Chưa có phản hồi nào',
   'adminFeedback.emptyFiltered': 'Thử bỏ bớt bộ lọc để xem thêm phản hồi.',
-  'adminFeedback.emptyDescription': 'Phản hồi của khách hàng sẽ xuất hiện ở đây khi họ đánh giá chuyến đi.',
+  'adminFeedback.emptyDescription':
+    'Phản hồi của khách hàng sẽ xuất hiện ở đây khi họ đánh giá chuyến đi.',
   'adminSchedules.chooseVehicleType': 'Chọn loại xe…',
   'adminSchedules.searchVehicleType': 'Tìm loại xe…',
   'adminSchedules.effectiveFrom': 'Hiệu lực từ',
@@ -979,7 +1010,8 @@ export const vi: TranslationMap = {
   'adminSchedules.removeMiddlePoint': 'Xoá điểm trung gian',
   'adminSchedules.addMiddlePoint': 'Thêm điểm trung gian',
   'adminSchedules.endPoint': 'Điểm kết thúc',
-  'adminSchedules.arrivalTimeHint': 'Cột “Giờ đến” là thời gian xe dự kiến tới mỗi điểm (không bắt buộc).',
+  'adminSchedules.arrivalTimeHint':
+    'Cột “Giờ đến” là thời gian xe dự kiến tới mỗi điểm (không bắt buộc).',
   'adminPickup.placeLabel': 'Địa điểm',
   'adminPickup.displayName': 'Tên hiển thị',
   'adminPickup.nameMin': 'Tên cần ít nhất 2 ký tự',
@@ -1035,11 +1067,13 @@ export const vi: TranslationMap = {
   'adminTickets.pleaseRetry': 'Vui lòng thử lại',
   'adminTickets.ticketCode': 'Vé {code}',
   'adminTickets.detailTitle': 'Chi tiết vé',
-  'adminTickets.detailDescription': 'Thông tin chi tiết vé, hành khách, chuyến đi và quản lý trạng thái.',
+  'adminTickets.detailDescription':
+    'Thông tin chi tiết vé, hành khách, chuyến đi và quản lý trạng thái.',
   'adminTickets.detailLoadFailed': 'Không tải được chi tiết vé.',
   'adminTickets.statusManagement': 'Quản lý trạng thái',
   'adminTickets.reasonPlaceholder': 'Ghi chú / lý do (tuỳ chọn)…',
-  'adminTickets.forceOverride': 'Bật chế độ ghi đè (admin override) — cho phép chuyển trạng thái bất kỳ',
+  'adminTickets.forceOverride':
+    'Bật chế độ ghi đè (admin override) — cho phép chuyển trạng thái bất kỳ',
   'adminTickets.passengerInfo': 'Thông tin hành khách',
   'adminTickets.fullName': 'Họ tên',
   'adminTickets.phoneLabel': 'SĐT',
@@ -1057,7 +1091,8 @@ export const vi: TranslationMap = {
   'adminTickets.bookingCreated': 'Đã đặt vé thành công',
   'adminTickets.bookingCodeDesc': 'Mã vé: {code}',
   'adminTickets.bookingCreateFailed': 'Đặt vé thất bại',
-  'adminTickets.pickerDescription': 'Tạo vé nhanh cho khách hàng trong cuộc trò chuyện này. Khách sẽ nhận được vé trong chat.',
+  'adminTickets.pickerDescription':
+    'Tạo vé nhanh cho khách hàng trong cuộc trò chuyện này. Khách sẽ nhận được vé trong chat.',
   'adminTickets.seatsCount': '{count} ghế',
   'adminTickets.continue': 'Tiếp tục',
   'adminTickets.bookingInProgress': 'Đang đặt…',
@@ -1077,7 +1112,8 @@ export const vi: TranslationMap = {
   'adminTickets.typeLabel': 'Loại',
   'adminTickets.passengerTypeAria': 'Loại hành khách',
   'adminTickets.autoConfirmTitle': 'Tự động xác nhận (đã thanh toán)',
-  'adminTickets.autoConfirmDesc': 'Đánh dấu vé là "Đã xác nhận" ngay sau khi tạo. Bỏ tick nếu chỉ giữ chỗ (chờ thanh toán).',
+  'adminTickets.autoConfirmDesc':
+    'Đánh dấu vé là "Đã xác nhận" ngay sau khi tạo. Bỏ tick nếu chỉ giữ chỗ (chờ thanh toán).',
   'adminTickets.fromExample': 'VD: Hà Nội',
   'adminTickets.toExample': 'VD: Đà Nẵng',
   'adminTickets.seatsAvailable': '{count} ghế trống',
@@ -1156,7 +1192,8 @@ export const vi: TranslationMap = {
   'bookingFlow.chooseSeatPh': 'Chọn ghế cho hành khách này',
   'bookingFlow.codCollected': 'Đã thu tiền mặt tại xe.',
   'bookingFlow.codDesc': 'Bạn sẽ thanh toán bằng tiền mặt khi lên xe. Hãy giữ mã vé để đối chiếu.',
-  'bookingFlow.codNoticeBody': 'vé sẽ giữ trong 10 phút. Vui lòng đến trạm đúng giờ. Nếu không thanh toán, ghế sẽ tự động được nhả cho khách khác.',
+  'bookingFlow.codNoticeBody':
+    'vé sẽ giữ trong 10 phút. Vui lòng đến trạm đúng giờ. Nếu không thanh toán, ghế sẽ tự động được nhả cho khách khác.',
   'bookingFlow.codNoticeLabel': 'Lưu ý:',
   'bookingFlow.codTitle': 'Thanh toán tiền mặt tại xe',
   'bookingFlow.completeBooking': 'Hoàn tất đặt vé',
@@ -1177,8 +1214,10 @@ export const vi: TranslationMap = {
   'bookingFlow.discountAmount': 'Giảm {amount}',
   'bookingFlow.discountLabel': 'Giảm giá ({code})',
   'bookingFlow.duplicateSeatsError': 'Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau',
-  'bookingFlow.duplicateSeatsWarning': 'Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau.',
-  'bookingFlow.gatewayAutoConfirm': 'Sau khi hoàn tất trên trang của {provider}, hệ thống sẽ tự động xác nhận trong vài giây.',
+  'bookingFlow.duplicateSeatsWarning':
+    'Có ghế bị trùng — mỗi hành khách phải ngồi một ghế khác nhau.',
+  'bookingFlow.gatewayAutoConfirm':
+    'Sau khi hoàn tất trên trang của {provider}, hệ thống sẽ tự động xác nhận trong vài giây.',
   'bookingFlow.gatewayThanks': 'Cảm ơn bạn! Thanh toán đã thành công.',
   'bookingFlow.gatewayWaiting': 'Đang chờ cổng thanh toán phản hồi...',
   'bookingFlow.genderFemale': 'Nữ',
@@ -1199,7 +1238,8 @@ export const vi: TranslationMap = {
   'bookingFlow.insurancePremium': 'Bảo hiểm cao cấp',
   'bookingFlow.insuranceTitle': 'Bảo hiểm chuyến đi',
   'bookingFlow.loyaltyEarned': 'Đã đặt vé — điểm thưởng đang chờ bạn!',
-  'bookingFlow.loyaltyEarnedDesc': 'Điểm được tính theo mỗi chuyến hoàn thành (1 điểm / 10.000₫). Xem trang Điểm thưởng.',
+  'bookingFlow.loyaltyEarnedDesc':
+    'Điểm được tính theo mỗi chuyến hoàn thành (1 điểm / 10.000₫). Xem trang Điểm thưởng.',
   'bookingFlow.memoLabel': 'Nội dung CK',
   'bookingFlow.minPassengers': 'Cần ít nhất một hành khách',
   'bookingFlow.missingContactNameDesc': 'Vui lòng nhập tên người liên hệ ở bước tiếp theo.',
@@ -1239,8 +1279,10 @@ export const vi: TranslationMap = {
   'bookingFlow.seatsSelectedCount': '{count} ghế đã chọn',
   'bookingFlow.securePayment': 'Thanh toán an toàn',
   'bookingFlow.serviceFees': 'Phí dịch vụ',
-  'bookingFlow.sslDecreeNote': 'Thông tin của bạn được mã hoá SSL 256-bit. Ve điện tử sẽ gửi qua SMS & email sau khi thanh toán. Dữ liệu cá nhân được xử lý theo Nghị định 13/2023/NĐ-CP — không chia sẻ với bên thứ ba.',
-  'bookingFlow.sslNote': 'Thông tin của bạn được mã hoá SSL 256-bit. Vé điện tử sẽ gửi qua SMS & email sau khi thanh toán.',
+  'bookingFlow.sslDecreeNote':
+    'Thông tin của bạn được mã hoá SSL 256-bit. Ve điện tử sẽ gửi qua SMS & email sau khi thanh toán. Dữ liệu cá nhân được xử lý theo Nghị định 13/2023/NĐ-CP — không chia sẻ với bên thứ ba.',
+  'bookingFlow.sslNote':
+    'Thông tin của bạn được mã hoá SSL 256-bit. Vé điện tử sẽ gửi qua SMS & email sau khi thanh toán.',
   'bookingFlow.sslShortNote': 'Mã hoá SSL 256-bit. Vé điện tử gửi qua SMS/email.',
   'bookingFlow.statusCancelled': 'Đã huỷ',
   'bookingFlow.statusFailed': 'Thất bại',
@@ -1252,15 +1294,18 @@ export const vi: TranslationMap = {
   'bookingFlow.subOnBus': 'Tại xe',
   'bookingFlow.subZaloWallet': 'Ví Zalo',
   'bookingFlow.subtotalSeats': 'Tạm tính ({count} ghế)',
-  'bookingFlow.successDesc': 'Đặt vé thành công. Mã vé điện tử của bạn đã sẵn sàng — xem chi tiết & mã QR bên dưới.',
+  'bookingFlow.successDesc':
+    'Đặt vé thành công. Mã vé điện tử của bạn đã sẵn sàng — xem chi tiết & mã QR bên dưới.',
   'bookingFlow.successToastDesc': 'Mã vé: {code} — {total}',
   'bookingFlow.summaryTitle': 'Tóm tắt',
   'bookingFlow.totalDue': 'Tổng thanh toán',
   'bookingFlow.txnRef': 'Mã giao dịch: {ref}',
   'bookingFlow.unassigned': 'chưa gắn',
-  'bookingFlow.unassignedHint': 'Còn {count} hành khách chưa ghép ghế. Nhấn "Tự ghép ghế" để tự động gắn ghế trống.',
+  'bookingFlow.unassignedHint':
+    'Còn {count} hành khách chưa ghép ghế. Nhấn "Tự ghép ghế" để tự động gắn ghế trống.',
   'bookingFlow.viewMyTickets': 'Xem vé của tôi',
-  'bookingFlow.vietqrInstructions': 'Quét mã QR bằng app ngân hàng hoặc chuyển khoản theo thông tin trên. Hệ thống tự xác nhận sau khi nhận được tiền.',
+  'bookingFlow.vietqrInstructions':
+    'Quét mã QR bằng app ngân hàng hoặc chuyển khoản theo thông tin trên. Hệ thống tự xác nhận sau khi nhận được tiền.',
   'bookingFlow.vietqrNotReady': 'Thông tin VietQR chưa sẵn sàng.',
   'bookingHistory.viewDetails': 'Xem chi tiết',
   'bookingHistory.hideReviewForm': 'Ẩn form đánh giá',
@@ -1306,13 +1351,16 @@ export const vi: TranslationMap = {
   'bookingHistory.tagGoodWifi': 'Wifi mạnh',
   'bookingHistory.tagEasyBooking': 'Đặt dễ',
   'bookingHistory.emptyUpcomingTitle': 'Chưa có chuyến sắp đi',
-  'bookingHistory.emptyUpcomingSubtitle': 'Bạn chưa có vé nào cho chuyến đi sắp tới. Hãy tìm chuyến phù hợp và đặt ngay!',
+  'bookingHistory.emptyUpcomingSubtitle':
+    'Bạn chưa có vé nào cho chuyến đi sắp tới. Hãy tìm chuyến phù hợp và đặt ngay!',
   'bookingHistory.emptyPastTitle': 'Chưa có chuyến đã đi',
-  'bookingHistory.emptyPastSubtitle': 'Sau khi hoàn thành chuyến đi, vé sẽ hiển thị tại đây để bạn có thể để lại đánh giá.',
+  'bookingHistory.emptyPastSubtitle':
+    'Sau khi hoàn thành chuyến đi, vé sẽ hiển thị tại đây để bạn có thể để lại đánh giá.',
   'bookingHistory.emptyCancelledTitle': 'Chưa có vé bị hủy',
   'bookingHistory.emptyCancelledSubtitle': 'Các vé đã huỷ hoặc đã hoàn tiền sẽ hiển thị tại đây.',
   'bookingHistory.emptyReviewsTitle': 'Chưa có đánh giá nào',
-  'bookingHistory.emptyReviewsSubtitle': 'Sau khi đi chuyến, hãy quay lại đây để chia sẻ trải nghiệm của bạn về nhà xe.',
+  'bookingHistory.emptyReviewsSubtitle':
+    'Sau khi đi chuyến, hãy quay lại đây để chia sẻ trải nghiệm của bạn về nhà xe.',
   'bookingHistory.emptyAllSubtitle': 'Bắt đầu đặt chuyến đi đầu tiên của bạn ngay hôm nay.',
   'bookingHistory.emptySearchTitle': 'Không tìm thấy vé',
   'bookingHistory.emptySearchSubtitle': 'Vui lòng kiểm tra lại mã vé hoặc số điện thoại đã nhập.',
@@ -1321,7 +1369,8 @@ export const vi: TranslationMap = {
   'bookingHistory.reload': 'Tải lại',
   'bookingHistory.greeting': 'Xin chào, {name}',
   'bookingHistory.myBookingsTitle': 'Lịch sử đặt vé của tôi',
-  'bookingHistory.myBookingsSubtitle': 'Xem lại các chuyến đi sắp đi, đã đi, đã hủy và để lại đánh giá cho từng chuyến hoàn thành.',
+  'bookingHistory.myBookingsSubtitle':
+    'Xem lại các chuyến đi sắp đi, đã đi, đã hủy và để lại đánh giá cho từng chuyến hoàn thành.',
   'bookingHistory.past': 'Đã đi',
   'bookingHistory.reviews': 'Đánh giá',
   'bookingHistory.otherReasonMin': 'Vui lòng nhập lý do huỷ vé (tối thiểu 10 ký tự)',
@@ -1333,7 +1382,8 @@ export const vi: TranslationMap = {
   'bookingHistory.statUpcomingSub': 'chuyến sắp đi',
   'bookingHistory.statTotalSpend': 'Tổng chi phí',
   'bookingHistory.statPaidSub': 'đã thanh toán',
-  'bookingHistory.noBookingsDesc': 'Bạn chưa đặt chuyến nào. Tìm chuyến xe phù hợp và đặt vé ngay hôm nay để bắt đầu hành trình của mình.',
+  'bookingHistory.noBookingsDesc':
+    'Bạn chưa đặt chuyến nào. Tìm chuyến xe phù hợp và đặt vé ngay hôm nay để bắt đầu hành trình của mình.',
   'bookingHistory.bookFirstTrip': 'Đặt chuyến đầu tiên',
   'bookingHistory.brandFallback': 'Nhà xe',
   'bookingHistory.pendingReviews': '{count} chuyến đang chờ đánh giá của bạn',
@@ -1390,14 +1440,16 @@ export const vi: TranslationMap = {
   'feedbackForm.edit': 'Chỉnh sửa',
   'feedbackForm.thanksForSharing': 'Cảm ơn bạn đã chia sẻ trải nghiệm!',
   'feedbackForm.commentLabel': 'Nhận xét chi tiết (tuỳ chọn, tối thiểu 20 ký tự)',
-  'feedbackForm.commentPlaceholder': 'Chia sẻ trải nghiệm của bạn về chuyến đi: thái độ tài xế, độ sạch sẽ, tiện nghi...',
+  'feedbackForm.commentPlaceholder':
+    'Chia sẻ trải nghiệm của bạn về chuyến đi: thái độ tài xế, độ sạch sẽ, tiện nghi...',
   'feedbackForm.commentTooShort': 'Nội dung đánh giá cần ít nhất 20 ký tự để gửi.',
   'feedbackForm.thanksToast': 'Cảm ơn đánh giá của bạn!',
   'feedbackForm.sendError': 'Không thể gửi đánh giá',
   'feedbackForm.updatedToast': 'Đã cập nhật đánh giá!',
   'feedbackForm.updateError': 'Không thể cập nhật đánh giá',
   'feedbackForm.missingTripInfo': 'Thiếu thông tin tuyến/hãng để gửi đánh giá',
-  'feedbackForm.thanksDesc': 'Nhận xét của bạn giúp cộng đồng hành khách DatXeVui chọn chuyến đi tốt hơn và giúp hãng xe cải thiện dịch vụ.',
+  'feedbackForm.thanksDesc':
+    'Nhận xét của bạn giúp cộng đồng hành khách DatXeVui chọn chuyến đi tốt hơn và giúp hãng xe cải thiện dịch vụ.',
   'feedbackForm.pointsEarned': '+10 điểm tích lũy',
   'feedbackForm.editTitle': 'Chỉnh sửa đánh giá',
   'feedbackForm.formTitle': 'Đánh giá chuyến đi',
@@ -1445,7 +1497,8 @@ export const vi: TranslationMap = {
   'chatWidget.qaCheckTrip': 'Kiểm tra chuyến',
   'chatWidget.qaComplaint': 'Khiếu nại',
   'chatWidget.startNewChat': 'Bắt đầu trò chuyện mới',
-  'chatWidget.noChannelsHint': 'Bắt đầu trò chuyện để được nhân viên hỗ trợ đặt vé, đổi giờ, hoàn hủy...',
+  'chatWidget.noChannelsHint':
+    'Bắt đầu trò chuyện để được nhân viên hỗ trợ đặt vé, đổi giờ, hoàn hủy...',
   'chatWidget.noMessages': 'Chưa có tin nhắn',
   'chatWidget.you': 'Bạn',
   'chatWidget.createChannelError': 'Không thể tạo kênh chat',
@@ -1534,7 +1587,8 @@ export const vi: TranslationMap = {
   'home.topTierReached': 'Đã đạt hạng cao nhất',
   'home.completedTripsCount': 'chuyến hoàn thành',
   'home.totalSpentCount': 'tổng chi tiêu',
-  'home.earnRateExplainer': 'Tích 1 điểm cho mỗi 10.000₫ chi tiêu trên các chuyến hoàn thành. Điểm và hạng tự động cập nhật khi chuyến đi kết thúc.',
+  'home.earnRateExplainer':
+    'Tích 1 điểm cho mỗi 10.000₫ chi tiêu trên các chuyến hoàn thành. Điểm và hạng tự động cập nhật khi chuyến đi kết thúc.',
   'home.earnRateExplainerShort': '1 điểm / 10.000₫',
   'home.loyaltyLoginTitle': 'Đăng nhập để xem điểm thưởng',
   'home.loyaltyLoginDesc': 'Điểm, hạng và lịch sử tích điểm gắn liền với tài khoản của bạn.',
@@ -1598,7 +1652,8 @@ export const vi: TranslationMap = {
   'layout.account.tripFeedback': 'Phản hồi chuyến đi',
   'layout.account.utilities': 'Tiện ích',
   'layout.call.startFailed': 'Không thể bắt đầu cuộc gọi. Bạn vẫn có thể tiếp tục nhắn tin.',
-  'layout.call.noAgentsToast': 'Hiện không có nhân viên trực tuyến. Bạn vẫn có thể tiếp tục nhắn tin.',
+  'layout.call.noAgentsToast':
+    'Hiện không có nhân viên trực tuyến. Bạn vẫn có thể tiếp tục nhắn tin.',
   'layout.call.busyToast': 'Nhân viên đang bận. Bạn vẫn có thể tiếp tục nhắn tin.',
   'layout.call.connectFailed': 'Không thể kết nối đến dịch vụ gọi: {error}',
   'layout.call.inCall': 'Đang trong cuộc gọi',
@@ -1632,9 +1687,11 @@ export const vi: TranslationMap = {
   'layout.call.accept': 'Chấp nhận',
   'layout.error.title': 'Đã có lỗi xảy ra',
   'layout.error.description': 'Đã có lỗi xảy ra trong quá trình tải dữ liệu. Vui lòng thử lại.',
-  'layout.footer.newsletterDesc': 'Đăng ký nhận bản tin để không bỏ lỡ mã giảm giá, ưu đãi cuối tuần',
+  'layout.footer.newsletterDesc':
+    'Đăng ký nhận bản tin để không bỏ lỡ mã giảm giá, ưu đãi cuối tuần',
   'layout.footer.statCustomers': 'Khách hàng',
-  'layout.footer.brandIntro': 'Nền tảng đặt vé xe khách hàng đầu Việt Nam. Kết nối hành khách với hàng trăm hãng xe uy tín trên cả nước.',
+  'layout.footer.brandIntro':
+    'Nền tảng đặt vé xe khách hàng đầu Việt Nam. Kết nối hành khách với hàng trăm hãng xe uy tín trên cả nước.',
   'layout.footer.company': 'Công ty',
   'layout.footer.careers': 'Tuyển dụng',
   'layout.footer.brandPartners': 'Đối tác hãng xe',
@@ -1695,12 +1752,14 @@ export const vi: TranslationMap = {
   'call.expired': 'Cuộc gọi đã quá thời gian',
   'call.replaced': 'Cuộc gọi đã được thay thế',
   'call.ended': 'Cuộc gọi đã kết thúc',
-  'call.micDeniedGuidance': 'Trình duyệt đang chặn micro. Nhấn biểu tượng micro/ổ khóa trên thanh địa chỉ → cho phép Micro → gọi lại.',
+  'call.micDeniedGuidance':
+    'Trình duyệt đang chặn micro. Nhấn biểu tượng micro/ổ khóa trên thanh địa chỉ → cho phép Micro → gọi lại.',
   'call.errUnknown': 'Lỗi không xác định',
   'call.errMicDeniedLong': 'Không truy cập được micro — kiểm tra quyền trình duyệt',
   'call.errMicDenied': 'Không truy cập được micro',
   'call.errTimeout': 'Không có ai nhấc máy — vui lòng thử lại sau',
-  'call.errAudioFailed': 'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
+  'call.errAudioFailed':
+    'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
   'adminShared.vehicleSemiSleeper': 'Giường nằm nửa',
   'adminShared.daysInactive': 'Không hoạt động',
   'adminShared.fromDate': 'từ {date}',
@@ -1768,13 +1827,17 @@ export const vi: TranslationMap = {
   'bookingDetail.invalidCode': 'Mã vé "{code}" không hợp lệ hoặc đã bị huỷ.',
   'bookingDetail.seats': 'Ghế',
   'bookingDetail.payToConfirm': 'Thanh toán để xác nhận vé',
-  'bookingDetail.paymentHint': 'Hỗ trợ VNPay, MoMo, ZaloPay, VietQR (chuyển khoản) hoặc thanh toán tiền mặt tại xe.',
+  'bookingDetail.paymentHint':
+    'Hỗ trợ VNPay, MoMo, ZaloPay, VietQR (chuyển khoản) hoặc thanh toán tiền mặt tại xe.',
   'notFoundPage.title': '404 — Không tìm thấy trang',
-  'notFoundPage.message': 'Trang bạn đang tìm có thể đã bị di chuyển, đổi tên hoặc tạm thời không khả dụng.',
+  'notFoundPage.message':
+    'Trang bạn đang tìm có thể đã bị di chuyển, đổi tên hoặc tạm thời không khả dụng.',
   'seo.home.title': 'DatXeVui — Đặt vé xe khách online | Xe giường nằm, limousine giá rẻ',
-  'seo.home.description': 'Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, ghế nằm các tuyến khắp Việt Nam.',
+  'seo.home.description':
+    'Đặt vé xe khách online nhanh chóng, giá tốt nhất. Xe giường nằm, limousine, ghế nằm các tuyến khắp Việt Nam.',
   'seo.search.title': 'Tìm chuyến xe — DatXeVui',
-  'seo.search.description': 'So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.',
+  'seo.search.description':
+    'So sánh giá vé xe khách các hãng. Lọc theo giờ đi, giá, loại xe, đánh giá.',
   'seo.admin.title': 'Quản trị — DatXeVui',
   'seo.admin.description': 'Bảng điều khiển quản trị hệ thống DatXeVui.',
   'seo.adminBrands.title': 'Hãng xe — Quản trị DatXeVui',
@@ -1905,7 +1968,8 @@ export const vi: TranslationMap = {
   'searchPage.compareTrips': 'So sánh chuyến xe',
   'searchPage.compareSubtitle': '{count}/3 chuyến • Mục tô đậm là tốt nhất',
   'searchPage.compareEmptyTitle': 'Chưa có chuyến để so sánh',
-  'searchPage.compareEmptyDesc': 'Trở lại kết quả tìm kiếm và nhấn nút"So sánh"trên các thẻ chuyến để thêm vào đây. Có thể so sánh tối đa 3 chuyến cùng lúc.',
+  'searchPage.compareEmptyDesc':
+    'Trở lại kết quả tìm kiếm và nhấn nút"So sánh"trên các thẻ chuyến để thêm vào đây. Có thể so sánh tối đa 3 chuyến cùng lúc.',
   'searchPage.criteria': 'Tiêu chí',
   'searchPage.removeFromCompare': 'Xoá khỏi so sánh',
   'searchPage.best': 'Tốt nhất',
@@ -1925,14 +1989,17 @@ export const vi: TranslationMap = {
   'searchPage.viewBrandDetails': 'Xem chi tiết {name}',
   'searchPage.noTripsFound': 'Không tìm thấy chuyến',
   'searchPage.pickDateTitle': 'Chọn ngày đi',
-  'searchPage.pickDateHint': 'Vui lòng chọn ngày khởi hành ở thanh tìm kiếm phía trên để xem các chuyến xe khả dụng.',
+  'searchPage.pickDateHint':
+    'Vui lòng chọn ngày khởi hành ở thanh tìm kiếm phía trên để xem các chuyến xe khả dụng.',
   'searchPage.directoryTitle': 'Tất cả tuyến xe',
-  'searchPage.directorySubtitle': 'Mọi tuyến đang hoạt động trên hệ thống — chạm để xem chuyến xe và đặt vé.',
+  'searchPage.directorySubtitle':
+    'Mọi tuyến đang hoạt động trên hệ thống — chạm để xem chuyến xe và đặt vé.',
   'searchPage.directoryFilterPh': 'Lọc theo tỉnh hoặc hãng xe…',
   'searchPage.directoryEmpty': 'Không có tuyến nào khớp bộ lọc.',
   'searchPage.noSchedulesYet': 'Chưa có lịch trình',
   'searchPage.searchThisRoute': 'Tìm chuyến',
-  'searchPage.noTripsDesc': 'Thử đổi ngày đi, chọn thành phố lân cận hoặc bỏ bớt bộ lọc loại xe để có thêm lựa chọn phù hợp.',
+  'searchPage.noTripsDesc':
+    'Thử đổi ngày đi, chọn thành phố lân cận hoặc bỏ bớt bộ lọc loại xe để có thêm lựa chọn phù hợp.',
   'searchPage.noTripsMatchFilters': 'Không có chuyến phù hợp bộ lọc',
   'searchPage.noTripsHint': 'Thử đổi ngày đi, điểm đi/đến hoặc bỏ bớt bộ lọc loại xe.',
   'searchPage.noMatchHint': 'Thử nới lỏng khoảng giá, đánh giá hoặc bỏ bớt bộ lọc tiện ích.',
@@ -1962,7 +2029,8 @@ export const vi: TranslationMap = {
   'dataTable.loadErrorDesc': 'Đã có lỗi xảy ra. Vui lòng thử lại.',
   'errorBoundary.unknownError': 'Lỗi không xác định',
   'errorBoundary.title': 'Ứng dụng gặp lỗi',
-  'errorBoundary.description': 'Đã xảy ra lỗi không mong muốn. Bạn có thể thử tải lại phần này hoặc làm mới toàn bộ trang.',
+  'errorBoundary.description':
+    'Đã xảy ra lỗi không mong muốn. Bạn có thể thử tải lại phần này hoặc làm mới toàn bộ trang.',
   'errorBoundary.reload': 'Tải lại trang',
   'lightbox.dialogLabel': 'Xem ảnh phóng to',
   'lightbox.prevImage': 'Ảnh trước',
@@ -1980,7 +2048,8 @@ export const vi: TranslationMap = {
   'trust.privacyBody': 'Chúng tôi chỉ dùng SĐT và email để gửi vé điện tử + thông báo chuyến đi.',
   'trust.privacyNoShare': 'Không chia sẻ với bên thứ ba',
   'trust.privacyDecree': 'tuân thủ Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.',
-  'trust.privacyRights': 'Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu cá nhân bất cứ lúc nào.',
+  'trust.privacyRights':
+    'Bạn có quyền yêu cầu truy cập, chỉnh sửa hoặc xoá dữ liệu cá nhân bất cứ lúc nào.',
   'trust.sslEncryption': 'Mã hoá SSL',
   'trust.refund24h': 'Hoàn tiền 24h',
   'ui.pickDate': 'Chọn ngày…',
@@ -1992,7 +2061,8 @@ export const vi: TranslationMap = {
   'ui.loadingMore': 'Đang tải thêm…',
   'trips.seatGuideTitle': 'Hướng dẫn chọn ghế:',
   'trips.shareRateNote': 'Tỷ giá: 1 USD = {rate}₫',
-  'trips.seatGuideBody': 'Nhấn vào ghế trống (viền trắng) để chọn. Ghế đã có người ngồi hiển thị mờ. Tối đa {count} ghế mỗi lượt đặt.',
+  'trips.seatGuideBody':
+    'Nhấn vào ghế trống (viền trắng) để chọn. Ghế đã có người ngồi hiển thị mờ. Tối đa {count} ghế mỗi lượt đặt.',
   'trips.deckLower': 'Tầng dưới',
   'trips.legendBasePrice': 'Giá gốc',
   'trips.deckUpper': 'Tầng trên',
@@ -2154,7 +2224,8 @@ export const vi: TranslationMap = {
   'tripDetail.feelsLikeLabel': 'Cảm giác',
   'tripDetail.forecast3Days': 'Dự báo 3 ngày tới',
   'tripDetail.suggestedItems': 'Đồ gợi ý mang theo',
-  'tripDetail.weatherDisclaimer': '* Dữ liệu thời tiết chỉ mang tính tham khảo. Vui lòng kiểm tra dự báo chính thức trước khi khởi hành.',
+  'tripDetail.weatherDisclaimer':
+    '* Dữ liệu thời tiết chỉ mang tính tham khảo. Vui lòng kiểm tra dự báo chính thức trước khi khởi hành.',
   'tripDetail.tips.topAttractions': 'Top 5 điểm đến tại {destination}',
   'tripDetail.tips.localFood': 'Ẩm thực địa phương',
   'tripDetail.tips.etiquetteTitle': 'Văn hóa & lưu ý',
@@ -2184,7 +2255,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.haNoi.modestDress': 'Tránh mặc quần áo quá ngắn hở hang khi đến khu tôn giáo',
   'tripDetail.tips.haNoi.askStreetPrice': 'Hỏi giá trước khi mua hàng rong, đồ ăn vỉa hè',
   'tripDetail.tips.haNoi.quietAtMausoleum': 'Giữ khoảng cách và không gây ồn tại Lăng Bác',
-  'tripDetail.tips.haNoi.payment': 'Tiền mặt phổ biến. MoMo, VNPay, ZaloPay chấp nhận ở mọi nơi. Có nhiều ATM ở phố cổ.',
+  'tripDetail.tips.haNoi.payment':
+    'Tiền mặt phổ biến. MoMo, VNPay, ZaloPay chấp nhận ở mọi nơi. Có nhiều ATM ở phố cổ.',
   'tripDetail.tips.hcm.dinhDocLap': 'Biểu tượng lịch sử với kiến trúc độc đáo thời VNCH',
   'tripDetail.tips.hcm.ducBa': 'Công trình kiến trúc Pháp thế kỷ 19 bằng gạch đỏ',
   'tripDetail.tips.hcm.buuDien': 'Kiến trúc cổ do Eiffel thiết kế',
@@ -2198,7 +2270,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.hcm.trafficSafety': 'Không骑行 xe máy ngược chiều, mặc áo mưa khi trời mưa',
   'tripDetail.tips.hcm.photoEtiquette': 'Phép lịch sự khi chụp ảnh trong nhà thờ, đình chùa',
   'tripDetail.tips.hcm.bargain': 'Bargain ở chợ Bến Thành khoảng 30-50%',
-  'tripDetail.tips.hcm.payment': 'Thẻ tín dụng, MoMo, ZaloPay, VNPay phổ biến. Tiền mặt vẫn được ưu tiên ở chợ truyền thống.',
+  'tripDetail.tips.hcm.payment':
+    'Thẻ tín dụng, MoMo, ZaloPay, VNPay phổ biến. Tiền mặt vẫn được ưu tiên ở chợ truyền thống.',
   'tripDetail.tips.daNang.baNa': 'Khu nghỉ dưỡng trên núi với Cầu Vàng nổi tiếng',
   'tripDetail.tips.daNang.myKhe': 'Một trong 6 bãi biển quyến rũ nhất hành tinh',
   'tripDetail.tips.daNang.nguHanhSon': '5 ngọn núi đá vôi với hang động và chùa cổ',
@@ -2212,7 +2285,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.daNang.noLitter': 'Cấm xả rác xuống bãi biển, phạt nặng',
   'tripDetail.tips.daNang.respectCulture': 'Tôn trọng văn hóa địa phương khi đến Ngũ Hành Sơn',
   'tripDetail.tips.daNang.bookBaNa': 'Đặt vé Bà Nà trước để tránh xếp hàng dài',
-  'tripDetail.tips.daNang.payment': 'MoMo, VNPay, thẻ tín dụng chấp nhận rộng rãi. Tiền mặt phổ biến ở quán ăn địa phương.',
+  'tripDetail.tips.daNang.payment':
+    'MoMo, VNPay, thẻ tín dụng chấp nhận rộng rãi. Tiền mặt phổ biến ở quán ăn địa phương.',
   'tripDetail.tips.daLat.hoXuanHuong': 'Hồ nước ngọt thơ mộng giữa lòng thành phố',
   'tripDetail.tips.daLat.lamVien': 'Quảng trường với hoa dã quỳ khổng lồ',
   'tripDetail.tips.daLat.doiChe': 'Đồi chè xanh mướt, ngắm bình minh tuyệt đẹp',
@@ -2226,7 +2300,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.daLat.askPhotoPrice': 'Hỏi giá trước khi chụp ảnh tại các vườn hoa',
   'tripDetail.tips.daLat.respectLandscape': 'Tôn trọng cảnh quan, không bẻ cành hái hoa',
   'tripDetail.tips.daLat.rentMotorbike': 'Thuê xe máy để khám phá nhiều địa điểm hơn',
-  'tripDetail.tips.daLat.payment': 'Tiền mặt và MoMo phổ biến. Một số địa điểm du lịch lớn nhận thẻ tín dụng.',
+  'tripDetail.tips.daLat.payment':
+    'Tiền mặt và MoMo phổ biến. Một số địa điểm du lịch lớn nhận thẻ tín dụng.',
   'tripDetail.tips.nhaTrang.vinWonders': 'Công viên giải trí lớn nhất Đông Nam Á',
   'tripDetail.tips.nhaTrang.thapBa': 'Quần thể tháp Chăm cổ kính',
   'tripDetail.tips.nhaTrang.baiBien': 'Bãi biển trung tâm trải dài 6km',
@@ -2240,7 +2315,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.nhaTrang.uv': 'Bôi kem chống nắng, tia UV cao ở vùng biển',
   'tripDetail.tips.nhaTrang.askTourPrice': 'Hỏi giá tour, dịch vụ trước khi đặt',
   'tripDetail.tips.nhaTrang.noOceanLitter': 'Tônposable không xả rác xuống biển',
-  'tripDetail.tips.nhaTrang.payment': 'Thẻ tín dụng, MoMo, ZaloPay phổ biến. Tiền mặt ở quán ăn nhỏ.',
+  'tripDetail.tips.nhaTrang.payment':
+    'Thẻ tín dụng, MoMo, ZaloPay phổ biến. Tiền mặt ở quán ăn nhỏ.',
   'tripDetail.tips.hue.daiNoi': 'Kinh thành triều Nguyễn với Hoàng Cung',
   'tripDetail.tips.hue.chuaThienMu': 'Ngôi chùa cổ nhất và biểu tượng của xứ Huế',
   'tripDetail.tips.hue.langTam': 'Khải Định, Tự Đức, Minh Mạng kiến trúc độc đáo',
@@ -2254,7 +2330,8 @@ export const vi: TranslationMap = {
   'tripDetail.tips.hue.keepQuiet': 'Giữ yên tĩnh tại các đền chùa, lăng tẩm',
   'tripDetail.tips.hue.respectRoyal': 'Tôn trọng văn hóa hoàng gia, không đứng lên bia đá',
   'tripDetail.tips.hue.askBeforePhoto': 'Hỏi phép trước khi chụp ảnh người dân địa phương',
-  'tripDetail.tips.hue.payment': 'Tiền mặt phổ biến. MoMo, thẻ tín dụng chấp nhận ở khách sạn, nhà hàng lớn.',
+  'tripDetail.tips.hue.payment':
+    'Tiền mặt phổ biến. MoMo, thẻ tín dụng chấp nhận ở khách sạn, nhà hàng lớn.',
   'tripDetail.tips.def.cityCenter': 'Khu trung tâm thành phố',
   'tripDetail.tips.def.cityCenterDesc': 'Khám phá phố phường, ẩm thực và văn hóa địa phương',
   'tripDetail.tips.def.traditionalMarket': 'Chợ truyền thống',
@@ -2277,5 +2354,6 @@ export const vi: TranslationMap = {
   'tripDetail.tips.def.smallCash': 'Mang theo tiền mặt nhỏ cho các quán ăn vỉa hè',
   'tripDetail.tips.def.respectCulture': 'Tôn trọng văn hóa, phong tục địa phương',
   'tripDetail.tips.def.keepClean': 'Giữ gìn vệ sinh chung, không xả rác bừa bãi',
-  'tripDetail.tips.def.payment': 'Tiền mặt và ví điện tử (MoMo, ZaloPay, VNPay) phổ biến. Thẻ tín dụng chấp nhận ở nơi lớn.',
+  'tripDetail.tips.def.payment':
+    'Tiền mặt và ví điện tử (MoMo, ZaloPay, VNPay) phổ biến. Thẻ tín dụng chấp nhận ở nơi lớn.',
 }

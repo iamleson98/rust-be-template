@@ -7,8 +7,8 @@ you can grep the worklog for the full detail.
 
 ## Critical issues — fix before next deploy
 
-| #  | Finding | Severity | Status |
-|----|---------|----------|--------|
+| # | Finding | Severity | Status |
+| ---- | --------- | ---------- | -------- |
 | SEC-001 | Real Google OAuth client_secret + 64-hex JWT secret committed in `.env.example` | **Critical** | ✅ Fixed (sanitized to placeholders) |
 | SEC-002 | `app.db-wal` + `app.db-shm` committed (WAL contains real user IDs / refresh-token hashes) | **Critical** | ✅ Fixed (`git rm --cached`, `.gitignore` hardened) |
 | SEC-003 | `terraform/deploy.sh` used `JWT__SECRET` (double-underscore) → config silently fell through to the leaked `.env.example` secret, shipped `COOKIE_SECURE=false`, no `CORS_ORIGINS` override | **Critical** | ✅ Fixed (single-underscore env vars, random JWT secret at first-run, `COOKIE_SECURE=true`, real CORS origins) |
@@ -39,8 +39,8 @@ you can grep the worklog for the full detail.
 
 ## High-impact performance fixes applied
 
-| #  | Finding | Status |
-|----|---------|--------|
+| # | Finding | Status |
+| ---- | --------- | -------- |
 | PERF-006 | `place.name_no_tones` unindexed — `LIKE '%pattern%'` full table scan on every autocomplete keystroke | 📝 Scheduled for new migration |
 | PERF-008 | `users` missing `created_at` index — every `GET /api/users` filesorts | 📝 Scheduled for new migration |
 | PERF-009 | `posts` missing `created_at` index — every `GET /api/posts` filesorts | 📝 Scheduled for new migration |
@@ -50,8 +50,8 @@ you can grep the worklog for the full detail.
 
 ## Performance issues: fixed vs. remaining
 
-| #  | Finding | Status |
-|----|---------|--------|
+| # | Finding | Status |
+| ---- | --------- | -------- |
 | PERF-001 | N+1 seat-hold loop in `booking_service::hold` — should be one bulk UPDATE | ✅ Fixed (`try_hold_seats_bulk`: one conditional UPDATE for the whole booking; rollback deletes the never-visible booking row instead of leaving ghost `pending` rows; `available_seats` / campaign `used_count` now update atomically in SQL — no lost-update races) |
 | PERF-002 | `cache::get_or_fetch` claims singleflight but isn't | ✅ Fixed (process-local in-flight registry: `DashMap` of `watch` channels; leader broadcasts the serialized result, followers share it; error broadcast + leader-vanished fallback; unit-tested) |
 | PERF-003 | `DbBroker::dequeue` built `select_oldest` then threw it away | ✅ Fixed (the subquery is now the DELETE's `IN` list) |
@@ -64,8 +64,8 @@ you can grep the worklog for the full detail.
 
 Top 10 (the audit identified these as high-impact, low-effort fixes):
 
-| #  | Finding | Severity |
-|----|---------|----------|
+| # | Finding | Severity |
+| ---- | --------- | ---------- |
 | UIUX-001/002/004 | Header: missing `aria-current`, missing `aria-label` on icon buttons, `<button>` where `<Link>` is correct | High |
 | UIUX-003 | Password-reveal buttons use `tabIndex={-1}` (unfocusable) — keyboard users can't reveal | High |
 | UIUX-013 | Hard-coded Vietnamese strings break English mode — need `useT()` migration | High |
@@ -105,6 +105,7 @@ Top 10 (the audit identified these as high-impact, low-effort fixes):
 ### Deployment hardening checklist (40 items — see worklog for current vs. target state)
 
 Critical / must-fix-before-prod:
+
 - [x] Caddyfile CSP tightened (no `'unsafe-eval'`, `wss:` scoped to your domain)
 - [x] Legacy root production compose removed; supported production deploy files live under `deploy/`
 - [x] `deploy.sh` uses correct single-underscore env vars and generates a random JWT secret on first run
@@ -121,6 +122,7 @@ Critical / must-fix-before-prod:
 ## Features to add (recommended roadmap)
 
 ### Tier 1 — Trust & safety (do first)
+
 1. **`cargo-audit` in CI** — already added.
 2. **`dependabot` / `renovate` config** — auto-PRs for outdated crates + npm packages.
 3. **GitHub branch protection** — require CI green + 1 review before merge to `server`.
@@ -128,6 +130,7 @@ Critical / must-fix-before-prod:
 5. **Threat model doc** — `docs/THREAT_MODEL.md` documenting the threat model for each route.
 
 ### Tier 2 — Observability & reliability
+
 1. **OpenTelemetry tracing** — ship spans to Tempo / Honeycomb / Datadog.
 2. **Prometheus metrics endpoint** — `/metrics` with `prometheus_exporter`: request rate, latency histogram, error rate, DB pool stats, WS connection count, queue depth.
 3. **Structured JSON logs in prod** — `tracing-subscriber` `json` layer behind a feature flag.
@@ -136,6 +139,7 @@ Critical / must-fix-before-prod:
 6. **`/api/admin/system` expand** — already has `sysinfo` (CPU/mem); add DB connection count, slow-query count, cache hit rate.
 
 ### Tier 3 — Performance
+
 1. **Keyset pagination** on every list endpoint (bookings, users, posts, payments).
 2. **Moka `try_get_with`** for true singleflight cache stampede protection.
 3. ~~**Postgres `LISTEN/NOTIFY`** for the worker (replaces the 1s poll).~~ *(obsolete 2026-09: no postgres backend — the rust-sql engine is the only DB)*
@@ -145,6 +149,7 @@ Critical / must-fix-before-prod:
 7. **HTTP/3 (QUIC)** — Caddy already supports it; verify UDP/443 is open in your firewall.
 
 ### Tier 4 — Product features
+
 1. **Multi-currency** — currently hardcoded VND. Add `currency` per `Brand` and convert via a daily cron job.
 2. **Loyalty program** — already an entity (`loyalty-widget.tsx` exists on frontend) — finish wiring the backend.
 3. **Push notifications** — already have a `notifications` table + WS push, but no mobile push (FCM / APNs).
@@ -154,6 +159,7 @@ Critical / must-fix-before-prod:
 7. **Group booking** — current `hold` supports N seats; add "group lead" contact + bulk payment.
 
 ### Tier 5 — What to remove / simplify
+
 1. **`audio_call`** — WebRTC signaling relay is complex; consider replacing with a hosted solution (LiveKit, Daily, Twilio) unless audio-calling is a core differentiator.
 2. **`osm-index` committed artifacts** — already removed in this audit; the index should be built at deploy time, not committed.
 3. **`nullclaw.config.json`** — verify it doesn't contain secrets; if not, leave it; if so, move to env.
@@ -188,6 +194,7 @@ The following were verified by re-reading the code (full cargo build + test pend
 - [x] `.github/workflows/ci.yml` runs fmt+check+clippy+test+audit+vitest+gitleaks
 
 Pending (need full `cargo build`):
+
 - [ ] `cargo fmt --all -- --check` (will need to run `cargo fmt --all` first to apply formatting)
 - [ ] `cargo clippy -- -D warnings`
 - [ ] `cargo test --all-targets`

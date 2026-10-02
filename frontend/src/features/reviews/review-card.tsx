@@ -58,10 +58,7 @@ export function ReviewCard({
 }) {
   const t = useT()
   return (
-    <div
-      key={r.id}
-      className="rounded-xl bg-white ring-1 ring-black/5 p-4"
-    >
+    <div key={r.id} className="rounded-xl bg-white ring-1 ring-black/5 p-4">
       <div className="flex items-start gap-3">
         <div
           className="h-10 w-10 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"
@@ -76,10 +73,11 @@ export function ReviewCard({
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
                   key={n}
-                  className={`h-3 w-3 ${n <= r.rating
-                    ? 'fill-amber-400 text-amber-400'
-                    : 'fill-slate-200 text-slate-200'
-                    }`}
+                  className={`h-3 w-3 ${
+                    n <= r.rating
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'fill-slate-200 text-slate-200'
+                  }`}
                 />
               ))}
             </div>
@@ -98,7 +96,11 @@ export function ReviewCard({
               {(r.tags ?? []).map((tag) => {
                 const tl = TAG_LABELS[tag]
                 return (
-                  <Badge key={tag} variant="outline" className="text-[10px] gap-1 bg-slate-50 font-normal">
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className="text-[10px] gap-1 bg-slate-50 font-normal"
+                  >
                     {tl?.emoji ?? '🏷️'} {tl ? t(tl.labelKey) : tag}
                   </Badge>
                 )
@@ -106,15 +108,18 @@ export function ReviewCard({
             </div>
           )}
           {r.photos && r.photos.length > 0 && (
-            <ReviewPhotoGrid
-              photos={r.photos}
-              onOpen={(i) => openLightbox(r.photos!, i)}
-            />
+            <ReviewPhotoGrid photos={r.photos} onOpen={(i) => openLightbox(r.photos!, i)} />
           )}
           {r.reply && (
-            <div className="mt-3 ml-3 pl-3 border-l-2 space-y-1" style={{ borderColor: accentColor }}>
+            <div
+              className="mt-3 ml-3 pl-3 border-l-2 space-y-1"
+              style={{ borderColor: accentColor }}
+            >
               <div className="text-xs font-semibold flex items-center gap-1">
-                <span className="inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] text-white" style={{ background: accentColor }}>
+                <span
+                  className="inline-flex h-5 w-5 rounded-full items-center justify-center text-[10px] text-white"
+                  style={{ background: accentColor }}
+                >
                   {brandName.slice(0, 1)}
                 </span>
                 {t('reviews.replyFrom', { brand: brandName })}
@@ -126,8 +131,11 @@ export function ReviewCard({
             <button
               onClick={() => markHelpful(r.id)}
               disabled={helpfulMap[r.id]}
-              className={`inline-flex items-center gap-1 text-xs transition-colors ${helpfulMap[r.id] ? 'text-blue-600 cursor-default' : 'text-muted-foreground hover:text-blue-600'
-                }`}
+              className={`inline-flex items-center gap-1 text-xs transition-colors ${
+                helpfulMap[r.id]
+                  ? 'text-blue-600 cursor-default'
+                  : 'text-muted-foreground hover:text-blue-600'
+              }`}
             >
               <ThumbsUp className={`h-3 w-3 ${helpfulMap[r.id] ? 'fill-blue-100' : ''}`} />
               {t('reviews.helpfulCount', { count: r.helpfulCount })}
@@ -160,7 +168,13 @@ function ReviewPhotoGrid({ photos, onOpen }: { photos: string[]; onOpen: (i: num
             onClick={() => onOpen(i)}
             className="relative aspect-square rounded-md overflow-hidden ring-1 ring-black/5 hover:ring-2 hover:ring-blue-400 transition-all group"
           >
-            <img src={src} alt={t('reviews.photoAlt', { index: i + 1 })} className="w-full h-full object-cover transition-transform" loading="lazy" decoding="async" />
+            <img
+              src={src}
+              alt={t('reviews.photoAlt', { index: i + 1 })}
+              className="w-full h-full object-cover transition-transform"
+              loading="lazy"
+              decoding="async"
+            />
             {i === 3 && hiddenCount > 0 && (
               <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white text-xs font-bold">
                 +{hiddenCount}

@@ -55,47 +55,48 @@ class ConversationsScreen extends ConsumerWidget {
               switchInCurve: AppMotion.easeOutCubic,
               child: queue.hasValue
                   ? (channels.isEmpty
-                      ? EmptyState(
-                          key: const ValueKey('empty'),
-                          icon: FLucideIcons.messagesSquare,
-                          title: 'Không có hội thoại',
-                          message:
-                              'Khách hàng mới sẽ xuất hiện ở đây ngay khi họ bắt đầu trò chuyện.',
-                          onRetry: () => ref
-                              .read(conversationsProvider.notifier)
-                              .refetch(),
-                        )
-                      : RefreshIndicator(
-                          key: const ValueKey('list'),
-                          onRefresh: () => ref
-                              .read(conversationsProvider.notifier)
-                              .refetch(showSpinner: false),
-                          child: ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(
-                                12, 4, 12, 110),
-                            itemCount: channels.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 4),
-                            itemBuilder: (context, i) => _ConversationRow(
-                              channel: channels[i],
+                        ? EmptyState(
+                            key: const ValueKey('empty'),
+                            icon: FLucideIcons.messagesSquare,
+                            title: 'Không có hội thoại',
+                            message: 'Khách hàng mới sẽ xuất hiện ở đây ngay khi họ bắt đầu trò chuyện.',
+                            onRetry: () => ref
+                                .read(conversationsProvider.notifier)
+                                .refetch(),
+                          )
+                        : RefreshIndicator(
+                            key: const ValueKey('list'),
+                            onRefresh: () => ref
+                                .read(conversationsProvider.notifier)
+                                .refetch(showSpinner: false),
+                            child: ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(
+                                12,
+                                4,
+                                12,
+                                110,
+                              ),
+                              itemCount: channels.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 4),
+                              itemBuilder: (context, i) =>
+                                  _ConversationRow(channel: channels[i]),
                             ),
-                          ),
-                        ))
+                          ))
                   : queue.hasError
-                      ? EmptyState(
-                          key: const ValueKey('error'),
-                          icon: FLucideIcons.circleAlert,
-                          title: 'Không tải được danh sách',
-                          message: 'Kiểm tra kết nối rồi thử lại.',
-                          onRetry: () => ref
-                              .read(conversationsProvider.notifier)
-                              .refetch(),
-                        )
-                      : const Center(
-                          key: ValueKey('loading'),
-                          child: CircularProgressIndicator(),
-                        ),
+                  ? EmptyState(
+                      key: const ValueKey('error'),
+                      icon: FLucideIcons.circleAlert,
+                      title: 'Không tải được danh sách',
+                      message: 'Kiểm tra kết nối rồi thử lại.',
+                      onRetry: () =>
+                          ref.read(conversationsProvider.notifier).refetch(),
+                    )
+                  : const Center(
+                      key: ValueKey('loading'),
+                      child: CircularProgressIndicator(),
+                    ),
             ),
           ),
         ],
@@ -157,10 +158,11 @@ class _QueueHeader extends StatelessWidget {
                               : theme.colors.mutedForeground,
                           boxShadow: [
                             BoxShadow(
-                              color: (online
-                                      ? AppBrand.success
-                                      : theme.colors.mutedForeground)
-                                  .withValues(alpha: 0.5),
+                              color:
+                                  (online
+                                          ? AppBrand.success
+                                          : theme.colors.mutedForeground)
+                                      .withValues(alpha: 0.5),
                               blurRadius: 6,
                             ),
                           ],
@@ -171,8 +173,8 @@ class _QueueHeader extends StatelessWidget {
                         totalUnread > 0
                             ? '$totalUnread tin nhắn chưa đọc'
                             : online
-                                ? 'Đang kết nối thời gian thực'
-                                : 'Mất kết nối',
+                            ? 'Đang kết nối thời gian thực'
+                            : 'Mất kết nối',
                         style: theme.typography.body.sm.copyWith(
                           color: theme.colors.mutedForeground,
                         ),
@@ -231,11 +233,7 @@ class _HeaderIconButton extends StatelessWidget {
             shape: BoxShape.circle,
             color: theme.colors.muted,
           ),
-          child: Icon(
-            icon,
-            size: 17,
-            color: color ?? theme.colors.foreground,
-          ),
+          child: Icon(icon, size: 17, color: color ?? theme.colors.foreground),
         ),
       ),
     );
@@ -266,8 +264,9 @@ class _ConnectionBanner extends ConsumerWidget {
               status == WsStatus.backoff
                   ? 'Mất kết nối thời gian thực — đang thử lại…'
                   : 'Đang kết nối lại…',
-              style: theme.typography.body.sm
-                  .copyWith(color: theme.colors.destructive),
+              style: theme.typography.body.sm.copyWith(
+                color: theme.colors.destructive,
+              ),
             ),
           ),
         ],
@@ -310,8 +309,9 @@ class _FilterTabs extends ConsumerWidget {
               builder: (context, constraints) {
                 final w = constraints.maxWidth / _filters.length;
                 final pillWidth = w * 0.94;
-                final index =
-                    _filters.indexWhere((f) => f.$1 == selected).clamp(0, 2);
+                final index = _filters
+                    .indexWhere((f) => f.$1 == selected)
+                    .clamp(0, 2);
                 return Stack(
                   children: [
                     AnimatedPositioned(
@@ -360,8 +360,7 @@ class _FilterTabs extends ConsumerWidget {
                                 : FontWeight.w500,
                           ),
                           child: Text(
-                            filter == QueueFilter.unassigned &&
-                                    waitingCount > 0
+                            filter == QueueFilter.unassigned && waitingCount > 0
                                 ? 'Chờ xử lý · $waitingCount'
                                 : label,
                             maxLines: 1,
@@ -451,10 +450,7 @@ class _ConversationRow extends ConsumerWidget {
                     Positioned(
                       right: -1,
                       bottom: -1,
-                      child: PresenceDot(
-                        online: channel.isOpen,
-                        size: 12,
-                      ),
+                      child: PresenceDot(online: channel.isOpen, size: 12),
                     ),
                 ],
               ),
@@ -480,13 +476,15 @@ class _ConversationRow extends ConsumerWidget {
                         const SizedBox(width: 8),
                         Text(
                           formatListTime(
-                              channel.lastMessageAt ?? channel.createdAt),
+                            channel.lastMessageAt ?? channel.createdAt,
+                          ),
                           style: theme.typography.body.xs.copyWith(
                             color: unread > 0
                                 ? theme.colors.primary
                                 : theme.colors.mutedForeground,
-                            fontWeight:
-                                unread > 0 ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight: unread > 0
+                                ? FontWeight.w700
+                                : FontWeight.w500,
                           ),
                         ),
                       ],
@@ -527,15 +525,15 @@ class _ConversationRow extends ConsumerWidget {
                               horizontal: 8,
                               vertical: 3,
                             ),
-                            constraints:
-                                const BoxConstraints(minWidth: 22),
+                            constraints: const BoxConstraints(minWidth: 22),
                             decoration: BoxDecoration(
                               gradient: AppBrand.bubbleGradient,
                               borderRadius: BorderRadius.circular(999),
                               boxShadow: [
                                 BoxShadow(
-                                  color:
-                                      AppBrand.violet.withValues(alpha: 0.35),
+                                  color: AppBrand.violet.withValues(
+                                    alpha: 0.35,
+                                  ),
                                   blurRadius: 6,
                                   offset: const Offset(0, 2),
                                 ),

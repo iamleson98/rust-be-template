@@ -57,7 +57,11 @@ const dictionaries: Record<Lang, TranslationMap> = { vi, en }
  * Falls back to English if the key is missing in the current locale,
  * then to the raw key if missing in both.
  */
-export function translate(lang: Lang, key: string, params?: Record<string, string | number>): string {
+export function translate(
+  lang: Lang,
+  key: string,
+  params?: Record<string, string | number>,
+): string {
   let str = dictionaries[lang]?.[key] ?? dictionaries.en?.[key] ?? key
   if (params) {
     for (const [k, v] of Object.entries(params)) {

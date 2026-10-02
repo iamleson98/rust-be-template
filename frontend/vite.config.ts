@@ -111,10 +111,7 @@ export default defineConfig({
           // TanStack Query — the react bindings AND its engine core
           // (query-core) in ONE chunk; splitting them strays the engine
           // into vendor-misc and breaks cache stability.
-          if (
-            id.includes('@tanstack/react-query') ||
-            id.includes('@tanstack/query-core')
-          ) {
+          if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) {
             return 'vendor-query'
           }
 

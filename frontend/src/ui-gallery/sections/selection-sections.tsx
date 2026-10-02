@@ -54,9 +54,7 @@ async function galleryFetchPage(page: number, search: string, signal?: AbortSign
     label: `City ${i + 1}`,
   }))
   const needle = search.trim().toLowerCase()
-  const filtered = needle
-    ? all.filter((c) => c.label.toLowerCase().includes(needle))
-    : all
+  const filtered = needle ? all.filter((c) => c.label.toLowerCase().includes(needle)) : all
   const pageSize = 10
   const items = filtered.slice(page * pageSize, (page + 1) * pageSize)
   return { items, total: filtered.length, hasMore: (page + 1) * pageSize < filtered.length }
@@ -113,19 +111,12 @@ export function SelectionSections() {
         description="Searchable dropdown — type to filter the list."
       >
         <div className="flex flex-wrap items-center gap-3">
-          <Combobox
-            value={city}
-            onValueChange={(v) => setCity(v as string | null)}
-            items={CITIES}
-          >
+          <Combobox value={city} onValueChange={(v) => setCity(v as string | null)} items={CITIES}>
             <ComboboxTrigger className="w-56" data-testid="combobox-trigger">
               <ComboboxValue placeholder="Pick a destination…" />
             </ComboboxTrigger>
             <ComboboxContent data-testid="combobox-content">
-              <ComboboxInput
-                placeholder="Search cities…"
-                data-testid="combobox-input"
-              />
+              <ComboboxInput placeholder="Search cities…" data-testid="combobox-input" />
               <ComboboxList>
                 {CITIES.map((c) => (
                   <ComboboxItem
@@ -136,9 +127,7 @@ export function SelectionSections() {
                     {c.label}
                   </ComboboxItem>
                 ))}
-                <ComboboxEmpty data-testid="combobox-empty">
-                  No matching city.
-                </ComboboxEmpty>
+                <ComboboxEmpty data-testid="combobox-empty">No matching city.</ComboboxEmpty>
               </ComboboxList>
             </ComboboxContent>
           </Combobox>

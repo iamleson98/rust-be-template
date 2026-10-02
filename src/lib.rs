@@ -66,7 +66,7 @@ use sea_orm::DatabaseConnection;
 /// `SELECT` decodes that column as `Option<i64>`, so a TEXT-typed
 /// column aborts boot with a type-mismatch decode error — the v0.5.1
 /// deploy's new task crashed exactly there and Swarm rolled the service
-/// back. [`repair_seaql_migrations_applied_at`] rebuilds the table with
+/// back. `repair_seaql_migrations_applied_at` rebuilds the table with
 /// the declared INTEGER column and CASTs the old values, once, in
 /// place; fresh databases (correct schema already) are untouched.
 pub async fn run_migrations(db: &DatabaseConnection) -> anyhow::Result<()> {

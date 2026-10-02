@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
+
 import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
@@ -134,7 +136,8 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     // Dock to the bottom when the agent is reading live (or just sent
     // something); otherwise surface a pill so history reading isn't
     // interrupted.
-    final nearBottom = !_scroll.hasClients ||
+    final nearBottom =
+        !_scroll.hasClients ||
         _scroll.position.pixels < _nearBottom ||
         _lastCount - delta < 1;
     if (nearBottom) {
@@ -168,7 +171,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       );
       return;
     }
-    ref.read(callUiStateProvider.notifier).startCall(
+    ref
+        .read(callUiStateProvider.notifier)
+        .startCall(
           customerId: channel.userId,
           customerName: channel.displayName,
           channelId: channel.id,
@@ -228,8 +233,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
             if (channel.customer?.phone != null)
               _sheetRow(FLucideIcons.phone, channel.customer!.phone!),
             Padding(
-              padding: const EdgeInsets.fromLTRB(
-                  20, 8, 20, 8),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
               child: Divider(color: theme.colors.border, height: 1),
             ),
             if (!channel.assignedToMe && !channel.isClosed)
@@ -274,8 +278,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           Expanded(
             child: Text(
               text,
-              style: theme.typography.body.sm
-                  .copyWith(color: theme.colors.mutedForeground),
+              style: theme.typography.body.sm.copyWith(
+                color: theme.colors.mutedForeground,
+              ),
             ),
           ),
         ],
@@ -308,8 +313,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     if (!mounted) return;
     showFToast(
       context: context,
-      variant:
-          error == null ? FToastVariant.primary : FToastVariant.destructive,
+      variant: error == null
+          ? FToastVariant.primary
+          : FToastVariant.destructive,
       title: Text(error == null ? okMessage : 'Thất bại'),
       description: error == null ? null : Text(error),
       alignment: FToastAlignment.bottomCenter,
@@ -336,7 +342,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
             online: room?.customerOnline ?? false,
             typingName: room?.typingName,
             onBack: () => context.pop(),
-            onCall: channel == null || channel.isClosed ? null : () => _startCall(channel),
+            onCall: channel == null || channel.isClosed
+                ? null
+                : () => _startCall(channel),
             onMore: channel == null ? null : () => _openActions(channel),
           ),
           if (channel != null && channel.isOpen && !channel.assignedToMe)
@@ -435,17 +443,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Icon(
-            FLucideIcons.info,
-            size: 15,
-            color: theme.colors.primary,
-          ),
+          Icon(FLucideIcons.info, size: 15, color: theme.colors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Hội thoại chưa có người phụ trách',
-              style: theme.typography.body.sm
-                  .copyWith(color: theme.colors.foreground),
+              style: theme.typography.body.sm.copyWith(
+                color: theme.colors.foreground,
+              ),
             ),
           ),
           FButton(
@@ -472,8 +477,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Text(
         error,
-        style:
-            theme.typography.body.sm.copyWith(color: theme.colors.destructive),
+        style: theme.typography.body.sm.copyWith(
+          color: theme.colors.destructive,
+        ),
       ),
     );
   }
@@ -523,7 +529,9 @@ class _RoomHeader extends StatelessWidget {
           decoration: BoxDecoration(
             color: theme.colors.background.withValues(alpha: 0.86),
             border: Border(
-              bottom: BorderSide(color: theme.colors.border.withValues(alpha: 0.7)),
+              bottom: BorderSide(
+                color: theme.colors.border.withValues(alpha: 0.7),
+              ),
             ),
           ),
           child: SafeArea(
@@ -532,10 +540,7 @@ class _RoomHeader extends StatelessWidget {
               height: 60,
               child: Row(
                 children: [
-                  _GhostButton(
-                    icon: FLucideIcons.chevronLeft,
-                    onTap: onBack,
-                  ),
+                  _GhostButton(icon: FLucideIcons.chevronLeft, onTap: onBack),
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -596,7 +601,10 @@ class _RoomHeader extends StatelessWidget {
                   if (onCall != null)
                     _GhostButton(icon: FLucideIcons.phone, onTap: onCall!),
                   if (onMore != null)
-                    _GhostButton(icon: FLucideIcons.moreHorizontal, onTap: onMore!),
+                    _GhostButton(
+                      icon: FLucideIcons.moreHorizontal,
+                      onTap: onMore!,
+                    ),
                 ],
               ),
             ),
@@ -708,8 +716,14 @@ class _MessageList extends StatelessWidget {
 
       // System messages render as centered meta rows (no grouping).
       if (m.isSystem) {
-        rows.add(_MessageRow(m,
-            firstInGroup: true, lastInGroup: true, showDayChip: newDay));
+        rows.add(
+          _MessageRow(
+            m,
+            firstInGroup: true,
+            lastInGroup: true,
+            showDayChip: newDay,
+          ),
+        );
         continue;
       }
 
@@ -723,7 +737,8 @@ class _MessageList extends StatelessWidget {
           prev.senderType == m.senderType &&
           (prev.senderId ?? '') == (m.senderId ?? '')) {
         final prevAt = parseIso(prev.createdAt);
-        sameAsPrev = at != null &&
+        sameAsPrev =
+            at != null &&
             prevAt != null &&
             at.difference(prevAt).abs() < _groupWindow;
       }
@@ -735,17 +750,20 @@ class _MessageList extends StatelessWidget {
           next.senderType == m.senderType &&
           (next.senderId ?? '') == (m.senderId ?? '')) {
         final nextAt = parseIso(next.createdAt);
-        sameAsNext = at != null &&
+        sameAsNext =
+            at != null &&
             nextAt != null &&
             nextAt.difference(at).abs() < _groupWindow;
       }
 
-      rows.add(_MessageRow(
-        m,
-        firstInGroup: !sameAsPrev,
-        lastInGroup: !sameAsNext,
-        showDayChip: newDay,
-      ));
+      rows.add(
+        _MessageRow(
+          m,
+          firstInGroup: !sameAsPrev,
+          lastInGroup: !sameAsNext,
+          showDayChip: newDay,
+        ),
+      );
     }
 
     // Typing docks at the live edge: chronologically LAST → index 0
@@ -872,9 +890,7 @@ class _MessageList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 20),
       child: Row(
         children: [
-          Expanded(
-            child: Divider(color: theme.colors.border, height: 1),
-          ),
+          Expanded(child: Divider(color: theme.colors.border, height: 1)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Container(
@@ -916,9 +932,7 @@ class _MessageList extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: Divider(color: theme.colors.border, height: 1),
-          ),
+          Expanded(child: Divider(color: theme.colors.border, height: 1)),
         ],
       ),
     );
@@ -935,26 +949,26 @@ class _MessageList extends StatelessWidget {
         ? Padding(
             padding: const EdgeInsets.only(top: 6),
             child: _dayChip(
-                context, formatDayLabel(parseIso(m.createdAt) ?? DateTime.now())),
+              context,
+              formatDayLabel(parseIso(m.createdAt) ?? DateTime.now()),
+            ),
           )
         : null;
 
     // Telegram-style grouping radii: the sender-side corner shrinks on
     // continuation messages, and only the group's visual bottom carries
     // the small "tail" radius. The other side always stays round (18).
-    final topLeftR =
-        !mine ? (r.firstInGroup ? 18.0 : 8.0) : 18.0;
-    final topRightR =
-        mine ? (r.firstInGroup ? 18.0 : 8.0) : 18.0;
-    final bottomLeftR =
-        !mine ? (r.lastInGroup ? 5.0 : 8.0) : 18.0;
-    final bottomRightR =
-        mine ? (r.lastInGroup ? 5.0 : 8.0) : 18.0;
+    final topLeftR = !mine ? (r.firstInGroup ? 18.0 : 8.0) : 18.0;
+    final topRightR = mine ? (r.firstInGroup ? 18.0 : 8.0) : 18.0;
+    final bottomLeftR = !mine ? (r.lastInGroup ? 5.0 : 8.0) : 18.0;
+    final bottomRightR = mine ? (r.lastInGroup ? 5.0 : 8.0) : 18.0;
 
     // The newest message of a group keeps the tail + timestamp; older
     // siblings in the same group still show their own timestamp (small).
     final bubble = GestureDetector(
-      onTap: failed && m.clientMsgId != null ? () => onRetry(m.clientMsgId!) : null,
+      onTap: failed && m.clientMsgId != null
+          ? () => onRetry(m.clientMsgId!)
+          : null,
       child: Opacity(
         opacity: sending ? 0.65 : 1,
         child: Container(
@@ -964,13 +978,13 @@ class _MessageList extends StatelessWidget {
             gradient: failed
                 ? null
                 : mine
-                    ? AppBrand.bubbleGradient
-                    : null,
+                ? AppBrand.bubbleGradient
+                : null,
             color: failed
                 ? theme.colors.destructive.withValues(alpha: 0.14)
                 : mine
-                    ? null
-                    : theme.colors.card,
+                ? null
+                : theme.colors.card,
             border: Border.all(
               color: mine
                   ? Colors.transparent
@@ -1021,7 +1035,9 @@ class _MessageList extends StatelessWidget {
                       FLucideIcons.timer,
                       size: 12,
                       color: mine
-                          ? theme.colors.primaryForeground.withValues(alpha: 0.7)
+                          ? theme.colors.primaryForeground.withValues(
+                              alpha: 0.7,
+                            )
                           : theme.colors.mutedForeground,
                     ),
                     const SizedBox(width: 3),
@@ -1029,8 +1045,9 @@ class _MessageList extends StatelessWidget {
                     Icon(
                       FLucideIcons.checkCheck,
                       size: 13,
-                      color: theme.colors.primaryForeground
-                          .withValues(alpha: 0.85),
+                      color: theme.colors.primaryForeground.withValues(
+                        alpha: 0.85,
+                      ),
                     ),
                     const SizedBox(width: 3),
                   ],
@@ -1039,7 +1056,9 @@ class _MessageList extends StatelessWidget {
                     style: theme.typography.body.xs.copyWith(
                       fontSize: 10.5,
                       color: mine
-                          ? theme.colors.primaryForeground.withValues(alpha: 0.75)
+                          ? theme.colors.primaryForeground.withValues(
+                              alpha: 0.75,
+                            )
                           : theme.colors.mutedForeground,
                     ),
                   ),
@@ -1052,8 +1071,9 @@ class _MessageList extends StatelessWidget {
     );
 
     final bubbleWithChip = Column(
-      crossAxisAlignment:
-          mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: mine
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         if (chip != null) Center(child: chip),
         bubble,
@@ -1083,9 +1103,7 @@ class _MessageList extends StatelessWidget {
             width: 34,
             child: r.lastInGroup
                 ? AgentAvatar(
-                    name: m.senderName ??
-                        channel?.displayName ??
-                        'Khách hàng',
+                    name: m.senderName ?? channel?.displayName ?? 'Khách hàng',
                     imageUrl: channel?.customer?.avatarUrl,
                     size: 30,
                   )
@@ -1098,7 +1116,6 @@ class _MessageList extends StatelessWidget {
     );
   }
 }
-
 
 /// "X tin nhắn mới" pill — Telegram-style catch-up affordance.
 class _NewMessagesPill extends StatelessWidget {
@@ -1195,8 +1212,10 @@ class _JumpFab extends StatelessWidget {
                   right: 0,
                   top: 0,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: context.theme.colors.destructive,
                       borderRadius: BorderRadius.circular(999),
@@ -1268,8 +1287,10 @@ class _ComposerBar extends StatelessWidget {
                   maxLines: 5,
                   minLines: 1,
                   textInputAction: TextInputAction.newline,
-                  style: theme.typography.body.md
-                      .copyWith(height: 1.35, color: theme.colors.foreground),
+                  style: theme.typography.body.md.copyWith(
+                    height: 1.35,
+                    color: theme.colors.foreground,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Nhập tin nhắn…',
                     hintStyle: theme.typography.body.md.copyWith(
@@ -1348,9 +1369,7 @@ class _SendButton extends StatelessWidget {
                 FLucideIcons.sendHorizontal,
                 key: ValueKey(enabled),
                 size: 20,
-                color: enabled
-                    ? Colors.white
-                    : theme.colors.mutedForeground,
+                color: enabled ? Colors.white : theme.colors.mutedForeground,
               ),
             ),
           ),

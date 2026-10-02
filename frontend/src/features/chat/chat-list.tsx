@@ -49,9 +49,7 @@ export function ChatList({
                 <MessageCircle className="h-7 w-7 text-rose-600" />
               </div>
               <h4 className="font-semibold text-sm">{t('chat.noChannels')}</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('chatWidget.noChannelsHint')}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">{t('chatWidget.noChannelsHint')}</p>
             </div>
           ) : (
             channels.map((ch) => {

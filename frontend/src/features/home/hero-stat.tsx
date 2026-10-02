@@ -31,7 +31,7 @@ export function HeroStat({ value, label }: { value: number; label: string }) {
           requestAnimationFrame(tick)
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.4 },
     )
     obs.observe(el)
     return () => obs.disconnect()
@@ -49,9 +49,12 @@ export function HeroStat({ value, label }: { value: number; label: string }) {
       />
       <div className="relative text-center md:text-left">
         <div className="text-2xl md:text-3xl font-extrabold text-white tabular-nums">
-          {formatNum(display)}<span className="text-amber-300">+</span>
+          {formatNum(display)}
+          <span className="text-amber-300">+</span>
         </div>
-        <div className="text-xs text-blue-100 font-semibold mt-0.5 uppercase tracking-wide">{label}</div>
+        <div className="text-xs text-blue-100 font-semibold mt-0.5 uppercase tracking-wide">
+          {label}
+        </div>
       </div>
     </div>
   )

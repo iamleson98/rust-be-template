@@ -1,7 +1,7 @@
 //! Unified error type that converts to HTTP responses.
 //!
 //! All handlers return [`Result<T, AppError>`]. Variants map to specific
-//! HTTP status codes and JSON error bodies — see [`AppError::status`] and
+//! HTTP status codes and JSON error bodies — see `AppError::status` and
 //! [`AppError::into_response`].
 
 use axum::http::StatusCode;

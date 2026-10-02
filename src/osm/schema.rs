@@ -30,7 +30,7 @@ use tantivy::tokenizer::{
 
 /// Text options for a stored + indexed field using the default lowercased
 /// ASCII-folding tokenizer. Used for fields whose source data is already
-/// pre-normalized via [`crate::vn_text::normalize`].
+/// pre-normalized via `crate::vn_text::normalize`.
 pub fn stored_indexed_text() -> TextOptions {
     TextOptions::default()
         .set_indexing_options(

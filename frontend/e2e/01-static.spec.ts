@@ -22,9 +22,7 @@ test.describe('Badge', () => {
   test('variants are visually distinguishable (background differs)', async ({ page }) => {
     const bg = async (testId: string) => {
       const sec = page.getByTestId('sec-badge')
-      return sec.getByTestId(testId).evaluate(
-        (el) => getComputedStyle(el).backgroundColor,
-      )
+      return sec.getByTestId(testId).evaluate((el) => getComputedStyle(el).backgroundColor)
     }
     const [primary, secondary, outline] = await Promise.all([
       bg('badge-default'),
@@ -43,13 +41,9 @@ test.describe('Alert', () => {
     await expect(sec.getByTestId('alert-default')).toBeVisible()
     await expect(sec.getByTestId('alert-destructive')).toBeVisible()
     await expect(sec.getByText('Heads up!')).toBeVisible()
-    await expect(
-      sec.getByText('You can add components to your app using the CLI.'),
-    ).toBeVisible()
+    await expect(sec.getByText('You can add components to your app using the CLI.')).toBeVisible()
     await expect(sec.getByText('Payment failed')).toBeVisible()
-    await expect(
-      sec.getByText('Your card was declined. Please try another method.'),
-    ).toBeVisible()
+    await expect(sec.getByText('Your card was declined. Please try another method.')).toBeVisible()
   })
 })
 
@@ -59,12 +53,8 @@ test.describe('Card', () => {
     const card = sec.getByTestId('card-demo')
     await expect(card).toBeVisible()
     // CardTitle is a styled <div> (data-slot=card-title) in this port
-    await expect(
-      card.locator('[data-slot="card-title"]'),
-    ).toHaveText('Ho Chi Minh City → Da Lat')
-    await expect(
-      card.locator('[data-slot="card-description"]'),
-    ).toContainText('Limousine 22 seats')
+    await expect(card.locator('[data-slot="card-title"]')).toHaveText('Ho Chi Minh City → Da Lat')
+    await expect(card.locator('[data-slot="card-description"]')).toContainText('Limousine 22 seats')
     await expect(card.getByText('380,000₫')).toBeVisible()
     await expect(card.getByTestId('card-book-btn')).toBeVisible()
     await expect(card.getByRole('button', { name: 'Details' })).toBeVisible()
@@ -90,10 +80,16 @@ test.describe('Progress', () => {
   test('renders two bars with proportionally-sized indicators', async ({ page }) => {
     const sec = page.getByTestId('sec-progress')
     const width = async (testId: string) => {
-      const box = await sec.getByTestId(testId).locator('[data-slot="progress-indicator"]').boundingBox()
+      const box = await sec
+        .getByTestId(testId)
+        .locator('[data-slot="progress-indicator"]')
+        .boundingBox()
       return box?.width ?? 0
     }
-    const trackBox = await sec.getByTestId('progress-33').locator('[data-slot="progress-track"]').boundingBox()
+    const trackBox = await sec
+      .getByTestId('progress-33')
+      .locator('[data-slot="progress-track"]')
+      .boundingBox()
     const w33 = await width('progress-33')
     const w75 = await width('progress-75')
     expect(trackBox).toBeTruthy()
@@ -135,9 +131,7 @@ test.describe('Table', () => {
     await expect(table.getByRole('table')).toBeVisible()
     await expect(table.getByRole('columnheader', { name: 'Route' })).toBeVisible()
     await expect(table.getByRole('cell', { name: 'Hà Nội → Huế' })).toBeVisible()
-    await expect(
-      table.getByRole('cell', { name: 'Đà Nẵng → Hà Nội' }),
-    ).toBeVisible()
+    await expect(table.getByRole('cell', { name: 'Đà Nẵng → Hà Nội' })).toBeVisible()
     expect(await table.getByRole('row').count()).toBe(4) // header + 3 rows
   })
 })

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  classifyQuality,
-  hangupReasonText,
-  type QualityStats,
-} from '../call-quality'
+import { classifyQuality, hangupReasonText, type QualityStats } from '../call-quality'
 
 const base: QualityStats = { rttMs: null, jitterMs: null, lossPct: null, relayed: null }
 

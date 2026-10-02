@@ -38,15 +38,20 @@ export function PriceAlertExistingList({
           >
             <Badge
               variant="outline"
-              className={`text-[10px] ${a.status === 'active'
-                ? 'bg-blue-50 text-blue-700 border-blue-200'
-                : 'bg-amber-50 text-amber-700 border-amber-200'
-                }`}
+              className={`text-[10px] ${
+                a.status === 'active'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                  : 'bg-amber-50 text-amber-700 border-amber-200'
+              }`}
             >
-              {a.status === 'active' ? t('priceAlert.statusActive') : t('priceAlert.statusTriggered')}
+              {a.status === 'active'
+                ? t('priceAlert.statusActive')
+                : t('priceAlert.statusTriggered')}
             </Badge>
             <div className="text-xs flex-1 min-w-0 truncate">
-              <span className="font-medium">{a.fromName} → {a.toName}</span>
+              <span className="font-medium">
+                {a.fromName} → {a.toName}
+              </span>
               <span className="text-muted-foreground"> ≤ {formatVND(a.targetPrice ?? 0)}</span>
             </div>
             <button

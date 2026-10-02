@@ -36,15 +36,15 @@ export function ActiveFilterChips({
   const { currency } = useApp()
   const t = useT()
   return (
-    <div
-      className="overflow-hidden"
-    >
+    <div className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-2">
         {filters.brands.map((slug) => (
           <FilterChip
             key={slug}
             label={brandNames[slug] ?? slug}
-            onRemove={() => setFilters({ ...filters, brands: filters.brands.filter((x) => x !== slug) })}
+            onRemove={() =>
+              setFilters({ ...filters, brands: filters.brands.filter((x) => x !== slug) })
+            }
           />
         ))}
         {(effectivePriceRange[0] > priceBounds[0] || effectivePriceRange[1] < priceBounds[1]) && (
@@ -59,7 +59,9 @@ export function ActiveFilterChips({
             <FilterChip
               key={r}
               label={opt ? t(opt.labelKey) : r}
-              onRemove={() => setFilters({ ...filters, timeRanges: filters.timeRanges.filter((x) => x !== r) })}
+              onRemove={() =>
+                setFilters({ ...filters, timeRanges: filters.timeRanges.filter((x) => x !== r) })
+              }
             />
           )
         })}
@@ -83,7 +85,9 @@ export function ActiveFilterChips({
               key={a}
               label={opt ? t(opt.labelKey) : a}
               icon={opt?.icon}
-              onRemove={() => setFilters({ ...filters, amenities: filters.amenities.filter((x) => x !== a) })}
+              onRemove={() =>
+                setFilters({ ...filters, amenities: filters.amenities.filter((x) => x !== a) })
+              }
             />
           )
         })}
@@ -102,12 +106,18 @@ export function ActiveFilterChips({
 
 /* ─── Filter Chip ─── */
 
-function FilterChip({ label, icon, onRemove }: { label: string; icon?: React.ReactNode; onRemove: () => void }) {
+function FilterChip({
+  label,
+  icon,
+  onRemove,
+}: {
+  label: string
+  icon?: React.ReactNode
+  onRemove: () => void
+}) {
   const t = useT()
   return (
-    <div
-      className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700"
-    >
+    <div className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700">
       {icon}
       <span>{label}</span>
       <button

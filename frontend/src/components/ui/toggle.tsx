@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import { type ComponentProps } from "react"
-import { Toggle as TogglePrimitive } from "@base-ui/react/toggle"
-import { cva, type VariantProps } from "class-variance-authority"
+import { type ComponentProps } from 'react'
+import { Toggle as TogglePrimitive } from '@base-ui/react/toggle'
+import { cva, type VariantProps } from 'class-variance-authority'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 /**
  * Radix-compat wrapper around Base UI's Toggle.
@@ -24,21 +24,20 @@ const toggleVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-transparent",
-        outline:
-          "border border-input bg-transparent  hover:bg-accent hover:text-accent-foreground",
+        default: 'bg-transparent',
+        outline: 'border border-input bg-transparent  hover:bg-accent hover:text-accent-foreground',
       },
       size: {
-        default: "h-9 px-2 min-w-9",
-        sm: "h-8 px-1.5 min-w-8",
-        lg: "h-10 px-2.5 min-w-10",
+        default: 'h-9 px-2 min-w-9',
+        sm: 'h-8 px-1.5 min-w-8',
+        lg: 'h-10 px-2.5 min-w-10',
       },
     },
     defaultVariants: {
-      variant: "default",
-      size: "default",
+      variant: 'default',
+      size: 'default',
     },
-  }
+  },
 )
 
 function Toggle({
@@ -46,16 +45,12 @@ function Toggle({
   variant,
   size,
   ...props
-}: ComponentProps<typeof TogglePrimitive> &
-  VariantProps<typeof toggleVariants>) {
+}: ComponentProps<typeof TogglePrimitive> & VariantProps<typeof toggleVariants>) {
   return (
     <TogglePrimitive
       data-slot="toggle"
       render={(componentProps, state) => (
-        <button
-          {...componentProps}
-          data-state={state.pressed ? "on" : "off"}
-        />
+        <button {...componentProps} data-state={state.pressed ? 'on' : 'off'} />
       )}
       className={cn(toggleVariants({ variant, size, className }))}
       {...props}

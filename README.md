@@ -31,7 +31,7 @@ src/
 ## Stack
 
 | Concern | Choice |
-|---------|--------|
+| --------- | -------- |
 | Async runtime | tokio (multi-thread scheduler) |
 | Web framework | axum 0.8 |
 | ORM | sea-orm 1.1 (sqlx-sqlite dialect) |
@@ -141,7 +141,7 @@ All config is loaded from `.env` (or actual env vars) via `figment`. See
 [`.env.example`](.env.example) for the full list. Highlights:
 
 | Variable | Default | Notes |
-|----------|---------|-------|
+| ---------- | --------- | ------- |
 | `DATABASE_URL` | `sqlite://./app.db?mode=rwc` | rust-sql (rustqlite) DB URL — sqlite:// scheme |
 | `CACHE_BACKEND` | `moka` | `moka` or `redis` |
 | `STORAGE_BACKEND` | `local` | `local`, `s3`, or `minio` |
@@ -173,7 +173,7 @@ cargo build                                # engine compiles in — no flags
 ### Engine dialect notes
 
 | Concern | Behavior |
-|---------|----------|
+| --------- | ---------- |
 | UUID columns | `uuid_text` (sea-orm portable alias) |
 | Timestamps | `timestamp` (NaiveDateTime) |
 | JSON columns | `text` (parse with serde_json) |
@@ -226,7 +226,6 @@ exponential) — override any method on your struct to customize.
 Adding a new `Store` method: add the impl on `DbStore` with the actual
 SeaORM code — `#[retry]` picks it up automatically. Mark `#[no_retry]`
 for INSERTs that generate new IDs (non-idempotent).
-
 
 ## Architecture: pluggable cache
 
@@ -313,6 +312,7 @@ UTC+7, fixed offset — no DST in Vietnam), `SCHEDULER_TICK_INTERVAL_SECS`,
 extend to a Redis Pub/Sub backplane later — the public API stays the same.
 
 Protocol (text frames):
+
 - `subscribe <topic>` — subscribe to a topic
 - `unsubscribe <topic>` — unsubscribe
 - `send <user_id> <body>` — direct message to another user
@@ -380,7 +380,7 @@ After researching how production Rust codebases (realworld-axum-sqlx, axum-best,
 ### Why this pattern
 
 | Pitfall avoided | How |
-|-----------------|-----|
+| ----------------- | ----- |
 | Circular `Arc` refs (memory leak) | Services hold deps directly, not `Arc<AppState>` |
 | God object bloat in tests | `AuthUser` is generic — works with a tiny mock state |
 | Per-request service construction | Pre-built `Arc<Service>` on `AppState` |
@@ -390,7 +390,7 @@ After researching how production Rust codebases (realworld-axum-sqlx, axum-best,
 ### Services
 
 | Service | Methods | RBAC | Holds |
-|---------|---------|------|-------|
+| --------- | --------- | ------ | ------- |
 | `AuthService` | `register`, `login`, `refresh`, `logout`, `me` | None | store, jwt, jwt_validator, refresh, password, csrf, config |
 | `UserService` | `list`, `get`, `delete` | `users:read`, `users:delete` | store, rbac |
 | `PostService` | `list`, `get`, `create`, `update`, `delete` | `posts:write`, `posts:delete` | store, rbac |

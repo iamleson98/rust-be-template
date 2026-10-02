@@ -6,13 +6,7 @@
  * time. Extracted from the original 'src/features/admin/schedules/schedule-form.tsx'.
  */
 
-import {
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { TimePicker } from '@/components/ui/time-picker'
 import {
   ArrowDown,
@@ -113,7 +107,9 @@ export function ScheduleRouteSection({
             name="startPointTime"
             render={({ field }) => (
               <FormItem className="grid gap-1.5 w-30">
-                <FormLabel className="text-muted-foreground">{t('adminSchedules.arrivalTime')}</FormLabel>
+                <FormLabel className="text-muted-foreground">
+                  {t('adminSchedules.arrivalTime')}
+                </FormLabel>
                 <FormControl>
                   <TimePicker value={field.value} onChange={field.onChange} />
                 </FormControl>
@@ -230,7 +226,9 @@ export function ScheduleRouteSection({
             name="endPointTime"
             render={({ field }) => (
               <FormItem className="grid gap-1.5 w-30">
-                <FormLabel className="text-muted-foreground">{t('adminSchedules.arrivalTime')}</FormLabel>
+                <FormLabel className="text-muted-foreground">
+                  {t('adminSchedules.arrivalTime')}
+                </FormLabel>
                 <FormControl>
                   <TimePicker value={field.value} onChange={field.onChange} />
                 </FormControl>
@@ -240,9 +238,7 @@ export function ScheduleRouteSection({
           />
         </div>
 
-        <p className="text-[11px] text-muted-foreground">
-          {t('adminSchedules.arrivalTimeHint')}
-        </p>
+        <p className="text-[11px] text-muted-foreground">{t('adminSchedules.arrivalTimeHint')}</p>
       </div>
     </>
   )

@@ -27,7 +27,6 @@ Production runbook for the single-image stack. **Two supported topologies:**
   original cloudflared-outbound-only topology below — use it when deploying
   to a brand-new VPS with no existing reverse proxy:
 
-
 ```
                       ┌──────────────────────┐
    users ──HTTPS──▶   │      Cloudflare       │  DNS · CDN · WAF · TLS · DDoS
@@ -58,7 +57,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
   volumes (rust-sql DB file, Tantivy index, uploads) persist across every release.
 
 > Prefer classic proxied mode (orange-cloud A record, Caddy on 80/443)?
-> See [§ Direct mode (Caddy)](#direct-mode-caddy--profile-direct) below.
+> See [§ Direct mode (Caddy)](#direct-mode-caddy---profile-direct) below.
 
 ---
 
@@ -72,7 +71,7 @@ Production runbook for the single-image stack. **Two supported topologies:**
 6. [Releasing (the daily workflow)](#releasing-the-daily-workflow)
 7. [Tantivy index management](#tantivy-index-management)
 8. [Operations (logs, restart, rollback, backups)](#operations)
-9. [Direct mode (Caddy)](#direct-mode-caddy--profile-direct)
+9. [Direct mode (Caddy)](#direct-mode-caddy---profile-direct)
 10. [Troubleshooting](#troubleshooting)
 11. [TURN relay (WebRTC calls)](#turn-relay-webrtc-calls)
 12. [Push (FCM) — ring when the app is closed](#push-fcm--ring-when-the-app-is-closed)
@@ -99,6 +98,7 @@ cause of the "call stuck on connecting, dies after ~25 s" reports).
   and pushes the STUN/TURN list to every peer in the `registered`
   frame over the authed WebSocket.
 - Manual ops:
+
   ```bash
   bash /opt/vexevn/turn.sh            # (re)create + verify
   docker logs coturn-vexevn           # allocations + errors
@@ -221,17 +221,22 @@ required to start using the feature.
   `STORAGE_PUBLIC_BASE_URL=https://media.datxevui.com` in
   `/opt/vexevn/.env` and redeploy.
 - One-time bucket setup (public-read for GETs, signed everything else):
+
   ```bash
   docker run --rm --network pdf-tts_pdf-tts -e MC_HOST_r=     minio/mc sh -c 'mc alias set r http://datxevui_rustfs:9000       $RUSTFS_ACCESS_KEY $RUSTFS_SECRET_KEY &&       mc mb r/datxevui-media && mc anonymous set download r/datxevui-media'
   ```
+
   (export `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY` first; `MC_HOST_r=`
   keeps mc from warning about an empty host env.)
 - Web console (browse objects, buckets): SSH tunnel to :9001 —
+
   ```bash
   ssh -L 9001:$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'       $(docker ps -q -f name=datxevui_rustfs.1)):9001 root@<server>
   # then open http://localhost:9001 (login = the RUSTFS_ keys)
   ```
+
 - Ops:
+
   ```bash
   docker service ls | grep rustfs                       # running?
   docker exec $(docker ps -q -f name=datxevui_backend.1)     wget -qO- http://rustfs:9000/minio/health/live      # S3 API alive
@@ -270,7 +275,7 @@ Activating FCM:
 ## Prerequisites
 
 | Item | Notes |
-|---|---|
+| --- | --- |
 | Contabo VPS | 2 vCPU / 4 GB RAM is comfortable (Cloud 4 line). Ubuntu 22.04/24.04 recommended. |
 | Domain on Cloudflare | Free plan is fine. Nameservers pointed at Cloudflare. |
 | This GitHub repo | Default branch `master`; Actions enabled. |
@@ -318,9 +323,11 @@ What ends up where:
    container does that. Copy the **token** shown (it's long, starts with
    `eyJ...`).
 3. Put the token on the VPS:
+
    ```bash
    nano /opt/vexevn/.env      # set TUNNEL_TOKEN=<paste>
    ```
+
 4. Back in the tunnel config, **Public Hostname → Add**:
    - Subdomain / Domain: `vexevn.vn` (or whatever your domain is)
    - Service: **HTTP** `backend:8080` ← the compose service name
@@ -339,7 +346,7 @@ What ends up where:
 **Settings → Secrets and variables → Actions → Secrets** (repository):
 
 | Secret | Value |
-|---|---|
+| --- | --- |
 | `SERVER_HOST` | Contabo VPS IP or hostname |
 | `SERVER_USER` | SSH user (`root` or your admin user) |
 | `SERVER_SSH_KEY` | contents of the deploy key's **private** key file |
@@ -505,7 +512,7 @@ is still the recommended mode (no certs, no exposed ports).
 ## Troubleshooting
 
 | Symptom | Fix |
-|---|---|
+| --- | --- |
 | `cloudflared` log: `failed to connect to origin` | Backend unhealthy: `$COMPOSE logs backend`. It waits for `service_healthy` before starting — check it started at all. |
 | Site loads but search returns nothing | Tantivy index is empty — run `bash import-osm.sh`, then confirm `SEARCH_INDEX_DIR=/app/index/osm-index` in `.env`. |
 | 502 from Cloudflare after deploy | Health gate failed in CI — check the Actions log tail of backend logs; rollback with `APP_IMAGE=<previous> $COMPOSE up -d`. |

@@ -52,7 +52,9 @@ import type {
   CreateChannelData,
   CreateChannelResponse,
   ChatChannelListResponse,
-  ChatMessageListResponse, SessionUser } from '@/lib/api/types.gen'
+  ChatMessageListResponse,
+  SessionUser,
+} from '@/lib/api/types.gen'
 import {
   useAuthMe,
   useChatChannels,
@@ -61,14 +63,8 @@ import {
   usePostChatMessage,
   useMarkChatRead,
 } from '@/lib/queries'
-import {
-  listMessagesQueryKey,
-} from '@/lib/api/@tanstack/react-query.gen'
-import {
-  type CustomerChannel as Channel,
-  type Message,
-  type View,
-} from './_shared'
+import { listMessagesQueryKey } from '@/lib/api/@tanstack/react-query.gen'
+import { type CustomerChannel as Channel, type Message, type View } from './_shared'
 import { ChatHeader } from './chat-header'
 import { ChatList } from './chat-list'
 import { ChatConversation } from './chat-conversation'
@@ -79,7 +75,14 @@ import { isStaffUser } from '@/lib/store'
 import { getErrorMessage } from '@/lib/error-message'
 
 export function ChatWidget() {
-  const { chatOpen, setChatOpen, callOpen, setCallOpen, user: storeUser, setUser: setStoreUser } = useApp()
+  const {
+    chatOpen,
+    setChatOpen,
+    callOpen,
+    setCallOpen,
+    user: storeUser,
+    setUser: setStoreUser,
+  } = useApp()
   const t = useT()
   const qc = useQueryClient()
 
@@ -158,7 +161,18 @@ export function ChatWidget() {
       setChatUser(u)
       if (!storeUser) setStoreUser(u as unknown as Parameters<typeof setStoreUser>[0])
     }
-  }, [chatOpen, authMe.isLoading, authMe.error, authMe.data, chatUser, storeUser, setStoreUser, setChatOpen, setCallOpen, t])
+  }, [
+    chatOpen,
+    authMe.isLoading,
+    authMe.error,
+    authMe.data,
+    chatUser,
+    storeUser,
+    setStoreUser,
+    setChatOpen,
+    setCallOpen,
+    t,
+  ])
 
   // Hide the chat button entirely for employees (they have the admin workspace)
   const isEmployee = isStaffUser(storeUser) || isStaffUser(chatUser)
@@ -258,22 +272,19 @@ export function ChatWidget() {
         socketRef.current.on('_open', joinHandler)
       }
     }
-    markReadMut.mutate({ path: { id: ch.id } } as unknown as Parameters<typeof markReadMut.mutate>[0])
+    markReadMut.mutate({ path: { id: ch.id } } as unknown as Parameters<
+      typeof markReadMut.mutate
+    >[0])
     // Optimistically clear the unread badge in the cache — the
     // mutation's onSuccess will refetch from the server to confirm.
     // Use the correct query key format (partial match on _id).
-    qc.setQueryData<ChatChannelListResponse>(
-      [{ _id: 'listChannels' }],
-      (old) => {
-        if (!old?.items) return old
-        return {
-          ...old,
-          items: old.items.map((c) =>
-            c.id === ch.id ? { ...c, unreadUser: 0 } : c
-          ),
-        }
-      },
-    )
+    qc.setQueryData<ChatChannelListResponse>([{ _id: 'listChannels' }], (old) => {
+      if (!old?.items) return old
+      return {
+        ...old,
+        items: old.items.map((c) => (c.id === ch.id ? { ...c, unreadUser: 0 } : c)),
+      }
+    })
   }
 
   // Resume the most recently active conversation on every fresh widget
@@ -369,7 +380,8 @@ export function ChatWidget() {
     })
     qc.setQueryData<ChatMessageListResponse>(msgQueryKey, (old) => {
       if (!old?.items) return old
-      if (old.items.some((m) => (m as { clientMsgId?: string | null }).clientMsgId === clientMsgId)) return old
+      if (old.items.some((m) => (m as { clientMsgId?: string | null }).clientMsgId === clientMsgId))
+        return old
       return { ...old, items: [...old.items, optimisticMsg] }
     })
 
@@ -462,15 +474,14 @@ export function ChatWidget() {
       {callOpen && chatUser ? (
         <div id="customer-call-surface" className="flex min-h-0 flex-1 flex-col" />
       ) : authMe.isLoading || initializingChannel ? (
-        <div className="flex flex-1 items-center justify-center" aria-label={t('chatWidget.checkingLogin')}>
+        <div
+          className="flex flex-1 items-center justify-center"
+          aria-label={t('chatWidget.checkingLogin')}
+        >
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
       ) : view === 'list' ? (
-        <ChatList
-          channels={channels}
-          onOpenChannel={openChannel}
-          onStartNewChat={startNewChat}
-        />
+        <ChatList channels={channels} onOpenChannel={openChannel} onStartNewChat={startNewChat} />
       ) : (
         <>
           <ChatConversation

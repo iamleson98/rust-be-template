@@ -28,19 +28,9 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { toast } from 'sonner'
-import {
-  Bell,
-  ArrowRight,
-  Phone,
-  Mail,
-  Loader2,
-  CheckCircle2,
-} from 'lucide-react'
+import { Bell, ArrowRight, Phone, Mail, Loader2, CheckCircle2 } from 'lucide-react'
 import { formatVND } from '@/lib/types'
-import {
-  priceAlertSchema,
-  type PriceAlertFormValues,
-} from './price-alert-schema'
+import { priceAlertSchema, type PriceAlertFormValues } from './price-alert-schema'
 import { PriceAlertFrequencyField } from './price-alert-frequency-field'
 import { PriceAlertTargetField } from './price-alert-target-field'
 import { PriceAlertExistingList } from './price-alert-existing-list'
@@ -74,7 +64,11 @@ export function PriceAlertDialog() {
   const toName = priceAlertContext?.toName || searchParams.to || ''
   const minPrice = priceAlertContext?.minPrice ?? 0
 
-  const form = useForm<z.input<typeof priceAlertSchema>, unknown, z.output<typeof priceAlertSchema>>({
+  const form = useForm<
+    z.input<typeof priceAlertSchema>,
+    unknown,
+    z.output<typeof priceAlertSchema>
+  >({
     resolver: zodResolver(priceAlertSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
@@ -120,9 +114,7 @@ export function PriceAlertDialog() {
   // auto-invalidated by the create/remove mutations). Only fetched
   // when the dialog is open and the phone is long enough.
   const existingAlerts: ExistingAlert[] =
-    priceAlertOpen && phone && phone.length >= 9
-      ? (phoneQuery.data?.items ?? [])
-      : []
+    priceAlertOpen && phone && phone.length >= 9 ? (phoneQuery.data?.items ?? []) : []
 
   const handleDeleteAlert = async (id: string) => {
     try {
@@ -145,14 +137,15 @@ export function PriceAlertDialog() {
       // Use the centralized mutation — it invalidates the price-alerts
       // cache on success and (via the extended payload type) forwards
       // all the dialog's fields to the backend.
-      const data = await createAlertMut.mutateAsync({ body: {
-        phone: cleanPhone,
-        email: values.email || null,
-        fromName,
-        toName,
-        targetPrice: values.targetPrice,
-        frequency: values.frequency,
-      },
+      const data = await createAlertMut.mutateAsync({
+        body: {
+          phone: cleanPhone,
+          email: values.email || null,
+          fromName,
+          toName,
+          targetPrice: values.targetPrice,
+          frequency: values.frequency,
+        },
       } as unknown as Parameters<typeof createAlertMut.mutateAsync>[0])
 
       // Persist phone for future use
@@ -161,11 +154,7 @@ export function PriceAlertDialog() {
       setSuccess({ targetPrice: values.targetPrice })
       // The create mutation already invalidated the price-alerts cache,
       // so the `usePriceAlerts(phone)` query will refetch automatically.
-      toast.success(
-        data?.duplicate
-          ? t('priceAlert.duplicate')
-          : t('priceAlert.created'),
-      )
+      toast.success(data?.duplicate ? t('priceAlert.duplicate') : t('priceAlert.created'))
     } catch (e) {
       toast.error(getErrorMessage(e, t('priceAlert.createFailed')))
     } finally {
@@ -232,12 +221,16 @@ export function PriceAlertDialog() {
                 </Label>
                 <div className="flex items-center gap-2 rounded-lg border bg-slate-50 px-3 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold truncate">{fromName || t('priceAlert.notSelected')}</div>
+                    <div className="text-sm font-semibold truncate">
+                      {fromName || t('priceAlert.notSelected')}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">{t('search.from')}</div>
                   </div>
                   <ArrowRight className="h-4 w-4 text-blue-600 shrink-0" />
                   <div className="flex-1 min-w-0 text-right">
-                    <div className="text-sm font-semibold truncate">{toName || t('priceAlert.notSelected')}</div>
+                    <div className="text-sm font-semibold truncate">
+                      {toName || t('priceAlert.notSelected')}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">{t('search.to')}</div>
                   </div>
                 </div>
@@ -250,11 +243,7 @@ export function PriceAlertDialog() {
               </div>
 
               {/* Target price */}
-              <PriceAlertTargetField
-                form={form}
-                minPrice={minPrice}
-                targetPrice={targetPrice}
-              />
+              <PriceAlertTargetField form={form} minPrice={minPrice} targetPrice={targetPrice} />
 
               {/* Phone (required) */}
               <FormField
@@ -262,7 +251,10 @@ export function PriceAlertDialog() {
                 name="phone"
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
-                    <FormLabel htmlFor="alert-phone" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <FormLabel
+                      htmlFor="alert-phone"
+                      className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
                       {t('auth.phone')} <span className="text-destructive">*</span>
                     </FormLabel>
                     <div className="relative">
@@ -288,8 +280,14 @@ export function PriceAlertDialog() {
                 name="email"
                 render={({ field }) => (
                   <FormItem className="space-y-1.5">
-                    <FormLabel htmlFor="alert-email" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('auth.email')} <span className="text-muted-foreground/60 normal-case font-normal">{t('priceAlert.emailOptional')}</span>
+                    <FormLabel
+                      htmlFor="alert-email"
+                      className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                    >
+                      {t('auth.email')}{' '}
+                      <span className="text-muted-foreground/60 normal-case font-normal">
+                        {t('priceAlert.emailOptional')}
+                      </span>
                     </FormLabel>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />

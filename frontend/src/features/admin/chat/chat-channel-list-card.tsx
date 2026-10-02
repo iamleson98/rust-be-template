@@ -13,7 +13,12 @@ import { ChatChannelListSkeleton } from './chat-channel-list-skeleton'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
 import { PriorityBadge } from '@/features/admin/dashboard/priority-badge'
 import { StatusBadge } from '@/features/admin/dashboard/status-badge'
-import { customerDisplayName, customerInitial, customerSubtitle, PANES_HEIGHT } from './chat-helpers'
+import {
+  customerDisplayName,
+  customerInitial,
+  customerSubtitle,
+  PANES_HEIGHT,
+} from './chat-helpers'
 import { StaffPresenceStrip, type StaffPresence } from './staff-presence-strip'
 
 export function ChatChannelListCard({
@@ -70,7 +75,11 @@ export function ChatChannelListCard({
           <MessageSquare className="h-4 w-4 text-blue-600" />
           {t('chat.queue')}
           <span className="text-xs font-normal text-muted-foreground ml-auto">
-            {channels.length}{allChannelsCount != null && allChannelsCount !== channels.length ? `/${allChannelsCount}` : ''}{' '}{t('adminChat.channelNoun')}
+            {channels.length}
+            {allChannelsCount != null && allChannelsCount !== channels.length
+              ? `/${allChannelsCount}`
+              : ''}{' '}
+            {t('adminChat.channelNoun')}
           </span>
           {onToggleMineFilter && (
             <Button
@@ -93,7 +102,9 @@ export function ChatChannelListCard({
             {channelsLoading ? (
               <ChatChannelListSkeleton count={6} />
             ) : channels.length === 0 && !hasMoreChannels ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">{t('chat.noChannels')}</div>
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                {t('chat.noChannels')}
+              </div>
             ) : (
               channels.map((c) => {
                 const hasPulse = unreadPulseChannels?.has(c.id) ?? false
@@ -124,7 +135,9 @@ export function ChatChannelListCard({
                       <div className="flex items-center gap-2">
                         <div className="font-medium text-sm truncate">{customerDisplayName(c)}</div>
                         {c.brand?.name && (
-                          <Badge variant="outline" className="text-[10px]">{c.brand.name}</Badge>
+                          <Badge variant="outline" className="text-[10px]">
+                            {c.brand.name}
+                          </Badge>
                         )}
                         {c.assignedTo?.fullName && (
                           <Badge
@@ -136,7 +149,9 @@ export function ChatChannelListCard({
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <div className="text-xs text-muted-foreground truncate flex-1">{c.lastMessagePreview ?? c.topic}</div>
+                        <div className="text-xs text-muted-foreground truncate flex-1">
+                          {c.lastMessagePreview ?? c.topic}
+                        </div>
                         <PriorityBadge priority={c.priority} />
                       </div>
                       {/* Subtitle line — email or phone (whichever
@@ -153,9 +168,13 @@ export function ChatChannelListCard({
                       )}
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-[10px] text-muted-foreground">{c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {c.lastMessageAt ? relativeTime(c.lastMessageAt) : ''}
+                      </div>
                       {c.unreadEmployee > 0 && (
-                        <Badge className="bg-rose-500 text-white text-[10px] mt-1">{t('adminChat.newCount', { count: c.unreadEmployee })}</Badge>
+                        <Badge className="bg-rose-500 text-white text-[10px] mt-1">
+                          {t('adminChat.newCount', { count: c.unreadEmployee })}
+                        </Badge>
                       )}
                       <StatusBadge status={c.status} />
                     </div>

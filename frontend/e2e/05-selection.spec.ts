@@ -101,10 +101,7 @@ test.describe('ToggleGroup', () => {
     await page.getByTestId('toggle-group-grid').click()
     await expect(page.getByTestId('toggle-group-mirror')).toHaveText('grid')
     // Base UI marks pressed toggles with the present-only data-pressed attr
-    await expect(page.getByTestId('toggle-group-grid')).toHaveAttribute(
-      'data-pressed',
-      '',
-    )
+    await expect(page.getByTestId('toggle-group-grid')).toHaveAttribute('data-pressed', '')
 
     await page.getByTestId('toggle-group-map').click()
     await expect(page.getByTestId('toggle-group-mirror')).toHaveText('map')
@@ -128,10 +125,7 @@ test.describe('Calendar', () => {
     expect(initial).toBeTruthy()
 
     // Click day 15 of the displayed month
-    const day = page
-      .getByTestId('calendar-demo')
-      .getByRole('button', { name: /15/ })
-      .first()
+    const day = page.getByTestId('calendar-demo').getByRole('button', { name: /15/ }).first()
     await day.click()
     await expect(mirror).toContainText('/2026')
     const updated = await mirror.textContent()
@@ -140,9 +134,7 @@ test.describe('Calendar', () => {
 
   test('prev-month navigation changes the grid', async ({ page }) => {
     const calendar = page.getByTestId('calendar-demo')
-    const caption = await calendar
-      .getByRole('button', { name: /previous/i })
-      .count()
+    const caption = await calendar.getByRole('button', { name: /previous/i }).count()
     if (caption > 0) {
       const initialGrid = await calendar.getByRole('grid').innerHTML()
       await calendar.getByRole('button', { name: /previous/i }).click()

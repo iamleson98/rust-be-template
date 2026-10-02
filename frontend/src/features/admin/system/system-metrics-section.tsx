@@ -25,10 +25,10 @@ import { HostCard } from './host-card'
 import { MemoryCard } from './memory-card'
 import { ProcessCard } from './process-card'
 
-const POLL_SECONDS = 5;
+const POLL_SECONDS = 5
 
 export function SystemMetricsSection() {
-  const metricsQuery = useSystemMetrics();
+  const metricsQuery = useSystemMetrics()
 
   return (
     <section id="server-metrics" data-testid="system-metrics" className="space-y-3">
@@ -65,9 +65,7 @@ export function SystemMetricsSection() {
             <div>
               <p className="font-medium">Failed to load server metrics</p>
               <p className="text-sm text-muted-foreground">
-                {metricsQuery.error instanceof Error
-                  ? metricsQuery.error.message
-                  : 'Unknown error'}
+                {metricsQuery.error instanceof Error ? metricsQuery.error.message : 'Unknown error'}
               </p>
             </div>
           </CardContent>
@@ -111,5 +109,5 @@ export function SystemMetricsSection() {
         </div>
       ) : null}
     </section>
-  );
+  )
 }

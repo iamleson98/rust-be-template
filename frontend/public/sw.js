@@ -34,9 +34,7 @@ self.addEventListener('activate', (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys
-            .filter((k) => k !== PRECACHE && k !== RUNTIME)
-            .map((k) => caches.delete(k)),
+          keys.filter((k) => k !== PRECACHE && k !== RUNTIME).map((k) => caches.delete(k)),
         ),
       )
       .then(() => self.clients.claim()),
@@ -68,9 +66,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(RUNTIME).then((cache) => cache.put(req, copy))
           return resp
         })
-        .catch(() =>
-          caches.match(req).then((cached) => cached || caches.match('/offline.html')),
-        ),
+        .catch(() => caches.match(req).then((cached) => cached || caches.match('/offline.html'))),
     )
     return
   }

@@ -9,11 +9,7 @@ export function HeroBackground() {
     <div className="absolute inset-0 -z-10 bg-slate-900">
       <picture>
         {/* AVIF — smallest, modern browsers only */}
-        <source
-          srcSet="/hero-vietnam-bus.avif"
-          type="image/avif"
-          media="(min-width: 641px)"
-        />
+        <source srcSet="/hero-vietnam-bus.avif" type="image/avif" media="(min-width: 641px)" />
         {/* WebP — broad modern-browser support */}
         <source
           srcSet="/hero-vietnam-bus-mobile.webp 640w, /hero-vietnam-bus.webp 1344w"
@@ -37,7 +33,7 @@ export function HeroBackground() {
           width={1344}
           height={768}
           onError={(e) => {
-            ; (e.target as HTMLImageElement).style.display = 'none'
+            ;(e.target as HTMLImageElement).style.display = 'none'
           }}
         />
       </picture>
@@ -49,16 +45,42 @@ export function HeroBackground() {
       <div
         className="absolute inset-0 opacity-[0.025]"
         style={{
-          backgroundImage:
-            'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
+          backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
           backgroundSize: '32px 32px',
         }}
       />
       {/* Decorative bus route dashed lines — very subtle */}
-      <svg className="absolute inset-0 w-full h-full opacity-[0.04]" xmlns="http://www.w3.org/2000/svg">
-        <line x1="5%" y1="30%" x2="95%" y2="30%" stroke="white" strokeWidth="1" strokeDasharray="8 12" />
-        <line x1="10%" y1="55%" x2="90%" y2="55%" stroke="white" strokeWidth="1" strokeDasharray="6 10" />
-        <line x1="8%" y1="78%" x2="92%" y2="78%" stroke="white" strokeWidth="0.5" strokeDasharray="4 8" />
+      <svg
+        className="absolute inset-0 w-full h-full opacity-[0.04]"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <line
+          x1="5%"
+          y1="30%"
+          x2="95%"
+          y2="30%"
+          stroke="white"
+          strokeWidth="1"
+          strokeDasharray="8 12"
+        />
+        <line
+          x1="10%"
+          y1="55%"
+          x2="90%"
+          y2="55%"
+          stroke="white"
+          strokeWidth="1"
+          strokeDasharray="6 10"
+        />
+        <line
+          x1="8%"
+          y1="78%"
+          x2="92%"
+          y2="78%"
+          stroke="white"
+          strokeWidth="0.5"
+          strokeDasharray="4 8"
+        />
       </svg>
 
       {/* Static decorative bus/route icons — subtle, low opacity */}

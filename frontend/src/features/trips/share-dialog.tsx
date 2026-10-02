@@ -97,14 +97,18 @@ export function ShareDialog() {
     const quote = encodeURIComponent(
       shareTripData
         ? t('trips.shareQuote', {
-          from: shareTripData.fromName,
-          to: shareTripData.toName,
-          price: formatCurrency(shareTripData.minPrice, currency),
-          brand: shareTripData.brandName,
-        })
+            from: shareTripData.fromName,
+            to: shareTripData.toName,
+            price: formatCurrency(shareTripData.minPrice, currency),
+            brand: shareTripData.brandName,
+          })
         : t('trips.shareFallbackQuote'),
     )
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`, '_blank', 'noopener,noreferrer,width=640,height=540')
+    window.open(
+      `https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`,
+      '_blank',
+      'noopener,noreferrer,width=640,height=540',
+    )
   }
 
   const handleZalo = () => {
@@ -116,7 +120,11 @@ export function ShareDialog() {
         ? `${shareTripData.fromName} → ${shareTripData.toName} • ${shareTripData.brandName}`
         : 'DatXeVui',
     )
-    window.open(`https://zalo.me/share?url=${u}&title=${desc}`, '_blank', 'noopener,noreferrer,width=640,height=540')
+    window.open(
+      `https://zalo.me/share?url=${u}&title=${desc}`,
+      '_blank',
+      'noopener,noreferrer,width=640,height=540',
+    )
   }
 
   const handleWhatsApp = () => {
@@ -130,7 +138,11 @@ export function ShareDialog() {
         url: shareInfo.url,
       }),
     )
-    window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank', 'noopener,noreferrer,width=640,height=540')
+    window.open(
+      `https://api.whatsapp.com/send?text=${text}`,
+      '_blank',
+      'noopener,noreferrer,width=640,height=540',
+    )
   }
 
   return (
@@ -143,15 +155,17 @@ export function ShareDialog() {
             <Share2 className="h-4 w-4 text-blue-600" />
             {t('trips.shareTrip')}
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            {t('trips.shareTripDesc')}
-          </DialogDescription>
+          <DialogDescription className="text-xs">{t('trips.shareTripDesc')}</DialogDescription>
         </DialogHeader>
 
         {shareTripData && shareInfo && (
           <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
             {/* Trip Card Preview */}
-            <ShareTripCard shareTripData={shareTripData} shareInfo={shareInfo} currency={currency} />
+            <ShareTripCard
+              shareTripData={shareTripData}
+              shareInfo={shareInfo}
+              currency={currency}
+            />
 
             {/* Action grid */}
             <ShareActionGrid

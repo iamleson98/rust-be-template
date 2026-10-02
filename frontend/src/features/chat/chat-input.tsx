@@ -53,7 +53,9 @@ export function ChatInput({
     <>
       {showQuickActions && (
         <div className="border-t px-3 py-2 bg-linear-to-b from-rose-50/50 to-white">
-          <div className="text-[10px] text-muted-foreground mb-1.5 font-medium">{t('chat.quickActions')}</div>
+          <div className="text-[10px] text-muted-foreground mb-1.5 font-medium">
+            {t('chat.quickActions')}
+          </div>
           <div className="flex gap-1.5 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
             {getQuickActions().map((qa) => (
               <button

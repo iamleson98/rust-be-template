@@ -284,15 +284,16 @@ class CallController extends Notifier<CallUiState> {
         engine
             .acceptRenegotiateOffer(Map<String, dynamic>.from(sdp))
             .then((answer) {
-          _remoteDescReady = true;
-          _flushPendingRemoteCandidates();
-          sig.sendRenegotiateAnswer(from, answer);
-          // Fresh candidates are coming — extend the media deadline so a
-          // slow restart isn't killed by the old timer.
-          _startConnectTimeout();
-        }).catchError((_) {
-          _hangup('remote');
-        }),
+              _remoteDescReady = true;
+              _flushPendingRemoteCandidates();
+              sig.sendRenegotiateAnswer(from, answer);
+              // Fresh candidates are coming — extend the media deadline so a
+              // slow restart isn't killed by the old timer.
+              _startConnectTimeout();
+            })
+            .catchError((_) {
+              _hangup('remote');
+            }),
       );
     } else if (kind == 'answer') {
       engine
@@ -315,7 +316,8 @@ class CallController extends Notifier<CallUiState> {
   /// about it and would show "in call" forever.
   void _reconcileWithServerCallState(Object? activeCall) {
     final status = state.status;
-    final inCall = status == CallStatus.calling ||
+    final inCall =
+        status == CallStatus.calling ||
         status == CallStatus.connecting ||
         status == CallStatus.active;
     if (!inCall) return;
@@ -325,9 +327,7 @@ class CallController extends Notifier<CallUiState> {
       // audio is peer-to-peer and only this reconciliation decides).
       return;
     }
-    _endCallInternal(
-      error: 'Mất kết nối cuộc gọi — đã kết thúc',
-    );
+    _endCallInternal(error: 'Mất kết nối cuộc gọi — đã kết thúc');
   }
 
   /// Signaling-socket lifecycle: a socket that DROPS while we're in a
@@ -367,10 +367,9 @@ class CallController extends Notifier<CallUiState> {
     // Busy guard: one call at a time. Auto-reject so the caller gets an
     // immediate answer instead of ringing into a void.
     if (state.status != CallStatus.idle) {
-      ref.read(callSignalingProvider)?.hangup(
-            msg['from'] as String? ?? '',
-            'busy',
-          );
+      ref
+          .read(callSignalingProvider)
+          ?.hangup(msg['from'] as String? ?? '', 'busy');
       return;
     }
     final from = msg['from'] as String?;
@@ -412,12 +411,15 @@ class CallController extends Notifier<CallUiState> {
       clearError: true,
     );
     unawaited(ref.read(soundServiceProvider).playCallJoined());
-    _engine?.setRemoteAnswer(Map<String, dynamic>.from(sdp)).then((_) {
-      // Remote SDP settled — the answerer's candidates that raced the
-      // answer frame can be applied now.
-      _remoteDescReady = true;
-      _flushPendingRemoteCandidates();
-    }).catchError((_) {});
+    _engine
+        ?.setRemoteAnswer(Map<String, dynamic>.from(sdp))
+        .then((_) {
+          // Remote SDP settled — the answerer's candidates that raced the
+          // answer frame can be applied now.
+          _remoteDescReady = true;
+          _flushPendingRemoteCandidates();
+        })
+        .catchError((_) {});
     // The caller jumps straight to `active` on the answer — media may
     // still be negotiating. Same guard as the callee's `connecting`.
     _startConnectTimeout();
@@ -431,8 +433,8 @@ class CallController extends Notifier<CallUiState> {
       // Ring phase (engine not created yet) or remote SDP not settled:
       // buffer — never drop. A dropped candidate is never re-sent and
       // leaves the remote candidate set incomplete.
-      final live = state.status != CallStatus.idle &&
-          state.status != CallStatus.ended;
+      final live =
+          state.status != CallStatus.idle && state.status != CallStatus.ended;
       if (live &&
           _pendingRemoteCandidates.length < _maxPendingRemoteCandidates) {
         _pendingRemoteCandidates.add(cand);
@@ -565,19 +567,22 @@ class CallController extends Notifier<CallUiState> {
     _iceRestarts++;
     _connectTimer?.cancel();
     unawaited(
-      engine.createRestartOffer().then((offer) {
-        if (state.status != CallStatus.active &&
-            state.status != CallStatus.connecting) {
-          return; // call ended while re-offering
-        }
-        if (!sig.sendRenegotiateOffer(peer, offer)) {
-          _hangup('remote');
-          return;
-        }
-        _startConnectTimeout();
-      }).catchError((_) {
-        _hangup('remote');
-      }),
+      engine
+          .createRestartOffer()
+          .then((offer) {
+            if (state.status != CallStatus.active &&
+                state.status != CallStatus.connecting) {
+              return; // call ended while re-offering
+            }
+            if (!sig.sendRenegotiateOffer(peer, offer)) {
+              _hangup('remote');
+              return;
+            }
+            _startConnectTimeout();
+          })
+          .catchError((_) {
+            _hangup('remote');
+          }),
     );
   }
 
@@ -608,8 +613,7 @@ class CallController extends Notifier<CallUiState> {
               state.status == CallStatus.active)) {
         _endCallInternal(
           reason: null,
-          error:
-              'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
+          error: 'Không kết nối được âm thanh — mạng hiện tại có thể chặn cuộc gọi (thử mạng khác, tắt VPN hoặc kiểm tra firewall công ty)',
         );
         // Tell the peer we're gone so their side doesn't ring on.
         final sig = ref.read(callSignalingProvider);
@@ -621,7 +625,11 @@ class CallController extends Notifier<CallUiState> {
     });
   }
 
-  void _endCallInternal({String? reason, String? error, bool flashEnded = true}) {
+  void _endCallInternal({
+    String? reason,
+    String? error,
+    bool flashEnded = true,
+  }) {
     _callTimer?.cancel();
     _ringTimer?.cancel();
     _connectTimer?.cancel();
@@ -688,8 +696,9 @@ class CallController extends Notifier<CallUiState> {
   }
 }
 
-final callUiStateProvider =
-    NotifierProvider<CallController, CallUiState>(CallController.new);
+final callUiStateProvider = NotifierProvider<CallController, CallUiState>(
+  CallController.new,
+);
 
 /// Exposed for the app-level navigation listener (pushes/pops `/call`).
 enum CallNav { none, showCall, dismissCall }

@@ -90,9 +90,7 @@ export function Gallery() {
       <header className="bg-background w-full border-b" data-testid="gallery-header">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-6 py-4">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">
-              DatXeVui UI Component Gallery
-            </h1>
+            <h1 className="text-xl font-bold tracking-tight">DatXeVui UI Component Gallery</h1>
             <p className="text-muted-foreground text-sm">
               {SECTIONS.length} base components · dev-only test harness
             </p>
@@ -123,12 +121,7 @@ export function Gallery() {
         <FeedbackSections />
       </main>
 
-      <Toaster
-        position="top-right"
-        richColors
-        closeButton
-        data-testid="toaster"
-      />
+      <Toaster position="top-right" richColors closeButton data-testid="toaster" />
     </div>
   )
 }

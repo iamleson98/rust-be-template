@@ -20,10 +20,7 @@ import { PopularRoutesQuickSelect } from './popular-routes-quick-select'
 
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const t = useT()
-  const {
-    searchParams,
-    setSearchParams,
-  } = useApp()
+  const { searchParams, setSearchParams } = useApp()
   const navigate = useNavigate()
   const [paxOpen, setPaxOpen] = useState(false)
   // Local "submitting" flag — we briefly disable the submit button while
@@ -67,43 +64,46 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
     setSearchParams({ from: searchParams.to, to: searchParams.from })
   }, [searchParams.from, searchParams.to, setSearchParams])
 
-  const onValid = useCallback(async (values: SearchFormValues) => {
-    // Navigate to the /search route with typed search params — the route's
-    // `validateSearch` parses them and `useTripSearch` runs the actual fetch.
-    // We still call `setSearchParams` so the form stays in sync with the
-    // last-submitted values (used for round-trip UI and persistence).
-    setSearchParams({
-      from: values.from,
-      to: values.to,
-      date: values.date,
-      adults: values.adults,
-      children: values.children,
-      sort: values.sort,
-      roundTrip: values.roundTrip,
-      returnDate: values.returnDate,
-      vehicleTypes: values.vehicleTypes,
-    })
-    setSubmitting(true)
-    try {
-      navigate({
-        to: '/search',
-        search: buildSearchInput({
-          from: values.from,
-          to: values.to,
-          date: values.date,
-          adults: values.adults,
-          children: values.children,
-          sort: values.sort,
-          vehicleTypes: values.vehicleTypes,
-          roundTrip: values.roundTrip,
-          returnDate: values.returnDate,
-        }),
+  const onValid = useCallback(
+    async (values: SearchFormValues) => {
+      // Navigate to the /search route with typed search params — the route's
+      // `validateSearch` parses them and `useTripSearch` runs the actual fetch.
+      // We still call `setSearchParams` so the form stays in sync with the
+      // last-submitted values (used for round-trip UI and persistence).
+      setSearchParams({
+        from: values.from,
+        to: values.to,
+        date: values.date,
+        adults: values.adults,
+        children: values.children,
+        sort: values.sort,
+        roundTrip: values.roundTrip,
+        returnDate: values.returnDate,
+        vehicleTypes: values.vehicleTypes,
       })
-    } finally {
-      // Reset shortly after navigation — the route transition is async.
-      setTimeout(() => setSubmitting(false), 300)
-    }
-  }, [setSearchParams, navigate])
+      setSubmitting(true)
+      try {
+        navigate({
+          to: '/search',
+          search: buildSearchInput({
+            from: values.from,
+            to: values.to,
+            date: values.date,
+            adults: values.adults,
+            children: values.children,
+            sort: values.sort,
+            vehicleTypes: values.vehicleTypes,
+            roundTrip: values.roundTrip,
+            returnDate: values.returnDate,
+          }),
+        })
+      } finally {
+        // Reset shortly after navigation — the route transition is async.
+        setTimeout(() => setSubmitting(false), 300)
+      }
+    },
+    [setSearchParams, navigate],
+  )
 
   // Form submission can also be triggered programmatically (the search
   // button lives inside the <form> so this is mostly a convenience for
@@ -165,7 +165,6 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
           ) : (
             /* ── Full widget (home page) ── */
             <>
-
               <div
                 className={cn(
                   'grid grid-cols-1 gap-3 items-start',
@@ -204,10 +203,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
 
       {/* Popular routes quick-select */}
       {!compact && (
-        <PopularRoutesQuickSelect
-          searchParams={searchParams}
-          setSearchParams={setSearchParams}
-        />
+        <PopularRoutesQuickSelect searchParams={searchParams} setSearchParams={setSearchParams} />
       )}
     </div>
   )

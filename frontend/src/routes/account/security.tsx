@@ -21,7 +21,9 @@ export function AccountSecurityPage() {
                 <Lock className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <div className="text-sm font-medium">{t('auth.password')}</div>
-                  <div className="text-xs text-muted-foreground">{t('accountPage.changePasswordDesc')}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('accountPage.changePasswordDesc')}
+                  </div>
                 </div>
               </div>
               {/* No dead affordance: there is no change-password endpoint in
@@ -32,7 +34,9 @@ export function AccountSecurityPage() {
                 <Smartphone className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <div className="text-sm font-medium">{t('accountPage.twoFactor')}</div>
-                  <div className="text-xs text-muted-foreground">{t('accountPage.twoFactorDesc')}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {t('accountPage.twoFactorDesc')}
+                  </div>
                 </div>
               </div>
               <span className="text-xs text-muted-foreground">{t('accountPage.notEnabled')}</span>

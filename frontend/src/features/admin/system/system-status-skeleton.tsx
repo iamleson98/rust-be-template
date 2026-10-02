@@ -10,7 +10,11 @@ import { Shimmer } from '@/components/ui/shimmer'
  */
 export const SystemStatusSkeleton = memo(function SystemStatusSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4" aria-hidden data-testid="system-status-skeleton">
+    <div
+      className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+      aria-hidden
+      data-testid="system-status-skeleton"
+    >
       {[0, 1, 2, 3].map((i) => (
         <div key={i} className="rounded-xl border bg-card py-6">
           <div className="space-y-3 px-6">

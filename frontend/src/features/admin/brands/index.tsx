@@ -33,15 +33,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
-import {
-  Building2,
-  Loader2,
-  Plus,
-  RotateCcw,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react'
+import { Building2, Loader2, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useAdminBrands,
@@ -54,11 +46,7 @@ import {
 import { useT } from '@/lib/i18n'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { DeleteTarget } from '@/features/admin/types'
-import type {
-  AdminBrandOut,
-  AdminRouteOut,
-  AdminScheduleOut,
-} from '@/lib/api/types.gen'
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
 import { CITY_ITEMS, cityLabel } from '@/features/admin/routes/city-select-content'
 import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
@@ -88,10 +76,7 @@ export function AdminBrandManagement() {
   // City filter options — flat list with an "any" reset entry first,
   // then every Vietnamese city (searchable in the combobox).
   const CITY_FILTER_ITEMS = useMemo(
-    () => [
-      { value: 'any', label: t('brands.anyPoint') },
-      ...CITY_ITEMS,
-    ],
+    () => [{ value: 'any', label: t('brands.anyPoint') }, ...CITY_ITEMS],
     [t],
   )
 
@@ -105,11 +90,7 @@ export function AdminBrandManagement() {
         value: key,
         label:
           t(SCHEDULE_SORT_LABELS[key]) +
-          (scheduleSort?.key === key
-            ? scheduleSort.dir === 'desc'
-              ? ' ↓'
-              : ' ↑'
-            : ''),
+          (scheduleSort?.key === key ? (scheduleSort.dir === 'desc' ? ' ↓' : ' ↑') : ''),
       })),
     ]
   }, [scheduleSort, t])
@@ -268,7 +249,8 @@ export function AdminBrandManagement() {
     onAddRoute: (brand) => setRouteDialog({ open: true, route: null, brand }),
     onEditRoute: (route, brand) => setRouteDialog({ open: true, route, brand }),
     onDeleteRoute: (route) => setDeleteTarget({ kind: 'route', id: route.id, name: route.name }),
-    onAddSchedule: (route, brand) => setScheduleDialog({ open: true, schedule: null, route, brand }),
+    onAddSchedule: (route, brand) =>
+      setScheduleDialog({ open: true, schedule: null, route, brand }),
     onEditSchedule: (schedule, route, brand) =>
       setScheduleDialog({ open: true, schedule, route, brand }),
     onDeleteSchedule: (schedule, route) =>
@@ -305,9 +287,7 @@ export function AdminBrandManagement() {
             <Building2 className="h-5 w-5 text-blue-600" />
             {t('brands.title')}
           </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {t('brands.subtitle')}
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('brands.subtitle')}</p>
         </div>
         <Button size="sm" onClick={() => setBrandDialog({ open: true, brand: null })}>
           <Plus className="h-4 w-4" /> {t('brands.addBrand')}
@@ -394,7 +374,10 @@ export function AdminBrandManagement() {
                 <RotateCcw className="h-3.5 w-3.5" /> {t('brands.clearFilter')}
               </Button>
               {filteredRoutesQuery.isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin text-blue-600" aria-label={t('brands.filtering')} />
+                <Loader2
+                  className="h-4 w-4 animate-spin text-blue-600"
+                  aria-label={t('brands.filtering')}
+                />
               ) : (
                 <span className="text-xs text-muted-foreground">{filterSummary}</span>
               )}
@@ -429,7 +412,9 @@ export function AdminBrandManagement() {
         open={routeDialog.open}
         route={routeDialog.route}
         brand={routeDialog.brand}
-        onOpenChange={(open) => setRouteDialog({ open, route: open ? routeDialog.route : null, brand: routeDialog.brand })}
+        onOpenChange={(open) =>
+          setRouteDialog({ open, route: open ? routeDialog.route : null, brand: routeDialog.brand })
+        }
         onSaved={() => setRouteDialog({ open: false, route: null, brand: null })}
       />
       <ScheduleFormDialog
@@ -444,9 +429,7 @@ export function AdminBrandManagement() {
             open ? prev : { open: false, schedule: null, route: null, brand: null },
           )
         }
-        onSaved={() =>
-          setScheduleDialog({ open: false, schedule: null, route: null, brand: null })
-        }
+        onSaved={() => setScheduleDialog({ open: false, schedule: null, route: null, brand: null })}
       />
       <RoutePickupPointsDialog route={pickupRoute} onOpenChange={() => setPickupRoute(null)} />
 
@@ -463,16 +446,9 @@ export function AdminBrandManagement() {
             <AlertDialogDescription>
               {t('adminBrands.deleteConfirmQ')}{' '}
               <span className="font-semibold text-foreground">{deleteTarget?.name}</span>?
-              {deleteTarget?.kind === 'brand' && (
-                <>
-                  {' '}
-                  {t('adminBrands.deleteBrandCascade')}
-                </>
-              )}
-              {deleteTarget?.kind === 'route' && (
-                <> {t('adminBrands.deleteRouteCascade')}</>
-              )}
-              {' '}{t('common.confirmDeleteBody')}
+              {deleteTarget?.kind === 'brand' && <> {t('adminBrands.deleteBrandCascade')}</>}
+              {deleteTarget?.kind === 'route' && <> {t('adminBrands.deleteRouteCascade')}</>}{' '}
+              {t('common.confirmDeleteBody')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -138,7 +138,9 @@ export function RouteFormDialog({
         } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
         toast.success(t('routeForm.updated'))
       } else {
-        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
+        await createMutation.mutateAsync({ body: payload } as unknown as Parameters<
+          typeof createMutation.mutateAsync
+        >[0])
         toast.success(t('routeForm.created'))
       }
       onSaved()

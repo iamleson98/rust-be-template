@@ -19,7 +19,7 @@
 //!
 //! ## Setup
 //!
-//! 1. Create a Discord Application at https://discord.com/developers/applications
+//! 1. Create a Discord Application at <<https://discord.com/developers/applications>>
 //! 2. Add a Bot + configure Interactions Endpoint URL to
 //!    `https://yourdomain.com/api/webhooks/discord`
 //! 3. Set `DISCORD_PUBLIC_KEY` (Application → General → Public Key)

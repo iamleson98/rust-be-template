@@ -31,9 +31,7 @@ export function DataTableViewOptions<TData extends RowData>({
   className?: string
 }) {
   const t = useT()
-  const hideableColumns = table
-    .getAllColumns()
-    .filter((column) => column.getCanHide())
+  const hideableColumns = table.getAllColumns().filter((column) => column.getCanHide())
 
   if (hideableColumns.length === 0) return null
 

@@ -6,9 +6,7 @@ import { expect, type Page } from '@playwright/test'
  */
 export async function gotoGallery(page: Page) {
   await page.goto('/ui-gallery.html')
-  await expect(
-    page.getByRole('heading', { name: 'DatXeVui UI Component Gallery' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'DatXeVui UI Component Gallery' })).toBeVisible()
 
   // Reset to light theme for deterministic tests (unless the test
   // itself opts into dark mode via toggleDarkMode below).

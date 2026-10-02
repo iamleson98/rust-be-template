@@ -8,12 +8,7 @@
  */
 
 import { Button } from '@/components/ui/button'
-import {
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { useT } from '@/lib/i18n'
 import type { ScheduleFormInstance } from './schedule-schema'
 
@@ -52,10 +47,11 @@ export function ScheduleDaysField({
                 key={i}
                 type="button"
                 onClick={() => toggleDay(i)}
-                className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${field.value[i]
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-muted-foreground hover:bg-slate-50'
-                  }`}
+                className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
+                  field.value[i]
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-muted-foreground hover:bg-slate-50'
+                }`}
               >
                 {t(key)}
               </button>

@@ -179,17 +179,21 @@ export function DataTable<TData extends RowData>({
     features: dataTableFeatures,
     data,
     columns,
-    getRowId: getRowId ?? ((row, index) => {
-      const id = (row as { id?: unknown }).id
-      return id == null ? String(index) : String(id)
-    }),
+    getRowId:
+      getRowId ??
+      ((row, index) => {
+        const id = (row as { id?: unknown }).id
+        return id == null ? String(index) : String(id)
+      }),
     manualPagination,
     manualSorting,
     autoResetPageIndex: !manualPagination,
     rowCount: manualPagination ? totalRowCount : undefined,
     onSortingChange: (updater) => {
       const next =
-        typeof updater === 'function' ? (updater as (prev: SortingState) => SortingState)(sorting) : updater
+        typeof updater === 'function'
+          ? (updater as (prev: SortingState) => SortingState)(sorting)
+          : updater
       if (onSortingChange) {
         onSortingChange(next)
       } else {
@@ -225,11 +229,7 @@ export function DataTable<TData extends RowData>({
   const hideTableOnMobile = !!mobileList && !showSkeleton && !showError && !showEmpty
 
   return (
-    <div
-      className={cn('w-full', className)}
-      data-slot="data-table"
-      data-testid={testId}
-    >
+    <div className={cn('w-full', className)} data-slot="data-table" data-testid={testId}>
       <div
         className={cn(
           bordered && 'overflow-hidden rounded-lg border bg-card',
@@ -379,10 +379,10 @@ export function DataTable<TData extends RowData>({
                       onKeyDown={
                         onRowClick
                           ? (event) => {
-                            if (event.key === 'Enter' && event.target === event.currentTarget) {
-                              onRowClick(row.original)
+                              if (event.key === 'Enter' && event.target === event.currentTarget) {
+                                onRowClick(row.original)
+                              }
                             }
-                          }
                           : undefined
                       }
                     >

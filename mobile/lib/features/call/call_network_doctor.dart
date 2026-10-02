@@ -113,9 +113,9 @@ _Endpoint? _parseIceUrl(String url) {
 }
 
 int _defaultPort(String scheme) => switch (scheme) {
-      'turns' => 5349,
-      _ => 3478,
-    };
+  'turns' => 5349,
+  _ => 3478,
+};
 
 // ── Probe engine ─────────────────────────────────────────────────
 
@@ -149,8 +149,7 @@ Future<String> _probe(_Endpoint e) async {
       );
       try {
         socket.add(_stunRequest(_allocateRequest, txid));
-        final data = await socket.first
-            .timeout(const Duration(seconds: 5));
+        final data = await socket.first.timeout(const Duration(seconds: 5));
         final parsed = _parseStun(data, txid);
         if (parsed == null || !parsed.txMatch) {
           throw const SocketException('đáp ứng không phải STUN');
@@ -171,12 +170,13 @@ Future<String> _probe(_Endpoint e) async {
       timeout: const Duration(seconds: 8),
     );
     try {
-      socket.add(_stunRequest(
-        e.scheme == 'stun' ? _bindingRequest : _allocateRequest,
-        txid,
-      ));
-      final data =
-          await socket.first.timeout(const Duration(seconds: 5));
+      socket.add(
+        _stunRequest(
+          e.scheme == 'stun' ? _bindingRequest : _allocateRequest,
+          txid,
+        ),
+      );
+      final data = await socket.first.timeout(const Duration(seconds: 5));
       final parsed = _parseStun(data, txid);
       if (parsed == null || !parsed.txMatch) {
         throw const SocketException('đáp ứng không phải STUN');
@@ -189,8 +189,10 @@ Future<String> _probe(_Endpoint e) async {
 
   // UDP — best effort; silently dropped packets are the NORM on
   // corporate networks, which is exactly what this screen must show.
-  final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0)
-      .timeout(const Duration(seconds: 5));
+  final socket = await RawDatagramSocket.bind(
+    InternetAddress.anyIPv4,
+    0,
+  ).timeout(const Duration(seconds: 5));
   final completer = Completer<void>();
   // RawDatagramSocket is a single-subscription stream — exactly ONE
   // listener, registered before anything else touches the socket.
@@ -212,9 +214,12 @@ Future<String> _probe(_Endpoint e) async {
       txid,
     );
     socket.send(req, addrs.first, e.port);
-    await completer.future.timeout(const Duration(seconds: 4), onTimeout: () {
-      throw const SocketException('hết thời gian chờ (mạng có thể chặn UDP)');
-    });
+    await completer.future.timeout(
+      const Duration(seconds: 4),
+      onTimeout: () {
+        throw const SocketException('hết thời gian chờ (mạng có thể chặn UDP)');
+      },
+    );
     final dg = socket.receive();
     if (dg == null) {
       throw const SocketException('không nhận được gói tin');
@@ -464,10 +469,26 @@ class _CallNetworkDoctorScreenState
 
   Widget _probeTile(FThemeData theme, _ProbeResult r) {
     final (color, icon, label) = switch (r.status) {
-      ProbeStatus.waiting => (theme.colors.mutedForeground, FLucideIcons.hourglass, 'Chờ'),
-      ProbeStatus.running => (theme.colors.primary, FLucideIcons.loader, 'Đang kiểm tra…'),
-      ProbeStatus.ok => (Colors.green.shade600, FLucideIcons.circleCheck, 'Hoạt động'),
-      ProbeStatus.fail => (Colors.red.shade600, FLucideIcons.circleX, 'Không kết nối được'),
+      ProbeStatus.waiting => (
+        theme.colors.mutedForeground,
+        FLucideIcons.hourglass,
+        'Chờ',
+      ),
+      ProbeStatus.running => (
+        theme.colors.primary,
+        FLucideIcons.loader,
+        'Đang kiểm tra…',
+      ),
+      ProbeStatus.ok => (
+        Colors.green.shade600,
+        FLucideIcons.circleCheck,
+        'Hoạt động',
+      ),
+      ProbeStatus.fail => (
+        Colors.red.shade600,
+        FLucideIcons.circleX,
+        'Không kết nối được',
+      ),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -494,10 +515,11 @@ class _CallNetworkDoctorScreenState
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  r.status == ProbeStatus.waiting || r.status == ProbeStatus.running
+                  r.status == ProbeStatus.waiting ||
+                          r.status == ProbeStatus.running
                       ? label
                       : '$label — ${r.detail}'
-                          '${r.elapsedMs > 0 ? ' (${r.elapsedMs} ms)' : ''}',
+                            '${r.elapsedMs > 0 ? ' (${r.elapsedMs} ms)' : ''}',
                   style: theme.typography.body.sm.copyWith(
                     color: r.status == ProbeStatus.fail
                         ? Colors.red.shade700
@@ -515,15 +537,14 @@ class _CallNetworkDoctorScreenState
   Widget _verdictCard(FThemeData theme) {
     final usable = _usable;
     final tlsOk = usable.any((r) => r.endpoint.scheme == 'turns');
-    final tcpOk = usable.any((r) =>
-        r.endpoint.scheme == 'turn' && r.endpoint.transport == 'tcp');
+    final tcpOk = usable.any(
+      (r) => r.endpoint.scheme == 'turn' && r.endpoint.transport == 'tcp',
+    );
     final udpOk = usable.isNotEmpty && !tlsOk && !tcpOk;
 
     final (title, body, color, icon) = tlsOk || tcpOk
         ? (
-            tlsOk
-                ? 'Mạng này gọi được'
-                : 'Mạng này gọi được (TCP)',
+            tlsOk ? 'Mạng này gọi được' : 'Mạng này gọi được (TCP)',
             tlsOk
                 ? 'Đường TURN qua TLS trên cổng 443 hoạt động — đây chính là đường cuộc gọi sẽ dùng. Nếu cuộc gọi vẫn không kết nối được, lỗi nằm ở khâu khác (thử lại, hoặc kiểm tra tai nghe/micro).'
                 : 'Đường TURN qua TCP hoạt động. Nếu cuộc gọi vẫn kẹt, có thể mạng chỉ chặn UDP — vẫn ổn.',
@@ -531,18 +552,18 @@ class _CallNetworkDoctorScreenState
             FLucideIcons.badgeCheck,
           )
         : udpOk
-            ? (
-                'Chỉ có UDP hoạt động',
-                'Mạng này cho phép UDP. Nếu cuộc gọi kẹt ở "đang kết nối", hãy chạy lại kiểm tra ở thời điểm lỗi xảy ra.',
-                Colors.amber.shade700,
-                FLucideIcons.info,
-              )
-            : (
-                'Mạng này đang chặn cuộc gọi',
-                'Không có đường TURN/STUN nào qua được. Với mạng công ty, yêu cầu IT mở kết nối TCP 443 tới ${_results.isNotEmpty ? _results.first.endpoint.host : 'máy chủ TURN'} (giao diện TLS). Không có đường này, cuộc gọi không thể kết nối.',
-                Colors.red.shade600,
-                FLucideIcons.octagonX,
-              );
+        ? (
+            'Chỉ có UDP hoạt động',
+            'Mạng này cho phép UDP. Nếu cuộc gọi kẹt ở "đang kết nối", hãy chạy lại kiểm tra ở thời điểm lỗi xảy ra.',
+            Colors.amber.shade700,
+            FLucideIcons.info,
+          )
+        : (
+            'Mạng này đang chặn cuộc gọi',
+            'Không có đường TURN/STUN nào qua được. Với mạng công ty, yêu cầu IT mở kết nối TCP 443 tới ${_results.isNotEmpty ? _results.first.endpoint.host : 'máy chủ TURN'} (giao diện TLS). Không có đường này, cuộc gọi không thể kết nối.',
+            Colors.red.shade600,
+            FLucideIcons.octagonX,
+          );
 
     return Container(
       padding: const EdgeInsets.all(14),

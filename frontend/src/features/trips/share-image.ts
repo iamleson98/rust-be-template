@@ -16,7 +16,9 @@ import { useApp } from '@/lib/store'
  * Render the trip card preview onto a canvas and download as PNG.
  * Uses standard 2D canvas API (no external libs).
  */
-export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.getState>['shareTripData']>) {
+export function downloadTripImage(
+  trip: NonNullable<ReturnType<typeof useApp.getState>['shareTripData']>,
+) {
   const lang = useApp.getState().lang
   const W = 1080
   const H = 1350
@@ -111,7 +113,14 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   if (!depTime && trip.departureAt) {
     depTime = formatTimeVN(trip.departureAt)
   }
-  const depDate = trip.departureAt ? formatDateVN(trip.departureAt, { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
+  const depDate = trip.departureAt
+    ? formatDateVN(trip.departureAt, {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      })
+    : ''
   ctx.fillStyle = '#64748b'
   ctx.font = '22px sans-serif'
   ctx.fillText(translate(lang, 'trips.imageDeparture'), cardX + 60, cardY + 460)
@@ -189,7 +198,14 @@ export function downloadTripImage(trip: NonNullable<ReturnType<typeof useApp.get
   }, 'image/png')
 }
 
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.lineTo(x + w - r, y)
@@ -203,7 +219,14 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath()
 }
 
-function roundRectTop(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function roundRectTop(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
   ctx.lineTo(x + w - r, y)

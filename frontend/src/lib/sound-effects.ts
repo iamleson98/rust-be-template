@@ -184,7 +184,7 @@ const sounds = {
       { freq: 523.25, dur: 110, type: 'sine', vol: 0.22 }, // C5
       { freq: 659.25, dur: 110, type: 'sine', vol: 0.22 }, // E5
       { freq: 783.99, dur: 110, type: 'sine', vol: 0.22 }, // G5
-      { freq: 1046.50, dur: 180, type: 'sine', vol: 0.22 }, // C6
+      { freq: 1046.5, dur: 180, type: 'sine', vol: 0.22 }, // C6
     ])
   },
 

@@ -61,7 +61,7 @@ impl CacheValue {
 ///
 /// Generic-free trait so it stays dyn-compatible. The convenience
 /// wrappers `get_serializable` / `set_serializable` live as free functions
-/// in [`cache::backend`] instead of as trait methods.
+/// in `cache::backend` instead of as trait methods.
 #[async_trait]
 pub trait CacheBackend: Send + Sync {
     async fn get(&self, key: &str) -> anyhow::Result<Option<CacheValue>>;

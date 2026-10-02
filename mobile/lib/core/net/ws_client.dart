@@ -33,9 +33,9 @@ class WsClient {
     Uri Function() uriBuilder, {
     Duration? pingInterval,
     String? heartbeatType,
-  })  : _uriBuilder = uriBuilder,
-        _appHeartbeatType = heartbeatType,
-        _pingInterval = pingInterval ?? const Duration(seconds: 20);
+  }) : _uriBuilder = uriBuilder,
+       _appHeartbeatType = heartbeatType,
+       _pingInterval = pingInterval ?? const Duration(seconds: 20);
 
   /// Re-evaluated on every (re)connect so a rotated access token is
   /// picked up without rebuilding the service.
@@ -95,15 +95,12 @@ class WsClient {
       // `ready` resolves once the handshake completes — the socket can then
       // SEND (the /ws-call flow must send `register` before the server
       // ever replies). Handshake failure schedules a reconnect.
-      channel.ready.then(
-        (_) {
-          if (_disposed) return;
-          _attempts = 0;
-          _setStatus(WsStatus.connected);
-          _startHeartbeater();
-        },
-        onError: (_) => _onDone(),
-      );
+      channel.ready.then((_) {
+        if (_disposed) return;
+        _attempts = 0;
+        _setStatus(WsStatus.connected);
+        _startHeartbeater();
+      }, onError: (_) => _onDone());
       _sub = channel.stream.listen(
         _onFrame,
         onDone: _onDone,
@@ -156,10 +153,7 @@ class WsClient {
     if (_disposed) return;
     if (_reconnectTimer?.isActive ?? false) return;
     _attempts++;
-    final expo = min(
-      _baseBackoffMs * (1 << min(_attempts, 5)),
-      _maxBackoffMs,
-    );
+    final expo = min(_baseBackoffMs * (1 << min(_attempts, 5)), _maxBackoffMs);
     final slowDown = closeCode != null && _slowDownCodes.contains(closeCode);
     // Full jitter [0, expo); slow-down codes use the upper 40%.
     var delay = Random().nextDouble() * expo;
@@ -181,8 +175,7 @@ class WsClient {
       // clearly heartbeating means the socket is a ghost (dead NAT
       // mapping). Reconnect NOW instead of waiting for TCP to notice —
       // which, without a FIN/RST, can take 15+ minutes.
-      final silentFor =
-          DateTime.now().difference(_lastFrameAt);
+      final silentFor = DateTime.now().difference(_lastFrameAt);
       if (silentFor > _pingInterval * 2.5) {
         _onDone();
       }

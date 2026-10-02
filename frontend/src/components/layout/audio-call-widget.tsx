@@ -40,16 +40,22 @@ import { createPortal } from 'react-dom'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { Phone, PhoneOff, Mic, MicOff, X, PhoneIncoming, PhoneOutgoing, Loader2, Signal } from 'lucide-react'
+import {
+  Phone,
+  PhoneOff,
+  Mic,
+  MicOff,
+  X,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Loader2,
+  Signal,
+} from 'lucide-react'
 import type { AudioCallClient } from '@/lib/audio-call-client'
 import { playSound, startRingTone } from '@/lib/sound-effects'
 import { ensureCallNotificationPermission, notifyIncomingCall } from '@/lib/notifications'
 import { isStaffUser } from '@/lib/store'
-import {
-  micDeniedGuidance,
-  hangupReasonText,
-  type QualityLevel,
-} from '@/lib/call-quality'
+import { micDeniedGuidance, hangupReasonText, type QualityLevel } from '@/lib/call-quality'
 import { toast } from 'sonner'
 
 type CallState = 'idle' | 'calling' | 'incoming' | 'connecting' | 'active' | 'ended'
@@ -67,17 +73,17 @@ interface QualityInfo {
 function QualityBars({ level }: { level: QualityLevel }) {
   const active = level === 'good' ? 3 : level === 'fair' ? 2 : 1
   const color =
-    level === 'good'
-      ? 'bg-emerald-500'
-      : level === 'fair'
-        ? 'bg-amber-500'
-        : 'bg-red-500'
+    level === 'good' ? 'bg-emerald-500' : level === 'fair' ? 'bg-amber-500' : 'bg-red-500'
   return (
     <span className="flex items-end gap-0.5" aria-hidden>
       {[1, 2, 3].map((bar) => (
         <span
           key={bar}
-          className={cn('w-1 rounded-sm transition-colors', color, bar <= active ? 'opacity-100' : 'opacity-25')}
+          className={cn(
+            'w-1 rounded-sm transition-colors',
+            color,
+            bar <= active ? 'opacity-100' : 'opacity-25',
+          )}
           style={{ height: `${4 + bar * 3}px` }}
         />
       ))}
@@ -90,7 +96,8 @@ function QualityBars({ level }: { level: QualityLevel }) {
 // prod). The browser sends the `vx_access` cookie automatically on the
 // WS upgrade, so we don't need to put the JWT in the URL.
 function buildSignalingUrl(): string {
-  if (typeof window === 'undefined') return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws-call`
+  if (typeof window === 'undefined')
+    return `${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080'}/ws-call`
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${proto}//${window.location.host}/ws-call`
 }
@@ -130,7 +137,10 @@ export function AudioCallWidget() {
   /** Last signaling hangup reason — drives the end-of-call message. */
   const [endReason, setEndReason] = useState<string | null>(null)
   const [callDuration, setCallDuration] = useState(0)
-  const [incomingFrom, setIncomingFrom] = useState<{ from: string; sdp: RTCSessionDescriptionInit } | null>(null)
+  const [incomingFrom, setIncomingFrom] = useState<{
+    from: string
+    sdp: RTCSessionDescriptionInit
+  } | null>(null)
 
   const clientRef = useRef<AudioCallClient | null>(null)
   const clientOwnerRef = useRef<string | null>(null)
@@ -158,9 +168,11 @@ export function AudioCallWidget() {
   const requestWakeLock = useCallback(async () => {
     if (typeof navigator === 'undefined' || !('wakeLock' in navigator)) return
     try {
-      wakeLockRef.current = await (navigator as Navigator & {
-        wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinel> }
-      }).wakeLock?.request('screen')
+      wakeLockRef.current = await (
+        navigator as Navigator & {
+          wakeLock?: { request(type: 'screen'): Promise<WakeLockSentinel> }
+        }
+      ).wakeLock?.request('screen')
       wakeLockRef.current?.addEventListener?.('release', () => {
         wakeLockRef.current = null
       })
@@ -269,13 +281,24 @@ export function AudioCallWidget() {
         stopRingRef.current = null
       }
     })
-    client.on('presence', ({ onlineAgents, agentInCall, agentsAvailable }: { onlineAgents: number; agentInCall?: boolean; agentsAvailable?: boolean }) => {
-      setPresenceKnown(true)
-      setOnlineAgents(onlineAgents)
-      setAgentInCall(agentInCall ?? false)
-      // Multi-agent availability: agents may be online but all busy.
-      setAgentsAvailable(agentsAvailable ?? onlineAgents > 0)
-    })
+    client.on(
+      'presence',
+      ({
+        onlineAgents,
+        agentInCall,
+        agentsAvailable,
+      }: {
+        onlineAgents: number
+        agentInCall?: boolean
+        agentsAvailable?: boolean
+      }) => {
+        setPresenceKnown(true)
+        setOnlineAgents(onlineAgents)
+        setAgentInCall(agentInCall ?? false)
+        // Multi-agent availability: agents may be online but all busy.
+        setAgentsAvailable(agentsAvailable ?? onlineAgents > 0)
+      },
+    )
     // When the signaling WS closes (agent logged out, network drop),
     // reset onlineAgents to 0 so the call button disables immediately.
     client.on('_close', () => {
@@ -292,7 +315,13 @@ export function AudioCallWidget() {
       notifyIncomingCall(isAgent ? t('users.roleUser') : t('chat.agentName'))
     })
     client.on('quality', (q) => {
-      setQuality({ level: q.level, rttMs: q.rttMs, jitterMs: q.jitterMs, lossPct: q.lossPct, relayed: q.relayed })
+      setQuality({
+        level: q.level,
+        rttMs: q.rttMs,
+        jitterMs: q.jitterMs,
+        lossPct: q.lossPct,
+        relayed: q.relayed,
+      })
     })
     client.on('error', ({ code, message }: { code: string; message: string }) => {
       if (code === 'mic-denied') {
@@ -308,7 +337,10 @@ export function AudioCallWidget() {
     client.on('hangup', ({ reason }: { reason: string }) => {
       setEndReason(reason)
       setIncomingFrom(null)
-      if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null }
+      if (callTimerRef.current) {
+        clearInterval(callTimerRef.current)
+        callTimerRef.current = null
+      }
       setCallDuration(0)
     })
     client.connect()
@@ -400,7 +432,10 @@ export function AudioCallWidget() {
   // already-cleared id are no-ops).
   const hangup = useCallback(() => {
     clientRef.current?.hangup()
-    if (callTimerRef.current) { clearInterval(callTimerRef.current); callTimerRef.current = null }
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current)
+      callTimerRef.current = null
+    }
     setCallDuration(0)
     // Stop any ring tone IMMEDIATELY — cancelling a call should be
     // silent per the UX requirement. The state handler also calls
@@ -468,7 +503,9 @@ export function AudioCallWidget() {
     if (open) {
       void ensureCallNotificationPermission()
     }
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [open, ensureClient, isAgent, user, t])
 
   // Agent status text. isAgent is already declared above (for the
@@ -539,29 +576,37 @@ export function AudioCallWidget() {
             aria-label="Audio call"
           >
             {/* Header */}
-            {isAgent && <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className={cn(
-                  'h-2 w-2 rounded-full',
-                  agentInCall ? 'bg-amber-500' : onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
-                )} />
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                  {isAgent ? t('layout.call.agentPanel') : t('layout.call.support')}
-                </span>
+            {isAgent && (
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div
+                    className={cn(
+                      'h-2 w-2 rounded-full',
+                      agentInCall
+                        ? 'bg-amber-500'
+                        : onlineAgents > 0
+                          ? 'bg-emerald-500 animate-pulse'
+                          : 'bg-zinc-400',
+                    )}
+                  />
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                    {isAgent ? t('layout.call.agentPanel') : t('layout.call.support')}
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    if (state === 'active' || state === 'calling' || state === 'connecting') {
+                      hangup()
+                    }
+                    setOpen(false)
+                  }}
+                  aria-label={t('common.close')}
+                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  if (state === 'active' || state === 'calling' || state === 'connecting') {
-                    hangup()
-                  }
-                  setOpen(false)
-                }}
-                aria-label={t('common.close')}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>}
+            )}
 
             {/* Status */}
             <div className="text-center mb-4">
@@ -582,21 +627,27 @@ export function AudioCallWidget() {
               {state === 'calling' && (
                 <div className="flex flex-col items-center gap-2">
                   <PhoneOutgoing className="h-8 w-8 text-emerald-600 animate-pulse" />
-                  <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('layout.call.calling')}</div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                    {t('layout.call.calling')}
+                  </div>
                 </div>
               )}
               {state === 'incoming' && incomingFrom && (
                 <div className="flex flex-col items-center gap-2">
                   <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
                   <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                    {isAgent ? t('layout.call.incomingFromCustomer') : t('layout.call.incomingFromAgent')}
+                    {isAgent
+                      ? t('layout.call.incomingFromCustomer')
+                      : t('layout.call.incomingFromAgent')}
                   </div>
                 </div>
               )}
               {state === 'connecting' && (
                 <div className="flex flex-col items-center gap-2">
                   <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
-                  <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('chatWidget.connecting')}</div>
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                    {t('chatWidget.connecting')}
+                  </div>
                 </div>
               )}
               {state === 'active' && (
@@ -627,16 +678,24 @@ export function AudioCallWidget() {
                     {quality && (
                       <span
                         className="cursor-help"
-                        title={[
-                          quality.rttMs != null ? t('layout.call.rtt', { value: quality.rttMs }) : null,
-                          quality.jitterMs != null ? t('layout.call.jitter', { value: quality.jitterMs }) : null,
-                          quality.lossPct != null ? t('layout.call.packetLoss', { value: quality.lossPct }) : null,
-                        ].filter(Boolean).join(' · ') || undefined}
+                        title={
+                          [
+                            quality.rttMs != null
+                              ? t('layout.call.rtt', { value: quality.rttMs })
+                              : null,
+                            quality.jitterMs != null
+                              ? t('layout.call.jitter', { value: quality.jitterMs })
+                              : null,
+                            quality.lossPct != null
+                              ? t('layout.call.packetLoss', { value: quality.lossPct })
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ') || undefined
+                        }
                       >
-                        (
-                        {quality.rttMs != null ? `${quality.rttMs} ms` : '…'}
-                        {quality.lossPct != null ? `, ${quality.lossPct}%` : ''}
-                        )
+                        ({quality.rttMs != null ? `${quality.rttMs} ms` : '…'}
+                        {quality.lossPct != null ? `, ${quality.lossPct}%` : ''})
                       </span>
                     )}
                   </div>
@@ -665,7 +724,11 @@ export function AudioCallWidget() {
                 {!isAgent && (
                   <button
                     type="button"
-                    onClick={() => { setMicDenied(false); setError(null); void startCall() }}
+                    onClick={() => {
+                      setMicDenied(false)
+                      setError(null)
+                      void startCall()
+                    }}
                     className="mt-2 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors"
                   >
                     {t('layout.call.retry')}

@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/entry-server.tsx",
+    "src/ui-gallery/main.tsx",
+    "scripts/gen-icons.mjs",
+    "e2e/**/*.spec.ts",
+    "e2e/fixtures.ts",
+    "e2e-admin/**/*.spec.ts"
+  ],
+  "ignoreDependencies": ["postcss", "markdownlint-cli2"],
+  "ignore": ["public/**"]
+}

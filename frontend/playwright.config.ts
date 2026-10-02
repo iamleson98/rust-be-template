@@ -22,10 +22,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 2,
-  reporter: [
-    ['list'],
-    ['html', { open: 'never', outputFolder: 'e2e-report' }],
-  ],
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'e2e-report' }]],
   use: {
     baseURL: 'http://localhost:5183',
     trace: 'on-first-retry',

@@ -70,7 +70,9 @@ export function MobileFiltersSheet({
         </SheetHeader>
         <div className="px-4 pb-6 space-y-4">
           <div>
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.sort')}</div>
+            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+              {t('searchPage.sort')}
+            </div>
             <div className="grid grid-cols-2 gap-1.5">
               {sortOptions.map((o) => (
                 <button
@@ -80,7 +82,7 @@ export function MobileFiltersSheet({
                     'text-left px-3 py-1.5 rounded-md text-sm transition-all duration-200',
                     routeSearch.sort === o.key
                       ? 'bg-blue-50 text-blue-700 font-medium border border-blue-300'
-                      : 'hover:bg-slate-100 border border-transparent'
+                      : 'hover:bg-slate-100 border border-transparent',
                   )}
                 >
                   <span className="mr-1.5">{o.icon}</span>
@@ -90,7 +92,9 @@ export function MobileFiltersSheet({
             </div>
           </div>
           <div className="pt-3 border-t">
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">{t('searchPage.vehicleType')}</div>
+            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
+              {t('searchPage.vehicleType')}
+            </div>
             <div className="grid grid-cols-1 gap-1.5">
               {[
                 { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
@@ -100,9 +104,14 @@ export function MobileFiltersSheet({
                 { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
               ].map((v) => {
                 const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                const count = searchResults.filter((tr) => (tr.vehicleType ?? null) === v.key).length
+                const count = searchResults.filter(
+                  (tr) => (tr.vehicleType ?? null) === v.key,
+                ).length
                 return (
-                  <label key={v.key} className="flex items-center gap-2 cursor-pointer text-sm py-1 group">
+                  <label
+                    key={v.key}
+                    className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
+                  >
                     <Checkbox
                       checked={active}
                       onCheckedChange={() => {
@@ -113,9 +122,13 @@ export function MobileFiltersSheet({
                       }}
                       className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
                     />
-                    <span className="group-hover:text-blue-700 transition-colors flex-1">{v.emoji} {t(v.labelKey)}</span>
+                    <span className="group-hover:text-blue-700 transition-colors flex-1">
+                      {v.emoji} {t(v.labelKey)}
+                    </span>
                     {count > 0 && (
-                      <span className="text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">{count}</span>
+                      <span className="text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
+                        {count}
+                      </span>
                     )}
                   </label>
                 )
@@ -131,7 +144,11 @@ export function MobileFiltersSheet({
             isMobile
           />
           {activeFilterCount > 0 && (
-            <Button variant="outline" onClick={resetFilters} className="w-full text-rose-600 border-rose-300 hover:bg-rose-50">
+            <Button
+              variant="outline"
+              onClick={resetFilters}
+              className="w-full text-rose-600 border-rose-300 hover:bg-rose-50"
+            >
               <X className="h-4 w-4" /> {t('searchPage.clearAllFilters')}
             </Button>
           )}

@@ -39,8 +39,7 @@ export function UptimeCard({ data }: { data: NonNullable<StatusData> }) {
 
 export function WebSocketCard({ data }: { data: NonNullable<StatusData> }) {
   const ws = data.websocket
-  const wsPct =
-    ws.maxConnections > 0 ? Math.round((ws.connections / ws.maxConnections) * 100) : 0
+  const wsPct = ws.maxConnections > 0 ? Math.round((ws.connections / ws.maxConnections) * 100) : 0
 
   return (
     <Card data-testid="status-websocket-card">
@@ -82,8 +81,7 @@ export function CallCard({ data }: { data: NonNullable<StatusData> }) {
   // Janitor counters: any release above zero means the SERVER had to
   // end a call no client hung up (frozen caller / dead call UI) — the
   // "resource auto release after call" safety net doing its job.
-  const janitorTotal =
-    (calls?.janitorRingExpired ?? 0) + (calls?.janitorActiveExpired ?? 0)
+  const janitorTotal = (calls?.janitorRingExpired ?? 0) + (calls?.janitorActiveExpired ?? 0)
 
   return (
     <Card data-testid="status-call-card">
@@ -95,19 +93,21 @@ export function CallCard({ data }: { data: NonNullable<StatusData> }) {
       <CardContent>
         <div className="text-2xl font-bold">
           {calls?.sessions ?? 0}
-          <span className="text-sm text-muted-foreground"> live session{calls?.sessions === 1 ? '' : 's'}</span>
+          <span className="text-sm text-muted-foreground">
+            {' '}
+            live session{calls?.sessions === 1 ? '' : 's'}
+          </span>
         </div>
         <div className="text-xs text-muted-foreground mt-2 space-y-0.5">
           <div>
-            Ringing: <span className="font-medium text-amber-600">{calls?.ringing ?? 0}</span> · Active:{' '}
-            <span className="font-medium text-emerald-600">{calls?.active ?? 0}</span>
+            Ringing: <span className="font-medium text-amber-600">{calls?.ringing ?? 0}</span> ·
+            Active: <span className="font-medium text-emerald-600">{calls?.active ?? 0}</span>
           </div>
           <div>Agent sockets online: {calls?.agentSockets ?? 0}</div>
           <div title="Sessions the server janitor had to end because no client sent a hangup (frozen callers, dead call UIs). Each one released the agent's busy flag and the customer's busy lock.">
             {janitorTotal > 0 ? (
               <>
-                Janitor released:{' '}
-                <span className="font-medium tabular-nums">{janitorTotal}</span>
+                Janitor released: <span className="font-medium tabular-nums">{janitorTotal}</span>
                 {calls?.janitorRingExpired ? ` (${calls.janitorRingExpired} ring` : ''}
                 {calls?.janitorRingExpired && calls?.janitorActiveExpired ? ' + ' : ''}
                 {calls?.janitorActiveExpired ? `${calls.janitorActiveExpired} active)` : ''}
@@ -174,7 +174,9 @@ export function DatabaseCard({ data }: { data: NonNullable<StatusData> }) {
             </>
           ) : (
             <>
-              <div>Size: <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span></div>
+              <div>
+                Size: <span className="font-medium">{db.sizeMb.toFixed(2)} MB</span>
+              </div>
               <div>Single connection (no pool)</div>
             </>
           )}

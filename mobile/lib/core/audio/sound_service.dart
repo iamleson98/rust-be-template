@@ -47,10 +47,10 @@ class SoundService {
   Timer? _vibrateTimer;
 
   bool get _alertsOn => _ref.read(alertsEnabledProvider);
-  bool get _soundOn => _ref.read(alertsEnabledProvider) &&
-      _ref.read(soundEnabledProvider);
-  bool get _vibrateOn => _ref.read(alertsEnabledProvider) &&
-      _ref.read(vibrateEnabledProvider);
+  bool get _soundOn =>
+      _ref.read(alertsEnabledProvider) && _ref.read(soundEnabledProvider);
+  bool get _vibrateOn =>
+      _ref.read(alertsEnabledProvider) && _ref.read(vibrateEnabledProvider);
 
   // ── One-shot cues ──────────────────────────────────────────────────
 
@@ -60,10 +60,7 @@ class SoundService {
     if (!_soundOn) return;
     try {
       await _cuePlayer.stop();
-      await _cuePlayer.play(
-        AssetSource('sounds/message.mp3'),
-        volume: 0.9,
-      );
+      await _cuePlayer.play(AssetSource('sounds/message.mp3'), volume: 0.9);
     } catch (e) {
       debugPrint('[sound] message cue failed: $e');
     }
@@ -75,10 +72,7 @@ class SoundService {
     if (!_soundOn) return;
     try {
       await _cuePlayer.stop();
-      await _cuePlayer.play(
-        AssetSource('sounds/request.mp3'),
-        volume: 0.9,
-      );
+      await _cuePlayer.play(AssetSource('sounds/request.mp3'), volume: 0.9);
     } catch (e) {
       debugPrint('[sound] request cue failed: $e');
     }
@@ -89,10 +83,7 @@ class SoundService {
     if (!_soundOn) return;
     try {
       await _cuePlayer.stop();
-      await _cuePlayer.play(
-        AssetSource('sounds/call_joined.mp3'),
-        volume: 0.8,
-      );
+      await _cuePlayer.play(AssetSource('sounds/call_joined.mp3'), volume: 0.8);
     } catch (_) {}
   }
 
@@ -101,10 +92,7 @@ class SoundService {
     if (!_soundOn) return;
     try {
       await _cuePlayer.stop();
-      await _cuePlayer.play(
-        AssetSource('sounds/call_ended.mp3'),
-        volume: 0.8,
-      );
+      await _cuePlayer.play(AssetSource('sounds/call_ended.mp3'), volume: 0.8);
     } catch (_) {}
   }
 
@@ -153,10 +141,7 @@ class SoundService {
   Future<void> preview() async {
     try {
       await _cuePlayer.stop();
-      await _cuePlayer.play(
-        AssetSource('sounds/message.mp3'),
-        volume: 1.0,
-      );
+      await _cuePlayer.play(AssetSource('sounds/message.mp3'), volume: 1.0);
     } catch (_) {}
   }
 
@@ -168,9 +153,7 @@ class SoundService {
       await _ringPlayer.stop();
       await _ringPlayer.setAudioContext(
         AudioContext(
-          iOS: AudioContextIOS(
-            category: AVAudioSessionCategory.playback,
-          ),
+          iOS: AudioContextIOS(category: AVAudioSessionCategory.playback),
         ),
       );
       await _ringPlayer.setReleaseMode(ReleaseMode.loop);
@@ -199,8 +182,7 @@ class SoundService {
     if (!_vibrateOn) return;
     unawaited(() async {
       if (!await _deviceCanVibrate()) return;
-      _vibrateTimer =
-          Timer.periodic(const Duration(milliseconds: 2200), (_) {
+      _vibrateTimer = Timer.periodic(const Duration(milliseconds: 2200), (_) {
         if (!_vibrateOn) return;
         unawaited(() async {
           try {
@@ -220,10 +202,7 @@ class SoundService {
     unawaited(() async {
       if (!await _deviceCanVibrate()) return;
       try {
-        await Vibration.vibrate(
-          pattern: const [0, 60, 80, 60],
-          repeat: -1,
-        );
+        await Vibration.vibrate(pattern: const [0, 60, 80, 60], repeat: -1);
       } catch (_) {}
     }());
   }

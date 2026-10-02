@@ -45,7 +45,13 @@ function computeDistribution(reviews: { rating?: number }[]): number[] {
   return dist
 }
 
-export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandName, routeName, accentColor = '#2563eb' }: Props) {
+export const ReviewsList = memo(function ReviewsList({
+  brandId,
+  routeId,
+  brandName,
+  routeName,
+  accentColor = '#2563eb',
+}: Props) {
   const t = useT()
   const [page, setPage] = useState(1)
   const [helpfulMap, setHelpfulMap] = useState<Record<string, boolean>>({})
@@ -76,14 +82,14 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
   const aggregateQuery = useReviewsByBrand(brandId)
   const aggregate: Aggregate | null = aggregateQuery.data
     ? {
-      avgRating:
-        aggregateQuery.data.items && aggregateQuery.data.items.length > 0
-          ? aggregateQuery.data.items.reduce((s, r) => s + (r.rating ?? 0), 0) /
-            aggregateQuery.data.items.length
-          : 0,
-      count: aggregateQuery.data.items?.length ?? 0,
-      distribution: computeDistribution(aggregateQuery.data.items ?? []),
-    }
+        avgRating:
+          aggregateQuery.data.items && aggregateQuery.data.items.length > 0
+            ? aggregateQuery.data.items.reduce((s, r) => s + (r.rating ?? 0), 0) /
+              aggregateQuery.data.items.length
+            : 0,
+        count: aggregateQuery.data.items?.length ?? 0,
+        distribution: computeDistribution(aggregateQuery.data.items ?? []),
+      }
     : null
 
   // ── Tag aggregate (route-scoped) ────────────────────────
@@ -148,10 +154,11 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
               {[1, 2, 3, 4, 5].map((n) => (
                 <Star
                   key={n}
-                  className={`h-4 w-4 ${n <= Math.round(aggregate.avgRating)
+                  className={`h-4 w-4 ${
+                    n <= Math.round(aggregate.avgRating)
                       ? 'fill-amber-400 text-amber-400'
                       : 'fill-slate-200 text-slate-200'
-                    }`}
+                  }`}
                 />
               ))}
             </div>
@@ -174,7 +181,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
                     <Star className="h-3 w-3 fill-amber-300 text-amber-300" />
                   </div>
                   <Progress value={pct} className="h-2 flex-1" />
-                  <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">{count}</span>
+                  <span className="text-xs text-muted-foreground w-10 text-right tabular-nums">
+                    {count}
+                  </span>
                 </div>
               )
             })}
@@ -197,7 +206,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
               <MessageSquareQuote className="h-4 w-4 text-amber-500" />
               {t('reviews.reviewsForRoute', { count: total, route: routeName })}
             </h4>
-            <div className="text-xs text-muted-foreground">{t('reviews.pageIndicator', { page, totalPages })}</div>
+            <div className="text-xs text-muted-foreground">
+              {t('reviews.pageIndicator', { page, totalPages })}
+            </div>
           </div>
           <div className="space-y-3">
             {pageReviews.map((r) => (
@@ -224,7 +235,9 @@ export const ReviewsList = memo(function ReviewsList({ brandId, routeId, brandNa
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="text-sm text-muted-foreground tabular-nums">{page} / {totalPages}</span>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {page} / {totalPages}
+              </span>
               <Button
                 variant="outline"
                 size="sm"

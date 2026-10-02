@@ -66,7 +66,10 @@ export function BookingPassengerStep({
             {t('bookingFlow.passengerInfo')}
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {t('bookingFlow.passengerSeatSummary', { count: passengers.length, seats: selectedSeatCodes.length })}
+            {t('bookingFlow.passengerSeatSummary', {
+              count: passengers.length,
+              seats: selectedSeatCodes.length,
+            })}
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -95,10 +98,7 @@ export function BookingPassengerStep({
 
       {/* Mini seat preview — color-coded by passenger */}
       {selectedSeatCodes.length > 0 && (
-        <SeatSelector
-          selectedSeats={selectedSeatCodes}
-          passengers={passengers}
-        />
+        <SeatSelector selectedSeats={selectedSeatCodes} passengers={passengers} />
       )}
 
       {/* Passenger cards */}
@@ -120,13 +120,11 @@ export function BookingPassengerStep({
 
       {/* Add passenger button */}
       {passengerFields.length < selectedSeatCodes.length && (
-        <Button
-          variant="outline"
-          onClick={addPassenger}
-          className="w-full gap-1.5 border-dashed"
-        >
+        <Button variant="outline" onClick={addPassenger} className="w-full gap-1.5 border-dashed">
           <Plus className="h-4 w-4" />
-          {t('bookingFlow.addPassengerRemaining', { count: selectedSeatCodes.length - passengerFields.length })}
+          {t('bookingFlow.addPassengerRemaining', {
+            count: selectedSeatCodes.length - passengerFields.length,
+          })}
         </Button>
       )}
 
@@ -140,7 +138,11 @@ export function BookingPassengerStep({
         hasDuplicateSeats={hasDuplicateSeats}
       />
 
-      {error && <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">{error}</div>}
+      {error && (
+        <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm px-3 py-2">
+          {error}
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button

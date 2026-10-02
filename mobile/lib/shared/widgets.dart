@@ -97,8 +97,11 @@ class AgentAvatar extends StatelessWidget {
   final Color? foregroundColor;
 
   String get _initials {
-    final parts =
-        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
     if (parts.isEmpty) return '?';
     if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
     return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
@@ -155,10 +158,7 @@ class PresenceDot extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: online ? AppBrand.success : theme.colors.mutedForeground,
-        border: Border.all(
-          color: theme.colors.background,
-          width: size * 0.18,
-        ),
+        border: Border.all(color: theme.colors.background, width: size * 0.18),
         boxShadow: [
           BoxShadow(
             color: online
@@ -204,10 +204,12 @@ class _TypingIndicatorState extends State<TypingIndicator>
         return AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
-            final double phase =
-                (_controller.value * 3 - i).clamp(0.0, 1.0).toDouble();
-            final double wave =
-                (1 - (phase - 0.5).abs() * 2).clamp(0.0, 1.0).toDouble();
+            final double phase = (_controller.value * 3 - i)
+                .clamp(0.0, 1.0)
+                .toDouble();
+            final double wave = (1 - (phase - 0.5).abs() * 2)
+                .clamp(0.0, 1.0)
+                .toDouble();
             final double scale = 0.7 + 0.3 * wave;
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -257,11 +259,7 @@ class EmptyState extends StatelessWidget {
                 color: theme.colors.primary.withValues(alpha: 0.10),
               ),
               alignment: Alignment.center,
-              child: Icon(
-                icon,
-                size: 38,
-                color: theme.colors.primary,
-              ),
+              child: Icon(icon, size: 38, color: theme.colors.primary),
             ),
             const SizedBox(height: 16),
             Text(
@@ -303,11 +301,7 @@ class EmptyState extends StatelessWidget {
 
 /// Pulsing ring around the call avatar.
 class PulsingAvatar extends StatefulWidget {
-  const PulsingAvatar({
-    required this.child,
-    required this.pulse,
-    super.key,
-  });
+  const PulsingAvatar({required this.child, required this.pulse, super.key});
 
   final Widget child;
   final bool pulse;

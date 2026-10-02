@@ -92,8 +92,6 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
           <div
             key={idx}
 
-
-
             className="max-w-[92vw] max-h-[82dvh]"
             onClick={(e) => e.stopPropagation()}
           >
@@ -130,11 +128,20 @@ export function Lightbox({ open, images, initialIndex = 0, onClose }: Props) {
                     e.stopPropagation()
                     setIdx(i)
                   }}
-                  className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${i === idx ? 'ring-white scale-105' : 'ring-white/20 opacity-70 hover:opacity-100'
-                    }`}
+                  className={`h-14 w-14 rounded-md overflow-hidden ring-2 transition-all ${
+                    i === idx
+                      ? 'ring-white scale-105'
+                      : 'ring-white/20 opacity-70 hover:opacity-100'
+                  }`}
                   aria-label={t('lightbox.imageAlt', { index: i + 1 })}
                 >
-                  <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                  <img
+                    src={src}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </button>
               ))}
             </div>

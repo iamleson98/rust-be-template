@@ -8,7 +8,23 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Bus, Headset, LayoutDashboard, Home as HomeIcon, Globe, Menu, Gift, Check, LogIn, LogOut, Phone, Briefcase, CreditCard, ChevronRight, Search as SearchIcon } from 'lucide-react'
+import {
+  Bus,
+  Headset,
+  LayoutDashboard,
+  Home as HomeIcon,
+  Globe,
+  Menu,
+  Gift,
+  Check,
+  LogIn,
+  LogOut,
+  Phone,
+  Briefcase,
+  CreditCard,
+  ChevronRight,
+  Search as SearchIcon,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,31 +39,43 @@ import { isStaffUser } from '@/lib/store'
 
 // Lazy-load heavy sub-components to keep the Header chunk small (low memory).
 // They load on the client after hydration.
-const NotificationBell = lazy(() => import('@/features/notifications/notification-bell').then((m) => ({ default: m.NotificationBell })))
-const LoyaltyWidget = lazy(() => import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })))
+const NotificationBell = lazy(() =>
+  import('@/features/notifications/notification-bell').then((m) => ({
+    default: m.NotificationBell,
+  })),
+)
+const LoyaltyWidget = lazy(() =>
+  import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })),
+)
 
 export const Header = memo(function Header() {
   // useShallow: re-render only when one of the picked fields actually
   // changes — not on every unrelated store write (perf: the header sits
   // above every customer page; chat typing, booking steps, etc. must not
   // re-render it).
-  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp(useShallow((s) => ({
-    setChatOpen: s.setChatOpen,
-    compareList: s.compareList,
-    setCompareOpen: s.setCompareOpen,
-    setLoyaltyOpen: s.setLoyaltyOpen,
-    lang: s.lang,
-    setLang: s.setLang,
-    user: s.user,
-    setUser: s.setUser,
-  })))
+  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } =
+    useApp(
+      useShallow((s) => ({
+        setChatOpen: s.setChatOpen,
+        compareList: s.compareList,
+        setCompareOpen: s.setCompareOpen,
+        setLoyaltyOpen: s.setLoyaltyOpen,
+        lang: s.lang,
+        setLang: s.setLang,
+        user: s.user,
+        setUser: s.setUser,
+      })),
+    )
   const navigate = useNavigate()
   const t = useT()
 
-  const handleLangChange = useCallback((newLang: 'vi' | 'en') => {
-    setLang(newLang)
-    toast.success(newLang === 'vi' ? t('lang.switchedVi') : t('lang.switchedEn'))
-  }, [setLang, t])
+  const handleLangChange = useCallback(
+    (newLang: 'vi' | 'en') => {
+      setLang(newLang)
+      toast.success(newLang === 'vi' ? t('lang.switchedVi') : t('lang.switchedEn'))
+    },
+    [setLang, t],
+  )
 
   const logoutMut = useLogout({
     onSuccess: () => {
@@ -71,17 +99,13 @@ export const Header = memo(function Header() {
   // ─── (parallax mouse-move effect removed) ───
 
   return (
-    <header
-      className="sticky top-0 z-40 w-full border-b border-white/10 text-white"
-    >
+    <header className="sticky top-0 z-40 w-full border-b border-white/10 text-white">
       {/* Gradient background layer */}
       <div className="absolute inset-0 -z-10 bg-blue-900/90 backdrop-blur-xl bg-linear-to-r from-blue-900 via-blue-800 to-blue-900" />
 
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <button onClick={() => navigate({ to: '/' })} className="flex items-center gap-2.5 group">
-          <div
-            className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center"
-          >
+          <div className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center">
             <Bus className="h-5 w-5 text-white" />
           </div>
           <div className="leading-tight">
@@ -131,14 +155,28 @@ export const Header = memo(function Header() {
           </button>
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="sm" className="text-blue-100 hover:bg-white/10 hover:text-white sm:flex gap-2 transition-colors" />}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-blue-100 hover:bg-white/10 hover:text-white sm:flex gap-2 transition-colors"
+                />
+              }
+            >
               <Globe className="h-4 w-4" /> {lang === 'vi' ? 'VI' : 'EN'}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleLangChange('vi')} className="flex items-center gap-2">
+              <DropdownMenuItem
+                onClick={() => handleLangChange('vi')}
+                className="flex items-center gap-2"
+              >
                 {lang === 'vi' && <Check className="h-3.5 w-3.5 text-blue-600" />} Tiếng Việt
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleLangChange('en')} className="flex items-center gap-2">
+              <DropdownMenuItem
+                onClick={() => handleLangChange('en')}
+                className="flex items-center gap-2"
+              >
                 {lang === 'en' && <Check className="h-3.5 w-3.5 text-blue-600" />} English
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -156,13 +194,15 @@ export const Header = memo(function Header() {
             </Button>
           ) : (
             <DropdownMenu>
-              <DropdownMenuTrigger render={
-                <button
-                  type="button"
-                  title={user.name}
-                  className="inline-flex items-center gap-2 rounded-full pl-1 pr-3 h-9 bg-white/10 hover:bg-white/15 transition-colors ring-1 ring-white/20"
-                />
-              }>
+              <DropdownMenuTrigger
+                render={
+                  <button
+                    type="button"
+                    title={user.name}
+                    className="inline-flex items-center gap-2 rounded-full pl-1 pr-3 h-9 bg-white/10 hover:bg-white/15 transition-colors ring-1 ring-white/20"
+                  />
+                }
+              >
                 <Avatar className="h-7 w-7 ring-1 ring-white/40">
                   <AvatarFallback className="bg-linear-to-br from-blue-400 to-blue-500 text-white text-xs font-bold">
                     {initials || 'U'}
@@ -198,9 +238,13 @@ export const Header = memo(function Header() {
                       {isStaffUser(user) && (
                         <div className="text-[10px] mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
                           <Briefcase className="h-2.5 w-2.5" />
-                          {user.employeeRole === 'admin' ? t('nav.role.admin') :
-                            user.employeeRole === 'support_lead' ? t('nav.role.supportLead') :
-                              user.employeeRole === 'ops' ? t('nav.role.operations') : t('nav.role.support')}
+                          {user.employeeRole === 'admin'
+                            ? t('nav.role.admin')
+                            : user.employeeRole === 'support_lead'
+                              ? t('nav.role.supportLead')
+                              : user.employeeRole === 'ops'
+                                ? t('nav.role.operations')
+                                : t('nav.role.support')}
                           {user.brandName ? ` · ${user.brandName}` : ''}
                         </div>
                       )}
@@ -216,8 +260,12 @@ export const Header = memo(function Header() {
                     <LayoutDashboard className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">{t('nav.myConsole')}</span>
-                    <span className="block text-[11px] text-muted-foreground">{t('nav.myConsoleDesc')}</span>
+                    <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">
+                      {t('nav.myConsole')}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {t('nav.myConsoleDesc')}
+                    </span>
                   </span>
                   <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" />
                 </DropdownMenuItem>
@@ -227,13 +275,19 @@ export const Header = memo(function Header() {
                     <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
                       <Briefcase className="h-4 w-4" /> {t('nav.admin')}
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => navigate({ to: '/admin/payments' })} className="gap-2">
+                    <DropdownMenuItem
+                      onClick={() => navigate({ to: '/admin/payments' })}
+                      className="gap-2"
+                    >
                       <CreditCard className="h-4 w-4" /> {t('nav.payments')}
                     </DropdownMenuItem>
                   </>
                 )}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logoutMut.mutate()} className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50">
+                <DropdownMenuItem
+                  onClick={() => logoutMut.mutate()}
+                  className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
+                >
                   <LogOut className="h-4 w-4" /> {t('nav.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -245,7 +299,15 @@ export const Header = memo(function Header() {
           </Suspense>
 
           <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="md:hidden text-white hover:bg-white/10 transition-colors" />}>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden text-white hover:bg-white/10 transition-colors"
+                />
+              }
+            >
               <Menu className="h-5 w-5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -265,7 +327,9 @@ export const Header = memo(function Header() {
                   <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.admin')}
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })}>
+              <DropdownMenuItem
+                onClick={() => (user ? setChatOpen(true) : navigate({ to: '/login' }))}
+              >
                 <Headset className="h-4 w-4 mr-2" /> {t('nav.support')}
               </DropdownMenuItem>
             </DropdownMenuContent>

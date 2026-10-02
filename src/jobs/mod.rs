@@ -56,7 +56,7 @@ pub struct JobDeps {
 }
 
 /// The payload every framework-triggered run carries: which `job_run`
-/// row tracks this execution. [`JobService::trigger`] enqueues exactly
+/// row tracks this execution. `JobService::trigger` enqueues exactly
 /// this; handlers decode it (leniently — job-specific extra fields may
 /// be present on manually-built envelopes, and `run_id` may be absent,
 /// in which case the handler inserts a fresh history row).
@@ -93,7 +93,7 @@ pub struct JobDefinition {
     /// Default schedule seeded on boot (idempotent). `None` = the job
     /// is trigger-only; no schedule row is created.
     pub schedule: Option<JobSchedule>,
-    /// Wire the handler + [`JobPolicy`] into the worker registry.
+    /// Wire the handler + `JobPolicy` into the worker registry.
     /// Plain `fn` pointer: all state comes in via [`JobDeps`].
     pub register: fn(&JobRegistry, JobDeps),
 }

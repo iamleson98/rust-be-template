@@ -101,10 +101,8 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
               </div>
               <div>
                 {t('adminSystem.dbSize')}:{' '}
-                <span className="font-medium tabular-nums">
-                  {mb(engine.memory.dbSizeMb, 1)}
-                </span>{' '}
-                · {t('adminSystem.walFrames')}:{' '}
+                <span className="font-medium tabular-nums">{mb(engine.memory.dbSizeMb, 1)}</span> ·{' '}
+                {t('adminSystem.walFrames')}:{' '}
                 <span className="font-medium tabular-nums">{compact(engine.memory.walFrames)}</span>
               </div>
               <div>
@@ -132,7 +130,9 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
               <span className={`text-2xl font-semibold tabular-nums ${hitRateTone(hitRate)}`}>
                 {hitRate.toFixed(1)}%
               </span>
-              <span className="text-xs text-muted-foreground">{t('adminSystem.pageCacheHitRate')}</span>
+              <span className="text-xs text-muted-foreground">
+                {t('adminSystem.pageCacheHitRate')}
+              </span>
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
@@ -194,19 +194,25 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.rowsPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">{t('adminSystem.rowsPerSec')}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t('adminSystem.rowsPerSec')}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.writesPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">{t('adminSystem.writesPerSec')}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t('adminSystem.writesPerSec')}
+                </div>
               </div>
               <div className="text-center">
                 <div className="text-xl font-semibold tabular-nums">
                   {perSec(engine.throughput.stepsPerSec)}
                 </div>
-                <div className="text-[10px] text-muted-foreground">{t('adminSystem.stepsPerSec')}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t('adminSystem.stepsPerSec')}
+                </div>
               </div>
             </div>
             <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
@@ -221,7 +227,8 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                 <span className="font-medium tabular-nums">
                   {compact(engine.throughput.writesExecuted)}
                 </span>{' '}
-                · {t('adminSystem.statements', { n: compact(engine.throughput.statementsPrepared) })}
+                ·{' '}
+                {t('adminSystem.statements', { n: compact(engine.throughput.statementsPrepared) })}
               </div>
               <div>
                 {t('adminSystem.rowMutations')}:{' '}
@@ -303,9 +310,7 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">{t('adminSystem.changes')}</span>
-                      <span className="font-medium tabular-nums">
-                        {compact(f.totalChanges)}
-                      </span>
+                      <span className="font-medium tabular-nums">{compact(f.totalChanges)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -319,16 +324,20 @@ export function DatabaseEngineSection({ engine }: { engine: SystemEngineStats })
       <Card data-testid="engine-ledger-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">{t('adminSystem.engineLedger')}</CardTitle>
-          <CardDescription>
-            {t('adminSystem.engineLedgerDesc')}
-          </CardDescription>
+          <CardDescription>{t('adminSystem.engineLedgerDesc')}</CardDescription>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3 md:grid-cols-5">
           <LedgerItem label={t('adminSystem.txStarted')} value={engine.transactions.begun} />
           <LedgerItem label={t('adminSystem.committed')} value={engine.transactions.committed} />
           <LedgerItem label={t('adminSystem.rolledBack')} value={engine.transactions.rolledBack} />
-          <LedgerItem label={t('adminSystem.connectionsOpened')} value={engine.connections.opened} />
-          <LedgerItem label={t('adminSystem.connectionsClosed')} value={engine.connections.closed} />
+          <LedgerItem
+            label={t('adminSystem.connectionsOpened')}
+            value={engine.connections.opened}
+          />
+          <LedgerItem
+            label={t('adminSystem.connectionsClosed')}
+            value={engine.connections.closed}
+          />
         </CardContent>
       </Card>
     </section>

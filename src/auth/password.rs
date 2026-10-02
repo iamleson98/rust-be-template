@@ -153,7 +153,7 @@ impl PasswordHasher {
     ///
     /// Replaces `spawn_blocking(hash)` in `register`: the working set is
     /// allocated on a FIXED worker thread whose mimalloc heap is reused
-    /// by the next job instead of being stranded (see [`workers`]).
+    /// by the next job instead of being stranded (see `workers`).
     /// A dropped reply (worker died mid-job) surfaces as an error.
     pub async fn hash_async(&self, password: String) -> anyhow::Result<String> {
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -174,7 +174,7 @@ impl PasswordHasher {
     /// Async verify on the dedicated argon2 pool.
     ///
     /// Replaces `spawn_blocking(verify)` in `login`: same thread-reuse
-    /// guarantee (see [`workers`]). A dropped reply (worker died
+    /// guarantee (see `workers`). A dropped reply (worker died
     /// mid-job) is conservatively reported as a FAILED verification —
     /// the caller responds 401 and the client retries.
     pub async fn verify_async(&self, password: String, hash: String) -> bool {

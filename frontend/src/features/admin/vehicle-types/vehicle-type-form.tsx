@@ -62,7 +62,10 @@ const buildVehicleTypeSchema = (t: ReturnType<typeof useT>) =>
       .min(0, t('adminVehicleTypes.seatsMin'))
       .max(200, t('adminVehicleTypes.seatsMax'))
       .optional(),
-    sortOrder: z.coerce.number({ message: t('adminVehicleTypes.sortNumber') }).min(0).max(1000),
+    sortOrder: z.coerce
+      .number({ message: t('adminVehicleTypes.sortNumber') })
+      .min(0)
+      .max(1000),
     status: z.enum(['active', 'disabled']),
     description: z.string().max(1000, t('adminVehicleTypes.descMax')).optional(),
   })
@@ -143,13 +146,15 @@ export function VehicleTypeFormDialog({
       }
       if (isEdit) {
         await updateMutation.mutateAsync({
-        path: { id: vehicleType!.id },
-        body,
-      } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
+          path: { id: vehicleType!.id },
+          body,
+        } as unknown as Parameters<typeof updateMutation.mutateAsync>[0])
         toast.success(t('adminVehicleTypes.updated'))
       } else {
         // SDK mutation hooks require { body: <payload> } (see schedule form).
-        await createMutation.mutateAsync({ body } as unknown as Parameters<typeof createMutation.mutateAsync>[0])
+        await createMutation.mutateAsync({ body } as unknown as Parameters<
+          typeof createMutation.mutateAsync
+        >[0])
         toast.success(t('adminVehicleTypes.created'))
       }
       onSaved()
@@ -166,9 +171,7 @@ export function VehicleTypeFormDialog({
             <Bus className="h-5 w-5 text-blue-600" />
             {isEdit ? t('adminVehicleTypes.editTitle') : t('adminVehicleTypes.createTitle')}
           </DialogTitle>
-          <DialogDescription>
-            {t('adminVehicleTypes.formDesc')}
-          </DialogDescription>
+          <DialogDescription>{t('adminVehicleTypes.formDesc')}</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
@@ -200,7 +203,8 @@ export function VehicleTypeFormDialog({
                 render={({ field }) => (
                   <FormItem className="grid gap-1.5">
                     <FormLabel>
-                      {t('adminVehicleTypes.displayName')} <span className="text-destructive">*</span>
+                      {t('adminVehicleTypes.displayName')}{' '}
+                      <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
                       <Input {...field} value={field.value ?? ''} placeholder="Limousine" />
@@ -296,7 +300,12 @@ export function VehicleTypeFormDialog({
             />
 
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700">

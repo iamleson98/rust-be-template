@@ -13,10 +13,12 @@ import 'models.dart';
 /// `?token=<jwt>` (WebSocket upgrades — also accepted by both hubs).
 class TokenStore {
   TokenStore([FlutterSecureStorage? storage])
-      : _storage = storage ?? const FlutterSecureStorage(
-          // v11: AES-GCM keystore encryption is the default; no opts needed.
-          aOptions: AndroidOptions(),
-        );
+    : _storage =
+          storage ??
+          const FlutterSecureStorage(
+            // v11: AES-GCM keystore encryption is the default; no opts needed.
+            aOptions: AndroidOptions(),
+          );
 
   final FlutterSecureStorage _storage;
 

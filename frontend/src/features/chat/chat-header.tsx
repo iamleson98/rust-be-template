@@ -9,15 +9,7 @@
  * the "back to list" affordance when the conversation view is active.
  */
 
-import {
-  Headset,
-  X,
-  Minus,
-  ArrowLeft,
-  WifiOff,
-  CircleCheck,
-  Phone,
-} from 'lucide-react'
+import { Headset, X, Minus, ArrowLeft, WifiOff, CircleCheck, Phone } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { CustomerChannel as Channel, View } from './_shared'
 
@@ -50,7 +42,8 @@ export function ChatHeader({
   onBackToList: () => void
 }) {
   const t = useT()
-  const title = view === 'conversation' && activeChannel ? activeChannel.topic : t('chatWidget.supportTitle')
+  const title =
+    view === 'conversation' && activeChannel ? activeChannel.topic : t('chatWidget.supportTitle')
 
   return (
     <div className="bg-linear-to-r from-rose-600 to-rose-700 text-white px-4 py-3 flex items-center justify-between">
@@ -77,7 +70,9 @@ export function ChatHeader({
               assigneeName ? (
                 <>
                   <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
-                  <span className="truncate">{t('chatWidget.assigneeHelping', { name: assigneeName })}</span>
+                  <span className="truncate">
+                    {t('chatWidget.assigneeHelping', { name: assigneeName })}
+                  </span>
                 </>
               ) : botActive ? (
                 <>
@@ -88,7 +83,11 @@ export function ChatHeader({
                 <>
                   <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
                   <span>{t('chatWidget.staffOnline')}</span>
-                  {employeesOnline > 0 && <span className="ml-1 opacity-80">{t('chatWidget.staffCount', { count: employeesOnline })}</span>}
+                  {employeesOnline > 0 && (
+                    <span className="ml-1 opacity-80">
+                      {t('chatWidget.staffCount', { count: employeesOnline })}
+                    </span>
+                  )}
                 </>
               )
             ) : (
@@ -111,10 +110,18 @@ export function ChatHeader({
             <Phone className="h-4 w-4" />
           </button>
         )}
-        <button onClick={onMinimize} className="hover:bg-white/10 rounded p-1.5" aria-label={t('chatWidget.minimize')}>
+        <button
+          onClick={onMinimize}
+          className="hover:bg-white/10 rounded p-1.5"
+          aria-label={t('chatWidget.minimize')}
+        >
           <Minus className="h-4 w-4" />
         </button>
-        <button onClick={onClose} className="hover:bg-white/10 rounded p-1.5" aria-label={t('common.close')}>
+        <button
+          onClick={onClose}
+          className="hover:bg-white/10 rounded p-1.5"
+          aria-label={t('common.close')}
+        >
           <X className="h-4 w-4" />
         </button>
       </div>

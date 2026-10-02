@@ -21,11 +21,7 @@ import type { FeedbackValues } from './feedback-schema'
 const MAX_PHOTOS = 3
 const MAX_PHOTO_SIZE = 2 * 1024 * 1024 // 2MB
 
-export function FeedbackPhotoField({
-  form,
-}: {
-  form: UseFormReturn<FeedbackValues>
-}) {
+export function FeedbackPhotoField({ form }: { form: UseFormReturn<FeedbackValues> }) {
   const t = useT()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -85,7 +81,10 @@ export function FeedbackPhotoField({
               {t('feedbackForm.photosLabel')}
             </FormLabel>
             <span className="text-[10px] text-muted-foreground">
-              {t('feedbackForm.photosCounter', { count: (field.value ?? []).length, max: MAX_PHOTOS })}
+              {t('feedbackForm.photosCounter', {
+                count: (field.value ?? []).length,
+                max: MAX_PHOTOS,
+              })}
             </span>
           </div>
           <input

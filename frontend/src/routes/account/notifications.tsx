@@ -53,8 +53,7 @@ export function AccountNotificationsPage() {
 
   const items = data?.items ?? []
   const unreadCount =
-    (data?.unreadCount ?? 0) -
-    items.filter((n) => optimisticReads[n.id] && !n.read).length
+    (data?.unreadCount ?? 0) - items.filter((n) => optimisticReads[n.id] && !n.read).length
 
   const markAllRead = async () => {
     try {
@@ -113,7 +112,9 @@ export function AccountNotificationsPage() {
               </div>
             ) : isError ? (
               <div className="py-6 text-center">
-                <p className="text-sm text-muted-foreground mb-3">{t('notifications.loadFailed')}</p>
+                <p className="text-sm text-muted-foreground mb-3">
+                  {t('notifications.loadFailed')}
+                </p>
                 <Button variant="outline" size="sm" onClick={() => refetch()}>
                   {t('common.retry')}
                 </Button>
@@ -140,20 +141,31 @@ export function AccountNotificationsPage() {
                         onClick={() => openNotification(n.id)}
                         className="flex w-full items-start gap-3 py-3 text-left transition-colors hover:bg-muted/40 rounded-lg px-2 -mx-2"
                       >
-                        <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${meta.cls}`}>
+                        <span
+                          className={`grid size-9 shrink-0 place-items-center rounded-lg ${meta.cls}`}
+                        >
                           {meta.icon}
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
                             {n.title && (
-                              <span className={`text-sm line-clamp-1 ${isRead ? 'font-normal' : 'font-semibold'}`}>
+                              <span
+                                className={`text-sm line-clamp-1 ${isRead ? 'font-normal' : 'font-semibold'}`}
+                              >
                                 {n.title}
                               </span>
                             )}
-                            {!isRead && <span className="size-2 shrink-0 rounded-full bg-blue-500" aria-hidden />}
+                            {!isRead && (
+                              <span
+                                className="size-2 shrink-0 rounded-full bg-blue-500"
+                                aria-hidden
+                              />
+                            )}
                           </span>
                           {n.body && (
-                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                              {n.body}
+                            </p>
                           )}
                           <span className="block text-[10px] text-muted-foreground mt-1">
                             {relativeTime(n.createdAt)}

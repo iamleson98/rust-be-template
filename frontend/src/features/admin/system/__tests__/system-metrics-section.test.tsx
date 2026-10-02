@@ -74,9 +74,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
   })
 
   it('renders the section header with the live badge and refresh button', () => {
-    useSystemMetricsMock.mockReturnValue(
-      mockQueryResult({ data: METRICS, isFetching: true }),
-    )
+    useSystemMetricsMock.mockReturnValue(mockQueryResult({ data: METRICS, isFetching: true }))
     render(<SystemMetricsSection />)
 
     expect(screen.getByTestId('system-metrics')).toBeInTheDocument()
@@ -152,9 +150,7 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
 
   it('requests a refetch when Refresh is clicked', async () => {
     const refetch = vi.fn()
-    useSystemMetricsMock.mockReturnValue(
-      mockQueryResult({ data: METRICS, refetch }),
-    )
+    useSystemMetricsMock.mockReturnValue(mockQueryResult({ data: METRICS, refetch }))
     render(<SystemMetricsSection />)
 
     await screen.getByRole('button', { name: /refresh/i }).click()

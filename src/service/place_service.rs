@@ -5,7 +5,7 @@
 //!
 //! ## Design
 //! - Uses `CompositeStore` (PlaceStore) for all DB access.
-//! - When a Tantivy [`PlaceSearcher`](crate::osm::searcher::PlaceSearcher)
+//! - When a Tantivy [`PlaceSearcher`]
 //!   is available (built via `import-osm`), fulltext search + reverse
 //!   geocoding use it for Vietnamese-aware, diacritic-insensitive matching.
 //! - When no Tantivy index is configured, search + reverse geocode return

@@ -29,7 +29,9 @@ export function LiveTrackingMapOverlays({
         <div className="flex items-center gap-1.5">
           <Gauge className="h-4 w-4 text-blue-600" />
           <div>
-            <div className="text-[10px] text-muted-foreground leading-none">{t('liveTracking.speed')}</div>
+            <div className="text-[10px] text-muted-foreground leading-none">
+              {t('liveTracking.speed')}
+            </div>
             <div className="font-bold text-sm leading-tight">
               {status === 'running' || status === 'arriving_soon'
                 ? speed
@@ -38,9 +40,7 @@ export function LiveTrackingMapOverlays({
                   : status === 'arrived'
                     ? '0'
                     : '—'}
-              <span className="text-[10px] font-normal text-muted-foreground ml-0.5">
-                km/h
-              </span>
+              <span className="text-[10px] font-normal text-muted-foreground ml-0.5">km/h</span>
             </div>
           </div>
         </div>

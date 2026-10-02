@@ -30,7 +30,9 @@ import { cn } from '@/lib/utils'
 
 type PointKind = 'pickup' | 'middle' | 'drop'
 
-const getKindMeta = (t: ReturnType<typeof useT>): Record<
+const getKindMeta = (
+  t: ReturnType<typeof useT>,
+): Record<
   PointKind,
   { placeholder: string; searchPlaceholder: string; icon: typeof MapPin; iconClass: string }
 > => ({
@@ -107,9 +109,7 @@ export function AddressPointSelect({
           renderValue={(item, rawValue) => (
             <span className="flex min-w-0 items-center gap-2">
               <Icon className={cn('h-3.5 w-3.5 shrink-0', meta.iconClass)} />
-              <span className="truncate">
-                {item ? item.name : (rawValue ?? meta.placeholder)}
-              </span>
+              <span className="truncate">{item ? item.name : (rawValue ?? meta.placeholder)}</span>
             </span>
           )}
           renderItem={(a) => (
@@ -117,9 +117,7 @@ export function AddressPointSelect({
               <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-600" />
               <span className="truncate">{a.name}</span>
               {a.province ? (
-                <span className="text-[11px] text-muted-foreground truncate">
-                  · {a.province}
-                </span>
+                <span className="text-[11px] text-muted-foreground truncate">· {a.province}</span>
               ) : null}
             </span>
           )}

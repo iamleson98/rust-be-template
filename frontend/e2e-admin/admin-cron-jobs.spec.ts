@@ -62,9 +62,9 @@ test('osm.import schedule renders with cadence, next run and work time', async (
 
 test('scheduler-offline banner explains why nothing fires', async ({ page }) => {
   // The e2e backend runs with SCHEDULER_ENABLED=false → the banner shows.
-  await expect(
-    page.getByText('Bộ lập lịch đang tắt trên máy chủ này'),
-  ).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Bộ lập lịch đang tắt trên máy chủ này')).toBeVisible({
+    timeout: 10_000,
+  })
 })
 
 test('run history table lists the seeded run', async ({ page }) => {
@@ -138,9 +138,8 @@ test('trigger is refused without a running worker (API contract)', async ({ requ
   const loginRes = await request.post('/api/auth/employee-login', {
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent':
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
-      'Origin': 'http://localhost:5184',
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
+      Origin: 'http://localhost:5184',
     },
     data: { email: EMP_EMAIL, password: EMP_PASSWORD },
   })
@@ -148,9 +147,8 @@ test('trigger is refused without a running worker (API contract)', async ({ requ
 
   const res = await request.post('/api/admin/cron-jobs/osm.import/trigger', {
     headers: {
-      'User-Agent':
-        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
-      'Origin': 'http://localhost:5184',
+      'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
+      Origin: 'http://localhost:5184',
     },
   })
   // No worker runs in the e2e backend → 503, not 409/404/500.

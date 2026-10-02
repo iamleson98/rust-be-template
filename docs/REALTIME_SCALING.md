@@ -19,7 +19,7 @@ horizontally scalable realtime?"*
 **Answer, as implemented in this repo:**
 
 | Layer | Before | Now (this change) | Horizontal path |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Chat WS capacity | static `WS_MAX_CONNECTIONS=50_000` | **0 = unlimited; hardware-bounded** by RAM + fd watermarks (`middleware::resource_guard`) | N replicas + Redis/NATS backplane (§7.1) |
 | Call-signaling WS | static caps, per-IP 25 | **0 = unlimited; same hardware guard** | Same as chat (signaling is just WS) |
 | Concurrent calls | bounded by TURN relay ports (601) | relay range widened **601 → 16 341 ports** (§6); bounded by bandwidth/CPU — i.e. the machine | Multi-coturn via DNS SRV / L4 LB (§7.2) |
@@ -100,7 +100,7 @@ two building blocks we run (coturn today; SFU only if/when group calls ship).
 Published single-node numbers for idle WebSocket connections:
 
 | Stack | Result | RAM per conn |
-|---|---|---|
+| --- | --- | --- |
 | uWebSockets.js (C++ core, Node API) | ~1 M conns in ~5.5 GB | **~5.4 KB** |
 | AnyCable Pro (Go) | ~822 K conns in 14.8 GB | ~18 KB |
 | Phoenix / Elixir (2015, 40-core/128 GB) | 2 M conns | ~50 KB incl. channels |
@@ -187,7 +187,7 @@ auth, before any slot is taken**:
 ### 5.2 Config semantics (`WsConfig`)
 
 | Env | Old | New | Meaning |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `WS_MAX_CONNECTIONS` | 50 000 | **0 (unlimited)** | static override only; hardware is the default bound |
 | `WS_MAX_PER_IP` | 25 | **0 (disabled)** | anti-abuse knob, off by default (50+ agents behind one office NAT is normal for us); both hubs now treat 0 = unlimited-and-still-counted |
 | `WS_MIN_FREE_MEM_MB` | — | **512** | RAM floor for new connections |
@@ -225,7 +225,7 @@ concurrent allocations. A fully-relayed 1:1 call makes up to 8 allocations
 (both peers × multiple ICE candidates), so:
 
 | Relay range | Ports | ≈ relayed-call ceiling (ports) | Real binder |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 49160–49200 (old) | 41 | ~5 | ports |
 | 49160–49760 (v0.5.8) | 601 | ~75 | ports |
 | **49160–65500 (this change)** | **16 341** | **~2 000** | **NIC bandwidth / pps (~600–800 @ 1 Gbps)** |

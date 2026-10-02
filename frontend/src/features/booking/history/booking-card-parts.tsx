@@ -8,7 +8,15 @@ import { formatDateTimeVN } from '@/lib/types'
  * Small presentational helpers — kept in this file so the BookingCard is
  * fully self-contained and tree-shakeable.
  * ─────────────────────────────────────────────────────────────────────── */
-export function InfoTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+export function InfoTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+}) {
   return (
     <div className="bg-white rounded-lg ring-1 ring-black/5 p-3">
       <div className="text-[10px] uppercase font-bold tracking-wide text-muted-foreground mb-0.5 flex items-center gap-1">
@@ -57,8 +65,8 @@ export function TimelineItem({
           destructive
             ? 'bg-rose-100 text-rose-600'
             : active
-            ? 'bg-blue-100 text-blue-600'
-            : 'bg-slate-100 text-slate-400'
+              ? 'bg-blue-100 text-blue-600'
+              : 'bg-slate-100 text-slate-400'
         }`}
       >
         {icon}

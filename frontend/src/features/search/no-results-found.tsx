@@ -29,16 +29,16 @@ function MagnifyingGlassSVG() {
         strokeLinecap="round"
       />
       {/* Lens circle */}
+      <circle cx="52" cy="52" r="28" fill="white" stroke="oklch(0.556 0.13 250)" strokeWidth="4" />
+      {/* Inner dotted search pattern */}
       <circle
         cx="52"
         cy="52"
-        r="28"
-        fill="white"
-        stroke="oklch(0.556 0.13 250)"
-        strokeWidth="4"
+        r="18"
+        stroke="oklch(0.556 0.13 250 / 0.3)"
+        strokeWidth="2"
+        strokeDasharray="3 4"
       />
-      {/* Inner dotted search pattern */}
-      <circle cx="52" cy="52" r="18" stroke="oklch(0.556 0.13 250 / 0.3)" strokeWidth="2" strokeDasharray="3 4" />
       {/* Question mark inside lens */}
       <path
         d="M48 46.5 C48 42, 52 40, 55 42 C58 44, 58 47, 55 49 C52 51, 52 53, 52 55"

@@ -62,12 +62,14 @@ export const PopularRoutes = memo(function PopularRoutes() {
 
   // group by from-to pair, take unique routes
   const seen = new Set<string>()
-  const unique = items.filter((r) => {
-    const key = `${r.from.name}->${r.to.name}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  }).slice(0, 8)
+  const unique = items
+    .filter((r) => {
+      const key = `${r.from.name}->${r.to.name}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .slice(0, 8)
 
   return (
     <section className="bg-white">
@@ -75,17 +77,18 @@ export const PopularRoutes = memo(function PopularRoutes() {
         {isLoading ? (
           <PopularRoutesSkeleton count={8} />
         ) : isError ? (
-          <ErrorState
-            description={t('home.popularRoutesError')}
-            onRetry={() => refetch()}
-          />
+          <ErrorState description={t('home.popularRoutesError')} onRetry={() => refetch()} />
         ) : (
           <>
             <div>
               <div className="flex items-end justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">{t('home.popularRoutesTitle')}</h2>
-                  <p className="text-muted-foreground mt-1 text-sm">{t('home.popularRoutesSubtitle')}</p>
+                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+                    {t('home.popularRoutesTitle')}
+                  </h2>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    {t('home.popularRoutesSubtitle')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -101,13 +104,18 @@ export const PopularRoutes = memo(function PopularRoutes() {
                   <Card className="group overflow-hidden border-border/60 hover:border-blue-400 hover:-translate-y-1 transition-all duration-300 h-full">
                     <div
                       className="h-1.5"
-                      style={{ background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)` }}
+                      style={{
+                        background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)`,
+                      }}
                     />
                     <div className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span
                           className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-                          style={{ background: `${r.brand.accentColor ?? '#64748b'}15`, color: r.brand.accentColor ?? '#64748b' }}
+                          style={{
+                            background: `${r.brand.accentColor ?? '#64748b'}15`,
+                            color: r.brand.accentColor ?? '#64748b',
+                          }}
                         >
                           <Bus className="h-3 w-3" />
                           {r.brand.name ?? '—'}
@@ -121,7 +129,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base truncate">{r.from.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{t('search.from')}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {t('search.from')}
+                          </div>
                         </div>
                         <div className="shrink-0 h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                           <ArrowRight className="h-4 w-4 text-blue-600 group-hover:translate-x-0.5 transition-transform" />
@@ -133,7 +143,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
                       </div>
 
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                        <span className="font-medium text-blue-600">{t('home.tripsPerDay', { count: r.scheduleCount })}</span>
+                        <span className="font-medium text-blue-600">
+                          {t('home.tripsPerDay', { count: r.scheduleCount })}
+                        </span>
                       </div>
 
                       {/* REAL price — lowest schedule price from the API.
@@ -149,7 +161,9 @@ export const PopularRoutes = memo(function PopularRoutes() {
                           </span>
                         </div>
                       ) : (
-                        <div className="text-xs text-muted-foreground">{t('searchPage.noSchedulesYet')}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {t('searchPage.noSchedulesYet')}
+                        </div>
                       )}
                     </div>
                   </Card>

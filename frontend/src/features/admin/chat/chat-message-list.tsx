@@ -3,7 +3,10 @@
 import type { RefObject } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useT } from '@/lib/i18n'
-import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
+import type {
+  AdminChannel as Channel,
+  AdminChatMessage as ChatMessage,
+} from '@/features/admin/dashboard/types'
 import { daySeparatorLabel, PANES_HEIGHT } from './chat-helpers'
 import { MessageRow } from './message-row'
 
@@ -48,7 +51,10 @@ export function ChatMessageList({
 }) {
   const t = useT()
   return (
-    <ScrollArea ref={chatScrollRef} className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 xl:min-h-0 p-4`}>
+    <ScrollArea
+      ref={chatScrollRef}
+      className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 xl:min-h-0 p-4`}
+    >
       <div className="space-y-2.5">
         {/* ── "Load more" spinner (top of chat) ─────────────────
             Shown when the infinite-scroll hook is fetching the
@@ -115,9 +121,18 @@ export function ChatMessageList({
         <div className="flex justify-start pb-2 px-1 mt-2">
           <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
             <div className="flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                style={{ animationDelay: '0ms' }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                style={{ animationDelay: '150ms' }}
+              />
+              <span
+                className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                style={{ animationDelay: '300ms' }}
+              />
             </div>
           </div>
         </div>

@@ -53,10 +53,10 @@ abstract final class AppBrand {
 
   /// Soft vertical wash for screen headers in light mode.
   static LinearGradient headerWash(Color base) => LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [base.withValues(alpha: 0.06), base.withValues(alpha: 0.0)],
-      );
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [base.withValues(alpha: 0.06), base.withValues(alpha: 0.0)],
+  );
 
   /// Deterministic avatar gradient per name-hash so different customers
   /// get different (but stable) purple-family hues.
@@ -94,49 +94,49 @@ abstract final class AppMotion {
 
 /// Forui color scheme — light, purple-tinted.
 FColors get _vexevnLight => FColors(
-      brightness: Brightness.light,
-      systemOverlayStyle: SystemUiOverlayStyle.dark,
-      barrier: const Color(0x33000000),
-      background: const Color(0xFFF8F6FD),
-      foreground: const Color(0xFF191225),
-      primary: AppBrand.violet,
-      primaryForeground: const Color(0xFFFFFFFF),
-      secondary: const Color(0xFFEDE8FB),
-      secondaryForeground: const Color(0xFF4C1D95),
-      muted: const Color(0xFFECE8F8),
-      mutedForeground: const Color(0xFF6E688C),
-      destructive: const Color(0xFFE11D48),
-      destructiveForeground: const Color(0xFFFFFFFF),
-      error: const Color(0xFFE11D48),
-      errorForeground: const Color(0xFFFFFFFF),
-      card: const Color(0xFFFFFFFF),
-      border: const Color(0xFFE6E0F4),
-    );
+  brightness: Brightness.light,
+  systemOverlayStyle: SystemUiOverlayStyle.dark,
+  barrier: const Color(0x33000000),
+  background: const Color(0xFFF8F6FD),
+  foreground: const Color(0xFF191225),
+  primary: AppBrand.violet,
+  primaryForeground: const Color(0xFFFFFFFF),
+  secondary: const Color(0xFFEDE8FB),
+  secondaryForeground: const Color(0xFF4C1D95),
+  muted: const Color(0xFFECE8F8),
+  mutedForeground: const Color(0xFF6E688C),
+  destructive: const Color(0xFFE11D48),
+  destructiveForeground: const Color(0xFFFFFFFF),
+  error: const Color(0xFFE11D48),
+  errorForeground: const Color(0xFFFFFFFF),
+  card: const Color(0xFFFFFFFF),
+  border: const Color(0xFFE6E0F4),
+);
 
 /// Forui color scheme — dark, deep purple stack.
 FColors get _vexevnDark => FColors(
-      brightness: Brightness.dark,
-      systemOverlayStyle: SystemUiOverlayStyle.light,
-      barrier: const Color(0x7A000000),
-      background: const Color(0xFF0E0B16),
-      foreground: const Color(0xFFF4F1FB),
-      primary: const Color(0xFF8B5CF6),
-      primaryForeground: const Color(0xFFF8F5FF),
-      secondary: const Color(0xFF221B36),
-      secondaryForeground: const Color(0xFFDDD6FE),
-      muted: const Color(0xFF221C36),
-      mutedForeground: const Color(0xFFA7A1C8),
-      destructive: const Color(0xFFFB7185),
-      destructiveForeground: const Color(0xFF14101F),
-      error: const Color(0xFFFB7185),
-      errorForeground: const Color(0xFF14101F),
-      card: const Color(0xFF181226),
-      border: const Color(0x1FFFFFFF),
-    );
+  brightness: Brightness.dark,
+  systemOverlayStyle: SystemUiOverlayStyle.light,
+  barrier: const Color(0x7A000000),
+  background: const Color(0xFF0E0B16),
+  foreground: const Color(0xFFF4F1FB),
+  primary: const Color(0xFF8B5CF6),
+  primaryForeground: const Color(0xFFF8F5FF),
+  secondary: const Color(0xFF221B36),
+  secondaryForeground: const Color(0xFFDDD6FE),
+  muted: const Color(0xFF221C36),
+  mutedForeground: const Color(0xFFA7A1C8),
+  destructive: const Color(0xFFFB7185),
+  destructiveForeground: const Color(0xFF14101F),
+  error: const Color(0xFFFB7185),
+  errorForeground: const Color(0xFF14101F),
+  card: const Color(0xFF181226),
+  border: const Color(0x1FFFFFFF),
+);
 
 /// Touch-optimized Forui theme for the app.
 FThemeData vexevnTheme({required bool dark}) => FThemeData(
-      colors: dark ? _vexevnDark : _vexevnLight,
-      touch: true,
-      debugLabel: dark ? 'Đặt Xe Vui Dark Touch' : 'Đặt Xe Vui Light Touch',
-    );
+  colors: dark ? _vexevnDark : _vexevnLight,
+  touch: true,
+  debugLabel: dark ? 'Đặt Xe Vui Dark Touch' : 'Đặt Xe Vui Light Touch',
+);

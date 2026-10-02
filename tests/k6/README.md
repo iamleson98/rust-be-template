@@ -3,6 +3,7 @@
 Intensive load test suite for the Rust backend, covering auth, chat,
 bookings, payments, public search, admin dashboard, + a realistic
 mixed workload. Designed to find the backend's sustainable throughput
+
 + breaking point.
 
 ## Quick start
@@ -74,7 +75,7 @@ Override via `-e KEY=VALUE` on the k6 command line, or export them in
 your shell before running `run.sh`.
 
 | Variable | Default | Used by | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `BASE_URL` | `http://localhost:8080` | all | Backend URL |
 | `ORIGIN` | `http://localhost:8080` | all | Value of the `Origin` header (must be in `CORS_ORIGINS`) |
 | `USER_EMAIL` | — | auth, chat, booking, mixed | Existing customer email (for login path) |
@@ -90,7 +91,7 @@ your shell before running `run.sh`.
 ## Scenario catalog
 
 | # | Scenario | VUs | Duration | Description |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 01 | `smoke` | 1 | ~5s | Health check — verifies the server is up |
 | 02 | `auth` | 10→30 | ~2.5min | Register/login/refresh/logout storm |
 | 03 | `chat` | 20→50 | ~3.5min | Chat channels + messages (with pagination) |
@@ -103,12 +104,15 @@ your shell before running `run.sh`.
 ### Scenario details
 
 #### 01-smoke.js
+
 1 VU, 1 iteration. Hits `/health`, `/ready`, `/api/stats`, `/api/brands`,
 `/api/nullclaw/status`. No auth. Use this to verify the server is
 alive before running the heavier scenarios.
 
 #### 02-auth.js
+
 Ramps 10→30 VUs. Mix of:
+
 - 50% register a NEW user (heavy DB write — argon2 hash + RBAC role assignment)
 - 30% login as existing user (read path)
 - 20% refresh + me + logout (token rotation cycle)
@@ -117,7 +121,9 @@ Set `USER_EMAIL` + `USER_PASSWORD` for the login path. If unset, only
 the register path runs (still exercises the heavy write path).
 
 #### 03-chat.js
+
 Ramps 20→50 VUs. Each VU:
+
 1. Registers once (on first iteration)
 2. Lists channels
 3. Creates or reuses a channel
@@ -131,7 +137,9 @@ Exercises the full chat insert + WS-broadcast path (the REST
 after insert).
 
 #### 04-booking.js
+
 Ramps 15→30 VUs. Each VU:
+
 1. Registers once
 2. Searches trips (Hà Nội → Đà Nẵng)
 3. Fetches trip detail (if `TRIP_ID` is set)
@@ -146,7 +154,9 @@ fine, it still exercises the auth + validation + DB query path. For
 real bookings, seed a trip + seats via the admin endpoints first.
 
 #### 05-public.js
+
 Ramps 50→100 VUs (public endpoints can handle more RPS). Mix of:
+
 - 30% homepage browse (stats → brands → recommendations → campaigns)
 - 30% search trips (varied routes + dates)
 - 20% place autocomplete (OSM-backed)
@@ -157,8 +167,10 @@ No auth — all endpoints are public. Stricter latency thresholds
 (p(95) < 300ms) since these should be fast + cacheable.
 
 #### 06-admin.js
+
 Ramps 5→10 VUs (fewer admins). Each VU logs in as an employee via
 `/api/auth/employee-login`, then:
+
 - 30% dashboard overview (system status + booking stats + list)
 - 20% reviews moderation queue
 - 20% payments management
@@ -169,7 +181,9 @@ Ramps 5→10 VUs (fewer admins). Each VU logs in as an employee via
 Set `ADMIN_EMAIL` + `ADMIN_PASSWORD` to an existing employee account.
 
 #### 07-mixed.js
+
 Three concurrent scenarios (k6 `scenarios` feature):
+
 - **anonymous** (30→50 VUs): homepage + search + reviews (no auth)
 - **customers** (10→20 VUs): login + chat + booking lifecycle
 - **admins** (2→5 VUs): dashboard + moderation
@@ -179,10 +193,12 @@ This is the closest scenario to real production traffic. Set
 the authenticated paths.
 
 #### 08-stress.js
+
 Ramps 50→400 VUs aggressively. Loose thresholds (p(99) < 10s, error
 rate < 30%) — the goal is to find the breaking point, not to pass.
 
 Watch for:
+
 - **p(95) latency spike** — when does it exceed 2s?
 - **error rate climb** — 429s = rate limiter (600 RPM / 100 burst per IP), 500s = backend errors
 - **throughput flattening** — when `iterations/sec` stops growing, the backend is saturated
@@ -195,7 +211,7 @@ without a snapshot/rollback plan.
 k6 outputs a summary table at the end. Key metrics:
 
 | Metric | What it means | Healthy range |
-|---|---|---|
+| --- | --- | --- |
 | `http_req_duration` | Time per request (p(95), p(99)) | p(95) < 500ms, p(99) < 2s |
 | `http_req_failed` | % of non-2xx responses | < 1% (except stress) |
 | `iterations` | Total iterations completed | higher = more throughput |
@@ -205,7 +221,7 @@ k6 outputs a summary table at the end. Key metrics:
 ### Common failure modes
 
 | Symptom | Likely cause | Fix |
-|---|---|---|
+| --- | --- | --- |
 | 403 on every request | Missing `Origin` header or browser UA | Check `config.js` is imported |
 | 401 on authenticated requests | Cookies not persisting | Ensure `jar: getJar()` in `withAuth()` |
 | 429 after ~100 requests | Rate limiter (600 RPM / 100 burst per IP) | Reduce VUs or raise `RATE_LIMIT_RPM` |
@@ -342,6 +358,7 @@ ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=Pass123! \
 ```
 
 The script:
+
 1. Starts N Docker containers, each with a distinct `K6_VU_OFFSET`
    (0, 1000, 2000, ...) so VU ids don't collide across workers.
 2. Each container runs the same scenario — the aggregate load is
@@ -366,6 +383,7 @@ need, or add more by copying the pattern.
 ### When the backend is in Docker vs on the host
 
 **Backend in Docker** (via `deploy/docker-compose.contabo.yml`):
+
 ```bash
 # Start backend first:
 TUNNEL_TOKEN=dummy docker compose -f deploy/docker-compose.contabo.yml up -d backend
@@ -376,6 +394,7 @@ BASE_URL=http://backend:8080 \
 ```
 
 **Backend on host** (`cargo run -- serve`):
+
 ```bash
 # k6 workers connect via host.docker.internal:
 BASE_URL=http://host.docker.internal:8080 \
@@ -395,7 +414,7 @@ Each worker gets its own 600 RPM / 100 burst budget. The aggregate
 throughput is `N × 600 RPM = N × 10 RPS sustained`.
 
 | Workers | Aggregate RPM | Aggregate sustained RPS | Notes |
-|---------|--------------|------------------------|-------|
+| --------- | -------------- | ------------------------ | ------- |
 | 1 | 600 | 10 | Same as single-process k6 |
 | 3 | 1,800 | 30 | Good for auth/chat scenarios |
 | 5 | 3,000 | 50 | Good for public/mixed scenarios |

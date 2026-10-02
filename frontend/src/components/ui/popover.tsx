@@ -1,9 +1,9 @@
-"use client"
+'use client'
 
-import { type ComponentProps, type ReactElement, isValidElement } from "react"
-import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
+import { type ComponentProps, type ReactElement, isValidElement } from 'react'
+import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 import { resolveNativeButton } from './resolve-native-button'
 
 /**
@@ -32,9 +32,7 @@ import { resolveNativeButton } from './resolve-native-button'
  * CSS like `data-[side=bottom]:slide-in-from-top-2` works as-is.
  */
 
-function Popover({
-  ...props
-}: ComponentProps<typeof PopoverPrimitive.Root>) {
+function Popover({ ...props }: ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 
@@ -42,7 +40,7 @@ function PopoverTrigger({
   asChild,
   children,
   ...props
-}: Omit<ComponentProps<typeof PopoverPrimitive.Trigger>, "render"> & {
+}: Omit<ComponentProps<typeof PopoverPrimitive.Trigger>, 'render'> & {
   asChild?: boolean
 }) {
   if (asChild && isValidElement(children)) {
@@ -64,15 +62,18 @@ function PopoverTrigger({
 
 function PopoverContent({
   className,
-  align = "center",
+  align = 'center',
   sideOffset = 4,
-  side = "bottom",
+  side = 'bottom',
   ...props
-}: Omit<ComponentProps<typeof PopoverPrimitive.Positioner>, "render" | "side" | "align" | "sideOffset"> &
-  Omit<ComponentProps<typeof PopoverPrimitive.Popup>, "render"> & {
-    side?: "top" | "right" | "bottom" | "left" | "inline-start" | "inline-end"
+}: Omit<
+  ComponentProps<typeof PopoverPrimitive.Positioner>,
+  'render' | 'side' | 'align' | 'sideOffset'
+> &
+  Omit<ComponentProps<typeof PopoverPrimitive.Popup>, 'render'> & {
+    side?: 'top' | 'right' | 'bottom' | 'left' | 'inline-start' | 'inline-end'
     sideOffset?: number
-    align?: "start" | "center" | "end"
+    align?: 'start' | 'center' | 'end'
   }) {
   return (
     <PopoverPrimitive.Portal>
@@ -85,14 +86,11 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           data-slot="popover-content"
           render={(componentProps, state) => (
-            <div
-              {...componentProps}
-              data-state={state.open ? "open" : "closed"}
-            />
+            <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
           )}
           className={cn(
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[100] max-h-(--available-height) w-72 origin-(--transform-origin) overflow-y-auto overscroll-contain rounded-md border p-4 outline-hidden",
-            className
+            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-[100] max-h-(--available-height) w-72 origin-(--transform-origin) overflow-y-auto overscroll-contain rounded-md border p-4 outline-hidden',
+            className,
           )}
           {...props}
         />
@@ -109,7 +107,7 @@ function PopoverContent({
  * `PopoverContent`). Since no consumer in this repo uses `PopoverAnchor`,
  * this stub simply renders its children inside a span with the data-slot.
  */
-function PopoverAnchor({ ...props }: ComponentProps<"span">) {
+function PopoverAnchor({ ...props }: ComponentProps<'span'>) {
   return <span data-slot="popover-anchor" {...props} />
 }
 

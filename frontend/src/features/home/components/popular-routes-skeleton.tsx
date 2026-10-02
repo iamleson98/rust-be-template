@@ -5,7 +5,11 @@ import { Card } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── Popular Routes Skeleton — 8 card grid ─── */
-export const PopularRoutesSkeleton = memo(function PopularRoutesSkeleton({ count = 8 }: { count?: number }) {
+export const PopularRoutesSkeleton = memo(function PopularRoutesSkeleton({
+  count = 8,
+}: {
+  count?: number
+}) {
   return (
     <section className="container mx-auto px-4 py-12 md:py-16">
       <div className="flex items-end justify-between mb-6">

@@ -12,7 +12,8 @@ import type { SearchFormValues } from './search-widget-schema'
 
 /** Shared label style — darker than muted-foreground so the tiny
  *  uppercase labels stay readable on the white widget card. */
-const LABEL_CLASS = 'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+const LABEL_CLASS =
+  'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 export function SearchRouteFields({
   form,
@@ -35,7 +36,9 @@ export function SearchRouteFields({
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
             <FormLabel className={LABEL_CLASS}>
               {t('search.from')}{' '}
-              <span className="text-destructive" aria-hidden="true">*</span>
+              <span className="text-destructive" aria-hidden="true">
+                *
+              </span>
             </FormLabel>
             <FormControl>
               <PlaceAutocomplete
@@ -56,7 +59,9 @@ export function SearchRouteFields({
 
       {/* Swap — round icon straddling the two city fields (desktop grid
           column; hidden on the stacked mobile layout, same as before). */}
-      <div className={cn('hidden md:flex items-center justify-center', compact ? 'pb-0.5' : 'pb-1')}>
+      <div
+        className={cn('hidden md:flex items-center justify-center', compact ? 'pb-0.5' : 'pb-1')}
+      >
         <button
           type="button"
           onClick={swap}
@@ -76,7 +81,9 @@ export function SearchRouteFields({
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
             <FormLabel className={LABEL_CLASS}>
               {t('search.to')}{' '}
-              <span className="text-destructive" aria-hidden="true">*</span>
+              <span className="text-destructive" aria-hidden="true">
+                *
+              </span>
             </FormLabel>
             <FormControl>
               <PlaceAutocomplete

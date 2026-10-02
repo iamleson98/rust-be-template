@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 /**
  * ContextMenu — Base UI implementation preserving the Radix/shadcn public API.
@@ -25,16 +25,16 @@
  * | `<ContextMenu.SubContent>`       | `<ContextMenu.Portal>` + `<ContextMenu.Positioner>` + `<ContextMenu.Popup>` |
  * | `data-state="open|closed"`       | `data-open`/`data-closed` + (shimmed) `data-state` via `render` |
  */
-import { type ComponentProps, type ReactElement } from "react"
-import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu"
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
+import { type ComponentProps, type ReactElement } from 'react'
+import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
+import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 import { resolveNativeButton } from './resolve-native-button'
 
 function ContextMenu({
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Root>, "onOpenChange"> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Root>, 'onOpenChange'> & {
   onOpenChange?: (open: boolean) => void
 }) {
   return (
@@ -46,39 +46,21 @@ function ContextMenu({
   )
 }
 
-function ContextMenuTrigger({
-  ...props
-}: ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
-  return (
-    <ContextMenuPrimitive.Trigger
-      data-slot="context-menu-trigger"
-      {...props}
-    />
-  )
+function ContextMenuTrigger({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Trigger>) {
+  return <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
 }
 
-function ContextMenuGroup({
-  ...props
-}: ComponentProps<typeof ContextMenuPrimitive.Group>) {
-  return (
-    <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
-  )
+function ContextMenuGroup({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Group>) {
+  return <ContextMenuPrimitive.Group data-slot="context-menu-group" {...props} />
 }
 
-function ContextMenuPortal({
-  ...props
-}: ComponentProps<typeof ContextMenuPrimitive.Portal>) {
-  return (
-    <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
-  )
+function ContextMenuPortal({ ...props }: ComponentProps<typeof ContextMenuPrimitive.Portal>) {
+  return <ContextMenuPrimitive.Portal data-slot="context-menu-portal" {...props} />
 }
 
 function ContextMenuSub({
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.SubmenuRoot>,
-  "onOpenChange"
-> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuRoot>, 'onOpenChange'> & {
   onOpenChange?: (open: boolean) => void
 }) {
   return (
@@ -95,10 +77,7 @@ function ContextMenuRadioGroup({
   defaultValue,
   onValueChange,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.RadioGroup>,
-  "onValueChange"
-> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioGroup>, 'onValueChange'> & {
   value?: unknown
   defaultValue?: unknown
   onValueChange?: (value: unknown) => void
@@ -119,10 +98,7 @@ function ContextMenuSubTrigger({
   inset,
   children,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.SubmenuTrigger>,
-  "render"
-> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.SubmenuTrigger>, 'render'> & {
   inset?: boolean
 }) {
   return (
@@ -130,14 +106,11 @@ function ContextMenuSubTrigger({
       data-slot="context-menu-sub-trigger"
       data-inset={inset}
       render={(componentProps, state) => (
-        <div
-          {...componentProps}
-          data-state={state.open ? "open" : "closed"}
-        />
+        <div {...componentProps} data-state={state.open ? 'open' : 'closed'} />
       )}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground flex cursor-pointer items-center rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     >
@@ -149,15 +122,15 @@ function ContextMenuSubTrigger({
 
 function ContextMenuSubContent({
   className,
-  side = "bottom",
+  side = 'bottom',
   sideOffset = 0,
-  align = "start",
+  align = 'start',
   alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, 'render'> &
   Pick<
     ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-    "side" | "align" | "sideOffset" | "alignOffset"
+    'side' | 'align' | 'sideOffset' | 'alignOffset'
   >) {
   return (
     <ContextMenuPrimitive.Portal>
@@ -172,14 +145,14 @@ function ContextMenuSubContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? "open" : "closed"}
+              data-state={state.open ? 'open' : 'closed'}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--transform-origin) overflow-hidden rounded-md border p-1 ",
-            className
+            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--transform-origin) overflow-hidden rounded-md border p-1 ',
+            className,
           )}
           {...props}
         />
@@ -190,15 +163,15 @@ function ContextMenuSubContent({
 
 function ContextMenuContent({
   className,
-  side = "bottom",
+  side = 'bottom',
   sideOffset = 0,
-  align = "start",
+  align = 'start',
   alignOffset = 0,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, "render"> &
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Popup>, 'render'> &
   Pick<
     ComponentProps<typeof ContextMenuPrimitive.Positioner>,
-    "side" | "align" | "sideOffset" | "alignOffset"
+    'side' | 'align' | 'sideOffset' | 'alignOffset'
   >) {
   return (
     <ContextMenuPrimitive.Portal>
@@ -213,14 +186,14 @@ function ContextMenuContent({
           render={(componentProps, state) => (
             <div
               {...componentProps}
-              data-state={state.open ? "open" : "closed"}
+              data-state={state.open ? 'open' : 'closed'}
               data-side={state.side}
               data-align={state.align}
             />
           )}
           className={cn(
-            "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 ",
-            className
+            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--available-height) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 ',
+            className,
           )}
           {...props}
         />
@@ -232,12 +205,12 @@ function ContextMenuContent({
 function ContextMenuItem({
   className,
   inset,
-  variant = "default",
+  variant = 'default',
   asChild = false,
   ...props
-}: Omit<ComponentProps<typeof ContextMenuPrimitive.Item>, "render"> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.Item>, 'render'> & {
   inset?: boolean
-  variant?: "default" | "destructive"
+  variant?: 'default' | 'destructive'
   asChild?: boolean
 }) {
   if (asChild) {
@@ -251,7 +224,7 @@ function ContextMenuItem({
         render={children as ReactElement}
         className={cn(
           "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:text-destructive! [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-          className
+          className,
         )}
         {...rest}
       />
@@ -264,7 +237,7 @@ function ContextMenuItem({
       data-variant={variant}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:text-destructive! [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-inset:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     />
@@ -277,10 +250,7 @@ function ContextMenuCheckboxItem({
   checked,
   onCheckedChange,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>,
-  "render" | "onCheckedChange"
-> & {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>, 'render' | 'onCheckedChange'> & {
   checked?: boolean
   onCheckedChange?: (checked: boolean) => void
 }) {
@@ -291,7 +261,7 @@ function ContextMenuCheckboxItem({
       onCheckedChange={(c: boolean) => onCheckedChange?.(c)}
       className={cn(
         "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     >
@@ -309,16 +279,13 @@ function ContextMenuRadioItem({
   className,
   children,
   ...props
-}: Omit<
-  ComponentProps<typeof ContextMenuPrimitive.RadioItem>,
-  "render"
->) {
+}: Omit<ComponentProps<typeof ContextMenuPrimitive.RadioItem>, 'render'>) {
   return (
     <ContextMenuPrimitive.RadioItem
       data-slot="context-menu-radio-item"
       className={cn(
         "focus:bg-accent focus:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
+        className,
       )}
       {...props}
     >
@@ -343,10 +310,7 @@ function ContextMenuLabel({
     <ContextMenuPrimitive.GroupLabel
       data-slot="context-menu-label"
       data-inset={inset}
-      className={cn(
-        "text-foreground px-2 py-1.5 text-sm font-medium data-inset:pl-8",
-        className
-      )}
+      className={cn('text-foreground px-2 py-1.5 text-sm font-medium data-inset:pl-8', className)}
       {...props}
     />
   )
@@ -359,23 +323,17 @@ function ContextMenuSeparator({
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
-      className={cn("bg-border -mx-1 my-1 h-px", className)}
+      className={cn('bg-border -mx-1 my-1 h-px', className)}
       {...props}
     />
   )
 }
 
-function ContextMenuShortcut({
-  className,
-  ...props
-}: ComponentProps<"span">) {
+function ContextMenuShortcut({ className, ...props }: ComponentProps<'span'>) {
   return (
     <span
       data-slot="context-menu-shortcut"
-      className={cn(
-        "text-muted-foreground ml-auto text-xs tracking-widest",
-        className
-      )}
+      className={cn('text-muted-foreground ml-auto text-xs tracking-widest', className)}
       {...props}
     />
   )

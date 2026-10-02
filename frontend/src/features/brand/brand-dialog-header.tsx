@@ -2,18 +2,9 @@
 
 // Extracted from the original 'brand-detail-dialog.tsx'.
 
-import {
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import {
-  Star,
-  Bus,
-  Route as RouteIcon,
-  MessageSquareQuote,
-  CheckCircle2,
-} from 'lucide-react'
+import { Star, Bus, Route as RouteIcon, MessageSquareQuote, CheckCircle2 } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { renderStars, type BrandDetail } from './brand-detail-helpers'
 import { StatCard } from './brand-dialog-parts'
@@ -93,12 +84,8 @@ export function BrandDialogHeader({
 
               <div className="flex items-center gap-3 mt-1.5 text-sm flex-wrap">
                 <span className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-0.5">
-                    {renderStars(brand.rating)}
-                  </span>
-                  <span className="font-semibold text-amber-600">
-                    {brand.rating.toFixed(1)}
-                  </span>
+                  <span className="flex items-center gap-0.5">{renderStars(brand.rating)}</span>
+                  <span className="font-semibold text-amber-600">{brand.rating.toFixed(1)}</span>
                   <span className="text-xs text-muted-foreground">
                     ({t('reviews.countLabel', { count: reviewCount })})
                   </span>

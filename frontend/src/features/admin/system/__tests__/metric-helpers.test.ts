@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  barTone,
-  formatBytes,
-  formatUptime,
-  usagePercent,
-  usageTone,
-} from '../metric-helpers'
+import { barTone, formatBytes, formatUptime, usagePercent, usageTone } from '../metric-helpers'
 
 describe('formatBytes (SI decimal, like pdf-tts)', () => {
   it('formats whole bytes without a fraction', () => {

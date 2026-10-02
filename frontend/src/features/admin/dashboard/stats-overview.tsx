@@ -24,13 +24,7 @@
 
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  DollarSign,
-  Bus,
-  Ticket,
-  Route as RouteIcon,
-  Activity,
-} from 'lucide-react'
+import { DollarSign, Bus, Ticket, Route as RouteIcon, Activity } from 'lucide-react'
 import { formatNum } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 import {
@@ -39,7 +33,11 @@ import {
   useAdminBookings,
   type AdminBookingFilter,
 } from '@/lib/queries'
-import type { AdminBookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/lib/api/types.gen'
+import type {
+  AdminBookingOut,
+  AdminBookingDayBucket,
+  AdminBookingTotals,
+} from '@/lib/api/types.gen'
 import type { DateRange } from './types'
 import { formatVNDShort } from './helpers'
 import { KpiCard } from './kpi-card'
@@ -87,7 +85,13 @@ export function StatsOverview({
 
   // Admin booking stats — drives revenue chart + status donut
   const filter: AdminBookingFilter = useMemo(
-    () => ({ range: rangeToApi(dateRange), status: 'all', sort: 'created_desc', limit: 5, offset: 0 }),
+    () => ({
+      range: rangeToApi(dateRange),
+      status: 'all',
+      sort: 'created_desc',
+      limit: 5,
+      offset: 0,
+    }),
     [dateRange],
   )
   const { data: bookingStats } = useAdminBookingStats(filter)
@@ -117,7 +121,7 @@ export function StatsOverview({
       ]
       return byDay.map((b) => {
         const d = new Date(b.date)
-        const label = isNaN(d.getTime()) ? b.date : weekdayLabels[((d.getDay() + 6) % 7)]
+        const label = isNaN(d.getTime()) ? b.date : weekdayLabels[(d.getDay() + 6) % 7]
         return { label, value: b.revenue ?? 0, date: b.date }
       })
     }
@@ -137,10 +141,7 @@ export function StatsOverview({
     return out
   }, [byDay, dateRange, t])
 
-  const totalRangeRevenue = useMemo(
-    () => revenueSeries.reduce((a, b) => a + b, 0),
-    [revenueSeries],
-  )
+  const totalRangeRevenue = useMemo(() => revenueSeries.reduce((a, b) => a + b, 0), [revenueSeries])
   const maxBarValue = aggregatedRevenue.length
     ? Math.max(...aggregatedRevenue.map((b) => b.value))
     : 1
@@ -204,7 +205,9 @@ export function StatsOverview({
           icon={<Ticket className="h-5 w-5" />}
           label={t('admin.ticketsSold')}
           value={totals ? formatNum(totals.total) : '—'}
-          change={totals ? t('adminDash.confirmedCount', { count: formatNum(totals.confirmed) }) : '—'}
+          change={
+            totals ? t('adminDash.confirmedCount', { count: formatNum(totals.confirmed) }) : '—'
+          }
           up
           color="#2563eb"
           gradient="from-blue-500/10 to-blue-600/5"
@@ -252,10 +255,7 @@ export function StatsOverview({
       {/* ─── Row 2: Recent Bookings + live Campaigns (both real) ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
         <div className="lg:col-span-3">
-          <RecentBookingsCard
-            recentBookings={recentBookings}
-            onExportCSV={onExportCSV}
-          />
+          <RecentBookingsCard recentBookings={recentBookings} onExportCSV={onExportCSV} />
         </div>
         <div className="lg:col-span-2">
           <CampaignsSummaryCard />

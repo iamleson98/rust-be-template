@@ -5,7 +5,11 @@ import { Card } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── Brand Showcase Skeleton — horizontal scroll ─── */
-export const BrandShowcaseSkeleton = memo(function BrandShowcaseSkeleton({ count = 5 }: { count?: number }) {
+export const BrandShowcaseSkeleton = memo(function BrandShowcaseSkeleton({
+  count = 5,
+}: {
+  count?: number
+}) {
   return (
     <section className="container mx-auto px-4 py-12 md:py-16">
       <div className="flex items-end justify-between mb-8">

@@ -44,11 +44,44 @@ function TicketSVG() {
         strokeLinejoin="round"
       />
       {/* Lines on left ticket */}
-      <line x1="30" y1="50" x2="55" y2="50" stroke="oklch(0.556 0.13 250 / 0.5)" strokeWidth="2" strokeLinecap="round" />
-      <line x1="30" y1="58" x2="60" y2="58" stroke="oklch(0.556 0.13 250 / 0.5)" strokeWidth="2" strokeLinecap="round" />
-      <line x1="30" y1="66" x2="48" y2="66" stroke="oklch(0.556 0.13 250 / 0.5)" strokeWidth="2" strokeLinecap="round" />
+      <line
+        x1="30"
+        y1="50"
+        x2="55"
+        y2="50"
+        stroke="oklch(0.556 0.13 250 / 0.5)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1="30"
+        y1="58"
+        x2="60"
+        y2="58"
+        stroke="oklch(0.556 0.13 250 / 0.5)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <line
+        x1="30"
+        y1="66"
+        x2="48"
+        y2="66"
+        stroke="oklch(0.556 0.13 250 / 0.5)"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
       {/* QR-like squares on stub */}
-      <rect x="80" y="48" width="14" height="14" rx="2" fill="none" stroke="oklch(0.556 0.13 250)" strokeWidth="2" />
+      <rect
+        x="80"
+        y="48"
+        width="14"
+        height="14"
+        rx="2"
+        fill="none"
+        stroke="oklch(0.556 0.13 250)"
+        strokeWidth="2"
+      />
       <rect x="83" y="51" width="3" height="3" fill="oklch(0.556 0.13 250)" />
       <rect x="88" y="56" width="3" height="3" fill="oklch(0.556 0.13 250)" />
       <rect x="83" y="56" width="3" height="3" fill="oklch(0.556 0.13 250)" />

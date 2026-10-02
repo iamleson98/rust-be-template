@@ -29,18 +29,53 @@ import { Label } from '@/components/ui/label'
 import { ComboboxField } from '@/components/ui/combobox'
 import { Armchair, Layers, Loader2, LayoutGrid } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAdminBrands, useAdminVehicleTypes, useUpsertAdminBusLayout, useUpdateAdminBusLayout } from '@/lib/queries'
+import {
+  useAdminBrands,
+  useAdminVehicleTypes,
+  useUpsertAdminBusLayout,
+  useUpdateAdminBusLayout,
+} from '@/lib/queries'
 import type { AdminBusLayoutOut } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
 
 /** Quick-pick presets that match the seeded vehicle-type catalog. */
-const PRESETS: { labelKey: string; rows: number; cols: number; floors: number; vehicleCode: string }[] = [
-  { labelKey: 'adminBusLayouts.presetLimousine9', rows: 3, cols: 3, floors: 1, vehicleCode: 'limousine' },
-  { labelKey: 'adminBusLayouts.presetMinivan16', rows: 4, cols: 4, floors: 1, vehicleCode: 'minivan' },
-  { labelKey: 'adminBusLayouts.presetSeater40', rows: 10, cols: 4, floors: 1, vehicleCode: 'standard' },
-  { labelKey: 'adminBusLayouts.presetSleeper40', rows: 5, cols: 4, floors: 2, vehicleCode: 'sleeper' },
+const PRESETS: {
+  labelKey: string
+  rows: number
+  cols: number
+  floors: number
+  vehicleCode: string
+}[] = [
+  {
+    labelKey: 'adminBusLayouts.presetLimousine9',
+    rows: 3,
+    cols: 3,
+    floors: 1,
+    vehicleCode: 'limousine',
+  },
+  {
+    labelKey: 'adminBusLayouts.presetMinivan16',
+    rows: 4,
+    cols: 4,
+    floors: 1,
+    vehicleCode: 'minivan',
+  },
+  {
+    labelKey: 'adminBusLayouts.presetSeater40',
+    rows: 10,
+    cols: 4,
+    floors: 1,
+    vehicleCode: 'standard',
+  },
+  {
+    labelKey: 'adminBusLayouts.presetSleeper40',
+    rows: 5,
+    cols: 4,
+    floors: 2,
+    vehicleCode: 'sleeper',
+  },
 ]
 
 type GridState = { rows: number; cols: number; floors: number }
@@ -65,7 +100,11 @@ export function BusLayoutFormDialog({
   const saving = createMutation.isPending || updateMutation.isPending
 
   const brandsQuery = useAdminBrands()
-  const brands = (brandsQuery.data?.items ?? []) as { id: string; name: string; accentColor?: string | null }[]
+  const brands = (brandsQuery.data?.items ?? []) as {
+    id: string
+    name: string
+    accentColor?: string | null
+  }[]
   const vehicleTypesQuery = useAdminVehicleTypes({ limit: 100 })
   const vehicleTypes = (vehicleTypesQuery.data?.items ?? []) as {
     id: string
@@ -209,9 +248,7 @@ export function BusLayoutFormDialog({
                       onClick={() => applyPreset(p)}
                       className={cn(
                         'h-7 rounded-full border px-3 text-xs font-medium transition-colors',
-                        grid.rows === p.rows &&
-                          grid.cols === p.cols &&
-                          grid.floors === p.floors
+                        grid.rows === p.rows && grid.cols === p.cols && grid.floors === p.floors
                           ? 'border-blue-400 bg-blue-50 text-blue-700'
                           : 'border-input text-muted-foreground hover:border-blue-300 hover:text-foreground',
                       )}
@@ -232,7 +269,9 @@ export function BusLayoutFormDialog({
                     min={1}
                     max={20}
                     value={grid.rows}
-                    onChange={(e) => setGrid((g) => ({ ...g, rows: clampNum(e.target.value, 1, 20, g.rows) }))}
+                    onChange={(e) =>
+                      setGrid((g) => ({ ...g, rows: clampNum(e.target.value, 1, 20, g.rows) }))
+                    }
                   />
                 </div>
                 <div className="grid gap-1.5">
@@ -243,7 +282,9 @@ export function BusLayoutFormDialog({
                     min={1}
                     max={6}
                     value={grid.cols}
-                    onChange={(e) => setGrid((g) => ({ ...g, cols: clampNum(e.target.value, 1, 6, g.cols) }))}
+                    onChange={(e) =>
+                      setGrid((g) => ({ ...g, cols: clampNum(e.target.value, 1, 6, g.cols) }))
+                    }
                   />
                 </div>
                 <div className="grid gap-1.5">

@@ -1,7 +1,13 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,10 +30,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  useAdminBookingDetail,
-  useUpdateBookingStatus,
-} from '@/lib/queries'
+import { useAdminBookingDetail, useUpdateBookingStatus } from '@/lib/queries'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { TicketDetailSkeleton } from './ticket-detail-skeleton'
 import { formatVND, formatDepartureDate } from './tickets-helpers'
@@ -86,12 +89,12 @@ export function BookingDetailDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <TicketIcon className="h-5 w-5 text-blue-600" />
-            {booking ? t('adminTickets.ticketCode', { code: booking.code }) : t('adminTickets.detailTitle')}
+            {booking
+              ? t('adminTickets.ticketCode', { code: booking.code })
+              : t('adminTickets.detailTitle')}
             {booking && <BookingStatusBadge status={booking.status} />}
           </DialogTitle>
-          <DialogDescription>
-            {t('adminTickets.detailDescription')}
-          </DialogDescription>
+          <DialogDescription>{t('adminTickets.detailDescription')}</DialogDescription>
         </DialogHeader>
 
         {isLoading ? (
@@ -100,12 +103,7 @@ export function BookingDetailDialog({
           <div className="p-4 text-center">
             <AlertCircle className="h-8 w-8 text-rose-400 mx-auto mb-2" />
             <p className="text-sm text-muted-foreground">{t('adminTickets.detailLoadFailed')}</p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => refetch()}
-            >
+            <Button variant="outline" size="sm" className="mt-2" onClick={() => refetch()}>
               {t('payment.retry')}
             </Button>
           </div>
@@ -154,10 +152,7 @@ export function BookingDetailDialog({
                       variant="outline"
                       className="h-8 gap-1.5"
                       onClick={() => handleStatusChange('refunded')}
-                      disabled={
-                        updateStatus.isPending ||
-                        booking.status === 'refunded'
-                      }
+                      disabled={updateStatus.isPending || booking.status === 'refunded'}
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                       {t('adminTickets.statusRefunded')}
@@ -182,12 +177,17 @@ export function BookingDetailDialog({
               <Section title={t('adminTickets.passengerInfo')} icon={<User className="h-4 w-4" />}>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField label={t('adminTickets.fullName')} value={booking.contactName} />
-                  <InfoField label={t('adminTickets.phoneLabel')} value={booking.contactPhone} icon={<Phone className="h-3 w-3" />} />
-                  <InfoField label={t('booking.contactEmail')} value={booking.contactEmail} icon={<Mail className="h-3 w-3" />} />
                   <InfoField
-                    label={t('payment.method')}
-                    value={booking.paymentMethod ?? '—'}
+                    label={t('adminTickets.phoneLabel')}
+                    value={booking.contactPhone}
+                    icon={<Phone className="h-3 w-3" />}
                   />
+                  <InfoField
+                    label={t('booking.contactEmail')}
+                    value={booking.contactEmail}
+                    icon={<Mail className="h-3 w-3" />}
+                  />
+                  <InfoField label={t('payment.method')} value={booking.paymentMethod ?? '—'} />
                 </div>
                 {booking.contactName && (
                   <div className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground bg-blue-50/50 rounded-md px-2 py-1.5">
@@ -196,7 +196,8 @@ export function BookingDetailDialog({
                         {booking.contactName?.[0] ?? 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    {t('adminTickets.accountLabel')} <span className="font-medium text-blue-700">{booking.contactName}</span>
+                    {t('adminTickets.accountLabel')}{' '}
+                    <span className="font-medium text-blue-700">{booking.contactName}</span>
                     {booking.contactPhone && <span>· {booking.contactPhone}</span>}
                   </div>
                 )}
@@ -208,23 +209,20 @@ export function BookingDetailDialog({
                     label={t('adminTickets.route')}
                     value={`${booking.pickupName ?? '—'} → ${booking.dropoffName ?? '—'}`}
                   />
-                  <InfoField
-                    label={t('admin.brands')}
-                    value={booking.contactName ?? '—'}
-                  />
+                  <InfoField label={t('admin.brands')} value={booking.contactName ?? '—'} />
                   <InfoField
                     label={t('search.date')}
                     value={formatDepartureDate(booking.createdAt)}
                   />
-                  <InfoField
-                    label={t('admin.vehicleTypes')}
-                    value={booking.paymentMethod ?? '—'}
-                  />
+                  <InfoField label={t('admin.vehicleTypes')} value={booking.paymentMethod ?? '—'} />
                 </div>
               </Section>
 
               {/* Seats + passengers */}
-              <Section title={t('adminTickets.seatsAndPassengers')} icon={<TicketIcon className="h-4 w-4" />}>
+              <Section
+                title={t('adminTickets.seatsAndPassengers')}
+                icon={<TicketIcon className="h-4 w-4" />}
+              >
                 <div className="space-y-1.5">
                   {booking.seats.map((s, i) => (
                     <div
@@ -238,7 +236,11 @@ export function BookingDetailDialog({
                         <span className="font-medium">{s.passengerName ?? '—'}</span>
                         {s.passengerType && (
                           <Badge variant="secondary" className="text-[10px]">
-                            {s.passengerType === 'adult' ? t('booking.passengerType.adult') : s.passengerType === 'child' ? t('booking.passengerType.child') : s.passengerType}
+                            {s.passengerType === 'adult'
+                              ? t('booking.passengerType.adult')
+                              : s.passengerType === 'child'
+                                ? t('booking.passengerType.child')
+                                : s.passengerType}
                           </Badge>
                         )}
                       </div>
@@ -249,7 +251,10 @@ export function BookingDetailDialog({
               </Section>
 
               {/* Pickup / dropoff + total */}
-              <Section title={t('adminTickets.pickupDropoffAndTotal')} icon={<MapPin className="h-4 w-4" />}>
+              <Section
+                title={t('adminTickets.pickupDropoffAndTotal')}
+                icon={<MapPin className="h-4 w-4" />}
+              >
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <InfoField label={t('adminTickets.pickupPoint')} value={booking.pickupName} />
                   <InfoField label={t('adminTickets.dropoffPoint')} value={booking.dropoffName} />

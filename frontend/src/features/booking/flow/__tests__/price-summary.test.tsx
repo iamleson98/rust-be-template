@@ -29,14 +29,7 @@ describe('PriceSummary', () => {
   })
 
   it('shows discount when > 0', () => {
-    render(
-      <PriceSummary
-        {...baseProps}
-        campaignCode="TET2025"
-        discount={30000}
-        total={270000}
-      />,
-    )
+    render(<PriceSummary {...baseProps} campaignCode="TET2025" discount={30000} total={270000} />)
     // The discount amount should appear somewhere
     expect(screen.getByText(/30\.000/)).toBeInTheDocument()
   })
@@ -47,13 +40,7 @@ describe('PriceSummary', () => {
   })
 
   it('shows the service-fees row when fees > 0', () => {
-    render(
-      <PriceSummary
-        {...baseProps}
-        fees={10000}
-        total={310000}
-      />,
-    )
+    render(<PriceSummary {...baseProps} fees={10000} total={310000} />)
     expect(screen.getByText(/phí dịch vụ/i)).toBeInTheDocument()
     // NB: 310.000 also contains "10.000" — assert on the exact fee cell.
     expect(screen.getByText(/^10\.000 ₫$/)).toBeInTheDocument()

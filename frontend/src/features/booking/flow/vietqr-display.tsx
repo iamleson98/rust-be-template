@@ -18,13 +18,7 @@ import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
 import type { PaymentOut } from '@/lib/queries/payments'
 
-export function VietQrDisplay({
-  payment,
-  currency,
-}: {
-  payment: PaymentOut
-  currency: Currency
-}) {
+export function VietQrDisplay({ payment, currency }: { payment: PaymentOut; currency: Currency }) {
   const t = useT()
   const inst = payment.bankTransferInstructions
   const qrSrc = useMemo(() => {
@@ -61,7 +55,7 @@ export function VietQrDisplay({
       {qrSrc && (
         <div className="flex justify-center">
           <div className="rounded-lg border-2 border-slate-200 bg-white p-3">
-                        <img src={qrSrc} alt="VietQR" width={240} height={240} />
+            <img src={qrSrc} alt="VietQR" width={240} height={240} />
           </div>
         </div>
       )}

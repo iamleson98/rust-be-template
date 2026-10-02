@@ -38,7 +38,9 @@ export function usePaymentColumns({
       paymentColumnHelper.columns([
         paymentColumnHelper.accessor((p) => p.bookingCode ?? p.bookingId.slice(0, 8), {
           id: 'code',
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('booking.code')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('booking.code')} />
+          ),
           cell: ({ getValue }) => (
             <span className="font-mono text-xs font-semibold">{getValue()}</span>
           ),
@@ -46,19 +48,25 @@ export function usePaymentColumns({
           meta: { label: t('booking.code') },
         }),
         paymentColumnHelper.accessor('provider', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.method')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminPayments.method')} />
+          ),
           cell: ({ getValue }) => <ProviderBadge provider={getValue()} />,
           sortFn: 'text',
           meta: { label: t('adminPayments.method') },
         }),
         paymentColumnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('common.status')} />
+          ),
           cell: ({ getValue }) => <StatusBadge status={getValue()} />,
           sortFn: 'text',
           meta: { label: t('common.status') },
         }),
         paymentColumnHelper.accessor('amount', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.amount')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminPayments.amount')} />
+          ),
           cell: ({ getValue }) => (
             <span className="font-bold tabular-nums">{formatCurrency(getValue(), currency)}</span>
           ),
@@ -66,7 +74,9 @@ export function usePaymentColumns({
           meta: { label: t('adminPayments.amount'), align: 'right' },
         }),
         paymentColumnHelper.accessor('providerTxnRef', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.reference')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminPayments.reference')} />
+          ),
           cell: ({ getValue }) => (
             <span className="font-mono text-xs text-muted-foreground">
               {getValue().slice(0, 14)}
@@ -77,7 +87,9 @@ export function usePaymentColumns({
           meta: { label: t('adminPayments.reference') },
         }),
         paymentColumnHelper.accessor('createdAt', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminPayments.time')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminPayments.time')} />
+          ),
           cell: ({ getValue }) => (
             <span className="text-xs tabular-nums text-muted-foreground">
               {new Date(getValue()).toLocaleString('vi-VN', {

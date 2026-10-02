@@ -58,9 +58,9 @@ describe('VehicleTypesPanel (DataTable conversion)', () => {
     expect(within(table).getByText('Giường nằm')).toBeInTheDocument()
     expect(within(table).getByText('Đang dùng')).toBeInTheDocument()
     // Sortable header buttons exist for the data columns
-    expect(
-      within(table).getAllByRole('button', { name: /sắp xếp theo/i }).length,
-    ).toBeGreaterThan(0)
+    expect(within(table).getAllByRole('button', { name: /sắp xếp theo/i }).length).toBeGreaterThan(
+      0,
+    )
   })
 
   it('pages server-side: clicking "Trang sau" refetches with the next offset', async () => {

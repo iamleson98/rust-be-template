@@ -18,18 +18,22 @@ export function FeedbackSections() {
       <div className="flex flex-wrap gap-3">
         <Button
           data-testid="toast-btn-success"
-          onClick={() => toast.success('Booking confirmed!', {
-            description: 'Seat 12A held — check your email.',
-          })}
+          onClick={() =>
+            toast.success('Booking confirmed!', {
+              description: 'Seat 12A held — check your email.',
+            })
+          }
         >
           Success toast
         </Button>
         <Button
           variant="destructive"
           data-testid="toast-btn-error"
-          onClick={() => toast.error('Payment failed', {
-            description: 'Your card was declined. Try another method.',
-          })}
+          onClick={() =>
+            toast.error('Payment failed', {
+              description: 'Your card was declined. Try another method.',
+            })
+          }
         >
           Error toast
         </Button>
@@ -47,9 +51,7 @@ export function FeedbackSections() {
         <Button
           variant="ghost"
           data-testid="toast-btn-auto"
-          onClick={() =>
-            toast('This toast self-destructs', { duration: 1200 })
-          }
+          onClick={() => toast('This toast self-destructs', { duration: 1200 })}
         >
           Auto-dismiss (1.2s)
         </Button>

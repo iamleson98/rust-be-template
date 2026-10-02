@@ -38,7 +38,10 @@ describe('PaymentMethodStep', () => {
     expect(radios).toHaveLength(4)
     // momo (default) is checked; the others are not.
     expect(screen.getByRole('radio', { name: /Ví MoMo/i })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('radio', { name: /VNPay QR/i })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('radio', { name: /VNPay QR/i })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    )
     // The radiogroup lives inside the dialog body.
     expect(group).toBeInTheDocument()
   })

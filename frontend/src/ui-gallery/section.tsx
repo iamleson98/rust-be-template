@@ -24,18 +24,11 @@ export function Section({
     <section
       id={`sec-${id}`}
       data-testid={`sec-${id}`}
-      className={cn(
-        'bg-card text-card-foreground rounded-xl border p-6 shadow-sm',
-        className,
-      )}
+      className={cn('bg-card text-card-foreground rounded-xl border p-6 shadow-sm', className)}
     >
       <div className="mb-5">
-        <h2 className="text-lg leading-none font-semibold tracking-tight">
-          {title}
-        </h2>
-        {description ? (
-          <p className="text-muted-foreground mt-2 text-sm">{description}</p>
-        ) : null}
+        <h2 className="text-lg leading-none font-semibold tracking-tight">{title}</h2>
+        {description ? <p className="text-muted-foreground mt-2 text-sm">{description}</p> : null}
       </div>
       <div className="space-y-5">{children}</div>
     </section>

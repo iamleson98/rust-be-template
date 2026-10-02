@@ -23,7 +23,7 @@ import {
   type QueryFunction,
   type InfiniteData,
   type UseMutationOptions,
-} from "@tanstack/react-query";
+} from '@tanstack/react-query'
 
 // NOTE: no bare SDK imports for hooks — all use generated TanStack
 // Options/Mutation helpers from @tanstack/react-query.gen. The two
@@ -39,7 +39,7 @@ import {
   update2 as updateBrandSdk,
   create4 as createPickupPointSdk,
   update5 as updatePickupPointSdk,
-} from "@/lib/api/sdk.gen";
+} from '@/lib/api/sdk.gen'
 
 // Generated TanStack Query options + keys + mutations
 import {
@@ -167,7 +167,7 @@ import {
   getStaffPresenceOptions,
   // system — live host metrics (admin server-monitoring page)
   systemMetricsOptions,
-} from '@/lib/api/@tanstack/react-query.gen';
+} from '@/lib/api/@tanstack/react-query.gen'
 
 // Re-export the generated query keys that dialog components need for
 // direct cache invalidation (kept aliased to stable, readable names).
@@ -176,7 +176,7 @@ export {
   adminRoutesListQueryKey,
   adminSchedulesListQueryKey,
   adminPickupPointsListQueryKey,
-};
+}
 
 // Generated types — re-exported so components can import from here
 import type {
@@ -216,7 +216,7 @@ import type {
   CronJobRunOut,
   DiskInfo,
   SystemMetrics,
-} from "@/lib/api/types.gen";
+} from '@/lib/api/types.gen'
 
 // ─────────────────────────────────────────────────────────────
 // Type re-exports (components import types from here, not from
@@ -255,42 +255,42 @@ export type {
   // system — live host metrics (admin server-monitoring page)
   SystemMetrics,
   DiskInfo as SystemMetricDisk,
-};
+}
 
 // Convenience types used by components
 export type ListEnvelope<T> = {
-  items: T[];
-  total?: number | null;
-  unread?: number;
-};
+  items: T[]
+  total?: number | null
+  unread?: number
+}
 
 export type TripSearchParams = {
-  from: string;
-  to: string;
-  date: string;
-  adults?: number;
-  children?: number;
-  sort?: string;
-  vehicleTypes?: string[];
-  roundTrip?: boolean;
-  returnDate?: string;
-};
+  from: string
+  to: string
+  date: string
+  adults?: number
+  children?: number
+  sort?: string
+  vehicleTypes?: string[]
+  roundTrip?: boolean
+  returnDate?: string
+}
 
-export type RecommendationItem = TripResult;
+export type RecommendationItem = TripResult
 
 // Admin booking filter shape (used by the tickets panel)
 export type AdminBookingFilter = {
-  brandId?: string;
-  routeId?: string;
-  status?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  range?: string;
-  search?: string;
-  limit?: number | null;
-  offset?: number | null;
-  sort?: string;
-};
+  brandId?: string
+  routeId?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  range?: string
+  search?: string
+  limit?: number | null
+  offset?: number | null
+  sort?: string
+}
 
 // ─────────────────────────────────────────────────────────────
 // Chat — infinite message pagination helper
@@ -329,27 +329,27 @@ export type AdminBookingFilter = {
 export function flattenInfiniteMessagePages(
   pages: Array<{ items?: Array<{ id: string; [k: string]: unknown }> } | undefined | null>,
 ): Array<{ id: string; [k: string]: unknown }> {
-  const byId = new Map<string, { id: string; [k: string]: unknown }>();
+  const byId = new Map<string, { id: string; [k: string]: unknown }>()
   for (let p = 0; p < pages.length; p++) {
     // Newer pages come first — first occurrence of an id wins (freshest).
     for (const m of pages[p]?.items ?? []) {
-      if (m && m.id != null && !byId.has(m.id)) byId.set(m.id, m);
+      if (m && m.id != null && !byId.has(m.id)) byId.set(m.id, m)
     }
   }
-  const emitted = new Set<string>();
-  const messages: Array<{ id: string; [k: string]: unknown }> = [];
+  const emitted = new Set<string>()
+  const messages: Array<{ id: string; [k: string]: unknown }> = []
   // Walk pages oldest→newest + reverse each page (DESC → ASC), so older
   // pages are prepended at the head of the display list.
   for (let p = pages.length - 1; p >= 0; p--) {
-    const items = pages[p]?.items ?? [];
+    const items = pages[p]?.items ?? []
     for (let i = items.length - 1; i >= 0; i--) {
-      const id = items[i]?.id;
-      if (id == null || emitted.has(id)) continue;
-      emitted.add(id);
-      messages.push(byId.get(id)!);
+      const id = items[i]?.id
+      if (id == null || emitted.has(id)) continue
+      emitted.add(id)
+      messages.push(byId.get(id)!)
     }
   }
-  return messages;
+  return messages
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -360,7 +360,7 @@ export function useBrands() {
   return useQuery({
     ...brandsOptions(),
     staleTime: 10 * 60 * 1000,
-  });
+  })
 }
 
 export function useBrand(slug: string | undefined) {
@@ -368,7 +368,7 @@ export function useBrand(slug: string | undefined) {
     ...brandDetailOptions({ path: { slug: slug! } }),
     enabled: !!slug,
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -379,7 +379,7 @@ export function usePopularRoutes() {
   return useQuery({
     ...routesOptions(),
     staleTime: 10 * 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -388,18 +388,16 @@ export function usePopularRoutes() {
 
 /** Build the typed query params the generated SDK expects. */
 function tripSearchQuery(params: TripSearchParams) {
-  const minSeats = (params.adults ?? 1) + (params.children ?? 0);
+  const minSeats = (params.adults ?? 1) + (params.children ?? 0)
   return {
     from: params.from,
     to: params.to,
     date: params.date,
-    sort: params.sort ?? "departure",
+    sort: params.sort ?? 'departure',
     minSeats,
     vehicleTypes:
-      params.vehicleTypes && params.vehicleTypes.length
-        ? params.vehicleTypes.join(",")
-        : undefined,
-  };
+      params.vehicleTypes && params.vehicleTypes.length ? params.vehicleTypes.join(',') : undefined,
+  }
 }
 
 export function useTripSearch(params: TripSearchParams | null) {
@@ -408,14 +406,14 @@ export function useTripSearch(params: TripSearchParams | null) {
   // from/to/date share the same cache entry regardless of where the hook
   // is mounted). When `params` is null we pass empty placeholders and
   // disable the query via `enabled` so no request fires.
-  const query = tripSearchQuery(params ?? { from: "", to: "", date: "" });
+  const query = tripSearchQuery(params ?? { from: '', to: '', date: '' })
   return useQuery({
     ...searchTripsOptions({ query }),
     enabled: !!params && (!!params.from || !!params.to) && !!params.date,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
     retry: 1,
-  });
+  })
 }
 
 export function useTripDetail(tripId: string | undefined) {
@@ -423,14 +421,14 @@ export function useTripDetail(tripId: string | undefined) {
     ...tripDetailOptions({ path: { id: tripId! } }),
     enabled: !!tripId,
     staleTime: 2 * 60 * 1000,
-  });
+  })
 }
 
 export function useRecommendations() {
   return useQuery({
     ...recommendationsOptions(),
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -441,7 +439,7 @@ export function useCampaigns() {
   return useQuery({
     ...campaignsOptions(),
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -449,20 +447,20 @@ export function useCampaigns() {
 // ─────────────────────────────────────────────────────────────
 
 export function usePlaceSearch(q: string, opts?: { enabled?: boolean }) {
-  const enabled = opts?.enabled ?? q.trim().length >= 1;
+  const enabled = opts?.enabled ?? q.trim().length >= 1
   return useQuery({
     ...placeSearchOptions({ query: { q, limit: 20 } }),
     enabled,
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
-  });
+  })
 }
 
 export function usePlacesList(limit = 50) {
   return useQuery({
     ...placeListOptions({ query: { limit: limit ?? null } }),
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -474,7 +472,7 @@ export function useReviewsByRoute(routeId: string | undefined) {
     ...reviewsListOptions({ query: { route_id: routeId, limit: 20 } }),
     enabled: !!routeId,
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 export function useReviewsByBrand(brandId: string | undefined) {
@@ -482,7 +480,7 @@ export function useReviewsByBrand(brandId: string | undefined) {
     ...reviewsListOptions({ query: { brand_id: brandId, limit: 20 } }),
     enabled: !!brandId,
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 /**
@@ -495,7 +493,7 @@ export function useLatestReviews(limit = 6) {
     ...reviewsListOptions({ query: { limit } }),
     queryKey: [...reviewsListQueryKey({ query: { limit } })],
     staleTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 /**
@@ -508,12 +506,12 @@ export function useLatestReviews(limit = 6) {
  * guests.
  */
 export function useMyReviews(opts?: {
-  enabled?: boolean;
-  status?: string;
-  limit?: number;
-  offset?: number;
+  enabled?: boolean
+  status?: string
+  limit?: number
+  offset?: number
 }) {
-  const status = (opts?.status ?? "").trim();
+  const status = (opts?.status ?? '').trim()
   return useQuery({
     ...reviewsMineOptions({
       query: {
@@ -525,14 +523,14 @@ export function useMyReviews(opts?: {
     enabled: opts?.enabled ?? true,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useReviewTags() {
   return useQuery({
     ...reviewTagsOptions(),
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -541,12 +539,12 @@ export function useReviewTags() {
 
 export function useMyBookings(status?: string, opts?: { enabled?: boolean }) {
   return useQuery({
-    ...bookingsListOptions({ query: { status: status ?? "all" } }),
+    ...bookingsListOptions({ query: { status: status ?? 'all' } }),
     // `enabled` lets guest-facing surfaces (e.g. the home WelcomeBar)
     // mount the hook unconditionally but only fetch when signed in.
     enabled: opts?.enabled ?? true,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useBooking(code: string | undefined) {
@@ -554,7 +552,7 @@ export function useBooking(code: string | undefined) {
     ...bookingDetailOptions({ path: { id: code! } }),
     enabled: !!code,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -571,13 +569,13 @@ export function useLoyalty(opts?: { enabled?: boolean }) {
   return useQuery<LoyaltyResponse, Error, LoyaltyResponse, readonly unknown[]>({
     queryKey: ['loyalty'],
     queryFn: async () => {
-      const { data } = await loyaltySummarySdk();
-      if (!data) throw new Error("Loyalty summary request failed");
-      return data;
+      const { data } = await loyaltySummarySdk()
+      if (!data) throw new Error('Loyalty summary request failed')
+      return data
     },
     enabled: opts?.enabled ?? true,
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 /**
@@ -591,14 +589,10 @@ export function useLoyalty(opts?: { enabled?: boolean }) {
  * call time — `mutate()` only receives the variables.
  */
 type MutationCallbacks<TData, TVars> = {
-  onSuccess?: (data: TData, vars: TVars) => void;
-  onError?: (err: unknown, vars: TVars) => void;
-  onSettled?: (
-    data: TData | undefined,
-    err: unknown | null,
-    vars: TVars,
-  ) => void;
-};
+  onSuccess?: (data: TData, vars: TVars) => void
+  onError?: (err: unknown, vars: TVars) => void
+  onSettled?: (data: TData | undefined, err: unknown | null, vars: TVars) => void
+}
 
 // ─────────────────────────────────────────────────────────────
 // Bookings — hold / confirm / cancel
@@ -607,49 +601,49 @@ type MutationCallbacks<TData, TVars> = {
 export function useCancelBooking<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(cancel2Mutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ["bookings"] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 export function useHoldBooking<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(holdMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ["bookings"] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 export function useConfirmBooking<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(confirmMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ["bookings"] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: ['bookings'] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -663,16 +657,15 @@ export function useNotifications(limit = 20, opts?: { enabled?: boolean }) {
     enabled: opts?.enabled ?? true,
     staleTime: 30 * 1000,
     refetchInterval: 60 * 1000,
-  });
+  })
 }
 
 export function useMarkNotificationsRead() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...notificationsMarkReadMutation(),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: notificationsListQueryKey() }),
-  });
+    onSuccess: () => qc.invalidateQueries({ queryKey: notificationsListQueryKey() }),
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -680,7 +673,7 @@ export function useMarkNotificationsRead() {
 // ─────────────────────────────────────────────────────────────
 
 export function usePriceAlerts(phone?: string | null) {
-  const opts = priceAlertsListOptions({ query: { phone: phone ?? undefined } });
+  const opts = priceAlertsListOptions({ query: { phone: phone ?? undefined } })
   return useQuery({
     queryKey: opts.queryKey,
     queryFn: opts.queryFn,
@@ -690,35 +683,35 @@ export function usePriceAlerts(phone?: string | null) {
         ...a,
         targetPrice: a.targetPrice ?? 0,
         maxPrice: a.targetPrice ?? 0,
-        status: a.status ?? "active",
+        status: a.status ?? 'active',
       })),
       total: data?.total ?? null,
       limit: data?.limit ?? 200,
       offset: data?.offset ?? 0,
     }),
-  });
+  })
 }
 
 export function useCreatePriceAlert() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...priceAlertCreateMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["price-alerts"] });
+      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['price-alerts'] })
     },
-  });
+  })
 }
 
 export function useRemovePriceAlert() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...priceAlertRemoveMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["price-alerts"] });
+      qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['price-alerts'] })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -730,60 +723,53 @@ export function useAuthMe() {
     ...meOptions(),
     retry: false,
     staleTime: 5 * 60 * 1000,
-    select: (data) =>
-      data ? { user: data.user as unknown as SessionUser } : null,
-  });
+    select: (data) => (data ? { user: data.user as unknown as SessionUser } : null),
+  })
 }
 
-export function useLogout<TData = unknown>(
-  opts?: MutationCallbacks<TData, void>,
-) {
-  const qc = useQueryClient();
+export function useLogout<TData = unknown>(opts?: MutationCallbacks<TData, void>) {
+  const qc = useQueryClient()
   return useMutation<TData, unknown, void>({
     ...(logoutMutation() as unknown as UseMutationOptions<TData, unknown, void>),
     onSuccess: (data, vars) => {
-      qc.clear();
-      qc.removeQueries({ queryKey: meQueryKey() });
-      opts?.onSuccess?.(data as TData, vars);
+      qc.clear()
+      qc.removeQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
-    onSettled: (data, err, vars) =>
-      opts?.onSettled?.(data as TData | undefined, err, vars),
-  });
+    onSettled: (data, err, vars) => opts?.onSettled?.(data as TData | undefined, err, vars),
+  })
 }
 
-export function useLogin<TData = unknown, TVars = unknown>(
-  opts?: MutationCallbacks<TData, TVars>,
-) {
-  const qc = useQueryClient();
+export function useLogin<TData = unknown, TVars = unknown>(opts?: MutationCallbacks<TData, TVars>) {
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(loginMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: meQueryKey() });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 export function useRegister<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(registerMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: meQueryKey() });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: meQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
-
 
 // ─────────────────────────────────────────────────────────────
 // Stats
@@ -793,7 +779,7 @@ export function useStats() {
   return useQuery({
     ...stats2Options(),
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -807,7 +793,7 @@ export function useChatChannels(limit = 50) {
     // No polling — the admin chat workspace subscribes to the WS
     // hub for realtime updates. Polling is wasteful now that WS
     // delivers new channels + unread-counter changes immediately.
-  });
+  })
 }
 
 /**
@@ -858,44 +844,41 @@ export function useChatChannelsInfinite(pageSize = 30) {
   >({
     queryKey: [
       {
-        _id: "listChannels",
+        _id: 'listChannels',
         _infinite: true,
         query: { limit: pageSize },
       },
     ],
     queryFn: async ({ pageParam }: { pageParam: unknown }) => {
-      const offset = typeof pageParam === "number" ? pageParam : 0;
+      const offset = typeof pageParam === 'number' ? pageParam : 0
       const { data } = await listChannelsSdk({
         query: { limit: pageSize, offset },
-      });
-      return data;
+      })
+      return data
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       // A full page means "there may be more" — the next offset is
       // the total fetched so far (same convention as the messages
       // infinite hook).
-      const items = lastPage?.items ?? [];
-      if (items.length < pageSize) return undefined;
-      return allPages.reduce(
-        (sum, p) => sum + (p?.items?.length ?? 0),
-        0,
-      );
+      const items = lastPage?.items ?? []
+      if (items.length < pageSize) return undefined
+      return allPages.reduce((sum, p) => sum + (p?.items?.length ?? 0), 0)
     },
     staleTime: 30 * 1000,
     // No polling — WS invalidations drive refreshes.
-  });
+  })
 
   // Flatten + dedupe. Pages arrive most-recent-first; the flattened
   // list keeps that order (channel list renders top = most recent).
-  const pages: Array<ChatChannelListResponse | undefined> = query.data?.pages ?? [];
-  const channels: ChatChannelOut[] = [];
-  const seen = new Set<string>();
+  const pages: Array<ChatChannelListResponse | undefined> = query.data?.pages ?? []
+  const channels: ChatChannelOut[] = []
+  const seen = new Set<string>()
   for (const page of pages) {
     for (const item of page?.items ?? []) {
-      if (item?.id == null || seen.has(item.id)) continue;
-      seen.add(item.id);
-      channels.push(item);
+      if (item?.id == null || seen.has(item.id)) continue
+      seen.add(item.id)
+      channels.push(item)
     }
   }
 
@@ -907,7 +890,7 @@ export function useChatChannelsInfinite(pageSize = 30) {
     fetchNextPage: query.fetchNextPage,
     isLoading: query.isLoading,
     error: query.error,
-  };
+  }
 }
 
 /**
@@ -921,30 +904,30 @@ export function useChatChannelsInfinite(pageSize = 30) {
  * the `listChannels` query which this piggybacks on).
  */
 export type ChatStats = {
-  openCount: number;
-  assignedCount: number;
-  closedCount: number;
-  totalChannels: number;
-  avgResponseTimeSecs: number;
-};
+  openCount: number
+  assignedCount: number
+  closedCount: number
+  totalChannels: number
+  avgResponseTimeSecs: number
+}
 
 export function useChatStats() {
   return useQuery<ChatStats>({
-    queryKey: ["admin", "chat", "stats"],
+    queryKey: ['admin', 'chat', 'stats'],
     queryFn: async () => {
-      const res = await fetch("/api/admin/chat/stats", {
-        credentials: "include",
+      const res = await fetch('/api/admin/chat/stats', {
+        credentials: 'include',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Origin: window.location.origin,
         },
-      });
-      if (!res.ok) throw new Error("Failed to fetch chat stats");
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to fetch chat stats')
+      return res.json()
     },
     refetchInterval: 15 * 1000,
     staleTime: 10 * 1000,
-  });
+  })
 }
 
 /**
@@ -952,121 +935,121 @@ export function useChatStats() {
  * Refetches every 5s for near-real-time metrics.
  */
 export type SystemStatus = {
-  uptime: { seconds: number; human: string };
+  uptime: { seconds: number; human: string }
   websocket: {
-    connections: number;
-    maxConnections: number;
-    rooms: number;
-    idempotencyEntries: number;
-    onlineEmployeeBrands: number;
-    onlineEmployees: number;
-    distinctIps: number;
-  };
+    connections: number
+    maxConnections: number
+    rooms: number
+    idempotencyEntries: number
+    onlineEmployeeBrands: number
+    onlineEmployees: number
+    distinctIps: number
+  }
   /** Audio-call subsystem: live sessions + janitor release counters. */
   calls: {
-    sessions: number;
-    ringing: number;
-    active: number;
-    agentSockets: number;
+    sessions: number
+    ringing: number
+    active: number
+    agentSockets: number
     /** Ringing sessions the server janitor had to expire since boot. */
-    janitorRingExpired: number;
+    janitorRingExpired: number
     /** Of those, how many were re-routed to another agent. */
-    janitorRingRerouted: number;
+    janitorRingRerouted: number
     /** Active sessions torn down at the hard lifetime cap since boot. */
-    janitorActiveExpired: number;
-  };
+    janitorActiveExpired: number
+  }
   database: {
-    backend: string;
-    urlMasked: string;
-    maxConnections: number;
-    minConnections: number;
-    activeConnections: number;
-    idleConnections: number;
-    sizeMb: number;
+    backend: string
+    urlMasked: string
+    maxConnections: number
+    minConnections: number
+    activeConnections: number
+    idleConnections: number
+    sizeMb: number
     /** Engine-level resource usage (memory / throughput / capacity). */
-    engine: SystemEngineStats;
-  };
+    engine: SystemEngineStats
+  }
   process: {
-    pid: number;
-    memoryMb: number;
-    virtualMemoryMb: number;
-    cpuUsage: number;
-    cpuCount: number;
-    osName: string;
-    osVersion: string;
-    hostname: string;
-  };
-};
+    pid: number
+    memoryMb: number
+    virtualMemoryMb: number
+    cpuUsage: number
+    cpuCount: number
+    osName: string
+    osVersion: string
+    hostname: string
+  }
+}
 
 /** rustqlite engine resource usage — `database.engine` on
  *  `/api/admin/system`. Counters are process-lifetime totals; the
  *  `*PerSec` rates are deltas between the last two scrapes (the
  *  frontend polls every 5 s). */
 export type SystemEngineStats = {
-  version: string;
-  connections: { opened: number; closed: number; live: number };
+  version: string
+  connections: { opened: number; closed: number; live: number }
   memory: {
-    cacheMb: number;
-    cacheCapacityMb: number;
-    utilizationPct: number;
-    walFrames: number;
-    dbSizeMb: number;
-    freelistPages: number;
-  };
+    cacheMb: number
+    cacheCapacityMb: number
+    utilizationPct: number
+    walFrames: number
+    dbSizeMb: number
+    freelistPages: number
+  }
   throughput: {
-    rowsPerSec: number;
-    writesPerSec: number;
-    stepsPerSec: number;
-    rowsReturned: number;
-    writesExecuted: number;
-    statementsPrepared: number;
-    steps: number;
-    totalChanges: number;
-  };
-  cache: { hits: number; misses: number; hitRatePct: number };
+    rowsPerSec: number
+    writesPerSec: number
+    stepsPerSec: number
+    rowsReturned: number
+    writesExecuted: number
+    statementsPrepared: number
+    steps: number
+    totalChanges: number
+  }
+  cache: { hits: number; misses: number; hitRatePct: number }
   transactions: {
-    begun: number;
-    committed: number;
-    rolledBack: number;
-    active: boolean;
-  };
-  contention: { busyWaits: number; busyTimeouts: number };
+    begun: number
+    committed: number
+    rolledBack: number
+    active: boolean
+  }
+  contention: { busyWaits: number; busyTimeouts: number }
   files: {
-    name: string;
-    pageSizeBytes: number;
-    pageCount: number;
-    sizeMb: number;
-    freelistPages: number;
-    cachePages: number;
-    cacheCapacityPages: number;
-    cacheMb: number;
-    cacheCapacityMb: number;
-    cacheHits: number;
-    cacheMisses: number;
-    hitRatePct: number;
-    walFrames: number;
-    totalChanges: number;
-    liveConnections: number;
-    transactionActive: boolean;
-  }[];
-};
+    name: string
+    pageSizeBytes: number
+    pageCount: number
+    sizeMb: number
+    freelistPages: number
+    cachePages: number
+    cacheCapacityPages: number
+    cacheMb: number
+    cacheCapacityMb: number
+    cacheHits: number
+    cacheMisses: number
+    hitRatePct: number
+    walFrames: number
+    totalChanges: number
+    liveConnections: number
+    transactionActive: boolean
+  }[]
+}
 
 export function useSystemStatus() {
   return useQuery<SystemStatus>({
-    queryKey: ["admin", "system"],
+    queryKey: ['admin', 'system'],
     queryFn: async () => {
-      const res = await fetch("/api/admin/system", {
-        credentials: "include",
+      const res = await fetch('/api/admin/system', {
+        credentials: 'include',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           Origin: window.location.origin,
         },
-      });
-      if (!res.ok) throw new Error("Failed to fetch system status");
-      return res.json();
+      })
+      if (!res.ok) throw new Error('Failed to fetch system status')
+      return res.json()
     },
     refetchInterval: 5 * 1000,
-  });
+  })
 }
 
 /**
@@ -1084,25 +1067,26 @@ export function useSystemMetrics() {
   return useQuery({
     ...systemMetricsOptions(),
     refetchInterval: 5 * 1000,
-  });
+  })
 }
 
 export function useChatMessages(channelId: string | undefined, limit = 50) {
   const opts = channelId
     ? chatMessagesListOptions({ path: { id: channelId }, query: { limit } })
-    : null;
+    : null
   // The `?? null` fallback keeps the hook type-safe when disabled; the
   // cast reconciles the generated QueryFunction's tuple-typed query key
   // with this hook's fallback key (which has no tuple shape).
   return useQuery<ChatMessageListResponse | null>({
-    queryKey: opts?.queryKey ?? ["chat", "messages", "disabled"],
-    queryFn: (opts?.queryFn ?? (() => Promise.resolve(null))) as unknown as () => Promise<ChatMessageListResponse | null>,
+    queryKey: opts?.queryKey ?? ['chat', 'messages', 'disabled'],
+    queryFn: (opts?.queryFn ??
+      (() => Promise.resolve(null))) as unknown as () => Promise<ChatMessageListResponse | null>,
     enabled: !!channelId,
     staleTime: 10 * 1000,
     // No polling — the admin chat workspace subscribes to the WS
     // hub for realtime new messages. Polling would just add load
     // without improving UX (WS already gives instant updates).
-  });
+  })
 }
 
 /**
@@ -1162,16 +1146,13 @@ export function useChatMessages(channelId: string | undefined, limit = 50) {
  * invalidation). Not used for backward pagination (we only paginate
  * forward in time via `fetchNextPage`).
  */
-export function useChatMessagesInfinite(
-  channelId: string | undefined,
-  pageSize = 30,
-) {
+export function useChatMessagesInfinite(channelId: string | undefined, pageSize = 30) {
   const opts = channelId
     ? chatMessagesListInfiniteOptions({
         path: { id: channelId },
         query: { limit: pageSize },
       })
-    : null;
+    : null
 
   const query = useInfiniteQuery<
     ChatMessageListResponse | null,
@@ -1180,34 +1161,35 @@ export function useChatMessagesInfinite(
     readonly unknown[],
     number
   >({
-    queryKey: opts?.queryKey ?? ["chat", "messages", "infinite", "disabled"],
-    queryFn: (opts?.queryFn ?? (() => Promise.resolve(null))) as unknown as QueryFunction<ChatMessageListResponse | null, readonly unknown[], number>,
+    queryKey: opts?.queryKey ?? ['chat', 'messages', 'infinite', 'disabled'],
+    queryFn: (opts?.queryFn ?? (() => Promise.resolve(null))) as unknown as QueryFunction<
+      ChatMessageListResponse | null,
+      readonly unknown[],
+      number
+    >,
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       // `lastPage` is the API response: `{ items: [...] }`.
       // Each page is DESC (newest first). The page size is the
       // requested `pageSize`. If the last page returned fewer items
       // than `pageSize`, we've reached the beginning → no more pages.
-      const items = lastPage?.items ?? [];
-      if (items.length < pageSize) return undefined;
+      const items = lastPage?.items ?? []
+      if (items.length < pageSize) return undefined
       // Next offset = sum of all previously fetched page sizes.
       // `allPages` is the array of all fetched pages so far.
-      const totalFetched = allPages.reduce(
-        (sum, p) => sum + (p?.items?.length ?? 0),
-        0,
-      );
-      return totalFetched;
+      const totalFetched = allPages.reduce((sum, p) => sum + (p?.items?.length ?? 0), 0)
+      return totalFetched
     },
     getPreviousPageParam: () => 0,
     enabled: !!channelId,
     staleTime: 10 * 1000,
     // No polling — WS delivers new messages instantly.
-  });
+  })
 
   // Flatten into the chronological display list — see
   // `flattenInfiniteMessagePages` (the pure, unit-tested helper).
-  const pages = query.data?.pages ?? [];
-  const messages = flattenInfiniteMessagePages(pages);
+  const pages = query.data?.pages ?? []
+  const messages = flattenInfiniteMessagePages(pages)
 
   return {
     // The chronological messages array (oldest first, newest last).
@@ -1225,26 +1207,26 @@ export function useChatMessagesInfinite(
     hasNextPage: query.hasNextPage,
     // Call this when the user scrolls to the top of the chat.
     fetchNextPage: query.fetchNextPage,
-  };
+  }
 }
 
 export function usePostChatMessage<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(chatPostMessageMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
       // Use partial key match to invalidate all listMessages + listChannels
       // queries (the generated keys are object arrays, not string arrays).
-      qc.invalidateQueries({ queryKey: [{ _id: "listMessages" }] });
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: [{ _id: 'listMessages' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 /**
@@ -1255,17 +1237,17 @@ export function usePostChatMessage<TData = unknown, TVars = unknown>(
 export function useCreateChatChannel<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(chatCreateChannelMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 /**
@@ -1275,17 +1257,17 @@ export function useCreateChatChannel<TData = unknown, TVars = unknown>(
 export function useMarkChatRead<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(chatMarkReadMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1294,38 +1276,38 @@ export function useMarkChatRead<TData = unknown, TVars = unknown>(
 
 /** Claim a channel (assign it to the logged-in staff member). */
 export function useClaimChannel() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...chatClaimChannelMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      qc.invalidateQueries({ queryKey: ["chatStats"] });
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      qc.invalidateQueries({ queryKey: ['chatStats'] })
     },
-  });
+  })
 }
 
 /** Release a channel back to the open queue (assignee or admin). */
 export function useReleaseChannel() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...chatReleaseChannelMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      qc.invalidateQueries({ queryKey: ["chatStats"] });
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      qc.invalidateQueries({ queryKey: ['chatStats'] })
     },
-  });
+  })
 }
 
 /** Close a channel (ends any assignment). */
 export function useCloseChannel() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...chatCloseChannelMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: [{ _id: "listChannels" }] });
-      qc.invalidateQueries({ queryKey: ["chatStats"] });
+      qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
+      qc.invalidateQueries({ queryKey: ['chatStats'] })
     },
-  });
+  })
 }
 
 /**
@@ -1339,7 +1321,7 @@ export function useStaffPresence() {
     // WS pushes updates; the REST query is a fallback refresher.
     refetchInterval: 60 * 1000,
     staleTime: 15 * 1000,
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1351,18 +1333,18 @@ export function useValidateCampaign<TData = unknown>(
 ) {
   return useMutation<TData, unknown, { code: string; subtotal: number }>({
     mutationFn: async (params: { code: string; subtotal: number }) => {
-      const o = validateCampaignOptions({ query: params });
-      const queryFn = o.queryFn;
-      if (!queryFn) throw new Error("queryFn missing");
+      const o = validateCampaignOptions({ query: params })
+      const queryFn = o.queryFn
+      if (!queryFn) throw new Error('queryFn missing')
       return queryFn({
-        queryKey: o.queryKey as unknown as Parameters<NonNullable<typeof queryFn>>[0]["queryKey"],
+        queryKey: o.queryKey as unknown as Parameters<NonNullable<typeof queryFn>>[0]['queryKey'],
         signal: new AbortController().signal,
-      } as unknown as Parameters<NonNullable<typeof queryFn>>[0]) as Promise<TData>;
+      } as unknown as Parameters<NonNullable<typeof queryFn>>[0]) as Promise<TData>
     },
     onSuccess: (data, vars) => opts?.onSuccess?.(data, vars),
     onError: (err, vars) => opts?.onError?.(err, vars),
     onSettled: (data, err, vars) => opts?.onSettled?.(data, err, vars),
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1372,33 +1354,33 @@ export function useValidateCampaign<TData = unknown>(
 export function useCreateReview<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(reviewCreateMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: reviewsListQueryKey() });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 export function useUpdateReview<TData = unknown, TVars = unknown>(
   opts?: MutationCallbacks<TData, TVars>,
 ) {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation<TData, unknown, TVars>({
     ...(reviewUpdateMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: reviewsListQueryKey() });
-      opts?.onSuccess?.(data as TData, vars as TVars);
+      qc.invalidateQueries({ queryKey: reviewsListQueryKey() })
+      opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
     onSettled: (data, err, vars) =>
       opts?.onSettled?.(data as TData | undefined, err, vars as TVars),
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1409,47 +1391,45 @@ export function useAdminBrands() {
   return useQuery({
     ...adminBrandsListOptions(),
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useUpsertAdminBrand() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     // DISPATCH create vs update: when the payload carries an `id`, the
     // caller is editing an existing brand — PUT /api/admin/brands/{id}.
     // The old version always posted to the create endpoint, whose
     // handler IGNORES the `id` body field, so every edit silently
     // created a duplicate brand row (the "edit makes a new brand" bug).
-    mutationFn: async (vars: {
-      body: UpsertBrandRequest & { id?: string };
-    }) => {
-      const { id, ...body } = vars.body;
+    mutationFn: async (vars: { body: UpsertBrandRequest & { id?: string } }) => {
+      const { id, ...body } = vars.body
       if (id) {
         const { data } = await updateBrandSdk({
           path: { id },
           body,
-        });
-        return data;
+        })
+        return data
       }
-      const { data } = await createBrandSdk({ body: vars.body });
-      return data;
+      const { data } = await createBrandSdk({ body: vars.body })
+      return data
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["brands"] });
+      qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['brands'] })
     },
-  });
+  })
 }
 
 export function useDeleteAdminBrand() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteBrandMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["brands"] });
+      qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['brands'] })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1457,14 +1437,14 @@ export function useDeleteAdminBrand() {
 // ─────────────────────────────────────────────────────────────
 
 export function useAdminRoutes(query?: {
-  brandId?: string;
-  q?: string;
+  brandId?: string
+  q?: string
   /** Exact city-slug filter on the route's start location (e.g. "ha-noi"). */
-  startLocationId?: string;
+  startLocationId?: string
   /** Exact city-slug filter on the route's end location (e.g. "da-nang"). */
-  endLocationId?: string;
-  limit?: number;
-  offset?: number;
+  endLocationId?: string
+  limit?: number
+  offset?: number
 }) {
   return useQuery({
     ...adminRoutesListOptions({ query }),
@@ -1473,43 +1453,43 @@ export function useAdminRoutes(query?: {
     enabled: query !== undefined,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useUpsertAdminRoute() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...createRouteMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["routes"] });
+      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['routes'] })
     },
-  });
+  })
 }
 
 /** Update an existing route — PUT /api/admin/routes/{id}. The legacy
  *  dialogs posted edits to the create endpoint, which silently made
  *  duplicates (the create handler ignores an `id` body field). */
 export function useUpdateAdminRoute() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...update6Mutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["routes"] });
+      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['routes'] })
     },
-  });
+  })
 }
 
 export function useDeleteAdminRoute() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteRouteMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["routes"] });
+      qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['routes'] })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1522,7 +1502,7 @@ export function useAdminAddresses(brandId?: string) {
     ...adminAddressesListOptions({ query: { brandId } }),
     enabled: !!brandId,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 /**
@@ -1546,14 +1526,14 @@ export async function fetchAdminAddressesPage(
       offset: page * pageSize,
     },
     signal,
-  });
-  const body = (data ?? { items: [], total: 0 }) as AdminAddressListResponse;
-  const offset = page * pageSize;
+  })
+  const body = (data ?? { items: [], total: 0 }) as AdminAddressListResponse
+  const offset = page * pageSize
   return {
     items: body.items ?? [],
     total: body.total ?? 0,
     hasMore: offset + (body.items?.length ?? 0) < (body.total ?? 0),
-  };
+  }
 }
 
 /**
@@ -1562,39 +1542,39 @@ export async function fetchAdminAddressesPage(
  * select it in the point select.
  */
 export function useCreateAdminAddress() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...createAddressMutation(),
     onSuccess: (_data, vars) => {
       // Invalidate the whole admin-addresses key family — the brandId
       // filter may differ between consumers.
-      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
-      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
-      void vars;
+      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
+      void vars
     },
-  });
+  })
 }
 
 export function useUpdateAdminAddress() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...updateAddressMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
-      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
     },
-  });
+  })
 }
 
 export function useDeleteAdminAddress() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteAddressMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "addresses"] });
-      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() });
+      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
+      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1606,43 +1586,43 @@ export function useAdminSchedules(routeId?: string) {
     ...adminSchedulesListOptions({ query: { routeId } }),
     enabled: !!routeId,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useUpsertAdminSchedule() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...createScheduleMutation(),
     onSuccess: () => {
       // Invalidate the GENERATED key (["list8", {...}]) — the previous
       // literal ["admin", "schedules"] never matched it, so schedule
       // lists did not refresh after create/update.
-      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() })
     },
-  });
+  })
 }
 
 /** Update an existing schedule — PUT /api/admin/schedules/{id}. Like
  *  routes, the schedule dialog used to POST edits to the create
  *  endpoint and duplicated rows. */
 export function useUpdateAdminSchedule() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...update7Mutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() })
     },
-  });
+  })
 }
 
 export function useDeleteAdminSchedule() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteScheduleMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminSchedulesListQueryKey() })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1654,47 +1634,45 @@ export function useAdminPickupPoints(routeId?: string) {
     ...adminPickupPointsListOptions({ query: { routeId } }),
     enabled: !!routeId,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useUpsertAdminPickupPoint() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     // DISPATCH create vs update (same rationale as brands): an `id` in
     // the body means we are editing — PUT /api/admin/pickup-points/{id}.
     // The old version always POSTed to the create endpoint, so edits
     // duplicated pickup points.
-    mutationFn: async (vars: {
-      body: UpsertPickupPointRequest & { id?: string };
-    }) => {
-      const { id, ...body } = vars.body;
+    mutationFn: async (vars: { body: UpsertPickupPointRequest & { id?: string } }) => {
+      const { id, ...body } = vars.body
       if (id) {
         const { data } = await updatePickupPointSdk({
           path: { id },
           body,
-        });
-        return data;
+        })
+        return data
       }
-      const { data } = await createPickupPointSdk({ body: vars.body });
-      return data;
+      const { data } = await createPickupPointSdk({ body: vars.body })
+      return data
     },
     onSuccess: () => {
       // Invalidate the GENERATED key (list6-based) — a literal
       // ["admin", "pickup-points"] never matched it, so the pickup
       // list did not refresh after mutations.
-      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() })
     },
-  });
+  })
 }
 
 export function useDeleteAdminPickupPoint() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deletePickupPointMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminPickupPointsListQueryKey() })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1702,15 +1680,15 @@ export function useDeleteAdminPickupPoint() {
 // ─────────────────────────────────────────────────────────────
 
 export function useAdminReviews(opts?: {
-  status?: string;
-  brandId?: string;
-  search?: string;
-  limit?: number;
-  offset?: number;
+  status?: string
+  brandId?: string
+  search?: string
+  limit?: number
+  offset?: number
 }) {
-  const status = opts?.status ?? "";
-  const brandId = opts?.brandId ?? "";
-  const search = (opts?.search ?? "").trim();
+  const status = opts?.status ?? ''
+  const brandId = opts?.brandId ?? ''
+  const search = (opts?.search ?? '').trim()
   return useQuery({
     ...adminReviewsListOptions({
       query: {
@@ -1723,7 +1701,7 @@ export function useAdminReviews(opts?: {
     }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 /**
@@ -1735,72 +1713,68 @@ export function useAdminReviewBrandSummary() {
   return useQuery({
     ...adminReviewsSummaryOptions(),
     staleTime: 60 * 1000,
-  });
+  })
 }
 
 export function useModerateAdminReview() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...moderateMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() });
-      qc.invalidateQueries({ queryKey: adminReviewsSummaryQueryKey() });
-      qc.invalidateQueries({ queryKey: ["reviews"] });
+      qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
+      qc.invalidateQueries({ queryKey: adminReviewsSummaryQueryKey() })
+      qc.invalidateQueries({ queryKey: ['reviews'] })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
 // Admin — Bus layouts
 // ─────────────────────────────────────────────────────────────
 
-export function useAdminBusLayouts(query?: {
-  brandId?: string;
-  limit?: number;
-  offset?: number;
-}) {
+export function useAdminBusLayouts(query?: { brandId?: string; limit?: number; offset?: number }) {
   return useQuery({
     ...adminBusLayoutsListOptions({ query }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 /** Create a bus layout (optionally with a seat-grid spec that the
  *  backend expands into concrete seat rows). */
 export function useUpsertAdminBusLayout() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...createBusLayoutMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() })
     },
-  });
+  })
 }
 
 /** Update a bus layout's metadata (name / brand / vehicle type /
  *  total seats — the seat grid itself is immutable after create). */
 export function useUpdateAdminBusLayout() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...updateBusLayoutMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() })
     },
-  });
+  })
 }
 
 /** Delete a bus layout — the backend blocks the delete with 409 while
  *  schedules reference the layout or its seats carry inventory /
  *  sold tickets. */
 export function useDeleteAdminBusLayout() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteBusLayoutMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() });
+      qc.invalidateQueries({ queryKey: adminBusLayoutsListQueryKey() })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1808,16 +1782,12 @@ export function useDeleteAdminBusLayout() {
 // ─────────────────────────────────────────────────────────────
 
 /** List the vehicle-type catalog with filter + offset pagination. */
-export function useAdminVehicleTypes(query?: {
-  q?: string;
-  limit?: number;
-  offset?: number;
-}) {
+export function useAdminVehicleTypes(query?: { q?: string; limit?: number; offset?: number }) {
   return useQuery({
     ...adminVehicleTypesListOptions({ query }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 /**
@@ -1838,50 +1808,50 @@ export async function fetchVehicleTypesPage(
       offset: page * pageSize,
     },
     signal,
-  });
+  })
   const body = (data ?? {
     items: [],
     total: 0,
-  }) as AdminVehicleTypeListResponse;
-  const offset = page * pageSize;
+  }) as AdminVehicleTypeListResponse
+  const offset = page * pageSize
   return {
     items: body.items ?? [],
     total: body.total ?? 0,
     hasMore: offset + (body.items?.length ?? 0) < (body.total ?? 0),
-  };
+  }
 }
 
 export function useCreateAdminVehicleType() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...createVehicleTypeMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
-  });
+  })
 }
 
 export function useUpdateAdminVehicleType() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...updateVehicleTypeMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
-  });
+  })
 }
 
 export function useDeleteAdminVehicleType() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...deleteVehicleTypeMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() });
-      qc.invalidateQueries({ queryKey: ["admin", "vehicle-types"] });
+      qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
+      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1894,8 +1864,7 @@ export function useAdminBookings(filter: AdminBookingFilter) {
       query: {
         brandId: filter.brandId,
         routeId: filter.routeId,
-        status:
-          filter.status && filter.status !== "all" ? filter.status : undefined,
+        status: filter.status && filter.status !== 'all' ? filter.status : undefined,
         dateFrom: filter.dateFrom,
         dateTo: filter.dateTo,
         search: filter.search,
@@ -1907,7 +1876,7 @@ export function useAdminBookings(filter: AdminBookingFilter) {
     placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
     retry: 1,
-  });
+  })
 }
 
 export function useAdminBookingDetail(id: string | undefined) {
@@ -1915,7 +1884,7 @@ export function useAdminBookingDetail(id: string | undefined) {
     ...adminGetBookingOptions({ path: { id: id! } }),
     enabled: !!id,
     staleTime: 15 * 1000,
-  });
+  })
 }
 
 export function useAdminBookingStats(filter: AdminBookingFilter) {
@@ -1924,8 +1893,7 @@ export function useAdminBookingStats(filter: AdminBookingFilter) {
       query: {
         brandId: filter.brandId,
         routeId: filter.routeId,
-        status:
-          filter.status && filter.status !== "all" ? filter.status : undefined,
+        status: filter.status && filter.status !== 'all' ? filter.status : undefined,
         dateFrom: filter.dateFrom,
         dateTo: filter.dateTo,
         search: filter.search,
@@ -1935,50 +1903,51 @@ export function useAdminBookingStats(filter: AdminBookingFilter) {
       },
     }),
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 export function useUpdateBookingStatus() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...updateStatusMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "bookings"] });
-      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
+      qc.invalidateQueries({ queryKey: ['bookings'] })
     },
-  });
+  })
 }
 
 export function useAdminCreateBooking() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...holdMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "bookings"] });
-      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
+      qc.invalidateQueries({ queryKey: ['bookings'] })
     },
-  });
+  })
 }
 
 export function useAdminBookingExport(filter: AdminBookingFilter) {
   const query: Record<string, string | number | undefined> = {
     brandId: filter.brandId,
     routeId: filter.routeId,
-    status:
-      filter.status && filter.status !== "all" ? filter.status : undefined,
+    status: filter.status && filter.status !== 'all' ? filter.status : undefined,
     dateFrom: filter.dateFrom,
     dateTo: filter.dateTo,
     search: filter.search,
     limit: filter.limit ?? 50,
     offset: filter.offset ?? 0,
     sort: filter.sort,
-  };
+  }
   // Remove undefined values
-  Object.keys(query).forEach((k) => query[k] === undefined && delete query[k]);
+  Object.keys(query).forEach((k) => query[k] === undefined && delete query[k])
   return useQuery({
-    ...adminBookingExportOptions({ query } as unknown as Parameters<typeof adminBookingExportOptions>[0]),
+    ...adminBookingExportOptions({ query } as unknown as Parameters<
+      typeof adminBookingExportOptions
+    >[0]),
     enabled: false, // only fetch on demand via refetch
-  });
+  })
 }
 
 // ─── Cron jobs (recurring background jobs) ────────────────────────────
@@ -1991,7 +1960,7 @@ export function useAdminCronJobs() {
   return useQuery({
     ...cronJobsListOptions(),
     refetchInterval: 10 * 1000,
-  });
+  })
 }
 
 /** Run history, most recent first (optionally filtered by job type). */
@@ -1999,42 +1968,42 @@ export function useAdminCronJobRuns(jobType?: string) {
   return useQuery({
     ...cronJobRunsListOptions({ query: { jobType } }),
     refetchInterval: 10 * 1000,
-  });
+  })
 }
 
 /** PATCH a schedule: enable/disable, cadence, fire time, re-arm. */
 export function useUpdateCronJob() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...updateCronJobMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() })
     },
-  });
+  })
 }
 
 /** Trigger ("run now") a job — 409 when one is already in flight. */
 export function useTriggerCronJob() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...triggerCronJobMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
-      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() })
+      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() })
     },
-  });
+  })
 }
 
 /** Cancel (kill) the queued/running run of a job — the admin stop button. */
 export function useCancelCronJob() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...cancelCronJobMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() });
-      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() });
+      qc.invalidateQueries({ queryKey: cronJobsListQueryKey() })
+      qc.invalidateQueries({ queryKey: cronJobRunsListQueryKey() })
     },
-  });
+  })
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -2047,20 +2016,20 @@ export function useUsers(query?: { limit?: number; offset?: number }) {
     ...listUsersOptions({ query }),
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
-  });
+  })
 }
 
 /** Change a user's role (admin-only; backend enforces the permission). */
 export function useSetUserRole() {
-  const qc = useQueryClient();
+  const qc = useQueryClient()
   return useMutation({
     ...setUserRoleMutation(),
     onSuccess: () => {
       // Refresh the users page (the changed row may reorder).
-      qc.invalidateQueries({ queryKey: ["listUsers"] });
+      qc.invalidateQueries({ queryKey: ['listUsers'] })
       // Role changes can flip what this account is allowed to see —
       // drop the cached /me so guards re-evaluate on next load.
-      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.invalidateQueries({ queryKey: ['me'] })
     },
-  });
+  })
 }

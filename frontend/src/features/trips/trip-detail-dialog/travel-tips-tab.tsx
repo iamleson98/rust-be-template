@@ -46,11 +46,31 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
   return {
     'ha noi': {
       attractions: [
-        { name: 'Hồ Hoàn Kiếm', desc: t('tripDetail.tips.haNoi.hoHoanKiem'), icon: <Waves className="h-4 w-4" /> },
-        { name: 'Phố cổ Hà Nội', desc: t('tripDetail.tips.haNoi.phoCo'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Lăng Chủ tịch Hồ Chí Minh', desc: t('tripDetail.tips.haNoi.langBac'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Văn Miếu - Quốc Tử Giám', desc: t('tripDetail.tips.haNoi.vanMieu'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Hồ Tây', desc: t('tripDetail.tips.haNoi.hoTay'), icon: <Waves className="h-4 w-4" /> },
+        {
+          name: 'Hồ Hoàn Kiếm',
+          desc: t('tripDetail.tips.haNoi.hoHoanKiem'),
+          icon: <Waves className="h-4 w-4" />,
+        },
+        {
+          name: 'Phố cổ Hà Nội',
+          desc: t('tripDetail.tips.haNoi.phoCo'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Lăng Chủ tịch Hồ Chí Minh',
+          desc: t('tripDetail.tips.haNoi.langBac'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Văn Miếu - Quốc Tử Giám',
+          desc: t('tripDetail.tips.haNoi.vanMieu'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Hồ Tây',
+          desc: t('tripDetail.tips.haNoi.hoTay'),
+          icon: <Waves className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Phở Hà Nội', desc: t('tripDetail.tips.haNoi.phoHaNoi') },
@@ -73,11 +93,31 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
     },
     'ho chi minh': {
       attractions: [
-        { name: 'Dinh Độc Lập', desc: t('tripDetail.tips.hcm.dinhDocLap'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Nhà thờ Đức Bà', desc: t('tripDetail.tips.hcm.ducBa'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Bưu điện trung tâm', desc: t('tripDetail.tips.hcm.buuDien'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Phố đi bộ Nguyễn Huệ', desc: t('tripDetail.tips.hcm.nguyenHue'), icon: <Compass className="h-4 w-4" /> },
-        { name: 'Chợ Bến Thành', desc: t('tripDetail.tips.hcm.benThanh'), icon: <Building2 className="h-4 w-4" /> },
+        {
+          name: 'Dinh Độc Lập',
+          desc: t('tripDetail.tips.hcm.dinhDocLap'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Nhà thờ Đức Bà',
+          desc: t('tripDetail.tips.hcm.ducBa'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Bưu điện trung tâm',
+          desc: t('tripDetail.tips.hcm.buuDien'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Phố đi bộ Nguyễn Huệ',
+          desc: t('tripDetail.tips.hcm.nguyenHue'),
+          icon: <Compass className="h-4 w-4" />,
+        },
+        {
+          name: 'Chợ Bến Thành',
+          desc: t('tripDetail.tips.hcm.benThanh'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Bánh mì Sài Gòn', desc: t('tripDetail.tips.hcm.banhMi') },
@@ -100,11 +140,31 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
     },
     'da nang': {
       attractions: [
-        { name: 'Bà Nà Hills', desc: t('tripDetail.tips.daNang.baNa'), icon: <Mountain className="h-4 w-4" /> },
-        { name: 'Bãi biển Mỹ Khê', desc: t('tripDetail.tips.daNang.myKhe'), icon: <Waves className="h-4 w-4" /> },
-        { name: 'Ngũ Hành Sơn', desc: t('tripDetail.tips.daNang.nguHanhSon'), icon: <Mountain className="h-4 w-4" /> },
-        { name: 'Cầu Rồng', desc: t('tripDetail.tips.daNang.cauRong'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Bán đảo Sơn Trà', desc: t('tripDetail.tips.daNang.sonTra'), icon: <Mountain className="h-4 w-4" /> },
+        {
+          name: 'Bà Nà Hills',
+          desc: t('tripDetail.tips.daNang.baNa'),
+          icon: <Mountain className="h-4 w-4" />,
+        },
+        {
+          name: 'Bãi biển Mỹ Khê',
+          desc: t('tripDetail.tips.daNang.myKhe'),
+          icon: <Waves className="h-4 w-4" />,
+        },
+        {
+          name: 'Ngũ Hành Sơn',
+          desc: t('tripDetail.tips.daNang.nguHanhSon'),
+          icon: <Mountain className="h-4 w-4" />,
+        },
+        {
+          name: 'Cầu Rồng',
+          desc: t('tripDetail.tips.daNang.cauRong'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Bán đảo Sơn Trà',
+          desc: t('tripDetail.tips.daNang.sonTra'),
+          icon: <Mountain className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Mì Quảng', desc: t('tripDetail.tips.daNang.miQuang') },
@@ -127,11 +187,31 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
     },
     'da lat': {
       attractions: [
-        { name: 'Hồ Xuân Hương', desc: t('tripDetail.tips.daLat.hoXuanHuong'), icon: <Waves className="h-4 w-4" /> },
-        { name: 'Quảng trường Lâm Viên', desc: t('tripDetail.tips.daLat.lamVien'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Đồi chè Cầu Đất', desc: t('tripDetail.tips.daLat.doiChe'), icon: <Mountain className="h-4 w-4" /> },
-        { name: 'Ga xe lửa Trai Mat', desc: t('tripDetail.tips.daLat.gaTraiMat'), icon: <Compass className="h-4 w-4" /> },
-        { name: 'Thác Prenn', desc: t('tripDetail.tips.daLat.thacPrenn'), icon: <Waves className="h-4 w-4" /> },
+        {
+          name: 'Hồ Xuân Hương',
+          desc: t('tripDetail.tips.daLat.hoXuanHuong'),
+          icon: <Waves className="h-4 w-4" />,
+        },
+        {
+          name: 'Quảng trường Lâm Viên',
+          desc: t('tripDetail.tips.daLat.lamVien'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Đồi chè Cầu Đất',
+          desc: t('tripDetail.tips.daLat.doiChe'),
+          icon: <Mountain className="h-4 w-4" />,
+        },
+        {
+          name: 'Ga xe lửa Trai Mat',
+          desc: t('tripDetail.tips.daLat.gaTraiMat'),
+          icon: <Compass className="h-4 w-4" />,
+        },
+        {
+          name: 'Thác Prenn',
+          desc: t('tripDetail.tips.daLat.thacPrenn'),
+          icon: <Waves className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Bánh tráng nướng Đà Lạt', desc: t('tripDetail.tips.daLat.banhTrangNuong') },
@@ -154,11 +234,31 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
     },
     'nha trang': {
       attractions: [
-        { name: 'VinWonders Nha Trang', desc: t('tripDetail.tips.nhaTrang.vinWonders'), icon: <Compass className="h-4 w-4" /> },
-        { name: 'Tháp Bà Ponagar', desc: t('tripDetail.tips.nhaTrang.thapBa'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Bãi biển Tran Phu', desc: t('tripDetail.tips.nhaTrang.baiBien'), icon: <Waves className="h-4 w-4" /> },
-        { name: 'Hòn Chồng', desc: t('tripDetail.tips.nhaTrang.honChong'), icon: <Mountain className="h-4 w-4" /> },
-        { name: 'Nhà thờ Núi', desc: t('tripDetail.tips.nhaTrang.nhaThoNui'), icon: <Building2 className="h-4 w-4" /> },
+        {
+          name: 'VinWonders Nha Trang',
+          desc: t('tripDetail.tips.nhaTrang.vinWonders'),
+          icon: <Compass className="h-4 w-4" />,
+        },
+        {
+          name: 'Tháp Bà Ponagar',
+          desc: t('tripDetail.tips.nhaTrang.thapBa'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Bãi biển Tran Phu',
+          desc: t('tripDetail.tips.nhaTrang.baiBien'),
+          icon: <Waves className="h-4 w-4" />,
+        },
+        {
+          name: 'Hòn Chồng',
+          desc: t('tripDetail.tips.nhaTrang.honChong'),
+          icon: <Mountain className="h-4 w-4" />,
+        },
+        {
+          name: 'Nhà thờ Núi',
+          desc: t('tripDetail.tips.nhaTrang.nhaThoNui'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Bún cá sứa Nha Trang', desc: t('tripDetail.tips.nhaTrang.bunCaSua') },
@@ -179,13 +279,33 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
       ],
       payment: t('tripDetail.tips.nhaTrang.payment'),
     },
-    'hue': {
+    hue: {
       attractions: [
-        { name: 'Đại nội Huế', desc: t('tripDetail.tips.hue.daiNoi'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Chùa Thiên Mụ', desc: t('tripDetail.tips.hue.chuaThienMu'), icon: <Landmark className="h-4 w-4" /> },
-        { name: 'Các lăng tẩm', desc: t('tripDetail.tips.hue.langTam'), icon: <Building2 className="h-4 w-4" /> },
-        { name: 'Sông Hương', desc: t('tripDetail.tips.hue.songHuong'), icon: <Waves className="h-4 w-4" /> },
-        { name: 'Cầu Trường Tiền', desc: t('tripDetail.tips.hue.cauTruongTien'), icon: <Building2 className="h-4 w-4" /> },
+        {
+          name: 'Đại nội Huế',
+          desc: t('tripDetail.tips.hue.daiNoi'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Chùa Thiên Mụ',
+          desc: t('tripDetail.tips.hue.chuaThienMu'),
+          icon: <Landmark className="h-4 w-4" />,
+        },
+        {
+          name: 'Các lăng tẩm',
+          desc: t('tripDetail.tips.hue.langTam'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
+        {
+          name: 'Sông Hương',
+          desc: t('tripDetail.tips.hue.songHuong'),
+          icon: <Waves className="h-4 w-4" />,
+        },
+        {
+          name: 'Cầu Trường Tiền',
+          desc: t('tripDetail.tips.hue.cauTruongTien'),
+          icon: <Building2 className="h-4 w-4" />,
+        },
       ],
       food: [
         { name: 'Bún bò Huế', desc: t('tripDetail.tips.hue.bunBo') },
@@ -213,17 +333,46 @@ function travelTipsDb(t: ReturnType<typeof useT>): Record<string, TravelTipData>
 function defaultTips(t: ReturnType<typeof useT>): TravelTipData {
   return {
     attractions: [
-      { name: t('tripDetail.tips.def.cityCenter'), desc: t('tripDetail.tips.def.cityCenterDesc'), icon: <Building2 className="h-4 w-4" /> },
-      { name: t('tripDetail.tips.def.traditionalMarket'), desc: t('tripDetail.tips.def.traditionalMarketDesc'), icon: <Building2 className="h-4 w-4" /> },
-      { name: t('tripDetail.tips.def.beachOrLake'), desc: t('tripDetail.tips.def.beachOrLakeDesc'), icon: <Waves className="h-4 w-4" /> },
-      { name: t('tripDetail.tips.def.temple'), desc: t('tripDetail.tips.def.templeDesc'), icon: <Landmark className="h-4 w-4" /> },
-      { name: t('tripDetail.tips.def.viewpoint'), desc: t('tripDetail.tips.def.viewpointDesc'), icon: <Mountain className="h-4 w-4" /> },
+      {
+        name: t('tripDetail.tips.def.cityCenter'),
+        desc: t('tripDetail.tips.def.cityCenterDesc'),
+        icon: <Building2 className="h-4 w-4" />,
+      },
+      {
+        name: t('tripDetail.tips.def.traditionalMarket'),
+        desc: t('tripDetail.tips.def.traditionalMarketDesc'),
+        icon: <Building2 className="h-4 w-4" />,
+      },
+      {
+        name: t('tripDetail.tips.def.beachOrLake'),
+        desc: t('tripDetail.tips.def.beachOrLakeDesc'),
+        icon: <Waves className="h-4 w-4" />,
+      },
+      {
+        name: t('tripDetail.tips.def.temple'),
+        desc: t('tripDetail.tips.def.templeDesc'),
+        icon: <Landmark className="h-4 w-4" />,
+      },
+      {
+        name: t('tripDetail.tips.def.viewpoint'),
+        desc: t('tripDetail.tips.def.viewpointDesc'),
+        icon: <Mountain className="h-4 w-4" />,
+      },
     ],
     food: [
-      { name: t('tripDetail.tips.def.localNoodles'), desc: t('tripDetail.tips.def.localNoodlesDesc') },
-      { name: t('tripDetail.tips.def.freshSeafood'), desc: t('tripDetail.tips.def.freshSeafoodDesc') },
+      {
+        name: t('tripDetail.tips.def.localNoodles'),
+        desc: t('tripDetail.tips.def.localNoodlesDesc'),
+      },
+      {
+        name: t('tripDetail.tips.def.freshSeafood'),
+        desc: t('tripDetail.tips.def.freshSeafoodDesc'),
+      },
       { name: t('tripDetail.tips.def.streetFood'), desc: t('tripDetail.tips.def.streetFoodDesc') },
-      { name: t('tripDetail.tips.def.localCoffee'), desc: t('tripDetail.tips.def.localCoffeeDesc') },
+      {
+        name: t('tripDetail.tips.def.localCoffee'),
+        desc: t('tripDetail.tips.def.localCoffeeDesc'),
+      },
     ],
     etiquette: [
       t('tripDetail.tips.def.askPriceFirst'),
@@ -267,10 +416,7 @@ export function TravelTipsTab({ destination }: { destination: string }) {
         </h3>
         <div className="space-y-2">
           {tips.attractions.map((a, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 rounded-lg border bg-white p-3"
-            >
+            <div key={i} className="flex items-start gap-3 rounded-lg border bg-white p-3">
               <div className="h-9 w-9 rounded-lg bg-blue-50 text-blue-800 inline-flex items-center justify-center shrink-0">
                 {a.icon}
               </div>
@@ -295,10 +441,7 @@ export function TravelTipsTab({ destination }: { destination: string }) {
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {tips.food.map((f, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-2.5 rounded-lg border bg-white p-3"
-            >
+            <div key={i} className="flex items-start gap-2.5 rounded-lg border bg-white p-3">
               <div className="h-8 w-8 rounded-lg bg-amber-50 text-amber-700 inline-flex items-center justify-center shrink-0">
                 <UtensilsCrossed className="h-4 w-4" />
               </div>
@@ -346,7 +489,9 @@ export function TravelTipsTab({ destination }: { destination: string }) {
                 <PhoneCall className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{e.label}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  {e.label}
+                </div>
                 <div className="font-bold text-sm font-mono">{e.phone}</div>
               </div>
             </a>

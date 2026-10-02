@@ -105,7 +105,7 @@ impl DbBroker {
         Self::with_db_opts(db, Duration::from_secs(1), DEFAULT_IDLE_POLL_MAX).await
     }
 
-    /// [`with_db`] with explicit poll tuning — the variant the server
+    /// `with_db` with explicit poll tuning — the variant the server
     /// bootstrap uses so `WORKER_POLL_INTERVAL_MS` /
     /// `WORKER_IDLE_POLL_MAX_MS` actually reach the broker (the
     /// hardcoded 1s previously ignored both).

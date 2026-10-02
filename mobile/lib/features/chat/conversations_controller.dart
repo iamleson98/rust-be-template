@@ -83,8 +83,7 @@ class ConversationsNotifier extends Notifier<AsyncValue<List<Channel>>> {
     final createdAt = msg['createdAt'] as String?;
     final senderType = (msg['senderType'] ?? 'user') as String;
     // Only customer/bot messages count toward the agent's unread badge.
-    final fromCustomer =
-        senderType == 'user' || senderType == 'assistant';
+    final fromCustomer = senderType == 'user' || senderType == 'assistant';
 
     final current = state.value;
     if (current == null) return;
@@ -147,8 +146,8 @@ class ConversationsNotifier extends Notifier<AsyncValue<List<Channel>>> {
 
 final conversationsProvider =
     NotifierProvider<ConversationsNotifier, AsyncValue<List<Channel>>>(
-  ConversationsNotifier.new,
-);
+      ConversationsNotifier.new,
+    );
 
 // ── Queue filter tab ─────────────────────────────────────────────────
 
@@ -161,8 +160,7 @@ class QueueFilterNotifier extends Notifier<QueueFilter> {
   void set(QueueFilter filter) => state = filter;
 }
 
-final queueFilterProvider =
-    NotifierProvider<QueueFilterNotifier, QueueFilter>(
+final queueFilterProvider = NotifierProvider<QueueFilterNotifier, QueueFilter>(
   QueueFilterNotifier.new,
 );
 

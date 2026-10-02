@@ -98,7 +98,9 @@ export function DatePicker({
             )}
           >
             <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
-            {selected ? format(selected, effectiveFormat, { locale: dateLocale }) : effectivePlaceholder}
+            {selected
+              ? format(selected, effectiveFormat, { locale: dateLocale })
+              : effectivePlaceholder}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

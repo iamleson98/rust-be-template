@@ -1,6 +1,6 @@
 //! Typed application configuration loaded exclusively from `.env` (or environment).
 //!
-//! Resolved once at startup and stored in [`AppState`].
+//! Resolved once at startup and stored in `AppState`.
 
 use std::env;
 use std::net::SocketAddr;

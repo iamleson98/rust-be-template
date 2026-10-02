@@ -68,7 +68,9 @@ export function TripCardAmenities({
             {t('searchPage.onlySeatsLeft', { count: trip.availableSeats })}
           </span>
         ) : (
-          <span className="text-muted-foreground">{trip.availableSeats} {t('common.seatsAvailable')}</span>
+          <span className="text-muted-foreground">
+            {trip.availableSeats} {t('common.seatsAvailable')}
+          </span>
         )}
       </div>
       {/* Seat availability bar (desktop) — slim, muted */}
@@ -82,7 +84,11 @@ export function TripCardAmenities({
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom">
-          {t('searchPage.seatsTooltip', { avail: trip.availableSeats, total: trip.totalSeats, pct: Math.round(seatAvailPct) })}
+          {t('searchPage.seatsTooltip', {
+            avail: trip.availableSeats,
+            total: trip.totalSeats,
+            pct: Math.round(seatAvailPct),
+          })}
         </TooltipContent>
       </Tooltip>
     </div>
@@ -133,7 +139,9 @@ export function TripCardAmenitiesMobile({
               {t('searchPage.seatsLeft', { count: trip.availableSeats })}
             </span>
           ) : (
-            <span>{trip.availableSeats} {t('common.seatsAvailable')}</span>
+            <span>
+              {trip.availableSeats} {t('common.seatsAvailable')}
+            </span>
           )}
         </span>
       </div>
@@ -149,7 +157,11 @@ export function TripCardAmenitiesMobile({
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {t('searchPage.seatsTooltip', { avail: trip.availableSeats, total: trip.totalSeats, pct: Math.round(seatAvailPct) })}
+            {t('searchPage.seatsTooltip', {
+              avail: trip.availableSeats,
+              total: trip.totalSeats,
+              pct: Math.round(seatAvailPct),
+            })}
           </TooltipContent>
         </Tooltip>
       </div>

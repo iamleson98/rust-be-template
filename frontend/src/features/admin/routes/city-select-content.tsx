@@ -10,10 +10,7 @@
  * (originally a Select dropdown; now feeds ComboboxField groups).
  */
 
-import type {
-  ComboboxFieldGroup,
-  ComboboxFieldItem,
-} from '@/components/ui/combobox'
+import type { ComboboxFieldGroup, ComboboxFieldItem } from '@/components/ui/combobox'
 import { useT } from '@/lib/i18n'
 import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
 
@@ -41,9 +38,7 @@ export const CITY_ITEMS: ComboboxFieldItem[] = VIETNAMESE_CITIES.map(toItem)
 
 // Map city id (slug) → display name. Used where a stored slug must be
 // rendered as text (the combobox resolves the trigger label itself).
-const CITY_NAME_BY_ID = new Map<string, string>(
-  VIETNAMESE_CITIES.map((c) => [c.id, c.name]),
-)
+const CITY_NAME_BY_ID = new Map<string, string>(VIETNAMESE_CITIES.map((c) => [c.id, c.name]))
 
 export function cityLabel(value: string | null | undefined): string | null {
   if (!value) return null

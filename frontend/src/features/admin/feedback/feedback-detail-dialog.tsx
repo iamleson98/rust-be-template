@@ -59,7 +59,9 @@ export function FeedbackDetailDialog({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <div className="truncate text-base">{selected.authorName || t('adminFeedback.anonymousCustomer')}</div>
+                  <div className="truncate text-base">
+                    {selected.authorName || t('adminFeedback.anonymousCustomer')}
+                  </div>
                   <div className="text-xs font-normal text-muted-foreground">
                     {formatDate(selected.createdAt)}
                   </div>
@@ -73,13 +75,9 @@ export function FeedbackDetailDialog({
             <div className="space-y-4">
               <StarRating value={selected.rating} size="lg" />
 
-              {selected.title && (
-                <div className="font-semibold text-sm">{selected.title}</div>
-              )}
+              {selected.title && <div className="font-semibold text-sm">{selected.title}</div>}
               {selected.content && (
-                <p className="text-sm leading-relaxed text-foreground/90">
-                  {selected.content}
-                </p>
+                <p className="text-sm leading-relaxed text-foreground/90">{selected.content}</p>
               )}
               {(selected.tags?.length ?? 0) > 0 && (
                 <div className="flex flex-wrap gap-1.5">
@@ -99,7 +97,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'approved' }, t('adminFeedback.approvedToast'))) {
+                      if (
+                        await moderate(
+                          selected.id,
+                          { status: 'approved' },
+                          t('adminFeedback.approvedToast'),
+                        )
+                      ) {
                         setSelected({ ...selected, status: 'approved' })
                       }
                     }}
@@ -114,7 +118,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'rejected' }, t('adminFeedback.rejectedToast'))) {
+                      if (
+                        await moderate(
+                          selected.id,
+                          { status: 'rejected' },
+                          t('adminFeedback.rejectedToast'),
+                        )
+                      ) {
                         setSelected({ ...selected, status: 'rejected' })
                       }
                     }}
@@ -129,7 +139,13 @@ export function FeedbackDetailDialog({
                     variant="outline"
                     disabled={updating}
                     onClick={async () => {
-                      if (await moderate(selected.id, { status: 'hidden' }, t('adminFeedback.hiddenToast'))) {
+                      if (
+                        await moderate(
+                          selected.id,
+                          { status: 'hidden' },
+                          t('adminFeedback.hiddenToast'),
+                        )
+                      ) {
                         setSelected({ ...selected, status: 'hidden' })
                       }
                     }}
@@ -157,7 +173,13 @@ export function FeedbackDetailDialog({
                     size="sm"
                     disabled={updating || !replyText.trim()}
                     onClick={async () => {
-                      if (await moderate(selected.id, { brandReply: replyText.trim() }, t('adminFeedback.replySentToast'))) {
+                      if (
+                        await moderate(
+                          selected.id,
+                          { brandReply: replyText.trim() },
+                          t('adminFeedback.replySentToast'),
+                        )
+                      ) {
                         setSelected({ ...selected, reply: replyText.trim() })
                       }
                     }}

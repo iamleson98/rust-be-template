@@ -21,21 +21,54 @@ export const ROUTE_META: Record<string, { title: string; description: string }> 
   '/search': { title: 'seo.search.title', description: 'seo.search.description' },
   '/admin': { title: 'seo.admin.title', description: 'seo.admin.description' },
   '/admin/brands': { title: 'seo.adminBrands.title', description: 'seo.adminBrands.description' },
-  '/admin/cron-jobs': { title: 'seo.adminCronJobs.title', description: 'seo.adminCronJobs.description' },
-  '/admin/tickets': { title: 'seo.adminTickets.title', description: 'seo.adminTickets.description' },
+  '/admin/cron-jobs': {
+    title: 'seo.adminCronJobs.title',
+    description: 'seo.adminCronJobs.description',
+  },
+  '/admin/tickets': {
+    title: 'seo.adminTickets.title',
+    description: 'seo.adminTickets.description',
+  },
   '/admin/chat': { title: 'seo.adminChat.title', description: 'seo.adminChat.description' },
-  '/admin/feedback': { title: 'seo.adminFeedback.title', description: 'seo.adminFeedback.description' },
-  '/admin/bus-layouts': { title: 'seo.adminBusLayouts.title', description: 'seo.adminBusLayouts.description' },
-  '/admin/vehicle-types': { title: 'seo.adminVehicleTypes.title', description: 'seo.adminVehicleTypes.description' },
+  '/admin/feedback': {
+    title: 'seo.adminFeedback.title',
+    description: 'seo.adminFeedback.description',
+  },
+  '/admin/bus-layouts': {
+    title: 'seo.adminBusLayouts.title',
+    description: 'seo.adminBusLayouts.description',
+  },
+  '/admin/vehicle-types': {
+    title: 'seo.adminVehicleTypes.title',
+    description: 'seo.adminVehicleTypes.description',
+  },
   '/admin/system': { title: 'seo.adminSystem.title', description: 'seo.adminSystem.description' },
   '/admin/users': { title: 'seo.adminUsers.title', description: 'seo.adminUsers.description' },
-  '/admin/payments': { title: 'seo.adminPayments.title', description: 'seo.adminPayments.description' },
+  '/admin/payments': {
+    title: 'seo.adminPayments.title',
+    description: 'seo.adminPayments.description',
+  },
   '/account': { title: 'seo.account.title', description: 'seo.account.description' },
-  '/account/loyalty': { title: 'seo.accountLoyalty.title', description: 'seo.accountLoyalty.description' },
-  '/account/notifications': { title: 'seo.accountNotifications.title', description: 'seo.accountNotifications.description' },
-  '/account/security': { title: 'seo.accountSecurity.title', description: 'seo.accountSecurity.description' },
-  '/account/trips': { title: 'seo.accountTrips.title', description: 'seo.accountTrips.description' },
-  '/account/feedback': { title: 'seo.accountFeedback.title', description: 'seo.accountFeedback.description' },
+  '/account/loyalty': {
+    title: 'seo.accountLoyalty.title',
+    description: 'seo.accountLoyalty.description',
+  },
+  '/account/notifications': {
+    title: 'seo.accountNotifications.title',
+    description: 'seo.accountNotifications.description',
+  },
+  '/account/security': {
+    title: 'seo.accountSecurity.title',
+    description: 'seo.accountSecurity.description',
+  },
+  '/account/trips': {
+    title: 'seo.accountTrips.title',
+    description: 'seo.accountTrips.description',
+  },
+  '/account/feedback': {
+    title: 'seo.accountFeedback.title',
+    description: 'seo.accountFeedback.description',
+  },
   '/login': { title: 'seo.login.title', description: 'seo.login.description' },
   '/compare': { title: 'seo.compare.title', description: 'seo.compare.description' },
 }
@@ -68,7 +101,8 @@ export function RouteMeta() {
       // We add/update `<meta name="robots" content="noindex, nofollow">`
       // on these routes, and remove it on public routes (so the meta
       // element doesn't accumulate stale state across SPA navigations).
-      const isPrivate = pathname.startsWith('/admin') || pathname.startsWith('/account') || pathname === '/login'
+      const isPrivate =
+        pathname.startsWith('/admin') || pathname.startsWith('/account') || pathname === '/login'
       let robotsTag = document.querySelector('meta[name="robots"]')
       if (isPrivate) {
         if (!robotsTag) {

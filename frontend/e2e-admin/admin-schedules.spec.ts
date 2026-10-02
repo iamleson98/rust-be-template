@@ -31,7 +31,6 @@ const ROUTE = 'Hồ Chí Minh → Nha Trang'
 
 const ART = 'admin-e2e-artifacts'
 
-const trigger = (root: Page) => root.locator('[data-slot="select-trigger"]')
 const item = (root: Page) => root.locator('[data-slot="select-item"]:visible')
 
 async function login(page: Page) {
@@ -135,7 +134,9 @@ test('schedule form: point selects, map address creation, save with points', asy
   await expect(page.getByText('08:30').first()).toBeVisible({ timeout: 15_000 })
 
   // Open the create form from the route row's "Thêm lịch trình" action.
-  await routeRow.getByRole('button', { name: new RegExp(`thêm lịch trình cho ${ROUTE}`, 'i') }).click()
+  await routeRow
+    .getByRole('button', { name: new RegExp(`thêm lịch trình cho ${ROUTE}`, 'i') })
+    .click()
   const dialog = page.locator('[data-slot="dialog-content"]')
   await expect(dialog).toBeVisible()
   await expect(dialog.getByText('Lộ trình đón — trả khách')).toBeVisible()
@@ -179,9 +180,7 @@ test('schedule form: point selects, map address creation, save with points', asy
   // Full-text search (Tantivy) — diacritic-insensitive.
   const searchBox = addrDialog.locator('input[placeholder*="Tìm thành phố"]')
   await searchBox.fill('nha trang')
-  const hit = addrDialog
-    .locator('div.absolute button', { hasText: 'Nha Trang' })
-    .first()
+  const hit = addrDialog.locator('div.absolute button', { hasText: 'Nha Trang' }).first()
   await expect(hit).toBeVisible({ timeout: 10_000 })
   await hit.click()
 
@@ -220,8 +219,7 @@ test('address list API returns brand-scoped options (values are ids)', async ({ 
   // The backend's anti-scraping middleware requires browser-like UA +
   // an allowed Origin on mutations — send them explicitly.
   const browserHeaders = {
-    'User-Agent':
-      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36',
     Origin: 'http://localhost:5184',
   }
   const loginRes = await request.post('/api/auth/employee-login', {
@@ -230,11 +228,12 @@ test('address list API returns brand-scoped options (values are ids)', async ({ 
   })
   expect(loginRes.ok()).toBeTruthy()
 
-  const brands = await (
-    await request.get('/api/admin/brands', { headers: browserHeaders })
-  ).json()
-  const brand = brands.items.find((b: any) => b.name === BRAND)
+  const brands = await (await request.get('/api/admin/brands', { headers: browserHeaders })).json()
+  // The list endpoint's items are a loose bag of admin shapes; narrowing
+  // to a generated type for one `name` read is not worth the import.
+  const brand = (brands.items as Array<{ name: string; id: string }>).find((b) => b.name === BRAND)
   expect(brand).toBeTruthy()
+  if (!brand) throw new Error(`seed brand "${BRAND}" not found — run scripts/seed_demo.sh`)
 
   const list = await (
     await request.get(`/api/admin/addresses?brandId=${brand.id}`, {

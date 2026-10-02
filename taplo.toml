@@ -1,0 +1,26 @@
+# taplo — TOML formatter configuration (repo root).
+#
+# CI gate: `taplo fmt --check` (see .github/workflows/ci.yml).
+# Local fix: `taplo fmt` (binary from github.com/tamasfe/taplo, or
+# `cargo install taplo-cli --locked`).
+#
+# Scope: only OUR TOML files. The rust-sql engine is a git submodule
+# pinned to upstream master — its own TOML style is not ours to
+# reformat, and reformatting it would dirty the submodule checkout in
+# CI where the docker-build job must see a clean working tree.
+include = [
+  "Cargo.toml",
+  "migrator/Cargo.toml",
+  "store_macros/Cargo.toml",
+  ".cargo/audit.toml",
+  ".cargo/config.toml",
+]
+exclude = ["rust-sql/**", "target/**", "node_modules/**"]
+
+[formatting]
+# Keep inline feature arrays inline (`features = ["ws", "macros"]` stays
+# one line) and keep hand-wrapped multi-line arrays multi-line — the
+# formatter must not fight the authors' chosen layout, only normalize
+# everything else (indentation, spacing, alignment).
+array_auto_expand = false
+array_auto_collapse = false

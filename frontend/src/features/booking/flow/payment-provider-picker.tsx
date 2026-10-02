@@ -19,7 +19,9 @@ import type { PaymentProvider } from '@/lib/queries/payments'
 //  Provider picker
 // ─────────────────────────────────────────────────────────────
 
-const getProviderOptions = (t: ReturnType<typeof useT>): {
+const getProviderOptions = (
+  t: ReturnType<typeof useT>,
+): {
   key: PaymentProvider
   label: string
   icon: string

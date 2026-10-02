@@ -62,7 +62,10 @@ export function PassengerStepHeader({
           {t('bookingFlow.passengerInfo')}
         </h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {t('bookingFlow.passengerSeatSummary', { count: passengerCount, seats: selectedSeatCount })}
+          {t('bookingFlow.passengerSeatSummary', {
+            count: passengerCount,
+            seats: selectedSeatCount,
+          })}
         </p>
       </div>
       <div className="flex items-center gap-1.5">
@@ -140,9 +143,7 @@ export function PassengerSummary({
       {unassignedCount > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>
-            {t('bookingFlow.unassignedHint', { count: unassignedCount })}
-          </span>
+          <span>{t('bookingFlow.unassignedHint', { count: unassignedCount })}</span>
         </div>
       )}
       {hasDuplicateSeats && (
@@ -160,7 +161,9 @@ export function PassengerSummary({
       {/* selectedSeatCount is exposed via the title/summary above; kept in
           the prop list so callers don't have to filter the passengers array
           to compute it. */}
-      <span className="sr-only">{t('bookingFlow.seatsSelectedCount', { count: selectedSeatCount })}</span>
+      <span className="sr-only">
+        {t('bookingFlow.seatsSelectedCount', { count: selectedSeatCount })}
+      </span>
     </div>
   )
 }

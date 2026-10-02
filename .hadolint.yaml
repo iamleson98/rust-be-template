@@ -1,0 +1,16 @@
+# hadolint — Dockerfile lint configuration.
+#
+# CI gate: `hadolint Dockerfile` (hygiene job). Local: same command
+# from the repo root (binary: github.com/hadolint/hadolint).
+ignored:
+  # Pin apt package versions: deliberately NOT pinned — Ubuntu archive
+  # versions rotate faster than this repo can track them, the builder
+  # stage is a throwaway cache layer, and the runtime stage installs
+  # only 4 well-known packages (libssl3/ca-certificates/curl/tini).
+  # Supply-chain posture comes from the pinned base-image digests and
+  # the cargo-audit/cargo-deny gates, not apt pins here.
+  - DL3008
+  # USER app (named, not numeric): the user is created in-image with a
+  # fixed uid (1000) two lines above; the name is more readable and
+  # resolves inside the image by construction.
+  - DL3066
