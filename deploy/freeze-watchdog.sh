@@ -43,6 +43,12 @@ fail_dumps=0
 
 dump_once() {
   local ts file cid tini bpid
+  # Re-create on every dump: the directory can be wiped while the
+  # service is running (it happened on 2026-09-18/20/27 — every dump
+  # after the wipe failed with "No such file or directory" and the
+  # incidents were captured NOWHERE). mkdir at service start only is
+  # not enough.
+  mkdir -p "$DUMPS"
   ts=$(date +%Y%m%d-%H%M%S)
   file="$DUMPS/dump-$ts.txt"
   cid=$(docker ps -q --filter "name=$SVC" | head -1)
@@ -133,8 +139,15 @@ dump_once() {
       echo "!! no running container for $SVC (mid-replacement?)"
       docker ps -a --filter "name=$SVC" --format '{{.Names}} {{.Status}}' | head -5
     fi
-  } > "$file" 2>&1
-  echo "freeze-dump written: $file (incident dump #$((++fail_dumps)))"
+  } > "$file" 2>&1 || true
+  if [ -s "$file" ]; then
+    echo "freeze-dump written: $file (incident dump #$((++fail_dumps)))"
+  else
+    # The redirect itself failed (directory vanished again?) — still
+    # count the incident so back-off/recovery logic stays coherent.
+    ((++fail_dumps))
+    echo "freeze-dump FAILED: $file unwritable (incident dump #$fail_dumps)"
+  fi
 }
 
 while true; do
@@ -156,7 +169,10 @@ while true; do
           continue
         else
           # Healthy again — reset the incident counter.
-          [ "$fail_dumps" -gt 0 ] && echo "$(date -Is) recovered after $fail_dumps dumps" >> "$DUMPS/incidents.log"
+          if [ "$fail_dumps" -gt 0 ]; then
+            mkdir -p "$DUMPS"
+            echo "$(date -Is) recovered after $fail_dumps dumps" >> "$DUMPS/incidents.log" 2>/dev/null || true
+          fi
           fail_dumps=0
         fi
       fi

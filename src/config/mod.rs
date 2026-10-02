@@ -106,6 +106,17 @@ pub struct DatabaseConfig {
     pub idle_timeout_secs: u64,
     pub max_lifetime_secs: u64,
     pub statement_cache_capacity: usize,
+    /// Shared page-cache budget in KiB, applied as `PRAGMA cache_size =
+    /// -cache_kib` (SQLite's negative form = KiB). The rustqlite engine
+    /// keeps ONE pager (and therefore ONE page cache) per database file,
+    /// shared by every pooled C-ABI connection (see `engines()` in
+    /// rust-sql/compat/rustqlite-compat — `OpenTarget::File` keys by
+    /// canonical path and weak-upgrades to the live engine), so this is
+    /// a single engine-wide budget, NOT a per-connection one.
+    /// Default 65536 KiB = 64 MiB: the production DB is ~625 MB and the
+    /// engine default (SQLite's -2000 KiB) showed a permanently full
+    /// 2 MB cache with a correspondingly poor hit rate.
+    pub cache_kib: i64,
     pub enable_sqlx_logs: bool,
 }
 
@@ -113,18 +124,19 @@ impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
             url: env_var("DATABASE_URL").unwrap_or_else(|| "sqlite://./app.db?mode=rwc".into()),
-            // 8 pooled connections (min 2), not 20: every sqlx-sqlite
-            // connection is a separate rustqlite engine instance with
-            // its own page cache, and SQLite is single-writer anyway —
-            // a big pool just multiplies per-connection caches and lock
-            // contention for zero throughput. See apply_sqlite_pragmas
-            // in server.rs for what each connection actually runs.
+            // 8 pooled connections (min 2), not 20: SQLite is a
+            // single-writer engine and the rustqlite compat layer shares
+            // ONE engine (and ONE page cache — see `cache_kib`) per
+            // database file across all pooled connections, so a big pool
+            // only adds lock contention for zero throughput. See
+            // apply_sqlite_pragmas in server.rs for what the pool runs.
             max_connections: env_parse("DATABASE_MAX_CONNECTIONS").unwrap_or(8),
             min_connections: env_parse("DATABASE_MIN_CONNECTIONS").unwrap_or(2),
             connect_timeout_secs: env_parse("DATABASE_CONNECT_TIMEOUT_SECS").unwrap_or(10),
             idle_timeout_secs: env_parse("DATABASE_IDLE_TIMEOUT_SECS").unwrap_or(600),
             max_lifetime_secs: env_parse("DATABASE_MAX_LIFETIME_SECS").unwrap_or(1800),
             statement_cache_capacity: env_parse("DATABASE_STATEMENT_CACHE_CAPACITY").unwrap_or(100),
+            cache_kib: env_parse("DATABASE_CACHE_KIB").unwrap_or(65_536),
             enable_sqlx_logs: env_parse("DATABASE_ENABLE_SQLX_LOGS").unwrap_or(false),
         }
     }

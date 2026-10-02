@@ -80,10 +80,10 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
 
     // ── Engine-specific setup ────────────────────────────────────
     // Apply performance pragmas (WAL mode, sync=NORMAL, busy_timeout,
-    // cache_size, mmap_size, foreign_keys=ON). The rustqlite engine
-    // follows SQLite's default of FK enforcement OFF — sea-orm
-    // migrations assume FK enforcement, so we must turn it on.
-    apply_sqlite_pragmas(&db).await?;
+    // cache_size, foreign_keys=ON). The rustqlite engine follows
+    // SQLite's default of FK enforcement OFF — sea-orm migrations assume
+    // FK enforcement, so we must turn it on.
+    apply_sqlite_pragmas(&db, config.database.cache_kib).await?;
     tracing::info!(
         engine = crate::db::engine_version(),
         "database engine: rust-sql (rustqlite) via the sqlx-sqlite C-ABI compat layer"
@@ -96,6 +96,25 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     crate::run_migrations(db.as_ref())
         .await
         .context("database migrations")?;
+
+    // Query-planner statistics: nothing in this codebase ever ran
+    // ANALYZE, so the planner optimizes a ~625 MB production database
+    // blind. `PRAGMA optimize` is SQLite's recommended self-tuning hook
+    // — it runs ANALYZE only when the statistics are missing or stale
+    // (first boot after this change: one bounded scan; later boots:
+    // near-instant no-op). Deferred into a background task so the first
+    // ANALYZE never blocks startup or the health gate.
+    {
+        let db = db.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            use sea_orm::ConnectionTrait;
+            match db.execute_unprepared("PRAGMA optimize;").await {
+                Ok(_) => tracing::info!("PRAGMA optimize completed (planner statistics fresh)"),
+                Err(e) => tracing::warn!(%e, "PRAGMA optimize failed (non-fatal)"),
+            }
+        });
+    }
 
     // ---- Cache backend (shared via Arc<dyn CacheBackend>) ------------
     let cache: Arc<dyn CacheBackend> = cache::build_shared(&config.cache).await?;
@@ -524,39 +543,57 @@ fn init_tracing(directive: &str) {
 }
 
 /// Apply SQLite performance pragmas to the connection pool.
-async fn apply_sqlite_pragmas(db: &sea_orm::DatabaseConnection) -> anyhow::Result<()> {
+async fn apply_sqlite_pragmas(
+    db: &sea_orm::DatabaseConnection,
+    cache_kib: i64,
+) -> anyhow::Result<()> {
     use sea_orm::ConnectionTrait;
-    // What every POOLED connection actually runs, and where it comes from:
+    // Where these actually land — verified against the rust-sql compat
+    // layer (rust-sql/compat/rustqlite-compat/src/lib.rs):
     //
-    // * `foreign_keys=ON` + `busy_timeout=5000` — sqlx-sqlite applies
-    //   these itself on EVERY connection (SqliteConnectOptions defaults;
-    //   see sqlx-sqlite src/options/mod.rs). Listed here anyway so the
-    //   intent is explicit and not silently dependent on a sqlx default.
+    // All C-ABI connections opened on the SAME database file share ONE
+    // engine (`engines()` registry, `OpenTarget::File` keyed by canonical
+    // path, weak-upgrade-or-recreate) and therefore ONE pager. Every
+    // pragma below writes pager-level state, so running them through ONE
+    // pooled connection configures the ENGINE — the whole pool, plus any
+    // connection opened later, inherits the settings for as long as at
+    // least one pool connection keeps the engine alive (min_connections
+    // guarantees exactly that).
+    //
+    // * `foreign_keys=ON` + `busy_timeout=5000` — also applied by
+    //   sqlx-sqlite itself on every connection (SqliteConnectOptions
+    //   defaults); listed here so the intent is explicit and not
+    //   silently dependent on a sqlx default.
     // * `journal_mode=WAL` — persisted in the database file header: the
     //   first connection that sets it flips the file for everyone.
-    // * `synchronous=NORMAL` / `temp_store=MEMORY` — per-connection;
-    //   this call reaches ONE pooled connection (whichever the pool
-    //   hands out), the rest run sqlx defaults (sync FULL is slower but
-    //   safe; temp files go to disk). sea-orm 1.1 offers no per-connection
-    //   pragma hook, and the sqlx URL parser REJECTS unknown query
-    //   params, so the URL cannot carry them either — accepted trade.
-    // * REMOVED 2026-09: `cache_size=-65536` — also only ever reached ONE
-    //   connection (giving it a 64 MB page cache while the rest kept
-    //   SQLite's 2 MB default — an accidental lottery, not a policy) and
-    //   `mmap_size=268435456` — a silent no-op: the rustqlite engine has
-    //   no mmap support at all.
+    // * `synchronous=NORMAL` / `temp_store=MEMORY` — pager-level state
+    //   (see `set_synchronous` / `set_temp_store` in rust-sql api.rs):
+    //   engine-wide, reached via the shared pager.
+    // * `cache_size=-<cache_kib>` — RE-ADDED 2026-10 after the 2026-09
+    //   removal turned out to be based on a wrong model: there is no
+    //   per-connection page cache to win a lottery with. The engine
+    //   keeps ONE shared page cache per file (`Pager::cache_capacity`),
+    //   `PRAGMA cache_size` updates it live (api.rs "cache_size" arm),
+    //   and the engine default is SQLite's -2000 KiB. On the ~625 MB
+    //   production DB that left the shared cache permanently full at
+    //   2 MB (admin "database" cards: cache 100%) with a poor hit
+    //   rate. The default here is 64 MiB; tune via DATABASE_CACHE_KIB.
+    // * `mmap_size` — stays out: a silent no-op, the rustqlite engine
+    //   has no mmap support at all.
     let pragmas = [
-        "PRAGMA journal_mode=WAL;",
-        "PRAGMA synchronous=NORMAL;",
-        "PRAGMA busy_timeout=5000;",
-        "PRAGMA temp_store=MEMORY;",
-        "PRAGMA foreign_keys=ON;",
+        "PRAGMA journal_mode=WAL;".to_string(),
+        "PRAGMA synchronous=NORMAL;".to_string(),
+        "PRAGMA busy_timeout=5000;".to_string(),
+        "PRAGMA temp_store=MEMORY;".to_string(),
+        "PRAGMA foreign_keys=ON;".to_string(),
+        format!("PRAGMA cache_size=-{cache_kib};"),
     ];
-    for stmt in pragmas {
+    for stmt in &pragmas {
         db.execute_unprepared(stmt).await?;
     }
     tracing::info!(
-        "applied SQLite pragmas (WAL persisted; sync=NORMAL/temp_store best-effort on one pooled connection; per-connection FK + busy_timeout come from sqlx defaults)"
+        cache_kib,
+        "applied SQLite pragmas engine-wide (shared pager: WAL persisted; sync=NORMAL/temp_store/cache_size on the shared engine cache; FK + busy_timeout also come from sqlx per-connection defaults)"
     );
     Ok(())
 }

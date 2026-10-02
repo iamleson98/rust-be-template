@@ -31,9 +31,10 @@
 //! * **Tantivy mmaps** (file-backed, reclaimable): the Vietnam OSM
 //!   index is mmap'd by tantivy; touched pages count toward RSS but
 //!   are evictable under pressure. Not heap — not collected here.
-//! * **SQLite per-connection page caches**: rustqlite has no mmap and
-//!   every pooled connection is its own engine instance with its own
-//!   small page cache (SQLite default, 2 MB).
+//! * **SQLite shared page cache**: rustqlite has no mmap; all pooled
+//!   connections share ONE engine (and ONE page cache) per database
+//!   file — sized by `PRAGMA cache_size` / `DATABASE_CACHE_KIB`
+//!   (default 64 MiB, see `apply_sqlite_pragmas` in server.rs).
 //! * **moka cache**: entry bytes are capped by a weigher
 //!   (`CACHE_MAX_CAPACITY`, see `cache::moka`).
 //!
