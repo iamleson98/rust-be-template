@@ -97,11 +97,11 @@ export function ShareDialog() {
     const quote = encodeURIComponent(
       shareTripData
         ? t('trips.shareQuote', {
-            from: shareTripData.fromName,
-            to: shareTripData.toName,
-            price: formatCurrency(shareTripData.minPrice, currency),
-            brand: shareTripData.brandName,
-          })
+          from: shareTripData.fromName,
+          to: shareTripData.toName,
+          price: formatCurrency(shareTripData.minPrice, currency),
+          brand: shareTripData.brandName,
+        })
         : t('trips.shareFallbackQuote'),
     )
     window.open(`https://www.facebook.com/sharer/sharer.php?u=${u}&quote=${quote}`, '_blank', 'noopener,noreferrer,width=640,height=540')

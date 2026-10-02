@@ -37,9 +37,6 @@ export function ActiveFilterChips({
   const t = useT()
   return (
     <div
-
-
-
       className="overflow-hidden"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -109,9 +106,6 @@ function FilterChip({ label, icon, onRemove }: { label: string; icon?: React.Rea
   const t = useT()
   return (
     <div
-
-
-
       className="inline-flex items-center gap-1 rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-medium text-blue-700"
     >
       {icon}

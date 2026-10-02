@@ -29,7 +29,7 @@
 # ════════════════════════════════════════════════════════════════════
 # Stage 1: Frontend build
 # ════════════════════════════════════════════════════════════════════
-FROM oven/bun:1.2-alpine AS frontend-builder
+FROM oven/bun:1.4-alpine AS frontend-builder
 
 WORKDIR /frontend
 

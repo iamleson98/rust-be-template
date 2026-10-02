@@ -290,8 +290,8 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                         <Star
                                           key={n}
                                           className={`h-3 w-3 ${n <= r.rating
-                                              ? 'fill-amber-400 text-amber-400'
-                                              : 'fill-slate-200 text-slate-200'
+                                            ? 'fill-amber-400 text-amber-400'
+                                            : 'fill-slate-200 text-slate-200'
                                             }`}
                                         />
                                       ))}

@@ -39,29 +39,26 @@ export function CancelReasonStep({
                     field.onChange(reason.key)
                     form.clearErrors('selectedReason')
                   }}
-                  className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all duration-200 flex items-center gap-3 ${
-                    field.value === reason.key
+                  className={`w-full text-left rounded-xl border-2 px-4 py-3 transition-all duration-200 flex items-center gap-3 ${field.value === reason.key
                       ? 'border-rose-400 bg-rose-50 ring-1 ring-rose-200'
                       : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      field.value === reason.key
+                    className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors ${field.value === reason.key
                         ? 'border-rose-500 bg-rose-500'
                         : 'border-slate-300'
-                    }`}
+                      }`}
                   >
                     {field.value === reason.key && (
                       <div className="h-2 w-2 rounded-full bg-white" />
                     )}
                   </div>
                   <span
-                    className={`text-sm font-medium ${
-                      field.value === reason.key
+                    className={`text-sm font-medium ${field.value === reason.key
                         ? 'text-rose-700'
                         : 'text-foreground'
-                    }`}
+                      }`}
                   >
                     {t(reason.labelKey)}
                   </span>

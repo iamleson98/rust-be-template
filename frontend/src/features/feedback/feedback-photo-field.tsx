@@ -75,79 +75,79 @@ export function FeedbackPhotoField({
   }
 
   return (
-            <FormField
-              control={form.control}
-              name="photos"
-              render={({ field }) => (
-                <FormItem className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('feedbackForm.photosLabel')}
-                    </FormLabel>
-                    <span className="text-[10px] text-muted-foreground">
-                      {t('feedbackForm.photosCounter', { count: (field.value ?? []).length, max: MAX_PHOTOS })}
-                    </span>
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => handlePickPhotos(e.target.files)}
+    <FormField
+      control={form.control}
+      name="photos"
+      render={({ field }) => (
+        <FormItem className="space-y-2">
+          <div className="flex items-center justify-between">
+            <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('feedbackForm.photosLabel')}
+            </FormLabel>
+            <span className="text-[10px] text-muted-foreground">
+              {t('feedbackForm.photosCounter', { count: (field.value ?? []).length, max: MAX_PHOTOS })}
+            </span>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handlePickPhotos(e.target.files)}
+          />
+          {(field.value ?? []).length === 0 ? (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors py-4 flex flex-col items-center justify-center gap-1 text-muted-foreground"
+            >
+              <Upload className="h-5 w-5" />
+              <span className="text-xs font-medium">{t('feedbackForm.addPhotos')}</span>
+              <span className="text-[10px]">
+                {t('feedbackForm.addPhotosHint', { count: MAX_PHOTOS })}
+              </span>
+            </button>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {(field.value ?? []).map((src, i) => (
+                <div
+                  key={i}
+                  className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 group"
+                >
+                  <img
+                    src={src}
+                    alt={t('reviews.photoAlt', { index: i + 1 })}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
-                  {(field.value ?? []).length === 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full rounded-xl border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors py-4 flex flex-col items-center justify-center gap-1 text-muted-foreground"
-                    >
-                      <Upload className="h-5 w-5" />
-                      <span className="text-xs font-medium">{t('feedbackForm.addPhotos')}</span>
-                      <span className="text-[10px]">
-                        {t('feedbackForm.addPhotosHint', { count: MAX_PHOTOS })}
-                      </span>
-                    </button>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {(field.value ?? []).map((src, i) => (
-                        <div
-                          key={i}
-                          className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 group"
-                        >
-                          <img
-                            src={src}
-                            alt={t('reviews.photoAlt', { index: i + 1 })}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removePhoto(i)}
-                            className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-rose-600 text-white inline-flex items-center justify-center transition-colors"
-                            aria-label={t('feedbackForm.removePhoto')}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                      {(field.value ?? []).length < MAX_PHOTOS && (
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                          <span className="text-[10px] font-medium">{t('common.add')}</span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <FormMessage />
-                </FormItem>
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/60 hover:bg-rose-600 text-white inline-flex items-center justify-center transition-colors"
+                    aria-label={t('feedbackForm.removePhoto')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+              {(field.value ?? []).length < MAX_PHOTOS && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square rounded-lg border-2 border-dashed border-slate-300 hover:border-amber-400 hover:bg-amber-50/40 transition-colors flex flex-col items-center justify-center gap-1 text-muted-foreground"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span className="text-[10px] font-medium">{t('common.add')}</span>
+                </button>
               )}
-            />
+            </div>
+          )}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
 

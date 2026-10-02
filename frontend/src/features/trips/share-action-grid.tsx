@@ -45,47 +45,47 @@ export function ShareActionGrid({
 }) {
   const t = useT()
   return (
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                onClick={handleCopy}
-                variant="outline"
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                {copied ? <Check className="h-4 w-4 text-blue-600" /> : <Copy className="h-4 w-4" />}
-                {copied ? t('trips.copiedLabel') : t('trips.copyLink')}
-              </Button>
-              <Button
-                onClick={handleDownload}
-                variant="outline"
-                className="gap-2 border-amber-300 text-violet-700 hover:bg-violet-50"
-              >
-                <Download className="h-4 w-4" />
-                {t('trips.downloadImage')}
-              </Button>
-              <Button
-                onClick={handleFacebook}
-                variant="outline"
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <Facebook className="h-4 w-4" />
-                Facebook
-              </Button>
-              <Button
-                onClick={handleZalo}
-                variant="outline"
-                className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Zalo
-              </Button>
-              <Button
-                onClick={handleWhatsApp}
-                variant="outline"
-                className="gap-2 col-span-2 border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <WhatsAppIcon className="h-4 w-4" />
-                {t('trips.shareWhatsApp')}
-              </Button>
-            </div>
+    <div className="grid grid-cols-2 gap-2">
+      <Button
+        onClick={handleCopy}
+        variant="outline"
+        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+      >
+        {copied ? <Check className="h-4 w-4 text-blue-600" /> : <Copy className="h-4 w-4" />}
+        {copied ? t('trips.copiedLabel') : t('trips.copyLink')}
+      </Button>
+      <Button
+        onClick={handleDownload}
+        variant="outline"
+        className="gap-2 border-amber-300 text-violet-700 hover:bg-violet-50"
+      >
+        <Download className="h-4 w-4" />
+        {t('trips.downloadImage')}
+      </Button>
+      <Button
+        onClick={handleFacebook}
+        variant="outline"
+        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+      >
+        <Facebook className="h-4 w-4" />
+        Facebook
+      </Button>
+      <Button
+        onClick={handleZalo}
+        variant="outline"
+        className="gap-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+      >
+        <MessageCircle className="h-4 w-4" />
+        Zalo
+      </Button>
+      <Button
+        onClick={handleWhatsApp}
+        variant="outline"
+        className="gap-2 col-span-2 border-blue-300 text-blue-700 hover:bg-blue-50"
+      >
+        <WhatsAppIcon className="h-4 w-4" />
+        {t('trips.shareWhatsApp')}
+      </Button>
+    </div>
   )
 }

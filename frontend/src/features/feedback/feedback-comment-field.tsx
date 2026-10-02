@@ -24,36 +24,36 @@ export function FeedbackCommentField({
 }) {
   const t = useT()
   return (
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem className="space-y-1.5">
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t('feedbackForm.commentLabel')}
-                  </FormLabel>
-                  <FormControl>
-                    <Textarea
-                      {...field}
-                      value={field.value ?? ''}
-                      placeholder={t('feedbackForm.commentPlaceholder')}
-                      rows={4}
-                      className="resize-none"
-                      maxLength={2000}
-                    />
-                  </FormControl>
-                  <div className="text-[10px] text-right text-muted-foreground">
-                    {(field.value ?? '').length}/2000
-                  </div>
-                  {isShortComment && !form.formState.errors.content && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-amber-700">
-                      <AlertCircle className="h-3 w-3" />
-                      {t('feedbackForm.commentTooShort')}
-                    </div>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
+    <FormField
+      control={form.control}
+      name="content"
+      render={({ field }) => (
+        <FormItem className="space-y-1.5">
+          <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('feedbackForm.commentLabel')}
+          </FormLabel>
+          <FormControl>
+            <Textarea
+              {...field}
+              value={field.value ?? ''}
+              placeholder={t('feedbackForm.commentPlaceholder')}
+              rows={4}
+              className="resize-none"
+              maxLength={2000}
             />
+          </FormControl>
+          <div className="text-[10px] text-right text-muted-foreground">
+            {(field.value ?? '').length}/2000
+          </div>
+          {isShortComment && !form.formState.errors.content && (
+            <div className="flex items-center gap-1.5 text-[11px] text-amber-700">
+              <AlertCircle className="h-3 w-3" />
+              {t('feedbackForm.commentTooShort')}
+            </div>
+          )}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
