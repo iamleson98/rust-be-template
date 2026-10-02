@@ -7,6 +7,8 @@ import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { Form } from '@/components/ui/form'
+import { Button } from '@/components/ui/button'
+import { Search } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
 import { searchSchema, type SearchFormValues } from './search-widget-schema'
@@ -113,50 +115,102 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cn(
-        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 ring-1 ring-black/5 p-4 md:p-5',
-        compact ? 'gap-3' : 'gap-4',
+        'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 ring-1 ring-black/5',
+        compact ? 'p-2.5 md:p-3' : 'p-4 md:p-5',
       )}
     >
       <Form {...form}>
         <form onSubmit={onSubmit} className="contents" noValidate aria-label={t('search.title')}>
-          {/* Trip type toggle: One-way / Round-trip */}
-          <SearchTripTypeToggle
-            form={form}
-            searchParams={searchParams}
-            setSearchParams={setSearchParams}
-          />
+          {compact ? (
+            /* ── Compact bar (results page): one dense row on md+.
+                Vehicle-type pills are intentionally omitted here — they
+                remain fully available in the results-page filter sidebar /
+                mobile filter sheet, so no functionality is lost. ── */
+            <>
+              <SearchTripTypeToggle
+                compact
+                form={form}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
+              <div
+                className={cn(
+                  'grid grid-cols-1 gap-2 md:gap-2.5 md:items-end',
+                  searchParams.roundTrip
+                    ? 'lg:grid-cols-[minmax(0,1.1fr)_auto_minmax(0,1.1fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_auto]'
+                    : 'lg:grid-cols-[minmax(0,1.15fr)_auto_minmax(0,1.15fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_auto]',
+                )}
+              >
+                <SearchRouteFields form={form} swap={swap} compact />
 
-          <div
-            className={cn(
-              'grid grid-cols-1 gap-3 items-start',
-              searchParams.roundTrip
-                ? 'md:grid-cols-[1fr_auto_1fr_1fr_1fr_1fr]'
-                : 'md:grid-cols-[1fr_auto_1fr_1fr_1fr]',
-            )}
-          >
-            <SearchRouteFields form={form} swap={swap} />
+                <SearchDateFields
+                  form={form}
+                  searchParams={searchParams}
+                  setSearchParams={setSearchParams}
+                  compact
+                />
 
-            <SearchDateFields
-              form={form}
-              searchParams={searchParams}
-              setSearchParams={setSearchParams}
-            />
+                <SearchPassengerPicker
+                  form={form}
+                  searchParams={searchParams}
+                  setSearchParams={setSearchParams}
+                  paxOpen={paxOpen}
+                  setPaxOpen={setPaxOpen}
+                  compact
+                />
 
-            <SearchPassengerPicker
-              form={form}
-              searchParams={searchParams}
-              setSearchParams={setSearchParams}
-              paxOpen={paxOpen}
-              setPaxOpen={setPaxOpen}
-            />
-          </div>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-10 w-full lg:w-auto lg:min-w-36 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-5 gap-2 font-semibold shadow-sm shadow-primary/25"
+                >
+                  <Search className="h-4 w-4" />
+                  <span>{submitting ? t('home.searching') : t('search.btn')}</span>
+                </Button>
+              </div>
+            </>
+          ) : (
+            /* ── Full widget (home page) ── */
+            <>
+              <SearchTripTypeToggle
+                form={form}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+              />
 
-          <SearchActionsRow
-            form={form}
-            searchParams={searchParams}
-            setSearchParams={setSearchParams}
-            submitting={submitting}
-          />
+              <div
+                className={cn(
+                  'grid grid-cols-1 gap-3 items-start',
+                  searchParams.roundTrip
+                    ? 'md:grid-cols-[1fr_auto_1fr_1fr_1fr_1fr]'
+                    : 'md:grid-cols-[1fr_auto_1fr_1fr_1fr]',
+                )}
+              >
+                <SearchRouteFields form={form} swap={swap} />
+
+                <SearchDateFields
+                  form={form}
+                  searchParams={searchParams}
+                  setSearchParams={setSearchParams}
+                />
+
+                <SearchPassengerPicker
+                  form={form}
+                  searchParams={searchParams}
+                  setSearchParams={setSearchParams}
+                  paxOpen={paxOpen}
+                  setPaxOpen={setPaxOpen}
+                />
+              </div>
+
+              <SearchActionsRow
+                form={form}
+                searchParams={searchParams}
+                setSearchParams={setSearchParams}
+                submitting={submitting}
+              />
+            </>
+          )}
         </form>
       </Form>
 

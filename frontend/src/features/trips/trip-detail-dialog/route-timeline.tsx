@@ -18,7 +18,9 @@ type RouteTimelinePoint = {
   id: string
   name: string
   stopOrder: number
-  etaOffsetMin: number
+  /** Optional per the API — the backend currently emits no ETA
+   *  offset, so derived stop times/durations degrade gracefully. */
+  etaOffsetMin?: number
   pickupType: string
 }
 
@@ -82,12 +84,14 @@ export function RouteTimeline({
       .sort((a, b) => a.stopOrder - b.stopOrder)
 
     for (const p of midPoints) {
-      const t = depDate ? new Date(depDate.getTime() + p.etaOffsetMin * 60_000) : null
+      // No ETA offset (backend doesn't provide one yet) → time stays
+      // null and renders as "—" instead of an Invalid-Date/NaN.
+      const t = depDate && p.etaOffsetMin != null ? new Date(depDate.getTime() + p.etaOffsetMin * 60_000) : null
       items.push({
         id: p.id,
         name: p.name,
         time: t,
-        offsetMin: p.etaOffsetMin,
+        offsetMin: p.etaOffsetMin ?? 0,
         type: p.pickupType === 'dropoff' ? 'drop' : 'pickup',
       })
     }
@@ -207,8 +211,9 @@ export function RouteTimeline({
                     </div>
                   </div>
 
-                  {/* Duration to next segment */}
-                  {nextItem && (
+                  {/* Duration to next segment — only when both stops
+                      carry real offsets (the API currently sends none). */}
+                  {nextItem && nextItem.offsetMin - item.offsetMin > 0 && (
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <div
                         className={`h-px flex-1 ${

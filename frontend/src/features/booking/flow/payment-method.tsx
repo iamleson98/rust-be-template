@@ -7,25 +7,64 @@
  * payment-method picker (MoMo / VNPay / bank transfer / cash-on-bus)
  * + the price summary + the SSL trust note + the submit button.
  *
+ * The method picker uses brand-colored icon tiles instead of emoji —
+ * emoji render differently on every platform and read as cheap; solid
+ * color chips with lucide icons keep the step visually consistent with
+ * the rest of the redesigned funnel.
+ *
  * The parent owns the form (`onSubmit` is `form.handleSubmit(...)`) so
  * this component stays purely presentational.
  */
 
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, Loader2, Lock, ShieldCheck } from 'lucide-react'
+import { ChevronLeft, Loader2, Lock, ShieldCheck, Smartphone, QrCode, Landmark, Banknote } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 import { PriceSummary, type InsuranceLevel } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 
 export type PaymentMethodKey = 'momo' | 'vnpay' | 'bank' | 'cod'
 
-const getPaymentOptions = (t: ReturnType<typeof useT>): { key: PaymentMethodKey; label: string; icon: string; sub: string }[] => [
-  { key: 'momo', label: t('payment.momo'), icon: '🟣', sub: t('payment.momoDesc') },
-  { key: 'vnpay', label: t('payment.vnpay'), icon: '🔵', sub: t('payment.vnpayDesc') },
-  { key: 'bank', label: t('payment.vietqr'), icon: '🏦', sub: t('payment.vietqrDesc') },
-  { key: 'cod', label: t('bookingFlow.payCod'), icon: '💵', sub: t('bookingFlow.cash') },
+type PaymentOption = {
+  key: PaymentMethodKey
+  label: string
+  sub: string
+  icon: React.ReactNode
+  /** Tailwind classes for the icon tile — brand-adjacent hues. */
+  tile: string
+}
+
+const getPaymentOptions = (t: ReturnType<typeof useT>): PaymentOption[] => [
+  {
+    key: 'momo',
+    label: t('payment.momo'),
+    sub: t('payment.momoDesc'),
+    icon: <Smartphone className="h-5 w-5" />,
+    tile: 'bg-fuchsia-100 text-fuchsia-600 ring-fuchsia-200',
+  },
+  {
+    key: 'vnpay',
+    label: t('payment.vnpay'),
+    sub: t('payment.vnpayDesc'),
+    icon: <QrCode className="h-5 w-5" />,
+    tile: 'bg-blue-100 text-blue-600 ring-blue-200',
+  },
+  {
+    key: 'bank',
+    label: t('payment.vietqr'),
+    sub: t('payment.vietqrDesc'),
+    icon: <Landmark className="h-5 w-5" />,
+    tile: 'bg-indigo-100 text-indigo-600 ring-indigo-200',
+  },
+  {
+    key: 'cod',
+    label: t('bookingFlow.payCod'),
+    sub: t('bookingFlow.cash'),
+    icon: <Banknote className="h-5 w-5" />,
+    tile: 'bg-emerald-100 text-emerald-600 ring-emerald-200',
+  },
 ]
 
 export function PaymentMethodStep({
@@ -67,27 +106,41 @@ export function PaymentMethodStep({
     <div className="p-5 space-y-4">
       <div>
         <h3 className="font-semibold text-sm mb-3">{t('payment.method')}</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {paymentOptions.map((m) => (
-            <button
-              key={m.key}
-              type="button"
-              onClick={() => onSetPaymentMethod(m.key)}
-              className={`rounded-lg border p-3 text-left transition-colors ${
-                paymentMethod === m.key
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary/10'
-                  : 'border-slate-200 hover:border-primary/40'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-xl">{m.icon}</span>
-                <div>
-                  <div className="font-medium text-sm">{m.label}</div>
-                  <div className="text-[11px] text-muted-foreground">{m.sub}</div>
-                </div>
-              </div>
-            </button>
-          ))}
+        <div role="radiogroup" aria-label={t('payment.method')} className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {paymentOptions.map((m) => {
+            const selected = paymentMethod === m.key
+            return (
+              <button
+                key={m.key}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => onSetPaymentMethod(m.key)}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all',
+                  selected
+                    ? 'border-primary bg-primary/5 ring-2 ring-primary/15 shadow-sm'
+                    : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50',
+                )}
+              >
+                <span className={cn('h-10 w-10 shrink-0 rounded-lg ring-1 flex items-center justify-center', m.tile)}>
+                  {m.icon}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="font-semibold text-sm block truncate">{m.label}</span>
+                  <span className="text-[11px] text-muted-foreground block truncate">{m.sub}</span>
+                </span>
+                {/* Selection state — a solid dot mirrors the radio semantics */}
+                <span
+                  className={cn(
+                    'h-4 w-4 shrink-0 rounded-full border-2 transition-colors',
+                    selected ? 'border-primary bg-primary' : 'border-slate-300 bg-white',
+                  )}
+                  aria-hidden
+                />
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -120,14 +173,14 @@ export function PaymentMethodStep({
       {/* Payment trust badges — SSL + PCI DSS + refund guarantee */}
       <PaymentTrustBadges className="mb-1" />
 
-      <div className="flex justify-between">
+      <div className="flex justify-between gap-3">
         <Button variant="outline" onClick={onGoBack} className="gap-1">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
         <Button
           onClick={onSubmit}
           disabled={submitting}
-          className="gap-2"
+          className="gap-2 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25"
         >
           {submitting ? (
             <>

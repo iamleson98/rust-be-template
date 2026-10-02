@@ -5,8 +5,14 @@
 import { Route } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useT } from '@/lib/i18n'
+import { useNavigate } from '@tanstack/react-router'
+import { buildSearchInput } from '@/lib/search-params'
 import type { SearchParams } from '@/lib/store'
 
+/** Quick shortcuts for the most-travelled corridors — one tap fills the
+ *  form AND runs the search (the same interaction model as the popular
+ *  routes section further down the page). Users who want a different
+ *  date can refine it in the compact bar on the results page. */
 export function PopularRoutesQuickSelect({
   searchParams,
   setSearchParams,
@@ -15,6 +21,26 @@ export function PopularRoutesQuickSelect({
   setSearchParams: (p: Partial<SearchParams>) => void
 }) {
   const t = useT()
+  const navigate = useNavigate()
+
+  const go = (from: string, to: string) => {
+    setSearchParams({ from, to })
+    navigate({
+      to: '/search',
+      search: buildSearchInput({
+        from,
+        to,
+        date: searchParams.date,
+        adults: searchParams.adults,
+        children: searchParams.children,
+        sort: searchParams.sort,
+        vehicleTypes: searchParams.vehicleTypes,
+        roundTrip: searchParams.roundTrip,
+        returnDate: searchParams.returnDate,
+      }),
+    })
+  }
+
   return (
     <div className="mt-3 pt-3 border-t border-slate-100">
       <div className="flex items-center gap-1.5 mb-2">
@@ -27,21 +53,24 @@ export function PopularRoutesQuickSelect({
           { from: 'Hà Nội', to: 'TP. Hồ Chí Minh', label: 'HN → SG' },
           { from: 'TP. Hồ Chí Minh', to: 'Đà Lạt', label: 'SG → ĐL' },
           { from: 'TP. Hồ Chí Minh', to: 'Nha Trang', label: 'SG → NT' },
-        ].map((r) => (
-          <button
-            key={r.label}
-            type="button"
-            onClick={() => setSearchParams({ from: r.from, to: r.to })}
-            className={cn(
-              'rounded-full px-3 py-1 text-[11px] font-medium border transition-all',
-              searchParams.from === r.from && searchParams.to === r.to
-                ? 'bg-blue-50 border-blue-400 text-blue-700 '
-                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700',
-            )}
-          >
-            {r.label}
-          </button>
-        ))}
+        ].map((r) => {
+          const active = searchParams.from === r.from && searchParams.to === r.to
+          return (
+            <button
+              key={r.label}
+              type="button"
+              onClick={() => go(r.from, r.to)}
+              className={cn(
+                'rounded-full px-3 py-1 text-[11px] font-medium border transition-all',
+                active
+                  ? 'bg-primary/5 border-primary/40 text-primary'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary hover:bg-primary/5',
+              )}
+            >
+              {r.label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

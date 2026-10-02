@@ -144,7 +144,7 @@ export function BookingContactStep({
           <ShieldCheck className="h-4 w-4 text-blue-600" />
           <span className="font-semibold text-sm">{t('bookingFlow.insuranceTitle')}</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div role="radiogroup" aria-label={t('bookingFlow.insuranceTitle')} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {([
             {
               key: 'none' as const,
@@ -152,6 +152,7 @@ export function BookingContactStep({
               cost: 0,
               desc: t('bookingFlow.insuranceNoneDesc'),
               icon: <Shield className="h-5 w-5" />,
+              tile: 'bg-slate-100 text-slate-500 ring-slate-200',
             },
             {
               key: 'basic' as const,
@@ -159,6 +160,7 @@ export function BookingContactStep({
               cost: 5000,
               desc: t('bookingFlow.insuranceBasicDesc'),
               icon: <ShieldCheck className="h-5 w-5" />,
+              tile: 'bg-blue-100 text-blue-600 ring-blue-200',
             },
             {
               key: 'comprehensive' as const,
@@ -166,23 +168,34 @@ export function BookingContactStep({
               cost: 15000,
               desc: t('bookingFlow.insuranceComprehensiveDesc'),
               icon: <ShieldAlert className="h-5 w-5" />,
+              tile: 'bg-indigo-100 text-indigo-600 ring-indigo-200',
             },
           ]).map((opt) => (
             <button
               key={opt.key}
               type="button"
+              role="radio"
+              aria-checked={insuranceLevel === opt.key}
               onClick={() => setInsuranceLevel(opt.key)}
-              className={`rounded-lg border p-3 text-left transition-all ${insuranceLevel === opt.key
-                  ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100'
-                  : 'border-slate-200 hover:border-blue-300 bg-white'
+              className={`rounded-xl border p-3 text-left transition-all ${insuranceLevel === opt.key
+                  ? 'border-primary bg-primary/5 ring-2 ring-primary/15 shadow-sm'
+                  : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50'
                 }`}
             >
-              <div className="flex items-center gap-2 mb-1">
-                <span className={insuranceLevel === opt.key ? 'text-blue-600' : 'text-slate-400'}>{opt.icon}</span>
-                <span className="font-medium text-xs">{opt.label}</span>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`h-8 w-8 shrink-0 rounded-lg ring-1 flex items-center justify-center ${opt.tile}`}>{opt.icon}</span>
+                <span className="font-semibold text-xs">{opt.label}</span>
+                {/* Selection dot — same semantics as the payment picker */}
+                <span
+                  className={`ml-auto h-3.5 w-3.5 shrink-0 rounded-full border-2 transition-colors ${insuranceLevel === opt.key
+                    ? 'border-primary bg-primary'
+                    : 'border-slate-300 bg-white'
+                  }`}
+                  aria-hidden
+                />
               </div>
               <div className="text-[11px] text-muted-foreground">{opt.desc}</div>
-              <div className="mt-1.5 font-bold text-sm text-blue-700">{opt.cost === 0 ? formatCurrency(0, currency) : `${formatCurrency(opt.cost, currency)}${t('bookingFlow.perTrip')}`}</div>
+              <div className="mt-1.5 font-bold text-sm text-primary">{opt.cost === 0 ? formatCurrency(0, currency) : `${formatCurrency(opt.cost, currency)}${t('bookingFlow.perTrip')}`}</div>
             </button>
           ))}
         </div>
@@ -231,7 +244,7 @@ export function BookingContactStep({
         <Button variant="outline" onClick={() => setBookingStep('passengers')} className="gap-1">
           <ChevronLeft className="h-4 w-4" /> {t('common.back')}
         </Button>
-        <Button onClick={gotoPayment} className="gap-1">
+        <Button onClick={gotoPayment} className="gap-1 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25">
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

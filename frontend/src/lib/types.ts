@@ -76,8 +76,11 @@ export function formatNum(n: number): string {
   return new Intl.NumberFormat(currentLocale()).format(n)
 }
 
-// Format duration in minutes to "Xh Ym" or "X ngày Yh" / "Xd Yh"
-export function formatDuration(min: number): string {
+// Format duration in minutes to "Xh Ym" or "X ngày Yh" / "Xd Yh".
+// Guards against missing/invalid values (undefined/NaN) — callers pass
+// optional API fields here and must never see "NaN giờ".
+export function formatDuration(min: number | null | undefined): string {
+  if (min == null || !Number.isFinite(min)) return '—'
   if (min < 60) {
     return currentLang() === 'en' ? `${min} min` : `${min} phút`
   }

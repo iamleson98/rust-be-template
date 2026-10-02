@@ -125,7 +125,7 @@ export function LiveTrackingSidePanel({
                 time: (() => {
                   const depTsRaw = new Date(detail.trip.departureAt ?? 0).getTime()
                   const depTs = Number.isNaN(depTsRaw) ? 0 : depTsRaw
-                  const stopTs = depTs + nextStop.etaOffsetMin * 60_000
+                  const stopTs = depTs + (nextStop.etaOffsetMin ?? 0) * 60_000
                   const secToStop = Math.max(0, Math.floor((stopTs - now) / 1000))
                   return formatCountdown(secToStop)
                 })(),
@@ -191,7 +191,7 @@ export function LiveTrackingSidePanel({
                       : isCurrent
                         ? t('liveTracking.currentlyHere')
                         : t('liveTracking.etaIn', {
-                            duration: formatDuration(Math.max(0, s.etaOffsetMin - elapsedMin)),
+                            duration: formatDuration(Math.max(0, (s.etaOffsetMin ?? 0) - elapsedMin)),
                           })}
                   </div>
                 </div>

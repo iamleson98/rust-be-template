@@ -7,14 +7,21 @@ import { useT } from '@/lib/i18n'
 import { PlaceAutocomplete } from '@/features/search/place-autocomplete'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { ArrowLeftRight, CircleDot, MapPin } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { SearchFormValues } from './search-widget-schema'
+
+/** Shared label style — darker than muted-foreground so the tiny
+ *  uppercase labels stay readable on the white widget card. */
+const LABEL_CLASS = 'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 export function SearchRouteFields({
   form,
   swap,
+  compact = false,
 }: {
   form: UseFormReturn<SearchFormValues>
   swap: () => void
+  compact?: boolean
 }) {
   const t = useT()
 
@@ -25,8 +32,8 @@ export function SearchRouteFields({
         control={form.control}
         name="from"
         render={({ field }) => (
-          <FormItem className="space-y-1.5">
-            <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
+          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
+            <FormLabel className={LABEL_CLASS}>
               {t('search.from')}{' '}
               <span className="text-destructive" aria-hidden="true">*</span>
             </FormLabel>
@@ -47,12 +54,13 @@ export function SearchRouteFields({
         )}
       />
 
-      {/* Swap */}
-      <div className="hidden md:flex items-end justify-center pb-1">
+      {/* Swap — round icon straddling the two city fields (desktop grid
+          column; hidden on the stacked mobile layout, same as before). */}
+      <div className={cn('hidden md:flex items-center justify-center', compact ? 'pb-0.5' : 'pb-1')}>
         <button
           type="button"
           onClick={swap}
-          className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors flex items-center justify-center text-blue-600"
+          className="relative h-10 w-10 rounded-full border bg-white hover:bg-blue-50 hover:border-blue-300 hover:rotate-180 transition-all duration-300 flex items-center justify-center text-blue-600 shadow-sm"
           title={t('home.swapDirection')}
           aria-label={t('home.swapDirection')}
         >
@@ -65,8 +73,8 @@ export function SearchRouteFields({
         control={form.control}
         name="to"
         render={({ field }) => (
-          <FormItem className="space-y-1.5">
-            <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
+          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
+            <FormLabel className={LABEL_CLASS}>
               {t('search.to')}{' '}
               <span className="text-destructive" aria-hidden="true">*</span>
             </FormLabel>

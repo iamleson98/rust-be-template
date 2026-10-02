@@ -5,7 +5,8 @@
  *
  * Extracted from the original `booking-dialog.tsx`. Renders:
  *   - The "Đặt vé thành công!" hero with the booking code + copy button
- *   - A QR-code placeholder
+ *   - A boarding-pass ticket stub (the REAL scannable QR lives on the
+ *     booking-detail page — a random-noise "QR" here was misleading)
  *   - The booking summary (route, departure, seats, brand, insurance)
  *   - Two CTAs: "Đặt vé khác" (closes the dialog) + "Xem vé của tôi"
  *     (navigates to the booking detail page)
@@ -16,7 +17,6 @@ import { Button } from '@/components/ui/button'
 import {
   CheckCircle2,
   Copy,
-  QrCode,
   ShieldCheck,
   Ticket,
 } from 'lucide-react'
@@ -52,12 +52,6 @@ export function BookingSuccess({
 }) {
   const t = useT()
   const [copied, setCopied] = useState(false)
-  // Decorative QR-noise pattern, generated once per mount (impure calls
-  // are not allowed in the render body; state keeps it stable so the
-  // pattern does not re-shuffle on every re-render).
-  const [qrCells] = useState(() =>
-    Array.from({ length: 64 }, () => Math.random() > 0.5),
-  )
   const navigate = useNavigate()
 
   return (
@@ -121,18 +115,41 @@ export function BookingSuccess({
         </div>
       </div>
 
-      {/* QR placeholder */}
+      {/* Boarding-pass stub — a tactile "you're booked" artifact. The
+          real scannable QR is one tap away (booking-detail page, via the
+          CTA below), so we deliberately do NOT fake one here. */}
       <div className="flex justify-center my-4">
-        <div className="rounded-xl border-2 border-dashed border-slate-300 p-4 bg-white">
-          <div className="h-32 w-32 bg-linear-to-br from-slate-900 to-slate-700 rounded-lg flex items-center justify-center relative overflow-hidden">
-            <QrCode className="h-20 w-20 text-white" />
-            <div className="absolute inset-0 grid grid-cols-8 grid-rows-8 gap-px opacity-30">
-              {qrCells.map((on, i) => (
-                <div key={i} className={on ? 'bg-white' : ''} />
-              ))}
+        <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-linear-to-br from-slate-50 to-white shadow-sm relative overflow-hidden">
+          {/* Ticket perforation — dashed cut line with side notches */}
+          <div className="absolute left-[68%] top-0 bottom-0 border-l-2 border-dashed border-slate-200" aria-hidden />
+          <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200" aria-hidden />
+          <div className="absolute -right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200 hidden sm:block" aria-hidden />
+          <div className="flex items-stretch">
+            {/* Left: e-ticket identity */}
+            <div className="flex-1 p-4 flex flex-col items-center justify-center text-center">
+              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2">
+                <Ticket className="h-5 w-5" />
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.ticketStubTitle')}</div>
+              <div className="font-mono font-extrabold text-lg text-primary mt-0.5">{lastBooking.code}</div>
+              <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                <Copy className="h-3 w-3" />
+                {t('bookingFlow.copyTicketCode')}
+              </div>
+            </div>
+            {/* Right: seats + total at a glance */}
+            <div className="w-[32%] p-3.5 flex flex-col items-center justify-center text-center border-l-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.seatsLabel')}</div>
+              <div className="font-mono font-bold text-sm mt-0.5">{selectedSeats.map((s) => s.code).join(', ')}</div>
+              <div className="mt-2 pt-2 border-t border-dashed border-slate-200 w-full">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.totalDue')}</div>
+                <div className="font-bold text-sm text-primary">{formatCurrency(lastBooking.total, currency)}</div>
+              </div>
             </div>
           </div>
-          <div className="text-center text-xs text-muted-foreground mt-2">{t('bookingFlow.scanToBoard')}</div>
+          <div className="border-t border-slate-100 bg-white/60 text-center text-[10px] text-muted-foreground py-1.5 px-3">
+            {t('bookingFlow.ticketStubQrNote')}
+          </div>
         </div>
       </div>
 
@@ -182,8 +199,7 @@ export function BookingSuccess({
           {t('bookingFlow.bookAnother')}
         </Button>
         <Button
-          variant="outline"
-          className="flex-1 gap-1"
+          className="flex-1 gap-1 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25"
           onClick={() => {
             const code = lastBooking?.code
             onClose()

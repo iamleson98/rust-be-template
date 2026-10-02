@@ -146,7 +146,7 @@ export function BookingPassengerStep({
         <Button
           onClick={gotoContact}
           disabled={!canContinueStep1}
-          className="gap-1 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700"
+          className="gap-1 bg-primary hover:bg-primary/90 shadow-sm shadow-primary/25"
         >
           {t('bookingFlow.continue')} <ChevronRight className="h-4 w-4" />
         </Button>

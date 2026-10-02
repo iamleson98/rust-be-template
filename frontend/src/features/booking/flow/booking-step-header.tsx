@@ -2,18 +2,19 @@
 
 /**
  * BookingStepHeader — the dialog header of the BookingDialog: title +
- * description line, the 4-step progress stepper and the trip summary bar
- * (route, departure time, selected seat codes).
+ * description line, the 3-step progress stepper (passengers → contact →
+ * payment) and the trip summary bar (route, departure time, selected
+ * seat codes).
  *
- * Extracted from the original `booking-dialog.tsx`; the stepIndex / steps
- * labels moved here with it.
+ * Extracted from the original `booking-dialog.tsx`.
  */
 
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTimeVN } from '@/lib/types'
 import { useT } from '@/lib/i18n'
-import { CheckCircle2, Ticket, Calendar, Bus } from 'lucide-react'
+import { Check, Ticket, Calendar, Bus } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { type SelectedSeat, type TripDetail } from './booking-form'
 
 export function BookingStepHeader({
@@ -32,35 +33,44 @@ export function BookingStepHeader({
     if (bookingStep === 'success') return 3
     return 0 // 'idle' or 'passengers'
   })(bookingStep)
-  const steps = [t('booking.passengers'), t('bookingFlow.stepContact'), t('booking.payment'), t('booking.complete')]
+  const steps = [t('booking.passengers'), t('bookingFlow.stepContact'), t('booking.payment')]
 
   return (
-    <div className="px-5 py-4 border-b bg-linear-to-r from-blue-50 to-blue-50">
+    <div className="px-5 py-4 border-b bg-white">
       <DialogTitle className="text-lg font-extrabold flex items-center gap-2">
-        <Ticket className="h-5 w-5 text-blue-600" />
+        <Ticket className="h-5 w-5 text-primary" />
         {bookingStep === 'success' ? t('booking.success') : t('bookingFlow.completeBooking')}
       </DialogTitle>
       <DialogDescription className="text-xs mt-1">
         {trip ? `${trip.brand.name} • ${trip.from.name} → ${trip.to.name}` : t('common.loading')}
       </DialogDescription>
 
-      {/* Stepper */}
+      {/* Stepper — connected dots with filled track; the active step is
+          ringed so progress is obvious at a glance. */}
       {bookingStep !== 'success' && (
-        <div className="flex items-center gap-1 mt-3">
-          {steps.slice(0, 3).map((s, i) => (
-            <div key={s} className="flex items-center gap-1 flex-1">
-              <div
-                className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors ${i < stepIndex
-                    ? 'bg-blue-600 text-white'
-                    : i === stepIndex
-                      ? 'bg-blue-600 text-white ring-4 ring-blue-100'
-                      : 'bg-slate-200 text-slate-500'
-                  }`}
-              >
-                {i < stepIndex ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+        <div className="flex items-center mt-3.5" aria-label={t('bookingFlow.stepProgress')}>
+          {steps.map((s, i) => (
+            <div key={s} className={cn('flex items-center', i > 0 && 'flex-1')}>
+              {i > 0 && (
+                <div className={cn('h-0.5 flex-1 mx-2 rounded-full transition-colors', i <= stepIndex ? 'bg-primary' : 'bg-slate-200')} />
+              )}
+              <div className="flex items-center gap-1.5">
+                <div
+                  className={cn(
+                    'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-colors',
+                    i < stepIndex
+                      ? 'bg-primary text-white'
+                      : i === stepIndex
+                        ? 'bg-primary text-white ring-4 ring-primary/15'
+                        : 'bg-slate-100 text-slate-400',
+                  )}
+                >
+                  {i < stepIndex ? <Check className="h-4 w-4" /> : i + 1}
+                </div>
+                <span className={cn('text-xs whitespace-nowrap', i === stepIndex ? 'font-semibold text-primary' : 'text-muted-foreground', i > stepIndex && 'hidden sm:inline')}>
+                  {s}
+                </span>
               </div>
-              <span className={`text-xs ${i === stepIndex ? 'font-semibold text-blue-700' : 'text-muted-foreground'}`}>{s}</span>
-              {i < 2 && <div className={`h-px flex-1 mx-1 ${i < stepIndex ? 'bg-blue-400' : 'bg-slate-200'}`} />}
             </div>
           ))}
         </div>
@@ -68,19 +78,22 @@ export function BookingStepHeader({
 
       {/* Trip summary bar */}
       {trip && bookingStep !== 'success' && (
-        <div className="px-5 py-2.5 bg-slate-50 border-b flex items-center gap-3 text-xs">
-          <Bus className="h-4 w-4 text-blue-600" />
-          <span className="font-medium">{trip.from.name} → {trip.to.name}</span>
-          <span className="text-muted-foreground flex items-center gap-1">
+        <div className="-mx-5 -mb-4 px-5 py-2.5 bg-slate-50 border-t flex items-center gap-3 text-xs mt-3">
+          <Bus className="h-4 w-4 text-primary shrink-0" />
+          <span className="font-medium truncate">{trip.from.name} → {trip.to.name}</span>
+          <span className="text-muted-foreground flex items-center gap-1 shrink-0">
             <Calendar className="h-3 w-3" />
             {formatDateTimeVN(trip.trip.departureAt)}
           </span>
-          <div className="ml-auto flex items-center gap-1">
-            {selectedSeatCodes.map((s) => (
+          <div className="ml-auto flex items-center gap-1 overflow-hidden">
+            {selectedSeatCodes.slice(0, 6).map((s) => (
               <Badge key={s.id} variant="outline" className="font-mono text-[10px]">
                 {s.code}
               </Badge>
             ))}
+            {selectedSeatCodes.length > 6 && (
+              <span className="text-[10px] text-muted-foreground">+{selectedSeatCodes.length - 6}</span>
+            )}
           </div>
         </div>
       )}

@@ -71,12 +71,7 @@ export function TripResultsList({
         ))}
       </div>
     ) : filteredResults.length === 0 ? (
-      <div
-
-
-
-        className="rounded-xl border bg-white p-10 text-center"
-      >
+      <div className="rounded-xl border bg-white p-10 text-center">
         <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
         <h3 className="font-semibold text-lg">
           {searchResults.length === 0 ? t('searchPage.noTripsFound') : t('searchPage.noTripsMatchFilters')}

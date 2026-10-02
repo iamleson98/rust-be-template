@@ -101,7 +101,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     const depTsRaw = new Date(detail.trip.departureAt ?? 0).getTime()
     const depTs = Number.isNaN(depTsRaw) ? 0 : depTsRaw
     const lastOffset = detail.pickupPoints.reduce(
-      (max, pt) => Math.max(max, pt.etaOffsetMin),
+      (max, pt) => Math.max(max, pt.etaOffsetMin ?? 0),
       0,
     )
     const fallbackDurationMs =
@@ -148,10 +148,10 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       locName = detail.from.name
     } else {
       const passedStops = detail.pickupPoints.filter(
-        (pt) => pt.etaOffsetMin <= elapsedM
+        (pt) => (pt.etaOffsetMin ?? 0) <= elapsedM
       )
       const nextStop = detail.pickupPoints.find(
-        (pt) => pt.etaOffsetMin > elapsedM
+        (pt) => (pt.etaOffsetMin ?? 0) > elapsedM
       )
       if (passedStops.length > 0 && nextStop) {
         locName = `${passedStops[passedStops.length - 1].name} → ${nextStop.name}`
@@ -188,7 +188,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       if (status === 'not_departed') st = 'upcoming'
       else if (status === 'arrived') st = 'passed'
       else {
-        const diff = p.etaOffsetMin - elapsedMin
+        const diff = (p.etaOffsetMin ?? 0) - elapsedMin
         if (diff < -2) st = 'passed'
         else if (diff <= 2) st = 'current'
         else st = 'upcoming'
@@ -200,7 +200,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
   // Find next stop (first upcoming pickup point)
   const nextStop = useMemo(() => {
     if (status === 'arrived' || status === 'not_departed') return null
-    return detail.pickupPoints.find((p) => p.etaOffsetMin > elapsedMin) ?? null
+    return detail.pickupPoints.find((p) => (p.etaOffsetMin ?? 0) > elapsedMin) ?? null
   }, [status, elapsedMin, detail.pickupPoints])
 
   const handleRefresh = () => {

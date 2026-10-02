@@ -32,6 +32,31 @@ describe('PaymentMethodStep', () => {
     expect(screen.getByText('Thanh toán tại xe')).toBeInTheDocument()
   })
 
+  it('exposes the method picker as a radio group with per-option state', () => {
+    const onSetPaymentMethod = vi.fn()
+    render(<PaymentMethodStep {...baseProps} onSetPaymentMethod={onSetPaymentMethod} />)
+    const group = screen.getByRole('radiogroup')
+    const radios = screen.getAllByRole('radio')
+    expect(radios).toHaveLength(4)
+    // momo (default) is checked; the others are not.
+    expect(screen.getByRole('radio', { name: /Ví MoMo/i })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: /VNPay QR/i })).toHaveAttribute('aria-checked', 'false')
+    // The radiogroup lives inside the dialog body.
+    expect(group).toBeInTheDocument()
+  })
+
+  it('uses brand-colored icon tiles instead of emoji', () => {
+    // The old picker rendered 🟣 🔵 🏦 💵 emoji — platform-dependent and
+    // visually cheap. The redesign uses lucide icons in colored tiles.
+    const { container } = render(<PaymentMethodStep {...baseProps} />)
+    const text = container.textContent ?? ''
+    expect(text).not.toMatch(/[🟣🔵🏦💵]/u)
+    // Each option carries an SVG icon tile.
+    const tiles = container.querySelectorAll('span.h-10')
+    expect(tiles.length).toBe(4)
+    expect(tiles[0].querySelector('svg')).not.toBeNull()
+  })
+
   it('renders the total amount', () => {
     render(<PaymentMethodStep {...baseProps} />)
     // Total appears in both the price summary and the pay button text

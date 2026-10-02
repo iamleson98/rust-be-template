@@ -301,10 +301,10 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                   size="sm"
                   onClick={handleSaveSearch}
                   disabled={searchResults.length === 0}
-                  className="gap-1.5 border-rose-300 text-rose-700 hover:bg-rose-50"
+                  className="gap-1.5"
                   title={t('searchPage.saveThisSearch')}
                 >
-                  <Heart className="h-3.5 w-3.5" />
+                  <Heart className="h-3.5 w-3.5 text-rose-500" />
                   <span className="hidden sm:inline">{t('common.save')}</span>
                 </Button>
                 {/* Price Alert (existing feature) */}
@@ -320,9 +320,9 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                       })
                       setPriceAlertOpen(true)
                     }}
-                    className="gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
+                    className="gap-1.5"
                   >
-                    <Bell className="h-3.5 w-3.5" />
+                    <Bell className="h-3.5 w-3.5 text-blue-600" />
                     <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
                   </Button>
                 )}
@@ -345,7 +345,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
                     variant="outline"
                     size="sm"
                     onClick={() => setCompareOpen(true)}
-                    className="gap-1.5 border-amber-300 text-violet-700 hover:bg-violet-50"
+                    className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
                   >
                     <GitCompare className="h-3.5 w-3.5" />
                     {t('searchPage.compareCount', { count: compareList.length })}
@@ -382,12 +382,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
 
             {/* Compare tray */}
             {compareList.length > 0 && (
-              <div
-
-
-
-                className="mb-3 overflow-hidden"
-              >
+              <div className="mb-3 overflow-hidden">
                 <div className="rounded-xl bg-linear-to-r from-violet-50 to-fuchsia-50 ring-1 ring-violet-200 p-3 flex items-center gap-3">
                   <GitCompare className="h-4 w-4 text-violet-600 shrink-0" />
                   <div className="text-xs text-violet-700 flex-1">

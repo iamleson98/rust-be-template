@@ -5,7 +5,7 @@ import type { TripResult } from '@/lib/store'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatTimeVN, parseDateSafe } from '@/lib/types'
-import { GitCompare, Sparkles, Share2 } from 'lucide-react'
+import { GitCompare, Sparkles, Share2, ArrowRight } from 'lucide-react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useShallow } from 'zustand/react/shallow'
@@ -79,7 +79,8 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
     })
   }, [queryClient, trip.tripId])
 
-  // Overnight trip detection
+  // Overnight trip detection — arrivalAt is genuinely null today, so
+  // this only fires when the backend starts providing arrival times.
   const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
   // Date differs from search date?
   const searchDateShort = searchParams.date ? formatShortDate(searchParams.date + 'T00:00:00+07:00') : null
@@ -157,26 +158,29 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
   return (
     <div onMouseEnter={handleHoverPrefetch}>
       <Card
-        className="overflow-visible border-border/60   hover:border-primary/30 card-hover-lift group relative"
+        className="overflow-visible border-border/60 card-hover-lift hover:border-primary/30 group relative"
       >
         {/* Recommended badge — sits flush on the top-left, above content */}
         {isRecommended && (
           <div className="absolute -top-2 left-3 z-20">
-            <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold  hover:bg-amber-500">
+            <Badge className="bg-amber-500 text-white gap-1 text-[10px] font-bold hover:bg-amber-500">
               <Sparkles className="h-3 w-3" />
               {t('searchPage.recommended')}
             </Badge>
           </div>
         )}
 
-        {/* Quick action buttons (top-right) */}
-        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+        {/* Quick action buttons (top-right, desktop) — appear muted, light
+            up on hover. On mobile they move inline above the time row so
+            they never overlap the brand name. */}
+        <div className="hidden md:flex absolute top-2 right-2 z-10 items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
           <button
             onClick={handleCompareToggle}
             title={t('searchPage.addToCompare')}
+            aria-pressed={inCompare}
             className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
-              ? 'bg-violet-600 text-white '
-              : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200 '
+              ? 'bg-violet-600 text-white'
+              : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
               }`}
           >
             <GitCompare className="h-3.5 w-3.5" />
@@ -195,8 +199,34 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
 
           {/* Main content */}
           <div className="flex-1 p-3 md:p-3.5 min-w-0">
+            {/* Mobile quick actions — compact, never overlap content */}
+            <div className="md:hidden flex justify-end items-center gap-1.5 mb-2">
+              <button
+                onClick={handleCompareToggle}
+                title={t('searchPage.addToCompare')}
+                aria-pressed={inCompare}
+                className={`h-7 w-7 rounded-full inline-flex items-center justify-center transition-all ${inCompare
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
+                  }`}
+              >
+                <GitCompare className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleShare}
+                title={t('searchPage.shareTrip')}
+                className="h-7 w-7 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
             <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
-              {/* Time + route — fixed min widths so times never clip */}
+              {/* Time + route — fixed min widths so times never clip.
+                  Arrival slot: real time when the API provides it; when it
+                  doesn't (today: no route-level duration on the backend)
+                  the destination takes the slot with a "view detail" hint —
+                  honest, and never an orphaned "—". */}
               <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                 <div className="text-center shrink-0 min-w-15">
                   <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{trip.departureTime}</div>
@@ -206,23 +236,35 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                   <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">{trip.fromName}</div>
                 </div>
 
-                <div className="flex-1 min-w-12.5 md:min-w-17.5 max-w-32.5 relative">
-                  <div className="border-t border-dashed border-slate-300 group-hover:border-blue-400 transition-colors" />
-                  {overnight && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="bg-white px-1.5 text-[10px] text-amber-500 font-semibold whitespace-nowrap">
+                <div className="flex-1 min-w-12.5 md:min-w-17.5 max-w-32.5 relative flex items-center justify-center">
+                  <div className="w-full border-t-2 border-dashed border-slate-200 group-hover:border-blue-300 transition-colors" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    {overnight ? (
+                      <div className="bg-white px-1.5 text-[10px] text-amber-600 font-semibold whitespace-nowrap ring-1 ring-amber-200 rounded-full">
                         {t('searchPage.plusOneDay')}
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <span className="h-5 w-5 rounded-full bg-white ring-1 ring-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:ring-blue-300 transition-colors">
+                        <ArrowRight className="h-3 w-3" />
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="text-center shrink-0 min-w-15">
-                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{trip.arrivalAt ? formatTimeVN(trip.arrivalAt) : '—'}</div>
-                  {showArrivalDate && (
-                    <div className="text-[10px] text-blue-600 font-medium">{arrivalDateShort}</div>
+                  {trip.arrivalAt ? (
+                    <>
+                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{formatTimeVN(trip.arrivalAt)}</div>
+                      {showArrivalDate && (
+                        <div className="text-[10px] text-blue-600 font-medium">{arrivalDateShort}</div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900 group-hover:text-blue-700 transition-colors">{trip.toName}</div>
                   )}
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">{trip.toName}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">
+                    {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}
+                  </div>
                 </div>
               </div>
 

@@ -25,7 +25,7 @@ import { SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import { User, Trash2, Armchair, GripVertical } from 'lucide-react'
+import { User, Trash2, Armchair } from 'lucide-react'
 import {
   type BookingValues,
   type PassengerFormValue,
@@ -64,7 +64,6 @@ export function PassengerFormCard({
       {/* Card header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <GripVertical className="h-4 w-4 text-muted-foreground/40 cursor-grab shrink-0" aria-hidden />
           <div className={`h-7 w-7 rounded-full ${typeMeta.pill} inline-flex items-center justify-center text-xs font-bold shrink-0`}>
             {i + 1}
           </div>

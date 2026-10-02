@@ -35,7 +35,7 @@ export type TripDetail = {
     id: string
     name: string
     stopOrder: number
-    etaOffsetMin: number
+    etaOffsetMin?: number
     lat: number | null
     lon: number | null
     pickupType: string

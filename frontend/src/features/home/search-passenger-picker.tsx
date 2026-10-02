@@ -11,18 +11,24 @@ import { Users, Minus, Plus } from 'lucide-react'
 import type { SearchParams } from '@/lib/store'
 import type { SearchFormValues } from './search-widget-schema'
 
+/** Shared label style — darker than muted-foreground so the tiny
+ *  uppercase labels stay readable on the white widget card. */
+const LABEL_CLASS = 'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+
 export function SearchPassengerPicker({
   form,
   searchParams,
   setSearchParams,
   paxOpen,
   setPaxOpen,
+  compact = false,
 }: {
   form: UseFormReturn<SearchFormValues>
   searchParams: SearchParams
   setSearchParams: (p: Partial<SearchParams>) => void
   paxOpen: boolean
   setPaxOpen: React.Dispatch<React.SetStateAction<boolean>>
+  compact?: boolean
 }) {
   const t = useT()
   return (
@@ -32,8 +38,8 @@ export function SearchPassengerPicker({
         control={form.control}
         name="adults"
         render={({ field }) => (
-          <FormItem className="space-y-1.5">
-            <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pl-1">
+          <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
+            <FormLabel className={LABEL_CLASS}>
               {t('search.passengers')}
             </FormLabel>
             <div className="relative group/pax">

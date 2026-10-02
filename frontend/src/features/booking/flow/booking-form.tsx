@@ -29,7 +29,7 @@ export type TripDetail = {
   to: { name: string }
   busLayout: { name: string; vehicleTypeLabel: string }
   pricing: { basePriceAdult: number; basePriceChild: number }
-  pickupPoints: { id: string; name: string; stopOrder: number; etaOffsetMin: number }[]
+  pickupPoints: { id: string; name: string; stopOrder: number; etaOffsetMin?: number }[]
   seatMap: {
     decks: { deck: number; rows: { row: number; seats: TripSeat[] }[] }[]
   }

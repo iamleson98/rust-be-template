@@ -6,7 +6,7 @@ import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Search, Sparkles } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { SearchParams } from '@/lib/store'
 import type { SearchFormValues } from './search-widget-schema'
@@ -26,7 +26,9 @@ export function SearchActionsRow({
 
   return (
     <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-      <div className="flex flex-wrap gap-2">
+      {/* Vehicle-type quick filters — same filter set as the results-page
+          sidebar, one tap from the home page. */}
+      <div className="flex flex-wrap items-center gap-2">
         {[
           { key: 'limousine', label: t('home.vehicleLimousine'), tip: t('home.vehicleLimousineTip') },
           { key: 'sleeper', label: t('home.vehicleSleeper'), tip: t('home.vehicleSleeperTip') },
@@ -40,6 +42,7 @@ export function SearchActionsRow({
               <TooltipTrigger asChild>
                 <button
                   type="button"
+                  aria-pressed={active}
                   onClick={() => {
                     const next = active
                       ? searchParams.vehicleTypes.filter((x) => x !== v.key)
@@ -50,8 +53,8 @@ export function SearchActionsRow({
                   className={cn(
                     'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold border transition-all duration-200 whitespace-nowrap',
                     active
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-foreground border-border hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50',
+                      ? 'bg-primary text-primary-foreground border-primary shadow-sm shadow-primary/25'
+                      : 'bg-white text-foreground border-border hover:border-primary/40 hover:text-primary hover:bg-primary/5',
                   )}
                 >
                   {v.label}
@@ -65,19 +68,12 @@ export function SearchActionsRow({
       <Button
         type="submit"
         disabled={submitting}
-        className="h-11 w-full shrink-0 rounded-xl bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 gap-2 relative overflow-hidden shadow-lg shadow-blue-600/20 sm:w-auto"
+        className="h-11 w-full shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground px-8 gap-2 relative overflow-hidden shadow-lg shadow-primary/25 sm:w-auto sm:min-w-44 font-semibold"
       >
-        {submitting ? (
-          <span className="relative z-10 flex items-center gap-2">
-            <span>{t('home.searching')}</span>
-          </span>
-        ) : (
-          <span className="relative z-10 flex items-center gap-2">
-            <Search className="h-5 w-5" />
-            <span>{t('search.btn')}</span>
-            <Sparkles className="h-4 w-4 opacity-60" />
-          </span>
-        )}
+        <span className="relative z-10 flex items-center justify-center gap-2">
+          <Search className="h-5 w-5" />
+          <span>{submitting ? t('home.searching') : t('search.btn')}</span>
+        </span>
       </Button>
     </div>
   )

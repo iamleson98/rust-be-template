@@ -13,15 +13,17 @@ export function SearchTripTypeToggle({
   form,
   searchParams,
   setSearchParams,
+  compact = false,
 }: {
   form: UseFormReturn<SearchFormValues>
   searchParams: SearchParams
   setSearchParams: (p: Partial<SearchParams>) => void
+  compact?: boolean
 }) {
   const t = useT()
 
   return (
-    <div className="mb-3 flex items-center gap-2">
+    <div className={compact ? 'flex items-center gap-2' : 'mb-3 flex items-center gap-2'}>
       <div className="inline-flex rounded-lg bg-slate-100 p-0.5 ring-1 ring-slate-200">
         <button
           type="button"
@@ -56,7 +58,7 @@ export function SearchTripTypeToggle({
           {t('search.roundTrip')}
         </button>
       </div>
-      {searchParams.roundTrip && (
+      {searchParams.roundTrip && !compact && (
         <span className="text-[11px] text-blue-600 font-medium hidden sm:inline">
           {t('home.roundTripHint')}
         </span>

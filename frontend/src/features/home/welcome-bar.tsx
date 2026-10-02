@@ -45,22 +45,23 @@ export function WelcomeBar() {
   const firstName = (user?.name ?? '').trim().split(/\s+/).slice(-1)[0] ?? ''
 
   if (!user) {
-    // ── Guest: cheerful welcome + 3-step reassurance ──
+    // ── Guest: a quiet one-line welcome — kept deliberately subtle so
+    // it never competes with the h1 or the search widget for attention. ──
     return (
-      <div className="mt-6 inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-white/12 px-4 py-2.5 ring-1 ring-white/25 backdrop-blur-md">
-        <span className="text-lg leading-none" aria-hidden>👋</span>
+      <div className="mt-6 inline-flex max-w-full items-center gap-x-2.5 rounded-full bg-white/10 px-3.5 py-1.5 ring-1 ring-white/20 backdrop-blur-md">
+        <Sparkles className="size-3.5 shrink-0 text-amber-300" aria-hidden />
         <span className="text-sm font-semibold text-white">{t('home.welcomeGuest')}</span>
-        <span className="hidden items-center gap-1.5 text-xs text-blue-100/90 sm:inline-flex">
-          <Sparkles className="size-3.5 text-amber-300" aria-hidden />
+        <span className="hidden items-center gap-1.5 text-xs text-blue-100/80 sm:inline-flex">
           {t('home.welcomeGuestSteps')}
         </span>
       </div>
     )
   }
 
-  // ── Signed in: personal greeting + real active-ticket count ──
+  // ── Signed in: personal greeting + real active-ticket count — a slim
+  // pill row, not a banner: the search widget below is the star. ──
   return (
-    <div className="mt-6 flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl bg-white/12 px-3 py-2 ring-1 ring-white/25 backdrop-blur-md sm:px-4 sm:py-2.5">
+    <div className="mt-6 flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/20 backdrop-blur-md sm:px-3.5">
       <Avatar className="size-8 shrink-0 ring-1 ring-white/40">
         <AvatarFallback className="bg-linear-to-br from-blue-400 to-blue-500 text-[11px] font-bold text-white">
           {firstName ? firstName[0].toUpperCase() : 'U'}

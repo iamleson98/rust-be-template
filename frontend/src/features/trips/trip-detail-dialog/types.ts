@@ -64,7 +64,10 @@ export type TripDetailDialogData = {
     id: string
     name: string
     stopOrder: number
-    etaOffsetMin: number
+    /** Optional per the API — the backend currently emits no ETA
+     *  offset for pickup points, so consumers must render nothing
+     *  (never a fake "+NaN phút") when it's absent. */
+    etaOffsetMin?: number
     /** Nullable per the API — points without coords can't be mapped. */
     lat: number | null
     lon: number | null

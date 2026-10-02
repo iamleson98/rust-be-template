@@ -76,9 +76,13 @@ export function BoardingPoints({
                           )}
                         </div>
                       </div>
-                      <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}>
-                        +{formatDuration(p.etaOffsetMin)}
-                      </div>
+                      {/* ETA offset — only when the API provides one
+                          (today it doesn't) — never render a fake value. */}
+                      {p.etaOffsetMin != null && (
+                        <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-blue-100 text-blue-700' : 'text-muted-foreground'}`}>
+                          +{formatDuration(p.etaOffsetMin)}
+                        </div>
+                      )}
                     </div>
                   </button>
                 )
@@ -114,9 +118,12 @@ export function BoardingPoints({
                           <div className={`font-medium truncate ${selected ? 'text-rose-900' : 'text-slate-800'}`}>{p.name}</div>
                         </div>
                       </div>
-                      <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-rose-100 text-rose-700' : 'text-muted-foreground'}`}>
-                        +{formatDuration(p.etaOffsetMin)}
-                      </div>
+                      {/* ETA offset — only when the API provides one. */}
+                      {p.etaOffsetMin != null && (
+                        <div className={`text-xs font-medium shrink-0 rounded-md px-1.5 py-0.5 ${selected ? 'bg-rose-100 text-rose-700' : 'text-muted-foreground'}`}>
+                          +{formatDuration(p.etaOffsetMin)}
+                        </div>
+                      )}
                     </div>
                   </button>
                 )

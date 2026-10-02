@@ -78,7 +78,7 @@ export function PriceSummary({
       <Button
         onClick={onProceed}
         disabled={!canProceed}
-        className="bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 disabled:opacity-50 gap-2 shrink-0 h-11 md:h-12 px-5 md:px-7 text-sm md:text-base font-semibold"
+        className="bg-primary hover:bg-primary/90 disabled:opacity-50 gap-2 shrink-0 h-11 md:h-12 px-5 md:px-7 text-sm md:text-base font-semibold shadow-lg shadow-primary/25"
         size="lg"
       >
         <CheckCircle2 className="h-4 w-4" />

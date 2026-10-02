@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { SEAT_CLASS_LABELS, SEAT_CLASS_COLORS, formatVND } from '@/lib/types'
 import { useT } from '@/lib/i18n'
@@ -28,8 +29,39 @@ type Props = {
   maxSeats: number
 }
 
+/** Short price-difference label: "+50k" for seats priced above the
+ *  cheapest available seat on the trip. Values come straight from the
+ *  API (`finalPrice` per seat) — no rounding tricks, just compact
+ *  formatting for the tiny corner tag. */
+function formatPriceDiff(diff: number): string {
+  if (diff >= 1000) {
+    const k = diff / 1000
+    // Round to nearest 0.5k, drop trailing .0 (e.g. 50k, 12.5k)
+    const rounded = Math.round(k * 2) / 2
+    return `+${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}k`
+  }
+  return `+${diff}`
+}
+
 export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Props) {
   const t = useT()
+
+  // Cheapest available seat price across all decks — the baseline the
+  // per-seat "+XXk" surcharge tags are measured against (real data).
+  const cheapestAvailable = useMemo(() => {
+    let min: number | null = null
+    for (const d of decks) {
+      for (const r of d.rows) {
+        for (const s of r.seats) {
+          if (s && s.status === 'available' && (min === null || s.finalPrice < min)) {
+            min = s.finalPrice
+          }
+        }
+      }
+    }
+    return min
+  }, [decks])
+
   return (
     <div className="space-y-5">
       {/* Instructional banner — guides the user on how to select seats */}
@@ -82,6 +114,11 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
                           }
                           onClick={() => onToggleSeat(seat.id)}
                           staggerDelay={stagger}
+                          priceDiff={
+                            cheapestAvailable !== null && seat.status === 'available' && seat.finalPrice > cheapestAvailable
+                              ? seat.finalPrice - cheapestAvailable
+                              : 0
+                          }
                         />
                       )
                     })}
@@ -94,19 +131,27 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
         )
       })}
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 text-xs">
+      {/* Legend — status chips + per-class color dots, all in one wrap row */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-xs">
         <LegendItem className="bg-white border-2 border-slate-300" label={t('trips.legendAvailable')} />
         <LegendItem className="bg-primary text-primary-foreground" label={t('trips.legendSelected')} />
         <LegendItem className="bg-slate-300 text-slate-500" label={t('trips.legendBooked')} />
         <LegendItem className="bg-warning/30 border border-warning/50" label={t('trips.legendHeld')} />
-        <div className="w-px h-4 bg-slate-300 mx-1" />
+        <div className="w-px h-4 bg-slate-300 mx-0.5" aria-hidden />
         {Object.entries(SEAT_CLASS_COLORS).map(([cls, color]) => (
           <div key={cls} className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded" style={{ background: color }} />
+            <span className="h-3 w-3 rounded-sm" style={{ background: color }} />
             <span className="text-muted-foreground">{t(SEAT_CLASS_LABELS[cls] ?? cls)}</span>
           </div>
         ))}
+        {cheapestAvailable !== null && (
+          <>
+            <div className="w-px h-4 bg-slate-300 mx-0.5" aria-hidden />
+            <span className="text-muted-foreground">
+              {t('trips.legendBasePrice')}: <span className="font-semibold text-slate-700">{formatVND(cheapestAvailable)}</span>
+            </span>
+          </>
+        )}
       </div>
     </div>
   )
@@ -118,12 +163,15 @@ function SeatButton({
   disabled,
   onClick,
   staggerDelay = 0,
+  priceDiff = 0,
 }: {
   seat: SeatInv
   selected: boolean
   disabled: boolean
   onClick: () => void
   staggerDelay?: number
+  /** Real surcharge vs the trip's cheapest available seat (0 = none). */
+  priceDiff?: number
 }) {
   const t = useT()
   const status = seat.status
@@ -156,7 +204,7 @@ function SeatButton({
         selected
           ? 'bg-primary text-primary-foreground border-primary scale-105'
           : status === 'available'
-            ? 'bg-white text-slate-700 hover:border-primary/50'
+            ? 'bg-white text-slate-700 hover:border-primary/50 hover:-translate-y-0.5'
             : status === 'locked'
               ? 'bg-warning/20 text-warning-foreground border-warning/40 cursor-not-allowed'
               : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed line-through'
@@ -175,6 +223,17 @@ function SeatButton({
           className="absolute -top-1 -right-1 h-2 w-2 rounded-full ring-1 ring-white"
           style={{ background: color }}
         />
+      )}
+      {/* REAL surcharge tag — only for available seats priced above the
+          trip's cheapest seat. Keeps premium-class pricing transparent
+          right on the map instead of a hover-only tooltip. */}
+      {priceDiff > 0 && !selected && (
+        <span
+          className="absolute -top-2 -left-2 rounded-full bg-amber-500 text-white text-[8px] font-bold px-1 py-px leading-none ring-1 ring-white shadow-sm"
+          aria-hidden
+        >
+          {formatPriceDiff(priceDiff)}
+        </span>
       )}
     </button>
   )
