@@ -89,11 +89,7 @@ type Size = 'sm' | 'default'
 // ────────────────────────────────────────────────────────────────
 
 /** Shared infinite-query wiring for both select flavors. */
-function useInfiniteOptions<T>(
-  scope: string,
-  fetchPage: InfiniteFetchPage<T>,
-  search: string,
-) {
+function useInfiniteOptions<T>(scope: string, fetchPage: InfiniteFetchPage<T>, search: string) {
   return useInfiniteQuery({
     queryKey: ['infinite-select', scope, search],
     // Forward TanStack Query's signal so superseded searches are
@@ -191,7 +187,9 @@ function ListFooter({
     )
   }
   if (!hasItems) {
-    return <div className="py-6 text-center text-sm text-muted-foreground">{t('combobox.noMatch')}</div>
+    return (
+      <div className="py-6 text-center text-sm text-muted-foreground">{t('combobox.noMatch')}</div>
+    )
   }
   // All loaded — no footer; the list simply ends, matching the plain
   // Select / Combobox behaviour.
@@ -295,10 +293,7 @@ export function InfiniteSelect<T>({
         {searchable ? (
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <ComboboxInput
-              placeholder={effectiveSearchPlaceholder}
-              className="pl-9"
-            />
+            <ComboboxInput placeholder={effectiveSearchPlaceholder} className="pl-9" />
           </div>
         ) : null}
         <ComboboxList ref={listRef} className={listSurface()}>
@@ -408,7 +403,9 @@ export function InfiniteMultiSelect<T>({
         className={cn('w-full', size === 'sm' && 'h-8', className)}
       >
         {values.length === 0 ? (
-          <span className="flex-1 truncate text-left text-muted-foreground">{effectivePlaceholder}</span>
+          <span className="flex-1 truncate text-left text-muted-foreground">
+            {effectivePlaceholder}
+          </span>
         ) : (
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-left">
             {badges.map((v) => (
@@ -429,10 +426,7 @@ export function InfiniteMultiSelect<T>({
         {searchable ? (
           <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <ComboboxInput
-              placeholder={effectiveSearchPlaceholder}
-              className="pl-9"
-            />
+            <ComboboxInput placeholder={effectiveSearchPlaceholder} className="pl-9" />
           </div>
         ) : null}
         <ComboboxList ref={listRef} className={listSurface()}>

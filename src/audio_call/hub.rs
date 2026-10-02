@@ -670,7 +670,7 @@ impl CallHub {
         self.pick_available_agent_id_excluding(&HashSet::new())
     }
 
-    /// Same as [`pick_available_agent_id`], but never picks a member of
+    /// Same as `pick_available_agent_id`, but never picks a member of
     /// `exclude` — the session manager passes the agents a call already
     /// rang (ring escalation) + agents currently ringing for someone
     /// else so one phone is never stacked with two callers.

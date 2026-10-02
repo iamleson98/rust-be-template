@@ -16,13 +16,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  ShieldCheck,
-  Bus,
-  User,
-  ArrowLeft,
-  UserPlus,
-} from 'lucide-react'
+import { ShieldCheck, Bus, User, ArrowLeft, UserPlus } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
@@ -79,9 +73,7 @@ export function LoginPage() {
               </div>
               <div>
                 <h1 className="font-bold text-xl leading-tight">DatXeVui</h1>
-                <p className="text-[12px] text-blue-100 mt-0.5">
-                  {t('authPage.headerSubtitle')}
-                </p>
+                <p className="text-[12px] text-blue-100 mt-0.5">{t('authPage.headerSubtitle')}</p>
               </div>
             </div>
           </div>

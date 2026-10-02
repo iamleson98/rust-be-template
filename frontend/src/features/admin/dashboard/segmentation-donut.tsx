@@ -76,9 +76,13 @@ export function SegmentationDonut({
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           {active ? (
             <>
-              <div className="text-xl font-extrabold" style={{ color: active.color }}>{formatNum(active.count)}</div>
+              <div className="text-xl font-extrabold" style={{ color: active.color }}>
+                {formatNum(active.count)}
+              </div>
               <div className="text-[10px] text-muted-foreground">{active.label}</div>
-              <div className="text-[10px] font-medium" style={{ color: active.color }}>{(active.pct * 100).toFixed(1)}%</div>
+              <div className="text-[10px] font-medium" style={{ color: active.color }}>
+                {(active.pct * 100).toFixed(1)}%
+              </div>
             </>
           ) : (
             <>

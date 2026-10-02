@@ -40,8 +40,9 @@ class AlertsEnabledNotifier extends _BoolPreferenceNotifier {
   String get preferenceKey => 'vexevn.alerts_enabled';
 }
 
-final alertsEnabledProvider =
-    NotifierProvider<AlertsEnabledNotifier, bool>(AlertsEnabledNotifier.new);
+final alertsEnabledProvider = NotifierProvider<AlertsEnabledNotifier, bool>(
+  AlertsEnabledNotifier.new,
+);
 
 /// Whether messenger sounds play (message cues + call ringtone).
 /// Real tunes, not synths: see `assets/sounds/ATTRIBUTION.md`.
@@ -50,8 +51,9 @@ class SoundEnabledNotifier extends _BoolPreferenceNotifier {
   String get preferenceKey => 'vexevn.sound_enabled';
 }
 
-final soundEnabledProvider =
-    NotifierProvider<SoundEnabledNotifier, bool>(SoundEnabledNotifier.new);
+final soundEnabledProvider = NotifierProvider<SoundEnabledNotifier, bool>(
+  SoundEnabledNotifier.new,
+);
 
 /// Whether the device vibrates on incoming messages/calls.
 class VibrateEnabledNotifier extends _BoolPreferenceNotifier {
@@ -59,5 +61,6 @@ class VibrateEnabledNotifier extends _BoolPreferenceNotifier {
   String get preferenceKey => 'vexevn.vibrate_enabled';
 }
 
-final vibrateEnabledProvider =
-    NotifierProvider<VibrateEnabledNotifier, bool>(VibrateEnabledNotifier.new);
+final vibrateEnabledProvider = NotifierProvider<VibrateEnabledNotifier, bool>(
+  VibrateEnabledNotifier.new,
+);

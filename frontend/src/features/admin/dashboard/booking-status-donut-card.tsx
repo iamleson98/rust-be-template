@@ -63,14 +63,19 @@ export function BookingStatusDonutCard({
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <div className="text-2xl font-extrabold">{formatNum(statusSegmentTotal)}</div>
-                  <div className="text-[10px] text-muted-foreground">{t('adminDash.totalTickets')}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t('adminDash.totalTickets')}
+                  </div>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {statusSegments.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
-                  <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} />
+                  <div
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ background: s.color }}
+                  />
                   <span className="text-muted-foreground truncate">{s.label}</span>
                   <span className="font-bold ml-auto">{s.count}</span>
                 </div>

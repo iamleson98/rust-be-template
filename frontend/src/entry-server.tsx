@@ -142,10 +142,7 @@ export async function render(url: string = '/'): Promise<string> {
   const ssrWarnings: unknown[] = []
   let streamingHtml = ''
   try {
-    streamingHtml = await renderToFullStringStreaming(
-      app,
-      (err) => ssrWarnings.push(err),
-    )
+    streamingHtml = await renderToFullStringStreaming(app, (err) => ssrWarnings.push(err))
   } catch (fatalErr) {
     console.error('[render] Pass 1 (streaming) failed:', fatalErr)
     // No fallback HTML available — return empty shell

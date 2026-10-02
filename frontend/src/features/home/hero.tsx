@@ -79,7 +79,9 @@ export function Hero() {
             className="flex flex-col items-center gap-1 text-white/70 hover:text-white transition-colors"
             aria-label={t('home.scrollDown')}
           >
-            <span className="text-[11px] font-bold uppercase tracking-widest">{t('home.discover')}</span>
+            <span className="text-[11px] font-bold uppercase tracking-widest">
+              {t('home.discover')}
+            </span>
             <ChevronDown className="h-5 w-5 animate-bounce" />
           </button>
         </div>

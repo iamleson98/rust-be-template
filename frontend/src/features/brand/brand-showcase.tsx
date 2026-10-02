@@ -33,17 +33,11 @@ export const BrandShowcase = memo(function BrandShowcase() {
     const stars = []
     for (let i = 0; i < 5; i++) {
       if (i < full) {
-        stars.push(
-          <Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-        )
+        stars.push(<Star key={i} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />)
       } else if (i === full && hasHalf) {
-        stars.push(
-          <Star key={i} className="h-3.5 w-3.5 fill-amber-400/50 text-amber-400" />
-        )
+        stars.push(<Star key={i} className="h-3.5 w-3.5 fill-amber-400/50 text-amber-400" />)
       } else {
-        stars.push(
-          <Star key={i} className="h-3.5 w-3.5 text-muted-foreground/30" />
-        )
+        stars.push(<Star key={i} className="h-3.5 w-3.5 text-muted-foreground/30" />)
       }
     }
     return stars
@@ -55,10 +49,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
         {isLoading ? (
           <BrandShowcaseSkeleton count={5} />
         ) : isError ? (
-          <ErrorState
-            description={t('brandDetail.loadBrandsError')}
-            onRetry={() => refetch()}
-          />
+          <ErrorState description={t('brandDetail.loadBrandsError')} onRetry={() => refetch()} />
         ) : brands.length === 0 ? null : (
           <>
             {/* Header */}
@@ -88,10 +79,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
               {/* Scroll container */}
               <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-thin scrollbar-thumb-muted-foreground/20 scrollbar-track-transparent">
                 {brands.map((brand) => (
-                  <div
-                    key={brand.id}
-                    className="snap-start shrink-0 w-65 sm:w-70"
-                  >
+                  <div key={brand.id} className="snap-start shrink-0 w-65 sm:w-70">
                     <Card className="group overflow-hidden border-border/60 hover:border-blue-400 transition-all duration-300 h-full">
                       {/* Accent color top bar */}
                       <div
@@ -121,9 +109,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="font-bold text-base truncate">
-                              {brand.name}
-                            </div>
+                            <div className="font-bold text-base truncate">{brand.name}</div>
                             <div className="flex items-center gap-1 mt-0.5">
                               {renderStars(brand.rating ?? 0)}
                               <span className="text-xs font-medium text-amber-600 ml-1">

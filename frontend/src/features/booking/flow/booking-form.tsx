@@ -10,11 +10,7 @@ import { z } from 'zod'
 import { fullNameSchema, phoneSchema, emailSchema } from '@/lib/forms'
 import { translate } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
-import {
-  User,
-  UserCheck,
-  Baby,
-} from 'lucide-react'
+import { User, UserCheck, Baby } from 'lucide-react'
 import type { TripSeat } from '@/lib/api/types.gen'
 
 // ── Trip detail shape (local — matches the actual backend response) ──
@@ -22,7 +18,13 @@ import type { TripSeat } from '@/lib/api/types.gen'
 // `pricing.basePriceAdult`, etc. so we keep this local type that mirrors
 // the backend's `GET /api/trips/{id}` response shape.
 export type TripDetail = {
-  trip: { id: string; departureAt: string; departureTime: string; arrivalTime: string; status: string }
+  trip: {
+    id: string
+    departureAt: string
+    departureTime: string
+    arrivalTime: string
+    status: string
+  }
   route: { name: string }
   brand: { id: string; name: string; accentColor: string; logoUrl: string | null }
   from: { name: string }
@@ -80,7 +82,14 @@ export function getPassengerType(age: number): PassengerType {
 // `t(PASSENGER_TYPE_META[type].label)`.
 export const PASSENGER_TYPE_META: Record<
   PassengerType,
-  { label: string; gradient: string; border: string; pill: string; text: string; icon: React.ReactNode }
+  {
+    label: string
+    gradient: string
+    border: string
+    pill: string
+    text: string
+    icon: React.ReactNode
+  }
 > = {
   adult: {
     label: 'booking.passengerType.adult',

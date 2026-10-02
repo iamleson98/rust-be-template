@@ -26,17 +26,14 @@ class ApiClient {
     required this.tokens,
     this.onSessionExpired,
   }) : dio = Dio(
-          BaseOptions(
-            baseUrl: baseUrl,
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 30),
-            headers: {
-              'Accept': 'application/json',
-              'X-Client': 'mobile',
-            },
-            validateStatus: (code) => code != null && code < 500,
-          ),
-        ) {
+         BaseOptions(
+           baseUrl: baseUrl,
+           connectTimeout: const Duration(seconds: 10),
+           receiveTimeout: const Duration(seconds: 30),
+           headers: {'Accept': 'application/json', 'X-Client': 'mobile'},
+           validateStatus: (code) => code != null && code < 500,
+         ),
+       ) {
     dio.interceptors.add(
       InterceptorsWrapper(onRequest: _attachAuth, onResponse: _onResponse),
     );
@@ -56,10 +53,7 @@ class ApiClient {
   // as successful `Response` objects — the auth refresh therefore lives
   // in onResponse (NOT onError).
 
-  void _attachAuth(
-    RequestOptions options,
-    RequestInterceptorHandler handler,
-  ) {
+  void _attachAuth(RequestOptions options, RequestInterceptorHandler handler) {
     if (options.extra['skipAuth'] != true) {
       final token = tokens.cachedAccess;
       if (token != null && token.isNotEmpty) {
@@ -93,8 +87,7 @@ class ApiClient {
     // Retry the original request once, with the fresh token.
     opts.extra['retried'] = true;
     try {
-      opts.headers['Authorization'] =
-          'Bearer ${tokens.cachedAccess ?? ''}';
+      opts.headers['Authorization'] = 'Bearer ${tokens.cachedAccess ?? ''}';
       final retry = await dio.fetch(opts);
       return handler.resolve(retry);
     } on DioException catch (e) {
@@ -131,10 +124,7 @@ class ApiClient {
       final newAccess = rawTokens['access_token'];
       final newRefresh = rawTokens['refresh_token'];
       if (newAccess is! String || newRefresh is! String) return false;
-      await tokens.saveTokens(
-        accessToken: newAccess,
-        refreshToken: newRefresh,
-      );
+      await tokens.saveTokens(accessToken: newAccess, refreshToken: newRefresh);
       return true;
     } catch (_) {
       return false;
@@ -200,10 +190,9 @@ class ApiClient {
 
   /// `GET /api/chat/channels` — the support queue (newest activity first).
   Future<List<Map<String, dynamic>>> listChannels({int limit = 200}) async =>
-      _items(await dio.get(
-        '/api/chat/channels',
-        queryParameters: {'limit': limit},
-      ));
+      _items(
+        await dio.get('/api/chat/channels', queryParameters: {'limit': limit}),
+      );
 
   /// `GET /api/chat/channels/{id}/messages` — newest-first; reverse for
   /// chronological display. Paginated (`limit`/`offset`) so the room can
@@ -212,11 +201,12 @@ class ApiClient {
     String channelId, {
     int limit = 30,
     int offset = 0,
-  }) async =>
-      _items(await dio.get(
-        '/api/chat/channels/$channelId/messages',
-        queryParameters: {'limit': limit, 'offset': offset},
-      ));
+  }) async => _items(
+    await dio.get(
+      '/api/chat/channels/$channelId/messages',
+      queryParameters: {'limit': limit, 'offset': offset},
+    ),
+  );
 
   /// `POST /api/chat/channels/{id}/messages` — REST send (WS is receive-only
   /// for the agent console; the response is authoritative).
@@ -227,11 +217,7 @@ class ApiClient {
   }) async {
     final res = await dio.post(
       '/api/chat/channels/$channelId/messages',
-      data: {
-        'content': content,
-        'kind': 'text',
-        'clientMsgId': clientMsgId,
-      },
+      data: {'content': content, 'kind': 'text', 'clientMsgId': clientMsgId},
     );
     _throwIfNotOk(res, 201, 'Không gửi được tin nhắn');
     return res.data['message'] as Map<String, dynamic>;

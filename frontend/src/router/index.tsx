@@ -48,9 +48,40 @@ import {
 import { Suspense } from 'react'
 import { IslandFallback } from '@/routes/_fallback'
 import { rootRoute } from './root-route'
-import { adminLayoutRoute, adminIndexRoute, adminBrandsRoute, adminRoutesRedirectRoute, adminSchedulesRedirectRoute, adminVehicleTypesRoute, adminCronJobsRoute, adminTicketsRoute, adminChatRoute, adminFeedbackRoute, adminBusLayoutsRoute, adminSystemRoute, adminUsersRoute, adminPaymentsRoute } from './admin-routes'
-import { accountLayoutRoute, accountIndexRoute, accountLoyaltyRoute, accountNotificationsRoute, accountSecurityRoute, accountTripsRoute, accountFeedbackRoute } from './account-routes'
-import { HomePage, SearchPage, TripDetailPage, BrandDetailPage, BookingDetailPage, ComparePage, LoginPage } from './lazy-pages'
+import {
+  adminLayoutRoute,
+  adminIndexRoute,
+  adminBrandsRoute,
+  adminRoutesRedirectRoute,
+  adminSchedulesRedirectRoute,
+  adminVehicleTypesRoute,
+  adminCronJobsRoute,
+  adminTicketsRoute,
+  adminChatRoute,
+  adminFeedbackRoute,
+  adminBusLayoutsRoute,
+  adminSystemRoute,
+  adminUsersRoute,
+  adminPaymentsRoute,
+} from './admin-routes'
+import {
+  accountLayoutRoute,
+  accountIndexRoute,
+  accountLoyaltyRoute,
+  accountNotificationsRoute,
+  accountSecurityRoute,
+  accountTripsRoute,
+  accountFeedbackRoute,
+} from './account-routes'
+import {
+  HomePage,
+  SearchPage,
+  TripDetailPage,
+  BrandDetailPage,
+  BookingDetailPage,
+  ComparePage,
+  LoginPage,
+} from './lazy-pages'
 
 // ── Public routes ──────────────────────────────────────────────
 
@@ -68,7 +99,9 @@ const indexRoute = createRoute({
 const searchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/search',
-  validateSearch: (search: Record<string, unknown>): {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
     from?: string
     to?: string
     date?: string
@@ -88,7 +121,8 @@ const searchRoute = createRoute({
     const out: Record<string, unknown> = {}
     if (typeof search.from === 'string' && search.from) out.from = search.from
     if (typeof search.to === 'string' && search.to) out.to = search.to
-    if (typeof search.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.date)) out.date = search.date
+    if (typeof search.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.date))
+      out.date = search.date
     if (typeof search.adults === 'string') {
       const n = Math.max(1, parseInt(search.adults, 10) || 1)
       if (n !== 1) out.adults = n
@@ -102,11 +136,15 @@ const searchRoute = createRoute({
       if (s === 'price' || s === 'rating') out.sort = s
     }
     if (typeof search.vt === 'string') {
-      const list = search.vt.split(',').map((s) => s.trim()).filter(Boolean)
+      const list = search.vt
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
       if (list.length) out.vehicleTypes = list
     }
     if (search.roundTrip === '1' || search.roundTrip === 'true') out.roundTrip = true
-    if (typeof search.returnDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.returnDate)) out.returnDate = search.returnDate
+    if (typeof search.returnDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.returnDate))
+      out.returnDate = search.returnDate
     return out
   },
   component: () => (

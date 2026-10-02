@@ -65,12 +65,12 @@ import { useApp } from '@/lib/store'
 const L = (key: string) => translate(useApp.getState().lang, key)
 
 export type CallState =
-  | 'idle'         // no active call
-  | 'calling'      // outbound: waiting for answer
-  | 'incoming'     // inbound: ringing, user hasn't accepted
-  | 'connecting'   // offer accepted, ICE in progress
-  | 'active'       // call is live
-  | 'ended'        // call just ended (UI shows "Call ended" for 3s)
+  | 'idle' // no active call
+  | 'calling' // outbound: waiting for answer
+  | 'incoming' // inbound: ringing, user hasn't accepted
+  | 'connecting' // offer accepted, ICE in progress
+  | 'active' // call is live
+  | 'ended' // call just ended (UI shows "Call ended" for 3s)
 
 export interface IceServerConfig {
   urls: string | string[]
@@ -105,7 +105,7 @@ export interface AudioCallEventMap {
   incoming: { from: string; channelId?: string; sdp: RTCSessionDescriptionInit }
   error: { code: string; message: string }
   hangup: { reason: string }
-  '_close': { code: number; reason: string }
+  _close: { code: number; reason: string }
   'remote-stream': { stream: MediaStream }
   'connection-state': { state: RTCPeerConnectionState }
   'ice-restart': { attempts: number }
@@ -248,12 +248,19 @@ export class AudioCallClient {
     const set = this.handlers.get(event as string) ?? new Set()
     set.add(h as (data: unknown) => void)
     this.handlers.set(event as string, set)
-    return () => { set.delete(h as (data: unknown) => void) }
+    return () => {
+      set.delete(h as (data: unknown) => void)
+    }
   }
 
   private emit<K extends keyof AudioCallEventMap>(event: K, data: AudioCallEventMap[K]): void {
     const set = this.handlers.get(event as string)
-    if (set) for (const h of set) { try { h(data) } catch { } }
+    if (set)
+      for (const h of set) {
+        try {
+          h(data)
+        } catch {}
+      }
   }
 
   private setState(s: CallState): void {
@@ -265,7 +272,11 @@ export class AudioCallClient {
 
   connect(): void {
     if (this.disposed) return
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    )
+      return
 
     try {
       this.ws = new WebSocket(this.cfg.signalingUrl)
@@ -277,7 +288,12 @@ export class AudioCallClient {
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0
-      this.send({ type: 'register', role: this.cfg.role, userId: this.cfg.userId, channelId: this.cfg.channelId })
+      this.send({
+        type: 'register',
+        role: this.cfg.role,
+        userId: this.cfg.userId,
+        channelId: this.cfg.channelId,
+      })
       // Candidates buffered while the socket was down ride along with
       // the register — the server relays them to the live session's
       // peer, whose addIceCandidate tolerates duplicates.
@@ -287,7 +303,11 @@ export class AudioCallClient {
 
     this.ws.onmessage = (ev) => {
       let msg: unknown
-      try { msg = JSON.parse(ev.data) } catch { return }
+      try {
+        msg = JSON.parse(ev.data)
+      } catch {
+        return
+      }
       if (typeof msg === 'object' && msg !== null) {
         this.handleSignal(msg as Record<string, unknown>)
       }
@@ -326,18 +346,26 @@ export class AudioCallClient {
   }
 
   private stopHeartbeat(): void {
-    if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
   }
 
   private startQualitySampler(): void {
     this.stopQualitySampler()
     // getStats() is cheap and local — sampling it every 2.5 s while the
     // call is up costs nothing and gives the UI live network health.
-    this.qualityTimer = setInterval(() => { void this.sampleQuality() }, AudioCallClient.QUALITY_POLL_MS)
+    this.qualityTimer = setInterval(() => {
+      void this.sampleQuality()
+    }, AudioCallClient.QUALITY_POLL_MS)
   }
 
   private stopQualitySampler(): void {
-    if (this.qualityTimer) { clearInterval(this.qualityTimer); this.qualityTimer = null }
+    if (this.qualityTimer) {
+      clearInterval(this.qualityTimer)
+      this.qualityTimer = null
+    }
   }
 
   /** One getStats() pass → RTT (candidate-pair), jitter/loss (inbound
@@ -360,12 +388,13 @@ export class AudioCallClient {
         const t = rep.type as string
         if (t === 'candidate-pair') {
           // Prefer `selected`; older browsers only flag `nominated`+succeeded.
-          const isSelected = rep.selected === true ||
-            (rep.nominated === true && rep.state === 'succeeded')
+          const isSelected =
+            rep.selected === true || (rep.nominated === true && rep.state === 'succeeded')
           if (isSelected && typeof rep.currentRoundTripTime === 'number') {
             rttMs = Math.round(rep.currentRoundTripTime * 1000)
             selectedLocalId = typeof rep.localCandidateId === 'string' ? rep.localCandidateId : null
-            selectedRemoteId = typeof rep.remoteCandidateId === 'string' ? rep.remoteCandidateId : null
+            selectedRemoteId =
+              typeof rep.remoteCandidateId === 'string' ? rep.remoteCandidateId : null
           }
         } else if (t === 'local-candidate' || t === 'remote-candidate') {
           const candidateType = typeof rep.candidateType === 'string' ? rep.candidateType : ''
@@ -403,24 +432,42 @@ export class AudioCallClient {
     this.clearCallTimeout()
     this.clearRingTimeout()
     this.clearConnectTimeout()
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
     this.hangup()
-    if (this.ws) { try { this.ws.close() } catch { }; this.ws = null }
+    if (this.ws) {
+      try {
+        this.ws.close()
+      } catch {}
+      this.ws = null
+    }
     this.handlers.clear()
   }
 
   private send(msg: unknown): void {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try { this.ws.send(JSON.stringify(msg)) } catch { }
+      try {
+        this.ws.send(JSON.stringify(msg))
+      } catch {}
     }
   }
 
   /** Send an ICE candidate, or buffer it when the socket is down and the
    * call is live (see `pendingIce`). */
   private sendOrBufferIce(to: string, candidate: unknown): void {
-    const msg: Record<string, unknown> = { type: 'call', to, from: this.cfg.userId, kind: 'ice', candidate }
+    const msg: Record<string, unknown> = {
+      type: 'call',
+      to,
+      from: this.cfg.userId,
+      kind: 'ice',
+      candidate,
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      try { this.ws.send(JSON.stringify(msg)) } catch { }
+      try {
+        this.ws.send(JSON.stringify(msg))
+      } catch {}
     } else if (this.isCallLive() && this.pendingIce.length < AudioCallClient.MAX_PENDING_ICE) {
       this.pendingIce.push(msg)
     }
@@ -442,15 +489,21 @@ export class AudioCallClient {
       if (!this.pc) return
       try {
         await this.pc.addIceCandidate(new RTCIceCandidate(cand))
-      } catch { /* stale or duplicate — harmless */ }
+      } catch {
+        /* stale or duplicate — harmless */
+      }
     }
   }
 
   // ── Signal handling ────────────────────────────────────────
 
   private isCallLive(): boolean {
-    return this.state === 'calling' || this.state === 'incoming' ||
-      this.state === 'connecting' || this.state === 'active'
+    return (
+      this.state === 'calling' ||
+      this.state === 'incoming' ||
+      this.state === 'connecting' ||
+      this.state === 'active'
+    )
   }
 
   private handleSignal(msg: Record<string, unknown>): void {
@@ -496,7 +549,12 @@ export class AudioCallClient {
         // caller gets an immediate response instead of ringing into a void
         // while we're already on another call.
         if (this.state !== 'idle' || this.pc) {
-          this.send({ type: 'hangup', to: asStr(msg.from) ?? '', reason: 'busy', from: this.cfg.userId })
+          this.send({
+            type: 'hangup',
+            to: asStr(msg.from) ?? '',
+            reason: 'busy',
+            from: this.cfg.userId,
+          })
           break
         }
         this.peerId = asStr(msg.from)
@@ -514,7 +572,8 @@ export class AudioCallClient {
         this.clearCallTimeout()
         if (typeof msg.from === 'string') this.peerId = msg.from
         if (this.pc && msg.sdp) {
-          this.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit))
+          this.pc
+            .setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit))
             .then(() => {
               // The answerer's candidates may have arrived while the
               // remote description was still settling — flush them now.
@@ -537,9 +596,13 @@ export class AudioCallClient {
             // before setRemoteDescription, and dropping the candidate
             // loses it forever (browsers never re-trickle).
             if (this.pc && this.remoteDescReady) {
-              this.pc.addIceCandidate(new RTCIceCandidate(cand))
+              this.pc
+                .addIceCandidate(new RTCIceCandidate(cand))
                 .catch((e) => this.emit('error', { code: 'add-ice', message: String(e) }))
-            } else if (this.isCallLive() && this.inboundIce.length < AudioCallClient.MAX_INBOUND_ICE) {
+            } else if (
+              this.isCallLive() &&
+              this.inboundIce.length < AudioCallClient.MAX_INBOUND_ICE
+            ) {
               this.inboundIce.push(cand)
             }
           }
@@ -556,7 +619,8 @@ export class AudioCallClient {
           // A restart offer resets the remote description — candidates
           // arriving mid-restart are buffered until it settles.
           this.remoteDescReady = false
-          this.pc.setRemoteDescription(sdp)
+          this.pc
+            .setRemoteDescription(sdp)
             .then(async () => {
               this.remoteDescReady = true
               await this.flushInboundIce()
@@ -573,7 +637,8 @@ export class AudioCallClient {
             })
             .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
         } else if (msg.kind === 'answer') {
-          this.pc.setRemoteDescription(sdp)
+          this.pc
+            .setRemoteDescription(sdp)
             .then(() => this.flushInboundIce())
             .catch((e) => this.emit('error', { code: 'renegotiate', message: String(e) }))
         }
@@ -594,15 +659,20 @@ export class AudioCallClient {
         // Terminal call-setup errors — stop ringing and release the mic.
         if (
           TERMINAL_ERROR_CODES.has(asStr(msg.code) ?? '') &&
-          (this.state === 'calling' || this.state === 'incoming' ||
-            this.state === 'connecting' || this.state === 'active')
+          (this.state === 'calling' ||
+            this.state === 'incoming' ||
+            this.state === 'connecting' ||
+            this.state === 'active')
         ) {
           this.clearCallTimeout()
           this.clearRingTimeout()
           this.cleanupCall()
           this.setState('idle')
         }
-        this.emit('error', { code: asStr(msg.code) ?? 'error', message: asStr(msg.message) ?? L('call.errUnknown') })
+        this.emit('error', {
+          code: asStr(msg.code) ?? 'error',
+          message: asStr(msg.message) ?? L('call.errUnknown'),
+        })
         break
     }
   }
@@ -646,7 +716,10 @@ export class AudioCallClient {
     this.setupPeerConnection()
 
     // Create offer.
-    const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false })
+    const offer = await this.pc.createOffer({
+      offerToReceiveAudio: true,
+      offerToReceiveVideo: false,
+    })
     await this.pc.setLocalDescription(offer)
 
     const to = this.cfg.role === 'customer' ? 'agent' : (targetUserId ?? '')
@@ -697,7 +770,9 @@ export class AudioCallClient {
     })
     this.setupPeerConnection()
 
-    await this.pc.setRemoteDescription(new RTCSessionDescription(remoteOfferSdp as RTCSessionDescriptionInit))
+    await this.pc.setRemoteDescription(
+      new RTCSessionDescription(remoteOfferSdp as RTCSessionDescriptionInit),
+    )
     // Remote description settled — apply the caller's candidates that
     // were buffered during the ring (they would otherwise be lost).
     this.remoteDescReady = true
@@ -750,7 +825,9 @@ export class AudioCallClient {
     return this.micEnabled
   }
 
-  get micOn(): boolean { return this.micEnabled }
+  get micOn(): boolean {
+    return this.micEnabled
+  }
 
   // ── Ring / call timeouts ───────────────────────────────────
 
@@ -767,7 +844,10 @@ export class AudioCallClient {
   }
 
   private clearCallTimeout(): void {
-    if (this.callTimeoutTimer) { clearTimeout(this.callTimeoutTimer); this.callTimeoutTimer = null }
+    if (this.callTimeoutTimer) {
+      clearTimeout(this.callTimeoutTimer)
+      this.callTimeoutTimer = null
+    }
   }
 
   /** Inbound call: not accepted within RING_TIMEOUT_MS → auto-reject busy. */
@@ -784,7 +864,10 @@ export class AudioCallClient {
   }
 
   private clearRingTimeout(): void {
-    if (this.ringTimeoutTimer) { clearTimeout(this.ringTimeoutTimer); this.ringTimeoutTimer = null }
+    if (this.ringTimeoutTimer) {
+      clearTimeout(this.ringTimeoutTimer)
+      this.ringTimeoutTimer = null
+    }
   }
 
   /** Media must connect within CONNECT_TIMEOUT_MS of the SDP exchange —
@@ -796,8 +879,7 @@ export class AudioCallClient {
       if (!this.mediaConnected && (this.state === 'connecting' || this.state === 'active')) {
         this.emit('error', {
           code: 'media-timeout',
-          message:
-            L('call.errAudioFailed'),
+          message: L('call.errAudioFailed'),
         })
         this.hangup('timeout')
       }
@@ -805,7 +887,10 @@ export class AudioCallClient {
   }
 
   private clearConnectTimeout(): void {
-    if (this.connectTimeoutTimer) { clearTimeout(this.connectTimeoutTimer); this.connectTimeoutTimer = null }
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer)
+      this.connectTimeoutTimer = null
+    }
   }
 
   // ── Peer connection plumbing ───────────────────────────────
@@ -839,9 +924,13 @@ export class AudioCallClient {
         this.remoteStream.addTrack(ev.track)
       }
       if (this.remoteAudioElement && this.remoteStream) {
-        try { this.remoteAudioElement.srcObject = this.remoteStream } catch { }
+        try {
+          this.remoteAudioElement.srcObject = this.remoteStream
+        } catch {}
         // iOS Safari requires play() within a user gesture.
-        try { this.remoteAudioElement.play().catch(() => { }) } catch { }
+        try {
+          this.remoteAudioElement.play().catch(() => {})
+        } catch {}
       }
       if (this.remoteStream) {
         this.emit('remote-stream', { stream: this.remoteStream as MediaStream })
@@ -863,7 +952,10 @@ export class AudioCallClient {
         // ICE (once, offerer-only — the office-network case where the
         // media path never came up or died mid-negotiation) or hang up.
         setTimeout(() => {
-          if (this.pc && (this.pc.connectionState === 'failed' || this.pc.connectionState === 'disconnected')) {
+          if (
+            this.pc &&
+            (this.pc.connectionState === 'failed' || this.pc.connectionState === 'disconnected')
+          ) {
             if (this.isOfferer && this.iceRestarts < 1 && this.isCallLive()) {
               void this.restartIce()
             } else {
@@ -921,11 +1013,17 @@ export class AudioCallClient {
 
   private cleanupCall(): void {
     if (this.pc) {
-      try { this.pc.close() } catch { }
+      try {
+        this.pc.close()
+      } catch {}
       this.pc = null
     }
     if (this.localStream) {
-      for (const t of this.localStream.getAudioTracks()) { try { t.stop() } catch { } }
+      for (const t of this.localStream.getAudioTracks()) {
+        try {
+          t.stop()
+        } catch {}
+      }
       this.localStream = null
     }
     this.remoteStream = null
@@ -940,7 +1038,9 @@ export class AudioCallClient {
     this.clearRingTimeout()
     this.stopQualitySampler()
     if (this.remoteAudioElement) {
-      try { this.remoteAudioElement.srcObject = null } catch { }
+      try {
+        this.remoteAudioElement.srcObject = null
+      } catch {}
     }
   }
 }

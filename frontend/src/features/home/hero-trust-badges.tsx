@@ -18,8 +18,16 @@ export function HeroTrustBadges() {
   const t = useT()
   return (
     <div className="mt-8 grid grid-cols-2 gap-3">
-      <TrustBadge icon={<ShieldCheck className="h-5 w-5" />} title={t('home.trustSecurePayment')} sub={t('home.trustSsl')} />
-      <TrustBadge icon={<Wallet className="h-5 w-5" />} title={t('home.trustBestPrice')} sub={t('home.trustMoneyBack')} />
+      <TrustBadge
+        icon={<ShieldCheck className="h-5 w-5" />}
+        title={t('home.trustSecurePayment')}
+        sub={t('home.trustSsl')}
+      />
+      <TrustBadge
+        icon={<Wallet className="h-5 w-5" />}
+        title={t('home.trustBestPrice')}
+        sub={t('home.trustMoneyBack')}
+      />
     </div>
   )
 }

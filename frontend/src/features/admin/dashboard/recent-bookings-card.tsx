@@ -37,7 +37,9 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
       meta: { label: t('booking.code') },
     }),
     recentColumnHelper.accessor('contactName', {
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t('booking.passengers')} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('booking.passengers')} />
+      ),
       cell: ({ getValue }) => <span className="font-medium">{getValue() ?? '—'}</span>,
       sortFn: 'text',
       meta: { label: t('booking.passengers') },
@@ -61,7 +63,9 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
       meta: { label: t('adminDash.route'), cellClassName: 'hidden md:table-cell' },
     }),
     recentColumnHelper.accessor('total', {
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminDash.price')} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('adminDash.price')} />
+      ),
       cell: ({ getValue }) => (
         <span className="font-semibold tabular-nums">{formatVND(getValue())}</span>
       ),
@@ -80,9 +84,9 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
         <span className="text-xs tabular-nums text-muted-foreground">
           {getValue()
             ? new Date(getValue()).toLocaleString('vi-VN', {
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })
+                dateStyle: 'short',
+                timeStyle: 'short',
+              })
             : '—'}
         </span>
       ),

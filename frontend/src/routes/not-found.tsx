@@ -13,9 +13,7 @@ export function NotFoundPage() {
         <Compass className="h-8 w-8 text-blue-500" />
       </div>
       <h1 className="text-3xl font-extrabold tracking-tight">{t('notFoundPage.title')}</h1>
-      <p className="mt-3 text-muted-foreground">
-        {t('notFoundPage.message')}
-      </p>
+      <p className="mt-3 text-muted-foreground">{t('notFoundPage.message')}</p>
       <div className="mt-6 flex items-center justify-center gap-3">
         <Button asChild>
           <Link to="/">{t('notFound.backHome')}</Link>

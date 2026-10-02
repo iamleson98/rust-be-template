@@ -7,19 +7,10 @@ import { useT } from '@/lib/i18n'
 import { Separator } from '@/components/ui/separator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { AlertTriangle, ShieldCheck, Clock } from 'lucide-react'
-import {
-  FormField,
-  FormItem,
-  FormControl,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form'
 import { type CancelValues } from './cancel-dialog-schema'
 
-export function CancelPolicyStep({
-  form,
-}: {
-  form: UseFormReturn<CancelValues>
-}) {
+export function CancelPolicyStep({ form }: { form: UseFormReturn<CancelValues> }) {
   const t = useT()
 
   return (

@@ -39,7 +39,11 @@ export type NavigateFn = UseNavigateResult<string>
 
 /** Sort options rendered by the filter sidebar + mobile filter sheet.
  * Labels are i18n keys — translated at render time by the consumers. */
-export const sortOptions: { key: 'departure' | 'price' | 'rating'; labelKey: string; icon: string }[] = [
+export const sortOptions: {
+  key: 'departure' | 'price' | 'rating'
+  labelKey: string
+  icon: string
+}[] = [
   { key: 'departure', labelKey: 'searchPage.departureTime', icon: '🕐' },
   { key: 'price', labelKey: 'searchPage.sortCheapest', icon: '💰' },
   { key: 'rating', labelKey: 'searchPage.rating', icon: '⭐' },

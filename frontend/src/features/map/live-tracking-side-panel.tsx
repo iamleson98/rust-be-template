@@ -4,15 +4,7 @@
 
 import { useMemo } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  PhoneCall,
-  Star,
-  MapPin,
-  Clock,
-  CircleDot,
-  CheckCircle2,
-  Flag,
-} from 'lucide-react'
+import { PhoneCall, Star, MapPin, Clock, CircleDot, CheckCircle2, Flag } from 'lucide-react'
 import { formatDuration, formatTimeVN } from '@/lib/types'
 import { useT } from '@/lib/i18n'
 import { hashString, formatCountdown } from './live-tracking-helpers'
@@ -30,7 +22,9 @@ export function LiveTrackingSidePanel({
   nextStop: TripDetail['pickupPoints'][number] | null
   status: TrackingStatus
   now: number
-  stopsWithStatus: (TripDetail['pickupPoints'][number] & { status: 'passed' | 'current' | 'upcoming' })[]
+  stopsWithStatus: (TripDetail['pickupPoints'][number] & {
+    status: 'passed' | 'current' | 'upcoming'
+  })[]
   elapsedMin: number
 }) {
   const t = useT()
@@ -64,16 +58,13 @@ export function LiveTrackingSidePanel({
             <div className="flex items-center gap-1 text-xs text-amber-600">
               <Star className="h-3 w-3 fill-current" />
               {driverRating}
-              <span className="text-muted-foreground ml-1">{t('liveTracking.driverExperience')}</span>
+              <span className="text-muted-foreground ml-1">
+                {t('liveTracking.driverExperience')}
+              </span>
             </div>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full mt-2.5 gap-1.5 text-xs h-8"
-          asChild
-        >
+        <Button variant="outline" size="sm" className="w-full mt-2.5 gap-1.5 text-xs h-8" asChild>
           <a href={`tel:${driverPhone}`}>
             <PhoneCall className="h-3.5 w-3.5" /> {driverPhone}
           </a>
@@ -96,7 +87,9 @@ export function LiveTrackingSidePanel({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('liveTracking.seats')}</span>
-            <span className="font-medium">{t('liveTracking.seatsCount', { count: detail.busLayout.capacity ?? 0 })}</span>
+            <span className="font-medium">
+              {t('liveTracking.seatsCount', { count: detail.busLayout.capacity ?? 0 })}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{t('liveTracking.fleet')}</span>
@@ -136,7 +129,9 @@ export function LiveTrackingSidePanel({
       ) : (
         <div className="rounded-xl bg-slate-50 ring-1 ring-slate-200 p-3">
           <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold mb-1">
-            {status === 'arrived' ? t('liveTracking.destinationStop') : t('liveTracking.originStop')}
+            {status === 'arrived'
+              ? t('liveTracking.destinationStop')
+              : t('liveTracking.originStop')}
           </div>
           <div className="font-bold text-sm text-slate-800 truncate flex items-center gap-1">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -191,7 +186,9 @@ export function LiveTrackingSidePanel({
                       : isCurrent
                         ? t('liveTracking.currentlyHere')
                         : t('liveTracking.etaIn', {
-                            duration: formatDuration(Math.max(0, (s.etaOffsetMin ?? 0) - elapsedMin)),
+                            duration: formatDuration(
+                              Math.max(0, (s.etaOffsetMin ?? 0) - elapsedMin),
+                            ),
                           })}
                   </div>
                 </div>

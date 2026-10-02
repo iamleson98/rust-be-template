@@ -10,11 +10,7 @@ import { MessageSquare, Star, TrendingUp, RefreshCw } from 'lucide-react'
 import { Card as UiCard } from '@/components/ui/card'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import {
-  BookingItem,
-  ReviewItem,
-  ReviewSummary,
-} from '@/features/booking/history/booking-types'
+import { BookingItem, ReviewItem, ReviewSummary } from '@/features/booking/history/booking-types'
 import { BookingList } from '@/features/booking/history/booking-list'
 import { MyBookingsSkeleton } from '@/features/booking/history/my-bookings-skeleton'
 import { NoReviewsYet } from '@/features/reviews/no-reviews-yet'
@@ -100,8 +96,11 @@ export function ReviewsTabContent({
               <Star className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
               <p>
                 {t('bookingHistory.reviewsTipStart')}{' '}
-                <span className="font-semibold text-foreground">"{t('bookingHistory.past')}"</span> →{' '}
-                <span className="font-semibold text-foreground">"{t('bookingHistory.writeReview')}"</span>{' '}
+                <span className="font-semibold text-foreground">"{t('bookingHistory.past')}"</span>{' '}
+                →{' '}
+                <span className="font-semibold text-foreground">
+                  "{t('bookingHistory.writeReview')}"
+                </span>{' '}
                 {t('bookingHistory.reviewsTipEnd')}
               </p>
             </div>
@@ -111,9 +110,29 @@ export function ReviewsTabContent({
         <div className="space-y-5">
           <StatsRow
             stats={[
-              { icon: <MessageSquare className="h-5 w-5" />, label: t('bookingHistory.statReviewCount'), value: String(userReviews.length), accent: 'from-amber-500 to-orange-500', subtitle: t('bookingHistory.statReviewsWritten') },
-              { icon: <Star className="h-5 w-5" />, label: t('bookingHistory.statAvgRating'), value: userAvgRating > 0 ? userAvgRating.toFixed(1) : '—', accent: 'from-yellow-400 to-amber-500', subtitle: t('bookingHistory.statOutOf5') },
-              { icon: <TrendingUp className="h-5 w-5" />, label: t('bookingHistory.statBrandsVisited'), value: String(new Set(userReviews.map((r) => r.brand?.name ?? r.brandId ?? 'unknown')).size), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statDistinctBrands') },
+              {
+                icon: <MessageSquare className="h-5 w-5" />,
+                label: t('bookingHistory.statReviewCount'),
+                value: String(userReviews.length),
+                accent: 'from-amber-500 to-orange-500',
+                subtitle: t('bookingHistory.statReviewsWritten'),
+              },
+              {
+                icon: <Star className="h-5 w-5" />,
+                label: t('bookingHistory.statAvgRating'),
+                value: userAvgRating > 0 ? userAvgRating.toFixed(1) : '—',
+                accent: 'from-yellow-400 to-amber-500',
+                subtitle: t('bookingHistory.statOutOf5'),
+              },
+              {
+                icon: <TrendingUp className="h-5 w-5" />,
+                label: t('bookingHistory.statBrandsVisited'),
+                value: String(
+                  new Set(userReviews.map((r) => r.brand?.name ?? r.brandId ?? 'unknown')).size,
+                ),
+                accent: 'from-blue-500 to-blue-500',
+                subtitle: t('bookingHistory.statDistinctBrands'),
+              },
             ]}
           />
           <div className="flex items-center justify-between gap-3">

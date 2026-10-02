@@ -77,15 +77,7 @@ import L from 'leaflet'
 import { useT } from '@/lib/i18n'
 
 export type BasemapVariant =
-  | 'osm'
-  | 'satellite'
-  | 'hybrid'
-  | 'topo'
-  | 'street'
-  | 'light'
-  | 'dark'
-  | 'natgeo'
-  | 'cyclosm'
+  'osm' | 'satellite' | 'hybrid' | 'topo' | 'street' | 'light' | 'dark' | 'natgeo' | 'cyclosm'
 
 type TileSpec = {
   url: string
@@ -98,7 +90,8 @@ const ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services'
 
 const ATTR = {
   osm: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
-  street: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, HERE, Garmin, USGS, NGA',
+  street:
+    'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, HERE, Garmin, USGS, NGA',
   imagery:
     'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
   topo: 'Tiles &copy; <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a> &mdash; Source: Esri, USGS, NOAA',
@@ -243,13 +236,8 @@ type BasemapLayerProps = {
   switcher?: boolean
 }
 
-export function BasemapLayer({
-  variant = 'osm',
-  switcher = true,
-}: BasemapLayerProps) {
-  const [active, setActive] = useState<BasemapVariant>(() =>
-    readStoredVariant(variant),
-  )
+export function BasemapLayer({ variant = 'osm', switcher = true }: BasemapLayerProps) {
+  const [active, setActive] = useState<BasemapVariant>(() => readStoredVariant(variant))
 
   const specs = VARIANTS[active] ?? VARIANTS.osm
 
@@ -325,11 +313,7 @@ function BasemapSwitcher({
       L.DomEvent.disableClickPropagation(root)
       L.DomEvent.disableScrollPropagation(root)
 
-      const button = L.DomUtil.create(
-        'button',
-        'vexevn-basemap-button',
-        root,
-      )
+      const button = L.DomUtil.create('button', 'vexevn-basemap-button', root)
       button.type = 'button'
       button.title = tRef.current('map.mapStyle')
       button.setAttribute('aria-label', tRef.current('mapPage.chooseMapStyle'))

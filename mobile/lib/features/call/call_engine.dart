@@ -80,14 +80,17 @@ class CallEngine {
       if (_closed) return;
       if (s == RTCIceConnectionState.RTCIceConnectionStateConnected ||
           s == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-        onConnectionState
-            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateConnected);
+        onConnectionState?.call(
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+        );
       } else if (s == RTCIceConnectionState.RTCIceConnectionStateFailed) {
-        onConnectionState
-            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateFailed);
+        onConnectionState?.call(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
       } else if (s == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-        onConnectionState
-            ?.call(RTCPeerConnectionState.RTCPeerConnectionStateDisconnected);
+        onConnectionState?.call(
+          RTCPeerConnectionState.RTCPeerConnectionStateDisconnected,
+        );
       }
     };
   }
@@ -120,10 +123,14 @@ class CallEngine {
   /// ANSWERER path: apply a `renegotiate` offer (ICE restart from the
   /// peer) to the EXISTING peer connection and produce the new answer.
   Future<Map<String, dynamic>> acceptRenegotiateOffer(
-      Map<String, dynamic> sdpJson) async {
+    Map<String, dynamic> sdpJson,
+  ) async {
     final pc = _pc!;
     await pc.setRemoteDescription(
-      RTCSessionDescription(sdpJson['sdp'] as String?, sdpJson['type'] as String?),
+      RTCSessionDescription(
+        sdpJson['sdp'] as String?,
+        sdpJson['type'] as String?,
+      ),
     );
     final answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -134,7 +141,10 @@ class CallEngine {
   Future<Map<String, dynamic>> acceptOffer(Map<String, dynamic> sdpJson) async {
     final pc = _pc!;
     await pc.setRemoteDescription(
-      RTCSessionDescription(sdpJson['sdp'] as String?, sdpJson['type'] as String?),
+      RTCSessionDescription(
+        sdpJson['sdp'] as String?,
+        sdpJson['type'] as String?,
+      ),
     );
     final answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
@@ -144,7 +154,10 @@ class CallEngine {
   /// Caller path: apply the remote answer.
   Future<void> setRemoteAnswer(Map<String, dynamic> sdpJson) async {
     await _pc?.setRemoteDescription(
-      RTCSessionDescription(sdpJson['sdp'] as String?, sdpJson['type'] as String?),
+      RTCSessionDescription(
+        sdpJson['sdp'] as String?,
+        sdpJson['type'] as String?,
+      ),
     );
   }
 
@@ -161,7 +174,8 @@ class CallEngine {
   /// Mute/unmute the outbound track (the peer keeps receiving silence
   /// frames — the connection stays up).
   void setMicEnabled(bool enabled) {
-    for (final track in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
+    for (final track
+        in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = enabled;
     }
   }

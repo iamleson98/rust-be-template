@@ -44,11 +44,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SocialAuthButtons } from './social-buttons'
-import {
-  makeRegisterSchema,
-  scorePassword,
-  type RegisterFormValues,
-} from './_shared'
+import { makeRegisterSchema, scorePassword, type RegisterFormValues } from './_shared'
 
 export function RegisterForm() {
   const { setUser } = useApp()
@@ -81,7 +77,8 @@ export function RegisterForm() {
   const registerMut = useRegister({
     onSuccess: (data) => {
       const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
-      ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as Parameters<typeof setUser>[0] | undefined
+        ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as
+        Parameters<typeof setUser>[0] | undefined
       if (!user) return
       setUser(user)
       setSuccess(true)
@@ -110,9 +107,7 @@ export function RegisterForm() {
           <Check className="h-8 w-8 text-white" strokeWidth={3} />
         </div>
         <h3 className="font-bold text-lg mb-1">{t('auth.registerSuccess')}</h3>
-        <p className="text-sm text-muted-foreground mb-5">
-          {t('authPage.registerReady')}
-        </p>
+        <p className="text-sm text-muted-foreground mb-5">{t('authPage.registerReady')}</p>
         <Button
           onClick={() => navigate({ to: '/' })}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white"
@@ -138,7 +133,12 @@ export function RegisterForm() {
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <FormControl>
-                  <Input {...field} placeholder={t('authPage.fullNamePh')} autoFocus className="pl-10 h-11" />
+                  <Input
+                    {...field}
+                    placeholder={t('authPage.fullNamePh')}
+                    autoFocus
+                    className="pl-10 h-11"
+                  />
                 </FormControl>
               </div>
               <FormMessage />
@@ -152,7 +152,10 @@ export function RegisterForm() {
           render={({ field }) => (
             <FormItem className="space-y-1.5">
               <FormLabel className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {t('auth.email')} <span className="text-muted-foreground/60 normal-case font-normal">{t('authPage.orPhone')}</span>{' '}
+                {t('auth.email')}{' '}
+                <span className="text-muted-foreground/60 normal-case font-normal">
+                  {t('authPage.orPhone')}
+                </span>{' '}
                 <span className="text-destructive">*</span>
               </FormLabel>
               <div className="relative">
@@ -236,7 +239,9 @@ export function RegisterForm() {
                       )}
                     />
                   ))}
-                  <span className="ml-2 text-[11px] text-muted-foreground w-16 text-right">{pwdStrength.label}</span>
+                  <span className="ml-2 text-[11px] text-muted-foreground w-16 text-right">
+                    {pwdStrength.label}
+                  </span>
                 </div>
               )}
               <FormMessage />
@@ -276,14 +281,16 @@ export function RegisterForm() {
           disabled={registerMut.isPending}
           className="w-full gap-2 bg-linear-to-r from-blue-600 to-blue-600 hover:from-blue-700 hover:to-blue-700 text-white h-11"
         >
-          {registerMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+          {registerMut.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <UserPlus className="h-4 w-4" />
+          )}
           {t('authPage.createAccount')}
           <ChevronRight className="h-4 w-4" />
         </Button>
 
-        <p className="text-[11px] text-muted-foreground text-center">
-          {t('authPage.termsAgree')}
-        </p>
+        <p className="text-[11px] text-muted-foreground text-center">{t('authPage.termsAgree')}</p>
       </form>
 
       <SocialAuthButtons />

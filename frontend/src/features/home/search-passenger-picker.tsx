@@ -13,7 +13,8 @@ import type { SearchFormValues } from './search-widget-schema'
 
 /** Shared label style — darker than muted-foreground so the tiny
  *  uppercase labels stay readable on the white widget card. */
-const LABEL_CLASS = 'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+const LABEL_CLASS =
+  'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 export function SearchPassengerPicker({
   form,
@@ -39,9 +40,7 @@ export function SearchPassengerPicker({
         name="adults"
         render={({ field }) => (
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={LABEL_CLASS}>
-              {t('search.passengers')}
-            </FormLabel>
+            <FormLabel className={LABEL_CLASS}>{t('search.passengers')}</FormLabel>
             <div className="relative group/pax">
               <Users className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 z-10 text-muted-foreground group-hover/pax:text-blue-600 transition-colors" />
               <Popover open={paxOpen} onOpenChange={setPaxOpen}>
@@ -91,7 +90,17 @@ export function SearchPassengerPicker({
   )
 }
 
-function PaxRow({ label, sub, value, onChange }: { label: string; sub: string; value: number; onChange: (v: number) => void }) {
+function PaxRow({
+  label,
+  sub,
+  value,
+  onChange,
+}: {
+  label: string
+  sub: string
+  value: number
+  onChange: (v: number) => void
+}) {
   return (
     <div className="flex items-center justify-between">
       <div>

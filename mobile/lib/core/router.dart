@@ -33,8 +33,9 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 final routerProvider = Provider<GoRouter>((ref) {
   // Re-evaluate the redirect whenever auth flips. Riverpod 3: Ref.listen
   // (auto-tied to this provider's lifetime — no manual disposal needed).
-  final loggedIn =
-      ValueNotifier<bool>(ref.read(authControllerProvider).isLoggedIn);
+  final loggedIn = ValueNotifier<bool>(
+    ref.read(authControllerProvider).isLoggedIn,
+  );
   ref.listen<bool>(
     authControllerProvider.select((s) => s.isLoggedIn),
     (_, next) => loggedIn.value = next,
@@ -43,13 +44,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   // redirect: loggedIn stays false, but the splash must give way to
   // the login screen.
   final restoreTick = ValueNotifier<int>(0);
-  ref.listen<bool>(
-    authControllerProvider.select((s) => s.restored),
-    (_, next) {
-      loggedIn.value = ref.read(authControllerProvider).isLoggedIn;
-      restoreTick.value++;
-    },
-  );
+  ref.listen<bool>(authControllerProvider.select((s) => s.restored), (_, next) {
+    loggedIn.value = ref.read(authControllerProvider).isLoggedIn;
+    restoreTick.value++;
+  });
   ref.onDispose(() {
     loggedIn.dispose();
     restoreTick.dispose();
@@ -156,9 +154,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/call',
         parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) => const NoTransitionPage(
-          child: CallScreen(),
-        ),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: CallScreen()),
       ),
       // Call-network doctor — pushed above the shell so it works from
       // any branch; pure diagnostics (DNS/TCP/TLS/STUN probes against

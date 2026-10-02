@@ -32,21 +32,19 @@ import 'call_state.dart' show parseIceServers;
 ///   → `call {to, kind: answer, iceRestart: true, sdp}`
 ///   ← `renegotiate {from, sdp, kind: answer}` — setRemoteDescription.
 class CallSignalingService {
-  CallSignalingService({
-    required Uri Function() wsUrl,
-    required this._userId,
-  }) :
-        _client = WsClient(
-          wsUrl,
-          // `/ws-call` understands app-level `heartbeat` frames (replies
-          // `pong`); the chat `/ws` socket relies on protocol pings only.
-          heartbeatType: 'heartbeat',
-        ) {
+  CallSignalingService({required Uri Function() wsUrl, required this._userId})
+    : _client = WsClient(
+        wsUrl,
+        // `/ws-call` understands app-level `heartbeat` frames (replies
+        // `pong`); the chat `/ws` socket relies on protocol pings only.
+        heartbeatType: 'heartbeat',
+      ) {
     _signals = _client.events.map((msg) {
       if (msg['type'] == 'registered') {
         final servers = parseIceServers(msg['iceServers']);
         if (servers.isNotEmpty) iceServers = servers;
-        if (msg['onlineAgents'] is int) onlineAgents = msg['onlineAgents'] as int;
+        if (msg['onlineAgents'] is int)
+          onlineAgents = msg['onlineAgents'] as int;
       }
       return msg;
     }).asBroadcastStream();
@@ -111,10 +109,12 @@ class CallSignalingService {
       });
 
   /// Answer for an accepted offer.
-  bool sendAnswer(String to, Map<String, dynamic> sdp) => _client.send(
-        'call',
-        {'to': to, 'from': _userId(), 'kind': 'answer', 'sdp': sdp},
-      );
+  bool sendAnswer(String to, Map<String, dynamic> sdp) => _client.send('call', {
+    'to': to,
+    'from': _userId(),
+    'kind': 'answer',
+    'sdp': sdp,
+  });
 
   /// Trickle ICE to the peer we're negotiating with. When the socket is
   /// down and a call is live, the candidate is BUFFERED (bounded) instead
@@ -135,10 +135,8 @@ class CallSignalingService {
     return false;
   }
 
-  bool hangup(String to, [String reason = 'remote']) => _client.send(
-        'hangup',
-        {'to': to, 'from': _userId(), 'reason': reason},
-      );
+  bool hangup(String to, [String reason = 'remote']) =>
+      _client.send('hangup', {'to': to, 'from': _userId(), 'reason': reason});
 
   // ── Renegotiation (ICE restart) ──────────────────────────────────
 
@@ -219,7 +217,10 @@ final callSignalingProvider = Provider<CallSignalingService?>((ref) {
         unawaited(ref.read(apiClientProvider).refreshNow());
       }
       final t = store.cachedAccess;
-      return cfg.wsUri('/ws-call', t == null || t.isEmpty ? null : {'token': t});
+      return cfg.wsUri(
+        '/ws-call',
+        t == null || t.isEmpty ? null : {'token': t},
+      );
     },
     userId: () => ref.read(authControllerProvider).user?.id ?? '',
   );

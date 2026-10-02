@@ -51,21 +51,22 @@ export function CancelDialog() {
   // refundAmount, refCode) returned by the endpoint is captured in
   // onSuccess to populate the success step.
   /**
- * Structural shape of the cancel-booking result the dialog consumes
- * (the generated SDK models it as a union; only the success payload's
- * fields are used here).
- */
-type CancelResult = {
-  success?: boolean
-  refundPercent?: number
-  refundAmount?: number
-  refCode?: string
-  error?: string
-}
+   * Structural shape of the cancel-booking result the dialog consumes
+   * (the generated SDK models it as a union; only the success payload's
+   * fields are used here).
+   */
+  type CancelResult = {
+    success?: boolean
+    refundPercent?: number
+    refundAmount?: number
+    refCode?: string
+    error?: string
+  }
 
-const cancelMutation = useCancelBooking({
+  const cancelMutation = useCancelBooking({
     onSuccess: (data) => {
-      const d = ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
+      const d =
+        ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
       if (d?.success) {
         setRefundPercent(d.refundPercent ?? 0)
         setRefundAmount(d.refundAmount ?? 0)
@@ -135,8 +136,7 @@ const cancelMutation = useCancelBooking({
         path: { id: cancelBookingId },
         body: {
           reason: values.selectedReason,
-          otherReason:
-            values.selectedReason === 'other' ? values.otherReason : undefined,
+          otherReason: values.selectedReason === 'other' ? values.otherReason : undefined,
         },
       } as unknown as Parameters<typeof cancelMutation.mutate>[0])
     }
@@ -185,18 +185,18 @@ const cancelMutation = useCancelBooking({
           >
             <div className="min-h-50 relative overflow-hidden">
               {/* Step 1: Select reason */}
-              {step === 1 && (
-                <CancelReasonStep form={form} selectedReason={selectedReason} />
-              )}
+              {step === 1 && <CancelReasonStep form={form} selectedReason={selectedReason} />}
 
               {/* Step 2: Confirm with refund policy */}
-              {step === 2 && (
-                <CancelPolicyStep form={form} />
-              )}
+              {step === 2 && <CancelPolicyStep form={form} />}
 
               {/* Step 3: Success */}
               {step === 3 && (
-                <CancelSuccessStep refundPercent={refundPercent} refundAmount={refundAmount} refCode={refCode} />
+                <CancelSuccessStep
+                  refundPercent={refundPercent}
+                  refundAmount={refundAmount}
+                  refCode={refCode}
+                />
               )}
             </div>
 

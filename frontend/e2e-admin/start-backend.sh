@@ -6,12 +6,14 @@
 # (http://localhost:5184) — the backend's anti-scraping middleware
 # rejects mutations whose Referer/Origin is not on the list.
 set -u
-REPO="/home/z/my-project/rust-be-template"
+# Repo root = two levels up from this script (frontend/e2e-admin/) —
+# works from ANY clone, not just the original author's sandbox path.
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 LOG="/tmp/vexevn/backend.log"
 export PATH="$HOME/.cargo/bin:$PATH"
 health() { curl -s --max-time 5 -A "Mozilla/5.0" http://127.0.0.1:8080/health 2>/dev/null | grep -q '"ok"'; }
 if health; then exit 0; fi
-cd "$REPO"
+cd "$REPO" || exit 1
 # Seed a deterministic cron-jobs state (enabled, far-future next run,
 # exactly one succeeded history run) so /admin/cron-jobs has stable
 # content and no run can poison the next (toggles / edits from a

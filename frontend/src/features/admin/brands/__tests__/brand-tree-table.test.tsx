@@ -160,11 +160,7 @@ const SCHEDULES = [
  *  mouseup → click) that userEvent provides — a bare fireEvent.click
  *  never opens the popup. The item text may sit directly on the item
  *  element, so no [data-slot] descendant selector. */
-async function pickOption(
-  user: ReturnType<typeof userEvent.setup>,
-  label: string,
-  option: string,
-) {
+async function pickOption(user: ReturnType<typeof userEvent.setup>, label: string, option: string) {
   await user.click(screen.getByRole('combobox', { name: label }))
   // Base UI leaves the previous popup mounted (hidden) after it closes,
   // so a city name can match twice — the freshly opened popup is the
@@ -173,7 +169,13 @@ async function pickOption(
   await user.click(items[items.length - 1])
 }
 
-const okQuery = (data: unknown) => ({ data, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() })
+const okQuery = (data: unknown) => ({
+  data,
+  isLoading: false,
+  isError: false,
+  isFetching: false,
+  refetch: vi.fn(),
+})
 
 function setupDefaultMocks() {
   brandsMock.mockReturnValue(okQuery({ items: BRANDS }))
@@ -182,23 +184,44 @@ function setupDefaultMocks() {
   // stable reference across renders — exactly what react-query does —
   // otherwise every render looks like a data swap.
   const routeResults = new Map<string, unknown>()
-  routesMock.mockImplementation((query?: { brandId?: string; startLocationId?: string; endLocationId?: string }) => {
-    if (!query) return { data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() }
-    const key = `${query.brandId ?? ''}|${query.startLocationId ?? ''}|${query.endLocationId ?? ''}`
-    if (!routeResults.has(key)) {
-      let items = ROUTES
-      if (query.brandId) items = items.filter((r) => r.brandId === query.brandId)
-      if (query.startLocationId) items = items.filter((r) => r.startLocationId === query.startLocationId)
-      if (query.endLocationId) items = items.filter((r) => r.endLocationId === query.endLocationId)
-      routeResults.set(key, okQuery({ items, total: items.length }))
-    }
-    return routeResults.get(key)
-  })
+  routesMock.mockImplementation(
+    (query?: { brandId?: string; startLocationId?: string; endLocationId?: string }) => {
+      if (!query)
+        return {
+          data: undefined,
+          isLoading: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+        }
+      const key = `${query.brandId ?? ''}|${query.startLocationId ?? ''}|${query.endLocationId ?? ''}`
+      if (!routeResults.has(key)) {
+        let items = ROUTES
+        if (query.brandId) items = items.filter((r) => r.brandId === query.brandId)
+        if (query.startLocationId)
+          items = items.filter((r) => r.startLocationId === query.startLocationId)
+        if (query.endLocationId)
+          items = items.filter((r) => r.endLocationId === query.endLocationId)
+        routeResults.set(key, okQuery({ items, total: items.length }))
+      }
+      return routeResults.get(key)
+    },
+  )
   const scheduleResults = new Map<string, unknown>()
   schedulesMock.mockImplementation((routeId?: string) => {
-    if (!routeId) return { data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() }
+    if (!routeId)
+      return {
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        isFetching: false,
+        refetch: vi.fn(),
+      }
     if (!scheduleResults.has(routeId)) {
-      scheduleResults.set(routeId, okQuery({ items: SCHEDULES.filter((s) => s.routeId === routeId) }))
+      scheduleResults.set(
+        routeId,
+        okQuery({ items: SCHEDULES.filter((s) => s.routeId === routeId) }),
+      )
     }
     return scheduleResults.get(routeId)
   })
@@ -222,7 +245,9 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     render(<AdminBrandManagement />)
 
     // Level 2: expand the brand.
-    await user.click(screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!)
+    await user.click(
+      screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!,
+    )
     const routeRow = await screen.findByText('Sài Gòn → Nha Trang')
     expect(routeRow).toBeInTheDocument()
     expect(screen.getByText('Sài Gòn → Đà Lạt')).toBeInTheDocument()
@@ -230,7 +255,12 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     expect(screen.queryByText('Hà Nội → Hải Phòng')).not.toBeInTheDocument()
 
     // Level 3: expand the route → schedule rows.
-    await user.click(screen.getByText('Sài Gòn → Nha Trang').closest('tr')!.querySelector('button[aria-expanded]')!)
+    await user.click(
+      screen
+        .getByText('Sài Gòn → Nha Trang')
+        .closest('tr')!
+        .querySelector('button[aria-expanded]')!,
+    )
     await screen.findByText('20:00')
     expect(screen.getByText('08:30')).toBeInTheDocument()
     // Schedule row content: day chips (daily = all 7 active, label in
@@ -248,9 +278,16 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     render(<AdminBrandManagement />)
 
     // Expand down to schedules.
-    await user.click(screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!)
+    await user.click(
+      screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!,
+    )
     await screen.findByText('Sài Gòn → Nha Trang')
-    await user.click(screen.getByText('Sài Gòn → Nha Trang').closest('tr')!.querySelector('button[aria-expanded]')!)
+    await user.click(
+      screen
+        .getByText('Sài Gòn → Nha Trang')
+        .closest('tr')!
+        .querySelector('button[aria-expanded]')!,
+    )
     await screen.findByText('20:00')
 
     // Server order: 20:00 then 08:30. Sort by departure time asc.

@@ -34,10 +34,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.url,
-          decoration: const InputDecoration(hintText: 'https://api.datxevui.com'),
+          decoration: const InputDecoration(
+            hintText: 'https://api.datxevui.com',
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: const Text('Lưu'),
@@ -70,9 +75,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           for (final (mode, label) in modes)
             ListTile(
               title: Text(label),
-              trailing: mode == current
-                  ? const Icon(Icons.check)
-                  : null,
+              trailing: mode == current ? const Icon(Icons.check) : null,
               onTap: () => Navigator.pop(context, mode),
             ),
         ],
@@ -90,8 +93,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: const Text('Đăng xuất?'),
         content: const Text('Bạn sẽ không nhận được thông báo hỗ trợ nữa.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Ở lại')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Đăng xuất')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ở lại'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Đăng xuất'),
+          ),
         ],
       ),
     );
@@ -109,8 +118,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final alerts = ref.watch(alertsEnabledProvider);
     final sound = ref.watch(soundEnabledProvider);
     final vibrate = ref.watch(vibrateEnabledProvider);
-    final dutySupported =
-        ref.watch(dutyModeSupportedProvider).value ?? false;
+    final dutySupported = ref.watch(dutyModeSupportedProvider).value ?? false;
     final duty = ref.watch(dutyModeProvider);
 
     final modeLabel = switch (mode) {
@@ -180,8 +188,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         const SizedBox(height: 2),
                         Text(
                           user?.email ?? '',
-                          style: theme.typography.body.sm
-                              .copyWith(color: theme.colors.mutedForeground),
+                          style: theme.typography.body.sm.copyWith(
+                            color: theme.colors.mutedForeground,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         FBadge(
@@ -189,7 +198,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               ? FBadgeVariant.primary
                               : FBadgeVariant.secondary,
                           child: Text(
-                            user?.isAdmin == true ? 'Quản trị viên' : 'Nhân viên hỗ trợ',
+                            user?.isAdmin == true
+                                ? 'Quản trị viên'
+                                : 'Nhân viên hỗ trợ',
                           ),
                         ),
                       ],
@@ -258,8 +269,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     onChange: (v) =>
                         ref.read(vibrateEnabledProvider.notifier).set(v),
                     label: 'Rung',
-                    description:
-                        'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
+                    description: 'Rung thiết bị khi nhận tin nhắn và cuộc gọi',
                   ),
                   if (dutySupported) ...[
                     const FDivider(),
@@ -270,8 +280,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onChange: (v) =>
                           ref.read(dutyModeProvider.notifier).set(v),
                       label: 'Chế độ trực',
-                      description:
-                          'Giữ kết nối khi đóng app — điện thoại vẫn reng khi có cuộc gọi mới',
+                      description: 'Giữ kết nối khi đóng app — điện thoại vẫn reng khi có cuộc gọi mới',
                     ),
                   ],
                 ],
@@ -282,9 +291,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           FButton(
             variant: FButtonVariant.outline,
             prefix: const Icon(FLucideIcons.volume2),
-            onPress: () => unawaited(
-              ref.read(soundServiceProvider).preview(),
-            ),
+            onPress: () => unawaited(ref.read(soundServiceProvider).preview()),
             child: const Text('Nghe thử âm báo'),
           ),
           const SizedBox(height: 24),
@@ -300,8 +307,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Text(
             'đặt xe vui • v0.1.0',
             textAlign: TextAlign.center,
-            style: theme.typography.body.sm
-                .copyWith(color: theme.colors.mutedForeground),
+            style: theme.typography.body.sm.copyWith(
+              color: theme.colors.mutedForeground,
+            ),
           ),
         ],
       ),
@@ -391,8 +399,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ),
                 ),
-                Icon(FLucideIcons.chevronRight,
-                    size: 16, color: theme.colors.mutedForeground),
+                Icon(
+                  FLucideIcons.chevronRight,
+                  size: 16,
+                  color: theme.colors.mutedForeground,
+                ),
               ],
             ),
           ),

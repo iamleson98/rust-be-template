@@ -63,9 +63,7 @@ export function JsonLd({ data }: { data: JsonLdData }) {
  *     { name: 'Hà Nội → Đà Nẵng', path: '/trips/abc' },
  *   ])} />
  */
-export function buildBreadcrumb(
-  items: Array<{ name: string; path: string }>,
-): JsonLdData {
+export function buildBreadcrumb(items: Array<{ name: string; path: string }>): JsonLdData {
   const baseUrl = 'https://datxevui.vn'
   return {
     '@context': 'https://schema.org',

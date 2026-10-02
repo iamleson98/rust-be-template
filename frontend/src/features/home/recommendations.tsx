@@ -101,7 +101,9 @@ export function Recommendations() {
             <Sparkles className="h-4.5 w-4.5" />
           </div>
           <div>
-            <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recommendationsTitle')}</h2>
+            <h2 className="font-bold text-lg md:text-xl tracking-tight">
+              {t('home.recommendationsTitle')}
+            </h2>
             <p className="text-xs text-muted-foreground">{t('home.recommendationsAnalyzing')}</p>
           </div>
         </div>
@@ -116,10 +118,7 @@ export function Recommendations() {
   if (isError) {
     return (
       <section className="container mx-auto px-4 py-8">
-        <ErrorState
-          description={t('home.recommendationsError')}
-          onRetry={() => refetch()}
-        />
+        <ErrorState description={t('home.recommendationsError')} onRetry={() => refetch()} />
       </section>
     )
   }
@@ -136,7 +135,9 @@ export function Recommendations() {
                 <Sparkles className="h-4.5 w-4.5" />
               </div>
               <div>
-                <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recommendationsTitle')}</h2>
+                <h2 className="font-bold text-lg md:text-xl tracking-tight">
+                  {t('home.recommendationsTitle')}
+                </h2>
                 <p className="text-xs text-muted-foreground">
                   {user
                     ? t('home.recommendationsPersonalized', { name: user.name })
@@ -177,7 +178,9 @@ export function Recommendations() {
                     <div className="p-4 flex-1 flex flex-col gap-3">
                       {/* Reason badge */}
                       <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badgeBg} ${style.badgeText}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${style.badgeBg} ${style.badgeText}`}
+                        >
                           <ReasonIcon className="h-3 w-3" />
                           {t(REASON_LABELS[reason])}
                         </span>
@@ -191,9 +194,13 @@ export function Recommendations() {
                       <div className="flex items-center gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="font-bold text-base truncate">{rec.fromName}</div>
-                          <div className="text-[10px] text-muted-foreground">{t('search.from')}</div>
+                          <div className="text-[10px] text-muted-foreground">
+                            {t('search.from')}
+                          </div>
                         </div>
-                        <div className={`shrink-0 h-8 w-8 rounded-full bg-linear-to-br ${style.gradient} text-white flex items-center justify-center`}>
+                        <div
+                          className={`shrink-0 h-8 w-8 rounded-full bg-linear-to-br ${style.gradient} text-white flex items-center justify-center`}
+                        >
                           <ArrowRight className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1 text-right">
@@ -210,7 +217,9 @@ export function Recommendations() {
                       {/* Price + CTA */}
                       <div className="flex items-end justify-between gap-2 mt-auto pt-2">
                         <div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{t('common.fromPrice')}</div>
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                            {t('common.fromPrice')}
+                          </div>
                           <div className="text-base font-extrabold text-blue-700">
                             {formatCurrency(rec.minPrice, currency)}
                           </div>

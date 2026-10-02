@@ -34,7 +34,9 @@ function RecentlyViewedImpl() {
               <History className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h2 className="font-bold text-lg md:text-xl tracking-tight">{t('home.recentlyViewedTitle')}</h2>
+              <h2 className="font-bold text-lg md:text-xl tracking-tight">
+                {t('home.recentlyViewedTitle')}
+              </h2>
               <p className="text-xs text-muted-foreground">
                 {t('home.recentlyViewedSubtitle', { count: recentlyViewed.length })}
               </p>
@@ -68,7 +70,9 @@ function RecentlyViewedImpl() {
                   <div className="h-7 w-7 rounded-md bg-linear-to-br from-violet-500 to-fuchsia-500 text-white inline-flex items-center justify-center text-[10px] font-bold shrink-0">
                     <Bus className="h-3.5 w-3.5" />
                   </div>
-                  <div className="text-xs font-semibold text-violet-700 truncate">{rv.brandName}</div>
+                  <div className="text-xs font-semibold text-violet-700 truncate">
+                    {rv.brandName}
+                  </div>
                   <span className="ml-auto text-[10px] text-muted-foreground inline-flex items-center gap-1">
                     <Clock className="h-2.5 w-2.5" />
                     {relativeTime(new Date(rv.seenAt).toISOString())}

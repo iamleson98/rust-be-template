@@ -87,8 +87,18 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
   const mileage = (50000 + (seed % 200000)).toLocaleString('vi-VN')
 
   // Bus : derive a simple grid based on vehicle type
-  const layoutRows = detail.busLayout.vehicleType === 'sleeper' ? 6 : detail.busLayout.vehicleType === 'limousine' ? 5 : 11
-  const layoutCols = detail.busLayout.vehicleType === 'sleeper' ? 3 : detail.busLayout.vehicleType === 'limousine' ? 3 : 4
+  const layoutRows =
+    detail.busLayout.vehicleType === 'sleeper'
+      ? 6
+      : detail.busLayout.vehicleType === 'limousine'
+        ? 5
+        : 11
+  const layoutCols =
+    detail.busLayout.vehicleType === 'sleeper'
+      ? 3
+      : detail.busLayout.vehicleType === 'limousine'
+        ? 3
+        : 4
   const isSleeper = detail.busLayout.vehicleType === 'sleeper'
   const isLimousine = detail.busLayout.vehicleType === 'limousine'
 
@@ -107,12 +117,28 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
   }
 
   const specs = [
-    { icon: <CalendarDays className="h-4 w-4" />, label: t('tripDetail.specYear'), value: String(vehicleYear) },
+    {
+      icon: <CalendarDays className="h-4 w-4" />,
+      label: t('tripDetail.specYear'),
+      value: String(vehicleYear),
+    },
     { icon: <Snowflake className="h-4 w-4" />, label: t('tripDetail.specAcType'), value: acType },
     { icon: <Fuel className="h-4 w-4" />, label: t('tripDetail.specFuel'), value: fuelType },
-    { icon: <Gauge className="h-4 w-4" />, label: t('tripDetail.specMaxSpeed'), value: `${maxSpeed} km/h` },
-    { icon: <Cog className="h-4 w-4" />, label: t('tripDetail.specSeats'), value: String(detail.busLayout.capacity) },
-    { icon: <Wrench className="h-4 w-4" />, label: t('tripDetail.specMileage'), value: `${mileage} km` },
+    {
+      icon: <Gauge className="h-4 w-4" />,
+      label: t('tripDetail.specMaxSpeed'),
+      value: `${maxSpeed} km/h`,
+    },
+    {
+      icon: <Cog className="h-4 w-4" />,
+      label: t('tripDetail.specSeats'),
+      value: String(detail.busLayout.capacity),
+    },
+    {
+      icon: <Wrench className="h-4 w-4" />,
+      label: t('tripDetail.specMileage'),
+      value: `${mileage} km`,
+    },
   ]
 
   return (
@@ -130,9 +156,13 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                 <IdCard className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('trips.driver')}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  {t('trips.driver')}
+                </div>
                 <div className="font-bold truncate">{driverName}</div>
-                <div className="text-xs text-muted-foreground">{t('tripDetail.driverExperience')}</div>
+                <div className="text-xs text-muted-foreground">
+                  {t('tripDetail.driverExperience')}
+                </div>
               </div>
             </div>
             {/* Plate number */}
@@ -141,7 +171,9 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                 <Bus className="h-6 w-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('tripDetail.plateNumber')}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                  {t('tripDetail.plateNumber')}
+                </div>
                 <div className="font-bold font-mono text-base tracking-wider">{plateNumber}</div>
                 <div className="text-xs text-muted-foreground">{detail.brand.name}</div>
               </div>
@@ -160,7 +192,9 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
           {specs.map((s, i) => (
             <div key={i} className="rounded-lg border bg-white p-3">
               <div className="text-blue-700 mb-1.5">{s.icon}</div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{s.label}</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+                {s.label}
+              </div>
               <div className="font-bold text-sm">{s.value}</div>
             </div>
           ))}
@@ -168,8 +202,12 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
             <div className="text-blue-700 mb-1.5">
               {hasToilet ? <Wrench className="h-4 w-4" /> : <X className="h-4 w-4" />}
             </div>
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">{t('tripDetail.toiletLabel')}</div>
-            <div className="font-bold text-sm">{hasToilet ? t('tripDetail.toiletAtRear') : t('common.no')}</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+              {t('tripDetail.toiletLabel')}
+            </div>
+            <div className="font-bold text-sm">
+              {hasToilet ? t('tripDetail.toiletAtRear') : t('common.no')}
+            </div>
           </div>
         </div>
       </div>
@@ -185,10 +223,15 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
             {/* Driver row */}
             <div className="flex items-center justify-between mb-3 pb-2 border-b-2 border-dashed border-slate-300">
               <div className="flex items-center gap-2">
-                <div className="h-10 w-10 rounded-full bg-slate-700 text-white inline-flex items-center justify-center" title={t('tripDetail.driverSeat')}>
+                <div
+                  className="h-10 w-10 rounded-full bg-slate-700 text-white inline-flex items-center justify-center"
+                  title={t('tripDetail.driverSeat')}
+                >
                   <IdCard className="h-5 w-5" />
                 </div>
-                <div className="text-[10px] text-muted-foreground uppercase font-semibold">{t('trips.driver')}</div>
+                <div className="text-[10px] text-muted-foreground uppercase font-semibold">
+                  {t('trips.driver')}
+                </div>
               </div>
               <div className="text-[10px] text-muted-foreground">{t('tripDetail.frontLabel')}</div>
             </div>
@@ -200,14 +243,20 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
                   <div className="flex gap-1.5">
                     {/* Left side seats */}
                     <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />
-                    {layoutCols >= 3 && <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />}
+                    {layoutCols >= 3 && (
+                      <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />
+                    )}
                   </div>
                   {/* Aisle */}
                   <div className="w-3 text-center text-[10px] text-slate-300">·</div>
                   <div className="flex gap-1.5">
                     {/* Right side seats */}
-                    {layoutCols >= 3 && <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />}
-                    {layoutCols >= 4 && <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />}
+                    {layoutCols >= 3 && (
+                      <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />
+                    )}
+                    {layoutCols >= 4 && (
+                      <SeatShape isSleeper={isSleeper} isLimousine={isLimousine} />
+                    )}
                   </div>
                 </div>
               ))}
@@ -251,10 +300,7 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {detail.amenities.map((a) => (
-              <div
-                key={a.key}
-                className="flex items-start gap-2.5 rounded-lg border bg-white p-3"
-              >
+              <div key={a.key} className="flex items-start gap-2.5 rounded-lg border bg-white p-3">
                 <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-800 inline-flex items-center justify-center shrink-0">
                   {amenityIcon[a.key] ?? <CheckCircle2 className="h-4 w-4" />}
                 </div>
@@ -269,7 +315,6 @@ export function BusInfoTab({ detail }: { detail: TripDetail }) {
           </div>
         </div>
       )}
-
     </div>
   )
 }

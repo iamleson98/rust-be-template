@@ -4,15 +4,7 @@
 
 import { Button } from '@/components/ui/button'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  Eye,
-  Loader2,
-  Ban,
-  MessageSquare,
-  Star,
-  QrCode,
-  Search,
-} from 'lucide-react'
+import { Eye, Loader2, Ban, MessageSquare, Star, QrCode, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 
 /* ─── Action row ─────────────────────────────────────

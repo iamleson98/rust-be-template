@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import * as React from "react"
-import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
-import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
-import { useT } from "@/lib/i18n"
-import { cn } from "@/lib/utils"
+import * as React from 'react'
+import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
+import { CheckIcon, ChevronDownIcon, SearchIcon } from 'lucide-react'
+import { useT } from '@/lib/i18n'
+import { cn } from '@/lib/utils'
 
 /**
  * Combobox — searchable dropdown built on Base UI's Combobox primitive.
@@ -68,11 +68,11 @@ function ComboboxTrigger({
     <ComboboxPrimitive.Trigger
       data-slot="combobox-trigger"
       className={cn(
-        "border-input data-placeholder:text-muted-foreground",
+        'border-input data-placeholder:text-muted-foreground',
         "[&_svg:not([class*='text-'])]:text-muted-foreground",
-        "focus-visible:border-ring focus-visible:ring-ring/50",
-        "flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50",
-        "h-9",
+        'focus-visible:border-ring focus-visible:ring-ring/50',
+        'flex w-full items-center justify-between gap-2 rounded-md border bg-transparent px-3 py-2 text-sm whitespace-nowrap  transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50',
+        'h-9',
         className,
       )}
       {...props}
@@ -93,7 +93,7 @@ function ComboboxInput({
     <ComboboxPrimitive.Input
       data-slot="combobox-input"
       className={cn(
-        "border-input placeholder:text-muted-foreground h-9 w-full cursor-text border-b bg-transparent px-3 py-2 text-sm outline-none",
+        'border-input placeholder:text-muted-foreground h-9 w-full cursor-text border-b bg-transparent px-3 py-2 text-sm outline-none',
         className,
       )}
       {...props}
@@ -103,15 +103,15 @@ function ComboboxInput({
 
 function ComboboxContent({
   className,
-  side = "bottom",
+  side = 'bottom',
   sideOffset = 4,
-  align = "start",
+  align = 'start',
   alignOffset = 0,
   ...props
 }: React.ComponentProps<typeof ComboboxPrimitive.Popup> &
   Pick<
     React.ComponentProps<typeof ComboboxPrimitive.Positioner>,
-    "side" | "align" | "sideOffset" | "alignOffset"
+    'side' | 'align' | 'sideOffset' | 'alignOffset'
   >) {
   return (
     <ComboboxPrimitive.Portal>
@@ -125,10 +125,10 @@ function ComboboxContent({
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "bg-popover text-popover-foreground",
-            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-hidden rounded-md border ",
-            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-            "data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            'bg-popover text-popover-foreground',
+            'relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-hidden rounded-md border ',
+            'data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95',
+            'data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
             className,
           )}
           {...props}
@@ -145,7 +145,7 @@ function ComboboxList({
   return (
     <ComboboxPrimitive.List
       data-slot="combobox-list"
-      className={cn("max-h-72 overflow-y-auto overscroll-contain p-1", className)}
+      className={cn('max-h-72 overflow-y-auto overscroll-contain p-1', className)}
       {...props}
     />
   )
@@ -160,11 +160,11 @@ function ComboboxItem({
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       className={cn(
-        "focus:bg-accent focus:text-accent-foreground",
-        "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
-        "hover:bg-accent hover:text-accent-foreground",
-        "transition-colors duration-150",
-        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50",
+        'focus:bg-accent focus:text-accent-foreground',
+        'data-highlighted:bg-accent data-highlighted:text-accent-foreground',
+        'hover:bg-accent hover:text-accent-foreground',
+        'transition-colors duration-150',
+        'relative flex w-full cursor-pointer items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50',
         className,
       )}
       {...props}
@@ -188,7 +188,7 @@ function ComboboxEmpty({
   return (
     <ComboboxPrimitive.Empty
       data-slot="combobox-empty"
-      className={cn("py-2 text-center text-sm text-muted-foreground", className)}
+      className={cn('py-2 text-center text-sm text-muted-foreground', className)}
       {...props}
     />
   )
@@ -271,15 +271,14 @@ type ComboboxFieldProps = {
   /** Extra classes for the popup content. */
   contentClassName?: string
   /** Optional aria-label for the trigger. */
-  "aria-label"?: string
+  'aria-label'?: string
   /** Test id forwarded to the trigger. */
-  "data-testid"?: string
+  'data-testid'?: string
 }
 
 const isGrouped = (
   items: ComboboxFieldItem[] | ComboboxFieldGroup[],
-): items is ComboboxFieldGroup[] =>
-  items.length > 0 && "items" in (items[0] as ComboboxFieldGroup)
+): items is ComboboxFieldGroup[] => items.length > 0 && 'items' in (items[0] as ComboboxFieldGroup)
 
 export function ComboboxField({
   value,
@@ -291,73 +290,59 @@ export function ComboboxField({
   disabled,
   className,
   contentClassName,
-  "aria-label": ariaLabel,
-  "data-testid": testId,
+  'aria-label': ariaLabel,
+  'data-testid': testId,
 }: ComboboxFieldProps) {
   const t = useT()
   const groups = isGrouped(items) ? items : null
   const flat = groups ? null : (items as ComboboxFieldItem[])
   // Track the live query so empty groups can be unmounted (Base UI
   // hides filtered-out items but leaves group labels in the DOM).
-  const [query, setQuery] = React.useState("")
+  const [query, setQuery] = React.useState('')
   const needle = query.trim().toLowerCase()
 
   const groupMatches = (group: ComboboxFieldGroup) =>
-    !needle ||
-    group.items.some(
-      (item) => item.label.toLowerCase().includes(needle),
-    )
+    !needle || group.items.some((item) => item.label.toLowerCase().includes(needle))
 
   return (
     <Combobox
       value={value ?? null}
       onValueChange={(v) => {
         // Single-select combobox: the value is the item's value or null.
-        onValueChange((v as string | null) ?? "")
+        onValueChange((v as string | null) ?? '')
       }}
-      onInputValueChange={(input) => setQuery(input ?? "")}
+      onInputValueChange={(input) => setQuery(input ?? '')}
       // The items collection powers label filtering, the empty state
       // and trigger label resolution. Base UI accepts flat
       // {value,label} arrays or grouped {label, items} collections.
       items={items as unknown as readonly Record<string, unknown>[]}
       disabled={disabled}
     >
-      <ComboboxTrigger
-        className={className}
-        aria-label={ariaLabel}
-        data-testid={testId}
-      >
-        <ComboboxValue placeholder={placeholder ?? t("combobox.choose")} />
+      <ComboboxTrigger className={className} aria-label={ariaLabel} data-testid={testId}>
+        <ComboboxValue placeholder={placeholder ?? t('combobox.choose')} />
       </ComboboxTrigger>
       <ComboboxContent className={contentClassName}>
         <div className="relative">
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <ComboboxInput
-            placeholder={searchPlaceholder ?? t("combobox.search")}
+            placeholder={searchPlaceholder ?? t('combobox.search')}
             className="h-8 border-b pl-8 text-sm"
           />
         </div>
         <ComboboxList>
           {groups
-            ? groups
-                .filter(groupMatches)
-                .map((group) => (
-                  <ComboboxPrimitive.Group
-                    key={group.label}
-                    className="combobox-field-group"
-                  >
-                    <ComboboxPrimitive.GroupLabel className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {group.label}
-                    </ComboboxPrimitive.GroupLabel>
-                    {group.items.map((item) => (
-                      <ComboboxFieldItemRow key={item.value} item={item} />
-                    ))}
-                  </ComboboxPrimitive.Group>
-                ))
-            : flat?.map((item) => (
-                <ComboboxFieldItemRow key={item.value} item={item} />
-              ))}
-          <ComboboxEmpty>{emptyText ?? t("combobox.noMatch")}</ComboboxEmpty>
+            ? groups.filter(groupMatches).map((group) => (
+                <ComboboxPrimitive.Group key={group.label} className="combobox-field-group">
+                  <ComboboxPrimitive.GroupLabel className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {group.label}
+                  </ComboboxPrimitive.GroupLabel>
+                  {group.items.map((item) => (
+                    <ComboboxFieldItemRow key={item.value} item={item} />
+                  ))}
+                </ComboboxPrimitive.Group>
+              ))
+            : flat?.map((item) => <ComboboxFieldItemRow key={item.value} item={item} />)}
+          <ComboboxEmpty>{emptyText ?? t('combobox.noMatch')}</ComboboxEmpty>
         </ComboboxList>
       </ComboboxContent>
     </Combobox>

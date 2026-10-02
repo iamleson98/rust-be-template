@@ -56,7 +56,11 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
                     <span className="text-muted-foreground/60">•</span>
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {formatDateVN(r.createdAt, { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      {formatDateVN(r.createdAt, {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })}
                     </span>
                   </div>
                 </div>
@@ -65,10 +69,11 @@ export const ReviewCard = memo(function ReviewCard({ r }: { r: ReviewItem }) {
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
-                    className={`h-4 w-4 ${s <= r.rating
-                      ? 'fill-amber-400 text-amber-400'
-                      : 'fill-slate-100 text-slate-200'
-                      }`}
+                    className={`h-4 w-4 ${
+                      s <= r.rating
+                        ? 'fill-amber-400 text-amber-400'
+                        : 'fill-slate-100 text-slate-200'
+                    }`}
                   />
                 ))}
                 <span className="ml-1.5 text-xs font-bold text-amber-600">{r.rating}.0</span>

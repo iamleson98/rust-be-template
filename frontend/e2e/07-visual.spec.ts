@@ -25,15 +25,11 @@ test.describe('Theming', () => {
     const root = page.locator('.min-h-screen')
     await expect(root).toBeVisible()
 
-    const lightBg = await root.evaluate(
-      (el) => getComputedStyle(el).backgroundColor,
-    )
+    const lightBg = await root.evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(lightBg).toBeTruthy()
 
     await toggleDarkMode(page)
-    const darkBg = await root.evaluate(
-      (el) => getComputedStyle(el).backgroundColor,
-    )
+    const darkBg = await root.evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(darkBg).toBeTruthy()
     expect(darkBg).not.toBe(lightBg)
 
@@ -43,21 +39,15 @@ test.describe('Theming', () => {
     // Toggle back — colors restore
     await page.getByTestId('theme-toggle').click()
     await expect(page.locator('html')).not.toHaveClass(/dark/)
-    const backBg = await root.evaluate(
-      (el) => getComputedStyle(el).backgroundColor,
-    )
+    const backBg = await root.evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(backBg).toBe(lightBg)
   })
 
   test('dark mode restyles a primary button (variant colors change)', async ({ page }) => {
     const btn = page.getByTestId('btn-default')
-    const lightColor = await btn.evaluate(
-      (el) => getComputedStyle(el).backgroundColor,
-    )
+    const lightColor = await btn.evaluate((el) => getComputedStyle(el).backgroundColor)
     await toggleDarkMode(page)
-    const darkColor = await btn.evaluate(
-      (el) => getComputedStyle(el).backgroundColor,
-    )
+    const darkColor = await btn.evaluate((el) => getComputedStyle(el).backgroundColor)
     expect(darkColor).not.toBe(lightColor)
   })
 })

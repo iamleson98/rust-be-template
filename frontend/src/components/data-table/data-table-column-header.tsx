@@ -20,8 +20,10 @@ import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 import type { DataTableFeatures } from './data-table-features'
 
-interface DataTableColumnHeaderProps<TData extends RowData, TValue>
-  extends React.HTMLAttributes<HTMLDivElement> {
+interface DataTableColumnHeaderProps<
+  TData extends RowData,
+  TValue,
+> extends React.HTMLAttributes<HTMLDivElement> {
   column: Column<DataTableFeatures, TData, TValue>
   title: string
 }

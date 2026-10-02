@@ -21,7 +21,7 @@
 //!   reads are two small file opens — microseconds). Deny → the handler
 //!   rejects the upgrade with 503 and the client's reconnect backoff kicks in,
 //!   while EXISTING connections keep working (degradation, not collapse).
-//! * [`snapshot`] — the same numbers, exposed on the admin `/api/admin/system`
+//! * `snapshot` — the same numbers, exposed on the admin `/api/admin/system`
 //!   stats endpoint so operators can see the live headroom.
 //!
 //! ## What each resource actually governs

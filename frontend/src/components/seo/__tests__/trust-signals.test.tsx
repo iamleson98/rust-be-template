@@ -74,11 +74,7 @@ describe('InfoBanner', () => {
   })
 
   it('renders without title', () => {
-    render(
-      <InfoBanner icon={Info}>
-        No title content
-      </InfoBanner>,
-    )
+    render(<InfoBanner icon={Info}>No title content</InfoBanner>)
     expect(screen.getByText('No title content')).toBeInTheDocument()
   })
 

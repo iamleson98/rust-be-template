@@ -15,12 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ComboboxField } from '@/components/ui/combobox'
-import {
-  FormField,
-  FormControl,
-  FormItem,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormControl, FormItem, FormMessage } from '@/components/ui/form'
 import { SEAT_CLASS_LABELS } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
@@ -64,7 +59,9 @@ export function PassengerFormCard({
       {/* Card header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <div className={`h-7 w-7 rounded-full ${typeMeta.pill} inline-flex items-center justify-center text-xs font-bold shrink-0`}>
+          <div
+            className={`h-7 w-7 rounded-full ${typeMeta.pill} inline-flex items-center justify-center text-xs font-bold shrink-0`}
+          >
             {i + 1}
           </div>
           <span className="text-xs font-medium text-slate-700 shrink-0 hidden sm:inline">
@@ -73,7 +70,9 @@ export function PassengerFormCard({
           <Badge className={`${typeMeta.pill} border-0 text-[10px] gap-1 shrink-0`}>
             {typeMeta.icon}
             {t(typeMeta.label)}
-            {getPassengerType(passenger.age) === 'infant' && <span className="opacity-70">{t('bookingFlow.infantFree')}</span>}
+            {getPassengerType(passenger.age) === 'infant' && (
+              <span className="opacity-70">{t('bookingFlow.infantFree')}</span>
+            )}
           </Badge>
         </div>
         {passengerFields.length > 1 && (
@@ -175,7 +174,9 @@ export function PassengerFormCard({
                     return {
                       value: s.id,
                       label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)} • ${formatCurrency(s.price, currency)}${
-                        assignedTo ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}` : ''
+                        assignedTo
+                          ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}`
+                          : ''
                       }`,
                       disabled: !!assignedTo,
                     }

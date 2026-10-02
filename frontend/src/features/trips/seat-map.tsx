@@ -81,7 +81,9 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
             {decks.length > 1 && (
               <div className="bg-slate-100 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-slate-600 flex items-center justify-between">
                 <span>{d.deck === 1 ? t('trips.deckLower') : t('trips.deckUpper')}</span>
-                <span className="text-muted-foreground">{t('trips.deckLabel', { deck: d.deck })}</span>
+                <span className="text-muted-foreground">
+                  {t('trips.deckLabel', { deck: d.deck })}
+                </span>
               </div>
             )}
             <div className="p-3 sm:p-5 bg-linear-to-b from-slate-50 to-white">
@@ -97,7 +99,9 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
                 {d.rows.map((r) => (
                   <div key={r.row} className="flex items-center justify-center gap-1.5">
                     {/* Row number */}
-                    <div className="w-5 text-[10px] text-slate-400 text-right shrink-0">{r.row}</div>
+                    <div className="w-5 text-[10px] text-slate-400 text-right shrink-0">
+                      {r.row}
+                    </div>
                     {r.seats.map((seat, i) => {
                       // Stagger delay: 40ms per seat, capped at 600ms
                       const stagger = seat ? Math.min(seatCounter++ * 40, 600) : 0
@@ -110,12 +114,15 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
                           selected={selectedSeatIds.includes(seat.id)}
                           disabled={
                             seat.status !== 'available' ||
-                            (selectedSeatIds.length >= maxSeats && !selectedSeatIds.includes(seat.id))
+                            (selectedSeatIds.length >= maxSeats &&
+                              !selectedSeatIds.includes(seat.id))
                           }
                           onClick={() => onToggleSeat(seat.id)}
                           staggerDelay={stagger}
                           priceDiff={
-                            cheapestAvailable !== null && seat.status === 'available' && seat.finalPrice > cheapestAvailable
+                            cheapestAvailable !== null &&
+                            seat.status === 'available' &&
+                            seat.finalPrice > cheapestAvailable
                               ? seat.finalPrice - cheapestAvailable
                               : 0
                           }
@@ -133,10 +140,19 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
 
       {/* Legend — status chips + per-class color dots, all in one wrap row */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-slate-50 border border-slate-200 px-3 py-2.5 text-xs">
-        <LegendItem className="bg-white border-2 border-slate-300" label={t('trips.legendAvailable')} />
-        <LegendItem className="bg-primary text-primary-foreground" label={t('trips.legendSelected')} />
+        <LegendItem
+          className="bg-white border-2 border-slate-300"
+          label={t('trips.legendAvailable')}
+        />
+        <LegendItem
+          className="bg-primary text-primary-foreground"
+          label={t('trips.legendSelected')}
+        />
         <LegendItem className="bg-slate-300 text-slate-500" label={t('trips.legendBooked')} />
-        <LegendItem className="bg-warning/30 border border-warning/50" label={t('trips.legendHeld')} />
+        <LegendItem
+          className="bg-warning/30 border border-warning/50"
+          label={t('trips.legendHeld')}
+        />
         <div className="w-px h-4 bg-slate-300 mx-0.5" aria-hidden />
         {Object.entries(SEAT_CLASS_COLORS).map(([cls, color]) => (
           <div key={cls} className="flex items-center gap-1.5">
@@ -148,7 +164,8 @@ export function SeatMap({ decks, selectedSeatIds, onToggleSeat, maxSeats }: Prop
           <>
             <div className="w-px h-4 bg-slate-300 mx-0.5" aria-hidden />
             <span className="text-muted-foreground">
-              {t('trips.legendBasePrice')}: <span className="font-semibold text-slate-700">{formatVND(cheapestAvailable)}</span>
+              {t('trips.legendBasePrice')}:{' '}
+              <span className="font-semibold text-slate-700">{formatVND(cheapestAvailable)}</span>
             </span>
           </>
         )}
@@ -207,7 +224,7 @@ function SeatButton({
             ? 'bg-white text-slate-700 hover:border-primary/50 hover:-translate-y-0.5'
             : status === 'locked'
               ? 'bg-warning/20 text-warning-foreground border-warning/40 cursor-not-allowed'
-              : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed line-through'
+              : 'bg-slate-200 text-slate-400 border-slate-300 cursor-not-allowed line-through',
       )}
       style={{
         animationDelay: `${staggerDelay}ms`,

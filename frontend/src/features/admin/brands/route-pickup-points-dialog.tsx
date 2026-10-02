@@ -33,11 +33,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  useAdminPickupPoints,
-  useDeleteAdminPickupPoint,
-  usePlacesList,
-} from '@/lib/queries'
+import { useAdminPickupPoints, useDeleteAdminPickupPoint, usePlacesList } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import type { AdminPickupPointOut, AdminRouteOut } from '@/lib/api/types.gen'
 import { PICKUP_TYPE_LABELS } from '@/features/admin/types'
@@ -93,7 +89,9 @@ export function RoutePickupPointsDialog({
               {t('adminBrands.pickupPointsTitle')}
             </DialogTitle>
             <DialogDescription className="truncate">
-              {route ? `${route.name} · ${route.startLocation?.name ?? ''} → ${route.endLocation?.name ?? ''}` : ''}
+              {route
+                ? `${route.name} · ${route.startLocation?.name ?? ''} → ${route.endLocation?.name ?? ''}`
+                : ''}
             </DialogDescription>
           </DialogHeader>
 
@@ -112,7 +110,8 @@ export function RoutePickupPointsDialog({
 
           {pickupQuery.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-blue-600" /> {t('adminBrands.loadingPickupPoints')}
+              <Loader2 className="h-4 w-4 animate-spin text-blue-600" />{' '}
+              {t('adminBrands.loadingPickupPoints')}
             </div>
           ) : pickupPoints.length === 0 ? (
             <div className="rounded-md border border-dashed py-8 text-center text-xs text-muted-foreground">
@@ -148,7 +147,9 @@ export function RoutePickupPointsDialog({
                       </Badge>
                     </div>
                     {p.address && (
-                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{p.address}</div>
+                      <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        {p.address}
+                      </div>
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-0.5">

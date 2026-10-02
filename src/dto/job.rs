@@ -1,4 +1,4 @@
-/// Status values used by [`Model::status`].
+/// Status values used by `Model::status`.
 pub mod status {
     /// Enqueued, not yet picked up by a worker.
     pub const QUEUED: &str = "queued";

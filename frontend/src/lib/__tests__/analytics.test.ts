@@ -15,20 +15,24 @@ import {
 describe('analytics', () => {
   beforeEach(() => {
     // Reset window.gtag between tests
-    ;window.gtag = undefined
+    window.gtag = undefined
   })
 
   describe('trackPageView', () => {
     it('calls window.gtag with page_view event', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackPageView('/search', 'Tìm chuyến xe')
 
-      expect(gtag).toHaveBeenCalledWith('event', 'page_view', expect.objectContaining({
-        page_path: '/search',
-        page_title: 'Tìm chuyến xe',
-      }))
+      expect(gtag).toHaveBeenCalledWith(
+        'event',
+        'page_view',
+        expect.objectContaining({
+          page_path: '/search',
+          page_title: 'Tìm chuyến xe',
+        }),
+      )
     })
 
     it('is a no-op when gtag is not available', () => {
@@ -39,7 +43,7 @@ describe('analytics', () => {
   describe('trackEvent', () => {
     it('calls window.gtag with custom event', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackEvent('custom_event', { param1: 'value1' })
 
@@ -54,7 +58,7 @@ describe('analytics', () => {
   describe('trackSearch', () => {
     it('fires a search event with trip params', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackSearch({
         from: 'Hà Nội',
@@ -64,18 +68,22 @@ describe('analytics', () => {
         children: 0,
       })
 
-      expect(gtag).toHaveBeenCalledWith('event', 'search', expect.objectContaining({
-        from: 'Hà Nội',
-        to: 'Đà Nẵng',
-        adults: 1,
-      }))
+      expect(gtag).toHaveBeenCalledWith(
+        'event',
+        'search',
+        expect.objectContaining({
+          from: 'Hà Nội',
+          to: 'Đà Nẵng',
+          adults: 1,
+        }),
+      )
     })
   })
 
   describe('trackViewItem', () => {
     it('fires a view_item event with item data', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackViewItem({
         itemId: 'trip-123',
@@ -85,17 +93,21 @@ describe('analytics', () => {
         brand: 'Phương Trang',
       })
 
-      expect(gtag).toHaveBeenCalledWith('event', 'view_item', expect.objectContaining({
-        currency: 'VND',
-        value: 350000,
-      }))
+      expect(gtag).toHaveBeenCalledWith(
+        'event',
+        'view_item',
+        expect.objectContaining({
+          currency: 'VND',
+          value: 350000,
+        }),
+      )
     })
   })
 
   describe('trackBeginCheckout', () => {
     it('fires a begin_checkout event', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackBeginCheckout({
         itemId: 'trip-123',
@@ -104,17 +116,21 @@ describe('analytics', () => {
         seatCount: 2,
       })
 
-      expect(gtag).toHaveBeenCalledWith('event', 'begin_checkout', expect.objectContaining({
-        currency: 'VND',
-        value: 350000,
-      }))
+      expect(gtag).toHaveBeenCalledWith(
+        'event',
+        'begin_checkout',
+        expect.objectContaining({
+          currency: 'VND',
+          value: 350000,
+        }),
+      )
     })
   })
 
   describe('trackPurchase', () => {
     it('fires a purchase event with transaction ID', () => {
       const gtag = vi.fn()
-      ;window.gtag = gtag
+      window.gtag = gtag
 
       trackPurchase({
         transactionId: 'VX123456',
@@ -125,11 +141,15 @@ describe('analytics', () => {
         paymentMethod: 'momo',
       })
 
-      expect(gtag).toHaveBeenCalledWith('event', 'purchase', expect.objectContaining({
-        transaction_id: 'VX123456',
-        value: 350000,
-        payment_type: 'momo',
-      }))
+      expect(gtag).toHaveBeenCalledWith(
+        'event',
+        'purchase',
+        expect.objectContaining({
+          transaction_id: 'VX123456',
+          value: 350000,
+          payment_type: 'momo',
+        }),
+      )
     })
   })
 

@@ -85,8 +85,8 @@ class _DatXeVuiAppState extends ConsumerState<DatXeVuiApp>
       // Above MaterialApp there is no MediaQuery yet — ask the platform
       // dispatcher directly.
       ThemeMode.system =>
-          WidgetsBinding.instance.platformDispatcher.platformBrightness ==
-              Brightness.dark,
+        WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+            Brightness.dark,
     };
     final fTheme = vexevnTheme(dark: dark);
 

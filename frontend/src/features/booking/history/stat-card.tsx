@@ -18,13 +18,21 @@ export type StatProps = {
   subtitle: string
 }
 
-export const StatCard = memo(function StatCard({ icon, label, value, accent, subtitle }: StatProps) {
+export const StatCard = memo(function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+  subtitle,
+}: StatProps) {
   return (
     <Card className="ring-1 ring-black/5 overflow-hidden">
       <CardContent className="p-0">
         <div className={`h-1 bg-linear-to-r ${accent}`} />
         <div className="p-4 md:p-5 flex items-center gap-3.5">
-          <div className={`h-11 w-11 rounded-xl bg-linear-to-br ${accent} text-white inline-flex items-center justify-center shrink-0`}>
+          <div
+            className={`h-11 w-11 rounded-xl bg-linear-to-br ${accent} text-white inline-flex items-center justify-center shrink-0`}
+          >
             {icon}
           </div>
           <div className="min-w-0">

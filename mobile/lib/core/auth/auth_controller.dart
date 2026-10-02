@@ -15,8 +15,7 @@ import 'token_store.dart';
 /// identity for the whole process lifetime.
 final globalTokenStore = TokenStore();
 
-final tokenStoreProvider =
-    Provider<TokenStore>((ref) => globalTokenStore);
+final tokenStoreProvider = Provider<TokenStore>((ref) => globalTokenStore);
 
 /// The API client. Rebuilt when the configured server URL changes.
 final apiClientProvider = Provider<ApiClient>((ref) {
@@ -138,5 +137,6 @@ class AuthController extends Notifier<AuthState> {
   }
 }
 
-final authControllerProvider =
-    NotifierProvider<AuthController, AuthState>(AuthController.new);
+final authControllerProvider = NotifierProvider<AuthController, AuthState>(
+  AuthController.new,
+);

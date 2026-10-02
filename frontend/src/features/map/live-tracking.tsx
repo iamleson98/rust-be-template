@@ -88,13 +88,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
   }, [])
 
   // Compute status + progress + derived values based on departure/arrival time
-  const {
-    status,
-    progress,
-    elapsedMin,
-    etaSeconds,
-    currentLocationName,
-  } = useMemo(() => {
+  const { status, progress, elapsedMin, etaSeconds, currentLocationName } = useMemo(() => {
     // Arrival is currently always null in the API (no route-level
     // duration), so simulate an ETA: last pickup's offset (+30 min
     // buffer), else a 4h default — keeps the tracker meaningful.
@@ -104,14 +98,9 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       (max, pt) => Math.max(max, pt.etaOffsetMin ?? 0),
       0,
     )
-    const fallbackDurationMs =
-      (lastOffset > 0 ? lastOffset + 30 : 240) * 60_000
-    const arrTsRaw = detail.trip.arrivalAt
-      ? new Date(detail.trip.arrivalAt).getTime()
-      : NaN
-    const arrTs = Number.isNaN(arrTsRaw)
-      ? depTs + fallbackDurationMs
-      : arrTsRaw
+    const fallbackDurationMs = (lastOffset > 0 ? lastOffset + 30 : 240) * 60_000
+    const arrTsRaw = detail.trip.arrivalAt ? new Date(detail.trip.arrivalAt).getTime() : NaN
+    const arrTs = Number.isNaN(arrTsRaw) ? depTs + fallbackDurationMs : arrTsRaw
     const nowTs = now
 
     let s: TrackingStatus
@@ -127,8 +116,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
       const stopInterval = 120
       const stopDuration = 10
       const phaseInCycle = elapsed % stopInterval
-      const isStopped =
-        phaseInCycle < stopDuration && p > 0.05 && p < 0.92
+      const isStopped = phaseInCycle < stopDuration && p > 0.05 && p < 0.92
       if (p >= 0.92) s = 'arriving_soon'
       else if (isStopped) s = 'stopped'
       else s = 'running'
@@ -147,12 +135,8 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
     } else if (s === 'not_departed') {
       locName = detail.from.name
     } else {
-      const passedStops = detail.pickupPoints.filter(
-        (pt) => (pt.etaOffsetMin ?? 0) <= elapsedM
-      )
-      const nextStop = detail.pickupPoints.find(
-        (pt) => (pt.etaOffsetMin ?? 0) > elapsedM
-      )
+      const passedStops = detail.pickupPoints.filter((pt) => (pt.etaOffsetMin ?? 0) <= elapsedM)
+      const nextStop = detail.pickupPoints.find((pt) => (pt.etaOffsetMin ?? 0) > elapsedM)
       if (passedStops.length > 0 && nextStop) {
         locName = `${passedStops[passedStops.length - 1].name} → ${nextStop.name}`
       } else if (nextStop) {
@@ -238,9 +222,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
             </div>
             <div key={status}>
               <Badge className={`${statusMeta.bg} ${statusMeta.color} border-0 gap-1.5`}>
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`}
-                />
+                <span className={`h-1.5 w-1.5 rounded-full ${statusMeta.dot}`} />
                 {t(statusMeta.label)}
               </Badge>
             </div>
@@ -289,9 +271,7 @@ export function LiveTracking({ detail }: { detail: TripDetail }) {
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {t('liveTracking.tripProgress')}
           </div>
-          <div className="text-sm font-bold text-blue-700">
-            {Math.round(progress * 100)}%
-          </div>
+          <div className="text-sm font-bold text-blue-700">{Math.round(progress * 100)}%</div>
         </div>
         <Progress
           value={progress * 100}

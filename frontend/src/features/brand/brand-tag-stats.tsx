@@ -32,7 +32,13 @@ const TAG_ICONS: Record<string, LucideIcon> = {
 }
 
 // ── Tag aggregate stats section (brand-wide, shown in reviews tab) ──
-export function BrandTagStats({ tagStats, accentColor }: { tagStats: TagStat[]; accentColor: string }) {
+export function BrandTagStats({
+  tagStats,
+  accentColor,
+}: {
+  tagStats: TagStat[]
+  accentColor: string
+}) {
   const t = useT()
   return (
     <div className="rounded-xl bg-linear-to-br from-blue-50 to-blue-50 ring-1 ring-blue-200/50 p-4">
@@ -57,7 +63,9 @@ export function BrandTagStats({ tagStats, accentColor }: { tagStats: TagStat[]; 
                 </div>
                 <div className="min-w-0">
                   <div className="text-xs font-semibold truncate text-slate-700">{stat.label}</div>
-                  <div className="text-[10px] text-muted-foreground">{t('reviews.mentionCount', { count: stat.count })}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t('reviews.mentionCount', { count: stat.count })}
+                  </div>
                 </div>
               </div>
               <div className="flex-1 h-2.5 bg-white/70 rounded-full overflow-hidden ring-1 ring-blue-100">

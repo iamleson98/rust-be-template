@@ -58,10 +58,13 @@ export function FeedbackFilterToolbar({
             {t(s.labelKey)}
             {s.value !== 'all' && activeSummary && (
               <span className="ml-1 text-[10px] text-muted-foreground">
-                {(s.value === 'pending' ? activeSummary.pending
-                  : s.value === 'approved' ? activeSummary.approved
-                  : s.value === 'rejected' ? activeSummary.rejected
-                  : activeSummary.hidden)}
+                {s.value === 'pending'
+                  ? activeSummary.pending
+                  : s.value === 'approved'
+                    ? activeSummary.approved
+                    : s.value === 'rejected'
+                      ? activeSummary.rejected
+                      : activeSummary.hidden}
               </span>
             )}
           </button>
@@ -77,7 +80,12 @@ export function FeedbackFilterToolbar({
         />
       </div>
       {brandId && (
-        <Button variant="ghost" size="sm" onClick={() => setBrandId(null)} className="text-xs text-rose-600">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setBrandId(null)}
+          className="text-xs text-rose-600"
+        >
           {t('adminFeedback.clearBrandFilter')}
         </Button>
       )}

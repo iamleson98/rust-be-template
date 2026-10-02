@@ -54,7 +54,8 @@ function report(metric: WebVitalMetric): void {
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
     connection:
       typeof navigator !== 'undefined' && 'connection' in navigator
-        ? ((navigator as Navigator & { connection?: { effectiveType?: string } }).connection?.effectiveType ?? '')
+        ? ((navigator as Navigator & { connection?: { effectiveType?: string } }).connection
+            ?.effectiveType ?? '')
         : '',
     deviceMemory:
       typeof navigator !== 'undefined' && 'deviceMemory' in navigator

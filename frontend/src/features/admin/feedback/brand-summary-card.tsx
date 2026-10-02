@@ -9,14 +9,7 @@
  */
 
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  CheckCircle2,
-  Clock,
-  EyeOff,
-  LayoutGrid,
-  Star,
-  XCircle,
-} from 'lucide-react'
+import { CheckCircle2, Clock, EyeOff, LayoutGrid, Star, XCircle } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
 
@@ -31,16 +24,18 @@ function BrandSummaryCard({
 }) {
   const t = useT()
   const accent = summary.brandAccent || '#2563eb'
-  const totalNonZero = Math.max(1, summary.pending + summary.approved + summary.rejected + summary.hidden)
+  const totalNonZero = Math.max(
+    1,
+    summary.pending + summary.approved + summary.rejected + summary.hidden,
+  )
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`text-left rounded-xl border bg-card p-4 min-w-60 flex-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${active
-          ? 'border-primary/60 ring-2 ring-primary/15'
-          : 'border-border/60 hover:border-border'
-        }`}
+      className={`text-left rounded-xl border bg-card p-4 min-w-60 flex-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+        active ? 'border-primary/60 ring-2 ring-primary/15' : 'border-border/60 hover:border-border'
+      }`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -59,7 +54,9 @@ function BrandSummaryCard({
             <span className="text-xs font-semibold tabular-nums text-amber-600">
               {summary.avgRating?.toFixed(1) ?? '—'}
             </span>
-            <span className="text-xs text-muted-foreground">· {t('adminFeedback.reviewCount', { count: summary.total })}</span>
+            <span className="text-xs text-muted-foreground">
+              · {t('adminFeedback.reviewCount', { count: summary.total })}
+            </span>
           </div>
         </div>
       </div>
@@ -68,7 +65,8 @@ function BrandSummaryCard({
       <div className="mt-3 flex flex-wrap gap-1.5">
         {summary.pending > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
-            <Clock className="size-2.5" /> {t('adminFeedback.pendingCountShort', { count: summary.pending })}
+            <Clock className="size-2.5" />{' '}
+            {t('adminFeedback.pendingCountShort', { count: summary.pending })}
           </span>
         )}
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
@@ -86,10 +84,22 @@ function BrandSummaryCard({
         )}
       </div>
       <div className="mt-2.5 flex h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-        <div className="bg-emerald-500" style={{ width: `${(summary.approved / totalNonZero) * 100}%` }} />
-        <div className="bg-amber-400" style={{ width: `${(summary.pending / totalNonZero) * 100}%` }} />
-        <div className="bg-rose-400" style={{ width: `${(summary.rejected / totalNonZero) * 100}%` }} />
-        <div className="bg-slate-400" style={{ width: `${(summary.hidden / totalNonZero) * 100}%` }} />
+        <div
+          className="bg-emerald-500"
+          style={{ width: `${(summary.approved / totalNonZero) * 100}%` }}
+        />
+        <div
+          className="bg-amber-400"
+          style={{ width: `${(summary.pending / totalNonZero) * 100}%` }}
+        />
+        <div
+          className="bg-rose-400"
+          style={{ width: `${(summary.rejected / totalNonZero) * 100}%` }}
+        />
+        <div
+          className="bg-slate-400"
+          style={{ width: `${(summary.hidden / totalNonZero) * 100}%` }}
+        />
       </div>
     </button>
   )
@@ -138,31 +148,35 @@ export function BrandSummaryStrip({
           type="button"
           onClick={() => setBrandId(null)}
           aria-pressed={brandId === null}
-          className={`text-left rounded-xl border bg-card p-4 min-w-52 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${brandId === null
+          className={`text-left rounded-xl border bg-card p-4 min-w-52 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+            brandId === null
               ? 'border-primary/60 ring-2 ring-primary/15'
               : 'border-border/60 hover:border-border'
-            }`}
+          }`}
         >
           <div className="flex items-center gap-2 text-sm font-semibold">
             <LayoutGrid className="size-4 text-primary" />
             {t('adminFeedback.allBrands')}
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
-            {t('adminFeedback.reviewCount', { count: summaries.reduce((s, x) => s + x.total, 0) })} ·{' '}
-            {t('adminFeedback.pendingApprovalCount', { count: summaries.reduce((s, x) => s + x.pending, 0) })}
+            {t('adminFeedback.reviewCount', { count: summaries.reduce((s, x) => s + x.total, 0) })}{' '}
+            ·{' '}
+            {t('adminFeedback.pendingApprovalCount', {
+              count: summaries.reduce((s, x) => s + x.pending, 0),
+            })}
           </div>
         </button>
 
         {isLoading
           ? Array.from({ length: 3 }).map((_, i) => <BrandSummarySkeleton key={i} />)
           : summaries.map((s) => (
-            <BrandSummaryCard
-              key={s.brandId ?? 'none'}
-              summary={s}
-              active={brandId === s.brandId}
-              onClick={() => setBrandId(brandId === s.brandId ? null : (s.brandId ?? null))}
-            />
-          ))}
+              <BrandSummaryCard
+                key={s.brandId ?? 'none'}
+                summary={s}
+                active={brandId === s.brandId}
+                onClick={() => setBrandId(brandId === s.brandId ? null : (s.brandId ?? null))}
+              />
+            ))}
       </div>
     </div>
   )

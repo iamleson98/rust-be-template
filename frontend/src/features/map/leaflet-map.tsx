@@ -1,14 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import {
-  MapContainer,
-  Marker,
-  Popup,
-  useMap,
-  useMapEvents,
-  ZoomControl,
-} from 'react-leaflet'
+import { MapContainer, Marker, Popup, useMap, useMapEvents, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
@@ -91,7 +84,13 @@ type LeafletMapProps = {
   /** Marker to show (the picked location). */
   marker?: { lat: number; lon: number; color?: 'blue' | 'red' } | null
   /** Optional extra markers (e.g. city pins). */
-  extraMarkers?: { lat: number; lon: number; color?: 'blue' | 'red'; label?: string; onClick?: () => void }[]
+  extraMarkers?: {
+    lat: number
+    lon: number
+    color?: 'blue' | 'red'
+    label?: string
+    onClick?: () => void
+  }[]
   /** Called when the user clicks an empty area of the map. */
   onMapClick?: (lat: number, lon: number) => void
   /** When set, the map will fly to this [lat, lon]. Must be inside MapContainer, so handled here. */
@@ -133,10 +132,15 @@ export function LeafletMap({
       {/* Recenter MUST live inside <MapContainer> so useMap() has a context. */}
       {flyTarget && <Recenter center={flyTarget} zoom={flyZoom} />}
       {marker && (
-        <Marker position={[marker.lat, marker.lon]} icon={marker.color === 'red' ? RED_PIN : BLUE_PIN}>
+        <Marker
+          position={[marker.lat, marker.lon]}
+          icon={marker.color === 'red' ? RED_PIN : BLUE_PIN}
+        >
           <Popup>
             <div className="text-sm">
-              <div className="font-semibold">{marker.lat.toFixed(4)}, {marker.lon.toFixed(4)}</div>
+              <div className="font-semibold">
+                {marker.lat.toFixed(4)}, {marker.lon.toFixed(4)}
+              </div>
             </div>
           </Popup>
         </Marker>
@@ -161,16 +165,32 @@ export function LeafletMap({
 
 /** i18n keys for humanising Tantivy place_type slugs in search results. */
 const PLACE_TYPE_KEYS: Record<string, string> = {
-  city: 'mapPage.ptCity', town: 'mapPage.ptTown', village: 'mapPage.ptVillage', hamlet: 'mapPage.ptHamlet',
-  suburb: 'mapPage.ptSuburb', quarter: 'mapPage.ptWard', neighbourhood: 'mapPage.ptNeighbourhood',
-  ward: 'mapPage.ptWard', district: 'mapPage.ptDistrict', province: 'mapPage.ptProvince',
-  bus_station: 'mapPage.ptBusStation', transit_stop: 'mapPage.ptTransitStop', rail_station: 'mapPage.ptRailStation',
-  airport: 'mapPage.ptAirport', road_primary: 'mapPage.ptRoadPrimary', road_secondary: 'mapPage.ptRoadSecondary',
-  road_tertiary: 'mapPage.ptRoadTertiary', road_residential: 'mapPage.ptRoadResidential',
-  road_motorway: 'mapPage.ptMotorway', road_trunk: 'mapPage.ptTrunk',
-  amenity_school: 'mapPage.ptSchool', amenity_hospital: 'mapPage.ptHospital',
-  amenity_university: 'mapPage.ptUniversity', amenity_college: 'mapPage.ptCollege',
-  amenity_marketplace: 'mapPage.ptMarket', amenity_townhall: 'mapPage.ptTownhall',
+  city: 'mapPage.ptCity',
+  town: 'mapPage.ptTown',
+  village: 'mapPage.ptVillage',
+  hamlet: 'mapPage.ptHamlet',
+  suburb: 'mapPage.ptSuburb',
+  quarter: 'mapPage.ptWard',
+  neighbourhood: 'mapPage.ptNeighbourhood',
+  ward: 'mapPage.ptWard',
+  district: 'mapPage.ptDistrict',
+  province: 'mapPage.ptProvince',
+  bus_station: 'mapPage.ptBusStation',
+  transit_stop: 'mapPage.ptTransitStop',
+  rail_station: 'mapPage.ptRailStation',
+  airport: 'mapPage.ptAirport',
+  road_primary: 'mapPage.ptRoadPrimary',
+  road_secondary: 'mapPage.ptRoadSecondary',
+  road_tertiary: 'mapPage.ptRoadTertiary',
+  road_residential: 'mapPage.ptRoadResidential',
+  road_motorway: 'mapPage.ptMotorway',
+  road_trunk: 'mapPage.ptTrunk',
+  amenity_school: 'mapPage.ptSchool',
+  amenity_hospital: 'mapPage.ptHospital',
+  amenity_university: 'mapPage.ptUniversity',
+  amenity_college: 'mapPage.ptCollege',
+  amenity_marketplace: 'mapPage.ptMarket',
+  amenity_townhall: 'mapPage.ptTownhall',
 }
 
 /** Humanise a Tantivy place_type slug for display in search results. */
@@ -322,10 +342,18 @@ type MapPickerProps = {
   onCancel: () => void
 }
 
-export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCancel }: MapPickerProps) {
+export function MapPicker({
+  pinColor = 'blue',
+  title,
+  initial,
+  onConfirm,
+  onCancel,
+}: MapPickerProps) {
   const t = useT()
   const [picked, setPicked] = useState<PickedPlace | null>(
-    initial ? { name: initial.name ?? t('map.selectedLocation'), lat: initial.lat, lon: initial.lon } : null,
+    initial
+      ? { name: initial.name ?? t('map.selectedLocation'), lat: initial.lat, lon: initial.lon }
+      : null,
   )
   const [reverseLoading, setReverseLoading] = useState(false)
   // When the user picks a new location (via search or "my location"), we want
@@ -335,13 +363,16 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
     initial ? [initial.lat, initial.lon] : null,
   )
 
-  const handleMapClick = useCallback(async (lat: number, lon: number) => {
-    setPicked({ name: t('map.loadingPlaceName'), lat, lon })
-    setReverseLoading(true)
-    const place = await reverseGeocode(lat, lon)
-    setPicked(place)
-    setReverseLoading(false)
-  }, [t])
+  const handleMapClick = useCallback(
+    async (lat: number, lon: number) => {
+      setPicked({ name: t('map.loadingPlaceName'), lat, lon })
+      setReverseLoading(true)
+      const place = await reverseGeocode(lat, lon)
+      setPicked(place)
+      setReverseLoading(false)
+    },
+    [t],
+  )
 
   const handleSearchSelect = useCallback((hit: PlaceHit) => {
     const place: PickedPlace = {
@@ -417,10 +448,15 @@ export function MapPicker({ pinColor = 'blue', title, initial, onConfirm, onCanc
       {/* Footer with picked info + confirm */}
       <div className="border-t bg-white px-4 py-3 flex items-center gap-3">
         <div
-          className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${pinColor === 'red' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
-            }`}
+          className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${
+            pinColor === 'red' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
+          }`}
         >
-          {reverseLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <MapPin className="h-5 w-5" />}
+          {reverseLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <MapPin className="h-5 w-5" />
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

@@ -12,12 +12,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   UserCircle,
   Gift,
@@ -51,14 +46,16 @@ const NAV_GROUPS = (t: (k: string) => string) => [
   {
     label: t('bookingHistory.reviews'),
     items: [
-      { title: t('layout.account.tripFeedback'), icon: MessageSquareHeart, url: '/account/feedback' },
+      {
+        title: t('layout.account.tripFeedback'),
+        icon: MessageSquareHeart,
+        url: '/account/feedback',
+      },
     ],
   },
   {
     label: t('layout.account.utilities'),
-    items: [
-      { title: t('nav.loyalty'), icon: Gift, url: '/account/loyalty' },
-    ],
+    items: [{ title: t('nav.loyalty'), icon: Gift, url: '/account/loyalty' }],
   },
   {
     label: t('account.settings'),
@@ -96,17 +93,28 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
   }
 
   const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'U'
 
   const navContent = (
     <>
       {/* Header */}
-      <div className={cn(
-        'bg-linear-to-br from-primary to-primary/80 shrink-0',
-        collapsed ? 'px-2 py-3' : 'px-3 py-4',
-      )}>
-        <Link to="/account" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+      <div
+        className={cn(
+          'bg-linear-to-br from-primary to-primary/80 shrink-0',
+          collapsed ? 'px-2 py-3' : 'px-3 py-4',
+        )}
+      >
+        <Link
+          to="/account"
+          className="flex items-center gap-2.5"
+          onClick={() => setMobileOpen(false)}
+        >
           <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm ring-1 ring-white/20 shrink-0">
             <Bus className="size-5 text-white" />
           </div>
@@ -146,7 +154,12 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                   >
-                    <Icon className={cn('size-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground/60')} />
+                    <Icon
+                      className={cn(
+                        'size-4 shrink-0',
+                        active ? 'text-primary' : 'text-muted-foreground/60',
+                      )}
+                    />
                     {!collapsed && <span className="truncate">{item.title}</span>}
                   </Link>
                 )
@@ -172,7 +185,10 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
             {!collapsed && <span>{t('nav.home')}</span>}
           </Link>
           <button
-            onClick={() => { logoutMut.mutate(); setMobileOpen(false) }}
+            onClick={() => {
+              logoutMut.mutate()
+              setMobileOpen(false)
+            }}
             title={collapsed ? t('auth.logout') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all h-9 w-full',
@@ -191,7 +207,9 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-xs leading-tight overflow-hidden">
-              <span className="truncate font-semibold">{user?.name || t('accountPage.fallbackUserName')}</span>
+              <span className="truncate font-semibold">
+                {user?.name || t('accountPage.fallbackUserName')}
+              </span>
               <span className="truncate text-muted-foreground">{user?.email || ''}</span>
             </div>
           </div>
@@ -215,13 +233,14 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 p-0 [&>button]:hidden bg-sidebar text-sidebar-foreground">
+        <SheetContent
+          side="left"
+          className="w-72 p-0 [&>button]:hidden bg-sidebar text-sidebar-foreground"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>Account sidebar</SheetTitle>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">
-            {navContent}
-          </div>
+          <div className="flex h-full w-full flex-col">{navContent}</div>
         </SheetContent>
       </Sheet>
 
@@ -273,9 +292,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
         </header>
-        <div className="flex-1 overflow-y-auto overscroll-contain">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto overscroll-contain">{children}</div>
       </div>
     </div>
   )

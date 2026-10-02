@@ -187,9 +187,7 @@ export class WsClient {
     const expo = Math.min(base * 2 ** this.reconnectAttempts, cap)
     // Full jitter: [0, expo). For slow-down codes, use [expo*0.6, expo) so we
     // don't retry in the first 60% of the window — gives the server room.
-    const delay = slowDown
-      ? expo * 0.6 + Math.random() * expo * 0.4
-      : Math.random() * expo
+    const delay = slowDown ? expo * 0.6 + Math.random() * expo * 0.4 : Math.random() * expo
     this.reconnectTimer = setTimeout(() => this.connect(), delay)
   }
 

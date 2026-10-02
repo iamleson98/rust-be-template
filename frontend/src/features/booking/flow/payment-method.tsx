@@ -17,7 +17,16 @@
  */
 
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, Loader2, Lock, ShieldCheck, Smartphone, QrCode, Landmark, Banknote } from 'lucide-react'
+import {
+  ChevronLeft,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  Smartphone,
+  QrCode,
+  Landmark,
+  Banknote,
+} from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
@@ -102,7 +111,11 @@ export function PaymentMethodStep({
     <div className="p-5 space-y-4">
       <div>
         <h3 className="font-semibold text-sm mb-3">{t('payment.method')}</h3>
-        <div role="radiogroup" aria-label={t('payment.method')} className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div
+          role="radiogroup"
+          aria-label={t('payment.method')}
+          className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+        >
           {paymentOptions.map((m) => {
             const selected = paymentMethod === m.key
             return (
@@ -119,7 +132,12 @@ export function PaymentMethodStep({
                     : 'border-slate-200 hover:border-primary/40 hover:bg-slate-50',
                 )}
               >
-                <span className={cn('h-10 w-10 shrink-0 rounded-lg ring-1 flex items-center justify-center', m.tile)}>
+                <span
+                  className={cn(
+                    'h-10 w-10 shrink-0 rounded-lg ring-1 flex items-center justify-center',
+                    m.tile,
+                  )}
+                >
                   {m.icon}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -182,7 +200,8 @@ export function PaymentMethodStep({
             </>
           ) : (
             <>
-              <Lock className="h-4 w-4" /> {t('bookingFlow.payButton', { amount: formatCurrency(total, currency) })}
+              <Lock className="h-4 w-4" />{' '}
+              {t('bookingFlow.payButton', { amount: formatCurrency(total, currency) })}
             </>
           )}
         </Button>

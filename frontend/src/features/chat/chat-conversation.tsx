@@ -238,7 +238,13 @@ export function ChatConversation({
               const showName =
                 !isMe && !isSystem && (i === 0 || messages[i - 1].senderType !== m.senderType)
               return (
-                <div key={m.id} className={cn('flex animate-in fade-in slide-in-from-bottom-1 duration-200', isMe ? 'justify-end' : 'justify-start')}>
+                <div
+                  key={m.id}
+                  className={cn(
+                    'flex animate-in fade-in slide-in-from-bottom-1 duration-200',
+                    isMe ? 'justify-end' : 'justify-start',
+                  )}
+                >
                   <div className={cn('max-w-[78%]', isSystem && 'mx-auto')}>
                     {showName && (
                       <div className="text-[10px] text-muted-foreground mb-0.5 px-1 flex items-center gap-1">
@@ -281,9 +287,18 @@ export function ChatConversation({
               <div className="flex justify-start">
                 <div className="bg-white border rounded-2xl rounded-bl-sm px-3 py-2.5">
                   <div className="flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                      style={{ animationDelay: '0ms' }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                      style={{ animationDelay: '150ms' }}
+                    />
+                    <span
+                      className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                      style={{ animationDelay: '300ms' }}
+                    />
                   </div>
                 </div>
               </div>

@@ -11,7 +11,16 @@
 
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import { AlertTriangle, CalendarClock, Clock, Loader2, Play, RefreshCw, Settings2, Square } from 'lucide-react'
+import {
+  AlertTriangle,
+  CalendarClock,
+  Clock,
+  Loader2,
+  Play,
+  RefreshCw,
+  Settings2,
+  Square,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -72,7 +81,9 @@ function StatusBadge({ status }: { status: string }) {
 function NextRunCell({ job }: { job: CronJobOut }) {
   const t = useT()
   if (!job.enabled) {
-    return <span className="text-sm text-muted-foreground">{t('adminCronJobs.nextRunDisabled')}</span>
+    return (
+      <span className="text-sm text-muted-foreground">{t('adminCronJobs.nextRunDisabled')}</span>
+    )
   }
   if (!job.nextRunAt) {
     return <span className="text-sm text-muted-foreground">{t('adminCronJobs.noSchedule')}</span>
@@ -88,7 +99,8 @@ function NextRunCell({ job }: { job: CronJobOut }) {
 function LastRunCell({ job }: { job: CronJobOut }) {
   const t = useT()
   const last = job.lastRun
-  if (!last) return <span className="text-sm text-muted-foreground">{t('adminCronJobs.neverRun')}</span>
+  if (!last)
+    return <span className="text-sm text-muted-foreground">{t('adminCronJobs.neverRun')}</span>
   const workTime =
     last.status === 'running' || last.status === 'queued'
       ? elapsedLabel(last.startedAt)
@@ -243,7 +255,9 @@ const runColumnHelper = createColumnHelper<DataTableFeatures, CronJobRunOut>()
 const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
   runColumnHelper.columns([
     runColumnHelper.accessor('jobType', {
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colTask')} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('adminCronJobs.colTask')} />
+      ),
       cell: ({ getValue }) => <code className="text-xs">{getValue()}</code>,
       sortFn: 'text',
       meta: { label: t('adminCronJobs.colTask') },
@@ -256,7 +270,9 @@ const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
     }),
     runColumnHelper.accessor((run) => run.startedAt ?? run.createdAt, {
       id: 'startedAt',
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colStarted')} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('adminCronJobs.colStarted')} />
+      ),
       cell: ({ row }) => (
         <span className="text-sm tabular-nums">
           {dateTimeLabel(row.original.startedAt ?? row.original.createdAt)}
@@ -267,14 +283,16 @@ const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
     }),
     runColumnHelper.accessor((run) => run.finishedAt ?? run.startedAt ?? run.createdAt, {
       id: 'duration',
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminCronJobs.colDuration')} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t('adminCronJobs.colDuration')} />
+      ),
       cell: ({ row }) => {
         const run = row.original
         return (
           <span className="text-sm tabular-nums">
             {run.status === 'running' || run.status === 'queued'
-              ? elapsedLabel(run.startedAt) ?? '—'
-              : durationLabel(run.startedAt, run.finishedAt) ?? '—'}
+              ? (elapsedLabel(run.startedAt) ?? '—')
+              : (durationLabel(run.startedAt, run.finishedAt) ?? '—')}
           </span>
         )
       },
@@ -380,9 +398,7 @@ export function CronJobsPanel() {
             <CalendarClock className="h-5 w-5 text-blue-600" />
             {t('admin.cronJobs')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminCronJobs.subtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminCronJobs.subtitle')}</p>
         </div>
         <Button
           variant="outline"
@@ -420,9 +436,7 @@ export function CronJobsPanel() {
               <CalendarClock className="h-5 w-5 text-blue-600" />
             </div>
             <p className="font-medium">{t('adminCronJobs.emptyTitle')}</p>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              {t('adminCronJobs.emptyDesc')}
-            </p>
+            <p className="text-sm text-muted-foreground max-w-sm">{t('adminCronJobs.emptyDesc')}</p>
           </CardContent>
         </Card>
       ) : (

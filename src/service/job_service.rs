@@ -11,7 +11,7 @@
 //!    picked up / stale),
 //! 2. finds enabled schedules whose `next_run_at` is due,
 //! 3. **enqueues** them onto the worker queue (the same
-//!    [`trigger`](Self::trigger) path the admin "run now" button uses),
+//!    [`JobService::trigger`] path the admin "run now" button uses),
 //! 4. advances `next_run_at` one interval — even when an active run
 //!    blocks the enqueue, so missed slots are skipped rather than
 //!    replayed on the next tick.

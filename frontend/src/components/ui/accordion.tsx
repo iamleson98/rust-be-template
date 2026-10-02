@@ -1,10 +1,10 @@
-"use client"
+'use client'
 
-import { type ComponentProps } from "react"
-import { Accordion as AccordionPrimitive } from "@base-ui/react/accordion"
-import { ChevronDownIcon } from "lucide-react"
+import { type ComponentProps } from 'react'
+import { Accordion as AccordionPrimitive } from '@base-ui/react/accordion'
+import { ChevronDownIcon } from 'lucide-react'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
 /**
  * Radix-compat wrapper around Base UI's Accordion.
@@ -29,10 +29,10 @@ function Accordion({
   ...props
 }: Omit<
   ComponentProps<typeof AccordionPrimitive.Root>,
-  "value" | "defaultValue" | "onValueChange" | "multiple"
+  'value' | 'defaultValue' | 'onValueChange' | 'multiple'
 > & {
   /** Radix-compat. Mapped to Base UI's `multiple` boolean. */
-  type?: "single" | "multiple"
+  type?: 'single' | 'multiple'
   /** Base UI native. Overrides `type` if both are passed. */
   multiple?: boolean
   /** Radix accepts string (single) or string[] (multiple); Base UI is always an array. */
@@ -45,22 +45,16 @@ function Accordion({
    */
   onValueChange?: ((value: string) => void) | ((value: string[]) => void)
 }) {
-  const isMultiple = multiple ?? type === "multiple"
+  const isMultiple = multiple ?? type === 'multiple'
 
   const arrayValue =
-    value === undefined
-      ? undefined
-      : Array.isArray(value)
-        ? value
-        : value === ""
-          ? []
-          : [value]
+    value === undefined ? undefined : Array.isArray(value) ? value : value === '' ? [] : [value]
   const arrayDefaultValue =
     defaultValue === undefined
       ? undefined
       : Array.isArray(defaultValue)
         ? defaultValue
-        : defaultValue === ""
+        : defaultValue === ''
           ? []
           : [defaultValue]
 
@@ -68,20 +62,18 @@ function Accordion({
     <AccordionPrimitive.Root
       data-slot="accordion"
       multiple={isMultiple}
-      value={arrayValue as unknown as ComponentProps<typeof AccordionPrimitive.Root>["value"]}
+      value={arrayValue as unknown as ComponentProps<typeof AccordionPrimitive.Root>['value']}
       defaultValue={
         arrayDefaultValue as unknown as ComponentProps<
           typeof AccordionPrimitive.Root
-        >["defaultValue"]
+        >['defaultValue']
       }
       onValueChange={(next: unknown[]) => {
         if (!onValueChange) return
         if (isMultiple) {
           ;(onValueChange as (value: string[]) => void)(next as string[])
         } else {
-          ;(onValueChange as (value: string) => void)(
-            (next as string[])[0] ?? ""
-          )
+          ;(onValueChange as (value: string) => void)((next as string[])[0] ?? '')
         }
       }}
       {...props}
@@ -89,14 +81,11 @@ function Accordion({
   )
 }
 
-function AccordionItem({
-  className,
-  ...props
-}: ComponentProps<typeof AccordionPrimitive.Item>) {
+function AccordionItem({ className, ...props }: ComponentProps<typeof AccordionPrimitive.Item>) {
   return (
     <AccordionPrimitive.Item
       data-slot="accordion-item"
-      className={cn("border-b last:border-b-0", className)}
+      className={cn('border-b last:border-b-0', className)}
       {...props}
     />
   )
@@ -112,8 +101,8 @@ function AccordionTrigger({
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-panel-open]>svg]:rotate-180",
-          className
+          'focus-visible:border-ring focus-visible:ring-ring/50 flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&[data-panel-open]>svg]:rotate-180',
+          className,
         )}
         {...props}
       >
@@ -137,12 +126,12 @@ function AccordionContent({
       // under `--accordion-panel-height`, so alias it for backward compat.
       style={{
         // Cast: CSS custom properties are not in CSSProperties by default.
-        ["--radix-accordion-content-height" as string]: "var(--accordion-panel-height)",
+        ['--radix-accordion-content-height' as string]: 'var(--accordion-panel-height)',
       }}
       className="data-ending-style:animate-accordion-up data-starting-style:animate-accordion-down overflow-hidden text-sm"
       {...props}
     >
-      <div className={cn("pt-0 pb-4", className)}>{children}</div>
+      <div className={cn('pt-0 pb-4', className)}>{children}</div>
     </AccordionPrimitive.Panel>
   )
 }

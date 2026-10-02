@@ -61,10 +61,11 @@ export function FeedbackRatingField({
                   type="button"
                 >
                   <Star
-                    className={`h-8 w-8 transition-colors ${n <= displayRating
-                      ? 'fill-amber-400 text-amber-400 drop-'
-                      : 'fill-slate-100 text-slate-300'
-                      }`}
+                    className={`h-8 w-8 transition-colors ${
+                      n <= displayRating
+                        ? 'fill-amber-400 text-amber-400 drop-'
+                        : 'fill-slate-100 text-slate-300'
+                    }`}
                   />
                 </button>
               ))}

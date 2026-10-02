@@ -51,8 +51,7 @@ export function AccountLoyaltyPage() {
           100,
           Math.max(
             0,
-            ((summary.points - tier.minPoints) /
-              Math.max(1, nextTier.minPoints - tier.minPoints)) *
+            ((summary.points - tier.minPoints) / Math.max(1, nextTier.minPoints - tier.minPoints)) *
               100,
           ),
         )
@@ -112,7 +111,9 @@ export function AccountLoyaltyPage() {
                       {summary.points.toLocaleString(locale)}
                     </div>
                     <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="font-semibold" style={{ color: style.ring }}>{summary.tier.name}</span>
+                      <span className="font-semibold" style={{ color: style.ring }}>
+                        {summary.tier.name}
+                      </span>
                       <span>·</span>
                       <span>{t('home.earnRateExplainerShort')}</span>
                     </div>
@@ -123,9 +124,12 @@ export function AccountLoyaltyPage() {
                 {nextTier ? (
                   <div className="mt-4">
                     <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span className="font-semibold" style={{ color: style.ring }}>{summary.tier.name}</span>
+                      <span className="font-semibold" style={{ color: style.ring }}>
+                        {summary.tier.name}
+                      </span>
                       <span>
-                        {nextTier.name} · {nextTier.minPoints.toLocaleString(locale)} {t('home.pointsUnit')}
+                        {nextTier.name} · {nextTier.minPoints.toLocaleString(locale)}{' '}
+                        {t('home.pointsUnit')}
                       </span>
                     </div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-slate-200">
@@ -136,7 +140,9 @@ export function AccountLoyaltyPage() {
                     </div>
                     <div className="mt-1 text-[11px] text-muted-foreground">
                       {t('home.pointsToNext', {
-                        count: Math.max(0, nextTier.minPoints - summary.points).toLocaleString(locale),
+                        count: Math.max(0, nextTier.minPoints - summary.points).toLocaleString(
+                          locale,
+                        ),
                         name: nextTier.name,
                       })}
                     </div>
@@ -151,18 +157,28 @@ export function AccountLoyaltyPage() {
                 {/* Lifetime stats (real) */}
                 <div className="mt-4 grid grid-cols-3 gap-3">
                   <div className="rounded-lg border bg-slate-50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums">{summary.completedTrips.toLocaleString(locale)}</div>
-                    <div className="text-[10px] text-muted-foreground">{t('home.completedTripsCount')}</div>
+                    <div className="text-lg font-bold tabular-nums">
+                      {summary.completedTrips.toLocaleString(locale)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {t('home.completedTripsCount')}
+                    </div>
                   </div>
                   <div className="rounded-lg border bg-slate-50 p-3 text-center">
-                    <div className="text-lg font-bold tabular-nums">{formatShortVND(summary.totalSpent)}</div>
-                    <div className="text-[10px] text-muted-foreground">{t('home.totalSpentCount')}</div>
+                    <div className="text-lg font-bold tabular-nums">
+                      {formatShortVND(summary.totalSpent)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {t('home.totalSpentCount')}
+                    </div>
                   </div>
                   <div className="rounded-lg border bg-slate-50 p-3 text-center">
                     <div className="text-lg font-bold tabular-nums text-blue-700">
                       +{summary.history[0]?.points.toLocaleString(locale) ?? 0}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">{t('home.lastTripEarned')}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {t('home.lastTripEarned')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -222,7 +238,12 @@ export function AccountLoyaltyPage() {
                   <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
                     <Bus className="h-5 w-5" aria-hidden />
                     <p className="text-xs">{t('home.historyEmpty')}</p>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate({ to: '/' })}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => navigate({ to: '/' })}
+                    >
                       <Bus className="h-3.5 w-3.5" /> {t('home.bookATrip')}
                     </Button>
                   </div>
@@ -234,9 +255,12 @@ export function AccountLoyaltyPage() {
                           <Bus className="size-4" aria-hidden />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{h.routeName ?? h.bookingCode}</div>
+                          <div className="truncate text-sm font-medium">
+                            {h.routeName ?? h.bookingCode}
+                          </div>
                           <div className="text-[11px] text-muted-foreground">
-                            {formatDate(h.departureAt, locale)} · <code className="font-mono">{h.bookingCode}</code> ·{' '}
+                            {formatDate(h.departureAt, locale)} ·{' '}
+                            <code className="font-mono">{h.bookingCode}</code> ·{' '}
                             {formatShortVND(h.total)}
                           </div>
                         </div>

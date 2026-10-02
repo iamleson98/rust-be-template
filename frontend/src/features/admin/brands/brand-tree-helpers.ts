@@ -12,11 +12,7 @@ import { useApp } from '@/lib/store'
  *  Called at render/compute time so VI/EN switches re-localize. */
 const L = (key: string, params?: Record<string, string | number>) =>
   translate(useApp.getState().lang, key, params)
-import type {
-  AdminBrandOut,
-  AdminRouteOut,
-  AdminScheduleOut,
-} from '@/lib/api/types.gen'
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
 
 /** Sort-key labels — I18N KEYS (resolved by the consumer's `t`). */
 export type ScheduleSortKey = 'departureTime' | 'priceAdult' | 'effectiveFrom'
@@ -84,11 +80,7 @@ export function sortSchedules(
   return sorted
 }
 
-function compareBySortKey(
-  a: AdminScheduleOut,
-  b: AdminScheduleOut,
-  key: ScheduleSortKey,
-): number {
+function compareBySortKey(a: AdminScheduleOut, b: AdminScheduleOut, key: ScheduleSortKey): number {
   switch (key) {
     case 'departureTime':
       return (a.departureTime ?? '').localeCompare(b.departureTime ?? '')
@@ -100,10 +92,7 @@ function compareBySortKey(
 }
 
 /** Cycle the sort: none → key asc → key desc → (keep desc). */
-export function nextScheduleSort(
-  current: ScheduleSort | null,
-  key: ScheduleSortKey,
-): ScheduleSort {
+export function nextScheduleSort(current: ScheduleSort | null, key: ScheduleSortKey): ScheduleSort {
   if (!current || current.key !== key) {
     return { key, dir: 'asc' }
   }

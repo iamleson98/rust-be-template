@@ -238,17 +238,22 @@ export function notifyIncomingCall(fromName: string): void {
     translate(useApp.getState().lang, 'notifications.incomingCall', { name: fromName }),
     translate(useApp.getState().lang, 'notifications.tapToAnswer'),
     {
-    tag: 'audio-call',
-    onClick: () => {
-      window.dispatchEvent(new CustomEvent('datxevui:open-call'))
+      tag: 'audio-call',
+      onClick: () => {
+        window.dispatchEvent(new CustomEvent('datxevui:open-call'))
+      },
     },
-  })
+  )
 }
 
 /**
  * For debugging / settings UI — show what's currently cached.
  */
-export function debugNotificationState(): { cached: CachedPermission; browser: CachedPermission; askedAt: string | null } {
+export function debugNotificationState(): {
+  cached: CachedPermission
+  browser: CachedPermission
+  askedAt: string | null
+} {
   let askedAt: string | null = null
   if (typeof window !== 'undefined') {
     try {

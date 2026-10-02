@@ -42,7 +42,7 @@ export function persistSavedSearches(items: SavedSearch[]) {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(SAVED_SEARCHES_KEY, JSON.stringify(items))
-  } catch { }
+  } catch {}
 }
 
 export function SavedSearchesList({

@@ -7,21 +7,12 @@ import { cn } from '@/lib/utils'
  * page loading states and the DataTable's loading surface so every
  * loading placeholder in the app speaks the same visual language.
  */
-export function Shimmer({
-  className,
-  style,
-}: {
-  className?: string
-  style?: React.CSSProperties
-}) {
+export function Shimmer({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
     <div
       data-slot="shimmer"
       aria-hidden
-      className={cn(
-        'shimmer rounded-md bg-slate-200/80 dark:bg-slate-800/70',
-        className,
-      )}
+      className={cn('shimmer rounded-md bg-slate-200/80 dark:bg-slate-800/70', className)}
       style={style}
     />
   )

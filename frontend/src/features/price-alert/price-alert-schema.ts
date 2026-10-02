@@ -24,10 +24,9 @@ export const priceAlertSchema = z.object({
   email: z
     .string()
     .trim()
-    .refine(
-      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
-      { error: () => tSync('validation.email') },
-    ),
+    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
+      error: () => tSync('validation.email'),
+    }),
   targetPrice: z.coerce
     .number()
     .positive({ error: () => tSync('priceAlertSchema.targetPricePositive') }),
@@ -40,4 +39,8 @@ export type PriceAlertFormValues = z.infer<typeof priceAlertSchema>
  * `z.coerce.number()` on targetPrice) — shared with the extracted
  * field components.
  */
-export type PriceAlertForm = UseFormReturn<z.input<typeof priceAlertSchema>, unknown, z.output<typeof priceAlertSchema>>
+export type PriceAlertForm = UseFormReturn<
+  z.input<typeof priceAlertSchema>,
+  unknown,
+  z.output<typeof priceAlertSchema>
+>

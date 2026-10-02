@@ -75,7 +75,9 @@ export function BookingDetailPage() {
     return (
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
-          <Link to="/account/trips"><ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}</Link>
+          <Link to="/account/trips">
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}
+          </Link>
         </Button>
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <AlertCircle className="h-12 w-12 text-rose-400 mb-3" />
@@ -92,11 +94,36 @@ export function BookingDetailPage() {
 
   const statusLabel = (() => {
     switch (booking.status) {
-      case 'confirmed': return { text: t('bookingDetail.statusConfirmed'), cls: 'bg-emerald-100 text-emerald-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
-      case 'pending': return { text: t('bookingDetail.statusPending'), cls: 'bg-amber-100 text-amber-700', icon: <Calendar className="h-3.5 w-3.5" /> }
-      case 'cancelled': return { text: t('bookingDetail.statusCancelled'), cls: 'bg-rose-100 text-rose-700', icon: <XCircle className="h-3.5 w-3.5" /> }
-      case 'completed': return { text: t('bookingDetail.statusCompleted'), cls: 'bg-blue-100 text-blue-700', icon: <CheckCircle2 className="h-3.5 w-3.5" /> }
-      default: return { text: booking.status, cls: 'bg-slate-100 text-slate-700', icon: <Ticket className="h-3.5 w-3.5" /> }
+      case 'confirmed':
+        return {
+          text: t('bookingDetail.statusConfirmed'),
+          cls: 'bg-emerald-100 text-emerald-700',
+          icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+        }
+      case 'pending':
+        return {
+          text: t('bookingDetail.statusPending'),
+          cls: 'bg-amber-100 text-amber-700',
+          icon: <Calendar className="h-3.5 w-3.5" />,
+        }
+      case 'cancelled':
+        return {
+          text: t('bookingDetail.statusCancelled'),
+          cls: 'bg-rose-100 text-rose-700',
+          icon: <XCircle className="h-3.5 w-3.5" />,
+        }
+      case 'completed':
+        return {
+          text: t('bookingDetail.statusCompleted'),
+          cls: 'bg-blue-100 text-blue-700',
+          icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+        }
+      default:
+        return {
+          text: booking.status,
+          cls: 'bg-slate-100 text-slate-700',
+          icon: <Ticket className="h-3.5 w-3.5" />,
+        }
     }
   })()
 
@@ -108,19 +135,27 @@ export function BookingDetailPage() {
   const passengerName = booking.seats?.[0]?.passengerName ?? booking.contactName ?? '—'
   const seatCodes =
     booking.seats
-      ?.map((s) => (s as { seatCode?: string | null; seatId?: string | null }).seatCode ?? (s as { seatId?: string | null }).seatId)
+      ?.map(
+        (s) =>
+          (s as { seatCode?: string | null; seatId?: string | null }).seatCode ??
+          (s as { seatId?: string | null }).seatId,
+      )
       .filter((x): x is string => Boolean(x)) ?? []
   const totalAmount = booking.total ?? 0
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-3xl">
       <Button asChild variant="ghost" size="sm" className="mb-4">
-        <Link to="/account/trips"><ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}</Link>
+        <Link to="/account/trips">
+          <ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}
+        </Link>
       </Button>
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">{t('bookingDetail.title', { code: booking.code })}</h1>
-        <Badge className={statusLabel.cls}>{statusLabel.icon} {statusLabel.text}</Badge>
+        <Badge className={statusLabel.cls}>
+          {statusLabel.icon} {statusLabel.text}
+        </Badge>
       </div>
 
       <Card className="mb-4">
@@ -151,7 +186,9 @@ export function BookingDetailPage() {
               <Calendar className="h-4 w-4 text-violet-500 mt-0.5" />
               <div>
                 <div className="text-muted-foreground text-xs">{t('booking.departure')}</div>
-                <div className="font-medium">{departureAt ? formatDateTimeVN(departureAt) : '—'}</div>
+                <div className="font-medium">
+                  {departureAt ? formatDateTimeVN(departureAt) : '—'}
+                </div>
               </div>
             </div>
             <div className="flex items-start gap-2">
@@ -175,7 +212,9 @@ export function BookingDetailPage() {
 
           <div className="flex items-center justify-between pt-3 border-t">
             <span className="text-sm text-muted-foreground">{t('booking.totalAmount')}</span>
-            <span className="text-xl font-bold text-blue-700">{formatCurrency(totalAmount, currency)}</span>
+            <span className="text-xl font-bold text-blue-700">
+              {formatCurrency(totalAmount, currency)}
+            </span>
           </div>
         </CardContent>
       </Card>

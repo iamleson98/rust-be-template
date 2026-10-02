@@ -1,6 +1,6 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-@import "shadcn/tailwind.css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -66,7 +66,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
   /* Brand primary — trust blue (hue 250, 4.5:1 contrast on white) */
-  --primary: oklch(0.50 0.18 250);
+  --primary: oklch(0.5 0.18 250);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -77,7 +77,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.50 0.18 250);
+  --ring: oklch(0.5 0.18 250);
   /* Semantic colors */
   --success: oklch(0.62 0.17 145);
   --success-foreground: oklch(0.985 0 0);
@@ -94,12 +94,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.50 0.18 250);
+  --sidebar-primary: oklch(0.5 0.18 250);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.50 0.18 250);
+  --sidebar-ring: oklch(0.5 0.18 250);
 }
 
 .dark {
@@ -131,11 +131,11 @@
   /* Brand ring in dark mode */
   --ring: oklch(0.62 0.16 250);
   /* Semantic colors — dark mode variants */
-  --success: oklch(0.70 0.17 145);
+  --success: oklch(0.7 0.17 145);
   --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.80 0.16 70);
+  --warning: oklch(0.8 0.16 70);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.70 0.13 230);
+  --info: oklch(0.7 0.13 230);
   --info-foreground: oklch(0.145 0 0);
   --brand-accent: oklch(0.82 0.15 85);
   --chart-1: oklch(0.87 0 0);
@@ -174,26 +174,26 @@
    * onClick that isn't a form input.
    */
   button,
-  [role="button"],
+  [role='button'],
   a[href],
   summary,
   label[for],
-  [data-slot="trigger"],
-  [data-slot="accordion-trigger"],
+  [data-slot='trigger'],
+  [data-slot='accordion-trigger'],
   select,
-  [role="tab"],
-  [role="menuitem"],
-  [role="option"],
-  [role="combobox"],
-  [role="treeitem"],
-  [role="link"] {
+  [role='tab'],
+  [role='menuitem'],
+  [role='option'],
+  [role='combobox'],
+  [role='treeitem'],
+  [role='link'] {
     cursor: pointer;
   }
 
   /* Buttons that are disabled shouldn't show pointer. */
   button:disabled,
-  [role="button"][aria-disabled="true"],
-  [data-disabled="true"] {
+  [role='button'][aria-disabled='true'],
+  [data-disabled='true'] {
     cursor: not-allowed;
   }
 
@@ -205,7 +205,7 @@
 
   /* Selection color — use accent so it's visible in dark mode. */
   ::selection {
-    background-color: oklch(0.50 0.18 250 / 30%);
+    background-color: oklch(0.5 0.18 250 / 30%);
     color: var(--foreground);
   }
   html {
@@ -215,9 +215,15 @@
 
 /* ── Custom animations ────────────────────────────────────────── */
 @keyframes shimmer {
-  0%   { transform: translateX(-100%); }
-  60%  { transform: translateX(100%); }
-  100% { transform: translateX(100%); }
+  0% {
+    transform: translateX(-100%);
+  }
+  60% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Shimmer sweep overlay — the skeleton primitive's moving highlight.
@@ -236,35 +242,59 @@
   animation: shimmer 1.8s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .shimmer::after { animation: none; }
+  .shimmer::after {
+    animation: none;
+  }
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50%      { opacity: 0.7; transform: scale(1.05); }
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
 }
 
 /* Success checkmark draw-on animation — <400ms for premium feel */
 @keyframes checkmark-draw {
-  0%   { stroke-dashoffset: 100; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes checkmark-circle {
-  0%   { stroke-dashoffset: 200; }
-  100% { stroke-dashoffset: 0; }
+  0% {
+    stroke-dashoffset: 200;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
 }
 
 /* Card lift on hover — used by TripCard, BookingCard, BrandShowcase.
  * Flat design: no box-shadow — the card lifts slightly and brightens
  * its border instead (shadow-free affordance per the design system). */
 .card-hover-lift {
-  transition: transform 120ms ease-out, border-color 120ms ease-out;
+  transition:
+    transform 120ms ease-out,
+    border-color 120ms ease-out;
 }
 .card-hover-lift:hover {
   transform: translateY(-2px);
@@ -273,29 +303,48 @@
 
 /* Seat pop-in animation when selected */
 @keyframes seat-pop {
-  0%   { transform: scale(1); }
-  40%  { transform: scale(1.12); }
-  100% { transform: scale(1.05); }
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1.05);
+  }
 }
 
 /* Page fade-in on route change — applied to each page's root so the
  * content fades in once the lazy chunk resolves (the persistent
  * sidebar stays mounted, so only the content area animates). */
 @keyframes page-fade-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .page-transition {
   animation: page-fade-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {
-  .page-transition { animation: none; }
+  .page-transition {
+    animation: none;
+  }
 }
 
 /* Trust badge pulse — subtle attention draw */
 @keyframes trust-pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 /* Smooth scrollbar for filter/side panels */
@@ -303,8 +352,13 @@
   scrollbar-width: thin;
   scrollbar-color: rgb(148 163 184 / 0.4) transparent;
 }
-.scroll-thin::-webkit-scrollbar { width: 6px; height: 6px; }
-.scroll-thin::-webkit-scrollbar-track { background: transparent; }
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
 .scroll-thin::-webkit-scrollbar-thumb {
   background-color: rgb(148 163 184 / 0.4);
   border-radius: 3px;
@@ -318,7 +372,9 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
 
 /* ── Reduced motion ─────────────────────────────────────────────
  * WCAG 2.1 SC 2.3.3 / 2.3.1. Many users are sensitive to motion
@@ -355,9 +411,9 @@
   header,
   footer,
   nav,
-  [data-slot="fab"],
-  [data-slot="dialog-close"],
-  [aria-label*="chat" i],
+  [data-slot='fab'],
+  [data-slot='dialog-close'],
+  [aria-label*='chat' i],
   .no-print {
     display: none !important;
   }
@@ -497,7 +553,9 @@
   color: #1e293b; /* slate-800 */
   cursor: pointer;
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 .vexevn-basemap-button:hover {
   background: #eff6ff; /* blue-50 */
@@ -532,7 +590,9 @@
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
-  transition: background-color 0.12s ease, color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
 }
 .vexevn-basemap-item:hover {
   background: #eff6ff; /* blue-50 */

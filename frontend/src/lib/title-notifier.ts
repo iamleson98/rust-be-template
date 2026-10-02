@@ -76,7 +76,9 @@ export function startTitleNotification(count = 1): void {
   flashInterval = setInterval(() => {
     toggle = !toggle
     if (toggle) {
-      document.title = translate(useApp.getState().lang, 'notifications.unreadTitle', { count: unreadCount })
+      document.title = translate(useApp.getState().lang, 'notifications.unreadTitle', {
+        count: unreadCount,
+      })
     } else if (originalTitle !== null) {
       document.title = originalTitle
     }

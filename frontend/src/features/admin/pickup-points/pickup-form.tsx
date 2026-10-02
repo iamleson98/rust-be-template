@@ -83,7 +83,11 @@ export function PickupPointFormDialog({
   // Rebuilt per render so validation messages follow the UI language.
   const pickupPointSchema = makePickupPointSchema(t)
 
-  const form = useForm<z.input<typeof pickupPointSchema>, unknown, z.output<typeof pickupPointSchema>>({
+  const form = useForm<
+    z.input<typeof pickupPointSchema>,
+    unknown,
+    z.output<typeof pickupPointSchema>
+  >({
     resolver: zodResolver(pickupPointSchema),
     mode: 'onBlur',
     reValidateMode: 'onChange',
@@ -105,9 +109,7 @@ export function PickupPointFormDialog({
         stopOrder: pickup ? pickup.stopOrder : existingCount + 1,
         etaOffsetMin: 0,
         pickupType:
-          pickup?.kind === 'curb' || pickup?.kind === 'on_request'
-            ? pickup.kind
-            : 'station',
+          pickup?.kind === 'curb' || pickup?.kind === 'on_request' ? pickup.kind : 'station',
         address: pickup?.address ?? '',
       })
     }
@@ -157,7 +159,9 @@ export function PickupPointFormDialog({
       // payload makes `opts.body === undefined`, which causes the openapi-ts
       // client to delete `Content-Type: application/json` before sending,
       // and axum's `Json<T>` extractor then returns 415 Unsupported Media Type.
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<typeof upsertMutation.mutateAsync>[0])
+      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<
+        typeof upsertMutation.mutateAsync
+      >[0])
       toast.success(isEdit ? t('adminPickup.updated') : t('adminPickup.created'))
       onSaved()
     } catch (e) {

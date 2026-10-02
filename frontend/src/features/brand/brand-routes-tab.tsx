@@ -4,13 +4,7 @@
 
 import { Button } from '@/components/ui/button'
 import { TabsContent } from '@/components/ui/tabs'
-import {
-  Route as RouteIcon,
-  Calendar,
-  Navigation,
-  ArrowRight,
-  Loader2,
-} from 'lucide-react'
+import { Route as RouteIcon, Calendar, Navigation, ArrowRight, Loader2 } from 'lucide-react'
 import type { RouteOut } from '@/lib/api/types.gen'
 import { useT } from '@/lib/i18n'
 import { EmptyState } from './brand-dialog-parts'

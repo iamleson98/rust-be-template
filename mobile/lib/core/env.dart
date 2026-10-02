@@ -34,12 +34,11 @@ class AppConfig {
   }
 
   static String _joinPath(String basePath, String path) {
-    final baseSegments =
-        basePath.split('/').where((s) => s.isNotEmpty).toList();
-    final segments = path
+    final baseSegments = basePath
         .split('/')
         .where((s) => s.isNotEmpty)
         .toList();
+    final segments = path.split('/').where((s) => s.isNotEmpty).toList();
     return '/${[...baseSegments, ...segments].join('/')}';
   }
 
@@ -88,5 +87,6 @@ class AppConfigNotifier extends Notifier<AppConfig> {
   }
 }
 
-final appConfigProvider =
-    NotifierProvider<AppConfigNotifier, AppConfig>(AppConfigNotifier.new);
+final appConfigProvider = NotifierProvider<AppConfigNotifier, AppConfig>(
+  AppConfigNotifier.new,
+);

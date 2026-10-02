@@ -41,7 +41,9 @@ export function PriceSummary({
               <Armchair className="h-3.5 w-3.5" />
             </div>
             <span>
-              {t('tripDetail.selectSeatsPrefix')} <span className="font-semibold text-foreground">{maxSeats}</span> {t('tripDetail.selectSeatsSuffix')}
+              {t('tripDetail.selectSeatsPrefix')}{' '}
+              <span className="font-semibold text-foreground">{maxSeats}</span>{' '}
+              {t('tripDetail.selectSeatsSuffix')}
             </span>
           </div>
         ) : (
@@ -69,8 +71,12 @@ export function PriceSummary({
             </div>
             <div className="h-9 w-px bg-slate-200" />
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">{t('booking.totalAmount')}</div>
-              <div className="font-extrabold text-blue-800 text-lg md:text-xl leading-tight">{formatCurrency(total, currency)}</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground leading-tight">
+                {t('booking.totalAmount')}
+              </div>
+              <div className="font-extrabold text-blue-800 text-lg md:text-xl leading-tight">
+                {formatCurrency(total, currency)}
+              </div>
             </div>
           </div>
         )}

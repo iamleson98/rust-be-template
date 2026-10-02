@@ -45,7 +45,9 @@ export function PopularRoutesQuickSelect({
     <div className="mt-3 pt-3 border-t border-slate-100">
       <div className="flex items-center gap-1.5 mb-2">
         <Route className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{t('search.popularRoutes')}</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+          {t('search.popularRoutes')}
+        </span>
       </div>
       <div className="flex flex-wrap gap-2">
         {[

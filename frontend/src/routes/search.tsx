@@ -12,7 +12,7 @@
  * roundTrip=false, returnDate='') are applied HERE at read time.
  */
 import { useSearch, useNavigate } from '@tanstack/react-router'
-import { useEffect , useMemo} from 'react'
+import { useEffect, useMemo } from 'react'
 import { useApp, type SearchParams } from '@/lib/store'
 import { SearchResults } from '@/features/search/search-results'
 
@@ -36,17 +36,30 @@ export function SearchPage() {
   // Apply defaults — the URL only carries non-default values for cleanliness.
   // Memoized: a fresh object per render would re-fire the sync effect
   // below (and re-render SearchResults) on every parent render.
-  const search: RouteSearch = useMemo(() => ({
-    from: raw.from ?? '',
-    to: raw.to ?? '',
-    date: raw.date ?? '',
-    adults: raw.adults ?? 1,
-    children: raw.children ?? 0,
-    sort: raw.sort ?? 'departure',
-    vehicleTypes: raw.vehicleTypes ?? [],
-    roundTrip: raw.roundTrip ?? false,
-    returnDate: raw.returnDate ?? '',
-  }), [raw.from, raw.to, raw.date, raw.adults, raw.children, raw.sort, raw.vehicleTypes, raw.roundTrip, raw.returnDate])
+  const search: RouteSearch = useMemo(
+    () => ({
+      from: raw.from ?? '',
+      to: raw.to ?? '',
+      date: raw.date ?? '',
+      adults: raw.adults ?? 1,
+      children: raw.children ?? 0,
+      sort: raw.sort ?? 'departure',
+      vehicleTypes: raw.vehicleTypes ?? [],
+      roundTrip: raw.roundTrip ?? false,
+      returnDate: raw.returnDate ?? '',
+    }),
+    [
+      raw.from,
+      raw.to,
+      raw.date,
+      raw.adults,
+      raw.children,
+      raw.sort,
+      raw.vehicleTypes,
+      raw.roundTrip,
+      raw.returnDate,
+    ],
+  )
 
   // Sync the router's search params into the store's searchParams so
   // the SearchWidget form stays in sync with the URL.

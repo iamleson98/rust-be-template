@@ -51,9 +51,7 @@ describe('flattenInfiniteMessagePages', () => {
     // order preserved.
     expect(afterLoadMore.slice(-3).map((m) => m.id)).toEqual(['m58', 'm59', 'm60'])
     // Full chronological order — no interleaving of old + new chunks.
-    expect(afterLoadMore.map((m) => m.id)).toEqual([
-      'm28', 'm29', 'm30', 'm58', 'm59', 'm60',
-    ])
+    expect(afterLoadMore.map((m) => m.id)).toEqual(['m28', 'm29', 'm30', 'm58', 'm59', 'm60'])
   })
 
   it('APPENDS a newly sent message at the tail after the page-0 refetch', () => {
@@ -78,9 +76,7 @@ describe('flattenInfiniteMessagePages', () => {
       page(['m6', 'm5', 'm4']),
       page(['m3', 'm2', 'm1']),
     ])
-    expect(out.map((m) => m.id)).toEqual([
-      'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9',
-    ])
+    expect(out.map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9'])
   })
 
   it('handles empty + missing pages without throwing', () => {

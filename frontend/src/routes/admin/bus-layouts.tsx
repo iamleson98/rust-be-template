@@ -32,11 +32,7 @@ import { Button } from '@/components/ui/button'
 import { ComboboxField } from '@/components/ui/combobox'
 
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
-import {
-  useAdminBrands,
-  useAdminBusLayouts,
-  useDeleteAdminBusLayout,
-} from '@/lib/queries'
+import { useAdminBrands, useAdminBusLayouts, useDeleteAdminBusLayout } from '@/lib/queries'
 import type { AdminBusLayoutOut } from '@/lib/api/types.gen'
 
 import { BusLayoutFormDialog } from '@/features/admin/bus-layouts/bus-layout-form'
@@ -74,7 +70,12 @@ export function AdminBusLayoutsPage() {
 
   const brandsQuery = useAdminBrands()
   const brands = useMemo(
-    () => (brandsQuery.data?.items ?? []) as { id: string; name: string; accentColor?: string | null }[],
+    () =>
+      (brandsQuery.data?.items ?? []) as {
+        id: string
+        name: string
+        accentColor?: string | null
+      }[],
     [brandsQuery.data],
   )
   const brandById = useMemo(() => new Map(brands.map((b) => [b.id, b])), [brands])
@@ -137,13 +138,17 @@ export function AdminBusLayoutsPage() {
     () =>
       columnHelper.columns([
         columnHelper.accessor('name', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.name')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('busLayouts.name')} />
+          ),
           cell: ({ getValue }) => <span className="font-medium">{getValue() || '—'}</span>,
           sortFn: 'text',
           meta: { label: t('busLayouts.name') },
         }),
         columnHelper.accessor('brandName', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.brand')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('busLayouts.brand')} />
+          ),
           cell: ({ getValue, row }) => {
             const name = getValue()
             if (!name) return <span className="text-muted-foreground">—</span>
@@ -158,7 +163,9 @@ export function AdminBusLayoutsPage() {
           meta: { label: t('busLayouts.brand') },
         }),
         columnHelper.accessor('vehicleLabel', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('busLayouts.vehicleType')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('busLayouts.vehicleType')} />
+          ),
           cell: ({ getValue }) =>
             getValue() ? (
               <Badge variant="secondary">{getValue()}</Badge>
@@ -169,7 +176,9 @@ export function AdminBusLayoutsPage() {
           meta: { label: t('busLayouts.vehicleType') },
         }),
         columnHelper.accessor('seatCount', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminBusLayouts.seatCount')} />
+          ),
           cell: ({ getValue }) => (
             <span className="flex items-center justify-end gap-1 tabular-nums font-semibold">
               <Armchair className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />

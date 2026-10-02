@@ -2,13 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Ticket as TicketIcon,
-  Bus,
-  MapPin,
-  Armchair,
-  User as UserIcon,
-} from 'lucide-react'
+import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
@@ -74,7 +68,9 @@ export function TicketCardMessage({
           {/* Booking code */}
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[10px] text-muted-foreground uppercase">{t('adminChat.bookingCode')}</div>
+              <div className="text-[10px] text-muted-foreground uppercase">
+                {t('adminChat.bookingCode')}
+              </div>
               <div className="font-mono font-bold text-blue-700 text-sm">
                 {payload.bookingCode || '—'}
               </div>
@@ -111,9 +107,7 @@ export function TicketCardMessage({
               {trip?.departureDate && (
                 <div className="mt-0.5 text-[11px] text-muted-foreground">
                   {t('adminChat.departureLabel')}: {trip.departureDate}
-                  {trip?.departureAt
-                    ? ` · ${String(trip.departureAt).slice(11, 16)}`
-                    : ''}
+                  {trip?.departureAt ? ` · ${String(trip.departureAt).slice(11, 16)}` : ''}
                 </div>
               )}
             </div>
@@ -123,11 +117,7 @@ export function TicketCardMessage({
           {seats.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {seats.map((s, i) => (
-                <Badge
-                  key={i}
-                  variant="outline"
-                  className="text-[10px] font-mono bg-white gap-1"
-                >
+                <Badge key={i} variant="outline" className="text-[10px] font-mono bg-white gap-1">
                   <Armchair className="h-2.5 w-2.5" />
                   {s.code}
                 </Badge>

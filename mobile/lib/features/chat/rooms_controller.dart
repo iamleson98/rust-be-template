@@ -57,18 +57,17 @@ class RoomState {
     bool? loadingOlder,
     bool clearError = false,
     bool clearTyping = false,
-  }) =>
-      RoomState(
-        channel: channel ?? this.channel,
-        messages: messages ?? this.messages,
-        loading: loading ?? this.loading,
-        error: clearError ? null : (error ?? this.error),
-        typingName: clearTyping ? null : (typingName ?? this.typingName),
-        customerOnline: customerOnline ?? this.customerOnline,
-        active: active ?? this.active,
-        hasMore: hasMore ?? this.hasMore,
-        loadingOlder: loadingOlder ?? this.loadingOlder,
-      );
+  }) => RoomState(
+    channel: channel ?? this.channel,
+    messages: messages ?? this.messages,
+    loading: loading ?? this.loading,
+    error: clearError ? null : (error ?? this.error),
+    typingName: clearTyping ? null : (typingName ?? this.typingName),
+    customerOnline: customerOnline ?? this.customerOnline,
+    active: active ?? this.active,
+    hasMore: hasMore ?? this.hasMore,
+    loadingOlder: loadingOlder ?? this.loadingOlder,
+  );
 }
 
 /// Message history + realtime room events for every open channel.
@@ -139,11 +138,7 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
 
     state = {
       ...state,
-      channelId: RoomState(
-        channel: channel,
-        messages: const [],
-        loading: true,
-      ),
+      channelId: RoomState(channel: channel, messages: const [], loading: true),
     };
 
     try {
@@ -151,27 +146,32 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
           .read(apiClientProvider)
           .listMessages(channelId, limit: pageSize);
       // Backend lists messages newest-first — reverse for display order.
-      final messages =
-          raw.map(ChatMessage.fromJson).toList().reversed.toList();
-      _updateRoom(channelId, (room) => room.copyWith(
-            messages: messages,
-            loading: false,
-            clearError: true,
-            // A short page means we already reached the beginning of
-            // history — nothing older to fetch.
-            hasMore: messages.length >= pageSize,
-          ));
+      final messages = raw.map(ChatMessage.fromJson).toList().reversed.toList();
+      _updateRoom(
+        channelId,
+        (room) => room.copyWith(
+          messages: messages,
+          loading: false,
+          clearError: true,
+          // A short page means we already reached the beginning of
+          // history — nothing older to fetch.
+          hasMore: messages.length >= pageSize,
+        ),
+      );
       unawaited(_markRead(channelId));
     } on ApiException catch (e) {
-      _updateRoom(channelId, (room) => room.copyWith(
-            loading: false,
-            error: e.message,
-          ));
+      _updateRoom(
+        channelId,
+        (room) => room.copyWith(loading: false, error: e.message),
+      );
     } catch (_) {
-      _updateRoom(channelId, (room) => room.copyWith(
-            loading: false,
-            error: 'Không tải được tin nhắn — kéo để thử lại',
-          ));
+      _updateRoom(
+        channelId,
+        (room) => room.copyWith(
+          loading: false,
+          error: 'Không tải được tin nhắn — kéo để thử lại',
+        ),
+      );
     }
   }
 
@@ -185,16 +185,17 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     if (room == null || room.loadingOlder || !room.hasMore) return;
     _updateRoom(channelId, (r) => r.copyWith(loadingOlder: true));
     try {
-      final raw = await ref.read(apiClientProvider).listMessages(
-        channelId,
-        limit: pageSize,
-        offset: room.messages.length,
-      );
+      final raw = await ref
+          .read(apiClientProvider)
+          .listMessages(
+            channelId,
+            limit: pageSize,
+            offset: room.messages.length,
+          );
       final older = raw.map(ChatMessage.fromJson).toList().reversed;
       _updateRoom(channelId, (r) {
         final existingIds = r.messages.map((m) => m.id).toSet();
-        final fresh =
-            older.where((m) => !existingIds.contains(m.id)).toList();
+        final fresh = older.where((m) => !existingIds.contains(m.id)).toList();
         return r.copyWith(
           messages: [...fresh, ...r.messages],
           loadingOlder: false,
@@ -203,13 +204,18 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
         );
       });
     } on ApiException catch (e) {
-      _updateRoom(channelId, (r) =>
-          r.copyWith(loadingOlder: false, error: e.message));
+      _updateRoom(
+        channelId,
+        (r) => r.copyWith(loadingOlder: false, error: e.message),
+      );
     } catch (_) {
-      _updateRoom(channelId, (r) => r.copyWith(
-            loadingOlder: false,
-            error: 'Không tải được tin nhắn cũ hơn',
-          ));
+      _updateRoom(
+        channelId,
+        (r) => r.copyWith(
+          loadingOlder: false,
+          error: 'Không tải được tin nhắn cũ hơn',
+        ),
+      );
     }
   }
 
@@ -250,23 +256,23 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
       clientMsgId: clientMsgId,
       sendState: SendState.sending,
     );
-    _updateRoom(channelId, (room) => room.copyWith(
-          messages: [...room.messages, optimistic],
-          clearTyping: true,
-        ));
+    _updateRoom(
+      channelId,
+      (room) => room.copyWith(
+        messages: [...room.messages, optimistic],
+        clearTyping: true,
+      ),
+    );
 
     try {
       final sent = await ref
           .read(apiClientProvider)
           .sendMessage(channelId, content: content, clientMsgId: clientMsgId);
-      final authoritative = ChatMessage.fromJson(sent).copyWith(
-        clientMsgId: clientMsgId,
-      );
+      final authoritative = ChatMessage.fromJson(sent)
+          .copyWith(clientMsgId: clientMsgId);
       _reconcile(channelId, clientMsgId, authoritative);
     } on ApiException catch (e) {
-      _updateRoom(channelId, (room) => room.copyWith(
-            error: e.message,
-          ));
+      _updateRoom(channelId, (room) => room.copyWith(error: e.message));
       _markLocal(channelId, clientMsgId, SendState.failed);
     } catch (_) {
       _markLocal(channelId, clientMsgId, SendState.failed);
@@ -283,7 +289,9 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     );
     _markLocal(channelId, clientMsgId, SendState.sending);
     try {
-      final sent = await ref.read(apiClientProvider).sendMessage(
+      final sent = await ref
+          .read(apiClientProvider)
+          .sendMessage(
             channelId,
             content: local.content ?? '',
             clientMsgId: clientMsgId,
@@ -306,8 +314,7 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     _updateRoom(channelId, (room) {
       // If the WS echo already appended the server row (race: echo beat
       // the REST response), just drop the local bubble.
-      final alreadyEchoed =
-          room.messages.any((m) => m.id == authoritative.id);
+      final alreadyEchoed = room.messages.any((m) => m.id == authoritative.id);
       final messages = [
         for (final m in room.messages)
           if (m.clientMsgId == clientMsgId)
@@ -392,10 +399,13 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
     // Ignore our own typing echoes (multi-device scenario).
     final myId = ref.read(authControllerProvider).user?.id;
     if (userId != null && userId == myId) return;
-    _updateRoom(channelId, (room) => room.copyWith(
-          typingName: isTyping ? (name ?? 'Khách hàng') : null,
-          clearTyping: !isTyping,
-        ));
+    _updateRoom(
+      channelId,
+      (room) => room.copyWith(
+        typingName: isTyping ? (name ?? 'Khách hàng') : null,
+        clearTyping: !isTyping,
+      ),
+    );
   }
 
   void _onPresence(Map<String, dynamic> msg) {
@@ -417,8 +427,7 @@ class RoomsNotifier extends Notifier<Map<String, RoomState>> {
   }
 }
 
-final roomsProvider =
-    NotifierProvider<RoomsNotifier, Map<String, RoomState>>(
+final roomsProvider = NotifierProvider<RoomsNotifier, Map<String, RoomState>>(
   RoomsNotifier.new,
 );
 
@@ -443,5 +452,6 @@ class ActiveRoomNotifier extends Notifier<String?> {
   }
 }
 
-final activeRoomIdProvider =
-    NotifierProvider<ActiveRoomNotifier, String?>(ActiveRoomNotifier.new);
+final activeRoomIdProvider = NotifierProvider<ActiveRoomNotifier, String?>(
+  ActiveRoomNotifier.new,
+);

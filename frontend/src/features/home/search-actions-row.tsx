@@ -30,9 +30,17 @@ export function SearchActionsRow({
           sidebar, one tap from the home page. */}
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { key: 'limousine', label: t('home.vehicleLimousine'), tip: t('home.vehicleLimousineTip') },
+          {
+            key: 'limousine',
+            label: t('home.vehicleLimousine'),
+            tip: t('home.vehicleLimousineTip'),
+          },
           { key: 'sleeper', label: t('home.vehicleSleeper'), tip: t('home.vehicleSleeperTip') },
-          { key: 'semi_sleeper', label: t('home.vehicleSemiSleeper'), tip: t('home.vehicleSemiSleeperTip') },
+          {
+            key: 'semi_sleeper',
+            label: t('home.vehicleSemiSleeper'),
+            tip: t('home.vehicleSemiSleeperTip'),
+          },
           { key: 'minivan', label: t('home.vehicleMinivan'), tip: t('home.vehicleMinivanTip') },
           { key: 'standard', label: t('home.vehicleStandard'), tip: t('home.vehicleStandardTip') },
         ].map((v) => {

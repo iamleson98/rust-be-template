@@ -115,7 +115,9 @@ function BookingCardImpl({
                     <code className="text-xl font-mono font-extrabold text-blue-700 tracking-tight">
                       {b.code}
                     </code>
-                    <Badge className={`text-[11px] gap-1 px-2.5 py-0.5 ${sc.cls} border-0 font-semibold`}>
+                    <Badge
+                      className={`text-[11px] gap-1 px-2.5 py-0.5 ${sc.cls} border-0 font-semibold`}
+                    >
                       <StatusIcon name={sc.icon} /> {t(sc.labelKey)}
                     </Badge>
                     {isUpcoming && b.status !== 'cancelled' && (
@@ -125,7 +127,8 @@ function BookingCardImpl({
                     )}
                     {hasReview && (
                       <Badge className="text-[10px] gap-1 bg-amber-100 text-amber-700 border-0 font-semibold">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {t('bookingHistory.reviewed')}
+                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />{' '}
+                        {t('bookingHistory.reviewed')}
                       </Badge>
                     )}
                   </div>
@@ -153,7 +156,9 @@ function BookingCardImpl({
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                           <span className="font-medium text-foreground/80">{b.trip.brandName}</span>
                           <span className="text-muted-foreground/60">•</span>
-                          <span>{t(VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType)}</span>
+                          <span>
+                            {t(VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -231,7 +236,9 @@ function BookingCardImpl({
                     {b.discount > 0 && (
                       <div className="text-xs text-blue-600 flex items-center gap-1 justify-end font-medium">
                         <Tag className="h-3 w-3" />
-                        {t('bookingHistory.discountAmount', { amount: formatCurrency(b.discount, currency) })}
+                        {t('bookingHistory.discountAmount', {
+                          amount: formatCurrency(b.discount, currency),
+                        })}
                       </div>
                     )}
                   </div>

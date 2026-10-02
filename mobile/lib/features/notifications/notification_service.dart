@@ -44,13 +44,21 @@ class NotificationService {
   static const _kCallsChannelName = 'Cuộc gọi đến';
 
   /// Message double-tap haptic: two short buzzes.
-  static final Int64List _kMessageVibration =
-      Int64List.fromList([0, 120, 100, 120]);
+  static final Int64List _kMessageVibration = Int64List.fromList([
+    0,
+    120,
+    100,
+    120,
+  ]);
 
   /// Call ring vibration: 1s buzz, 0.3s gap, 1s buzz (repeats with the
   /// ringtone loop while the notification is alive).
-  static final Int64List _kCallVibration =
-      Int64List.fromList([0, 1000, 300, 1000]);
+  static final Int64List _kCallVibration = Int64List.fromList([
+    0,
+    1000,
+    300,
+    1000,
+  ]);
 
   void Function(Map<String, dynamic> payload)? onTap;
 
@@ -66,8 +74,10 @@ class NotificationService {
         ),
         onDidReceiveNotificationResponse: _handleTap,
       );
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       // NOTE: channel sound/vibration are baked in at creation time and
       // are IMMUTABLE afterwards (Android platform rule). The app is
       // pre-release, so re-installs pick these up cleanly.
@@ -231,11 +241,13 @@ class AppResumedNotifier extends Notifier<bool> {
   void set(bool resumed) => state = resumed;
 }
 
-final appResumedProvider =
-    NotifierProvider<AppResumedNotifier, bool>(AppResumedNotifier.new);
+final appResumedProvider = NotifierProvider<AppResumedNotifier, bool>(
+  AppResumedNotifier.new,
+);
 
-final notificationServiceProvider =
-    Provider<NotificationService>((ref) => NotificationService());
+final notificationServiceProvider = Provider<NotificationService>(
+  (ref) => NotificationService(),
+);
 
 /// Wires server events → alerts (in-app sound/haptic + notifications).
 ///
@@ -284,7 +296,9 @@ class AgentAlerts {
           // Backgrounded: banner — the channel's custom tune + vibration
           // ring from the OS side.
           unawaited(
-            _ref.read(notificationServiceProvider).showMessage(
+            _ref
+                .read(notificationServiceProvider)
+                .showMessage(
                   channelId: channelId,
                   title: (msg['senderName'] as String?) ?? 'Khách hàng',
                   body: (msg['preview'] as String?) ?? 'Tin nhắn mới',
@@ -296,7 +310,9 @@ class AgentAlerts {
           unawaited(_ref.read(soundServiceProvider).playRequest());
         } else {
           unawaited(
-            _ref.read(notificationServiceProvider).showNewRequest(
+            _ref
+                .read(notificationServiceProvider)
+                .showNewRequest(
                   title: 'Yêu cầu hỗ trợ mới',
                   body: 'Một khách hàng vừa bắt đầu trò chuyện',
                 ),
@@ -313,9 +329,9 @@ class AgentAlerts {
       if (!_ref.read(appResumedProvider)) {
         final name = _ref.read(callUiStateProvider).peerName;
         unawaited(
-          _ref.read(notificationServiceProvider).showIncomingCall(
-                callerName: name.isEmpty ? 'Khách hàng' : name,
-              ),
+          _ref
+              .read(notificationServiceProvider)
+              .showIncomingCall(callerName: name.isEmpty ? 'Khách hàng' : name),
         );
       }
     } else if (prev == CallStatus.incoming ||

@@ -15,7 +15,7 @@
 //!
 //! ## Setup
 //!
-//! 1. Create a Zalo OA at https://oa.zalo.me/
+//! 1. Create a Zalo OA at <<https://oa.zalo.me/>>
 //! 2. Set the webhook URL to `https://yourdomain.com/api/webhooks/zalo`
 //!    (Zalo signs every delivery with the OA secret in X-Zalo-Signature)
 //! 3. Set `ZALO_OA_ID` + `ZALO_OA_SECRET` in `.env`

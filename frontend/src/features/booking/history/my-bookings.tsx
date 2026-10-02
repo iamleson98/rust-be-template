@@ -21,7 +21,11 @@ import { formatCurrency } from '@/lib/currency'
 
 // Re-export shared types for backward compatibility (other modules may
 // still `import { BookingItem } from '@/features/booking/history/my-bookings'`).
-export type { BookingItem, ReviewItem, ReviewSummary } from '@/features/booking/history/booking-types'
+export type {
+  BookingItem,
+  ReviewItem,
+  ReviewSummary,
+} from '@/features/booking/history/booking-types'
 
 import {
   BookingItem,
@@ -38,7 +42,6 @@ import { FeedbackForm, FeedbackFormFallback } from './feedback-form-lazy'
 import { BookingsHero } from './bookings-hero'
 import { BookingsTabBar } from './bookings-tab-bar'
 import { ReviewsTabContent } from './reviews-tab-content'
-
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
@@ -62,7 +65,8 @@ export function MyBookings() {
     isLoading: bookingsLoading,
     refetch: refetchBookings,
   } = useMyBookings('all')
-  const userBookings: BookingItem[] = (bookingsData?.items ?? EMPTY_ITEMS) as unknown as BookingItem[]
+  const userBookings: BookingItem[] = (bookingsData?.items ??
+    EMPTY_ITEMS) as unknown as BookingItem[]
   const bookingsLoaded = !!bookingsData
 
   // Reviews: lazy-loaded only when the user opens the "Đánh giá" tab.
@@ -127,9 +131,27 @@ export function MyBookings() {
   const bookingStats = (
     <StatsRow
       stats={[
-        { icon: <Ticket className="h-5 w-5" />, label: t('bookingHistory.statTotalTickets'), value: String(userBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statTicketsBooked') },
-        { icon: <CalendarCheck className="h-5 w-5" />, label: t('bookingHistory.statUpcoming'), value: String(upcomingBookings.length), accent: 'from-blue-500 to-blue-500', subtitle: t('bookingHistory.statUpcomingSub') },
-        { icon: <Wallet className="h-5 w-5" />, label: t('bookingHistory.statTotalSpend'), value: formatCurrency(userTotalAmount, currency), accent: 'from-amber-500 to-orange-500', subtitle: t('bookingHistory.statPaidSub') },
+        {
+          icon: <Ticket className="h-5 w-5" />,
+          label: t('bookingHistory.statTotalTickets'),
+          value: String(userBookings.length),
+          accent: 'from-blue-500 to-blue-500',
+          subtitle: t('bookingHistory.statTicketsBooked'),
+        },
+        {
+          icon: <CalendarCheck className="h-5 w-5" />,
+          label: t('bookingHistory.statUpcoming'),
+          value: String(upcomingBookings.length),
+          accent: 'from-blue-500 to-blue-500',
+          subtitle: t('bookingHistory.statUpcomingSub'),
+        },
+        {
+          icon: <Wallet className="h-5 w-5" />,
+          label: t('bookingHistory.statTotalSpend'),
+          value: formatCurrency(userTotalAmount, currency),
+          accent: 'from-amber-500 to-orange-500',
+          subtitle: t('bookingHistory.statPaidSub'),
+        },
       ]}
     />
   )

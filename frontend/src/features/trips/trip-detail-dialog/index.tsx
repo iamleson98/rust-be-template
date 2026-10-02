@@ -19,12 +19,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useTripDetail } from '@/lib/queries'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SeatMap, type SeatInv } from '@/features/trips/seat-map'
@@ -54,7 +49,14 @@ import { RouteTimeline } from './route-timeline'
 import { PolicyBlock } from './policy-block'
 
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
-  const { setBookingStep, setBookingContext, searchParams, currency, setShareOpen, setShareTripData } = useApp()
+  const {
+    setBookingStep,
+    setBookingContext,
+    searchParams,
+    currency,
+    setShareOpen,
+    setShareTripData,
+  } = useApp()
   const t = useT()
   const [selectedSeats, setSelectedSeats] = useState<string[]>([])
   const [boardingPoint, setBoardingPoint] = useState<string>('')
@@ -89,14 +91,19 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
   const toggleSeat = (seatId: string) => {
     setSelectedSeats((prev) =>
-      prev.includes(seatId) ? prev.filter((s) => s !== seatId) : prev.length < searchParams.adults + searchParams.children ? [...prev, seatId] : prev
+      prev.includes(seatId)
+        ? prev.filter((s) => s !== seatId)
+        : prev.length < searchParams.adults + searchParams.children
+          ? [...prev, seatId]
+          : prev,
     )
   }
 
   const maxSeats = searchParams.adults + searchParams.children
-  const selectedSeatDetails = detail?.seatMap.decks
-    .flatMap((d) => d.rows.flatMap((r) => r.seats.filter(Boolean) as SeatInv[]))
-    .filter((s) => selectedSeats.includes(s.id)) ?? []
+  const selectedSeatDetails =
+    detail?.seatMap.decks
+      .flatMap((d) => d.rows.flatMap((r) => r.seats.filter(Boolean) as SeatInv[]))
+      .filter((s) => selectedSeats.includes(s.id)) ?? []
 
   const total = selectedSeatDetails.reduce((sum, s) => sum + s.finalPrice, 0)
 
@@ -127,10 +134,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
             <>
               <DialogTitle className="sr-only">{t('tripDetail.errorTitle')}</DialogTitle>
               <div className="flex min-h-60 flex-1 items-center justify-center p-6">
-                <ErrorState
-                  description={t('tripDetail.errorDesc')}
-                  onRetry={() => refetch()}
-                />
+                <ErrorState description={t('tripDetail.errorDesc')} onRetry={() => refetch()} />
               </div>
             </>
           ) : (
@@ -216,7 +220,8 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <Users className="h-3.5 w-3.5" />
-                          {detail.trip.availableSeats}/{detail.trip.totalSeats} {t('common.seatsAvailable')}
+                          {detail.trip.availableSeats}/{detail.trip.totalSeats}{' '}
+                          {t('common.seatsAvailable')}
                         </div>
                       </div>
                       <SeatMap
@@ -241,7 +246,12 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
 
                     <TabsContent value="route" className="m-0 p-4 space-y-5">
                       <RouteMapPreview
-                        geometry={detail.route.geometry ?? [[detail.from.lat, detail.from.lon], [detail.to.lat, detail.to.lon]]}
+                        geometry={
+                          detail.route.geometry ?? [
+                            [detail.from.lat, detail.from.lon],
+                            [detail.to.lat, detail.to.lon],
+                          ]
+                        }
                         pickupPoints={detail.pickupPoints}
                         fromName={detail.from.name}
                         toName={detail.to.name}
@@ -277,8 +287,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                       <PolicyBlock
                         title={t('search.sort.price')}
                         items={[
-                          { label: t('booking.passengerType.adult'), value: formatCurrency(detail.pricing.basePriceAdult, currency) },
-                          { label: t('tripDetail.childFare'), value: formatCurrency(detail.pricing.basePriceChild, currency) },
+                          {
+                            label: t('booking.passengerType.adult'),
+                            value: formatCurrency(detail.pricing.basePriceAdult, currency),
+                          },
+                          {
+                            label: t('tripDetail.childFare'),
+                            value: formatCurrency(detail.pricing.basePriceChild, currency),
+                          },
                         ]}
                       />
                       {(detail.discountPrograms?.length ?? 0) > 0 && (
@@ -294,8 +310,14 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         title={t('tripDetail.luggagePolicy')}
                         items={[
                           { label: t('tripDetail.carryOn'), value: t('tripDetail.carryOnMax') },
-                          { label: t('tripDetail.largeLuggage'), value: t('tripDetail.underCompartment') },
-                          { label: t('tripDetail.prohibitedItemsLabel'), value: t('tripDetail.prohibitedItems') },
+                          {
+                            label: t('tripDetail.largeLuggage'),
+                            value: t('tripDetail.underCompartment'),
+                          },
+                          {
+                            label: t('tripDetail.prohibitedItemsLabel'),
+                            value: t('tripDetail.prohibitedItems'),
+                          },
                         ]}
                       />
                       <PolicyBlock

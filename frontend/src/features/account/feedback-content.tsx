@@ -22,7 +22,11 @@ import { formatCurrency } from '@/lib/currency'
 import { useMyBookings, useMyReviews } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
-import { isBookingReviewable, type BookingItem, type ReviewItem } from '@/features/booking/history/booking-types'
+import {
+  isBookingReviewable,
+  type BookingItem,
+  type ReviewItem,
+} from '@/features/booking/history/booking-types'
 import { StarRating } from '@/features/feedback/star-rating'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -43,7 +47,6 @@ import {
 } from 'lucide-react'
 import type { ReviewSummary } from '@/features/booking/history/booking-types'
 
-
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
 const FeedbackForm = lazy(() =>
@@ -56,10 +59,22 @@ const PAGE_SIZE = 8
 
 /* ── Moderation status badges ─────────────────────────────────── */
 const REVIEW_STATUS: Record<string, { labelKey: string; cls: string }> = {
-  pending: { labelKey: 'accountPage.feedback.statusPending', cls: 'bg-amber-500/10 text-amber-600 ring-amber-500/20' },
-  approved: { labelKey: 'accountPage.feedback.statusApproved', cls: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20' },
-  rejected: { labelKey: 'accountPage.feedback.statusRejected', cls: 'bg-rose-500/10 text-rose-600 ring-rose-500/20' },
-  hidden: { labelKey: 'accountPage.feedback.statusHidden', cls: 'bg-slate-500/10 text-slate-600 ring-slate-500/20' },
+  pending: {
+    labelKey: 'accountPage.feedback.statusPending',
+    cls: 'bg-amber-500/10 text-amber-600 ring-amber-500/20',
+  },
+  approved: {
+    labelKey: 'accountPage.feedback.statusApproved',
+    cls: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20',
+  },
+  rejected: {
+    labelKey: 'accountPage.feedback.statusRejected',
+    cls: 'bg-rose-500/10 text-rose-600 ring-rose-500/20',
+  },
+  hidden: {
+    labelKey: 'accountPage.feedback.statusHidden',
+    cls: 'bg-slate-500/10 text-slate-600 ring-slate-500/20',
+  },
 }
 
 /* ── Date helpers ─────────────────────────────────────────────── */
@@ -67,7 +82,11 @@ function formatDeparture(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   const lang = useApp.getState().lang
-  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return d.toLocaleDateString(lang === 'en' ? 'en-US' : 'vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
 }
 
 /* ── Section: ride awaiting feedback ──────────────────────────── */
@@ -94,7 +113,9 @@ function PendingRideCard({
       >
         <div
           className="size-11 shrink-0 rounded-xl grid place-items-center text-white font-bold"
-          style={{ background: `linear-gradient(135deg, ${trip?.brandAccent || '#2563eb'}, ${trip?.brandAccent || '#2563eb'}cc)` }}
+          style={{
+            background: `linear-gradient(135deg, ${trip?.brandAccent || '#2563eb'}, ${trip?.brandAccent || '#2563eb'}cc)`,
+          }}
           aria-hidden
         >
           <Bus className="size-5" />
@@ -118,9 +139,7 @@ function PendingRideCard({
         <div className="hidden sm:block text-sm font-semibold tabular-nums">
           {formatCurrency(booking.total, 'VND')}
         </div>
-        <span
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 ring-1 ring-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors group-hover:bg-amber-500/15"
-        >
+        <span className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 ring-1 ring-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-600 transition-colors group-hover:bg-amber-500/15">
           <MessageSquareHeart className="size-3.5" />
           {t('accountPage.feedback.rateNow')}
         </span>
@@ -129,7 +148,12 @@ function PendingRideCard({
       {expanded && (
         <div className="border-t bg-muted/20 px-4 py-4">
           <Suspense fallback={FeedbackFormFallback}>
-            <FeedbackForm booking={booking} existingReview={null} onSubmitted={onSubmitted} onClose={onToggle} />
+            <FeedbackForm
+              booking={booking}
+              existingReview={null}
+              onSubmitted={onSubmitted}
+              onClose={onToggle}
+            />
           </Suspense>
         </div>
       )}
@@ -162,7 +186,9 @@ function SentFeedbackCard({
           <div className="flex items-center gap-2.5 min-w-0 text-sm">
             <div
               className="size-8 shrink-0 rounded-lg grid place-items-center"
-              style={{ background: `linear-gradient(135deg, ${booking?.trip?.brandAccent || '#2563eb'}22, ${booking?.trip?.brandAccent || '#2563eb'}11)` }}
+              style={{
+                background: `linear-gradient(135deg, ${booking?.trip?.brandAccent || '#2563eb'}22, ${booking?.trip?.brandAccent || '#2563eb'}11)`,
+              }}
               aria-hidden
             >
               <Bus className="size-4" style={{ color: booking?.trip?.brandAccent || '#2563eb' }} />
@@ -172,11 +198,14 @@ function SentFeedbackCard({
                 {booking?.trip?.routeName || review.title || t('accountPage.feedback.tripFallback')}
               </div>
               <div className="text-xs text-muted-foreground truncate">
-                {booking?.trip?.brandName} · {formatDeparture(booking?.trip?.departureAt || review.createdAt)}
+                {booking?.trip?.brandName} ·{' '}
+                {formatDeparture(booking?.trip?.departureAt || review.createdAt)}
               </div>
             </div>
           </div>
-          <span className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${status.cls}`}>
+          <span
+            className={`shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${status.cls}`}
+          >
             {t(status.labelKey)}
           </span>
         </div>
@@ -185,13 +214,20 @@ function SentFeedbackCard({
         <div className="flex items-start justify-between gap-3">
           <StarRating value={review.rating} />
           {canEdit && !editing && (
-            <Button variant="ghost" size="sm" onClick={onEdit} className="h-7 gap-1.5 text-xs text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEdit}
+              className="h-7 gap-1.5 text-xs text-muted-foreground"
+            >
               <Pencil className="size-3" /> {t('common.edit')}
             </Button>
           )}
         </div>
         {review.content && (
-          <p className="text-sm leading-relaxed text-foreground/90 line-clamp-4">{review.content}</p>
+          <p className="text-sm leading-relaxed text-foreground/90 line-clamp-4">
+            {review.content}
+          </p>
         )}
         {(review.tags?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -207,7 +243,9 @@ function SentFeedbackCard({
         {review.reply && (
           <div className="rounded-lg rounded-tl-sm border-l-2 border-primary/50 bg-primary/5 px-3.5 py-2.5">
             <div className="text-[11px] font-semibold text-primary">
-              {t('accountPage.feedback.brandReplied', { brand: booking?.trip?.brandName || t('accountPage.feedback.brandFallback') })}
+              {t('accountPage.feedback.brandReplied', {
+                brand: booking?.trip?.brandName || t('accountPage.feedback.brandFallback'),
+              })}
             </div>
             <p className="mt-0.5 text-sm text-foreground/80">{review.reply}</p>
           </div>
@@ -278,8 +316,16 @@ export function AccountFeedbackContent() {
 
   // The user's rides + submitted reviews. Both are cheap list queries
   // with keepPreviousData, so tab switches and pagination feel snappy.
-  const { data: bookingsData, isLoading: bookingsLoading, refetch: refetchBookings } = useMyBookings('past')
-  const { data: reviewsData, isLoading: reviewsLoading, refetch: refetchReviews } = useMyReviews({
+  const {
+    data: bookingsData,
+    isLoading: bookingsLoading,
+    refetch: refetchBookings,
+  } = useMyBookings('past')
+  const {
+    data: reviewsData,
+    isLoading: reviewsLoading,
+    refetch: refetchReviews,
+  } = useMyReviews({
     enabled: true,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -308,7 +354,8 @@ export function AccountFeedbackContent() {
   }
 
   // Stats hero.
-  const avgGiven = reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0
+  const avgGiven =
+    reviews.length > 0 ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0
   const approvedCount = reviews.filter((r) => r.status === 'approved').length
 
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -360,10 +407,7 @@ export function AccountFeedbackContent() {
       {/* ── Tabs ── */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'sent')}>
         <TabsList className="h-10 rounded-lg bg-muted p-1">
-          <TabsTrigger
-            value="pending"
-            className="gap-1.5 rounded-md px-4"
-          >
+          <TabsTrigger value="pending" className="gap-1.5 rounded-md px-4">
             <Clock className="size-3.5" />
             {t('accountPage.feedback.tabPending')}
             {pendingBookings.length > 0 && (
@@ -372,10 +416,7 @@ export function AccountFeedbackContent() {
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger
-            value="sent"
-            className="gap-1.5 rounded-md px-4"
-          >
+          <TabsTrigger value="sent" className="gap-1.5 rounded-md px-4">
             <Star className="size-3.5" />
             {t('accountPage.feedback.tabSent')} ({total})
           </TabsTrigger>
@@ -454,7 +495,11 @@ export function AccountFeedbackContent() {
           {total > PAGE_SIZE && (
             <div className="flex items-center justify-between pt-1">
               <span className="text-xs text-muted-foreground">
-                {t('accountPage.feedback.showing', { from: page * PAGE_SIZE + 1, to: Math.min((page + 1) * PAGE_SIZE, total), total })}
+                {t('accountPage.feedback.showing', {
+                  from: page * PAGE_SIZE + 1,
+                  to: Math.min((page + 1) * PAGE_SIZE, total),
+                  total,
+                })}
               </span>
               <div className="flex items-center gap-2">
                 <Button

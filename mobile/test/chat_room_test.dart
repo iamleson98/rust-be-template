@@ -19,7 +19,7 @@ import 'package:datxevui_support/shared/widgets.dart';
 /// message history (newest-first, like the real backend).
 class FakeApiClient extends ApiClient {
   FakeApiClient(this._channels, this._messagesNewestFirst)
-      : super(baseUrl: 'http://localhost:9', tokens: TokenStore());
+    : super(baseUrl: 'http://localhost:9', tokens: TokenStore());
 
   final List<Map<String, dynamic>> _channels;
   final List<Map<String, dynamic>> _messagesNewestFirst;
@@ -66,8 +66,7 @@ class FakeApiClient extends ApiClient {
   Future<Map<String, dynamic>> channelAction(
     String channelId,
     String action,
-  ) async =>
-      _channels.first;
+  ) async => _channels.first;
 }
 
 void main() {
@@ -97,13 +96,15 @@ void main() {
   var seq = 0;
   String isoAt(int index) {
     final dt = index < 82
-        ? DateTime.now().subtract(const Duration(days: 2)).copyWith(
-            hour: 9 + index ~/ 60,
-            minute: index % 60,
-            second: 0,
-            millisecond: 0,
-            microsecond: 0,
-          )
+        ? DateTime.now()
+              .subtract(const Duration(days: 2))
+              .copyWith(
+                hour: 9 + index ~/ 60,
+                minute: index % 60,
+                second: 0,
+                millisecond: 0,
+                microsecond: 0,
+              )
         : DateTime.now().subtract(Duration(minutes: 85 - index));
     // Second precision like the backend.
     return '${dt.toUtc().toIso8601String().split('.').first}Z';
@@ -147,14 +148,12 @@ void main() {
   final newestFirst = chrono.reversed.toList();
 
   Widget harness(ProviderContainer container) => UncontrolledProviderScope(
-        container: container,
-        child: FTheme(
-          data: vexevnTheme(dark: false),
-          child: MaterialApp(
-            home: RoomScreen(channelId: channelId),
-          ),
-        ),
-      );
+    container: container,
+    child: FTheme(
+      data: vexevnTheme(dark: false),
+      child: MaterialApp(home: RoomScreen(channelId: channelId)),
+    ),
+  );
 
   testWidgets('chat room renders groups, day chips, and pages in older '
       'history on demand', (WidgetTester tester) async {
@@ -165,9 +164,9 @@ void main() {
     addTearDown(tester.view.reset);
 
     final fake = FakeApiClient(channels, newestFirst);
-    final container = ProviderContainer(overrides: [
-      apiClientProvider.overrideWithValue(fake),
-    ]);
+    final container = ProviderContainer(
+      overrides: [apiClientProvider.overrideWithValue(fake)],
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(harness(container));
@@ -231,17 +230,16 @@ void main() {
     WidgetTester tester,
   ) async {
     final fake = FakeApiClient(channels, newestFirst);
-    final container = ProviderContainer(overrides: [
-      apiClientProvider.overrideWithValue(fake),
-    ]);
+    final container = ProviderContainer(
+      overrides: [apiClientProvider.overrideWithValue(fake)],
+    );
     addTearDown(container.dispose);
 
     await tester.pumpWidget(harness(container));
     await tester.pump();
     await tester.pumpAndSettle();
 
-    final before =
-        container.read(roomsProvider)[channelId]!.messages.length;
+    final before = container.read(roomsProvider)[channelId]!.messages.length;
 
     // Type → the composer updates; tap send → optimistic bubble appears.
     await tester.enterText(find.byType(TextField), 'Xin chào khách');
@@ -265,14 +263,15 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('pop guard: back action routes through go_router pop',
-      (WidgetTester tester) async {
+  testWidgets('pop guard: back action routes through go_router pop', (
+    WidgetTester tester,
+  ) async {
     // RoomScreen's back button calls context.pop() — build it inside a
     // tiny router so the call site is exercised.
     final fake = FakeApiClient(channels, newestFirst);
-    final container = ProviderContainer(overrides: [
-      apiClientProvider.overrideWithValue(fake),
-    ]);
+    final container = ProviderContainer(
+      overrides: [apiClientProvider.overrideWithValue(fake)],
+    );
     addTearDown(container.dispose);
 
     final router = GoRouter(
@@ -284,9 +283,8 @@ void main() {
           routes: [
             GoRoute(
               path: ':channelId',
-              builder: (c, s) => RoomScreen(
-                channelId: s.pathParameters['channelId']!,
-              ),
+              builder: (c, s) =>
+                  RoomScreen(channelId: s.pathParameters['channelId']!),
             ),
           ],
         ),
@@ -307,9 +305,11 @@ void main() {
 
     expect(find.byType(RoomScreen), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Quay lại').evaluate().isNotEmpty
-        ? find.bySemanticsLabel('Quay lại')
-        : find.byIcon(FLucideIcons.chevronLeft));
+    await tester.tap(
+      find.bySemanticsLabel('Quay lại').evaluate().isNotEmpty
+          ? find.bySemanticsLabel('Quay lại')
+          : find.byIcon(FLucideIcons.chevronLeft),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(RoomScreen), findsNothing);

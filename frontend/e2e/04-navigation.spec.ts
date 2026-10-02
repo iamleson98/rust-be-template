@@ -46,9 +46,7 @@ test.describe('Accordion', () => {
 
     await sec.getByTestId('accordion-trigger-2').click()
     await expect(sec.getByTestId('accordion-content-2')).toBeVisible()
-    await expect(sec.getByTestId('accordion-content-2')).toContainText(
-      'held for 10 minutes',
-    )
+    await expect(sec.getByTestId('accordion-content-2')).toContainText('held for 10 minutes')
     // Single mode: opening item 2 closes item 1
     await expect(sec.getByTestId('accordion-content-1')).toBeHidden()
   })
@@ -97,9 +95,7 @@ test.describe('ScrollArea', () => {
     // Programmatic scroll (the same mechanism chat-panel.tsx uses for
     // auto-scrolling to the latest message).
     await viewport.evaluate((el) => (el as HTMLElement).scrollTo(0, 300))
-    const scrolled = await viewport.evaluate(
-      (el) => (el as HTMLElement).scrollTop,
-    )
+    const scrolled = await viewport.evaluate((el) => (el as HTMLElement).scrollTop)
     expect(scrolled).toBeGreaterThan(0)
 
     // Wheel events also scroll the viewport (real user behavior).
@@ -107,9 +103,7 @@ test.describe('ScrollArea', () => {
     await viewport.hover()
     await page.mouse.wheel(0, 200)
     await page.waitForTimeout(150)
-    const wheelScrolled = await viewport.evaluate(
-      (el) => (el as HTMLElement).scrollTop,
-    )
+    const wheelScrolled = await viewport.evaluate((el) => (el as HTMLElement).scrollTop)
     expect(wheelScrolled).toBeGreaterThan(100)
   })
 })

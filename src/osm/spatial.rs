@@ -137,7 +137,7 @@ impl SpatialIndex {
         }
     }
 
-    /// Same as [`lookup`] but skips the specified admin level.
+    /// Same as `lookup` but skips the specified admin level.
     pub fn lookup_excluding_level(&self, lat: f64, lon: f64, exclude_level: i64) -> AdminHierarchy {
         let point = Point::new(lon, lat);
         let coord = [lon, lat];

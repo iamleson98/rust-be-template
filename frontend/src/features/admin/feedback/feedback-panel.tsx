@@ -86,7 +86,10 @@ export function FeedbackPanel() {
     ) => {
       setUpdating(true)
       try {
-        await moderateMut.mutateAsync({ path: { id }, body: { status: body.status, brandReply: body.brandReply } } as unknown as Parameters<typeof moderateMut.mutateAsync>[0])
+        await moderateMut.mutateAsync({
+          path: { id },
+          body: { status: body.status, brandReply: body.brandReply },
+        } as unknown as Parameters<typeof moderateMut.mutateAsync>[0])
         toast.success(successMsg)
         return true
       } catch (e) {
@@ -120,9 +123,7 @@ export function FeedbackPanel() {
             <MessageSquareHeart className="size-5 text-primary" />
             {t('adminFeedback.title')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminFeedback.subtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminFeedback.subtitle')}</p>
         </div>
         <Button
           variant="outline"
@@ -170,7 +171,11 @@ export function FeedbackPanel() {
         isError={listQuery.isError}
         onRetry={() => void listQuery.refetch()}
         onRowClick={openDetail}
-        rowAriaLabel={(r) => t('adminFeedback.rowAriaLabel', { name: r.authorName ?? t('adminFeedback.anonymousCustomerLower') })}
+        rowAriaLabel={(r) =>
+          t('adminFeedback.rowAriaLabel', {
+            name: r.authorName ?? t('adminFeedback.anonymousCustomerLower'),
+          })
+        }
         emptyTitle={t('adminFeedback.emptyTitle')}
         emptyDescription={
           brandId || status !== 'all' || debouncedSearch

@@ -45,6 +45,4 @@ class PresenceNotifier extends Notifier<StaffSnapshot?> {
 }
 
 final staffPresenceProvider =
-    NotifierProvider<PresenceNotifier, StaffSnapshot?>(
-  PresenceNotifier.new,
-);
+    NotifierProvider<PresenceNotifier, StaffSnapshot?>(PresenceNotifier.new);

@@ -116,9 +116,9 @@ where
 
 /// Staff-only extractor (employee OR admin).
 ///
-/// Like `AuthUser`, but additionally loads the full [`SessionUser`] and
+/// Like `AuthUser`, but additionally loads the full `SessionUser` and
 /// verifies the caller is STAFF — role `employee` OR `admin` (see
-/// [`SessionUser::is_staff`]). Admins are full support/ops users too:
+/// `SessionUser::is_staff`). Admins are full support/ops users too:
 /// they manage brands, routes, schedules, bookings and monitor every
 /// support queue. Returns:
 /// - `401 Unauthorized` when no token / invalid token.

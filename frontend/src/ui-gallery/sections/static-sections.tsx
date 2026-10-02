@@ -8,17 +8,9 @@ import {
   type DataTableFeatures,
 } from '@/components/data-table'
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AspectRatio } from '@/components/ui/aspect-ratio'
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {
   Breadcrumb,
@@ -59,11 +51,7 @@ import { Row, Section } from '../section'
 export function StaticSections() {
   return (
     <>
-      <Section
-        id="badge"
-        title="Badge"
-        description="Small status descriptors — 4 variants."
-      >
+      <Section id="badge" title="Badge" description="Small status descriptors — 4 variants.">
         <Row>
           <Badge data-testid="badge-default">Default</Badge>
           <Badge variant="secondary" data-testid="badge-secondary">
@@ -78,25 +66,17 @@ export function StaticSections() {
         </Row>
       </Section>
 
-      <Section
-        id="alert"
-        title="Alert"
-        description="Callout blocks for important messages."
-      >
+      <Section id="alert" title="Alert" description="Callout blocks for important messages.">
         <div className="space-y-3">
           <Alert data-testid="alert-default">
             <InfoIcon />
             <AlertTitle>Heads up!</AlertTitle>
-            <AlertDescription>
-              You can add components to your app using the CLI.
-            </AlertDescription>
+            <AlertDescription>You can add components to your app using the CLI.</AlertDescription>
           </Alert>
           <Alert variant="destructive" data-testid="alert-destructive">
             <TriangleAlertIcon />
             <AlertTitle>Payment failed</AlertTitle>
-            <AlertDescription>
-              Your card was declined. Please try another method.
-            </AlertDescription>
+            <AlertDescription>Your card was declined. Please try another method.</AlertDescription>
           </Alert>
         </div>
       </Section>
@@ -109,9 +89,7 @@ export function StaticSections() {
         <Card className="max-w-md" data-testid="card-demo">
           <CardHeader>
             <CardTitle>Ho Chi Minh City → Da Lat</CardTitle>
-            <CardDescription>
-              Limousine 22 seats · 7h 30m · free water
-            </CardDescription>
+            <CardDescription>Limousine 22 seats · 7h 30m · free water</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-2">
             <p className="text-sm">Departure 08:30 · Arrival 16:00</p>
@@ -150,9 +128,7 @@ export function StaticSections() {
             <AvatarFallback>VX</AvatarFallback>
           </Avatar>
           <Avatar data-testid="avatar-fallback">
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              NA
-            </AvatarFallback>
+            <AvatarFallback className="bg-primary text-primary-foreground">NA</AvatarFallback>
           </Avatar>
           <Avatar data-testid="avatar-large" className="size-12">
             <AvatarFallback>LG</AvatarFallback>
@@ -288,9 +264,7 @@ function GalleryTripsTable() {
         galleryTripHelper.accessor('price', {
           header: 'Price',
           cell: ({ getValue }) => (
-            <span className="tabular-nums">
-              {getValue().toLocaleString('vi-VN')}₫
-            </span>
+            <span className="tabular-nums">{getValue().toLocaleString('vi-VN')}₫</span>
           ),
           sortFn: 'basic',
           meta: { label: 'Price', align: 'right' },
@@ -307,7 +281,13 @@ const GALLERY_PAYMENTS: GalleryTrip[] = [
   ...GALLERY_TRIPS,
   { id: 't4', route: 'Hà Nội → Sài Gòn', brand: 'Mai Linh', departure: '07:15', price: 650000 },
   { id: 't5', route: 'Huế → Đà Nẵng', brand: 'Thành Bưởi', departure: '09:45', price: 180000 },
-  { id: 't6', route: 'Nha Trang → Sài Gòn', brand: 'Hoàng Long', departure: '18:30', price: 310000 },
+  {
+    id: 't6',
+    route: 'Nha Trang → Sài Gòn',
+    brand: 'Hoàng Long',
+    departure: '18:30',
+    price: 310000,
+  },
 ]
 
 /** Full-featured demo: sorting + column visibility + pagination. */
@@ -316,31 +296,23 @@ function GalleryDataTableDemo() {
     <DataTable
       columns={galleryTripHelper.columns([
         galleryTripHelper.accessor('route', {
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Route" />
-          ),
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Route" />,
           cell: ({ getValue }) => <span className="font-medium">{getValue()}</span>,
           sortFn: 'text',
           meta: { label: 'Route' },
         }),
         galleryTripHelper.accessor('brand', {
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Brand" />
-          ),
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Brand" />,
           sortFn: 'text',
           meta: { label: 'Brand' },
         }),
         galleryTripHelper.accessor('departure', {
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Departure" />
-          ),
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Departure" />,
           sortFn: 'text',
           meta: { label: 'Departure', align: 'right' },
         }),
         galleryTripHelper.accessor('price', {
-          header: ({ column }) => (
-            <DataTableColumnHeader column={column} title="Price" />
-          ),
+          header: ({ column }) => <DataTableColumnHeader column={column} title="Price" />,
           cell: ({ getValue }) => (
             <span className="tabular-nums">{getValue().toLocaleString('vi-VN')}₫</span>
           ),

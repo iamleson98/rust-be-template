@@ -3,15 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Ban,
-  Ticket as TicketIcon,
-  Phone,
-  Mail,
-  Hand,
-  Undo2,
-  CheckCircle2,
-} from 'lucide-react'
+import { Ban, Ticket as TicketIcon, Phone, Mail, Hand, Undo2, CheckCircle2 } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
 import { customerDisplayName, customerInitial } from './chat-helpers'
@@ -68,12 +60,17 @@ export function ChatWorkspaceHeader({
           <div className="font-semibold text-sm truncate flex items-center gap-2">
             {customerDisplayName(activeChannel)}
             {userOnline && (
-              <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title={t('chat.online')} />
+              <span
+                className="h-2 w-2 rounded-full bg-emerald-500 shrink-0"
+                title={t('chat.online')}
+              />
             )}
           </div>
           <div className="text-[11px] text-muted-foreground truncate flex items-center gap-2">
             {typingUser ? (
-              <span className="text-blue-600 italic">{t('chat.typing', { name: typingUser.name })}</span>
+              <span className="text-blue-600 italic">
+                {t('chat.typing', { name: typingUser.name })}
+              </span>
             ) : (
               <>
                 {activeChannel.user?.phone && (
@@ -82,12 +79,13 @@ export function ChatWorkspaceHeader({
                     {activeChannel.user.phone}
                   </span>
                 )}
-                {activeChannel.user?.email && activeChannel.user.email !== customerDisplayName(activeChannel) && (
-                  <span className="flex items-center gap-1">
-                    <Mail className="h-3 w-3" />
-                    {activeChannel.user.email}
-                  </span>
-                )}
+                {activeChannel.user?.email &&
+                  activeChannel.user.email !== customerDisplayName(activeChannel) && (
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {activeChannel.user.email}
+                    </span>
+                  )}
                 {!activeChannel.user?.phone && !activeChannel.user?.email && activeChannel.topic}
               </>
             )}
@@ -151,11 +149,13 @@ export function ChatWorkspaceHeader({
             )}
           </>
         )}
-        <Badge className={`text-[10px] border-0 ${activeChannel.status === 'assigned' ? 'bg-blue-100 text-blue-700' : activeChannel.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'}`}>
+        <Badge
+          className={`text-[10px] border-0 ${activeChannel.status === 'assigned' ? 'bg-blue-100 text-blue-700' : activeChannel.status === 'closed' ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-700'}`}
+        >
           {activeChannel.status === 'assigned'
-            ? (activeChannel.assignedTo?.fullName
-                ? t('adminChat.processingWithAgent', { name: activeChannel.assignedTo.fullName })
-                : t('chat.processing'))
+            ? activeChannel.assignedTo?.fullName
+              ? t('adminChat.processingWithAgent', { name: activeChannel.assignedTo.fullName })
+              : t('chat.processing')
             : activeChannel.status === 'closed'
               ? t('admin.stats.closedCount')
               : t('adminChat.waitingShort')}

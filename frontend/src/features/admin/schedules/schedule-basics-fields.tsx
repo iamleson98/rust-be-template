@@ -11,19 +11,10 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { InfiniteSelect } from '@/components/ui/infinite-select'
 import { TimePicker } from '@/components/ui/time-picker'
 import { ComboboxField } from '@/components/ui/combobox'
-import {
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { fetchVehicleTypesPage } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
-import type {
-  AdminBusLayoutOut,
-  AdminVehicleTypeOut,
-} from '@/lib/api/types.gen'
+import type { AdminBusLayoutOut, AdminVehicleTypeOut } from '@/lib/api/types.gen'
 import { NO_LAYOUT, type ScheduleFormInstance } from './schedule-schema'
 
 export function ScheduleBasicsFields({
@@ -149,9 +140,7 @@ export function ScheduleBasicsFields({
                 placeholder={t('adminSchedules.chooseSeatLayout')}
                 searchPlaceholder={t('adminSchedules.searchSeatLayout')}
                 emptyText={
-                  busLayouts.length === 0
-                    ? t('adminSchedules.noLayoutsYet')
-                    : t('combobox.noMatch')
+                  busLayouts.length === 0 ? t('adminSchedules.noLayoutsYet') : t('combobox.noMatch')
                 }
                 aria-label={t('busLayouts.title')}
               />

@@ -35,9 +35,12 @@ export function timeAgo(s: string | null | undefined): string {
     const diffMin = differenceInCalendarDays(new Date(), d) * 24 * 60
     const lang = useApp.getState().lang
     if (diffMin < 1) return translate(lang, 'adminTickets.justNow')
-    if (diffMin < 60) return translate(lang, 'adminTickets.minutesAgo', { count: Math.floor(diffMin) })
-    if (diffMin < 60 * 24) return translate(lang, 'adminTickets.hoursAgo', { count: Math.floor(diffMin / 60) })
-    if (diffMin < 60 * 24 * 7) return translate(lang, 'adminTickets.daysAgo', { count: Math.floor(diffMin / 60 / 24) })
+    if (diffMin < 60)
+      return translate(lang, 'adminTickets.minutesAgo', { count: Math.floor(diffMin) })
+    if (diffMin < 60 * 24)
+      return translate(lang, 'adminTickets.hoursAgo', { count: Math.floor(diffMin / 60) })
+    if (diffMin < 60 * 24 * 7)
+      return translate(lang, 'adminTickets.daysAgo', { count: Math.floor(diffMin / 60 / 24) })
     const dateLocale = lang === 'en' ? enUS : vi
     return format(d, 'dd/MM/yyyy', { locale: dateLocale })
   } catch {

@@ -5,7 +5,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createAuthFetch } from '@/lib/auth-fetch'
 
 describe('createAuthFetch', () => {
-  type FetchMock = ReturnType<typeof vi.fn> & ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>)
+  type FetchMock = ReturnType<typeof vi.fn> &
+    ((input: RequestInfo | URL, init?: RequestInit) => Promise<Response>)
   let mockFetch: FetchMock
 
   beforeEach(() => {

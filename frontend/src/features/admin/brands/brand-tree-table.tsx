@@ -15,7 +15,17 @@
  */
 
 import { useMemo } from 'react'
-import { ChevronRight, Building2, Route as RouteIcon, Clock, Plus, Pencil, Trash2, MapPin, Loader2 } from 'lucide-react'
+import {
+  ChevronRight,
+  Building2,
+  Route as RouteIcon,
+  Clock,
+  Plus,
+  Pencil,
+  Trash2,
+  MapPin,
+  Loader2,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -92,7 +102,12 @@ export function BrandTreeTable({
   const t = useT()
   if (brandsLoading) {
     return (
-      <div className="overflow-hidden rounded-lg border bg-card" role="status" aria-busy="true" aria-label={t('adminBrands.loadingBrands')}>
+      <div
+        className="overflow-hidden rounded-lg border bg-card"
+        role="status"
+        aria-busy="true"
+        aria-label={t('adminBrands.loadingBrands')}
+      >
         <div className="flex items-center gap-4 border-b bg-muted/40 px-4 py-3">
           <Shimmer className="h-4 w-36" />
           <Shimmer className="h-4 w-24" />
@@ -122,9 +137,7 @@ export function BrandTreeTable({
             <Building2 className="size-5" aria-hidden />
           </div>
           <p className="text-sm font-medium">
-            {hasSearch || hasLocationFilter
-              ? t('adminBrands.emptyFiltered')
-              : t('brands.emptyAll')}
+            {hasSearch || hasLocationFilter ? t('adminBrands.emptyFiltered') : t('brands.emptyAll')}
           </p>
           <p className="max-w-sm text-xs text-muted-foreground">
             {hasSearch || hasLocationFilter
@@ -142,23 +155,44 @@ export function BrandTreeTable({
         <Table className="min-w-210">
           <TableHeader>
             <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
-              <TableHead scope="col" className="h-10 w-16 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground" />
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 w-16 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              />
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('common.name')}
               </TableHead>
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('common.details')}
               </TableHead>
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('adminBrands.colSchedules')}
               </TableHead>
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('search.sort.price')}
               </TableHead>
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('adminBrands.colPoints')}
               </TableHead>
-              <TableHead scope="col" className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <TableHead
+                scope="col"
+                className="h-10 bg-transparent px-3 text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+              >
                 {t('common.actions')}
               </TableHead>
             </TableRow>
@@ -225,10 +259,18 @@ function BrandNode({
     <>
       <TableRow
         data-testid={`brand-row-${brand.slug}`}
-        className={cn('bg-blue-50/40 hover:bg-blue-50/60 dark:bg-blue-950/20', expanded && 'border-b-0')}
+        className={cn(
+          'bg-blue-50/40 hover:bg-blue-50/60 dark:bg-blue-950/20',
+          expanded && 'border-b-0',
+        )}
       >
         <TableCell className="px-3 py-3">
-          <Expander expanded={expandable && expanded} disabled={!expandable} onToggle={onToggle} label={t('brands.expandRoutes', { name: brand.name })} />
+          <Expander
+            expanded={expandable && expanded}
+            disabled={!expandable}
+            onToggle={onToggle}
+            label={t('brands.expandRoutes', { name: brand.name })}
+          />
         </TableCell>
         <TableCell className="px-3 py-3">
           <div className="flex items-center gap-2.5">
@@ -238,7 +280,10 @@ function BrandNode({
               aria-hidden
             />
             <span className="font-semibold">{brand.name}</span>
-            <Badge variant="outline" className="hidden lg:inline-flex text-[10px] text-muted-foreground">
+            <Badge
+              variant="outline"
+              className="hidden lg:inline-flex text-[10px] text-muted-foreground"
+            >
               {brand.slug}
             </Badge>
           </div>
@@ -253,26 +298,43 @@ function BrandNode({
         <TableCell className="px-3 py-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge variant="secondary" className="gap-1 text-[11px]">
-              <RouteIcon className="h-3 w-3" aria-hidden /> {t('brands.routesCount', { count: brand.routeCount })}
+              <RouteIcon className="h-3 w-3" aria-hidden />{' '}
+              {t('brands.routesCount', { count: brand.routeCount })}
             </Badge>
-            <Badge variant="secondary" className="text-[11px]">{t('brands.layoutsCount', { count: brand.layoutCount })}</Badge>
+            <Badge variant="secondary" className="text-[11px]">
+              {t('brands.layoutsCount', { count: brand.layoutCount })}
+            </Badge>
             {brand.rating != null && brand.rating > 0 && (
-              <Badge variant="outline" className="text-[11px]">★ {brand.rating.toFixed(1)}</Badge>
+              <Badge variant="outline" className="text-[11px]">
+                ★ {brand.rating.toFixed(1)}
+              </Badge>
             )}
           </div>
         </TableCell>
-        <TableCell className="px-3 py-3 text-xs text-muted-foreground">{t('brands.tripsCount', { count: brand.totalTrips })}</TableCell>
+        <TableCell className="px-3 py-3 text-xs text-muted-foreground">
+          {t('brands.tripsCount', { count: brand.totalTrips })}
+        </TableCell>
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3">
           <RowActions>
-            <IconAction label={t('brands.addRouteFor', { name: brand.name })} onClick={() => callbacks.onAddRoute(brand)}>
+            <IconAction
+              label={t('brands.addRouteFor', { name: brand.name })}
+              onClick={() => callbacks.onAddRoute(brand)}
+            >
               <Plus className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={t('brands.editBrand', { name: brand.name })} onClick={() => callbacks.onEditBrand(brand)}>
+            <IconAction
+              label={t('brands.editBrand', { name: brand.name })}
+              onClick={() => callbacks.onEditBrand(brand)}
+            >
               <Pencil className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={t('brands.deleteBrand', { name: brand.name })} danger onClick={() => callbacks.onDeleteBrand(brand)}>
+            <IconAction
+              label={t('brands.deleteBrand', { name: brand.name })}
+              danger
+              onClick={() => callbacks.onDeleteBrand(brand)}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </IconAction>
           </RowActions>
@@ -285,7 +347,8 @@ function BrandNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center gap-2 border-l-2 border-blue-200 py-3 pl-10 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> {t('adminBrands.loadingRoutes')}
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />{' '}
+                  {t('adminBrands.loadingRoutes')}
                 </div>
               </TableCell>
             </TableRow>
@@ -293,8 +356,15 @@ function BrandNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center justify-between gap-2 border-l-2 border-blue-200 py-2.5 pl-10 pr-3">
-                  <span className="text-xs text-muted-foreground">{t('adminBrands.noRoutesYet')}</span>
-                  <Button size="sm" variant="outline" className="h-7" onClick={() => callbacks.onAddRoute(brand)}>
+                  <span className="text-xs text-muted-foreground">
+                    {t('adminBrands.noRoutesYet')}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => callbacks.onAddRoute(brand)}
+                  >
                     <Plus className="h-3.5 w-3.5" /> {t('adminRoutes.addRoute')}
                   </Button>
                 </div>
@@ -347,7 +417,10 @@ function RouteNode({
     <>
       <TableRow
         data-testid={`route-row-${route.id}`}
-        className={cn('bg-slate-50/60 hover:bg-slate-100/60 dark:bg-slate-900/30', expanded && 'border-b-0')}
+        className={cn(
+          'bg-slate-50/60 hover:bg-slate-100/60 dark:bg-slate-900/30',
+          expanded && 'border-b-0',
+        )}
       >
         <TableCell className="px-3 py-2.5">
           <Expander
@@ -362,33 +435,50 @@ function RouteNode({
           <div className="flex items-center gap-2">
             <RouteIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="font-medium">{route.name}</span>
-            <code className="hidden font-mono text-[10px] text-muted-foreground xl:inline">{route.id.slice(0, 8)}</code>
+            <code className="hidden font-mono text-[10px] text-muted-foreground xl:inline">
+              {route.id.slice(0, 8)}
+            </code>
           </div>
         </TableCell>
         <TableCell className="px-3 py-2.5 text-xs">{routeDirection(route)}</TableCell>
         <TableCell className="px-3 py-2.5">
           <Badge variant="secondary" className="gap-1 text-[11px]">
-            <Clock className="h-3 w-3" aria-hidden /> {t('brands.schedulesCount', { count: route.scheduleCount })}
+            <Clock className="h-3 w-3" aria-hidden />{' '}
+            {t('brands.schedulesCount', { count: route.scheduleCount })}
           </Badge>
         </TableCell>
         <TableCell className="px-3 py-2.5" />
         <TableCell className="px-3 py-2.5">
           <Badge variant="outline" className="gap-1 text-[11px] text-muted-foreground">
-            <MapPin className="h-3 w-3" aria-hidden /> {t('brands.pointsCount', { count: route.pickupPointCount })}
+            <MapPin className="h-3 w-3" aria-hidden />{' '}
+            {t('brands.pointsCount', { count: route.pickupPointCount })}
           </Badge>
         </TableCell>
         <TableCell className="px-3 py-2.5">
           <RowActions>
-            <IconAction label={t('brands.addScheduleFor', { name: route.name })} onClick={() => callbacks.onAddSchedule(route, brand)}>
+            <IconAction
+              label={t('brands.addScheduleFor', { name: route.name })}
+              onClick={() => callbacks.onAddSchedule(route, brand)}
+            >
               <Plus className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={t('adminBrands.pointsOfRoute', { name: route.name })} onClick={() => callbacks.onPickupPoints(route)}>
+            <IconAction
+              label={t('adminBrands.pointsOfRoute', { name: route.name })}
+              onClick={() => callbacks.onPickupPoints(route)}
+            >
               <MapPin className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={t('brands.editRoute', { name: route.name })} onClick={() => callbacks.onEditRoute(route, brand)}>
+            <IconAction
+              label={t('brands.editRoute', { name: route.name })}
+              onClick={() => callbacks.onEditRoute(route, brand)}
+            >
               <Pencil className="h-3.5 w-3.5" />
             </IconAction>
-            <IconAction label={t('brands.deleteRoute', { name: route.name })} danger onClick={() => callbacks.onDeleteRoute(route)}>
+            <IconAction
+              label={t('brands.deleteRoute', { name: route.name })}
+              danger
+              onClick={() => callbacks.onDeleteRoute(route)}
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </IconAction>
           </RowActions>
@@ -401,7 +491,8 @@ function RouteNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center gap-2 border-l-2 border-slate-300 py-2.5 pl-16 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" /> {t('adminBrands.loadingSchedules')}
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />{' '}
+                  {t('adminBrands.loadingSchedules')}
                 </div>
               </TableCell>
             </TableRow>
@@ -409,8 +500,15 @@ function RouteNode({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={7} className="px-3 py-0">
                 <div className="flex items-center justify-between gap-2 border-l-2 border-slate-300 py-2 pl-16 pr-3">
-                  <span className="text-xs text-muted-foreground">{t('adminBrands.noSchedulesYet')}</span>
-                  <Button size="sm" variant="outline" className="h-7" onClick={() => callbacks.onAddSchedule(route, brand)}>
+                  <span className="text-xs text-muted-foreground">
+                    {t('adminBrands.noSchedulesYet')}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => callbacks.onAddSchedule(route, brand)}
+                  >
                     <Plus className="h-3.5 w-3.5" /> {t('adminBrands.addSchedule')}
                   </Button>
                 </div>
@@ -449,18 +547,19 @@ function ScheduleRow({
   const t = useT()
   const chips = dayChips(schedule.daysOfWeek)
   return (
-    <TableRow
-      data-testid={`schedule-row-${schedule.id}`}
-      className="hover:bg-muted/40"
-    >
+    <TableRow data-testid={`schedule-row-${schedule.id}`} className="hover:bg-muted/40">
       <TableCell className="px-3 py-2">
         <Clock className="ml-9 h-3.5 w-3.5 text-muted-foreground/60" aria-hidden />
       </TableCell>
       <TableCell className="px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm font-semibold tabular-nums">{schedule.departureTime}</span>
+          <span className="font-mono text-sm font-semibold tabular-nums">
+            {schedule.departureTime}
+          </span>
           {scheduleStopTimes(schedule) && (
-            <span className="text-[11px] text-muted-foreground">({scheduleStopTimes(schedule)})</span>
+            <span className="text-[11px] text-muted-foreground">
+              ({scheduleStopTimes(schedule)})
+            </span>
           )}
         </div>
         <div className="mt-0.5 text-[11px] text-muted-foreground">{vehicleLabelFor(schedule)}</div>
@@ -472,7 +571,9 @@ function ScheduleRow({
               key={c.label}
               className={cn(
                 'inline-flex h-5 min-w-6 items-center justify-center rounded px-1 text-[10px] font-medium',
-                c.active ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' : 'bg-muted text-muted-foreground/50',
+                c.active
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                  : 'bg-muted text-muted-foreground/50',
               )}
             >
               {c.label}
@@ -485,7 +586,9 @@ function ScheduleRow({
       <TableCell className="px-3 py-2 text-right">
         <div className="font-semibold tabular-nums">{formatVND(schedule.basePriceAdult)}</div>
         {schedule.basePriceChild != null && schedule.basePriceChild > 0 && (
-          <div className="text-[11px] text-muted-foreground">{t('adminBrands.childPrice', { price: formatVND(schedule.basePriceChild) })}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {t('adminBrands.childPrice', { price: formatVND(schedule.basePriceChild) })}
+          </div>
         )}
       </TableCell>
       <TableCell className="px-3 py-2">
@@ -496,13 +599,19 @@ function ScheduleRow({
       <TableCell className="px-3 py-2">
         <RowActions>
           <IconAction
-            label={t('adminBrands.editScheduleOf', { time: schedule.departureTime, name: route.name })}
+            label={t('adminBrands.editScheduleOf', {
+              time: schedule.departureTime,
+              name: route.name,
+            })}
             onClick={() => callbacks.onEditSchedule(schedule, route, brand)}
           >
             <Pencil className="h-3.5 w-3.5" />
           </IconAction>
           <IconAction
-            label={t('adminBrands.deleteScheduleOf', { time: schedule.departureTime, name: route.name })}
+            label={t('adminBrands.deleteScheduleOf', {
+              time: schedule.departureTime,
+              name: route.name,
+            })}
             danger
             onClick={() => callbacks.onDeleteSchedule(schedule, route)}
           >
@@ -539,11 +648,17 @@ function Expander({
       className={cn(
         'flex items-center justify-center rounded transition-colors',
         small ? 'h-8 w-8' : 'h-8 w-8',
-        disabled ? 'text-muted-foreground/30' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+        disabled
+          ? 'text-muted-foreground/30'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
       )}
     >
       <ChevronRight
-        className={cn('transition-transform', small ? 'h-3.5 w-3.5' : 'h-4 w-4', expanded && 'rotate-90')}
+        className={cn(
+          'transition-transform',
+          small ? 'h-3.5 w-3.5' : 'h-4 w-4',
+          expanded && 'rotate-90',
+        )}
         aria-hidden
       />
     </button>

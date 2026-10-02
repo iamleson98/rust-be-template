@@ -38,13 +38,29 @@ function BellSVG() {
       <circle cx="82" cy="46" r="6" fill="oklch(0.596 0.12 220)" />
       <circle cx="82" cy="46" r="3" fill="white" />
       {/* Decorative sound waves */}
-      <path d="M92 58 Q98 60, 98 66" stroke="oklch(0.556 0.13 250 / 0.4)" strokeWidth="2" strokeLinecap="round" fill="none" />
-      <path d="M28 58 Q22 60, 22 66" stroke="oklch(0.556 0.13 250 / 0.4)" strokeWidth="2" strokeLinecap="round" fill="none" />
+      <path
+        d="M92 58 Q98 60, 98 66"
+        stroke="oklch(0.556 0.13 250 / 0.4)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M28 58 Q22 60, 22 66"
+        stroke="oklch(0.556 0.13 250 / 0.4)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+      />
     </svg>
   )
 }
 
-export const NoNotifications = memo(function NoNotifications({ className }: { className?: string }) {
+export const NoNotifications = memo(function NoNotifications({
+  className,
+}: {
+  className?: string
+}) {
   const t = useT()
   return (
     <EmptyState

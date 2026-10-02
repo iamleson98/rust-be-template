@@ -30,30 +30,14 @@
  */
 
 import { useEffect, useState } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Banknote,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  ShieldCheck,
-  XCircle,
-} from 'lucide-react'
+import { Banknote, CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
-import {
-  useCancelPayment,
-  useCreatePayment,
-  usePayment,
-} from '@/lib/queries/payments'
+import { useCancelPayment, useCreatePayment, usePayment } from '@/lib/queries/payments'
 import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
 import { ProviderPicker } from './payment-provider-picker'
 import { GatewayRedirect } from './gateway-redirect'
@@ -126,8 +110,7 @@ export function PaymentDialog({
     }
   }
 
-  const showProviderPicker =
-    !p || ['failed', 'cancelled'].includes(p.status)
+  const showProviderPicker = !p || ['failed', 'cancelled'].includes(p.status)
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -164,11 +147,7 @@ export function PaymentDialog({
 
             {/* Provider-specific body */}
             {p.provider === 'vnpay' || p.provider === 'momo' || p.provider === 'zalopay' ? (
-              <GatewayRedirect
-                provider={p.provider}
-                gatewayUrl={p.gatewayUrl}
-                status={p.status}
-              />
+              <GatewayRedirect provider={p.provider} gatewayUrl={p.gatewayUrl} status={p.status} />
             ) : p.provider === 'vietqr' ? (
               <VietQrDisplay payment={p} currency={currency} />
             ) : p.provider === 'cod' ? (
@@ -227,9 +206,21 @@ function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
       color: 'bg-emerald-100 text-emerald-800',
       icon: CheckCircle2,
     },
-    failed: { label: t('bookingFlow.statusFailed'), color: 'bg-rose-100 text-rose-800', icon: XCircle },
-    cancelled: { label: t('bookingFlow.statusCancelled'), color: 'bg-slate-100 text-slate-700', icon: XCircle },
-    refunded: { label: t('bookingFlow.statusRefunded'), color: 'bg-primary/10 text-primary', icon: ShieldCheck },
+    failed: {
+      label: t('bookingFlow.statusFailed'),
+      color: 'bg-rose-100 text-rose-800',
+      icon: XCircle,
+    },
+    cancelled: {
+      label: t('bookingFlow.statusCancelled'),
+      color: 'bg-slate-100 text-slate-700',
+      icon: XCircle,
+    },
+    refunded: {
+      label: t('bookingFlow.statusRefunded'),
+      color: 'bg-primary/10 text-primary',
+      icon: ShieldCheck,
+    },
   } as const
   const cfg = map[status as keyof typeof map] ?? map.pending
   const Icon = cfg.icon
@@ -249,9 +240,7 @@ function CodDisplay({ payment }: { payment: PaymentOut }) {
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
-        <div className="text-sm font-medium text-emerald-800">
-          {t('bookingFlow.codCollected')}
-        </div>
+        <div className="text-sm font-medium text-emerald-800">{t('bookingFlow.codCollected')}</div>
         {payment.collectedAt && (
           <div className="text-[11px] text-emerald-700 mt-1">
             {new Date(payment.collectedAt).toLocaleString('vi-VN')}
@@ -266,12 +255,9 @@ function CodDisplay({ payment }: { payment: PaymentOut }) {
         <Banknote className="h-5 w-5 text-amber-600" />
         <span className="font-medium text-sm">{t('bookingFlow.codTitle')}</span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {t('bookingFlow.codDesc')}
-      </p>
+      <p className="text-xs text-muted-foreground">{t('bookingFlow.codDesc')}</p>
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-        <strong>{t('bookingFlow.codNoticeLabel')}</strong>{' '}
-        {t('bookingFlow.codNoticeBody')}
+        <strong>{t('bookingFlow.codNoticeLabel')}</strong> {t('bookingFlow.codNoticeBody')}
       </div>
     </div>
   )

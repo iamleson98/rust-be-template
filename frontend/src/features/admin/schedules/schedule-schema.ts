@@ -36,10 +36,9 @@ const middlePoint = z.object({
 
 export const scheduleSchema = z
   .object({
-    departureTime: requiredText('scheduleSchema.labelDepartureTime').regex(
-      HHMM,
-      { error: () => tSync('scheduleSchema.timeInvalid') },
-    ),
+    departureTime: requiredText('scheduleSchema.labelDepartureTime').regex(HHMM, {
+      error: () => tSync('scheduleSchema.timeInvalid'),
+    }),
     effectiveFrom: requiredText('scheduleSchema.labelEffectiveFrom'),
     effectiveTo: requiredText('scheduleSchema.labelEffectiveTo'),
     days: z.array(z.boolean()).length(7),
@@ -68,21 +67,14 @@ export const scheduleSchema = z
     endPointTime: optionalTime,
     middlePoints: z.array(middlePoint),
   })
-  .refine(
-    (d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveFrom <= d.effectiveTo,
-    {
-      error: () => tSync('scheduleSchema.dateOrder'),
-      path: ['effectiveTo'],
-    },
-  )
+  .refine((d) => !d.effectiveFrom || !d.effectiveTo || d.effectiveFrom <= d.effectiveTo, {
+    error: () => tSync('scheduleSchema.dateOrder'),
+    path: ['effectiveTo'],
+  })
 export type ScheduleFormValues = z.infer<typeof scheduleSchema>
 
 /** What `useForm` receives for `scheduleSchema` (input side). */
 export type ScheduleFormInput = z.input<typeof scheduleSchema>
 
 /** The react-hook-form instance driving ScheduleFormDialog. */
-export type ScheduleFormInstance = UseFormReturn<
-  ScheduleFormInput,
-  unknown,
-  ScheduleFormValues
->
+export type ScheduleFormInstance = UseFormReturn<ScheduleFormInput, unknown, ScheduleFormValues>

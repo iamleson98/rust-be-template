@@ -5,11 +5,7 @@ import { DatePicker } from '@/components/ui/date-picker'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { TripResultsSkeleton } from '@/features/search/trip-results-skeleton'
-import {
-  Search,
-  Bus,
-  Clock,
-} from 'lucide-react'
+import { Search, Bus, Clock } from 'lucide-react'
 import { usePlaceSearch, useTripSearch } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import type { TripResult } from '@/lib/api/types.gen'
@@ -67,25 +63,28 @@ export function SearchStep({
             placeholder={t('adminTickets.fromExample')}
             className="h-9"
           />
-          {fromSearch.data?.items && fromSearch.data.items.length > 0 && !fromPlace && fromQuery && (
-            <div className="absolute z-10 mt-1 w-full bg-white border rounded-md max-h-48 overflow-y-auto">
-              {fromSearch.data.items.slice(0, 6).map((p) => (
-                <button
-                  key={p.id ?? p.name}
-                  onClick={() => {
-                    setFromPlace({ id: p.id ?? p.name, name: p.name })
-                    setFromQuery('')
-                  }}
-                  className="block w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50"
-                >
-                  <span className="font-medium">{p.name}</span>
-                  {p.province && (
-                    <span className="text-muted-foreground ml-1">· {p.province}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+          {fromSearch.data?.items &&
+            fromSearch.data.items.length > 0 &&
+            !fromPlace &&
+            fromQuery && (
+              <div className="absolute z-10 mt-1 w-full bg-white border rounded-md max-h-48 overflow-y-auto">
+                {fromSearch.data.items.slice(0, 6).map((p) => (
+                  <button
+                    key={p.id ?? p.name}
+                    onClick={() => {
+                      setFromPlace({ id: p.id ?? p.name, name: p.name })
+                      setFromQuery('')
+                    }}
+                    className="block w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50"
+                  >
+                    <span className="font-medium">{p.name}</span>
+                    {p.province && (
+                      <span className="text-muted-foreground ml-1">· {p.province}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
 
         <div className="relative">
@@ -111,9 +110,7 @@ export function SearchStep({
                   className="block w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50"
                 >
                   <span className="font-medium">{p.name}</span>
-                  {p.province && (
-                    <span className="text-muted-foreground ml-1">· {p.province}</span>
-                  )}
+                  {p.province && <span className="text-muted-foreground ml-1">· {p.province}</span>}
                 </button>
               ))}
             </div>
@@ -169,7 +166,9 @@ export function SearchStep({
                   <div className="font-bold text-blue-700 text-sm">
                     {new Intl.NumberFormat('vi-VN').format(tr.minPrice)}₫
                   </div>
-                  <div className="text-[10px] text-muted-foreground">{t('adminTickets.perSeat')}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {t('adminTickets.perSeat')}
+                  </div>
                 </div>
               </div>
             </button>

@@ -609,8 +609,8 @@ export type BookingListResponse = {
     items: Array<BookingListItem>;
     /**
      * Total matching-row count (independent of pagination). Omitted from
-     * the JSON when the server didn't compute it (e.g. for the lookup
-     * endpoint). Use `with_total(...)` to set it.
+     * the JSON when the server didn't compute it. Use `with_total(...)`
+     * to set it.
      */
     total?: number | null;
 };
@@ -1097,6 +1097,28 @@ export type CronJobRunOut = {
     status: string;
 };
 
+/**
+ * Full `GET /api/admin/system/database` report.
+ */
+export type DatabaseSizeResponse = {
+    /**
+     * Engine identity (rust-sql build).
+     */
+    engine: string;
+    files: DbFilesOut;
+    pragmas: DbPragmasOut;
+    probe?: null | DbProbeOut;
+    /**
+     * Top-25 largest objects (tables + indexes) from `dbstat`; `None`
+     * when the engine build lacks the dbstat virtual table.
+     */
+    topTables?: Array<DbTableSizeOut> | null;
+    /**
+     * Masked DATABASE_URL (password-free display form).
+     */
+    urlMasked: string;
+};
+
 export type DatabaseStats = {
     /**
      * Current active connections (in use). `-1` if unavailable
@@ -1137,6 +1159,106 @@ export type DatabaseStats = {
      * Masked DB URL (password hidden).
      */
     urlMasked: string;
+};
+
+/**
+ * File-size block of the report.
+ */
+export type DbFilesOut = {
+    /**
+     * Main DB file size in bytes.
+     */
+    dbBytes: number;
+    /**
+     * Resolved on-disk path of the main database file (from DATABASE_URL).
+     */
+    dbPath: string;
+    /**
+     * Shared-memory index size in bytes (present while WAL is active).
+     */
+    shmBytes: number;
+    /**
+     * Write-ahead log size in bytes (WAL mode; checkpoints bound it).
+     */
+    walBytes: number;
+};
+
+/**
+ * Pager-level pragmas that size/fragmentation questions need.
+ */
+export type DbPragmasOut = {
+    /**
+     * Configured engine-wide page-cache budget in KiB
+     * (DATABASE_CACHE_KIB; the rust-sql engine shares ONE pager per
+     * file across the pool, so this is a single budget, not per-conn).
+     */
+    cacheKib: number;
+    /**
+     * Pages on the freelist — reusable by future writes, but still
+     * occupying file space until a VACUUM.
+     */
+    freelistPages: number;
+    /**
+     * `journal_mode` (expect `wal`).
+     */
+    journalMode: string;
+    /**
+     * Total pages currently in the file (`page_size * page_count` ≈
+     * the on-disk size, modulo preallocation).
+     */
+    pageCount: number;
+    /**
+     * Page size in bytes (fixed at file creation).
+     */
+    pageSize: number;
+};
+
+/**
+ * `?probe=1` result: the ground-truth compacted size.
+ */
+export type DbProbeOut = {
+    /**
+     * Size of the `VACUUM INTO` copy — the same live data, fully
+     * compacted, on the SAME engine. This is the number to compare
+     * `dbBytes` against.
+     */
+    compactedBytes: number;
+    /**
+     * `compacted_bytes / db_bytes` — how much of the current file is
+     * live, compacted data.
+     */
+    liveRatio: number;
+    /**
+     * Non-fatal probe errors (dbstat unavailable, wal missing, …).
+     */
+    note?: string | null;
+    /**
+     * Wall time of the probe (the VACUUM INTO write).
+     */
+    probeSeconds: number;
+    /**
+     * `true` when live_ratio < 0.9 (≥ 10% of the file is freelist /
+     * fragmentation / slack) — a VACUUM would meaningfully shrink it.
+     */
+    reclaimable: boolean;
+};
+
+/**
+ * One table's footprint from the `dbstat` virtual table.
+ */
+export type DbTableSizeOut = {
+    /**
+     * Bytes used by this object.
+     */
+    bytes: number;
+    /**
+     * Table (or index) name.
+     */
+    name: string;
+    /**
+     * Pages used by this object.
+     */
+    pages: number;
 };
 
 /**
@@ -3040,6 +3162,30 @@ export type UserOut = {
     status: string;
 };
 
+/**
+ * `POST /api/admin/system/database/vacuum` result.
+ */
+export type VacuumResponse = {
+    /**
+     * File size after the VACUUM + a WAL checkpoint (db + wal).
+     */
+    afterBytes: number;
+    /**
+     * File size before the VACUUM (db + wal).
+     */
+    beforeBytes: number;
+    /**
+     * `before - after` (can legitimately be small: WAL + freelist were
+     * already bounded).
+     */
+    reclaimedBytes: number;
+    /**
+     * Wall time of the VACUUM (s) — expect roughly one full-DB
+     * read + write; plan the maintenance window around it.
+     */
+    seconds: number;
+};
+
 export type VitalsReport = {
     connection?: string;
     delta: number;
@@ -4756,6 +4902,69 @@ export type SystemStatusResponses = {
 };
 
 export type SystemStatusResponse2 = SystemStatusResponses[keyof SystemStatusResponses];
+
+export type DatabaseSizeData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * 1 = run a VACUUM INTO compaction probe (extra IO; skip under heavy write load)
+         */
+        probe?: number;
+    };
+    url: '/api/admin/system/database';
+};
+
+export type DatabaseSizeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type DatabaseSizeResponses = {
+    /**
+     * Database size report
+     */
+    200: DatabaseSizeResponse;
+};
+
+export type DatabaseSizeResponse2 = DatabaseSizeResponses[keyof DatabaseSizeResponses];
+
+export type DatabaseVacuumData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/system/database/vacuum';
+};
+
+export type DatabaseVacuumErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+    /**
+     * VACUUM failed (reported in body)
+     */
+    500: unknown;
+};
+
+export type DatabaseVacuumResponses = {
+    /**
+     * VACUUM completed
+     */
+    200: VacuumResponse;
+};
+
+export type DatabaseVacuumResponse = DatabaseVacuumResponses[keyof DatabaseVacuumResponses];
 
 export type ProcessMemoryData = {
     body?: never;

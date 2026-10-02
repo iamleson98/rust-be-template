@@ -11,7 +11,7 @@ pages. Benchmarks on identical data (engine build `d76bbb9`, see the
 `dbsize_exp*.py` experiments):
 
 | Measurement | Result |
-|---|---|
+| --- | --- |
 | Same data, fresh file | native ≈ **1.07 ×** the VACUUM-INTO SQLite file |
 | Delete 25% contiguous, re-insert same volume | freelist pages fully **reused** (0 leaked) |
 | Scattered deletes | pages stay ~80% full — **SQLite behaves identically** |
@@ -63,7 +63,7 @@ temp space. Don't run it during a write burst.
 ### Reading the result
 
 | `liveRatio` (`compacted / db`) | Meaning | Action |
-|---|---|---|
+| --- | --- | --- |
 | `≥ 0.9` | The file ≈ its live data — size is NORMAL | Nothing. The data is just that big. |
 | `0.7 – 0.9` | Moderate slack (freelist + fragmentation) | Optional VACUUM; check again after the next busy week. |
 | `< 0.7` | Real bloat — ≥ 30% of the file is reclaimable | VACUUM (§3) + investigate what churns. |
@@ -109,7 +109,7 @@ data, not the file:
 ## Related knobs
 
 | Knob | Default | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `DATABASE_CACHE_KIB` | 65536 | Engine-wide page cache (v0.5.21 fix; do not lower below the working set). |
 | `wal_autocheckpoint` | 1000 pages | WAL bound — already engine-managed. |
 | `WS_SLOW_CONSUMER_THRESHOLD` | 128 | Not DB, but the same "RAM does not accumulate" story on the WS side. |

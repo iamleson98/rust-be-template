@@ -10,12 +10,24 @@ export function BookingsHero({ user }: { user?: { name: string } | null }) {
   return (
     <div className="relative overflow-hidden bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
       <div className="absolute inset-0 opacity-[0.06]">
-        <div className="absolute top-4 left-[10%]"><Bus className="h-16 w-16 rotate-[-15deg]" /></div>
-        <div className="absolute top-20 right-[15%]"><Bus className="h-12 w-12 rotate-10" /></div>
-        <div className="absolute bottom-8 left-[30%]"><Bus className="h-10 w-10 rotate-[-5deg]" /></div>
-        <div className="absolute top-2 right-[45%]"><Bus className="h-8 w-8 rotate-20" /></div>
-        <div className="absolute bottom-4 right-[8%]"><Bus className="h-14 w-14 rotate-[-10deg]" /></div>
-        <div className="absolute top-16 left-[60%]"><Bus className="h-9 w-9 rotate-15" /></div>
+        <div className="absolute top-4 left-[10%]">
+          <Bus className="h-16 w-16 rotate-[-15deg]" />
+        </div>
+        <div className="absolute top-20 right-[15%]">
+          <Bus className="h-12 w-12 rotate-10" />
+        </div>
+        <div className="absolute bottom-8 left-[30%]">
+          <Bus className="h-10 w-10 rotate-[-5deg]" />
+        </div>
+        <div className="absolute top-2 right-[45%]">
+          <Bus className="h-8 w-8 rotate-20" />
+        </div>
+        <div className="absolute bottom-4 right-[8%]">
+          <Bus className="h-14 w-14 rotate-[-10deg]" />
+        </div>
+        <div className="absolute top-16 left-[60%]">
+          <Bus className="h-9 w-9 rotate-15" />
+        </div>
       </div>
       <div
         className="absolute inset-0 opacity-20"
@@ -45,8 +57,16 @@ export function BookingsHero({ user }: { user?: { name: string } | null }) {
         xmlns="http://www.w3.org/2000/svg"
         preserveAspectRatio="none"
       >
-        <path d="M0 60V30C240 0 480 0 720 30C960 60 1200 60 1440 30V60H0Z" fill="white" fillOpacity="0.06" />
-        <path d="M0 60V40C360 10 720 10 1080 40C1260 55 1350 55 1440 40V60H0Z" fill="white" fillOpacity="0.04" />
+        <path
+          d="M0 60V30C240 0 480 0 720 30C960 60 1200 60 1440 30V60H0Z"
+          fill="white"
+          fillOpacity="0.06"
+        />
+        <path
+          d="M0 60V40C360 10 720 10 1080 40C1260 55 1350 55 1440 40V60H0Z"
+          fill="white"
+          fillOpacity="0.04"
+        />
       </svg>
     </div>
   )

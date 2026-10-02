@@ -77,7 +77,7 @@ echo "▶ restarting backend to pick up the fresh index"
 compose restart backend
 
 echo "▶ waiting for health"
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   if compose exec -T backend curl -sf http://localhost:8080/health >/dev/null 2>&1; then
     echo "✔ done — place search is live (try /api/places/search?q=ha noi)"
     exit 0

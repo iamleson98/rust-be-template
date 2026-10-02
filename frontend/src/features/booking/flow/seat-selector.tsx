@@ -41,9 +41,7 @@ export function SeatSelector({
           const passengerIdx = passengers.findIndex((p) => p.seatId === s.id)
           const isAssigned = passengerIdx >= 0
           const passenger = isAssigned ? passengers[passengerIdx] : null
-          const typeMeta = passenger
-            ? PASSENGER_TYPE_META[getPassengerType(passenger.age)]
-            : null
+          const typeMeta = passenger ? PASSENGER_TYPE_META[getPassengerType(passenger.age)] : null
           return (
             <div
               key={s.id}
@@ -54,7 +52,10 @@ export function SeatSelector({
               }`}
               title={
                 isAssigned && passenger
-                  ? t('booking.seatAssigned', { code: s.code, name: passenger.name || t('booking.passenger', { n: passengerIdx + 1 }) })
+                  ? t('booking.seatAssigned', {
+                      code: s.code,
+                      name: passenger.name || t('booking.passenger', { n: passengerIdx + 1 }),
+                    })
                   : t('booking.seatUnassigned', { code: s.code })
               }
             >
@@ -64,7 +65,8 @@ export function SeatSelector({
                   className={`text-[10px] font-medium ${typeMeta.text} flex items-center justify-center gap-0.5`}
                 >
                   {typeMeta.icon}
-                  {t('bookingFlow.hpLabel')}{passengerIdx + 1}
+                  {t('bookingFlow.hpLabel')}
+                  {passengerIdx + 1}
                 </div>
               ) : (
                 <div className="text-[10px] text-slate-400">{t('bookingFlow.unassigned')}</div>

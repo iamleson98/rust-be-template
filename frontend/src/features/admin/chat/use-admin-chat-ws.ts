@@ -175,7 +175,9 @@ export function useAdminChatWs(
         // Auto-mark as read — the admin is viewing this channel,
         // so the unread badge should NOT increment.
         if (m.senderType !== 'employee') {
-          markReadMut.mutate({ path: { id: activeId } } as unknown as Parameters<typeof markReadMut.mutate>[0])
+          markReadMut.mutate({ path: { id: activeId } } as unknown as Parameters<
+            typeof markReadMut.mutate
+          >[0])
         }
       }
     })

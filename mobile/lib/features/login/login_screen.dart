@@ -64,10 +64,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _busy = true;
       _error = null;
     });
-    final error = await ref.read(authControllerProvider.notifier).login(
-          email: email,
-          password: password,
-        );
+    final error = await ref
+        .read(authControllerProvider.notifier)
+        .login(email: email, password: password);
     if (!mounted) return;
     if (error != null) {
       setState(() {
@@ -149,16 +148,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             const SizedBox(height: 12),
                           ],
                           FTextField.email(
-                            control:
-                                FTextFieldControl.managed(controller: _email),
+                            control: FTextFieldControl.managed(
+                              controller: _email,
+                            ),
                             label: const Text('Email'),
                             hint: 'you@datxevui.com',
                             textInputAction: TextInputAction.next,
                           ),
                           const SizedBox(height: 12),
                           FTextField(
-                            control:
-                                FTextFieldControl.managed(controller: _password),
+                            control: FTextFieldControl.managed(
+                              controller: _password,
+                            ),
                             label: const Text('Mật khẩu'),
                             hint: '••••••••',
                             obscureText: true,
@@ -192,9 +193,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    _showServer
-                                        ? 'Ẩn máy chủ'
-                                        : 'Đổi máy chủ',
+                                    _showServer ? 'Ẩn máy chủ' : 'Đổi máy chủ',
                                     style: theme.typography.body.sm.copyWith(
                                       color: theme.colors.mutedForeground,
                                     ),
@@ -322,9 +321,7 @@ class _Hero extends StatelessWidget {
       padding: const EdgeInsets.only(top: 76, bottom: 76),
       decoration: const BoxDecoration(
         gradient: AppBrand.heroGradient,
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(36),
-        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
         boxShadow: [
           BoxShadow(
             color: Color(0x337C3AED),
@@ -341,16 +338,9 @@ class _Hero extends StatelessWidget {
             decoration: BoxDecoration(
               color: fg.withValues(alpha: 0.16),
               borderRadius: BorderRadius.circular(26),
-              border: Border.all(
-                color: fg.withValues(alpha: 0.35),
-                width: 1.2,
-              ),
+              border: Border.all(color: fg.withValues(alpha: 0.35), width: 1.2),
             ),
-            child: Icon(
-              FLucideIcons.carTaxiFront,
-              size: 40,
-              color: fg,
-            ),
+            child: Icon(FLucideIcons.carTaxiFront, size: 40, color: fg),
           ),
           const SizedBox(height: 18),
           Text(

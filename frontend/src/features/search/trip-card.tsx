@@ -34,7 +34,10 @@ function formatShortDate(dateStr: string | null | undefined): string {
 /** Check if arrival date differs from departure date (overnight trip).
  *  False when either timestamp is missing — no arrival info means we
  *  can't know, so we simply don't badge it. */
-function isOvernight(departureAt: string | null | undefined, arrivalAt: string | null | undefined): boolean {
+function isOvernight(
+  departureAt: string | null | undefined,
+  arrivalAt: string | null | undefined,
+): boolean {
   const dep = parseDateSafe(departureAt)
   const arr = parseDateSafe(arrivalAt)
   if (!dep || !arr) return false
@@ -47,20 +50,40 @@ function isOvernight(departureAt: string | null | undefined, arrivalAt: string |
   return fmt(dep) !== fmt(arr)
 }
 
-export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended = false }: { trip: TripResult; onSelect?: () => void; isRecommended?: boolean }) {
+export const TripCard = memo(function TripCard({
+  trip,
+  onSelect,
+  isRecommended = false,
+}: {
+  trip: TripResult
+  onSelect?: () => void
+  isRecommended?: boolean
+}) {
   const lowSeats = trip.availableSeats <= 5 && trip.availableSeats > 0
   const sellingFast = trip.availableSeats <= 3 && trip.availableSeats > 0
-  const { toggleCompare, compareList, pushRecentlyViewed, searchParams, setPriceAlertOpen, setPriceAlertContext, currency, setShareOpen, setShareTripData } = useApp(useShallow((s) => ({
-    toggleCompare: s.toggleCompare,
-    compareList: s.compareList,
-    pushRecentlyViewed: s.pushRecentlyViewed,
-    searchParams: s.searchParams,
-    setPriceAlertOpen: s.setPriceAlertOpen,
-    setPriceAlertContext: s.setPriceAlertContext,
-    currency: s.currency,
-    setShareOpen: s.setShareOpen,
-    setShareTripData: s.setShareTripData,
-  })))
+  const {
+    toggleCompare,
+    compareList,
+    pushRecentlyViewed,
+    searchParams,
+    setPriceAlertOpen,
+    setPriceAlertContext,
+    currency,
+    setShareOpen,
+    setShareTripData,
+  } = useApp(
+    useShallow((s) => ({
+      toggleCompare: s.toggleCompare,
+      compareList: s.compareList,
+      pushRecentlyViewed: s.pushRecentlyViewed,
+      searchParams: s.searchParams,
+      setPriceAlertOpen: s.setPriceAlertOpen,
+      setPriceAlertContext: s.setPriceAlertContext,
+      currency: s.currency,
+      setShareOpen: s.setShareOpen,
+      setShareTripData: s.setShareTripData,
+    })),
+  )
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const t = useT()
@@ -83,11 +106,21 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
   // this only fires when the backend starts providing arrival times.
   const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
   // Date differs from search date?
-  const searchDateShort = searchParams.date ? formatShortDate(searchParams.date + 'T00:00:00+07:00') : null
+  const searchDateShort = searchParams.date
+    ? formatShortDate(searchParams.date + 'T00:00:00+07:00')
+    : null
   const departureDateShort = formatShortDate(trip.departureAt)
   const arrivalDateShort = formatShortDate(trip.arrivalAt)
-  const showDepartureDate = !!(searchDateShort && departureDateShort && departureDateShort !== searchDateShort)
-  const showArrivalDate = !!(departureDateShort && arrivalDateShort && departureDateShort !== arrivalDateShort)
+  const showDepartureDate = !!(
+    searchDateShort &&
+    departureDateShort &&
+    departureDateShort !== searchDateShort
+  )
+  const showArrivalDate = !!(
+    departureDateShort &&
+    arrivalDateShort &&
+    departureDateShort !== arrivalDateShort
+  )
 
   // Amenities overflow
   const maxVisibleAmenities = 4
@@ -95,7 +128,8 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
 
   // Seat availability percentage
   const seatAvailPct = trip.totalSeats > 0 ? (trip.availableSeats / trip.totalSeats) * 100 : 100
-  const availBarColor = seatAvailPct > 50 ? 'bg-blue-500' : seatAvailPct > 20 ? 'bg-amber-500' : 'bg-rose-500'
+  const availBarColor =
+    seatAvailPct > 50 ? 'bg-blue-500' : seatAvailPct > 20 ? 'bg-amber-500' : 'bg-rose-500'
 
   const handleSelect = () => {
     // Push to recently viewed
@@ -157,9 +191,7 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
 
   return (
     <div onMouseEnter={handleHoverPrefetch}>
-      <Card
-        className="overflow-visible border-border/60 card-hover-lift hover:border-primary/30 group relative"
-      >
+      <Card className="overflow-visible border-border/60 card-hover-lift hover:border-primary/30 group relative">
         {/* Recommended badge — sits flush on the top-left, above content */}
         {isRecommended && (
           <div className="absolute -top-2 left-3 z-20">
@@ -178,10 +210,11 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
             onClick={handleCompareToggle}
             title={t('searchPage.addToCompare')}
             aria-pressed={inCompare}
-            className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${inCompare
-              ? 'bg-violet-600 text-white'
-              : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
-              }`}
+            className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${
+              inCompare
+                ? 'bg-violet-600 text-white'
+                : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
+            }`}
           >
             <GitCompare className="h-3.5 w-3.5" />
           </button>
@@ -205,10 +238,11 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                 onClick={handleCompareToggle}
                 title={t('searchPage.addToCompare')}
                 aria-pressed={inCompare}
-                className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${inCompare
-                  ? 'bg-violet-600 text-white'
-                  : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
-                  }`}
+                className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${
+                  inCompare
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
+                }`}
               >
                 <GitCompare className="h-3.5 w-3.5" />
               </button>
@@ -229,11 +263,17 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                   honest, and never an orphaned "—". */}
               <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                 <div className="text-center shrink-0 min-w-15">
-                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{trip.departureTime}</div>
+                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">
+                    {trip.departureTime}
+                  </div>
                   {showDepartureDate && (
-                    <div className="text-[10px] text-blue-600 font-medium">{departureDateShort}</div>
+                    <div className="text-[10px] text-blue-600 font-medium">
+                      {departureDateShort}
+                    </div>
                   )}
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">{trip.fromName}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">
+                    {trip.fromName}
+                  </div>
                 </div>
 
                 <div className="flex-1 min-w-12.5 md:min-w-17.5 max-w-32.5 relative flex items-center justify-center">
@@ -254,13 +294,19 @@ export const TripCard = memo(function TripCard({ trip, onSelect, isRecommended =
                 <div className="text-center shrink-0 min-w-15">
                   {trip.arrivalAt ? (
                     <>
-                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">{formatTimeVN(trip.arrivalAt)}</div>
+                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">
+                        {formatTimeVN(trip.arrivalAt)}
+                      </div>
                       {showArrivalDate && (
-                        <div className="text-[10px] text-blue-600 font-medium">{arrivalDateShort}</div>
+                        <div className="text-[10px] text-blue-600 font-medium">
+                          {arrivalDateShort}
+                        </div>
                       )}
                     </>
                   ) : (
-                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900 group-hover:text-blue-700 transition-colors">{trip.toName}</div>
+                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900 group-hover:text-blue-700 transition-colors">
+                      {trip.toName}
+                    </div>
                   )}
                   <div className="text-xs text-muted-foreground mt-0.5 truncate max-w-22.5 mx-auto">
                     {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}

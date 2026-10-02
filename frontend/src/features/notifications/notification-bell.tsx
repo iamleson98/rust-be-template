@@ -116,8 +116,9 @@ export function NotificationBell() {
     <>
       <button
         onClick={() => setNotifOpen(true)}
-        className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-white transition-colors ${isEmpty ? 'opacity-60 hidden sm:inline-flex' : ''
-          }`}
+        className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full text-blue-100 hover:bg-white/10 hover:text-white transition-colors ${
+          isEmpty ? 'opacity-60 hidden sm:inline-flex' : ''
+        }`}
         aria-label={t('account.notifications')}
         title={t('account.notifications')}
       >
@@ -131,7 +132,10 @@ export function NotificationBell() {
 
       {notifOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setNotifOpen(false)} />
+          <div
+            className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+            onClick={() => setNotifOpen(false)}
+          />
           <div className="fixed right-2 sm:right-4 top-16 z-50 w-[calc(100vw-1rem)] sm:w-100 max-h-[80dvh] bg-white rounded-2xl ring-1 ring-black/10 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50">
@@ -142,13 +146,20 @@ export function NotificationBell() {
                 <div>
                   <div className="font-semibold text-sm">{t('account.notifications')}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    {unread > 0 ? t('notifications.unreadCount', { count: unread }) : t('notifications.allRead')}
+                    {unread > 0
+                      ? t('notifications.unreadCount', { count: unread })
+                      : t('notifications.allRead')}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {unread > 0 && (
-                  <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={markAllRead}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={markAllRead}
+                  >
                     <CheckCheck className="h-3.5 w-3.5" />
                     {t('notifications.readAll')}
                   </Button>
@@ -166,11 +177,15 @@ export function NotificationBell() {
             {/* List */}
             <ScrollArea className="flex-1 max-h-[60dvh]">
               {isLoading ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">{t('common.loading')}</div>
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  {t('common.loading')}
+                </div>
               ) : isError ? (
                 <div className="p-6 text-center">
                   <AlertCircle className="h-7 w-7 text-rose-500 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-3">{t('notifications.loadFailed')}</p>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    {t('notifications.loadFailed')}
+                  </p>
                   <Button size="sm" variant="outline" onClick={() => refetch()}>
                     {t('payment.retry')}
                   </Button>
@@ -234,19 +249,28 @@ export function NotificationBell() {
                               break
                           }
                         }}
-                        className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors ${isUnread ? 'bg-blue-50/40' : ''
-                          }`}
+                        className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-slate-50 transition-colors ${
+                          isUnread ? 'bg-blue-50/40' : ''
+                        }`}
                       >
-                        <div className={`h-9 w-9 shrink-0 rounded-full inline-flex items-center justify-center ${cfg.cls}`}>
+                        <div
+                          className={`h-9 w-9 shrink-0 rounded-full inline-flex items-center justify-center ${cfg.cls}`}
+                        >
                           {cfg.icon}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sm line-clamp-1">{n.title}</span>
-                            {isUnread && <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />}
+                            {isUnread && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 shrink-0" />
+                            )}
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</p>
-                          <div className="text-[10px] text-muted-foreground mt-1">{relativeTime(n.createdAt)}</div>
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                            {n.body}
+                          </p>
+                          <div className="text-[10px] text-muted-foreground mt-1">
+                            {relativeTime(n.createdAt)}
+                          </div>
                         </div>
                       </button>
                     )

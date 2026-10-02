@@ -26,9 +26,7 @@ test.describe('Button', () => {
     await expect(disabled).toBeDisabled()
     // Playwright auto-waits for actionability; a disabled button click
     // would time out, so assert the disabled state + no pointer events.
-    const pointerEvents = await disabled.evaluate(
-      (el) => getComputedStyle(el).pointerEvents,
-    )
+    const pointerEvents = await disabled.evaluate((el) => getComputedStyle(el).pointerEvents)
     expect(['none', '']).toContain(pointerEvents)
     const loading = page.getByTestId('btn-loading')
     await expect(loading).toBeDisabled()
@@ -36,20 +34,10 @@ test.describe('Button', () => {
 
   test('all 6 variants render side by side', async ({ page }) => {
     const sec = page.getByTestId('sec-button')
-    for (const v of [
-      'default',
-      'secondary',
-      'destructive',
-      'outline',
-      'ghost',
-      'link',
-    ]) {
+    for (const v of ['default', 'secondary', 'destructive', 'outline', 'ghost', 'link']) {
       await expect(sec.getByTestId(`btn-${v}`)).toBeVisible()
     }
-    await expect(sec.getByTestId('btn-icon')).toHaveAttribute(
-      'aria-label',
-      'Search',
-    )
+    await expect(sec.getByTestId('btn-icon')).toHaveAttribute('aria-label', 'Search')
   })
 
   test('keyboard focus reaches buttons in DOM order', async ({ page }) => {
@@ -189,12 +177,8 @@ test.describe('Slider', () => {
 test.describe('Form (react-hook-form + zod)', () => {
   test('empty submit shows validation messages and blocks save', async ({ page }) => {
     await page.getByTestId('form-submit').click()
-    await expect(page.getByTestId('form-username-error')).toContainText(
-      'at least 3 characters',
-    )
-    await expect(page.getByTestId('form-email-error')).toContainText(
-      'valid email',
-    )
+    await expect(page.getByTestId('form-username-error')).toContainText('at least 3 characters')
+    await expect(page.getByTestId('form-email-error')).toContainText('valid email')
     await expect(page.getByTestId('form-status')).toHaveText('idle')
   })
 

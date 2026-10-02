@@ -6,7 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useTripDetail, useValidateCampaign, useHoldBooking, useConfirmBooking } from '@/lib/queries'
+import {
+  useTripDetail,
+  useValidateCampaign,
+  useHoldBooking,
+  useConfirmBooking,
+} from '@/lib/queries'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
 import { normalizePhone } from '@/lib/types'
@@ -21,10 +26,7 @@ import {
   bookingSchema,
   getPassengerType,
 } from './booking-form'
-import {
-  PaymentMethodStep,
-  type PaymentMethodKey,
-} from './payment-method'
+import { PaymentMethodStep, type PaymentMethodKey } from './payment-method'
 import { BookingSuccess, type LastBooking } from './booking-success'
 import { BookingStepHeader } from './booking-step-header'
 import { BookingPassengerStep } from './booking-passenger-step'
@@ -105,7 +107,12 @@ export function BookingDialog() {
     return trip.seatMap.decks
       .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
       .filter((s) => bookingContext.seatIds.includes(s.id))
-      .map((s) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass ?? 'standard' }))
+      .map((s) => ({
+        id: s.id,
+        code: s.code,
+        price: s.finalPrice,
+        class: s.seatClass ?? 'standard',
+      }))
   }, [bookingContext, trip])
 
   // `useWatch` gives us the latest passenger values for derived UI state
@@ -126,7 +133,12 @@ export function BookingDialog() {
     const seats: SelectedSeat[] = trip.seatMap.decks
       .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
       .filter((s) => bookingContext.seatIds.includes(s.id))
-      .map((s) => ({ id: s.id, code: s.code, price: s.finalPrice, class: s.seatClass ?? 'standard' }))
+      .map((s) => ({
+        id: s.id,
+        code: s.code,
+        price: s.finalPrice,
+        class: s.seatClass ?? 'standard',
+      }))
 
     // init passengers — auto-assign seats sequentially
     const initPassengers: PassengerFormValue[] = []
@@ -172,9 +184,7 @@ export function BookingDialog() {
   )
 
   const autoAssignSeats = useCallback(() => {
-    const assigned = new Set(
-      passengerFields.map((p) => p.seatId).filter(Boolean),
-    )
+    const assigned = new Set(passengerFields.map((p) => p.seatId).filter(Boolean))
     const free = selectedSeatCodes.filter((s) => !assigned.has(s.id))
     let idx = 0
     const next = passengerFields.map((p) => {
@@ -209,10 +219,7 @@ export function BookingDialog() {
   }, [passengerFields, form, guestName, update, t])
 
   // Derived: unassigned passengers + duplicate seat check
-  const unassignedCount = useMemo(
-    () => passengers.filter((p) => !p.seatId).length,
-    [passengers],
-  )
+  const unassignedCount = useMemo(() => passengers.filter((p) => !p.seatId).length, [passengers])
   const hasDuplicateSeats = useMemo(() => {
     const ids = passengers.map((p) => p.seatId).filter(Boolean)
     return new Set(ids).size !== ids.length
@@ -240,7 +247,9 @@ export function BookingDialog() {
       setCampaignResult(data)
       if (data?.valid) {
         toast.success(t('bookingFlow.promoValid'), {
-          description: t('bookingFlow.discountAmount', { amount: formatCurrency(data.discount ?? 0, currency) }),
+          description: t('bookingFlow.discountAmount', {
+            amount: formatCurrency(data.discount ?? 0, currency),
+          }),
           duration: 3000,
         })
       } else {
@@ -315,7 +324,9 @@ export function BookingDialog() {
 
   const holdMut = useHoldBooking({
     onSuccess: (holdResult: unknown) => {
-      const holdData = ((holdResult ?? {}) as { data?: HoldBookingData }).data ?? (holdResult as HoldBookingData | undefined)
+      const holdData =
+        ((holdResult ?? {}) as { data?: HoldBookingData }).data ??
+        (holdResult as HoldBookingData | undefined)
       if (!holdData?.bookingId) {
         setError(t('bookingFlow.holdFailed'))
         setSubmitting(false)

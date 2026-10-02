@@ -24,21 +24,21 @@ const AUTH_ENDPOINTS = new Set([
   '/api/auth/logout',
   '/api/auth/refresh',
   '/api/auth/register',
-]);
+])
 
 const isAuthEndpoint = (request: Request): boolean =>
-  AUTH_ENDPOINTS.has(new URL(request.url).pathname);
+  AUTH_ENDPOINTS.has(new URL(request.url).pathname)
 
 export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typeof fetch => {
-  let refreshPromise: Promise<boolean> | undefined;
+  let refreshPromise: Promise<boolean> | undefined
 
   /** Read the user's language preference from cookie or localStorage. */
   const getLang = (): string => {
-    if (typeof window === 'undefined') return 'vi';
-    const cookieMatch = document.cookie.match(/bus_lang=(vi|en)/);
-    if (cookieMatch) return cookieMatch[1];
-    return localStorage.getItem('bus_lang') === 'en' ? 'en' : 'vi';
-  };
+    if (typeof window === 'undefined') return 'vi'
+    const cookieMatch = document.cookie.match(/bus_lang=(vi|en)/)
+    if (cookieMatch) return cookieMatch[1]
+    return localStorage.getItem('bus_lang') === 'en' ? 'en' : 'vi'
+  }
 
   /**
    * Inject `Accept-Language` into the request headers WITHOUT losing
@@ -55,51 +55,54 @@ export const createAuthFetch = (fetchImpl: typeof fetch = globalThis.fetch): typ
    * Content-Type, Authorization, etc.
    */
   const injectAcceptLanguage = (input: RequestInfo | URL, init?: RequestInit): RequestInit => {
-    const lang = getLang();
+    const lang = getLang()
     // Extract existing headers from either:
     // 1. The Request object (when the SDK passes one as `input`)
     // 2. The init.headers (for direct fetch calls)
-    const baseHeaders = input instanceof Request ? input.headers : init?.headers;
-    const headers = new Headers(baseHeaders);
+    const baseHeaders = input instanceof Request ? input.headers : init?.headers
+    const headers = new Headers(baseHeaders)
     // Don't override an explicitly-set Accept-Language.
     if (!headers.has('Accept-Language')) {
-      headers.set('Accept-Language', lang === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9');
+      headers.set('Accept-Language', lang === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9')
     }
-    return { ...init, headers };
-  };
+    return { ...init, headers }
+  }
 
   const refresh = (): Promise<boolean> => {
     if (!refreshPromise) {
       refreshPromise = fetchImpl('/api/auth/refresh', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept-Language': getLang() === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept-Language': getLang() === 'en' ? 'en-US,en;q=0.9' : 'vi-VN,vi;q=0.9',
+        },
         body: '{}',
         credentials: 'include',
       })
         .then((response) => response.ok)
         .catch(() => false)
         .finally(() => {
-          refreshPromise = undefined;
-        });
+          refreshPromise = undefined
+        })
     }
 
-    return refreshPromise;
-  };
+    return refreshPromise
+  }
 
   return (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // Build the request with Accept-Language injected, preserving existing headers.
-    const request = new Request(input, injectAcceptLanguage(input, init));
-    const retryRequest = request.clone();
-    const response = await fetchImpl(request);
+    const request = new Request(input, injectAcceptLanguage(input, init))
+    const retryRequest = request.clone()
+    const response = await fetchImpl(request)
 
     if (response.status !== 401 || isAuthEndpoint(request)) {
-      return response;
+      return response
     }
 
     if (!(await refresh())) {
-      return response;
+      return response
     }
 
-    return fetchImpl(retryRequest);
-  }) as typeof fetch;
-};
+    return fetchImpl(retryRequest)
+  }) as typeof fetch
+}

@@ -7,11 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import {
   Search,
@@ -28,11 +24,7 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
-import {
-  useAdminBrands,
-  useAdminBookingExport,
-  type AdminBookingFilter,
-} from '@/lib/queries'
+import { useAdminBrands, useAdminBookingExport, type AdminBookingFilter } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 
@@ -40,11 +32,31 @@ import { useApp } from '@/lib/store'
 
 const STATUS_OPTIONS: { value: string; labelKey: string; icon: React.ReactNode }[] = [
   { value: 'all', labelKey: 'adminTickets.allStatuses', icon: <Filter className="h-3.5 w-3.5" /> },
-  { value: 'confirmed', labelKey: 'adminTickets.statusConfirmed', icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" /> },
-  { value: 'pending', labelKey: 'adminTickets.statusPending', icon: <Clock className="h-3.5 w-3.5 text-amber-600" /> },
-  { value: 'completed', labelKey: 'adminTickets.statusCompleted', icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> },
-  { value: 'cancelled', labelKey: 'adminTickets.statusCancelled', icon: <Ban className="h-3.5 w-3.5 text-rose-600" /> },
-  { value: 'refunded', labelKey: 'adminTickets.statusRefunded', icon: <RotateCcw className="h-3.5 w-3.5 text-slate-600" /> },
+  {
+    value: 'confirmed',
+    labelKey: 'adminTickets.statusConfirmed',
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />,
+  },
+  {
+    value: 'pending',
+    labelKey: 'adminTickets.statusPending',
+    icon: <Clock className="h-3.5 w-3.5 text-amber-600" />,
+  },
+  {
+    value: 'completed',
+    labelKey: 'adminTickets.statusCompleted',
+    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />,
+  },
+  {
+    value: 'cancelled',
+    labelKey: 'adminTickets.statusCancelled',
+    icon: <Ban className="h-3.5 w-3.5 text-rose-600" />,
+  },
+  {
+    value: 'refunded',
+    labelKey: 'adminTickets.statusRefunded',
+    icon: <RotateCcw className="h-3.5 w-3.5 text-slate-600" />,
+  },
 ]
 
 const RANGE_OPTIONS: { value: string; labelKey: string }[] = [
@@ -140,7 +152,9 @@ export function TicketsFilterBar({
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">
-                  {exportMutation.isPending ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
+                  {exportMutation.isPending
+                    ? t('adminTickets.exporting')
+                    : t('adminTickets.exportCsv')}
                 </span>
               </Button>
             </div>

@@ -8,13 +8,7 @@
  */
 
 import { Input } from '@/components/ui/input'
-import {
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from '@/components/ui/form'
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
 import { AMENITY_OPTIONS } from '@/features/admin/types'
 import { useT } from '@/lib/i18n'
 import type { ScheduleFormInstance } from './schedule-schema'
@@ -98,10 +92,11 @@ export function SchedulePricingFields({
                     key={opt.key}
                     type="button"
                     onClick={() => toggleAmenity(opt.key)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${active
-                      ? 'bg-blue-50 text-blue-700 border-blue-300'
-                      : 'bg-white text-muted-foreground hover:bg-slate-50'
-                      }`}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
+                      active
+                        ? 'bg-blue-50 text-blue-700 border-blue-300'
+                        : 'bg-white text-muted-foreground hover:bg-slate-50'
+                    }`}
                   >
                     <Icon className="h-3.5 w-3.5" />
                     {t(AMENITY_KEYS[opt.key] ?? opt.label)}

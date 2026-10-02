@@ -49,8 +49,9 @@ class TeamScreen extends ConsumerWidget {
                           ),
                         _SummaryRow(snapshot: snapshot),
                         const SizedBox(height: 12),
-                        ...snapshot.staff
-                            .map((s) => _StaffCard(entry: s, isMe: s.userId == myId)),
+                        ...snapshot.staff.map(
+                          (s) => _StaffCard(entry: s, isMe: s.userId == myId),
+                        ),
                         if (snapshot.offline.isNotEmpty) ...[
                           const SizedBox(height: 8),
                           Padding(
@@ -63,8 +64,9 @@ class TeamScreen extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          ...snapshot.offline
-                              .map((s) => _OfflineStaffCard(entry: s)),
+                          ...snapshot.offline.map(
+                            (s) => _OfflineStaffCard(entry: s),
+                          ),
                         ],
                         const SizedBox(height: 24),
                       ],
@@ -273,8 +275,9 @@ class _StaffCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     entry.role == 'admin' ? 'Quản trị' : 'Nhân viên hỗ trợ',
-                    style: theme.typography.body.sm
-                        .copyWith(color: theme.colors.mutedForeground),
+                    style: theme.typography.body.sm.copyWith(
+                      color: theme.colors.mutedForeground,
+                    ),
                   ),
                   if (entry.lastSeenAt != null && entry.lastSeenAt!.isNotEmpty)
                     Padding(
@@ -282,7 +285,9 @@ class _StaffCard extends StatelessWidget {
                       child: Text(
                         'Hoạt động ${relativeTimeVi(entry.lastSeenAt!)}',
                         style: theme.typography.body.xs.copyWith(
-                          color: theme.colors.mutedForeground.withValues(alpha: 0.8),
+                          color: theme.colors.mutedForeground.withValues(
+                            alpha: 0.8,
+                          ),
                         ),
                       ),
                     ),
@@ -360,7 +365,10 @@ class _OfflineStaffCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Opacity(opacity: 0.55, child: AgentAvatar(name: entry.name, size: 44)),
+            Opacity(
+              opacity: 0.55,
+              child: AgentAvatar(name: entry.name, size: 44),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

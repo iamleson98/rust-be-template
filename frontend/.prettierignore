@@ -1,0 +1,26 @@
+# prettier ignore — files that must NOT be reformatted.
+#
+# CI gate: `bunx prettier --check .` (frontend job). Local fix:
+# `bun run format` (prettier --write .).
+
+# Auto-generated OpenAPI SDK — regenerated wholesale by `bun run openapi`
+# from openapi.json; hand-formatting is thrown away on regeneration.
+src/lib/api/
+
+# The OpenAPI spec itself — generated deterministically by the backend
+# test `dump_openapi_spec_for_the_frontend_sdk` (serde_json
+# to_string_pretty). The CI openapi-drift gate compares it byte-for-byte
+# against a fresh regeneration, so prettier must never touch it.
+openapi.json
+
+# Lockfile — machine-managed.
+bun.lock
+
+# Vendored / build artifacts.
+dist/
+coverage/
+node_modules/
+public/fonts/
+playwright-report/
+e2e-report/
+test-results/

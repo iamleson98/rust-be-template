@@ -40,33 +40,30 @@ class Channel {
   bool get isOpen => status == 'open';
   bool get isClosed => status == 'closed';
 
-  String get displayName =>
-      customer?.fullName?.trim().isNotEmpty == true
-          ? customer!.fullName!.trim()
-          : customer?.email ?? 'Khách hàng';
+  String get displayName => customer?.fullName?.trim().isNotEmpty == true
+      ? customer!.fullName!.trim()
+      : customer?.email ?? 'Khách hàng';
 
   factory Channel.fromJson(Map<String, dynamic> json) => Channel(
-        id: json['id'] as String,
-        userId: (json['userId'] ?? '') as String,
-        status: (json['status'] ?? 'open') as String,
-        createdAt: (json['createdAt'] ?? '') as String,
-        topic: json['topic'] as String?,
-        brandId: json['brandId'] as String?,
-        lastMessageAt: json['lastMessageAt'] as String?,
-        lastMessagePreview: json['lastMessagePreview'] as String?,
-        unreadEmployee: (json['unreadEmployee'] as num?)?.toInt() ?? 0,
-        customer: json['user'] == null
-            ? null
-            : ChannelUser.fromJson(
-                Map<String, dynamic>.from(json['user'] as Map),
-              ),
-        assignedTo: json['assignedTo'] == null
-            ? null
-            : ChannelUser.fromJson(
-                Map<String, dynamic>.from(json['assignedTo'] as Map),
-              ),
-        assignedToMe: json['assignedToMe'] as bool? ?? false,
-      );
+    id: json['id'] as String,
+    userId: (json['userId'] ?? '') as String,
+    status: (json['status'] ?? 'open') as String,
+    createdAt: (json['createdAt'] ?? '') as String,
+    topic: json['topic'] as String?,
+    brandId: json['brandId'] as String?,
+    lastMessageAt: json['lastMessageAt'] as String?,
+    lastMessagePreview: json['lastMessagePreview'] as String?,
+    unreadEmployee: (json['unreadEmployee'] as num?)?.toInt() ?? 0,
+    customer: json['user'] == null
+        ? null
+        : ChannelUser.fromJson(Map<String, dynamic>.from(json['user'] as Map)),
+    assignedTo: json['assignedTo'] == null
+        ? null
+        : ChannelUser.fromJson(
+            Map<String, dynamic>.from(json['assignedTo'] as Map),
+          ),
+    assignedToMe: json['assignedToMe'] as bool? ?? false,
+  );
 
   Channel copyWith({
     String? status,
@@ -76,21 +73,20 @@ class Channel {
     ChannelUser? assignedTo,
     bool? assignedToMe,
     bool clearAssignee = false,
-  }) =>
-      Channel(
-        id: id,
-        userId: userId,
-        status: status ?? this.status,
-        createdAt: createdAt,
-        topic: topic,
-        brandId: brandId,
-        lastMessageAt: lastMessageAt ?? this.lastMessageAt,
-        lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
-        unreadEmployee: unreadEmployee ?? this.unreadEmployee,
-        customer: customer,
-        assignedTo: clearAssignee ? null : (assignedTo ?? this.assignedTo),
-        assignedToMe: assignedToMe ?? this.assignedToMe,
-      );
+  }) => Channel(
+    id: id,
+    userId: userId,
+    status: status ?? this.status,
+    createdAt: createdAt,
+    topic: topic,
+    brandId: brandId,
+    lastMessageAt: lastMessageAt ?? this.lastMessageAt,
+    lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
+    unreadEmployee: unreadEmployee ?? this.unreadEmployee,
+    customer: customer,
+    assignedTo: clearAssignee ? null : (assignedTo ?? this.assignedTo),
+    assignedToMe: assignedToMe ?? this.assignedToMe,
+  );
 }
 
 /// The embedded user profile on a channel (`ChannelUserOut` DTO).
@@ -111,12 +107,12 @@ class ChannelUser {
   final String? avatarUrl;
 
   factory ChannelUser.fromJson(Map<String, dynamic> json) => ChannelUser(
-        id: json['id'] as String,
-        fullName: json['fullName'] as String?,
-        email: json['email'] as String?,
-        phone: json['phone'] as String?,
-        avatarUrl: json['avatarUrl'] as String?,
-      );
+    id: json['id'] as String,
+    fullName: json['fullName'] as String?,
+    email: json['email'] as String?,
+    phone: json['phone'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+  );
 }
 
 /// Delivery state of an outgoing message.
@@ -159,34 +155,33 @@ class ChatMessage {
   bool get isSystem => senderType == 'system' || senderType == 'assistant';
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'] as String,
-        channelId: (json['channelId'] ?? '') as String,
-        senderType: (json['senderType'] ?? 'user') as String,
-        senderId: json['senderId'] as String?,
-        senderName: json['senderName'] as String?,
-        content: (json['content'] ?? json['text']) as String?,
-        kind: (json['kind'] ?? 'text') as String,
-        createdAt: (json['createdAt'] ?? '') as String,
-        clientMsgId: json['clientMsgId'] as String?,
-      );
+    id: json['id'] as String,
+    channelId: (json['channelId'] ?? '') as String,
+    senderType: (json['senderType'] ?? 'user') as String,
+    senderId: json['senderId'] as String?,
+    senderName: json['senderName'] as String?,
+    content: (json['content'] ?? json['text']) as String?,
+    kind: (json['kind'] ?? 'text') as String,
+    createdAt: (json['createdAt'] ?? '') as String,
+    clientMsgId: json['clientMsgId'] as String?,
+  );
 
   ChatMessage copyWith({
     SendState? sendState,
     String? content,
     String? clientMsgId,
-  }) =>
-      ChatMessage(
-        id: id,
-        channelId: channelId,
-        senderType: senderType,
-        senderId: senderId,
-        senderName: senderName,
-        content: content ?? this.content,
-        kind: kind,
-        createdAt: createdAt,
-        clientMsgId: clientMsgId ?? this.clientMsgId,
-        sendState: sendState ?? this.sendState,
-      );
+  }) => ChatMessage(
+    id: id,
+    channelId: channelId,
+    senderType: senderType,
+    senderId: senderId,
+    senderName: senderName,
+    content: content ?? this.content,
+    kind: kind,
+    createdAt: createdAt,
+    clientMsgId: clientMsgId ?? this.clientMsgId,
+    sendState: sendState ?? this.sendState,
+  );
 }
 
 /// A staff presence row (`StaffPresenceOut` DTO + `staff_presence` WS
@@ -221,16 +216,16 @@ class StaffEntry {
   final String? lastSeenAt;
 
   factory StaffEntry.fromJson(Map<String, dynamic> json) => StaffEntry(
-        userId: json['userId'] as String,
-        name: (json['name'] ?? '') as String,
-        role: (json['role'] ?? 'employee') as String,
-        online: json['online'] as bool? ?? false,
-        available: json['available'] as bool? ?? false,
-        busy: json['busy'] as bool? ?? false,
-        inCall: json['inCall'] as bool? ?? false,
-        activeChats: (json['activeChats'] as num?)?.toInt() ?? 0,
-        lastSeenAt: json['lastSeenAt'] as String?,
-      );
+    userId: json['userId'] as String,
+    name: (json['name'] ?? '') as String,
+    role: (json['role'] ?? 'employee') as String,
+    online: json['online'] as bool? ?? false,
+    available: json['available'] as bool? ?? false,
+    busy: json['busy'] as bool? ?? false,
+    inCall: json['inCall'] as bool? ?? false,
+    activeChats: (json['activeChats'] as num?)?.toInt() ?? 0,
+    lastSeenAt: json['lastSeenAt'] as String?,
+  );
 }
 
 /// A RECENTLY-ACTIVE but offline staff row (`StaffPresenceOfflineOut`
@@ -292,16 +287,16 @@ class StaffSnapshot {
   final bool botActive;
 
   factory StaffSnapshot.fromJson(Map<String, dynamic> json) => StaffSnapshot(
-        staff: (json['staff'] as List? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .map((e) => StaffEntry.fromJson(e))
-            .toList(),
-        offline: (json['offline'] as List? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .map((e) => OfflineStaffEntry.fromJson(e))
-            .toList(),
-        onlineCount: (json['onlineCount'] as num?)?.toInt() ?? 0,
-        availableCount: (json['availableCount'] as num?)?.toInt() ?? 0,
-        botActive: json['botActive'] as bool? ?? false,
-      );
+    staff: (json['staff'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((e) => StaffEntry.fromJson(e))
+        .toList(),
+    offline: (json['offline'] as List? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map((e) => OfflineStaffEntry.fromJson(e))
+        .toList(),
+    onlineCount: (json['onlineCount'] as num?)?.toInt() ?? 0,
+    availableCount: (json['availableCount'] as num?)?.toInt() ?? 0,
+    botActive: json['botActive'] as bool? ?? false,
+  );
 }

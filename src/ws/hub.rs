@@ -259,8 +259,8 @@ impl ChatHub {
 
     /// Register a new connection. Returns the assigned socket id.
     /// Precondition: the caller has ALREADY acquired a global slot via
-    /// [`try_acquire_global`] and a per-IP slot via [`try_acquire_ip`].
-    /// [`unregister`] releases both.
+    /// `try_acquire_global` and a per-IP slot via `try_acquire_ip`.
+    /// `unregister` releases both.
     pub fn register(&self, user: SessionUser, ip: String, tx: ClientTx) -> u64 {
         use std::sync::atomic::Ordering;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -534,7 +534,7 @@ impl ChatHub {
         self.broadcast_to_staff_raw(&payload);
     }
 
-    /// Raw-payload variant of [`broadcast_to_staff`] (payload is
+    /// Raw-payload variant of `broadcast_to_staff` (payload is
     /// pre-serialised by the caller).
     pub fn broadcast_to_staff_raw(&self, payload: &str) {
         let bytes = bytes::Bytes::copy_from_slice(payload.as_bytes());

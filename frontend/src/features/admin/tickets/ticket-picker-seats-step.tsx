@@ -96,14 +96,15 @@ export function SeatsStep({
                               finalPrice: seat.finalPrice,
                             })
                           }
-                          className={`h-7 w-7 rounded text-[10px] font-mono font-bold transition-all ${!isAvailable
-                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            : isSelected
-                              ? 'bg-blue-600 text-white ring-2 ring-blue-300'
-                              : seat.seatClass === 'vip' || seat.seatClass === 'bed_lower'
-                                ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                : 'bg-white border text-slate-700 hover:border-blue-400 hover:bg-blue-50'
-                            }`}
+                          className={`h-7 w-7 rounded text-[10px] font-mono font-bold transition-all ${
+                            !isAvailable
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                              : isSelected
+                                ? 'bg-blue-600 text-white ring-2 ring-blue-300'
+                                : seat.seatClass === 'vip' || seat.seatClass === 'bed_lower'
+                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                  : 'bg-white border text-slate-700 hover:border-blue-400 hover:bg-blue-50'
+                          }`}
                           title={`${seat.code} · ${seat.seatClass} · ${new Intl.NumberFormat('vi-VN').format(seat.finalPrice)}₫`}
                         >
                           {seat.code}
@@ -119,16 +120,19 @@ export function SeatsStep({
         {/* Legend */}
         <div className="flex flex-wrap gap-2 mt-2 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-white border" /> {t('adminTickets.legendAvailable')}
+            <span className="inline-block h-3 w-3 rounded bg-white border" />{' '}
+            {t('adminTickets.legendAvailable')}
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block h-3 w-3 rounded bg-amber-100" /> VIP
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-blue-600" /> {t('adminTickets.legendSelected')}
+            <span className="inline-block h-3 w-3 rounded bg-blue-600" />{' '}
+            {t('adminTickets.legendSelected')}
           </span>
           <span className="flex items-center gap-1">
-            <span className="inline-block h-3 w-3 rounded bg-slate-200" /> {t('adminTickets.legendTaken')}
+            <span className="inline-block h-3 w-3 rounded bg-slate-200" />{' '}
+            {t('adminTickets.legendTaken')}
           </span>
         </div>
       </div>

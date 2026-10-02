@@ -11,11 +11,7 @@ import { useT } from '@/lib/i18n'
 import type { LoyaltySummary, LoyaltyTier } from '@/lib/queries'
 import { DEFAULT_TIER_STYLE, TIER_STYLES } from './loyalty-data'
 
-export function LoyaltyPointsCard({
-  summary,
-}: {
-  summary: LoyaltySummary
-}) {
+export function LoyaltyPointsCard({ summary }: { summary: LoyaltySummary }) {
   const t = useT()
   const { lang } = useApp()
   const locale = lang === 'en' ? 'en-US' : 'vi-VN'
@@ -40,7 +36,9 @@ export function LoyaltyPointsCard({
 
   return (
     <div className="rounded-xl border bg-linear-to-br from-blue-50 to-blue-50 p-4 text-center">
-      <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">{t('home.currentPoints')}</div>
+      <div className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+        {t('home.currentPoints')}
+      </div>
       <div className="text-4xl font-extrabold text-blue-700 mt-1">
         {summary.points.toLocaleString(locale)}
       </div>
@@ -85,7 +83,9 @@ export function LoyaltyPointsCard({
       {/* Real lifetime stats (completed trips + total spent) */}
       <div className="mt-3 grid grid-cols-2 gap-2 border-t border-blue-100 pt-3 text-center">
         <div>
-          <div className="text-lg font-bold tabular-nums">{summary.completedTrips.toLocaleString(locale)}</div>
+          <div className="text-lg font-bold tabular-nums">
+            {summary.completedTrips.toLocaleString(locale)}
+          </div>
           <div className="text-[10px] text-muted-foreground">{t('home.completedTripsCount')}</div>
         </div>
         <div>

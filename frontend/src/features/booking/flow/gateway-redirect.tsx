@@ -15,7 +15,10 @@ import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from 'lucide-rea
 import { useT } from '@/lib/i18n'
 import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
 
-function providerMeta(provider: PaymentProvider, t: ReturnType<typeof useT>): { label: string; icon: React.ReactNode } {
+function providerMeta(
+  provider: PaymentProvider,
+  t: ReturnType<typeof useT>,
+): { label: string; icon: React.ReactNode } {
   switch (provider) {
     case 'vnpay':
       return { label: t('payment.vnpay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
@@ -24,9 +27,15 @@ function providerMeta(provider: PaymentProvider, t: ReturnType<typeof useT>): { 
     case 'zalopay':
       return { label: t('payment.zalopay'), icon: <Wallet className="h-5 w-5 text-primary" /> }
     case 'vietqr':
-      return { label: t('bookingFlow.providerVietqrTransfer'), icon: <QrCode className="h-5 w-5 text-emerald-600" /> }
+      return {
+        label: t('bookingFlow.providerVietqrTransfer'),
+        icon: <QrCode className="h-5 w-5 text-emerald-600" />,
+      }
     case 'cod':
-      return { label: t('bookingFlow.payCod'), icon: <Banknote className="h-5 w-5 text-amber-600" /> }
+      return {
+        label: t('bookingFlow.payCod'),
+        icon: <Banknote className="h-5 w-5 text-amber-600" />,
+      }
     default:
       return { label: provider, icon: <Wallet className="h-5 w-5" /> }
   }
@@ -47,9 +56,7 @@ export function GatewayRedirect({
     return (
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-4 text-center">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 mx-auto mb-2" />
-        <div className="text-sm font-medium text-emerald-800">
-          {t('bookingFlow.gatewayThanks')}
-        </div>
+        <div className="text-sm font-medium text-emerald-800">{t('bookingFlow.gatewayThanks')}</div>
       </div>
     )
   }
@@ -67,9 +74,7 @@ export function GatewayRedirect({
         <span className="font-medium text-sm">{meta.label}</span>
       </div>
       <a href={gatewayUrl} target="_blank" rel="noopener noreferrer">
-        <Button
-          className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90"
-        >
+        <Button className="w-full gap-2 bg-linear-to-r from-primary to-primary hover:from-primary/90 hover:to-primary/90">
           <ExternalLink className="h-4 w-4" />
           {t('bookingFlow.openPaymentPage')}
         </Button>

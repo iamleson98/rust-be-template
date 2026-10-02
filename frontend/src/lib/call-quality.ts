@@ -39,8 +39,7 @@ export interface QualityStats {
  * indicator shows a sane default until real numbers arrive.
  */
 export function classifyQuality(s: QualityStats): QualityLevel {
-  const ok = (v: number | null, limit: number): boolean =>
-    v === null ? true : v <= limit
+  const ok = (v: number | null, limit: number): boolean => (v === null ? true : v <= limit)
   if (ok(s.rttMs, 250) && ok(s.lossPct, 2) && ok(s.jitterMs, 30)) return 'good'
   if (ok(s.rttMs, 500) && ok(s.lossPct, 8) && ok(s.jitterMs, 60)) return 'fair'
   return 'poor'
@@ -52,10 +51,7 @@ export function classifyQuality(s: QualityStats): QualityLevel {
  * "the customer declined" to the agent and "the agent declined" to the
  * customer.
  */
-export function hangupReasonText(
-  reason: string | null | undefined,
-  isAgent: boolean,
-): string {
+export function hangupReasonText(reason: string | null | undefined, isAgent: boolean): string {
   switch (reason) {
     case 'declined':
       return isAgent ? L('call.customerDeclined') : L('call.agentDeclined')

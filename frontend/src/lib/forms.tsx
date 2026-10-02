@@ -1,4 +1,3 @@
-
 /**
  * Shared form-validation helpers.
  *
@@ -67,20 +66,31 @@ export const fullNameSchema = z
 
 /** Non-empty trimmed string with a custom label in the error message. */
 export const requiredText = (labelKey?: string) =>
-  z.string().trim().min(1, {
-    error: () =>
-      labelKey === undefined
-        ? tSync('validation.required')
-        : tSync('validation.requiredLabel', { label: tSync(labelKey) }),
-  })
+  z
+    .string()
+    .trim()
+    .min(1, {
+      error: () =>
+        labelKey === undefined
+          ? tSync('validation.required')
+          : tSync('validation.requiredLabel', { label: tSync(labelKey) }),
+    })
 
 /** Positive integer ≥ min. */
 export const positiveInt = (min = 1) =>
-  z.coerce.number().int().min(min, { error: () => tSync('validation.minNumber', { min }) })
+  z.coerce
+    .number()
+    .int()
+    .min(min, { error: () => tSync('validation.minNumber', { min }) })
 
 /** Optional string that defaults to empty when omitted. */
 export const optionalText = (max = 500) =>
-  z.string().trim().max(max, { error: () => tSync('validation.maxChars', { max }) }).optional().or(z.literal(''))
+  z
+    .string()
+    .trim()
+    .max(max, { error: () => tSync('validation.maxChars', { max }) })
+    .optional()
+    .or(z.literal(''))
 
 /* ──────────────────────────────────────────────────────────────
  *  FieldLabel — shared required-field marker
@@ -123,4 +133,3 @@ export function FieldLabel({
     </Label>
   )
 }
-

@@ -15,11 +15,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import {
-  Ban,
-  CheckCircle2,
-  ArrowLeftRight,
-} from 'lucide-react'
+import { Ban, CheckCircle2, ArrowLeftRight } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
@@ -54,11 +50,22 @@ export function PaymentDetailDialog({
         </DialogHeader>
         {selectedPayment && (
           <div className="space-y-2.5 text-sm">
-            <DetailRow label={t('booking.code')} value={
-              <span className="font-mono font-semibold">{selectedPayment.bookingCode ?? '—'}</span>
-            } />
-            <DetailRow label={t('adminPayments.method')} value={<ProviderBadge provider={selectedPayment.provider} />} />
-            <DetailRow label={t('common.status')} value={<StatusBadge status={selectedPayment.status} />} />
+            <DetailRow
+              label={t('booking.code')}
+              value={
+                <span className="font-mono font-semibold">
+                  {selectedPayment.bookingCode ?? '—'}
+                </span>
+              }
+            />
+            <DetailRow
+              label={t('adminPayments.method')}
+              value={<ProviderBadge provider={selectedPayment.provider} />}
+            />
+            <DetailRow
+              label={t('common.status')}
+              value={<StatusBadge status={selectedPayment.status} />}
+            />
             <DetailRow
               label={t('adminPayments.amount')}
               value={
@@ -67,11 +74,14 @@ export function PaymentDetailDialog({
                 </span>
               }
             />
-            <DetailRow label={t('adminPayments.gatewayTxnId')} value={
-              <span className="font-mono text-xs text-muted-foreground">
-                {selectedPayment.providerTransId ?? '—'}
-              </span>
-            } />
+            <DetailRow
+              label={t('adminPayments.gatewayTxnId')}
+              value={
+                <span className="font-mono text-xs text-muted-foreground">
+                  {selectedPayment.providerTransId ?? '—'}
+                </span>
+              }
+            />
             <DetailRow label={t('adminFeedback.content')} value={selectedPayment.memo ?? '—'} />
             <DetailRow
               label={t('adminPayments.createdAt')}
@@ -146,13 +156,7 @@ export function PaymentDetailDialog({
   )
 }
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string
-  value: React.ReactNode
-}) {
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between border-b pb-2 last:border-b-0">
       <span className="text-xs text-muted-foreground">{label}</span>

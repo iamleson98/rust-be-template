@@ -30,7 +30,11 @@ export function TripCardBrand({
         className="h-11 w-11 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ring-1 ring-black/5"
         style={{ background: trip.brandAccent }}
       >
-        {trip.brandName.split(' ').map((w) => w[0]).join('').slice(0, 2)}
+        {trip.brandName
+          .split(' ')
+          .map((w) => w[0])
+          .join('')
+          .slice(0, 2)}
       </div>
       <div className="min-w-0">
         <button

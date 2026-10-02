@@ -131,15 +131,46 @@ export const REVIEW_TAG_LABELS: Record<string, { labelKey: string; emoji: string
   easy_booking: { labelKey: 'bookingHistory.tagEasyBooking', emoji: '🎟️' },
 }
 
-export const STATUS_CONFIG: Record<string, { labelKey: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }> = {
-  confirmed: { labelKey: 'bookingHistory.statusConfirmed', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
+export const STATUS_CONFIG: Record<
+  string,
+  { labelKey: string; cls: string; icon: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }
+> = {
+  confirmed: {
+    labelKey: 'bookingHistory.statusConfirmed',
+    cls: 'bg-blue-100 text-blue-700',
+    icon: 'check',
+  },
   paid: { labelKey: 'bookingHistory.statusPaid', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
-  completed: { labelKey: 'bookingHistory.statusCompleted', cls: 'bg-blue-100 text-blue-700', icon: 'check' },
-  pending: { labelKey: 'bookingHistory.statusPending', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
-  held: { labelKey: 'bookingHistory.statusHeld', cls: 'bg-amber-100 text-amber-700', icon: 'clock' },
-  cancelled: { labelKey: 'bookingHistory.statusCancelled', cls: 'bg-rose-100 text-rose-700', icon: 'xcircle' },
-  refunded: { labelKey: 'bookingHistory.statusRefunded', cls: 'bg-slate-100 text-slate-600', icon: 'landmark' },
-  expired: { labelKey: 'bookingHistory.statusExpired', cls: 'bg-slate-100 text-slate-600', icon: 'alert' },
+  completed: {
+    labelKey: 'bookingHistory.statusCompleted',
+    cls: 'bg-blue-100 text-blue-700',
+    icon: 'check',
+  },
+  pending: {
+    labelKey: 'bookingHistory.statusPending',
+    cls: 'bg-amber-100 text-amber-700',
+    icon: 'clock',
+  },
+  held: {
+    labelKey: 'bookingHistory.statusHeld',
+    cls: 'bg-amber-100 text-amber-700',
+    icon: 'clock',
+  },
+  cancelled: {
+    labelKey: 'bookingHistory.statusCancelled',
+    cls: 'bg-rose-100 text-rose-700',
+    icon: 'xcircle',
+  },
+  refunded: {
+    labelKey: 'bookingHistory.statusRefunded',
+    cls: 'bg-slate-100 text-slate-600',
+    icon: 'landmark',
+  },
+  expired: {
+    labelKey: 'bookingHistory.statusExpired',
+    cls: 'bg-slate-100 text-slate-600',
+    icon: 'alert',
+  },
 }
 
 /**

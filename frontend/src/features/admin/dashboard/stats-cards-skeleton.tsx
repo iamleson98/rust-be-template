@@ -24,7 +24,9 @@ export const AdminStatsCardsSkeleton = memo(function AdminStatsCardsSkeleton({
 }) {
   return (
     <div
-      className={count <= 3 ? 'grid gap-4 md:grid-cols-3' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4'}
+      className={
+        count <= 3 ? 'grid gap-4 md:grid-cols-3' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-4'
+      }
       aria-hidden
       data-testid="admin-stats-skeleton"
     >

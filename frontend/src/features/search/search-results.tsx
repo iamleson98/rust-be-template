@@ -11,13 +11,23 @@ import { DatePriceCompare } from '@/features/search/date-price-compare'
 import { RouteDirectory } from '@/features/search/route-directory'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { getHourOfDeparture, matchesTimeRange, type Filters, type NavigateFn, type RouteSearch } from './helpers'
-import { type SavedSearch, loadSavedSearches, persistSavedSearches, SavedSearchesList } from './saved-searches'
+import {
+  getHourOfDeparture,
+  matchesTimeRange,
+  type Filters,
+  type NavigateFn,
+  type RouteSearch,
+} from './helpers'
+import {
+  type SavedSearch,
+  loadSavedSearches,
+  persistSavedSearches,
+  SavedSearchesList,
+} from './saved-searches'
 import { FiltersSidebar } from './filters-sidebar'
 import { MobileFiltersSheet } from './mobile-filters'
 import { ActiveFilterChips } from './active-filter-chips'
 import { TripResultsList } from './trip-results-list'
-
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
@@ -25,8 +35,15 @@ export type { RouteSearch } from './helpers'
 
 /* ─── Main Component ─── */
 
-export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSearch; navigate: NavigateFn }) {
-  const { compareList, setCompareOpen, clearCompare, setPriceAlertOpen, setPriceAlertContext } = useApp()
+export function SearchResults({
+  routeSearch,
+  navigate,
+}: {
+  routeSearch: RouteSearch
+  navigate: NavigateFn
+}) {
+  const { compareList, setCompareOpen, clearCompare, setPriceAlertOpen, setPriceAlertContext } =
+    useApp()
   const t = useT()
 
   // Drive the search via TanStack Query — the URL (routeSearch) is the
@@ -42,16 +59,16 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
   const tripSearchParams: TripSearchParams | null =
     routeSearch.from && routeSearch.to
       ? {
-        from: routeSearch.from,
-        to: routeSearch.to,
-        date: routeSearch.date,
-        adults: routeSearch.adults,
-        children: routeSearch.children,
-        sort: routeSearch.sort,
-        vehicleTypes: routeSearch.vehicleTypes,
-        roundTrip: routeSearch.roundTrip,
-        returnDate: routeSearch.returnDate,
-      }
+          from: routeSearch.from,
+          to: routeSearch.to,
+          date: routeSearch.date,
+          adults: routeSearch.adults,
+          children: routeSearch.children,
+          sort: routeSearch.sort,
+          vehicleTypes: routeSearch.vehicleTypes,
+          roundTrip: routeSearch.roundTrip,
+          returnDate: routeSearch.returnDate,
+        }
       : null
   const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
   const searchResults = searchData?.items ?? EMPTY_ITEMS
@@ -68,7 +85,7 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
   // Cache results in window global so compare can read them without refetch
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      ; window.__lastSearchResults = searchResults
+      window.__lastSearchResults = searchResults
     }
   }, [searchResults])
 
@@ -118,8 +135,14 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
 
   // Effective price range used for slider display + filtering (clamped to bounds)
   const effectivePriceRange = useMemo<[number, number]>(() => {
-    const lo = filters.priceMin === 0 || filters.priceMin < priceBounds[0] ? priceBounds[0] : filters.priceMin
-    const hi = filters.priceMax === 0 || filters.priceMax > priceBounds[1] ? priceBounds[1] : filters.priceMax
+    const lo =
+      filters.priceMin === 0 || filters.priceMin < priceBounds[0]
+        ? priceBounds[0]
+        : filters.priceMin
+    const hi =
+      filters.priceMax === 0 || filters.priceMax > priceBounds[1]
+        ? priceBounds[1]
+        : filters.priceMax
     return [lo, hi]
   }, [filters.priceMin, filters.priceMax, priceBounds])
 
@@ -236,7 +259,8 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
     [searchResults],
   )
   const maxAvail = useMemo(
-    () => (searchResults.length > 0 ? Math.max(...searchResults.map((tr) => tr.availableSeats)) : 0),
+    () =>
+      searchResults.length > 0 ? Math.max(...searchResults.map((tr) => tr.availableSeats)) : 0,
     [searchResults],
   )
 
@@ -265,165 +289,169 @@ export function SearchResults({ routeSearch, navigate }: { routeSearch: RouteSea
           </div>
 
           <div className="container mx-auto px-4 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
-          {/* Sidebar filters (desktop) */}
-          <FiltersSidebar
-            routeSearch={routeSearch}
-            updateRouteSearch={updateRouteSearch}
-            searchResults={searchResults}
-            filters={filters}
-            setFilters={setFilters}
-            priceBounds={priceBounds}
-            effectivePriceRange={effectivePriceRange}
-            activeFilterCount={activeFilterCount}
-            resetFilters={resetFilters}
-            minPrice={minPrice}
-            maxAvail={maxAvail}
-          />
-
-          {/* Results */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between mb-4 gap-3">
-              <div>
-                <h1 className="text-xl md:text-2xl font-extrabold">
-                  {routeSearch.from} → {routeSearch.to}
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  {searchLoading
-                    ? t('searchPage.searchingTrips')
-                    : t('searchPage.tripsFound', { found: filteredResults.length, total: searchResults.length })}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Save Search */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveSearch}
-                  disabled={searchResults.length === 0}
-                  className="gap-1.5"
-                  title={t('searchPage.saveThisSearch')}
-                >
-                  <Heart className="h-3.5 w-3.5 text-rose-500" />
-                  <span className="hidden sm:inline">{t('common.save')}</span>
-                </Button>
-                {/* Price Alert (existing feature) */}
-                {routeSearch.from && routeSearch.to && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setPriceAlertContext({
-                        fromName: routeSearch.from,
-                        toName: routeSearch.to,
-                        minPrice: minPrice > 0 ? minPrice : 0,
-                      })
-                      setPriceAlertOpen(true)
-                    }}
-                    className="gap-1.5"
-                  >
-                    <Bell className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
-                  </Button>
-                )}
-                {/* Mobile filter trigger */}
-                <MobileFiltersSheet
-                  mobileFilterOpen={mobileFilterOpen}
-                  setMobileFilterOpen={setMobileFilterOpen}
-                  activeFilterCount={activeFilterCount}
-                  routeSearch={routeSearch}
-                  updateRouteSearch={updateRouteSearch}
-                  searchResults={searchResults}
-                  filters={filters}
-                  setFilters={setFilters}
-                  priceBounds={priceBounds}
-                  effectivePriceRange={effectivePriceRange}
-                  resetFilters={resetFilters}
-                />
-                {compareList.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCompareOpen(true)}
-                    className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
-                  >
-                    <GitCompare className="h-3.5 w-3.5" />
-                    {t('searchPage.compareCount', { count: compareList.length })}
-                  </Button>
-                )}
-                {searchResults.length > 0 && (
-                  <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    {t('searchPage.bestPriceMarked')}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Active Filters Chips */}
-            {activeFilterCount > 0 && (
-              <ActiveFilterChips
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Sidebar filters (desktop) */}
+              <FiltersSidebar
+                routeSearch={routeSearch}
+                updateRouteSearch={updateRouteSearch}
+                searchResults={searchResults}
                 filters={filters}
                 setFilters={setFilters}
-                effectivePriceRange={effectivePriceRange}
                 priceBounds={priceBounds}
+                effectivePriceRange={effectivePriceRange}
+                activeFilterCount={activeFilterCount}
                 resetFilters={resetFilters}
-                brandNames={brandNames}
+                minPrice={minPrice}
+                maxAvail={maxAvail}
               />
-            )}
-            {/* Saved Searches (collapsible list) */}
-            {savedSearches.length > 0 && (
-              <SavedSearchesList
-                savedSearches={savedSearches}
-                applySavedSearch={applySavedSearch}
-                removeSavedSearch={removeSavedSearch}
-              />
-            )}
 
-            {/* Compare tray */}
-            {compareList.length > 0 && (
-              <div className="mb-3 overflow-hidden">
-                <div className="rounded-xl bg-linear-to-r from-violet-50 to-fuchsia-50 ring-1 ring-violet-200 p-3 flex items-center gap-3">
-                  <GitCompare className="h-4 w-4 text-violet-600 shrink-0" />
-                  <div className="text-xs text-violet-700 flex-1">
-                    <span className="font-semibold">{compareList.length}/3</span>{' '}{t('searchPage.compareSelected')}
+              {/* Results */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-4 gap-3">
+                  <div>
+                    <h1 className="text-xl md:text-2xl font-extrabold">
+                      {routeSearch.from} → {routeSearch.to}
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
+                      {searchLoading
+                        ? t('searchPage.searchingTrips')
+                        : t('searchPage.tripsFound', {
+                            found: filteredResults.length,
+                            total: searchResults.length,
+                          })}
+                    </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="default"
-                    className="h-7 gap-1 text-xs bg-violet-600 hover:bg-violet-700"
-                    onClick={() => setCompareOpen(true)}
-                  >
-                    {t('searchPage.compareNow')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 gap-1 text-xs text-violet-700 hover:bg-violet-100"
-                    onClick={clearCompare}
-                  >
-                    <X className="h-3 w-3" />
-                    {t('common.delete')}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {/* Save Search */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSaveSearch}
+                      disabled={searchResults.length === 0}
+                      className="gap-1.5"
+                      title={t('searchPage.saveThisSearch')}
+                    >
+                      <Heart className="h-3.5 w-3.5 text-rose-500" />
+                      <span className="hidden sm:inline">{t('common.save')}</span>
+                    </Button>
+                    {/* Price Alert (existing feature) */}
+                    {routeSearch.from && routeSearch.to && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setPriceAlertContext({
+                            fromName: routeSearch.from,
+                            toName: routeSearch.to,
+                            minPrice: minPrice > 0 ? minPrice : 0,
+                          })
+                          setPriceAlertOpen(true)
+                        }}
+                        className="gap-1.5"
+                      >
+                        <Bell className="h-3.5 w-3.5 text-blue-600" />
+                        <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
+                      </Button>
+                    )}
+                    {/* Mobile filter trigger */}
+                    <MobileFiltersSheet
+                      mobileFilterOpen={mobileFilterOpen}
+                      setMobileFilterOpen={setMobileFilterOpen}
+                      activeFilterCount={activeFilterCount}
+                      routeSearch={routeSearch}
+                      updateRouteSearch={updateRouteSearch}
+                      searchResults={searchResults}
+                      filters={filters}
+                      setFilters={setFilters}
+                      priceBounds={priceBounds}
+                      effectivePriceRange={effectivePriceRange}
+                      resetFilters={resetFilters}
+                    />
+                    {compareList.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCompareOpen(true)}
+                        className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
+                      >
+                        <GitCompare className="h-3.5 w-3.5" />
+                        {t('searchPage.compareCount', { count: compareList.length })}
+                      </Button>
+                    )}
+                    {searchResults.length > 0 && (
+                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                        {t('searchPage.bestPriceMarked')}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Active Filters Chips */}
+                {activeFilterCount > 0 && (
+                  <ActiveFilterChips
+                    filters={filters}
+                    setFilters={setFilters}
+                    effectivePriceRange={effectivePriceRange}
+                    priceBounds={priceBounds}
+                    resetFilters={resetFilters}
+                    brandNames={brandNames}
+                  />
+                )}
+                {/* Saved Searches (collapsible list) */}
+                {savedSearches.length > 0 && (
+                  <SavedSearchesList
+                    savedSearches={savedSearches}
+                    applySavedSearch={applySavedSearch}
+                    removeSavedSearch={removeSavedSearch}
+                  />
+                )}
+
+                {/* Compare tray */}
+                {compareList.length > 0 && (
+                  <div className="mb-3 overflow-hidden">
+                    <div className="rounded-xl bg-linear-to-r from-violet-50 to-fuchsia-50 ring-1 ring-violet-200 p-3 flex items-center gap-3">
+                      <GitCompare className="h-4 w-4 text-violet-600 shrink-0" />
+                      <div className="text-xs text-violet-700 flex-1">
+                        <span className="font-semibold">{compareList.length}/3</span>{' '}
+                        {t('searchPage.compareSelected')}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        className="h-7 gap-1 text-xs bg-violet-600 hover:bg-violet-700"
+                        onClick={() => setCompareOpen(true)}
+                      >
+                        {t('searchPage.compareNow')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1 text-xs text-violet-700 hover:bg-violet-100"
+                        onClick={clearCompare}
+                      >
+                        <X className="h-3 w-3" />
+                        {t('common.delete')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <TripResultsList
+                  searchLoading={searchLoading}
+                  searchResults={searchResults}
+                  filteredResults={filteredResults}
+                  activeFilterCount={activeFilterCount}
+                  resetFilters={resetFilters}
+                  navigate={navigate}
+                  // When no date is picked the search query is disabled — the
+                  // list shows a "pick a date" prompt instead of the generic
+                  // "no trips found" empty state.
+                  awaitingDate={
+                    !browseMode && (!routeSearch.date || String(routeSearch.date).trim() === '')
+                  }
+                />
               </div>
-            )}
-            <TripResultsList
-              searchLoading={searchLoading}
-              searchResults={searchResults}
-              filteredResults={filteredResults}
-              activeFilterCount={activeFilterCount}
-              resetFilters={resetFilters}
-              navigate={navigate}
-              // When no date is picked the search query is disabled — the
-              // list shows a "pick a date" prompt instead of the generic
-              // "no trips found" empty state.
-              awaitingDate={
-                !browseMode && (!routeSearch.date || String(routeSearch.date).trim() === '')
-              }
-            />
-          </div>
-        </div>
+            </div>
           </div>
         </>
       )}

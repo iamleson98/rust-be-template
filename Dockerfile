@@ -207,4 +207,4 @@ CMD ["/app/backend", "serve"]
 # caught (recovering in ~4 min instead of ~2.5 min, an acceptable
 # trade for not killing live calls).
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=8 \
-    CMD curl -sf http://localhost:8080/health || exit 1
+    CMD ["curl", "-sf", "http://localhost:8080/health"]

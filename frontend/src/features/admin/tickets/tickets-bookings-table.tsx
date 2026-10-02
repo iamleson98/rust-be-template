@@ -2,11 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react'
 import type { CellData, ColumnDef, SortingState } from '@tanstack/react-table'
-import {
-  DataTable,
-  DataTableViewOptions,
-  type DataTableFeatures,
-} from '@/components/data-table'
+import { DataTable, DataTableViewOptions, type DataTableFeatures } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, RefreshCw } from 'lucide-react'
@@ -53,7 +49,9 @@ export function TicketsBookingsTable({
           onClick={() => bookingsQuery.refetch()}
           disabled={bookingsQuery.isFetching}
         >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`h-3.5 w-3.5 mr-1 ${bookingsQuery.isFetching ? 'animate-spin' : ''}`}
+          />
           {t('common.refresh')}
         </Button>
       </div>
@@ -64,9 +62,7 @@ export function TicketsBookingsTable({
         manualPagination
         totalRowCount={total}
         pageIndex={Math.floor(offset / PAGE_SIZE)}
-        onPageIndexChange={(next) =>
-          setFilter((f) => ({ ...f, offset: next * PAGE_SIZE }))
-        }
+        onPageIndexChange={(next) => setFilter((f) => ({ ...f, offset: next * PAGE_SIZE }))}
         pageSize={PAGE_SIZE}
         manualSorting
         sorting={sorting}

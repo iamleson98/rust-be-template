@@ -65,7 +65,9 @@ pub fn no_retry(_attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// # Requirements on the implementing struct
 ///
-/// The struct must implement [`crate::store::RetryPolicy`]. The trait
+/// The struct must implement `crate::store::RetryPolicy` (the trait in
+/// the *using* crate — a plain code span, not a link: this proc-macro
+/// crate cannot resolve the consumer's module tree). The trait
 /// has default impls (3 retries, 100ms base, exponential backoff), so
 /// most users just write:
 ///

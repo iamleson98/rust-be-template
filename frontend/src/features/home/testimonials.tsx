@@ -45,10 +45,9 @@ const StarRating = memo(function StarRating({ rating }: { rating: number }) {
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`h-4 w-4 transition-colors ${i < rating
-            ? 'fill-amber-400 text-amber-400'
-            : 'fill-slate-200 text-slate-200'
-            }`}
+          className={`h-4 w-4 transition-colors ${
+            i < rating ? 'fill-amber-400 text-amber-400' : 'fill-slate-200 text-slate-200'
+          }`}
         />
       ))}
     </div>
@@ -74,7 +73,8 @@ export const Testimonials = memo(function Testimonials() {
         <div
           className="absolute inset-0 -z-10 opacity-[0.03]"
           style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, oklch(0.556 0.13 250) 1px, transparent 0)',
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, oklch(0.556 0.13 250) 1px, transparent 0)',
             backgroundSize: '24px 24px',
           }}
         />
@@ -87,9 +87,7 @@ export const Testimonials = memo(function Testimonials() {
           <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight">
             {t('home.testimonialsTitle')}
           </h2>
-          <p className="text-muted-foreground mt-3">
-            {t('home.testimonialsSubtitle')}
-          </p>
+          <p className="text-muted-foreground mt-3">{t('home.testimonialsSubtitle')}</p>
         </div>
 
         {/* Review cards — manual horizontal scroll with snap (mobile-first;
@@ -101,10 +99,7 @@ export const Testimonials = memo(function Testimonials() {
           {items.map((item) => {
             const author = item.authorName ?? t('home.anonymousReviewer')
             return (
-              <div
-                key={item.id}
-                className="snap-start shrink-0 w-75 sm:w-85"
-              >
+              <div key={item.id} className="snap-start shrink-0 w-75 sm:w-85">
                 <Card className="group h-full border-slate-100 relative overflow-hidden">
                   {/* Quote mark decoration */}
                   <Quote className="absolute -top-2 -right-2 h-16 w-16 text-blue-50 rotate-0 group-hover:text-blue-100 transition-colors" />

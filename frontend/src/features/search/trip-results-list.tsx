@@ -66,86 +66,101 @@ export function TripResultsList({
     enabled: shouldVirtualize,
   })
 
-  return (
-    searchLoading ? (
-      <div className="space-y-3">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <TripCardSkeleton key={i} />
-        ))}
-      </div>
-    ) : filteredResults.length === 0 ? (
-      <div className="rounded-xl border bg-white p-10 text-center">
-        <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
-        <h3 className="font-semibold text-lg">
-          {awaitingDate
-            ? t('searchPage.pickDateTitle')
-            : searchResults.length === 0
-              ? t('searchPage.noTripsFound')
-              : t('searchPage.noTripsMatchFilters')}
-        </h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {awaitingDate
-            ? t('searchPage.pickDateHint')
-            : searchResults.length === 0
-              ? t('searchPage.noTripsHint')
-              : t('searchPage.noMatchHint')}
-        </p>
-        {searchResults.length > 0 && activeFilterCount > 0 && (
-          <Button onClick={resetFilters} variant="outline" className="mt-4 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50">
-            <X className="h-4 w-4" />
-            {t('searchPage.clearAllFilters')}
-          </Button>
-        )}
-      </div>
-    ) : (
-      <div className="space-y-3">
-        {shouldVirtualize ? (
-          <div ref={listParentRef} className="max-h-[80vh] overflow-y-auto">
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                position: 'relative',
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualRow) => {
-                const t = filteredResults[virtualRow.index]
-                const isTopRated = t.brandRating === topRating
-                const isCheapest = t.minPrice === cheapestPrice
-                const isRecommended = virtualRow.index === 0 || (isTopRated && isCheapest)
-                return (
-                  <div
-                    key={t.tripId}
-                    data-index={virtualRow.index}
-                    ref={virtualizer.measureElement}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      transform: `translateY(${virtualRow.start}px)`,
-                    }}
-                    className="pb-3"
-                  >
-                    <TripCard trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} isRecommended={filteredResults.length > 1 && isRecommended && virtualRow.index === 0} />
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          <>
-            {filteredResults.map((t, i) => {
-              // Determine recommended: trip with highest rating AND lowest price in results
+  return searchLoading ? (
+    <div className="space-y-3">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <TripCardSkeleton key={i} />
+      ))}
+    </div>
+  ) : filteredResults.length === 0 ? (
+    <div className="rounded-xl border bg-white p-10 text-center">
+      <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
+      <h3 className="font-semibold text-lg">
+        {awaitingDate
+          ? t('searchPage.pickDateTitle')
+          : searchResults.length === 0
+            ? t('searchPage.noTripsFound')
+            : t('searchPage.noTripsMatchFilters')}
+      </h3>
+      <p className="text-sm text-muted-foreground mt-1">
+        {awaitingDate
+          ? t('searchPage.pickDateHint')
+          : searchResults.length === 0
+            ? t('searchPage.noTripsHint')
+            : t('searchPage.noMatchHint')}
+      </p>
+      {searchResults.length > 0 && activeFilterCount > 0 && (
+        <Button
+          onClick={resetFilters}
+          variant="outline"
+          className="mt-4 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
+        >
+          <X className="h-4 w-4" />
+          {t('searchPage.clearAllFilters')}
+        </Button>
+      )}
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {shouldVirtualize ? (
+        <div ref={listParentRef} className="max-h-[80vh] overflow-y-auto">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualRow) => {
+              const t = filteredResults[virtualRow.index]
               const isTopRated = t.brandRating === topRating
               const isCheapest = t.minPrice === cheapestPrice
-              const isRecommended = i === 0 || (isTopRated && isCheapest)
+              const isRecommended = virtualRow.index === 0 || (isTopRated && isCheapest)
               return (
-                <TripCard key={t.tripId} trip={t} onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })} isRecommended={filteredResults.length > 1 && isRecommended && i === 0} />
+                <div
+                  key={t.tripId}
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className="pb-3"
+                >
+                  <TripCard
+                    trip={t}
+                    onSelect={() =>
+                      navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })
+                    }
+                    isRecommended={
+                      filteredResults.length > 1 && isRecommended && virtualRow.index === 0
+                    }
+                  />
+                </div>
               )
             })}
-          </>
-        )}
-      </div>
-    )
+          </div>
+        </div>
+      ) : (
+        <>
+          {filteredResults.map((t, i) => {
+            // Determine recommended: trip with highest rating AND lowest price in results
+            const isTopRated = t.brandRating === topRating
+            const isCheapest = t.minPrice === cheapestPrice
+            const isRecommended = i === 0 || (isTopRated && isCheapest)
+            return (
+              <TripCard
+                key={t.tripId}
+                trip={t}
+                onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })}
+                isRecommended={filteredResults.length > 1 && isRecommended && i === 0}
+              />
+            )
+          })}
+        </>
+      )}
+    </div>
   )
 }

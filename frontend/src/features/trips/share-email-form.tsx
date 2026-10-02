@@ -102,7 +102,9 @@ export function ShareEmailForm({
         '',
         t('trips.emailFooter'),
       ].join('\n')
-      const body = values.message?.trim() ? `${values.message.trim()}\n\n${defaultBody}` : defaultBody
+      const body = values.message?.trim()
+        ? `${values.message.trim()}\n\n${defaultBody}`
+        : defaultBody
       const mailto = `mailto:${values.recipientEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
       // Open the user's email client. We do NOT POST to any backend —
       // mailto: is the cross-browser "share via email" primitive.

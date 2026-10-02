@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Headset, Send } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { AdminChannel as Channel, AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
+import type {
+  AdminChannel as Channel,
+  AdminChatMessage as ChatMessage,
+} from '@/features/admin/dashboard/types'
 import {
   ChatTicketPicker,
   type CreatedTicketPayload,
@@ -162,8 +165,7 @@ export function ChatPanel({
     const viewport = root.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
     if (!viewport) return
     const handleScroll = () => {
-      const distanceFromBottom =
-        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
       if (
         distanceFromBottom <= 120 &&
         hasMoreChannels &&
@@ -198,8 +200,7 @@ export function ChatPanel({
 
     // Track whether the user is at the bottom on every scroll.
     const handleScroll = () => {
-      const distanceFromBottom =
-        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+      const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
       isAtBottomRef.current = distanceFromBottom <= 80
     }
     viewport.addEventListener('scroll', handleScroll, { passive: true })
@@ -210,7 +211,12 @@ export function ChatPanel({
     // listener (not IntersectionObserver) because the ScrollArea's
     // viewport is the scroll container, not the document.
     const handleInfiniteScroll = () => {
-      if (viewport.scrollTop <= 80 && hasMoreMessages && !isFetchingMoreMessages && onFetchMoreMessages) {
+      if (
+        viewport.scrollTop <= 80 &&
+        hasMoreMessages &&
+        !isFetchingMoreMessages &&
+        onFetchMoreMessages
+      ) {
         onFetchMoreMessages()
       }
     }
@@ -294,7 +300,8 @@ export function ChatPanel({
   // `channels` when stats aren't loaded yet (capped at the list's page
   // size, but better than showing 0).
   const openCount = chatStats?.openCount ?? channels.filter((c) => c.status === 'open').length
-  const assignedCount = chatStats?.assignedCount ?? channels.filter((c) => c.status === 'assigned').length
+  const assignedCount =
+    chatStats?.assignedCount ?? channels.filter((c) => c.status === 'assigned').length
   const avgResponseSecs = chatStats?.avgResponseTimeSecs ?? 0
 
   return (
@@ -364,7 +371,12 @@ export function ChatPanel({
                   the scroll area is `xl:flex-1` (takes remaining space). */}
               <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
                 <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
-                  {[t('adminChat.quickReplyGreeting'), t('adminChat.quickReplyBookingCode'), t('adminChat.quickReplyConfirmed'), t('adminChat.quickReplyChecking')].map((text, i) => (
+                  {[
+                    t('adminChat.quickReplyGreeting'),
+                    t('adminChat.quickReplyBookingCode'),
+                    t('adminChat.quickReplyConfirmed'),
+                    t('adminChat.quickReplyChecking'),
+                  ].map((text, i) => (
                     <button
                       key={i}
                       onClick={() => onSetReplyText(text)}
@@ -378,7 +390,12 @@ export function ChatPanel({
                   <Input
                     value={replyText}
                     onChange={(e) => onSetReplyText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendReply() } }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        onSendReply()
+                      }
+                    }}
                     placeholder={t('adminChat.replyPlaceholder')}
                     className="flex-1"
                   />
@@ -394,7 +411,9 @@ export function ChatPanel({
               </div>
             </>
           ) : (
-            <div className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 flex items-center justify-center p-8`}>
+            <div
+              className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 flex items-center justify-center p-8`}
+            >
               <div className="text-center">
                 <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
                   <Headset className="h-8 w-8 text-slate-400" />

@@ -28,11 +28,16 @@ type RouteTimelinePoint = {
  *  valid Date — null when either part is missing/unparseable. Time-only
  *  strings like "08:00" are NOT valid Dates on their own. Parsed via
  *  parseDateSafe so naive datetimes are pinned to Vietnam time. */
-function resolveDepartureDate(departureDate: string | null | undefined, departureTime: string | null | undefined): Date | null {
+function resolveDepartureDate(
+  departureDate: string | null | undefined,
+  departureTime: string | null | undefined,
+): Date | null {
   if (!departureDate) return null
   const day = departureDate.slice(0, 10)
   if (departureTime) {
-    const d = parseDateSafe(`${day}T${departureTime.length === 5 ? `${departureTime}:00` : departureTime}`)
+    const d = parseDateSafe(
+      `${day}T${departureTime.length === 5 ? `${departureTime}:00` : departureTime}`,
+    )
     if (d) return d
   }
   return parseDateSafe(departureDate)
@@ -80,13 +85,21 @@ export function RouteTimeline({
     // Pickup and drop points (middle stops)
     // pickupType: "pickup" or "dropoff" or "both"
     const midPoints = pickupPoints
-      .filter((p) => p.stopOrder > 0 && p.stopOrder < (pickupPoints.length > 0 ? pickupPoints[pickupPoints.length - 1].stopOrder : 0))
+      .filter(
+        (p) =>
+          p.stopOrder > 0 &&
+          p.stopOrder <
+            (pickupPoints.length > 0 ? pickupPoints[pickupPoints.length - 1].stopOrder : 0),
+      )
       .sort((a, b) => a.stopOrder - b.stopOrder)
 
     for (const p of midPoints) {
       // No ETA offset (backend doesn't provide one yet) → time stays
       // null and renders as "—" instead of an Invalid-Date/NaN.
-      const t = depDate && p.etaOffsetMin != null ? new Date(depDate.getTime() + p.etaOffsetMin * 60_000) : null
+      const t =
+        depDate && p.etaOffsetMin != null
+          ? new Date(depDate.getTime() + p.etaOffsetMin * 60_000)
+          : null
       items.push({
         id: p.id,
         name: p.name,
@@ -147,10 +160,7 @@ export function RouteTimeline({
           const nextItem = idx < timelineItems.length - 1 ? timelineItems[idx + 1] : null
 
           return (
-            <div
-              key={item.id}
-              className="relative pb-2"
-            >
+            <div key={item.id} className="relative pb-2">
               <div className="flex items-start gap-3">
                 {/* Dot / Circle on the timeline */}
                 <div className="absolute -left-6 top-0 flex items-center justify-center w-6 h-6 z-10">
@@ -167,9 +177,7 @@ export function RouteTimeline({
                   ) : (
                     <div
                       className={`h-3 w-3 rounded-full border-2 ${
-                        isPickup
-                          ? 'bg-blue-100 border-blue-500'
-                          : 'bg-amber-100 border-amber-500'
+                        isPickup ? 'bg-blue-100 border-blue-500' : 'bg-amber-100 border-amber-500'
                       }`}
                     />
                   )}
@@ -181,7 +189,13 @@ export function RouteTimeline({
                     <div className="min-w-0">
                       <span
                         className={`text-sm font-semibold truncate block ${
-                          isFirst ? 'text-blue-800' : isLast ? 'text-rose-700' : isPickup ? 'text-blue-800' : 'text-amber-700'
+                          isFirst
+                            ? 'text-blue-800'
+                            : isLast
+                              ? 'text-rose-700'
+                              : isPickup
+                                ? 'text-blue-800'
+                                : 'text-amber-700'
                         }`}
                       >
                         {item.name}
@@ -217,7 +231,13 @@ export function RouteTimeline({
                     <div className="mt-1.5 flex items-center gap-1.5">
                       <div
                         className={`h-px flex-1 ${
-                          isPickup ? 'bg-blue-200' : isDrop ? 'bg-amber-200' : isFirst ? 'bg-blue-200' : 'bg-slate-200'
+                          isPickup
+                            ? 'bg-blue-200'
+                            : isDrop
+                              ? 'bg-amber-200'
+                              : isFirst
+                                ? 'bg-blue-200'
+                                : 'bg-slate-200'
                         }`}
                       />
                       <span className="text-[10px] text-muted-foreground shrink-0 flex items-center gap-0.5">

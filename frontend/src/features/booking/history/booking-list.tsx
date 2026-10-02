@@ -111,7 +111,19 @@ export function BookingList({
         {feedbackOpenId === b.id && children}
       </div>
     ))
-  }, [bookings, currency, expandedId, onToggleExpand, onCancelClick, cancellingId, onExploreOther, onLeaveFeedback, feedbackOpenId, renderExtraActions, children])
+  }, [
+    bookings,
+    currency,
+    expandedId,
+    onToggleExpand,
+    onCancelClick,
+    cancellingId,
+    onExploreOther,
+    onLeaveFeedback,
+    feedbackOpenId,
+    renderExtraActions,
+    children,
+  ])
 
   if (loading && !loaded) {
     return <MyBookingsSkeleton count={3} />
@@ -121,11 +133,14 @@ export function BookingList({
     return (
       <Card className="ring-1 ring-black/5 overflow-hidden">
         {variant === 'reviews' ? (
-          <NoReviewsYet onWrite={onExploreOther ?? (() => { })} />
+          <NoReviewsYet onWrite={onExploreOther ?? (() => {})} />
         ) : variant === 'search' ? (
-          <NoResultsFound onReset={onExploreOther ?? (() => { })} onExplore={onExploreOther ?? (() => { })} />
+          <NoResultsFound
+            onReset={onExploreOther ?? (() => {})}
+            onExplore={onExploreOther ?? (() => {})}
+          />
         ) : (
-          <NoBookingsYet onSearch={onExploreOther ?? (() => { })} />
+          <NoBookingsYet onSearch={onExploreOther ?? (() => {})} />
         )}
         <div className="border-t bg-slate-50/50 px-6 py-4">
           <div className="flex items-start gap-2.5 text-xs text-muted-foreground">

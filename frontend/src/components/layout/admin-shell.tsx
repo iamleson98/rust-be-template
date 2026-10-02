@@ -27,12 +27,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   LayoutDashboard,
   Ticket,
@@ -60,9 +55,7 @@ import { cn } from '@/lib/utils'
 const navGroups = (t: (k: string) => string) => [
   {
     label: t('admin.group.overview'),
-    items: [
-      { title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin' },
-    ],
+    items: [{ title: t('admin.dashboard'), icon: LayoutDashboard, url: '/admin' }],
   },
   {
     label: t('admin.group.operations'),
@@ -82,9 +75,7 @@ const navGroups = (t: (k: string) => string) => [
   },
   {
     label: t('admin.group.finance'),
-    items: [
-      { title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' },
-    ],
+    items: [{ title: t('admin.payments'), icon: CreditCard, url: '/admin/payments' }],
   },
   {
     label: t('admin.group.system'),
@@ -149,7 +140,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }
 
   const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'A'
 
   // Nav content — shared between desktop sidebar and mobile drawer
@@ -200,7 +196,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                         : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                     )}
                   >
-                    <Icon className={cn('size-4 shrink-0', active ? 'text-primary' : 'text-muted-foreground/60')} />
+                    <Icon
+                      className={cn(
+                        'size-4 shrink-0',
+                        active ? 'text-primary' : 'text-muted-foreground/60',
+                      )}
+                    />
                     {!collapsed && <span className="truncate">{item.title}</span>}
                   </Link>
                 )
@@ -226,7 +227,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {!collapsed && <span>{t('admin.customerSite')}</span>}
           </Link>
           <button
-            onClick={() => { logoutMut.mutate(); setMobileOpen(false) }}
+            onClick={() => {
+              logoutMut.mutate()
+              setMobileOpen(false)
+            }}
             title={collapsed ? t('auth.logout') : undefined}
             className={cn(
               'flex items-center gap-2.5 rounded-lg text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all h-9 w-full',
@@ -270,13 +274,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile sidebar — Sheet drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 p-0 [&>button]:hidden bg-sidebar text-sidebar-foreground">
+        <SheetContent
+          side="left"
+          className="w-72 p-0 [&>button]:hidden bg-sidebar text-sidebar-foreground"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>Admin sidebar</SheetTitle>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">
-            {navContent}
-          </div>
+          <div className="flex h-full w-full flex-col">{navContent}</div>
         </SheetContent>
       </Sheet>
 

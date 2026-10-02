@@ -4,7 +4,7 @@
 //!   (works on the database the app already runs on)
 //! - `KafkaBroker`: rdkafka producer/consumer — high-throughput at scale
 //!
-//! The [`runner`] consumes jobs from whichever broker is selected and
+//! The `runner` consumes jobs from whichever broker is selected and
 //! dispatches them to registered handlers. [`build_shared`] is the
 //! variant the server bootstrap uses (DB broker shares the app's pool).
 

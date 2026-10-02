@@ -73,7 +73,10 @@ export function getQuickActions() {
   return [
     { label: translate(lang, 'chatWidget.qaBookTicket'), message: 'Xin chào, tôi muốn đặt vé xe' },
     { label: translate(lang, 'chatWidget.qaChangeRefund'), message: 'Tôi cần đổi hoặc hoàn vé' },
-    { label: translate(lang, 'chatWidget.qaCheckTrip'), message: 'Tôi muốn kiểm tra tình trạng chuyến' },
+    {
+      label: translate(lang, 'chatWidget.qaCheckTrip'),
+      message: 'Tôi muốn kiểm tra tình trạng chuyến',
+    },
     { label: translate(lang, 'chatWidget.qaComplaint'), message: 'Tôi cần khiếu nại về dịch vụ' },
   ] as const
 }

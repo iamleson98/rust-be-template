@@ -45,12 +45,7 @@ import {
   Ticket as TicketIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import {
-  usePlaceSearch,
-  useTripSearch,
-  useTripDetail,
-  useAdminCreateBooking,
-} from '@/lib/queries'
+import { usePlaceSearch, useTripSearch, useTripDetail, useAdminCreateBooking } from '@/lib/queries'
 import type { TripResult } from '@/lib/api/types.gen'
 import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
 import type { Seat, Passenger, Step } from './chat-ticket-picker-types'
@@ -167,9 +162,7 @@ export function ChatTicketPicker({
   const fromSearch = usePlaceSearch(fromQuery, { enabled: fromQuery.length >= 1 })
   const toSearch = usePlaceSearch(toQuery, { enabled: toQuery.length >= 1 })
   const tripSearch = useTripSearch(
-    fromPlace && toPlace && date
-      ? { from: fromPlace.name, to: toPlace.name, date }
-      : null,
+    fromPlace && toPlace && date ? { from: fromPlace.name, to: toPlace.name, date } : null,
   )
   const tripDetail = useTripDetail(selectedTrip?.tripId)
   const createBooking = useAdminCreateBooking()
@@ -192,24 +185,29 @@ export function ChatTicketPicker({
       setBoardingPointId(boardingPoints[0].id)
     }
     if (trip && !droppingPointId && droppingPoints[0]) {
-      setDroppingPointId(droppingPoints[droppingPoints.length - 1]?.id ?? droppingPoints[0]?.id ?? '')
+      setDroppingPointId(
+        droppingPoints[droppingPoints.length - 1]?.id ?? droppingPoints[0]?.id ?? '',
+      )
     }
   }, [trip, boardingPointId, droppingPointId, boardingPoints, droppingPoints])
 
   // ── Handlers ──
-  const toggleSeat = useCallback((seat: Seat) => {
-    setSelectedSeats((prev) => {
-      const exists = prev.find((s) => s.id === seat.id)
-      if (exists) {
-        return prev.filter((s) => s.id !== seat.id)
-      }
-      if (prev.length >= 6) {
-        toast.warning(t('adminTickets.maxSeatsPerBooking'))
-        return prev
-      }
-      return [...prev, seat]
-    })
-  }, [t])
+  const toggleSeat = useCallback(
+    (seat: Seat) => {
+      setSelectedSeats((prev) => {
+        const exists = prev.find((s) => s.id === seat.id)
+        if (exists) {
+          return prev.filter((s) => s.id !== seat.id)
+        }
+        if (prev.length >= 6) {
+          toast.warning(t('adminTickets.maxSeatsPerBooking'))
+          return prev
+        }
+        return [...prev, seat]
+      })
+    },
+    [t],
+  )
 
   // When selectedSeats changes, sync passengers array.
   useEffect(() => {
@@ -271,8 +269,7 @@ export function ChatTicketPicker({
         },
       } as unknown as Parameters<typeof createBooking.mutate>[0])
       const item = (((result ?? {}) as { item?: CreatedTicketItem }).item ?? result) as
-        | CreatedTicketItem
-        | undefined
+        CreatedTicketItem | undefined
       const payload: CreatedTicketPayload = {
         bookingId: item?.id ?? '',
         bookingCode: item?.code ?? '',
@@ -335,9 +332,7 @@ export function ChatTicketPicker({
             <TicketIcon className="h-5 w-5 text-blue-600" />
             {t('chat.bookForCustomer')}
           </DialogTitle>
-          <DialogDescription>
-            {t('adminTickets.pickerDescription')}
-          </DialogDescription>
+          <DialogDescription>{t('adminTickets.pickerDescription')}</DialogDescription>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -383,9 +378,7 @@ export function ChatTicketPicker({
               />
             )}
 
-            {step === 'seats' && tripDetail.isLoading && (
-              <SeatMapSkeleton />
-            )}
+            {step === 'seats' && tripDetail.isLoading && <SeatMapSkeleton />}
 
             {step === 'passenger' && (
               <PassengerStep
@@ -451,21 +444,13 @@ export function ChatTicketPicker({
               </Button>
             )}
             {step === 'seats' && (
-              <Button
-                size="sm"
-                disabled={!canProceedSeats}
-                onClick={() => setStep('passenger')}
-              >
+              <Button size="sm" disabled={!canProceedSeats} onClick={() => setStep('passenger')}>
                 {t('adminTickets.continue')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
             {step === 'passenger' && (
-              <Button
-                size="sm"
-                disabled={!canProceedPassenger}
-                onClick={() => setStep('confirm')}
-              >
+              <Button size="sm" disabled={!canProceedPassenger} onClick={() => setStep('confirm')}>
                 {t('common.confirm')}
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -503,7 +488,11 @@ function StepIndicator({ step }: { step: Step }) {
   const t = useT()
   const steps: { key: Step; label: string; icon: React.ReactNode }[] = [
     { key: 'search', label: t('nav.searchTrips'), icon: <Search className="h-3.5 w-3.5" /> },
-    { key: 'seats', label: t('adminTickets.chooseSeats'), icon: <Armchair className="h-3.5 w-3.5" /> },
+    {
+      key: 'seats',
+      label: t('adminTickets.chooseSeats'),
+      icon: <Armchair className="h-3.5 w-3.5" />,
+    },
     { key: 'passenger', label: t('booking.passengers'), icon: <User className="h-3.5 w-3.5" /> },
     { key: 'confirm', label: t('common.confirm'), icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
   ]
@@ -513,19 +502,18 @@ function StepIndicator({ step }: { step: Step }) {
       {steps.map((s, i) => (
         <div key={s.key} className="flex items-center gap-1">
           <div
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-colors ${i === currentIdx
-              ? 'bg-blue-600 text-white'
-              : i < currentIdx
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-slate-100 text-muted-foreground'
-              }`}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium transition-colors ${
+              i === currentIdx
+                ? 'bg-blue-600 text-white'
+                : i < currentIdx
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-100 text-muted-foreground'
+            }`}
           >
             {s.icon}
             {s.label}
           </div>
-          {i < steps.length - 1 && (
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
-          )}
+          {i < steps.length - 1 && <ChevronRight className="h-3 w-3 text-muted-foreground" />}
         </div>
       ))}
     </div>

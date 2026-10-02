@@ -77,7 +77,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             children: [
               const Spacer(flex: 2),
               PulsingAvatar(
-                pulse: call.status == CallStatus.incoming ||
+                pulse:
+                    call.status == CallStatus.incoming ||
                     call.status == CallStatus.calling,
                 child: AgentAvatar(name: call.peerName, size: 112),
               ),
@@ -159,8 +160,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               background: context.theme.colors.destructive,
               foreground: context.theme.colors.destructiveForeground,
               semantics: 'Từ chối',
-              onTap: () =>
-                  ref.read(callUiStateProvider.notifier).decline(),
+              onTap: () => ref.read(callUiStateProvider.notifier).decline(),
             ),
             const SizedBox(width: 40),
             _roundButton(
@@ -170,8 +170,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               foreground: Colors.white,
               pulse: true,
               semantics: 'Nghe máy',
-              onTap: () =>
-                  ref.read(callUiStateProvider.notifier).accept(),
+              onTap: () => ref.read(callUiStateProvider.notifier).accept(),
             ),
           ],
         );
@@ -191,8 +190,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   ? context.theme.colors.foreground
                   : context.theme.colors.primaryForeground,
               semantics: 'Bật/tắt micro',
-              onTap: () =>
-                  ref.read(callUiStateProvider.notifier).toggleMic(),
+              onTap: () => ref.read(callUiStateProvider.notifier).toggleMic(),
             ),
             const SizedBox(width: 28),
             _roundButton(
@@ -216,9 +214,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   ? context.theme.colors.primaryForeground
                   : context.theme.colors.foreground,
               semantics: 'Loa ngoài',
-              onTap: () => ref
-                  .read(callUiStateProvider.notifier)
-                  .toggleSpeaker(),
+              onTap: () =>
+                  ref.read(callUiStateProvider.notifier).toggleSpeaker(),
             ),
           ],
         );

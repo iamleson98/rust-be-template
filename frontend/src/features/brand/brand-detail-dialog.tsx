@@ -5,12 +5,7 @@ import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/
 import { useNavigate } from '@tanstack/react-router'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -25,9 +20,7 @@ import {
   Star,
   ThumbsUp,
 } from 'lucide-react'
-import {
-  formatDateTimeVN,
-} from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/types'
 import { buildSearchInput } from '@/lib/search-params'
 import { renderStars, type BrandDetail, type TagStat, type Review } from './brand-detail-helpers'
 import { EmptyState } from './brand-dialog-parts'
@@ -72,9 +65,9 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   // Backend `GET /api/reviews/tags` returns the global tag index.
   // We filter client-side by brandId if the items carry it.
   const tagStatsQuery = useReviewTags()
-  const tagStats: TagStat[] = ((tagStatsQuery.data as unknown as TagStatsResponse | undefined)?.items ?? []).filter(
-    (t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id,
-  )
+  const tagStats: TagStat[] = (
+    (tagStatsQuery.data as unknown as TagStatsResponse | undefined)?.items ?? []
+  ).filter((t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id)
 
   // ── Brand routes (filtered client-side from the popular routes cache) ──
   // The `/api/routes` endpoint doesn't support brand filtering, but each
@@ -122,7 +115,12 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   const isError = brandQuery.isError
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+    >
       <DialogContent className="max-w-4xl w-[95vw] max-h-[92dvh] p-0 gap-0 overflow-hidden">
         {isLoading || !brand ? (
           <>
@@ -222,7 +220,9 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                             {renderStars(aggregate.avgRating, 'h-4 w-4')}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {t('reviews.countLabel', { count: aggregate.count.toLocaleString('vi-VN') })}
+                            {t('reviews.countLabel', {
+                              count: aggregate.count.toLocaleString('vi-VN'),
+                            })}
                           </div>
                         </div>
                         <div className="space-y-1.5">
@@ -232,9 +232,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                           {[5, 4, 3, 2, 1].map((star) => {
                             const count = aggregate.distribution[star - 1] ?? 0
                             const pct =
-                              aggregate.count > 0
-                                ? Math.round((count / aggregate.count) * 100)
-                                : 0
+                              aggregate.count > 0 ? Math.round((count / aggregate.count) * 100) : 0
                             return (
                               <div key={star} className="flex items-center gap-2">
                                 <div className="flex items-center gap-0.5 w-10">
@@ -269,10 +267,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                         </div>
                         <div className="space-y-3">
                           {reviews.map((r) => (
-                            <div
-                              key={r.id}
-                              className="rounded-xl bg-white ring-1 ring-black/5 p-4"
-                            >
+                            <div key={r.id} className="rounded-xl bg-white ring-1 ring-black/5 p-4">
                               <div className="flex items-start gap-3">
                                 <div
                                   className="h-9 w-9 rounded-full text-white inline-flex items-center justify-center text-sm font-bold shrink-0"
@@ -289,10 +284,11 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
                                       {[1, 2, 3, 4, 5].map((n) => (
                                         <Star
                                           key={n}
-                                          className={`h-3 w-3 ${n <= r.rating
-                                            ? 'fill-amber-400 text-amber-400'
-                                            : 'fill-slate-200 text-slate-200'
-                                            }`}
+                                          className={`h-3 w-3 ${
+                                            n <= r.rating
+                                              ? 'fill-amber-400 text-amber-400'
+                                              : 'fill-slate-200 text-slate-200'
+                                          }`}
                                         />
                                       ))}
                                     </div>

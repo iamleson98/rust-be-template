@@ -9,24 +9,44 @@ import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { exchangeRateNote } from '@/lib/currency'
 import {
-  Bus, Phone, Mail, MapPin, Facebook, Youtube, ShieldCheck,
-  CreditCard, Heart, Globe, HelpCircle, MessageCircle,
-  Award, Send, Headphones, Stamp, TrendingUp,
-  Sparkles, Users, Route as RouteIcon, Building2
+  Bus,
+  Phone,
+  Mail,
+  MapPin,
+  Facebook,
+  Youtube,
+  ShieldCheck,
+  CreditCard,
+  Heart,
+  Globe,
+  HelpCircle,
+  MessageCircle,
+  Award,
+  Send,
+  Headphones,
+  Stamp,
+  TrendingUp,
+  Sparkles,
+  Users,
+  Route as RouteIcon,
+  Building2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormControl,
-  FormMessage,
-} from '@/components/ui/form'
+import { Form, FormField, FormItem, FormControl, FormMessage } from '@/components/ui/form'
 import { emailSchema } from '@/lib/forms'
 import { toast } from 'sonner'
 import { buildSearchInput } from '@/lib/search-params'
-const partners = ['Phương Trang', 'Thanh Bình', 'Hà Thành', 'Limousine Việt', 'Xe Việt', 'Hoàng Long', 'Mai Linh', 'Futa Bus']
+const partners = [
+  'Phương Trang',
+  'Thanh Bình',
+  'Hà Thành',
+  'Limousine Việt',
+  'Xe Việt',
+  'Hoàng Long',
+  'Mai Linh',
+  'Futa Bus',
+]
 
 const newsletterSchema = z.object({
   email: emailSchema,
@@ -45,20 +65,28 @@ export const Footer = memo(function Footer() {
     defaultValues: { email: '' },
   })
 
-  const onSubscribe = useCallback((_values: NewsletterValues) => {
-    // Existing behavior: just confirm subscription with a toast.
-    // (No dedicated newsletter API exists yet — preserving the original
-    // success-only flow. The validation layer is what's been upgraded here.)
-    toast.success(t('footer.newsletterSuccess'))
-    form.reset({ email: '' })
-  }, [form, t])
+  const onSubscribe = useCallback(
+    (_values: NewsletterValues) => {
+      // Existing behavior: just confirm subscription with a toast.
+      // (No dedicated newsletter API exists yet — preserving the original
+      // success-only flow. The validation layer is what's been upgraded here.)
+      toast.success(t('footer.newsletterSuccess'))
+      form.reset({ email: '' })
+    },
+    [form, t],
+  )
 
   return (
     <footer className="mt-auto bg-slate-950 text-slate-300">
       {/* ── Newsletter Subscription Banner ── */}
       <div className="relative bg-linear-to-r from-blue-600 via-blue-500 to-blue-500 overflow-hidden">
         {/* Decorative wave at top */}
-        <svg className="absolute -top-6 left-0 w-full h-6 text-slate-950" viewBox="0 0 1440 24" preserveAspectRatio="none" fill="currentColor">
+        <svg
+          className="absolute -top-6 left-0 w-full h-6 text-slate-950"
+          viewBox="0 0 1440 24"
+          preserveAspectRatio="none"
+          fill="currentColor"
+        >
           <path d="M0,24 C360,0 720,24 1080,8 C1260,0 1380,12 1440,24 L1440,24 L0,24 Z" />
         </svg>
         <div className="container mx-auto px-4 py-10 md:py-12">
@@ -111,7 +139,12 @@ export const Footer = memo(function Footer() {
 
       {/* ── Animated wave SVG at top ── */}
       <div className="relative -mt-1">
-        <svg className="w-full h-8 text-slate-950" viewBox="0 0 1440 32" preserveAspectRatio="none" fill="none">
+        <svg
+          className="w-full h-8 text-slate-950"
+          viewBox="0 0 1440 32"
+          preserveAspectRatio="none"
+          fill="none"
+        >
           <path
             d="M0,16 C240,32 480,0 720,16 C960,32 1200,0 1440,16 L1440,32 L0,32 Z"
             fill="oklch(0.556 0.13 250)"
@@ -132,10 +165,26 @@ export const Footer = memo(function Footer() {
       <div className="container mx-auto px-4 py-12">
         {/* ── Quick stats mini-section ── */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10 pb-10 border-b border-slate-800/60">
-          <QuickStat icon={<Users className="h-4 w-4" />} value="125K+" label={t('layout.footer.statCustomers')} />
-          <QuickStat icon={<RouteIcon className="h-4 w-4" />} value="680+" label={t('admin.routes')} />
-          <QuickStat icon={<Building2 className="h-4 w-4" />} value="42" label={t('admin.brands')} />
-          <QuickStat icon={<Sparkles className="h-4 w-4" />} value="4.8/5" label={t('adminFeedback.rating')} />
+          <QuickStat
+            icon={<Users className="h-4 w-4" />}
+            value="125K+"
+            label={t('layout.footer.statCustomers')}
+          />
+          <QuickStat
+            icon={<RouteIcon className="h-4 w-4" />}
+            value="680+"
+            label={t('admin.routes')}
+          />
+          <QuickStat
+            icon={<Building2 className="h-4 w-4" />}
+            value="42"
+            label={t('admin.brands')}
+          />
+          <QuickStat
+            icon={<Sparkles className="h-4 w-4" />}
+            value="4.8/5"
+            label={t('adminFeedback.rating')}
+          />
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
@@ -147,7 +196,9 @@ export const Footer = memo(function Footer() {
               </div>
               <div>
                 <div className="font-extrabold text-white text-lg tracking-tight">DatXeVui</div>
-                <div className="text-[10px] text-blue-400 font-medium -mt-0.5">{t('trips.tagline')}</div>
+                <div className="text-[10px] text-blue-400 font-medium -mt-0.5">
+                  {t('trips.tagline')}
+                </div>
               </div>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed mb-4">
@@ -156,27 +207,47 @@ export const Footer = memo(function Footer() {
 
             {/* Hotline */}
             <div className="rounded-lg bg-slate-900/80 ring-1 ring-slate-800 p-3 mb-4">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">{t('footer.hotline')}</div>
+              <div className="text-[10px] text-slate-500 uppercase tracking-wider font-medium mb-1">
+                {t('footer.hotline')}
+              </div>
               <a href="tel:19006067" className="flex items-center gap-2 group">
                 <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center group-hover:bg-blue-500/25 transition-colors">
                   <Headphones className="h-4 w-4 text-blue-400" />
                 </div>
-                <span className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">1900 6067</span>
+                <span className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">
+                  1900 6067
+                </span>
               </a>
             </div>
 
             {/* Social media with icons */}
             <div className="flex items-center gap-2">
-              <a href="#" aria-label="Facebook" className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all">
+              <a
+                href="#"
+                aria-label="Facebook"
+                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all"
+              >
                 <Facebook className="h-4 w-4" />
               </a>
-              <a href="#" aria-label="Youtube" className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-rose-600 flex items-center justify-center transition-all">
+              <a
+                href="#"
+                aria-label="Youtube"
+                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-rose-600 flex items-center justify-center transition-all"
+              >
                 <Youtube className="h-4 w-4" />
               </a>
-              <a href="#" aria-label="Website" className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all">
+              <a
+                href="#"
+                aria-label="Website"
+                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-600 flex items-center justify-center transition-all"
+              >
                 <Globe className="h-4 w-4" />
               </a>
-              <a href="#" aria-label="Zalo" className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-500 flex items-center justify-center transition-all">
+              <a
+                href="#"
+                aria-label="Zalo"
+                className="h-9 w-9 rounded-lg bg-slate-800 hover:bg-blue-500 flex items-center justify-center transition-all"
+              >
                 <MessageCircle className="h-4 w-4" />
               </a>
             </div>
@@ -186,7 +257,13 @@ export const Footer = memo(function Footer() {
           <div>
             <h4 className="font-semibold text-white text-sm mb-3">{t('search.popularRoutes')}</h4>
             <ul className="space-y-2 text-sm">
-              {['Hà Nội → Đà Nẵng', 'Hà Nội → Hồ Chí Minh', 'Hồ Chí Minh → Đà Lạt', 'Hồ Chí Minh → Nha Trang', 'Đà Nẵng → Hà Nội'].map((r) => {
+              {[
+                'Hà Nội → Đà Nẵng',
+                'Hà Nội → Hồ Chí Minh',
+                'Hồ Chí Minh → Đà Lạt',
+                'Hồ Chí Minh → Nha Trang',
+                'Đà Nẵng → Hà Nội',
+              ].map((r) => {
                 // Parse "From → To" into separate legs so we can prefill
                 // the /search route's typed search params.
                 const [from, to] = r.split(' → ')
@@ -214,17 +291,26 @@ export const Footer = memo(function Footer() {
             <h4 className="font-semibold text-white text-sm mb-3">{t('nav.support')}</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <button onClick={() => user ? setChatOpen(true) : navigate({ to: '/login' })} className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
+                <button
+                  onClick={() => (user ? setChatOpen(true) : navigate({ to: '/login' }))}
+                  className="relative text-slate-400 hover:text-blue-400 transition-colors flex items-center gap-1.5 after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                >
                   <HelpCircle className="h-3.5 w-3.5" /> {t('home.trustChat')}
                 </button>
               </li>
               <li>
-                <a href="tel:19006067" className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
+                <a
+                  href="tel:19006067"
+                  className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                >
                   <Phone className="h-3.5 w-3.5" /> 1900 6067
                 </a>
               </li>
               <li>
-                <a href="mailto:cskh@datxevui.vn" className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">
+                <a
+                  href="mailto:cskh@datxevui.vn"
+                  className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                >
                   <Mail className="h-3.5 w-3.5" /> cskh@datxevui.vn
                 </a>
               </li>
@@ -238,9 +324,22 @@ export const Footer = memo(function Footer() {
           <div>
             <h4 className="font-semibold text-white text-sm mb-3">{t('layout.footer.company')}</h4>
             <ul className="space-y-2 text-sm">
-              {(['footer.about', 'layout.footer.careers', 'layout.footer.brandPartners', 'cancel.refundPolicy', 'layout.footer.termsOfUse'] as const).map((key) => (
+              {(
+                [
+                  'footer.about',
+                  'layout.footer.careers',
+                  'layout.footer.brandPartners',
+                  'cancel.refundPolicy',
+                  'layout.footer.termsOfUse',
+                ] as const
+              ).map((key) => (
                 <li key={key}>
-                  <a href="#" className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t(key)}</a>
+                  <a
+                    href="#"
+                    className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+                  >
+                    {t(key)}
+                  </a>
                 </li>
               ))}
             </ul>
@@ -251,7 +350,10 @@ export const Footer = memo(function Footer() {
             <h4 className="font-semibold text-white text-sm mb-3">{t('booking.payment')}</h4>
             <div className="flex flex-wrap gap-2">
               {['MoMo', 'VNPay', 'ZaloPay', 'Visa', 'Mastercard', 'Banking'].map((p) => (
-                <span key={p} className="rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors cursor-default">
+                <span
+                  key={p}
+                  className="rounded-md bg-slate-800 px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors cursor-default"
+                >
                   {p}
                 </span>
               ))}
@@ -271,11 +373,15 @@ export const Footer = memo(function Footer() {
             <div className="mt-4 space-y-2">
               <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
                 <Award className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">{t('layout.footer.license')}</span>
+                <span className="text-xs text-blue-300 font-medium">
+                  {t('layout.footer.license')}
+                </span>
               </div>
               <div className="flex items-center gap-2 rounded-lg bg-blue-500/10 ring-1 ring-blue-500/20 px-2.5 py-1.5">
                 <Stamp className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="text-xs text-blue-300 font-medium">{t('layout.footer.insurance')}</span>
+                <span className="text-xs text-blue-300 font-medium">
+                  {t('layout.footer.insurance')}
+                </span>
               </div>
             </div>
           </div>
@@ -283,7 +389,9 @@ export const Footer = memo(function Footer() {
 
         {/* ── Partner Transport Logos — with hover scale effects ── */}
         <div className="mt-10 pt-8 border-t border-slate-800/60">
-          <h4 className="font-semibold text-white text-sm mb-4 text-center">{t('layout.footer.transportPartners')}</h4>
+          <h4 className="font-semibold text-white text-sm mb-4 text-center">
+            {t('layout.footer.transportPartners')}
+          </h4>
           <div className="flex flex-wrap justify-center gap-3">
             {partners.map((name) => (
               <span
@@ -303,15 +411,28 @@ export const Footer = memo(function Footer() {
               {t('layout.footer.copyright')}
               <Heart className="h-3 w-3 text-rose-500 inline mx-0.5" />
             </div>
-            <div className="text-xs text-slate-500">
-              {t('layout.footer.registration')}
-            </div>
+            <div className="text-xs text-slate-500">{t('layout.footer.registration')}</div>
           </div>
           <div className="flex flex-col items-center md:items-end gap-2">
             <div className="flex items-center gap-4 text-xs text-slate-500">
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.termsOfUse')}</a>
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.privacyPolicy')}</a>
-              <a href="#" className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full">{t('layout.footer.dataRights')}</a>
+              <a
+                href="#"
+                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+              >
+                {t('layout.footer.termsOfUse')}
+              </a>
+              <a
+                href="#"
+                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+              >
+                {t('layout.footer.privacyPolicy')}
+              </a>
+              <a
+                href="#"
+                className="relative hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-px after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
+              >
+                {t('layout.footer.dataRights')}
+              </a>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-center md:justify-end">
               <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 ring-1 ring-slate-800 px-3 py-1 text-[11px] text-slate-400">
@@ -326,7 +447,15 @@ export const Footer = memo(function Footer() {
   )
 })
 
-function QuickStat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+function QuickStat({
+  icon,
+  value,
+  label,
+}: {
+  icon: React.ReactNode
+  value: string
+  label: string
+}) {
   return (
     <div className="flex items-center gap-3 rounded-xl bg-slate-900/60 ring-1 ring-slate-800/60 px-3 py-2.5 hover:ring-blue-500/30 hover:bg-slate-900 transition-all">
       <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-400 shrink-0">

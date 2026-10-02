@@ -24,11 +24,7 @@ function formatDate(iso: string | null | undefined): string | null {
   })
 }
 
-export function LoyaltyPointsHistory({
-  history,
-}: {
-  history: LoyaltyHistoryItem[]
-}) {
+export function LoyaltyPointsHistory({ history }: { history: LoyaltyHistoryItem[] }) {
   const t = useT()
   const { lang } = useApp()
   const locale = lang === 'en' ? 'en-US' : 'vi-VN'

@@ -93,12 +93,7 @@ describe('TripCardPrice', () => {
   })
 
   it('shows the "from" hint when the backend reports a real price range', () => {
-    render(
-      <TripCardPrice
-        {...baseProps}
-        trip={{ ...baseTrip, maxPrice: 450000 }}
-      />,
-    )
+    render(<TripCardPrice {...baseProps} trip={{ ...baseTrip, maxPrice: 450000 }} />)
     expect(screen.getByText('từ /ghế')).toBeInTheDocument()
   })
 })

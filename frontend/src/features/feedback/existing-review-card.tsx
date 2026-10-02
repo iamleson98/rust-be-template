@@ -49,10 +49,11 @@ export function ExistingReviewCard({
           {[1, 2, 3, 4, 5].map((s) => (
             <Star
               key={s}
-              className={`h-4 w-4 ${s <= (existingReview?.rating ?? 0)
-                ? 'fill-amber-400 text-amber-400'
-                : 'fill-slate-100 text-slate-200'
-                }`}
+              className={`h-4 w-4 ${
+                s <= (existingReview?.rating ?? 0)
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'fill-slate-100 text-slate-200'
+              }`}
             />
           ))}
           <span className="ml-1.5 text-xs font-bold text-amber-600">
@@ -109,7 +110,13 @@ export function ExistingReviewCard({
                 rel="noopener noreferrer"
                 className="aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 hover:ring-amber-400 transition-all"
               >
-                <img src={src} alt={t('reviews.photoAlt', { index: i + 1 })} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                <img
+                  src={src}
+                  alt={t('reviews.photoAlt', { index: i + 1 })}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
               </a>
             ))}
           </div>

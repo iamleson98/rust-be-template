@@ -78,9 +78,18 @@ export const LoyaltyWidget = memo(function LoyaltyWidget() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">{t('home.loyaltyLoginTitle')}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{t('home.loyaltyLoginDesc')}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {t('home.loyaltyLoginDesc')}
+                      </p>
                     </div>
-                    <Button size="sm" className="gap-1.5" onClick={() => { setLoyaltyOpen(false); navigate({ to: '/login' }) }}>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setLoyaltyOpen(false)
+                        navigate({ to: '/login' })
+                      }}
+                    >
                       <LogIn className="h-3.5 w-3.5" /> {t('auth.login')}
                     </Button>
                   </div>

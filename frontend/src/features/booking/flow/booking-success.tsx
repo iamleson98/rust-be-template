@@ -14,11 +14,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import {
-  CheckCircle2,
-  Copy,
-  Ticket,
-} from 'lucide-react'
+import { CheckCircle2, Copy, Ticket } from 'lucide-react'
 import { formatDateTimeVN } from '@/lib/types'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
@@ -88,9 +84,7 @@ export function BookingSuccess({
           </svg>
         </div>
         <h3 className="text-xl font-extrabold text-primary">{t('booking.success')}</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('bookingFlow.successDesc')}
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">{t('bookingFlow.successDesc')}</p>
 
         <div className="mt-5 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2">
           <span className="text-xs text-muted-foreground">{t('booking.code')}</span>
@@ -110,7 +104,11 @@ export function BookingSuccess({
             className="ml-1 grid size-8 place-items-center rounded hover:bg-white"
             aria-label={t('bookingFlow.copyTicketCode')}
           >
-            {copied ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+            {copied ? (
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+            ) : (
+              <Copy className="h-4 w-4" />
+            )}
           </button>
         </div>
       </div>
@@ -121,17 +119,30 @@ export function BookingSuccess({
       <div className="flex justify-center my-4">
         <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-linear-to-br from-slate-50 to-white relative overflow-hidden">
           {/* Ticket perforation — dashed cut line with side notches */}
-          <div className="absolute left-[68%] top-0 bottom-0 border-l-2 border-dashed border-slate-200" aria-hidden />
-          <div className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200" aria-hidden />
-          <div className="absolute -right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200 hidden sm:block" aria-hidden />
+          <div
+            className="absolute left-[68%] top-0 bottom-0 border-l-2 border-dashed border-slate-200"
+            aria-hidden
+          />
+          <div
+            className="absolute -left-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200"
+            aria-hidden
+          />
+          <div
+            className="absolute -right-2 top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white ring-1 ring-slate-200 hidden sm:block"
+            aria-hidden
+          />
           <div className="flex items-stretch">
             {/* Left: e-ticket identity */}
             <div className="flex-1 p-4 flex flex-col items-center justify-center text-center">
               <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-2">
                 <Ticket className="h-5 w-5" />
               </div>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.ticketStubTitle')}</div>
-              <div className="font-mono font-extrabold text-lg text-primary mt-0.5">{lastBooking.code}</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {t('bookingFlow.ticketStubTitle')}
+              </div>
+              <div className="font-mono font-extrabold text-lg text-primary mt-0.5">
+                {lastBooking.code}
+              </div>
               <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
                 <Copy className="h-3 w-3" />
                 {t('bookingFlow.copyTicketCode')}
@@ -139,11 +150,19 @@ export function BookingSuccess({
             </div>
             {/* Right: seats + total at a glance */}
             <div className="w-[32%] p-3.5 flex flex-col items-center justify-center text-center border-l-0">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.seatsLabel')}</div>
-              <div className="font-mono font-bold text-sm mt-0.5">{selectedSeats.map((s) => s.code).join(', ')}</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                {t('bookingFlow.seatsLabel')}
+              </div>
+              <div className="font-mono font-bold text-sm mt-0.5">
+                {selectedSeats.map((s) => s.code).join(', ')}
+              </div>
               <div className="mt-2 pt-2 border-t border-dashed border-slate-200 w-full">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t('bookingFlow.totalDue')}</div>
-                <div className="font-bold text-sm text-primary">{formatCurrency(lastBooking.total, currency)}</div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {t('bookingFlow.totalDue')}
+                </div>
+                <div className="font-bold text-sm text-primary">
+                  {formatCurrency(lastBooking.total, currency)}
+                </div>
               </div>
             </div>
           </div>

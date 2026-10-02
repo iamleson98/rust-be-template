@@ -100,7 +100,11 @@ export function ConfirmStep({
                 {p.name}
               </span>
               <span className="text-muted-foreground">
-                {p.type === 'adult' ? t('booking.passengerType.adult') : p.type === 'child' ? t('booking.passengerType.child') : t('booking.passengerType.infant')}
+                {p.type === 'adult'
+                  ? t('booking.passengerType.adult')
+                  : p.type === 'child'
+                    ? t('booking.passengerType.child')
+                    : t('booking.passengerType.infant')}
               </span>
             </div>
           ))}

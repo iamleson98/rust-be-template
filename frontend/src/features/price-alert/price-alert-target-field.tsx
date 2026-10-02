@@ -35,13 +35,14 @@ export function PriceAlertTargetField({
   const t = useT()
   const { control, setValue } = form
 
-  const suggestedPrices = minPrice > 0
-    ? [
-      { pct: 10, label: '-10%', value: Math.round((minPrice * 0.9) / 1000) * 1000 },
-      { pct: 20, label: '-20%', value: Math.round((minPrice * 0.8) / 1000) * 1000 },
-      { pct: 30, label: '-30%', value: Math.round((minPrice * 0.7) / 1000) * 1000 },
-    ]
-    : []
+  const suggestedPrices =
+    minPrice > 0
+      ? [
+          { pct: 10, label: '-10%', value: Math.round((minPrice * 0.9) / 1000) * 1000 },
+          { pct: 20, label: '-20%', value: Math.round((minPrice * 0.8) / 1000) * 1000 },
+          { pct: 30, label: '-30%', value: Math.round((minPrice * 0.7) / 1000) * 1000 },
+        ]
+      : []
 
   return (
     <FormField
@@ -49,7 +50,10 @@ export function PriceAlertTargetField({
       name="targetPrice"
       render={({ field }) => (
         <FormItem className="space-y-1.5">
-          <FormLabel htmlFor="target-price" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <FormLabel
+            htmlFor="target-price"
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
             {t('priceAlert.targetPriceLabel')} <span className="text-destructive">*</span>
           </FormLabel>
           <div className="relative">
@@ -61,7 +65,11 @@ export function PriceAlertTargetField({
                 inputMode="numeric"
                 min={1000}
                 step={1000}
-                value={typeof field.value === 'number' && Number.isFinite(field.value) && field.value > 0 ? field.value : ''}
+                value={
+                  typeof field.value === 'number' && Number.isFinite(field.value) && field.value > 0
+                    ? field.value
+                    : ''
+                }
                 onChange={(e) => field.onChange(Math.max(0, Math.floor(Number(e.target.value))))}
                 onBlur={field.onBlur}
                 placeholder={t('priceAlert.targetPricePh')}
@@ -71,16 +79,19 @@ export function PriceAlertTargetField({
           </div>
           {suggestedPrices.length > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap pt-1">
-              <span className="text-[11px] text-muted-foreground mr-1">{t('priceAlert.suggestions')}</span>
+              <span className="text-[11px] text-muted-foreground mr-1">
+                {t('priceAlert.suggestions')}
+              </span>
               {suggestedPrices.map((s) => (
                 <button
                   key={s.pct}
                   type="button"
                   onClick={() => setValue('targetPrice', s.value, { shouldValidate: true })}
-                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${targetPrice === s.value
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
-                    }`}
+                  className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                    targetPrice === s.value
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-slate-200 text-slate-600 hover:border-blue-400 hover:text-blue-700'
+                  }`}
                 >
                   {s.label} ({formatVND(s.value)})
                 </button>

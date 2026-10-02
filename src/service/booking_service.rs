@@ -1303,7 +1303,7 @@ pub fn to_base36(mut n: i64) -> String {
     out.into_iter().collect()
 }
 
-/// Parse the `photos` JSON column → Vec<String>.
+/// Parse the `photos` JSON column → `Vec<String>`.
 pub fn parse_photos(raw: &str) -> Vec<String> {
     if raw.is_empty() {
         return Vec::new();

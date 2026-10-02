@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  Ticket as TicketIcon,
-  DollarSign,
-  CheckCircle2,
-  TrendingUp,
-  Ban,
-} from 'lucide-react'
+import { Ticket as TicketIcon, DollarSign, CheckCircle2, TrendingUp, Ban } from 'lucide-react'
 import type { AdminBookingTotals } from '@/lib/api/types.gen'
 import { KpiCard } from '@/features/admin/dashboard/kpi-card'
 import { useT } from '@/lib/i18n'
@@ -16,11 +10,7 @@ import { formatVND } from './tickets-helpers'
  * KPI cards row — totals come from the dedicated /stats endpoint
  * (`AdminBookingStatsResponse.totals`), not from the list response.
  */
-export function TicketsKpiCards({
-  totals,
-}: {
-  totals: AdminBookingTotals | undefined
-}) {
+export function TicketsKpiCards({ totals }: { totals: AdminBookingTotals | undefined }) {
   const t = useT()
   return (
     <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">

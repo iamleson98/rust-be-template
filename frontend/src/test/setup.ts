@@ -39,7 +39,7 @@ class MockIntersectionObserver implements IntersectionObserver {
   disconnect = vi.fn()
   takeRecords = vi.fn().mockReturnValue([])
 }
-;window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
+window.IntersectionObserver = MockIntersectionObserver as unknown as typeof IntersectionObserver
 
 // ── Mock ResizeObserver (used by some shadcn components) ──────
 class MockResizeObserver implements ResizeObserver {
@@ -47,14 +47,16 @@ class MockResizeObserver implements ResizeObserver {
   unobserve = vi.fn()
   disconnect = vi.fn()
 }
-;window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
+window.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver
 
 // ── Mock scrollTo (jsdom doesn't implement it) ────────────────
 window.scrollTo = vi.fn()
 
 // ── Mock navigator.sendBeacon (web vitals) ───────────────────
 if (!navigator.sendBeacon) {
-  ;(navigator as Navigator & { sendBeacon?: (url: string, data?: BodyInit) => boolean }).sendBeacon = vi.fn().mockReturnValue(true)
+  ;(
+    navigator as Navigator & { sendBeacon?: (url: string, data?: BodyInit) => boolean }
+  ).sendBeacon = vi.fn().mockReturnValue(true)
 }
 
 // ── Mock crypto.randomUUID ───────────────────────────────────

@@ -69,8 +69,9 @@ class DutyModeNotifier extends Notifier<bool> {
   }
 }
 
-final dutyModeProvider =
-    NotifierProvider<DutyModeNotifier, bool>(DutyModeNotifier.new);
+final dutyModeProvider = NotifierProvider<DutyModeNotifier, bool>(
+  DutyModeNotifier.new,
+);
 
 /// Whether the current platform supports duty mode at all (Android
 /// with the native service registered). Kept as a FutureProvider so

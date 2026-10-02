@@ -99,7 +99,10 @@ function greetingKey(date = new Date()): 'Morning' | 'Afternoon' | 'Evening' {
  * re-invokes it on a coarse 30s tick (minute-level display is enough —
  * a per-second tick would only burn CPU).
  */
-function untilLabel(ms: number, t: (k: string, p?: Record<string, string | number>) => string): string {
+function untilLabel(
+  ms: number,
+  t: (k: string, p?: Record<string, string | number>) => string,
+): string {
   const diff = Math.max(0, ms - Date.now())
   const minutes = Math.floor(diff / 60000)
   if (minutes < 1) return t('accountPage.console.departingNow')
@@ -171,7 +174,13 @@ function isDepartureUrgent(ms: number): boolean {
  * its own component so the 30s tick re-renders ONLY this tiny span — not
  * the console page (and not anything visible elsewhere).
  */
-function DepartureChip({ departureMs, t }: { departureMs: number; t: (k: string, p?: Record<string, string | number>) => string }) {
+function DepartureChip({
+  departureMs,
+  t,
+}: {
+  departureMs: number
+  t: (k: string, p?: Record<string, string | number>) => string
+}) {
   const [, forceTick] = useState(0)
   useEffect(() => {
     // Coarse tick — the label is minute-granular, so 30s keeps it honest
@@ -184,9 +193,7 @@ function DepartureChip({ departureMs, t }: { departureMs: number; t: (k: string,
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums whitespace-nowrap',
-        urgent
-          ? 'bg-blue-600 text-white'
-          : 'bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20',
+        urgent ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-700 ring-1 ring-blue-500/20',
       )}
     >
       <Clock className="size-3" aria-hidden />
@@ -245,8 +252,15 @@ function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loa
             <div className="flex size-11 items-center justify-center rounded-full bg-sky-500/10 text-sky-600">
               <CalendarClock className="size-5" aria-hidden />
             </div>
-            <p className="text-xs text-muted-foreground">{t('accountPage.console.noActiveTickets')}</p>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate({ to: '/' })}>
+            <p className="text-xs text-muted-foreground">
+              {t('accountPage.console.noActiveTickets')}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate({ to: '/' })}
+            >
               <Bus className="h-3.5 w-3.5" /> {t('home.bookATrip')}
             </Button>
           </div>
@@ -264,7 +278,9 @@ function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loa
                   >
                     <div
                       className="flex size-11 shrink-0 items-center justify-center rounded-xl text-white"
-                      style={{ background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)` }}
+                      style={{
+                        background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)`,
+                      }}
                       aria-hidden
                     >
                       <Bus className="size-5" />
@@ -289,13 +305,21 @@ function ActiveTicketsCard({ bookings, loading }: { bookings: BookingItem[]; loa
                       {i === 0 && depMs > 0 ? (
                         <DepartureChip departureMs={depMs} t={t} />
                       ) : (
-                        <span className={cn('inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide', statusCfg.cls)}>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
+                            statusCfg.cls,
+                          )}
+                        >
                           {t(statusCfg.labelKey)}
                         </span>
                       )}
                       <span className="hidden items-center gap-0.5 text-[11px] font-medium text-blue-700 group-hover:flex sm:inline-flex">
                         {t('accountPage.console.manageTicket')}
-                        <ChevronRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                        <ChevronRight
+                          className="size-3 transition-transform group-hover:translate-x-0.5"
+                          aria-hidden
+                        />
                       </span>
                     </div>
                   </button>
@@ -340,16 +364,17 @@ function AwaitingFeedbackCard({ bookings }: { bookings: BookingItem[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        <p className="mb-3 text-xs text-muted-foreground">{t('accountPage.console.rateYourTripsDesc')}</p>
+        <p className="mb-3 text-xs text-muted-foreground">
+          {t('accountPage.console.rateYourTripsDesc')}
+        </p>
         <ul className="space-y-2">
           {bookings.slice(0, 3).map((b) => (
-            <li
-              key={b.id}
-              className="flex items-center gap-3 rounded-lg border bg-slate-50/60 p-3"
-            >
+            <li key={b.id} className="flex items-center gap-3 rounded-lg border bg-slate-50/60 p-3">
               <div
                 className="flex size-10 shrink-0 items-center justify-center rounded-xl text-white"
-                style={{ background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)` }}
+                style={{
+                  background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)`,
+                }}
                 aria-hidden
               >
                 <Bus className="size-5" />
@@ -416,8 +441,15 @@ function RecentPurchasesCard({ bookings, loading }: { bookings: BookingItem[]; l
             <div className="flex size-11 items-center justify-center rounded-full bg-blue-500/10 text-blue-600">
               <Bus className="size-5" aria-hidden />
             </div>
-            <p className="text-xs text-muted-foreground">{t('accountPage.console.noPurchasesYet')}</p>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate({ to: '/' })}>
+            <p className="text-xs text-muted-foreground">
+              {t('accountPage.console.noPurchasesYet')}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate({ to: '/' })}
+            >
               <Bus className="h-3.5 w-3.5" /> {t('home.bookATrip')}
             </Button>
           </div>
@@ -428,7 +460,9 @@ function RecentPurchasesCard({ bookings, loading }: { bookings: BookingItem[]; l
                 <li key={b.id} className="flex items-center gap-3 py-2.5">
                   <div
                     className="flex size-9 shrink-0 items-center justify-center rounded-lg text-white"
-                    style={{ background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)` }}
+                    style={{
+                      background: `linear-gradient(135deg, ${b.trip?.brandAccent || '#2563eb'}, ${b.trip?.brandAccent || '#2563eb'}cc)`,
+                    }}
                     aria-hidden
                   >
                     <Bus className="size-4" />
@@ -487,7 +521,8 @@ function LoyaltySnapshotCard() {
           100,
           Math.max(
             0,
-            ((summary.points - tier.minPoints) / Math.max(1, nextTier.minPoints - tier.minPoints)) * 100,
+            ((summary.points - tier.minPoints) / Math.max(1, nextTier.minPoints - tier.minPoints)) *
+              100,
           ),
         )
       : 100
@@ -582,7 +617,12 @@ export function UserConsole() {
   const { data: loyalty } = useLoyalty({ enabled: !!user })
 
   const initials = user?.name
-    ? user.name.split(' ').map((n) => n[0]).slice(-2).join('').toUpperCase()
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(-2)
+        .join('')
+        .toUpperCase()
     : 'U'
 
   // Time-of-day greeting — a small, warm touch that makes the console
@@ -613,10 +653,18 @@ export function UserConsole() {
       <div className="relative mb-5 overflow-hidden rounded-2xl bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
         {/* Decorative buses */}
         <div className="absolute inset-0 opacity-[0.06]" aria-hidden>
-          <div className="absolute top-4 left-[10%]"><Bus className="h-16 w-16 rotate-[-15deg]" /></div>
-          <div className="absolute top-20 right-[15%]"><Bus className="h-12 w-12 rotate-10" /></div>
-          <div className="absolute bottom-8 left-[30%]"><Bus className="h-10 w-10 rotate-[-5deg]" /></div>
-          <div className="absolute top-2 right-[45%]"><Bus className="h-8 w-8 rotate-20" /></div>
+          <div className="absolute top-4 left-[10%]">
+            <Bus className="h-16 w-16 rotate-[-15deg]" />
+          </div>
+          <div className="absolute top-20 right-[15%]">
+            <Bus className="h-12 w-12 rotate-10" />
+          </div>
+          <div className="absolute bottom-8 left-[30%]">
+            <Bus className="h-10 w-10 rotate-[-5deg]" />
+          </div>
+          <div className="absolute top-2 right-[45%]">
+            <Bus className="h-8 w-8 rotate-20" />
+          </div>
         </div>
         <div
           className="absolute inset-0 opacity-20"
@@ -639,7 +687,9 @@ export function UserConsole() {
               {t('accountPage.console.badge')}
             </div>
             <h1 className="mt-2 truncate text-2xl font-extrabold tracking-tight sm:text-3xl">
-              <span className="mr-1.5" aria-hidden>👋</span>
+              <span className="mr-1.5" aria-hidden>
+                👋
+              </span>
               {greeting}, {user?.name ?? ''}
             </h1>
             <p className="mt-1 truncate text-sm text-blue-100">
@@ -658,7 +708,10 @@ export function UserConsole() {
               className="flex shrink-0 items-center gap-2.5 rounded-xl bg-white/10 px-4 py-3 ring-1 ring-white/20 backdrop-blur-sm transition-colors hover:bg-white/15"
               title={t('nav.loyalty')}
             >
-              <span className="flex size-9 items-center justify-center rounded-lg bg-white/15" style={{ color: '#fff' }}>
+              <span
+                className="flex size-9 items-center justify-center rounded-lg bg-white/15"
+                style={{ color: '#fff' }}
+              >
                 {style.icon}
               </span>
               <span className="text-left">
@@ -680,7 +733,11 @@ export function UserConsole() {
           icon={<CalendarClock className="h-5 w-5 text-sky-600" />}
           label={t('accountPage.console.activeTickets')}
           value={bookingsLoading ? '—' : String(stats.upcoming)}
-          sub={stats.upcoming > 0 ? t('accountPage.console.activeTicketsSub') : t('accountPage.console.noActiveTickets')}
+          sub={
+            stats.upcoming > 0
+              ? t('accountPage.console.activeTicketsSub')
+              : t('accountPage.console.noActiveTickets')
+          }
           accent="bg-sky-500/10"
           onClick={() => navigate({ to: '/account/trips' })}
         />
@@ -704,7 +761,11 @@ export function UserConsole() {
           icon={<MessageSquareHeart className="h-5 w-5 text-amber-600" />}
           label={t('accountPage.console.awaitingFeedback')}
           value={bookingsLoading ? '—' : String(stats.awaitingFeedback)}
-          sub={stats.awaitingFeedback > 0 ? t('accountPage.console.awaitingFeedbackSub') : t('accountPage.console.allCaughtUp')}
+          sub={
+            stats.awaitingFeedback > 0
+              ? t('accountPage.console.awaitingFeedbackSub')
+              : t('accountPage.console.allCaughtUp')
+          }
           accent="bg-amber-500/10"
           onClick={() => navigate({ to: '/account/feedback' })}
         />

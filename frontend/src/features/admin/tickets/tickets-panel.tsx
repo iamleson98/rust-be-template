@@ -35,9 +35,7 @@ import {
   useAdminBookingExport,
   useAdminBrands,
 } from '@/lib/queries'
-import type {
-  AdminBookingFilter,
-} from '@/lib/queries'
+import type { AdminBookingFilter } from '@/lib/queries'
 import type { AdminBookingOut } from '@/lib/api/types.gen'
 
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
@@ -62,10 +60,7 @@ const SORT_API_BY_COLUMN: Record<string, { asc: string; desc: string }> = {
   total: { asc: 'total_asc', desc: 'total_desc' },
 }
 
-const bookingColumnHelper = createColumnHelper<
-  DataTableFeatures,
-  AdminBookingOut
->()
+const bookingColumnHelper = createColumnHelper<DataTableFeatures, AdminBookingOut>()
 
 // ── Main panel ───────────────────────────────────────────────
 
@@ -308,7 +303,9 @@ export function TicketsPanel() {
           <CardContent>
             {/* Per-day mini chart */}
             <div>
-              <div className="text-xs text-muted-foreground mb-2">{t('adminTickets.ticketsPerDay')}</div>
+              <div className="text-xs text-muted-foreground mb-2">
+                {t('adminTickets.ticketsPerDay')}
+              </div>
               <div className="h-32 flex items-end gap-0.5">
                 {statsQuery.data.byDay.slice(-30).map((d) => {
                   const max = Math.max(...statsQuery.data!.byDay.map((x) => x.count), 1)

@@ -50,7 +50,7 @@ import { initConsoleProtection } from './lib/console-protection'
 const apiBaseUrl =
   typeof window !== 'undefined'
     ? '' // Browser: relative URLs → same-origin via Vite proxy or Rust static server
-    : (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8080' // SSR/prerender: need absolute URL
+    : ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://127.0.0.1:8080') // SSR/prerender: need absolute URL
 
 client.setConfig({
   baseUrl: apiBaseUrl,
@@ -83,10 +83,7 @@ if (import.meta.env.PROD && typeof navigator !== 'undefined') {
             const newWorker = reg.installing
             if (!newWorker) return
             newWorker.addEventListener('statechange', () => {
-              if (
-                newWorker.state === 'activated' &&
-                navigator.serviceWorker.controller
-              ) {
+              if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
                 const isInteracting =
                   document.activeElement instanceof HTMLInputElement ||
                   document.activeElement instanceof HTMLTextAreaElement ||

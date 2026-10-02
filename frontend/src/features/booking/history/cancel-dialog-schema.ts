@@ -30,7 +30,10 @@ const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 export const cancelSchema = z.object({
   selectedReason: z.string().min(1, { error: () => tSync('cancelSchema.reasonRequired') }),
-  otherReason: z.string().trim().max(500, { error: () => tSync('cancelSchema.otherReasonMax') }),
+  otherReason: z
+    .string()
+    .trim()
+    .max(500, { error: () => tSync('cancelSchema.otherReasonMax') }),
   agreed: z.boolean(),
 })
 

@@ -41,11 +41,17 @@ export const StarRating = memo(function StarRating({
   const px = size === 'sm' ? 'h-3.5 w-3.5' : size === 'lg' ? 'h-6 w-6' : 'h-4 w-4'
   const t = useT()
   return (
-    <span className={cn('inline-flex items-center gap-0.5', className)} aria-label={t('feedbackForm.starsOutOf5', { value })}>
+    <span
+      className={cn('inline-flex items-center gap-0.5', className)}
+      aria-label={t('feedbackForm.starsOutOf5', { value })}
+    >
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={cn(px, i < value ? 'fill-amber-400 text-amber-400' : 'fill-muted text-muted-foreground/25')}
+          className={cn(
+            px,
+            i < value ? 'fill-amber-400 text-amber-400' : 'fill-muted text-muted-foreground/25',
+          )}
         />
       ))}
       {showValue && (
@@ -75,8 +81,7 @@ export function StarPicker({
   const [hover, setHover] = useState(0)
   const t = useT()
   const active = hover || value
-  const px =
-    size === 'md' ? 'h-7 w-7' : size === 'xl' ? 'h-11 w-11' : 'h-9 w-9'
+  const px = size === 'md' ? 'h-7 w-7' : size === 'xl' ? 'h-11 w-11' : 'h-9 w-9'
   const meta = RATING_META[active]
 
   return (
@@ -96,7 +101,10 @@ export function StarPicker({
               type="button"
               role="radio"
               aria-checked={value === star}
-              aria-label={t('feedbackForm.starAria', { count: star, label: t(RATING_META[star].labelKey) })}
+              aria-label={t('feedbackForm.starAria', {
+                count: star,
+                label: t(RATING_META[star].labelKey),
+              })}
               onMouseEnter={() => setHover(star)}
               onFocus={() => setHover(star)}
               onBlur={() => setHover(0)}

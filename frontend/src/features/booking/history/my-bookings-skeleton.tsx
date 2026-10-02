@@ -5,7 +5,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── My Bookings Skeleton — booking cards ─── */
-export const MyBookingsSkeleton = memo(function MyBookingsSkeleton({ count = 3 }: { count?: number }) {
+export const MyBookingsSkeleton = memo(function MyBookingsSkeleton({
+  count = 3,
+}: {
+  count?: number
+}) {
   return (
     <div className="space-y-5">
       {/* Stats cards skeleton */}

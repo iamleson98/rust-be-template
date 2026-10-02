@@ -23,11 +23,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ComboboxField } from '@/components/ui/combobox'
 
-import {
-  DataTable,
-  DataTableColumnHeader,
-  type DataTableFeatures,
-} from '@/components/data-table'
+import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import { useApp } from '@/lib/store'
 import { useSetUserRole, useUsers } from '@/lib/queries'
 import type { UserOut } from '@/lib/api/types.gen'
@@ -80,7 +76,11 @@ export function UsersPanel() {
       })
       toast.success(t('adminUsers.roleChangedOf', { name: target.fullName }))
     } catch (e) {
-      toast.error(e instanceof Error || (e && typeof e === 'object' && ('error' in e || 'body' in e)) ? getErrorMessage(e) : t('adminUsers.roleChangeFailed'))
+      toast.error(
+        e instanceof Error || (e && typeof e === 'object' && ('error' in e || 'body' in e))
+          ? getErrorMessage(e)
+          : t('adminUsers.roleChangeFailed'),
+      )
       // Refetch in case the optimistic select left a stale value.
       void query.refetch()
     }
@@ -90,7 +90,9 @@ export function UsersPanel() {
     () =>
       columnHelper.columns([
         columnHelper.accessor('fullName', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('admin.users')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('admin.users')} />
+          ),
           cell: ({ row }) => {
             const u = row.original
             return (
@@ -117,12 +119,13 @@ export function UsersPanel() {
           meta: { label: t('admin.users') },
         }),
         columnHelper.accessor('role', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminUsers.role')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminUsers.role')} />
+          ),
           cell: ({ row }) => {
             const u = row.original
             const isSelf = me?.id === u.id
-            const disabled =
-              roleMutation.isPending || u.isBot || isSelf || me?.type !== 'admin'
+            const disabled = roleMutation.isPending || u.isBot || isSelf || me?.type !== 'admin'
             const roleDef = ROLES.find((r) => r.value === u.role)
             return (
               <div className="flex items-center gap-2">
@@ -157,7 +160,9 @@ export function UsersPanel() {
           meta: { label: t('adminUsers.role') },
         }),
         columnHelper.accessor('status', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('common.status')} />
+          ),
           cell: ({ getValue }) => {
             const v = getValue()
             return (
@@ -177,7 +182,9 @@ export function UsersPanel() {
           meta: { label: t('common.status') },
         }),
         columnHelper.accessor('createdAt', {
-          header: ({ column }) => <DataTableColumnHeader column={column} title={t('adminUsers.createdAt')} />,
+          header: ({ column }) => (
+            <DataTableColumnHeader column={column} title={t('adminUsers.createdAt')} />
+          ),
           cell: ({ getValue }) => (
             <span className="text-xs tabular-nums text-muted-foreground whitespace-nowrap">
               {new Date(getValue()).toLocaleDateString('vi-VN')}
@@ -200,9 +207,7 @@ export function UsersPanel() {
             <Users className="h-5 w-5 text-blue-600" />
             {t('admin.users')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminUsers.subtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminUsers.subtitle')}</p>
         </div>
         <Button
           variant="outline"

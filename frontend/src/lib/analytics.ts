@@ -58,10 +58,7 @@ export function trackPageView(path: string, title: string): void {
  *   - `add_payment_info` — payment dialog opens
  *   - `purchase` — booking confirmed + payment completed
  */
-export function trackEvent(
-  name: string,
-  params: Record<string, unknown> = {},
-): void {
+export function trackEvent(name: string, params: Record<string, unknown> = {}): void {
   if (typeof window === 'undefined' || !window.gtag) return
   window.gtag('event', name, params)
 }

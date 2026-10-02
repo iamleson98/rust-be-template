@@ -1,7 +1,7 @@
-"use client";
+'use client'
 
-import { useCallback, useState, useRef, useEffect } from "react";
-import { toast } from "sonner";
+import { useCallback, useState, useRef, useEffect } from 'react'
+import { toast } from 'sonner'
 import {
   useChatChannelsInfinite,
   useChatMessagesInfinite,
@@ -11,23 +11,20 @@ import {
   useClaimChannel,
   useReleaseChannel,
   useCloseChannel,
-} from "@/lib/queries";
-import type {
-  AdminChannel,
-  AdminChatMessage,
-} from "@/features/admin/dashboard/types";
-import { useAdminChatWs } from "./use-admin-chat-ws";
-import { translate } from "@/lib/i18n";
-import { useApp } from "@/lib/store";
+} from '@/lib/queries'
+import type { AdminChannel, AdminChatMessage } from '@/features/admin/dashboard/types'
+import { useAdminChatWs } from './use-admin-chat-ws'
+import { translate } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import { getErrorMessage } from '@/lib/error-message'
 
-const TYPING_IDLE_MS = 2000;
-const PAGE_SIZE = 30;
+const TYPING_IDLE_MS = 2000
+const PAGE_SIZE = 30
 
 export function useAdminChatWorkspace() {
-  const { user } = useApp();
-  const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null);
-  const [replyText, setReplyText] = useState("");
+  const { user } = useApp()
+  const [activeChannel, setActiveChannel] = useState<AdminChannel | null>(null)
+  const [replyText, setReplyText] = useState('')
 
   // ── Infinite-scroll channel list ─────────────────────────────
   //
@@ -48,9 +45,8 @@ export function useAdminChatWorkspace() {
     isFetchingNextPage: isFetchingMoreChannels,
     isLoading: channelsLoading,
     error: channelsError,
-  } = useChatChannelsInfinite(PAGE_SIZE);
-  const channels: AdminChannel[] =
-    fetchedChannels as unknown as AdminChannel[];
+  } = useChatChannelsInfinite(PAGE_SIZE)
+  const channels: AdminChannel[] = fetchedChannels as unknown as AdminChannel[]
 
   // ── Aggregate chat stats (server-side count, not client-side filter) ──
   //
@@ -58,51 +54,57 @@ export function useAdminChatWorkspace() {
   // accurate counts (open / assigned / closed / total) + avg response
   // time, even when there are more channels than the list's page size
   // (capped at 200). Refetches every 15s.
-  const chatStatsQuery = useChatStats();
+  const chatStatsQuery = useChatStats()
 
   // ── "My channels" filter (employee workspace) ─────────────────
   //
   // Employees focus on channels assigned to them + the unassigned
   // queue. Admins see everything (they own the whole queue). The
   // toggle lives in the panel's channel-list header.
-  const [mineFilter, setMineFilter] = useState(false);
+  const [mineFilter, setMineFilter] = useState(false)
   // const isEmployee = user?.type === "employee";
 
   // ── Assignment actions ────────────────────────────────────────
-  const claimMut = useClaimChannel();
-  const releaseMut = useReleaseChannel();
-  const closeMut = useCloseChannel();
+  const claimMut = useClaimChannel()
+  const releaseMut = useReleaseChannel()
+  const closeMut = useCloseChannel()
 
   const claimActiveChannel = useCallback(async () => {
-    if (!activeChannel) return;
+    if (!activeChannel) return
     try {
-      await claimMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof claimMut.mutateAsync>[0]);
-      toast.success(translate(useApp.getState().lang, "adminChat.claimed"));
+      await claimMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<
+        typeof claimMut.mutateAsync
+      >[0])
+      toast.success(translate(useApp.getState().lang, 'adminChat.claimed'))
     } catch (e) {
-      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.claimFailed")))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, 'adminChat.claimFailed')))
     }
-  }, [activeChannel, claimMut]);
+  }, [activeChannel, claimMut])
 
   const releaseActiveChannel = useCallback(async () => {
-    if (!activeChannel) return;
+    if (!activeChannel) return
     try {
-      await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof releaseMut.mutateAsync>[0]);
-      toast.success(translate(useApp.getState().lang, "adminChat.released"));
+      await releaseMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<
+        typeof releaseMut.mutateAsync
+      >[0])
+      toast.success(translate(useApp.getState().lang, 'adminChat.released'))
     } catch (e) {
-      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.releaseFailed")))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, 'adminChat.releaseFailed')))
     }
-  }, [activeChannel, releaseMut]);
+  }, [activeChannel, releaseMut])
 
   const closeActiveChannel = useCallback(async () => {
-    if (!activeChannel) return;
+    if (!activeChannel) return
     try {
-      await closeMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<typeof closeMut.mutateAsync>[0]);
-      toast.success(translate(useApp.getState().lang, "adminChat.channelClosed"));
-      setActiveChannel(null);
+      await closeMut.mutateAsync({ path: { id: activeChannel.id } } as unknown as Parameters<
+        typeof closeMut.mutateAsync
+      >[0])
+      toast.success(translate(useApp.getState().lang, 'adminChat.channelClosed'))
+      setActiveChannel(null)
     } catch (e) {
-      toast.error(getErrorMessage(e, translate(useApp.getState().lang, "adminChat.closeFailed")))
+      toast.error(getErrorMessage(e, translate(useApp.getState().lang, 'adminChat.closeFailed')))
     }
-  }, [activeChannel, closeMut]);
+  }, [activeChannel, closeMut])
 
   // ── Infinite-scroll messages ──────────────────────────────────
   //
@@ -122,10 +124,10 @@ export function useAdminChatWorkspace() {
     isFetchingNextPage,
     isLoading: messagesQueryLoading,
     error: messagesError,
-  } = useChatMessagesInfinite(activeChannel?.id, PAGE_SIZE);
-  const chatMessages: AdminChatMessage[] = infiniteMessages as unknown as AdminChatMessage[];
-  const messagesLoading = messagesQueryLoading;
-  const messagesErrorOut: unknown = messagesError;
+  } = useChatMessagesInfinite(activeChannel?.id, PAGE_SIZE)
+  const chatMessages: AdminChatMessage[] = infiniteMessages as unknown as AdminChatMessage[]
+  const messagesLoading = messagesQueryLoading
+  const messagesErrorOut: unknown = messagesError
 
   const {
     typingUser,
@@ -134,62 +136,62 @@ export function useAdminChatWorkspace() {
     unreadPulseChannels,
     clearUnreadPulse,
     staffPresence,
-  } = useAdminChatWs(user, activeChannel?.id);
+  } = useAdminChatWs(user, activeChannel?.id)
 
   // Reply mutation — clears the input + toasts the result.
   const postReplyMut = usePostChatMessage({
     onSuccess: () => {
-      setReplyText("");
+      setReplyText('')
     },
     onError: () => {
-      toast.error(translate(useApp.getState().lang, "chat.sendFailed"));
+      toast.error(translate(useApp.getState().lang, 'chat.sendFailed'))
     },
-  });
+  })
 
   const sendReply = useCallback(() => {
-    if (!replyText.trim() || !activeChannel) return;
+    if (!replyText.trim() || !activeChannel) return
     // Send typing=false so the user sees the admin stopped typing.
-    sendTyping(activeChannel.id, false);
+    sendTyping(activeChannel.id, false)
     postReplyMut.mutate({
       path: { id: activeChannel.id },
-      body: { content: replyText.trim(), kind: "text" },
-    } as unknown as Parameters<typeof postReplyMut.mutate>[0]);
-  }, [replyText, activeChannel, postReplyMut, sendTyping]);
+      body: { content: replyText.trim(), kind: 'text' },
+    } as unknown as Parameters<typeof postReplyMut.mutate>[0])
+  }, [replyText, activeChannel, postReplyMut, sendTyping])
 
-  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isCurrentlyTypingRef = useRef(false);
-  const activeChannelIdRef = useRef<string | undefined>(activeChannel?.id);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isCurrentlyTypingRef = useRef(false)
+  const activeChannelIdRef = useRef<string | undefined>(activeChannel?.id)
   // Update AFTER commit (writing refs during render is unsafe under
   // concurrent React); typing handlers fire async, post-commit.
   useEffect(() => {
-    activeChannelIdRef.current = activeChannel?.id;
-  });
+    activeChannelIdRef.current = activeChannel?.id
+  })
 
   const onReplyTextChange = useCallback(
     (val: string) => {
-      setReplyText(val);
+      setReplyText(val)
 
-      const channelId = activeChannelIdRef.current;
-      if (!channelId) return;
+      const channelId = activeChannelIdRef.current
+      if (!channelId) return
 
       // Only send `typing=true` if we're not already in the "typing"
       // state. This is the first-keystroke-only optimization.
       if (!isCurrentlyTypingRef.current) {
-        isCurrentlyTypingRef.current = true;
-        sendTyping(channelId, true);
+        isCurrentlyTypingRef.current = true
+        sendTyping(channelId, true)
       }
 
       // Reset the idle timer — when it fires, we send `typing=false`
       // + reset the typing flag so the next keystroke triggers a fresh
       // `typing=true`.
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
       typingTimerRef.current = setTimeout(() => {
-        isCurrentlyTypingRef.current = false;
-        sendTyping(channelId, false);
-      }, TYPING_IDLE_MS);
+        isCurrentlyTypingRef.current = false
+        sendTyping(channelId, false)
+      }, TYPING_IDLE_MS)
     },
     [sendTyping],
-  );
+  )
 
   // When the admin switches channels (or unmounts), clear the typing
   // state + cancel any pending idle timer. Otherwise the timer could
@@ -198,44 +200,46 @@ export function useAdminChatWorkspace() {
   // to reset the `isCurrentlyTyping` flag so the new channel starts
   // fresh).
   useEffect(() => {
-    isCurrentlyTypingRef.current = false;
+    isCurrentlyTypingRef.current = false
     if (typingTimerRef.current) {
-      clearTimeout(typingTimerRef.current);
-      typingTimerRef.current = null;
+      clearTimeout(typingTimerRef.current)
+      typingTimerRef.current = null
     }
-  }, [activeChannel?.id]);
+  }, [activeChannel?.id])
 
   // Cleanup typing timer on unmount.
   useEffect(() => {
     return () => {
-      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-    };
-  }, []);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current)
+    }
+  }, [])
 
   const blockChannel = useCallback(
     (channelId: string) => {
-      toast.success(translate(useApp.getState().lang, "chat.blocked"), {
-        description: translate(useApp.getState().lang, "chat.blockedDesc"),
-      });
-      if (activeChannel?.id === channelId) setActiveChannel(null);
+      toast.success(translate(useApp.getState().lang, 'chat.blocked'), {
+        description: translate(useApp.getState().lang, 'chat.blockedDesc'),
+      })
+      if (activeChannel?.id === channelId) setActiveChannel(null)
     },
     [activeChannel],
-  );
+  )
 
   // Mark channel as read when admin opens it — clears the unread
   // badge so the admin can see which channels have NEW messages.
-  const markReadMut = useMarkChatRead();
+  const markReadMut = useMarkChatRead()
   const openChannel = useCallback(
     (channel: AdminChannel) => {
-      setActiveChannel(channel);
-      markReadMut.mutate({ path: { id: channel.id } } as unknown as Parameters<typeof markReadMut.mutate>[0]);
+      setActiveChannel(channel)
+      markReadMut.mutate({ path: { id: channel.id } } as unknown as Parameters<
+        typeof markReadMut.mutate
+      >[0])
       // Clear the pulse indicator for this channel — the admin is now
       // viewing it, so the "new message" attention signal is no longer
       // needed.
-      clearUnreadPulse(channel.id);
+      clearUnreadPulse(channel.id)
     },
     [markReadMut, clearUnreadPulse],
-  );
+  )
 
   // Ticket-card mutation — silent failure is OK because the booking
   // has already been created by the time we send the card.
@@ -243,35 +247,31 @@ export function useAdminChatWorkspace() {
     onError: () => {
       // Silently fail — the booking was already created.
     },
-  });
+  })
 
   const sendTicketCard = useCallback(
     (payload: { bookingCode: string }) => {
-      if (!activeChannel) return;
-      const attachments = JSON.stringify(payload);
+      if (!activeChannel) return
+      const attachments = JSON.stringify(payload)
       postTicketCardMut.mutate({
         path: { id: activeChannel.id },
         body: {
-          content: translate(useApp.getState().lang, "adminChat.ticketCardNote", {
+          content: translate(useApp.getState().lang, 'adminChat.ticketCardNote', {
             code: payload.bookingCode,
           }),
-          kind: "ticket",
+          kind: 'ticket',
           attachments,
         },
-      } as unknown as Parameters<typeof postTicketCardMut.mutate>[0]);
+      } as unknown as Parameters<typeof postTicketCardMut.mutate>[0])
     },
     [activeChannel, postTicketCardMut],
-  );
+  )
 
   // Apply the "mine" filter (employees): assigned-to-me + unassigned
   // open channels. Closed channels stay visible for context either way.
   const visibleChannels = mineFilter
-    ? channels.filter(
-        (c) =>
-          c.assignedToMe ||
-          (!c.assignedTo && c.status !== "closed"),
-      )
-    : channels;
+    ? channels.filter((c) => c.assignedToMe || (!c.assignedTo && c.status !== 'closed'))
+    : channels
 
   return {
     // data
@@ -282,8 +282,7 @@ export function useAdminChatWorkspace() {
     claimActiveChannel,
     releaseActiveChannel,
     closeActiveChannel,
-    assignmentBusy:
-      claimMut.isPending || releaseMut.isPending || closeMut.isPending,
+    assignmentBusy: claimMut.isPending || releaseMut.isPending || closeMut.isPending,
     channelsLoading,
     channelsError: channelsError ?? null,
     chatMessages,
@@ -313,7 +312,7 @@ export function useAdminChatWorkspace() {
     sendReply,
     blockChannel,
     sendTicketCard,
-  };
+  }
 }
 
-export type AdminChatWorkspace = ReturnType<typeof useAdminChatWorkspace>;
+export type AdminChatWorkspace = ReturnType<typeof useAdminChatWorkspace>

@@ -5,7 +5,11 @@ import { Card } from '@/components/ui/card'
 import { Shimmer } from '@/components/ui/shimmer'
 
 /* ─── Campaigns Skeleton — campaign cards ─── */
-export const CampaignsSkeleton = memo(function CampaignsSkeleton({ count = 3 }: { count?: number }) {
+export const CampaignsSkeleton = memo(function CampaignsSkeleton({
+  count = 3,
+}: {
+  count?: number
+}) {
   return (
     <section className="bg-linear-to-br from-amber-50 via-orange-50 to-rose-50 border-y border-amber-100/80">
       <div className="container mx-auto px-4 py-12">

@@ -15,14 +15,7 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import {
-  Send,
-  Loader2,
-  Check,
-  Sparkles,
-  Bus,
-  Route as RouteIcon,
-} from 'lucide-react'
+import { Send, Loader2, Check, Sparkles, Bus, Route as RouteIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useCreateReview, useUpdateReview } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
@@ -55,7 +48,12 @@ type Props = {
  * Field controls live in the sibling `feedback-*-field.tsx` files; the
  * read-only view in `existing-review-card.tsx`.
  */
-export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview, onSubmitted, onClose }: Props) {
+export const FeedbackForm = memo(function FeedbackForm({
+  booking,
+  existingReview,
+  onSubmitted,
+  onClose,
+}: Props) {
   const t = useT()
   const isEditingExisting = !!existingReview
   const [editMode, setEditMode] = useState(!isEditingExisting)
@@ -144,8 +142,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
   }
 
   const accent = booking.trip?.brandAccent ?? '#2563eb'
-  const isShortComment =
-    comment.trim().length > 0 && comment.trim().length < 20
+  const isShortComment = comment.trim().length > 0 && comment.trim().length < 20
 
   // ─── "Read-only" view for an existing review ─────────────────
   if (isEditingExisting && !editMode) {
@@ -173,7 +170,9 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
           </p>
           <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 ring-1 ring-amber-200 px-3 py-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs font-medium text-amber-700">{t('feedbackForm.pointsEarned')}</span>
+            <span className="text-xs font-medium text-amber-700">
+              {t('feedbackForm.pointsEarned')}
+            </span>
           </div>
           <div className="mt-4 flex items-center justify-center gap-2">
             <Button
@@ -287,12 +286,7 @@ export const FeedbackForm = memo(function FeedbackForm({ booking, existingReview
                 {existingReview ? t('feedbackForm.saveEdit') : t('feedbackForm.submit')}
               </Button>
               {onClose && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onClose}
-                  disabled={submitting}
-                >
+                <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
                   {t('feedbackForm.cancel')}
                 </Button>
               )}

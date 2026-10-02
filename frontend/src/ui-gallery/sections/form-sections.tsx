@@ -95,10 +95,7 @@ export function FormSections() {
             <Loader2Icon className="animate-spin" />
             Loading…
           </Button>
-          <Button
-            data-testid="btn-counter"
-            onClick={() => setCount((c) => c + 1)}
-          >
+          <Button data-testid="btn-counter" onClick={() => setCount((c) => c + 1)}>
             Clicked: <Mirror testId="btn-counter-value">{count}</Mirror>
           </Button>
         </Row>
@@ -157,8 +154,7 @@ export function FormSections() {
             onChange={(e) => setNote(e.target.value)}
           />
           <p className="text-sm">
-            <Mirror testId="textarea-count">{note.length}</Mirror> / 100
-            characters
+            <Mirror testId="textarea-count">{note.length}</Mirror> / 100 characters
           </p>
         </div>
       </Section>
@@ -166,11 +162,7 @@ export function FormSections() {
       <Section id="checkbox" title="Checkbox" description="Selection toggles.">
         <div className="max-w-md space-y-3">
           <div className="flex items-center gap-2">
-            <Checkbox
-              id="gallery-checkbox-1"
-              defaultChecked
-              data-testid="checkbox-1"
-            />
+            <Checkbox id="gallery-checkbox-1" defaultChecked data-testid="checkbox-1" />
             <Label htmlFor="gallery-checkbox-1">Email notifications</Label>
           </div>
           <div className="flex items-center gap-2">
@@ -180,13 +172,10 @@ export function FormSections() {
               onCheckedChange={(v) => setTerms(v === true)}
               data-testid="checkbox-terms"
             />
-            <Label htmlFor="gallery-checkbox-terms">
-              I accept the terms and conditions
-            </Label>
+            <Label htmlFor="gallery-checkbox-terms">I accept the terms and conditions</Label>
           </div>
           <p className="text-sm">
-            Terms accepted:{' '}
-            <Mirror testId="checkbox-mirror">{terms ? 'yes' : 'no'}</Mirror>
+            Terms accepted: <Mirror testId="checkbox-mirror">{terms ? 'yes' : 'no'}</Mirror>
           </p>
         </div>
       </Section>
@@ -203,8 +192,7 @@ export function FormSections() {
             />
           </div>
           <p className="text-sm">
-            Alerts enabled:{' '}
-            <Mirror testId="switch-mirror">{emailAlerts ? 'on' : 'off'}</Mirror>
+            Alerts enabled: <Mirror testId="switch-mirror">{emailAlerts ? 'on' : 'off'}</Mirror>
           </p>
         </div>
       </Section>
@@ -236,12 +224,7 @@ export function FormSections() {
 
       <Section id="input-otp" title="InputOTP" description="One-time code entry.">
         <div className="max-w-md space-y-3">
-          <InputOTP
-            maxLength={6}
-            value={otp}
-            onChange={setOtp}
-            data-testid="otp-demo"
-          >
+          <InputOTP maxLength={6} value={otp} onChange={setOtp} data-testid="otp-demo">
             <InputOTPGroup data-testid="otp-group">
               <InputOTPSlot index={0} />
               <InputOTPSlot index={1} />
@@ -281,9 +264,7 @@ export function FormSections() {
         <Form {...form}>
           <form
             className="grid max-w-md gap-4"
-            onSubmit={form.handleSubmit((values) =>
-              setSubmitted(`ok:${values.username}`),
-            )}
+            onSubmit={form.handleSubmit((values) => setSubmitted(`ok:${values.username}`))}
             data-testid="rhf-form"
           >
             <FormField
@@ -293,11 +274,7 @@ export function FormSections() {
                 <FormItem>
                   <FormLabel>Username</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="leson"
-                      data-testid="form-username"
-                      {...field}
-                    />
+                    <Input placeholder="leson" data-testid="form-username" {...field} />
                   </FormControl>
                   <FormMessage data-testid="form-username-error" />
                 </FormItem>

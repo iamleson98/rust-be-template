@@ -35,30 +35,30 @@ class SessionUser {
   bool get isAdmin => type == 'admin';
 
   factory SessionUser.fromJson(Map<String, dynamic> json) => SessionUser(
-        id: json['id'] as String,
-        type: (json['type'] ?? json['actorType'] ?? 'user') as String,
-        role: (json['role'] ?? 'user') as String,
-        name: (json['name'] ?? '') as String,
-        email: json['email'] as String?,
-        phone: json['phone'] as String?,
-        avatarUrl: json['avatarUrl'] as String?,
-        brandId: json['brandId'] as String?,
-        brandName: json['brandName'] as String?,
-        employeeRole: json['employeeRole'] as String?,
-      );
+    id: json['id'] as String,
+    type: (json['type'] ?? json['actorType'] ?? 'user') as String,
+    role: (json['role'] ?? 'user') as String,
+    name: (json['name'] ?? '') as String,
+    email: json['email'] as String?,
+    phone: json['phone'] as String?,
+    avatarUrl: json['avatarUrl'] as String?,
+    brandId: json['brandId'] as String?,
+    brandName: json['brandName'] as String?,
+    employeeRole: json['employeeRole'] as String?,
+  );
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'type': type,
-        'role': role,
-        'name': name,
-        'email': email,
-        'phone': phone,
-        'avatarUrl': avatarUrl,
-        'brandId': brandId,
-        'brandName': brandName,
-        'employeeRole': employeeRole,
-      };
+    'id': id,
+    'type': type,
+    'role': role,
+    'name': name,
+    'email': email,
+    'phone': phone,
+    'avatarUrl': avatarUrl,
+    'brandId': brandId,
+    'brandName': brandName,
+    'employeeRole': employeeRole,
+  };
 }
 
 /// Full auth session state held in memory by [AuthController].
@@ -94,11 +94,10 @@ class AuthState {
     String? accessToken,
     String? refreshToken,
     bool? restored,
-  }) =>
-      AuthState(
-        user: user ?? this.user,
-        accessToken: accessToken ?? this.accessToken,
-        refreshToken: refreshToken ?? this.refreshToken,
-        restored: restored ?? this.restored,
-      );
+  }) => AuthState(
+    user: user ?? this.user,
+    accessToken: accessToken ?? this.accessToken,
+    refreshToken: refreshToken ?? this.refreshToken,
+    restored: restored ?? this.restored,
+  );
 }
