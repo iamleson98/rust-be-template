@@ -73,7 +73,7 @@ function QualityBars({ level }: { level: QualityLevel }) {
         ? 'bg-amber-500'
         : 'bg-red-500'
   return (
-    <span className="flex items-end gap-[2px]" aria-hidden>
+    <span className="flex items-end gap-0.5" aria-hidden>
       {[1, 2, 3].map((bar) => (
         <span
           key={bar}
@@ -526,222 +526,222 @@ export function AudioCallWidget() {
           into the chat body so calling remains part of the conversation UI. */}
       {open && (
         <CallSurface embedded={!isAgent}>
-        <div
-          className={cn(
-            isAgent
-              ? 'fixed z-50 right-3 left-3 bottom-3 mb-[env(safe-area-inset-bottom)] rounded-2xl border border-zinc-200 bg-white p-4 md:left-auto md:bottom-6 md:w-80 md:p-5 dark:border-zinc-800 dark:bg-zinc-900'
-              : 'flex min-h-0 flex-1 flex-col justify-center bg-white px-6 py-8 dark:bg-zinc-900',
-          )}
-          role="dialog"
-          aria-label="Audio call"
-        >
-          {/* Header */}
-          {isAgent && <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                'h-2 w-2 rounded-full',
-                agentInCall ? 'bg-amber-500' : onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
-              )} />
-              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                {isAgent ? t('layout.call.agentPanel') : t('layout.call.support')}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                if (state === 'active' || state === 'calling' || state === 'connecting') {
-                  hangup()
-                }
-                setOpen(false)
-              }}
-              aria-label={t('common.close')}
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>}
+          <div
+            className={cn(
+              isAgent
+                ? 'fixed z-50 right-3 left-3 bottom-3 mb-[env(safe-area-inset-bottom)] rounded-2xl border border-zinc-200 bg-white p-4 md:left-auto md:bottom-6 md:w-80 md:p-5 dark:border-zinc-800 dark:bg-zinc-900'
+                : 'flex min-h-0 flex-1 flex-col justify-center bg-white px-6 py-8 dark:bg-zinc-900',
+            )}
+            role="dialog"
+            aria-label="Audio call"
+          >
+            {/* Header */}
+            {isAgent && <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  'h-2 w-2 rounded-full',
+                  agentInCall ? 'bg-amber-500' : onlineAgents > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400',
+                )} />
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  {isAgent ? t('layout.call.agentPanel') : t('layout.call.support')}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  if (state === 'active' || state === 'calling' || state === 'connecting') {
+                    hangup()
+                  }
+                  setOpen(false)
+                }}
+                aria-label={t('common.close')}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors p-1"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>}
 
-          {/* Status */}
-          <div className="text-center mb-4">
-            <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">
-              {statusText}
-            </div>
-            {state === 'idle' && (
-              <div className="text-zinc-600 dark:text-zinc-300 text-sm">
-                {isAgent
-                  ? t('layout.call.agentIdleHint')
-                  : onlineAgents === 0
-                    ? t('layout.call.noAgentsHint')
-                    : agentsAvailable
-                      ? t('layout.call.tapToCall')
-                      : t('layout.call.agentOnOtherCall')}
+            {/* Status */}
+            <div className="text-center mb-4">
+              <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">
+                {statusText}
               </div>
-            )}
-            {state === 'calling' && (
-              <div className="flex flex-col items-center gap-2">
-                <PhoneOutgoing className="h-8 w-8 text-emerald-600 animate-pulse" />
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('layout.call.calling')}</div>
-              </div>
-            )}
-            {state === 'incoming' && incomingFrom && (
-              <div className="flex flex-col items-center gap-2">
-                <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">
-                  {isAgent ? t('layout.call.incomingFromCustomer') : t('layout.call.incomingFromAgent')}
+              {state === 'idle' && (
+                <div className="text-zinc-600 dark:text-zinc-300 text-sm">
+                  {isAgent
+                    ? t('layout.call.agentIdleHint')
+                    : onlineAgents === 0
+                      ? t('layout.call.noAgentsHint')
+                      : agentsAvailable
+                        ? t('layout.call.tapToCall')
+                        : t('layout.call.agentOnOtherCall')}
                 </div>
-              </div>
-            )}
-            {state === 'connecting' && (
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
-                <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('chatWidget.connecting')}</div>
-              </div>
-            )}
-            {state === 'active' && (
-              <div className="flex flex-col items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  {quality ? (
-                    <QualityBars level={quality.level} />
-                  ) : (
-                    <Signal className="h-4 w-4 text-emerald-500" />
-                  )}
-                  <span className="text-2xl font-mono font-semibold text-zinc-800 dark:text-zinc-100">
-                    {Math.floor(callDuration / 60)}:{String(callDuration % 60).padStart(2, '0')}
-                  </span>
+              )}
+              {state === 'calling' && (
+                <div className="flex flex-col items-center gap-2">
+                  <PhoneOutgoing className="h-8 w-8 text-emerald-600 animate-pulse" />
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('layout.call.calling')}</div>
                 </div>
-                {/* Live network health line: relay chip (when the media
+              )}
+              {state === 'incoming' && incomingFrom && (
+                <div className="flex flex-col items-center gap-2">
+                  <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">
+                    {isAgent ? t('layout.call.incomingFromCustomer') : t('layout.call.incomingFromAgent')}
+                  </div>
+                </div>
+              )}
+              {state === 'connecting' && (
+                <div className="flex flex-col items-center gap-2">
+                  <Loader2 className="h-8 w-8 text-emerald-600 animate-spin" />
+                  <div className="text-sm text-zinc-600 dark:text-zinc-300">{t('chatWidget.connecting')}</div>
+                </div>
+              )}
+              {state === 'active' && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {quality ? (
+                      <QualityBars level={quality.level} />
+                    ) : (
+                      <Signal className="h-4 w-4 text-emerald-500" />
+                    )}
+                    <span className="text-2xl font-mono font-semibold text-zinc-800 dark:text-zinc-100">
+                      {Math.floor(callDuration / 60)}:{String(callDuration % 60).padStart(2, '0')}
+                    </span>
+                  </div>
+                  {/* Live network health line: relay chip (when the media
                     goes through TURN — expected on strict NATs, slightly
                     higher latency) + numbers tooltip for the curious. */}
-                <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                  {quality?.relayed && (
-                    <span
-                      className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium text-zinc-600 dark:text-zinc-300"
-                      title={t('layout.call.turnRelay')}
-                    >
-                      TURN relay
-                    </span>
-                  )}
-                  <span>{micOn ? t('layout.call.micOn') : t('layout.call.micOff')}</span>
-                  {quality && (
-                    <span
-                      className="cursor-help"
-                      title={[
-                        quality.rttMs != null ? t('layout.call.rtt', { value: quality.rttMs }) : null,
-                        quality.jitterMs != null ? t('layout.call.jitter', { value: quality.jitterMs }) : null,
-                        quality.lossPct != null ? t('layout.call.packetLoss', { value: quality.lossPct }) : null,
-                      ].filter(Boolean).join(' · ') || undefined}
-                    >
-                      (
+                  <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                    {quality?.relayed && (
+                      <span
+                        className="px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-[10px] font-medium text-zinc-600 dark:text-zinc-300"
+                        title={t('layout.call.turnRelay')}
+                      >
+                        TURN relay
+                      </span>
+                    )}
+                    <span>{micOn ? t('layout.call.micOn') : t('layout.call.micOff')}</span>
+                    {quality && (
+                      <span
+                        className="cursor-help"
+                        title={[
+                          quality.rttMs != null ? t('layout.call.rtt', { value: quality.rttMs }) : null,
+                          quality.jitterMs != null ? t('layout.call.jitter', { value: quality.jitterMs }) : null,
+                          quality.lossPct != null ? t('layout.call.packetLoss', { value: quality.lossPct }) : null,
+                        ].filter(Boolean).join(' · ') || undefined}
+                      >
+                        (
                         {quality.rttMs != null ? `${quality.rttMs} ms` : '…'}
                         {quality.lossPct != null ? `, ${quality.lossPct}%` : ''}
-                      )
-                    </span>
-                  )}
+                        )
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-            {state === 'ended' && (
-              <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                {hangupReasonText(endReason, isAgent)}
-              </div>
-            )}
-          </div>
-
-          {/* Error */}
-          {error && !micDenied && (
-            <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300">
-              {error}
-            </div>
-          )}
-          {/* Mic permission denied — persistent + actionable: recovering
-              requires the user to change the browser's site permission
-              manually, so auto-dismissing would hide the instructions. */}
-          {error && micDenied && (
-            <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
-              <div className="font-medium mb-1">{error}</div>
-              <div className="text-amber-700 dark:text-amber-300">{micDeniedGuidance()}</div>
-              {!isAgent && (
-                <button
-                  type="button"
-                  onClick={() => { setMicDenied(false); setError(null); void startCall() }}
-                  className="mt-2 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors"
-                >
-                  {t('layout.call.retry')}
-                </button>
+              )}
+              {state === 'ended' && (
+                <div className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {hangupReasonText(endReason, isAgent)}
+                </div>
               )}
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="flex items-center justify-center gap-3">
-            {state === 'idle' && !isAgent && onlineAgents > 0 && !agentsAvailable && (
-              <div className="flex flex-col items-center gap-2 py-2">
-                <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
-                  {t('layout.call.agentBusy')}
-                </div>
-                <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {t('layout.call.busyHint')}
-                </div>
+            {/* Error */}
+            {error && !micDenied && (
+              <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-xs text-red-700 dark:text-red-300">
+                {error}
               </div>
             )}
-            {state === 'idle' && !isAgent && agentsAvailable && (
-              <div className="flex items-center gap-2 py-2 text-sm text-emerald-700 dark:text-emerald-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {t('layout.call.starting')}
-              </div>
-            )}
-            {state === 'idle' && isAgent && (
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-2">
-                {t('layout.call.waitingForCustomer')}
-              </div>
-            )}
-            {(state === 'calling' || state === 'connecting' || state === 'active') && (
-              <>
-                {state === 'active' && (
+            {/* Mic permission denied — persistent + actionable: recovering
+              requires the user to change the browser's site permission
+              manually, so auto-dismissing would hide the instructions. */}
+            {error && micDenied && (
+              <div className="mb-3 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-xs text-amber-800 dark:text-amber-200">
+                <div className="font-medium mb-1">{error}</div>
+                <div className="text-amber-700 dark:text-amber-300">{micDeniedGuidance()}</div>
+                {!isAgent && (
                   <button
-                    onClick={toggleMic}
-                    aria-label={micOn ? t('layout.call.mute') : t('layout.call.unmute')}
-                    className={cn(
-                      'h-12 w-12 rounded-full flex items-center justify-center transition-colors',
-                      micOn
-                        ? 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200'
-                        : 'bg-red-100 hover:bg-red-200 dark:bg-red-950 dark:hover:bg-red-900 text-red-600',
-                    )}
+                    type="button"
+                    onClick={() => { setMicDenied(false); setError(null); void startCall() }}
+                    className="mt-2 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors"
                   >
-                    {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                    {t('layout.call.retry')}
                   </button>
                 )}
-                <button
-                  onClick={hangup}
-                  aria-label={t('layout.call.hangup')}
-                  className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors"
-                >
-                  <PhoneOff className="h-5 w-5" />
-                </button>
-              </>
+              </div>
             )}
-            {state === 'incoming' && incomingFrom && (
-              <>
-                <button
-                  onClick={rejectCall}
-                  aria-label={t('layout.call.decline')}
-                  className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center"
-                >
-                  <PhoneOff className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={acceptCall}
-                  aria-label={t('layout.call.accept')}
-                  className="h-12 w-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center animate-pulse"
-                >
-                  <Phone className="h-5 w-5" />
-                </button>
-              </>
-            )}
-          </div>
 
-          {/* The AudioCallClient lib is dynamically imported in ensureClient()
+            {/* Actions */}
+            <div className="flex items-center justify-center gap-3">
+              {state === 'idle' && !isAgent && onlineAgents > 0 && !agentsAvailable && (
+                <div className="flex flex-col items-center gap-2 py-2">
+                  <div className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                    {t('layout.call.agentBusy')}
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {t('layout.call.busyHint')}
+                  </div>
+                </div>
+              )}
+              {state === 'idle' && !isAgent && agentsAvailable && (
+                <div className="flex items-center gap-2 py-2 text-sm text-emerald-700 dark:text-emerald-400">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {t('layout.call.starting')}
+                </div>
+              )}
+              {state === 'idle' && isAgent && (
+                <div className="text-xs text-zinc-500 dark:text-zinc-400 text-center py-2">
+                  {t('layout.call.waitingForCustomer')}
+                </div>
+              )}
+              {(state === 'calling' || state === 'connecting' || state === 'active') && (
+                <>
+                  {state === 'active' && (
+                    <button
+                      onClick={toggleMic}
+                      aria-label={micOn ? t('layout.call.mute') : t('layout.call.unmute')}
+                      className={cn(
+                        'h-12 w-12 rounded-full flex items-center justify-center transition-colors',
+                        micOn
+                          ? 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200'
+                          : 'bg-red-100 hover:bg-red-200 dark:bg-red-950 dark:hover:bg-red-900 text-red-600',
+                      )}
+                    >
+                      {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                    </button>
+                  )}
+                  <button
+                    onClick={hangup}
+                    aria-label={t('layout.call.hangup')}
+                    className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center transition-colors"
+                  >
+                    <PhoneOff className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+              {state === 'incoming' && incomingFrom && (
+                <>
+                  <button
+                    onClick={rejectCall}
+                    aria-label={t('layout.call.decline')}
+                    className="h-12 w-12 rounded-full bg-red-600 hover:bg-red-700 text-white flex items-center justify-center"
+                  >
+                    <PhoneOff className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={acceptCall}
+                    aria-label={t('layout.call.accept')}
+                    className="h-12 w-12 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center animate-pulse"
+                  >
+                    <Phone className="h-5 w-5" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* The AudioCallClient lib is dynamically imported in ensureClient()
               so the main bundle stays small. */}
-        </div>
+          </div>
         </CallSurface>
       )}
     </>
