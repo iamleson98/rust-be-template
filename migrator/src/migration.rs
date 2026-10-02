@@ -21,6 +21,8 @@
 //! | 12 | `create_route_pictures`  | route_picture |
 //! | 13 | `create_staff_presence_state` | staff_presence_state |
 //! | 14 | `add_bus_layouts_write_permission` | RBAC grant (idempotent) |
+//! | 15 | `drop_wishlist_item` | wishlist_item (feature removed) |
+//! | 16 | `add_query_indexes` | hot-path indexes (idempotent) |
 //!
 //! Tables are created strictly in FK dependency order (referenced tables
 //! first). All seed data lives in the final migration so it runs after
@@ -53,6 +55,7 @@ mod m20260910_000012_create_route_pictures;
 mod m20260912_000013_create_staff_presence_state;
 mod m20260926_000014_add_bus_layouts_write_permission;
 mod m20260927_000015_drop_wishlist_item;
+mod m20261002_000016_add_query_indexes;
 
 pub struct Migrator;
 
@@ -75,6 +78,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260912_000013_create_staff_presence_state::Migration),
             Box::new(m20260926_000014_add_bus_layouts_write_permission::Migration),
             Box::new(m20260927_000015_drop_wishlist_item::Migration),
+            Box::new(m20261002_000016_add_query_indexes::Migration),
         ]
     }
 }
