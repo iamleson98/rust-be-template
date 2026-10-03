@@ -1,11 +1,40 @@
 # ─── CI: the quality harness ──────────────────────────────────────────
 #
-# Runs on every push to `master` / `server` / `main` (+ manually via
-# workflow_dispatch) and every PR targeting them. Each job is
-# independent and short — failures don't block the others (so a
+# TRIGGER DESIGN — "verify once, at the door" (docs/CI.md § Trigger):
+#   * pull_request (master) — THE gate. Actions checks out the MERGE REF
+#     (refs/pull/N/merge = PR rebased onto the current master tip), so CI
+#     validates the exact tree a merge would produce. Strict up-to-date
+#     branch protection re-verifies at merge time: what CI gated here IS
+#     what lands on master.
+#   * merge_group — merge-queue-ready: if a queue is ever enabled in repo
+#     Settings, these same jobs gate the queued batch. Costs nothing while
+#     no queue exists (the event simply never fires).
+#   * schedule (Mon 03:00 UTC) — weekly drift canary on master: every
+#     backend job builds against UPSTREAM rust-sql master ("the engine
+#     rides master") and CVE advisories accumulate over time — this
+#     surfaces both within 7 days even when no PR touched the repo. It is
+#     drift detection, NOT a re-verification of merged code.
+#   * workflow_dispatch — manual full-matrix escape hatch.
+#   * NO `push` trigger: a post-merge run on master would re-validate a
+#     tree the PR run already gated (the duplicate runs this design
+#     eliminated). Deploy stays tag-driven (deploy.yml, `v*`) — master
+#     pushes never deploy.
+#
+# PATH FILTERING: the `changes` job classifies the diff and each stack
+# job runs only when its files changed. Skipped jobs report conclusion
+# "skipped", which branch protection counts as success (GitHub-documented
+# behavior) — the required checks keep working. The classifier is
+# fail-safe: anything unclassifiable (or schedule/dispatch events) runs
+# the FULL matrix. `changes` itself is a required check — if the
+# classifier fails, dependent jobs skip and the PR stays blocked
+# (fail-closed: a broken filter can never silently disarm the gates).
+#
+# Each stack job is independent — failures don't block the others (so a
 # frontend type error won't hide a Rust clippy warning).
 #
 # The harness enforces, per stack:
+#
+#   0. changes           — diff path classifier (see PATH FILTERING)
 #
 #   BACKEND (Rust)
 #   1. backend          — rustfmt · cargo check · clippy -D warnings ·
@@ -45,10 +74,17 @@
 name: CI
 
 on:
-  push:
-    branches: [master, server, main, migrate-database]
+  # The ONLY binding gate: PRs targeting master. Pre-PR feedback on a
+  # feature branch = open a (draft) PR — it triggers the same matrix.
   pull_request:
-    branches: [master, server, main]
+    branches: [master]
+  # Merge-queue-ready (no-op until a queue is enabled in repo Settings).
+  merge_group:
+    types: [checks_requested]
+    branches: [master]
+  # Weekly drift canary (engine-upstream + advisory drift on master).
+  schedule:
+    - cron: '0 3 * * 1'  # Mondays 03:00 UTC, off-peak
   workflow_dispatch:
 
 # Superseded runs on the same ref are cancelled — keeps the queue fast
@@ -63,8 +99,120 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  # ── Diff classifier ──────────────────────────────────────────────
+  # Runs on EVERY trigger (~30s). Downstream stack jobs skip when their
+  # files didn't change; "skipped" satisfies required status checks.
+  # THIS job is itself a required check → fail-closed by design.
+  changes:
+    name: Changes (path filter)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+      docker: ${{ steps.filter.outputs.docker }}
+      run_all: ${{ steps.filter.outputs.run_all }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the diff needs the merge-base with the base tip.
+          fetch-depth: 0
+
+      - name: Classify changed files per stack
+        id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          MG_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          set -euo pipefail
+
+          # Default posture: RUN EVERYTHING. Only a successfully classified
+          # diff may turn a stack off — an unclassifiable change (or any
+          # error in this script → job fails → required check red) must
+          # never skip a gate.
+          backend=true
+          frontend=true
+          mobile=true
+          docker=true
+          run_all=true
+
+          base=""
+          case "$EVENT" in
+            pull_request)
+              # Fetch the CURRENT base tip (not the PR-open-time sha) —
+              # with strict up-to-date protection the merge ref HEAD is
+              # built against exactly this tip.
+              git fetch --no-tags origin "+refs/heads/${PR_BASE_REF}:refs/remotes/origin/base"
+              base="refs/remotes/origin/base"
+              ;;
+            merge_group)
+              base="$MG_BASE_SHA"
+              ;;
+            *)
+              # schedule / workflow_dispatch → full matrix (drift canary
+              # + manual runs). Defaults above already say "run all".
+              echo "event '$EVENT' → running the full matrix"
+              ;;
+          esac
+
+          if [ -n "$base" ]; then
+            # HEAD here is the merge ref (pull_request) or the queued
+            # batch head (merge_group) — three-dot diff = the change's own
+            # contribution against the merge-base.
+            files=$(git diff --name-only "$base"...HEAD)
+
+            backend=false
+            frontend=false
+            mobile=false
+            docker=false
+            run_all=false
+
+            backend_rx='(^|/)(Cargo\.toml|Cargo\.lock|deny\.toml|taplo\.toml|rust-toolchain[^/]*|\.rustfmt\.toml|clippy\.toml)$|^\.cargo/|^rust-sql$|\.rs$|^frontend/openapi\.json$'
+            frontend_rx='^frontend/'
+            mobile_rx='^mobile/'
+            docker_rx='^(Dockerfile|\.dockerignore)$'
+            ci_rx='^\.github/'
+            # Files that gate NOTHING heavy — repo-hygiene and secrets-scan
+            # always run and cover exactly these classes.
+            light_rx='\.md$|^\.markdownlint-cli2\.yaml$|^\.hadolint\.yaml$|^\.gitleaksignore$|^LICENSE'
+
+            if printf '%s\n' "$files" | grep -Eq "$backend_rx";  then backend=true;  fi
+            # .md under a stack dir is docs, not code (frontend/README.md
+            # edits must not spin up the whole frontend stack).
+            if printf '%s\n' "$files" | grep -E "$frontend_rx" | grep -Evq '\.md$'; then frontend=true; fi
+            if printf '%s\n' "$files" | grep -E "$mobile_rx"   | grep -Evq '\.md$'; then mobile=true;   fi
+            if printf '%s\n' "$files" | grep -Eq "$docker_rx";   then docker=true;   fi
+            if printf '%s\n' "$files" | grep -Eq "$ci_rx";       then run_all=true;  fi
+
+            # Fail-safe catch-all: a file outside EVERY known class (docs/,
+            # Makefile, scripts/, deploy/, terraform/, configs, …) runs the
+            # whole matrix — unknown ⇒ expensive, never blind.
+            classified_rx="${backend_rx}|${frontend_rx}|${mobile_rx}|${docker_rx}|${ci_rx}|${light_rx}"
+            if printf '%s\n' "$files" | grep -Evq "$classified_rx"; then
+              run_all=true
+            fi
+
+            echo "── changed files (vs $base):"
+            printf '%s\n' "$files" | sed 's/^/   /' || true
+          fi
+
+          echo "── stack selection: backend=$backend frontend=$frontend mobile=$mobile docker=$docker run_all=$run_all"
+          {
+            echo "backend=$backend"
+            echo "frontend=$frontend"
+            echo "mobile=$mobile"
+            echo "docker=$docker"
+            echo "run_all=$run_all"
+          } >> "$GITHUB_OUTPUT"
+
   backend:
     name: Backend (Rust)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -180,6 +328,10 @@ jobs:
 
   backend-audit:
     name: Backend - Dependency audit (cargo-audit)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -208,6 +360,10 @@ jobs:
 
   backend-quality:
     name: Backend - quality (deny / machete / taplo)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -278,6 +434,10 @@ jobs:
 
   frontend:
     name: Frontend (React/TS)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -336,6 +496,10 @@ jobs:
 
   frontend-e2e:
     name: Frontend - E2E (Playwright)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -371,6 +535,10 @@ jobs:
 
   mobile:
     name: Mobile (Flutter)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.mobile == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -544,6 +712,12 @@ jobs:
 
   docker-build:
     name: Docker image build (smoke)
+    needs: changes
+    if: |
+      needs.changes.outputs.run_all == 'true' ||
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.docker == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
