@@ -2,11 +2,12 @@
   "openapi": "3.1.0",
   "info": {
     "title": "backend",
-    "description": "rust-be-template backend",
-    "contact": {
-      "name": "iamleson98"
+    "description": "12-factor Rust backend: layered store + RBAC + JWT + WS + worker",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT"
     },
-    "version": "0.5.23"
+    "version": "0.1.0"
   },
   "paths": {
     "/api/admin/addresses": {
