@@ -56,6 +56,7 @@ import {
   routesOptions,
   // trips
   searchTripsOptions,
+  searchTripsGeoOptions,
   tripDetailOptions,
   recommendationsOptions,
   // campaigns
@@ -274,6 +275,17 @@ export type TripSearchParams = {
   vehicleTypes?: string[]
   roundTrip?: boolean
   returnDate?: string
+  // Smart-search coordinates (optional) — present when From/To were
+  // picked as precise places; all four together switch the hook to the
+  // /api/search/geo proximity endpoint.
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  // City-level fallback names (a precise pick's province) — consumed by
+  // buildSearchInput for MIXED picks; not used by the query itself.
+  fromCity?: string
+  toCity?: string
 }
 
 export type RecommendationItem = TripResult
@@ -400,15 +412,47 @@ function tripSearchQuery(params: TripSearchParams) {
   }
 }
 
+/** True when the params carry a full precise pickup+drop coordinate pair
+ *  (From/To picked as exact places or map points rather than cities). */
+function hasGeoCoords(p: TripSearchParams): boolean {
+  return [p.fromLat, p.fromLon, p.toLat, p.toLon].every(
+    (v) => typeof v === 'number' && Number.isFinite(v),
+  )
+}
+
 export function useTripSearch(params: TripSearchParams | null) {
   // Always build a query object so the generated options' queryKey stays
   // well-typed (the SDK keys cache by the query params, so the same
   // from/to/date share the same cache entry regardless of where the hook
   // is mounted). When `params` is null we pass empty placeholders and
   // disable the query via `enabled` so no request fires.
+  //
+  // SMART SEARCH: when both endpoints carry precise coordinates the geo
+  // proximity endpoint runs instead of the city-name search — trips are
+  // ranked by combined pickup+drop distance to the user's chosen points.
+  // Both endpoints share the TripSearchResponse contract, so the geo
+  // options are typed through the searchTrips options type (keeps
+  // useQuery's inference solid instead of a union-of-spreads).
   const query = tripSearchQuery(params ?? { from: '', to: '', date: '' })
+  const geo = !!params && hasGeoCoords(params)
+  const options: ReturnType<typeof searchTripsOptions> = geo
+    ? (searchTripsGeoOptions({
+        query: {
+          fromLat: params!.fromLat!,
+          fromLon: params!.fromLon!,
+          toLat: params!.toLat!,
+          toLon: params!.toLon!,
+          date: params!.date,
+          minSeats: (params!.adults ?? 1) + (params!.children ?? 0),
+          vehicleTypes:
+            params!.vehicleTypes && params!.vehicleTypes.length
+              ? params!.vehicleTypes.join(',')
+              : undefined,
+        },
+      }) as unknown as ReturnType<typeof searchTripsOptions>)
+    : searchTripsOptions({ query })
   return useQuery({
-    ...searchTripsOptions({ query }),
+    ...options,
     enabled: !!params && (!!params.from || !!params.to) && !!params.date,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,

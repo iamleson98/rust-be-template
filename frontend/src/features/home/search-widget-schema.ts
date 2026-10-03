@@ -36,6 +36,18 @@ export const searchSchema = z
     children: z.number().int().min(0),
     sort: z.enum(['departure', 'price', 'rating']),
     vehicleTypes: z.array(z.string()),
+    // Smart-search coordinates (optional): set when the user picks a
+    // precise place (autocomplete hit or map click) instead of a city.
+    // All four present → the geo proximity search runs; otherwise the
+    // plain city-to-city name search does.
+    fromLat: z.number().optional(),
+    fromLon: z.number().optional(),
+    toLat: z.number().optional(),
+    toLon: z.number().optional(),
+    // City-level fallback names for precise picks (the place's province) —
+    // used by buildSearchInput when only ONE end carries coordinates.
+    fromCity: z.string().optional(),
+    toCity: z.string().optional(),
   })
   .refine((d) => !d.roundTrip || d.returnDate !== '', {
     error: () => tSync('searchSchema.returnDateRequired'),

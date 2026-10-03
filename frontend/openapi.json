@@ -2,12 +2,11 @@
   "openapi": "3.1.0",
   "info": {
     "title": "backend",
-    "description": "12-factor Rust backend: layered store + RBAC + JWT + WS + worker",
-    "license": {
-      "name": "MIT",
-      "identifier": "MIT"
+    "description": "rust-be-template backend",
+    "contact": {
+      "name": "iamleson98"
     },
-    "version": "0.1.0"
+    "version": "0.5.23"
   },
   "paths": {
     "/api/admin/addresses": {
@@ -5543,6 +5542,133 @@
         "responses": {
           "200": {
             "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripSearchResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/search/geo": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "operationId": "search_trips_geo",
+        "parameters": [
+          {
+            "name": "fromLat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "fromLon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "toLat",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "toLon",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "format": "double"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "minSeats",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int64"
+            }
+          },
+          {
+            "name": "vehicleTypes",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "maxDistanceKm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Geo search results",
             "content": {
               "application/json": {
                 "schema": {

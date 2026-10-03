@@ -34,6 +34,7 @@ import { toast } from 'sonner'
 import { useCreateAdminAddress, usePlaceSearch } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { reverseGeocode } from '@/features/map/leaflet-map'
+import { useMyLocation } from '@/features/map/use-my-location'
 import type { AdminAddressOut, PlaceSearchHit } from '@/lib/api/types.gen'
 import { cn } from '@/lib/utils'
 import { LatLongRegex, parseLatLong } from '@/lib/slug'
@@ -157,9 +158,54 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  /** GPS "my location" — progressive-accuracy acquisition via the shared
+   *  useMyLocation hook (same fix as the customer MapPicker: the old
+   *  one-shot getCurrentPosition frequently returned coarse Wi-Fi/cell
+   *  fixes hundreds of meters off, and silently swallowed errors).
+   *  Results arrive via ref-backed callbacks, so the fresh translator
+   *  closure each render can never re-trigger the fix handler.
+   *
+   *  `handleMapClick` (defined below, after the hook — it needs the
+   *  hook's `cancel`) is reached through a ref so the accepted fix can
+   * reuse the reverse-geocode + form-prefill pipeline. */
+  const handleMapClickRef = useRef<(lat: number, lon: number) => Promise<void>>(async () => {})
+
+  const handleLocated = useCallback(
+    (loc: { lat: number; lon: number; accuracy: number }) => {
+      if (Number.isFinite(loc.accuracy) && loc.accuracy > 1000) {
+        toast.warning(t('mapPage.lowAccuracy', { m: Math.round(loc.accuracy) }))
+      }
+      setFlyTarget([loc.lat, loc.lon])
+      void handleMapClickRef.current(loc.lat, loc.lon)
+    },
+    [t],
+  )
+
+  const handleLocateError = useCallback(
+    (code: 'unavailable' | 'denied' | 'timeout') => {
+      toast.error(
+        code === 'unavailable'
+          ? t('mapPage.noGeolocation')
+          : code === 'denied'
+            ? t('mapPage.locationDenied')
+            : t('map.cannotLocate'),
+      )
+    },
+    [t],
+  )
+
+  const {
+    acquiring: gpsAcquiring,
+    locate: locateMe,
+    cancel: cancelLocate,
+  } = useMyLocation(handleLocated, handleLocateError)
+
   /** Map click → exact lat/lon + reverse-geocoded display name (never moves the pin). */
   const handleMapClick = useCallback(
     async (lat: number, lon: number) => {
+      // Manual pick — void any in-flight GPS acquisition so a late fix
+      // can't clobber the user's explicit choice.
+      cancelLocate()
       setForm((f) => ({ ...f, lat, lon }))
       setPicked({ name: t('adminAddresses.lookingUp'), lat, lon })
       setReverseLoading(true)
@@ -174,42 +220,39 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
         province: f.province.trim() ? f.province : (place.province ?? ''),
       }))
     },
-    [t],
+    [t, cancelLocate],
   )
 
-  /** Search result click → drop the marker on the result + prefill the form. */
-  const handleSearchSelect = useCallback((hit: PlaceSearchHit) => {
-    if (hit.lat == null || hit.lon == null) return
-    const lat = hit.lat
-    const lon = hit.lon
-    setForm((f) => ({
-      ...f,
-      lat,
-      lon,
-      name: f.name.trim() ? f.name : hit.name,
-      province: f.province.trim() ? f.province : (hit.province ?? ''),
-      district: f.district.trim() ? f.district : (hit.district ?? ''),
-      ward: f.ward.trim() ? f.ward : (hit.ward ?? ''),
-    }))
-    setPicked({ name: hit.name, lat, lon })
-    setFlyTarget([lat, lon])
-    setSearchOpen(false)
-    setQuery(hit.name ?? '')
-  }, [])
-
-  /** GPS "my location". */
-  const handleMyLocation = useCallback(() => {
-    if (!navigator.geolocation) return
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords
-        setFlyTarget([latitude, longitude])
-        void handleMapClick(latitude, longitude)
-      },
-      () => {},
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
+  // Keep the GPS-fix pipeline ref pointed at the latest map-click handler
+  // (its identity changes with the translator; GPS fixes are async so the
+  // ref is always current by the time a fix arrives).
+  useEffect(() => {
+    handleMapClickRef.current = handleMapClick
   }, [handleMapClick])
+
+  /** Search result click → drop the marker on the result + prefill the form. */
+  const handleSearchSelect = useCallback(
+    (hit: PlaceSearchHit) => {
+      if (hit.lat == null || hit.lon == null) return
+      cancelLocate()
+      const lat = hit.lat
+      const lon = hit.lon
+      setForm((f) => ({
+        ...f,
+        lat,
+        lon,
+        name: f.name.trim() ? f.name : hit.name,
+        province: f.province.trim() ? f.province : (hit.province ?? ''),
+        district: f.district.trim() ? f.district : (hit.district ?? ''),
+        ward: f.ward.trim() ? f.ward : (hit.ward ?? ''),
+      }))
+      setPicked({ name: hit.name, lat, lon })
+      setFlyTarget([lat, lon])
+      setSearchOpen(false)
+      setQuery(hit.name ?? '')
+    },
+    [cancelLocate],
+  )
 
   const onInput = (v: string) => {
     setQuery(v)
@@ -443,15 +486,20 @@ export function AddressMapDialog({ open, onOpenChange, brandId, brandName, onCre
               )}
             </div>
 
-            {/* GPS button */}
+            {/* GPS button — spinner while acquiring (see useMyLocation). */}
             <button
               type="button"
-              onClick={handleMyLocation}
-              className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-              title={t('map.myLocation')}
-              aria-label={t('map.myLocation')}
+              onClick={locateMe}
+              disabled={gpsAcquiring}
+              className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 disabled:cursor-wait transition-colors"
+              title={gpsAcquiring ? t('mapPage.locating') : t('map.myLocation')}
+              aria-label={gpsAcquiring ? t('mapPage.locating') : t('map.myLocation')}
             >
-              <Crosshair className="h-5 w-5" />
+              {gpsAcquiring ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Crosshair className="h-5 w-5" />
+              )}
             </button>
 
             {/* Hint pill before the first pick */}

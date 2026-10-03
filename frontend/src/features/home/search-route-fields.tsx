@@ -4,6 +4,7 @@
 
 import type { UseFormReturn } from 'react-hook-form'
 import { useT } from '@/lib/i18n'
+import { useApp } from '@/lib/store'
 import { PlaceAutocomplete } from '@/features/search/place-autocomplete'
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { ArrowLeftRight, CircleDot, MapPin } from 'lucide-react'
@@ -25,6 +26,7 @@ export function SearchRouteFields({
   compact?: boolean
 }) {
   const t = useT()
+  const setSearchParams = useApp((s) => s.setSearchParams)
 
   return (
     <>
@@ -45,6 +47,22 @@ export function SearchRouteFields({
                 value={field.value}
                 onChange={(v) => {
                   field.onChange(v)
+                }}
+                onPick={(p) => {
+                  // Write BOTH layers atomically: the RHF form (read at
+                  // submit) and the store's live searchParams. The
+                  // store→form reset guard in search-widget.tsx wipes any
+                  // half-updated state on the next store update, so the
+                  // name and coordinates must always move together.
+                  form.setValue('fromLat', p.lat ?? undefined, { shouldValidate: false })
+                  form.setValue('fromLon', p.lon ?? undefined, { shouldValidate: false })
+                  form.setValue('fromCity', p.city, { shouldValidate: false })
+                  setSearchParams({
+                    from: p.name,
+                    fromCity: p.city,
+                    fromLat: p.lat ?? undefined,
+                    fromLon: p.lon ?? undefined,
+                  })
                 }}
                 placeholder={t('search.placeholder')}
                 icon={<CircleDot className="h-4 w-4 text-primary" />}
@@ -90,6 +108,18 @@ export function SearchRouteFields({
                 value={field.value}
                 onChange={(v) => {
                   field.onChange(v)
+                }}
+                onPick={(p) => {
+                  // Keep both layers in sync — see the From field note.
+                  form.setValue('toLat', p.lat ?? undefined, { shouldValidate: false })
+                  form.setValue('toLon', p.lon ?? undefined, { shouldValidate: false })
+                  form.setValue('toCity', p.city, { shouldValidate: false })
+                  setSearchParams({
+                    to: p.name,
+                    toCity: p.city,
+                    toLat: p.lat ?? undefined,
+                    toLon: p.lon ?? undefined,
+                  })
                 }}
                 placeholder={t('search.placeholder')}
                 icon={<MapPin className="h-4 w-4 text-rose-600 fill-rose-600/20" />}

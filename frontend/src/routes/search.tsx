@@ -26,6 +26,12 @@ export type RouteSearch = {
   vehicleTypes: string[]
   roundTrip: boolean
   returnDate: string
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  fromCity?: string
+  toCity?: string
 }
 
 export function SearchPage() {
@@ -47,6 +53,12 @@ export function SearchPage() {
       vehicleTypes: raw.vehicleTypes ?? [],
       roundTrip: raw.roundTrip ?? false,
       returnDate: raw.returnDate ?? '',
+      fromLat: raw.fromLat,
+      fromLon: raw.fromLon,
+      toLat: raw.toLat,
+      toLon: raw.toLon,
+      fromCity: raw.fromCity,
+      toCity: raw.toCity,
     }),
     [
       raw.from,
@@ -58,6 +70,12 @@ export function SearchPage() {
       raw.vehicleTypes,
       raw.roundTrip,
       raw.returnDate,
+      raw.fromLat,
+      raw.fromLon,
+      raw.toLat,
+      raw.toLon,
+      raw.fromCity,
+      raw.toCity,
     ],
   )
 
@@ -74,6 +92,12 @@ export function SearchPage() {
       vehicleTypes: search.vehicleTypes,
       roundTrip: search.roundTrip,
       returnDate: search.returnDate,
+      fromLat: search.fromLat,
+      fromLon: search.fromLon,
+      toLat: search.toLat,
+      toLon: search.toLon,
+      fromCity: search.fromCity,
+      toCity: search.toCity,
     }
     const cur = useApp.getState().searchParams
     const changed =
@@ -85,7 +109,13 @@ export function SearchPage() {
       cur.sort !== next.sort ||
       cur.vehicleTypes.join(',') !== (next.vehicleTypes ?? []).join(',') ||
       cur.roundTrip !== next.roundTrip ||
-      cur.returnDate !== next.returnDate
+      cur.returnDate !== next.returnDate ||
+      cur.fromLat !== next.fromLat ||
+      cur.fromLon !== next.fromLon ||
+      cur.toLat !== next.toLat ||
+      cur.toLon !== next.toLon ||
+      cur.fromCity !== next.fromCity ||
+      cur.toCity !== next.toCity
     if (changed) setSearchParams(next)
   }, [search, setSearchParams])
 

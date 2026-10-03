@@ -5,14 +5,14 @@ import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useTripSearch, type TripSearchParams } from '@/lib/queries'
 import { buildSearchInput } from '@/lib/search-params'
-import { Bell, GitCompare, Heart, Sparkles, X } from 'lucide-react'
+import { Bell, GitCompare, Heart, Navigation2, X } from 'lucide-react'
 import { SearchWidget } from '@/features/home/search-widget'
-import { DatePriceCompare } from '@/features/search/date-price-compare'
 import { RouteDirectory } from '@/features/search/route-directory'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import {
   getHourOfDeparture,
+  isSmartSearch,
   matchesTimeRange,
   type Filters,
   type NavigateFn,
@@ -56,6 +56,7 @@ export function SearchResults({
   // search for — instead of a dead-end "no results" page, the
   // RouteDirectory below renders the full active-route catalog.
   const browseMode = !routeSearch.from || !routeSearch.to
+  const smartMode = isSmartSearch(routeSearch)
   const tripSearchParams: TripSearchParams | null =
     routeSearch.from && routeSearch.to
       ? {
@@ -68,6 +69,12 @@ export function SearchResults({
           vehicleTypes: routeSearch.vehicleTypes,
           roundTrip: routeSearch.roundTrip,
           returnDate: routeSearch.returnDate,
+          fromLat: routeSearch.fromLat,
+          fromLon: routeSearch.fromLon,
+          toLat: routeSearch.toLat,
+          toLon: routeSearch.toLon,
+          fromCity: routeSearch.fromCity,
+          toCity: routeSearch.toCity,
         }
       : null
   const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
@@ -106,6 +113,12 @@ export function SearchResults({
         vehicleTypes: next.vehicleTypes,
         roundTrip: next.roundTrip,
         returnDate: next.returnDate,
+        fromLat: next.fromLat,
+        fromLon: next.fromLon,
+        toLat: next.toLat,
+        toLon: next.toLon,
+        fromCity: next.fromCity,
+        toCity: next.toCity,
       }),
     })
   }
@@ -281,10 +294,27 @@ export function SearchResults({
         </div>
       ) : (
         <>
-          {/* Date price comparison */}
+          {/* Search-mode indicator — replaces the old 7-request
+              "compare nearby dates" strip (the removed advance-days
+              feature). Exact-date search: one request for the chosen
+              day only; each result card shows the trip's exact
+              remaining seats. In smart mode the geo proximity endpoint
+              ranks trips by combined pickup+drop distance. */}
           <div className="bg-white/80 backdrop-blur border-b">
             <div className="container mx-auto px-4 py-3">
-              <DatePriceCompare />
+              <div className="flex items-center gap-2 text-xs font-medium">
+                {smartMode ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-3 py-1.5 text-emerald-700">
+                    <Navigation2 className="h-3.5 w-3.5" />
+                    {t('searchPage.smartSearchActive')}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 ring-1 ring-blue-100 px-3 py-1.5 text-blue-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    {t('searchPage.citySearchActive')}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -377,12 +407,6 @@ export function SearchResults({
                         <GitCompare className="h-3.5 w-3.5" />
                         {t('searchPage.compareCount', { count: compareList.length })}
                       </Button>
-                    )}
-                    {searchResults.length > 0 && (
-                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                        {t('searchPage.bestPriceMarked')}
-                      </div>
                     )}
                   </div>
                 </div>

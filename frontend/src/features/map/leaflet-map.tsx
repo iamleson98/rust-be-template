@@ -9,6 +9,11 @@ import { toast } from 'sonner'
 import { search as sdkPlaceSearch, reverse as sdkReverseGeocode } from '@/lib/api/sdk.gen'
 import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
+import {
+  useMyLocation,
+  type MyLocationErrorCode,
+  type MyLocation,
+} from '@/features/map/use-my-location'
 
 // ── Fix leaflet's default marker icons (broken under bundlers) ──
 // We use custom divIcons instead, so this is just a safety net.
@@ -63,6 +68,15 @@ const RED_PIN = pinIcon('#dc2626')
 function Recenter({ center, zoom }: { center: [number, number]; zoom?: number }) {
   const map = useMap()
   useEffect(() => {
+    // Refresh the container geometry BEFORE animating: the map may live
+    // inside a dialog whose opening animation changed the container size
+    // after init. Flying from stale geometry is the classic "ends up in
+    // the wrong place" Leaflet race (invalidateSize mid-flight corrects
+    // the pixel origin with a compensating pan, corrupting the target).
+    // With `pan: false` we recompute the size without the compensating
+    // pan, then fly to the requested center deterministically. The call
+    // is a no-op (early return) when the size already matches.
+    map.invalidateSize({ animate: false, pan: false })
     map.flyTo(center, zoom ?? map.getZoom(), { duration: 0.8 })
   }, [center, zoom, map])
   return null
@@ -249,18 +263,22 @@ function MapSearchBox({
   }, [])
 
   return (
-    <div ref={boxRef} className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-1.5rem))]">
+    <div ref={boxRef} className="absolute left-3 top-3 z-1000 w-[min(20rem,calc(100%-7rem))]">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-blue-600"
+          strokeWidth={2.5}
+        />
         <input
           value={q}
           onChange={(e) => onInput(e.target.value)}
           onFocus={() => setOpen(true)}
           placeholder={placeholder ?? t('mapPage.searchPlaceholder')}
-          className="w-full h-10 pl-10 pr-9 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
+          className="w-full h-11 pl-11 pr-10 rounded-lg border border-slate-200 bg-white/95 backdrop-blur text-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400"
         />
         {loading && (
-          <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-blue-600" />
+          <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-5 w-5 animate-spin text-blue-600" />
         )}
         {!loading && q && (
           <button
@@ -356,6 +374,10 @@ export function MapPicker({
       : null,
   )
   const [reverseLoading, setReverseLoading] = useState(false)
+  // GPS accuracy of the current pick (meters) — set when the pick came
+  // from the "my location" button, null otherwise (manual/search picks
+  // are exact coordinates with no accuracy radius).
+  const [pickedAccuracy, setPickedAccuracy] = useState<number | null>(null)
   // When the user picks a new location (via search or "my location"), we want
   // the map to fly there. Stored as state (not a ref) so rendering <Recenter>
   // re-runs when it changes.
@@ -363,55 +385,84 @@ export function MapPicker({
     initial ? [initial.lat, initial.lon] : null,
   )
 
+  // Progressive-accuracy GPS acquisition (see use-my-location.ts). The old
+  // one-shot getCurrentPosition flew the map to whatever coarse Wi-Fi/cell
+  // fix arrived first — frequently hundreds of meters to kilometers away
+  // from the user — which is exactly the "jumps to the wrong position" bug.
+  // Results arrive via a callback (ref-backed inside the hook) so a fresh
+  // translator closure per render can never re-trigger the fix handler.
+  const handleLocated = useCallback(
+    (loc: MyLocation) => {
+      const { lat, lon, accuracy } = loc
+      setPickedAccuracy(Number.isFinite(accuracy) ? accuracy : null)
+      setPicked({ name: t('map.loadingPlaceName'), lat, lon })
+      setReverseLoading(true)
+      setFlyTarget([lat, lon])
+      // A poor fix (accuracy > 1 km) still flies but tells the user how
+      // coarse it is, instead of silently presenting a wrong position as
+      // exact.
+      if (Number.isFinite(accuracy) && accuracy > 1000) {
+        toast.warning(t('mapPage.lowAccuracy', { m: Math.round(accuracy) }))
+      }
+      void reverseGeocode(lat, lon).then((place) => {
+        setPicked(place)
+        setReverseLoading(false)
+      })
+    },
+    [t],
+  )
+
+  const handleLocateError = useCallback(
+    (code: MyLocationErrorCode) => {
+      toast.error(
+        code === 'unavailable'
+          ? t('mapPage.noGeolocation')
+          : code === 'denied'
+            ? t('mapPage.locationDenied')
+            : t('map.cannotLocate'),
+        { description: t('mapPage.cannotLocateDesc') },
+      )
+    },
+    [t],
+  )
+
+  const {
+    acquiring: gpsAcquiring,
+    locate: locateMe,
+    cancel: cancelLocate,
+  } = useMyLocation(handleLocated, handleLocateError)
+
   const handleMapClick = useCallback(
     async (lat: number, lon: number) => {
+      // The user is manually choosing a spot — cancel any in-flight GPS
+      // acquisition so a late fix can't clobber their explicit choice.
+      cancelLocate()
+      setPickedAccuracy(null)
       setPicked({ name: t('map.loadingPlaceName'), lat, lon })
       setReverseLoading(true)
       const place = await reverseGeocode(lat, lon)
       setPicked(place)
       setReverseLoading(false)
     },
-    [t],
+    [t, cancelLocate],
   )
 
-  const handleSearchSelect = useCallback((hit: PlaceHit) => {
-    const place: PickedPlace = {
-      name: hit.name,
-      lat: hit.lat,
-      lon: hit.lon,
-      type: hit.type,
-      province: hit.province ?? null,
-    }
-    setPicked(place)
-    setFlyTarget([hit.lat, hit.lon])
-  }, [])
-
-  const handleMyLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      toast.error(t('mapPage.noGeolocation'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude, longitude } = pos.coords
-        setPicked({ name: t('map.loadingPlaceName'), lat: latitude, lon: longitude })
-        setReverseLoading(true)
-        const place = await reverseGeocode(latitude, longitude)
-        setPicked(place)
-        setReverseLoading(false)
-        setFlyTarget([latitude, longitude])
-      },
-      () => {
-        // The OS/browser refused or couldn't determine the position
-        // (e.g. macOS kCLErrorLocationUnknown, permission denied, or
-        // no GPS on desktops) — surface it instead of failing silently.
-        toast.error(t('map.cannotLocate'), {
-          description: t('mapPage.cannotLocateDesc'),
-        })
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    )
-  }, [t])
+  const handleSearchSelect = useCallback(
+    (hit: PlaceHit) => {
+      cancelLocate()
+      setPickedAccuracy(null)
+      const place: PickedPlace = {
+        name: hit.name,
+        lat: hit.lat,
+        lon: hit.lon,
+        type: hit.type,
+        province: hit.province ?? null,
+      }
+      setPicked(place)
+      setFlyTarget([hit.lat, hit.lon])
+    },
+    [cancelLocate],
+  )
 
   return (
     <div className="flex flex-col h-[70vh] md:h-[75vh]">
@@ -427,14 +478,21 @@ export function MapPicker({
           flyZoom={13}
         />
         <MapSearchBox onSelect={handleSearchSelect} />
-        {/* My location button */}
+        {/* My location button — spinner while the GPS radio converges
+            (feedback prevents the tap-tap-tap "nothing happened" double
+            taps that used to queue conflicting jumps). */}
         <button
-          onClick={handleMyLocation}
-          className="absolute right-3 top-3 z-1000 h-10 w-10 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors"
-          title={t('map.myLocation')}
-          aria-label={t('map.myLocation')}
+          onClick={locateMe}
+          disabled={gpsAcquiring}
+          className="absolute right-3 top-3 z-1000 h-11 w-11 rounded-lg bg-white/95 backdrop-blur ring-1 ring-slate-200 flex items-center justify-center text-blue-600 hover:bg-blue-50 disabled:cursor-wait transition-colors"
+          title={gpsAcquiring ? t('mapPage.locating') : t('map.myLocation')}
+          aria-label={gpsAcquiring ? t('mapPage.locating') : t('map.myLocation')}
         >
-          <Crosshair className="h-5 w-5" />
+          {gpsAcquiring ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <Crosshair className="h-5 w-5" />
+          )}
         </button>
         {/* Hint overlay */}
         {!picked && (
@@ -468,6 +526,11 @@ export function MapPicker({
           {picked && (
             <div className="text-[11px] text-muted-foreground tabular-nums">
               {picked.lat.toFixed(4)}, {picked.lon.toFixed(4)}
+              {pickedAccuracy != null && (
+                <span className="ml-1.5" title={t('mapPage.accuracyHint')}>
+                  ±{Math.max(1, Math.round(pickedAccuracy))} m
+                </span>
+              )}
             </div>
           )}
         </div>

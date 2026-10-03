@@ -6,13 +6,15 @@
  *
  * This is the named-export entry point. It owns the dialog's state
  * (selected seats, boarding/dropping points, fetched detail) and
- * orchestrates the 8 left-side tabs (seats/route/tracking/businfo/
- * weather/tips/info/reviews) plus the right-rail boarding points
- * and the sticky price-summary CTA.
+ * orchestrates the left-side tabs (seats / boarding points on mobile /
+ * route schedule map / fares & policy / reviews) plus the right-rail
+ * boarding points and the sticky price-summary CTA.
  *
- * Extracted verbatim from the original `trip-detail-dialog.tsx`
- * (lines 175-665). Pure refactor — same UI, same handlers, same
- * state shape; only the imports moved.
+ * 2026-10 cleanup: the fabricated tabs were REMOVED — "tracking"
+ * (simulated random-walk bus speed/progress with no real GPS feed),
+ * "travel tips" (a made-up static tips DB keyed by destination) and
+ * "bus info" (a deterministic mock of plate number / year / fuel /
+ * mileage). Every remaining tab renders real API data only.
  */
 
 import { useEffect, useState } from 'react'
@@ -23,28 +25,16 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { SeatMap, type SeatInv } from '@/features/trips/seat-map'
-import { RouteMapPreview } from '@/features/map/route-map-preview'
 import { ReviewsList } from '@/features/reviews/reviews-list'
 import { TripDetailSkeleton } from './trip-detail-skeleton'
-import { LiveTracking } from '@/features/map/live-tracking'
 import { formatCurrency } from '@/lib/currency'
 import { ErrorState } from '@/components/layout/error-state'
-import {
-  Bus,
-  MapPin,
-  Radar,
-  Compass,
-  CheckCircle2,
-  MessageSquareQuote,
-  Users,
-  ArrowLeftRight,
-} from 'lucide-react'
+import { Bus, MapPin, CheckCircle2, MessageSquareQuote, Users, ArrowLeftRight } from 'lucide-react'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { TripInfo } from './trip-info'
 import { BoardingPoints, BoardingPointsInline } from './boarding-points'
 import { PriceSummary } from './price-summary'
-import { BusInfoTab } from './bus-info-tab'
-import { TravelTipsTab } from './travel-tips-tab'
+import { RouteScheduleMap } from '@/features/map/route-schedule-map'
 import { RouteTimeline } from './route-timeline'
 import { PolicyBlock } from './policy-block'
 
@@ -172,7 +162,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
               {/* Left: seat map / route / info tabs */}
               <div className="overflow-hidden md:border-r flex flex-col min-h-0">
                 <Tabs defaultValue="seats" className="flex-1 flex flex-col min-h-0">
-                  {/* Horizontal-scrollable tab strip (9 tabs on mobile) —
+                  {/* Horizontal-scrollable tab strip (5 tabs on mobile) —
                       plain overflow-x beats a ScrollArea here. */}
                   <div className="shrink-0 overflow-x-auto overscroll-x-contain">
                     <TabsList className="rounded-none border-b bg-slate-50 justify-start px-3 h-auto py-2 w-max">
@@ -187,15 +177,6 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                       </TabsTrigger>
                       <TabsTrigger value="route" className="gap-1.5">
                         <MapPin className="h-4 w-4" /> {t('tripDetail.tabRoute')}
-                      </TabsTrigger>
-                      <TabsTrigger value="tracking" className="gap-1.5">
-                        <Radar className="h-4 w-4" /> {t('tripDetail.tabTracking')}
-                      </TabsTrigger>
-                      <TabsTrigger value="businfo" className="gap-1.5">
-                        <Bus className="h-4 w-4" /> {t('tripDetail.tabBusInfo')}
-                      </TabsTrigger>
-                      <TabsTrigger value="tips" className="gap-1.5">
-                        <Compass className="h-4 w-4" /> {t('tripDetail.tabTips')}
                       </TabsTrigger>
                       <TabsTrigger value="info" className="gap-1.5">
                         <CheckCircle2 className="h-4 w-4" /> {t('tripDetail.tabPolicy')}
@@ -245,7 +226,10 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                     </TabsContent>
 
                     <TabsContent value="route" className="m-0 p-4 space-y-5">
-                      <RouteMapPreview
+                      {/* Real Leaflet map with the route geometry polyline
+                          and EVERY pickup/drop point marked + numbered
+                          (replaces the old stylized SVG sketch). */}
+                      <RouteScheduleMap
                         geometry={
                           detail.route.geometry ?? [
                             [detail.from.lat, detail.from.lon],
@@ -267,21 +251,11 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                       />
                     </TabsContent>
 
-                    <TabsContent value="tracking" className="m-0 p-4">
-                      <LiveTracking detail={detail} />
-                    </TabsContent>
-
-                    <TabsContent value="businfo" className="m-0 p-4">
-                      <BusInfoTab detail={detail} />
-                    </TabsContent>
-
                     {/* The mock weather tab was removed — it fabricated a
                         deterministic "forecast" from a string hash and
-                        presented it as real advice. */}
-
-                    <TabsContent value="tips" className="m-0 p-4">
-                      <TravelTipsTab destination={detail.to.name} />
-                    </TabsContent>
+                        presented it as real advice. Same fate for the
+                        simulated live-tracking, static travel-tips and
+                        mock bus-info tabs: no real data, no tab. */}
 
                     <TabsContent value="info" className="m-0 p-4 space-y-4">
                       <PolicyBlock
