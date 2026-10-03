@@ -1,14 +1,95 @@
 # CI — the quality harness
 
-Every push to `master`/`server`/`main` and every PR targeting them runs
-the full gate matrix in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-plus semantic security analysis in [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml).
-Releases are tag-driven (`v*` → `deploy.yml`); master pushes never deploy.
+PRs targeting `master` run the full gate matrix in
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) plus semantic
+security analysis in [`.github/workflows/codeql.yml`](../.github/workflows/codeql.yml).
+**Nothing re-runs after a merge** — see "Trigger design" below for why
+that is safe. Releases are tag-driven (`v*` → `deploy.yml`); master
+pushes never deploy.
 
 `master` is branch-protected: **all jobs below are required checks** — a
 red job blocks the merge. Rename a job in ci.yml ⇒ update the required
 checks list in repo Settings → Branches (job `name:` values must match
 exactly).
+
+## Trigger design — verify once, at the door
+
+The repo only accepts PRs into `master` (enforced: admins included,
+linear history, no force-push). The guarantee chain that makes
+post-merge re-runs unnecessary:
+
+1. `pull_request` events run against the **merge ref**
+   (`refs/pull/N/merge` = PR rebased onto the *current* master tip) —
+   CI validates the exact tree a merge would produce, not the branch
+   tip in isolation.
+2. Branch protection is **strict** (`Require branches to be up to date
+   before merging`): if master moves after the checks pass, the PR is
+   blocked until updated *and re-verified*.
+3. ⇒ The tree the PR checks validated **is** the tree that lands. A
+   `push`-triggered run on master afterwards validates nothing new —
+   it was pure duplicate cost (the CI + CodeQL duplicate runs this
+   design eliminated).
+
+| Trigger | CI (`ci.yml`) | CodeQL | Purpose |
+|---|---|---|---|
+| `pull_request` → master | ✔ | ✔ | **The binding gate** (merge-ref tree) |
+| `merge_group` | ✔ | ✔ | Merge-queue-ready; no-op until a queue is enabled |
+| `schedule` | Mon 03:00 UTC | Mon 04:30 UTC | Drift canary (see below) |
+| `workflow_dispatch` | ✔ | — | Manual full-matrix escape hatch |
+| `push` → master | ✘ removed | ✘ removed | Was the duplicate post-merge run |
+| `push` → tag `v*` | — (deploy.yml) | — | CD: build once, deploy once, no test duplication |
+
+**Why not a merge queue?** A queue would guarantee the same property by
+re-running the required checks on the queued batch before landing it —
+that is a *second* full matrix run per PR, the opposite of "save time".
+With one maintainer merging PRs sequentially, strict up-to-date already
+delivers the guarantee; the workflows carry `merge_group` triggers, so
+enabling a queue later (Settings → Branches → Require merge queue) is a
+zero-code-change toggle for when concurrent merges become routine.
+
+**The weekly canary is drift detection, not re-verification.** Backend
+jobs build against *upstream* rust-sql master ("the engine rides
+master") and CVE advisories accumulate over time. Without a `push`
+trigger, a quiet week would leave that drift invisible. The Monday
+03:00 UTC scheduled run exercises the full matrix on current master —
+engine regressions and fresh advisories surface within 7 days. Note:
+GitHub auto-disables scheduled workflows after 60 days of repo
+inactivity (any push re-enables); this repo merges far more often.
+
+### Path filtering (what runs on a given PR)
+
+The `changes` job classifies the diff (merge-base → merge ref) and each
+stack job runs only when its files changed. Skipped jobs report
+conclusion `skipped`, which branch protection counts as success
+(GitHub-documented: required checks need `successful`, `skipped`, or
+`neutral`) — so the required-check contract keeps working.
+
+| Changed files | Jobs that run |
+|---|---|
+| `**/*.rs`, `Cargo.toml`/`lock`, `rust-sql` (submodule pin), `.cargo/`, `deny.toml`, `taplo.toml`, `frontend/openapi.json` | backend, backend-audit, backend-quality, docker-build |
+| `frontend/**` (non-markdown) | frontend, frontend-e2e, docker-build |
+| `mobile/**` (non-markdown) | mobile |
+| `Dockerfile`, `.dockerignore` | docker-build |
+| `.github/**` | **everything** (CI integrity) |
+| `*.md` (anywhere — incl. stack-dir READMEs), `.markdownlint-cli2.yaml`, `.hadolint.yaml`, `.gitleaksignore`, `LICENSE` | repo-hygiene + secrets-scan only (they always run) |
+| anything else (Makefile, `scripts/`, `deploy/`, `terraform/`, configs…) | **everything** — fail-safe |
+| schedule / dispatch | **everything** |
+
+Fail-safe rules, in order of precedence:
+
+- **Unknown ⇒ expensive.** Any file that matches no known class runs the
+  full matrix — a mis-classified change must never skip a gate.
+- **`changes` is itself a required check.** If the classifier fails, its
+  dependents report `skipped` (which passes protection) — but the red
+  `Changes (path filter)` check blocks the merge. Fail-closed: a broken
+  filter cannot silently disarm the harness.
+- **repo-hygiene and secrets-scan always run.** They are cheap, whole-tree
+  gates — a secret can hide in any file, not just code.
+- **docker-build follows backend + frontend** — the image ships both.
+
+`frontend/openapi.json` counts as a backend file: the OpenAPI drift and
+SDK-freshness gates (below) stay coupled when the backend API surface
+changes.
 
 ## The matrix
 
@@ -44,6 +125,10 @@ exactly).
 | Repo | Secrets | gitleaks (full history) + known-leaked-pattern grep | rotate the secret, scrub |
 | Repo | Image | `docker build` end-to-end smoke | fix the Dockerfile |
 | Security | Semantics | CodeQL `rust` + `javascript-typescript` (weekly re-scan too) | fix the query finding |
+| Classifier | Paths | `changes` job — diff → per-stack booleans (fail-safe) | fix the regex / add the class |
+
+The matrix table above lists gates per stack; which of them RUN on a
+given PR is decided by the path filter (see "Path filtering").
 
 ## The two drift gates (how the API contract stays honest)
 
@@ -96,9 +181,15 @@ binaries" steps of ci.yml.
   upstream's (machete filters that block).
 - **Superseded runs are cancelled** — `concurrency` groups keep the
   queue short; only the latest push per ref runs to completion.
-- **Branch protection makes it binding** — required checks + linear
-  history (rebase merges). Emergency direct pushes by admins are
-  disabled; use a PR (fast-forward via rebase keeps the history clean).
+- **Verify once, at the door** — CI gates the PR's merge-ref tree;
+  nothing re-runs on master after the merge (strict up-to-date
+  protection makes the PR verdict cover the landed tree). See
+  "Trigger design" above for the full rationale.
+- **Branch protection makes it binding** — required checks (incl. the
+  `Changes (path filter)` classifier) + linear history (rebase merges).
+  Emergency direct pushes by admins are disabled; use a PR
+  (fast-forward via rebase keeps the history clean). Pre-PR feedback on
+  a feature branch = open a draft PR — it triggers the same matrix.
 
 ## Known deliberate gaps
 
@@ -110,4 +201,12 @@ binaries" steps of ci.yml.
 - **`--features kafka`** (rdkafka/librdkafka) is not CI-compiled — needs
   system librdkafka; compile it manually when touching `src/worker/kafka.rs`.
 - **CodeQL** runs the default security-extended suites; findings land in
-  the Security tab, not as PR annotations for info-level results.
+  the Security tab, not as PR annotations for info-level results. The
+  default-branch analysis baseline refreshes weekly (Monday 04:30 UTC
+  schedule) instead of on every merge — PR gates still prevent new
+  unanalyzed code from landing.
+- **Engine drift between CI and deploy** — deploys always build with the
+  *newest* upstream rust-sql master (deliberate; see deploy.yml's
+  "RELEASES ALWAYS SHIP THE NEWEST ENGINE" note), so the shipped engine
+  may be newer than what the merged PR's CI run exercised. The weekly
+  canary bounds that exposure to 7 days.

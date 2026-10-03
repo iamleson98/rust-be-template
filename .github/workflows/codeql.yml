@@ -5,9 +5,18 @@
 # injection, path traversal, crypto misuse, SSRF, unsafe-adjacent
 # patterns, etc. Not a style gate — a vulnerability discovery gate.
 #
-# Triggers: every push/PR on the tracked branches + a weekly schedule
-# (new query packs and newly-disclosed patterns get a chance to flag
-# unchanged code).
+# TRIGGERS ("verify once" — see docs/CI.md § Trigger):
+#   * pull_request (master) — the gate. Analyzes the MERGE REF, so the
+#     exact tree a merge would produce is what gets analyzed; results
+#     annotate the PR. New code cannot land unanalyzed.
+#   * merge_group — merge-queue-ready (no-op until a queue exists).
+#   * schedule (Mon 04:30 UTC) — refreshes the DEFAULT-BRANCH analysis
+#     on the Security tab (weekly baseline; scheduled workflows run on
+#     the default branch). This replaces the old push-on-master runs:
+#     a post-merge run would re-analyze a tree the PR run already
+#     analyzed. Caveat: GitHub auto-disables scheduled workflows after
+#     60 days with no repository activity — any push re-enables them;
+#     this repo merges PRs far more often than that.
 #
 # NOTE on `rust`: CodeQL traces a real `cargo build` — the submodule
 # must be checked out AND updated to upstream master, same as the
@@ -16,10 +25,11 @@
 name: CodeQL
 
 on:
-  push:
-    branches: [master, server, main]
   pull_request:
-    branches: [master, server, main]
+    branches: [master]
+  merge_group:
+    types: [checks_requested]
+    branches: [master]
   schedule:
     # Mondays 04:30 UTC — off-peak, catches new queries on old code.
     - cron: '30 4 * * 1'
