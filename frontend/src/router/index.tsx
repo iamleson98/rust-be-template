@@ -111,6 +111,12 @@ const searchRoute = createRoute({
     vehicleTypes?: string[]
     roundTrip?: boolean
     returnDate?: string
+    fromLat?: number
+    fromLon?: number
+    toLat?: number
+    toLon?: number
+    fromCity?: string
+    toCity?: string
   } => {
     // Return ONLY keys that have meaningful values — this keeps the URL
     // clean (no `vehicleTypes=%5B%5D&roundTrip=false&returnDate=` noise).
@@ -145,6 +151,27 @@ const searchRoute = createRoute({
     if (search.roundTrip === '1' || search.roundTrip === 'true') out.roundTrip = true
     if (typeof search.returnDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.returnDate))
       out.returnDate = search.returnDate
+    // Smart-search coordinates: accept numbers (navigate() calls) and
+    // numeric strings (URL). All four must be present + finite together,
+    // otherwise they're dropped (city-to-city search).
+    const coord = (v: unknown): number | undefined => {
+      const n = typeof v === 'number' ? v : typeof v === 'string' ? parseFloat(v) : NaN
+      return Number.isFinite(n) ? n : undefined
+    }
+    const fromLat = coord(search.fromLat)
+    const fromLon = coord(search.fromLon)
+    const toLat = coord(search.toLat)
+    const toLon = coord(search.toLon)
+    if (fromLat != null && fromLon != null && toLat != null && toLon != null) {
+      out.fromLat = fromLat
+      out.fromLon = fromLon
+      out.toLat = toLat
+      out.toLon = toLon
+    }
+    // City-level fallback names for mixed picks (place on one end, city
+    // on the other) — kept in the URL so refreshes keep the same search.
+    if (typeof search.fromCity === 'string' && search.fromCity) out.fromCity = search.fromCity
+    if (typeof search.toCity === 'string' && search.toCity) out.toCity = search.toCity
     return out
   },
   component: () => (

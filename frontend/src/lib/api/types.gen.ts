@@ -7010,6 +7010,33 @@ export type SearchTripsResponses = {
 
 export type SearchTripsResponse = SearchTripsResponses[keyof SearchTripsResponses];
 
+export type SearchTripsGeoData = {
+    body?: never;
+    path?: never;
+    query: {
+        fromLat: number;
+        fromLon: number;
+        toLat: number;
+        toLon: number;
+        date: string;
+        limit?: number | null;
+        offset?: number | null;
+        minSeats?: number | null;
+        vehicleTypes?: string | null;
+        maxDistanceKm?: number | null;
+    };
+    url: '/api/search/geo';
+};
+
+export type SearchTripsGeoResponses = {
+    /**
+     * Geo search results
+     */
+    200: TripSearchResponse;
+};
+
+export type SearchTripsGeoResponse = SearchTripsGeoResponses[keyof SearchTripsGeoResponses];
+
 export type Stats2Data = {
     body?: never;
     path?: never;

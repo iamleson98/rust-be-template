@@ -86,6 +86,7 @@ use utoipa::OpenApi;
         crate::routes::public::route_pictures,
         crate::routes::public::trip_detail,
         crate::routes::public::search_trips,
+        crate::routes::public::search_trips_geo,
         crate::routes::public::recommendations,
         crate::routes::public::campaigns,
         crate::routes::public::validate_campaign,

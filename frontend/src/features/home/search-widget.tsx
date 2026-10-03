@@ -45,6 +45,11 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
     const cur = form.getValues()
     const a = [...(cur.vehicleTypes ?? [])].sort().join(',')
     const b = [...(searchParams.vehicleTypes ?? [])].sort().join(',')
+    const coordsDiverged =
+      (cur.fromLat ?? null) !== (searchParams.fromLat ?? null) ||
+      (cur.fromLon ?? null) !== (searchParams.fromLon ?? null) ||
+      (cur.toLat ?? null) !== (searchParams.toLat ?? null) ||
+      (cur.toLon ?? null) !== (searchParams.toLon ?? null)
     if (
       cur.from !== searchParams.from ||
       cur.to !== searchParams.to ||
@@ -54,15 +59,37 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
       cur.children !== searchParams.children ||
       cur.roundTrip !== searchParams.roundTrip ||
       cur.sort !== searchParams.sort ||
-      a !== b
+      a !== b ||
+      coordsDiverged
     ) {
       form.reset(searchParams)
     }
   }, [searchParams, form])
 
   const swap = useCallback(() => {
-    setSearchParams({ from: searchParams.to, to: searchParams.from })
-  }, [searchParams.from, searchParams.to, setSearchParams])
+    // Swap names AND any smart-search coordinates so a swapped precise
+    // pick stays a precise pick (coords belong to the place, not the slot).
+    setSearchParams({
+      from: searchParams.to,
+      to: searchParams.from,
+      fromLat: searchParams.toLat,
+      fromLon: searchParams.toLon,
+      toLat: searchParams.fromLat,
+      toLon: searchParams.fromLon,
+      fromCity: searchParams.toCity,
+      toCity: searchParams.fromCity,
+    })
+  }, [
+    searchParams.from,
+    searchParams.to,
+    searchParams.fromLat,
+    searchParams.fromLon,
+    searchParams.toLat,
+    searchParams.toLon,
+    searchParams.fromCity,
+    searchParams.toCity,
+    setSearchParams,
+  ])
 
   const onValid = useCallback(
     async (values: SearchFormValues) => {
@@ -80,6 +107,12 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
         roundTrip: values.roundTrip,
         returnDate: values.returnDate,
         vehicleTypes: values.vehicleTypes,
+        fromLat: values.fromLat,
+        fromLon: values.fromLon,
+        toLat: values.toLat,
+        toLon: values.toLon,
+        fromCity: values.fromCity,
+        toCity: values.toCity,
       })
       setSubmitting(true)
       try {
@@ -95,6 +128,12 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
             vehicleTypes: values.vehicleTypes,
             roundTrip: values.roundTrip,
             returnDate: values.returnDate,
+            fromLat: values.fromLat,
+            fromLon: values.fromLon,
+            toLat: values.toLat,
+            toLon: values.toLon,
+            fromCity: values.fromCity,
+            toCity: values.toCity,
           }),
         })
       } finally {

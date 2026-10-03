@@ -38,6 +38,16 @@ export type SearchParams = {
   children: number
   sort: 'departure' | 'price' | 'rating'
   vehicleTypes: string[]
+  // Smart-search coordinates (optional) — set when From/To were picked
+  // as precise places (autocomplete hit / map click) rather than cities.
+  // All four present → the /api/search/geo proximity search runs.
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  // City-level fallback names for precise picks (place's province).
+  fromCity?: string
+  toCity?: string
 }
 
 // Re-export TripResult for backward compat with components that still
@@ -271,6 +281,14 @@ export function hydrateFromStorage() {
       const vt = sp.get('vt')
       const roundTrip = sp.get('roundTrip') === '1' || sp.get('roundTrip') === 'true'
       const returnDate = sp.get('returnDate')
+      const num = (v: string | null) => {
+        const n = Number.parseFloat(v ?? '')
+        return Number.isFinite(n) ? n : undefined
+      }
+      const fromLat = num(sp.get('fromLat'))
+      const fromLon = num(sp.get('fromLon'))
+      const toLat = num(sp.get('toLat'))
+      const toLon = num(sp.get('toLon'))
       if (from) searchParams.from = from
       if (to) searchParams.to = to
       if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) searchParams.date = date
@@ -285,6 +303,10 @@ export function hydrateFromStorage() {
           .filter(Boolean)
       searchParams.roundTrip = roundTrip
       if (returnDate && /^\d{4}-\d{2}-\d{2}$/.test(returnDate)) searchParams.returnDate = returnDate
+      searchParams.fromLat = fromLat
+      searchParams.fromLon = fromLon
+      searchParams.toLat = toLat
+      searchParams.toLon = toLon
     } else {
       // Persisted search form state (so the widget remembers the last query)
       const raw = localStorage.getItem('bus_search_params')

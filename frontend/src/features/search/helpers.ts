@@ -33,6 +33,22 @@ export type RouteSearch = {
   vehicleTypes: string[]
   roundTrip: boolean
   returnDate: string
+  // Smart-search coordinates (optional) — present when From/To were
+  // picked as precise places; drives the geo proximity search.
+  fromLat?: number
+  fromLon?: number
+  toLat?: number
+  toLon?: number
+  // City-level fallback names (a precise pick's province) for mixed picks.
+  fromCity?: string
+  toCity?: string
+}
+
+/** True when the search carries a full precise pickup+drop coordinate pair. */
+export function isSmartSearch(s: RouteSearch): boolean {
+  return [s.fromLat, s.fromLon, s.toLat, s.toLon].every(
+    (v) => typeof v === 'number' && Number.isFinite(v),
+  )
 }
 
 export type NavigateFn = UseNavigateResult<string>
