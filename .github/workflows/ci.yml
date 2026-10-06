@@ -675,7 +675,7 @@ jobs:
             // reject legal configs (e.g. a trailing comma after the last
             // compilerOptions key), so those files get a JSONC-tolerant
             // parse — strip comments + trailing commas, then JSON.parse.
-            // Semantics are gated by `tsc --noEmit` in the Frontend job.
+            // Semantics are gated by tsc --noEmit in the Frontend job.
             const jsonc = (s) => JSON.parse(
               s.replace(/\/\*[\s\S]*?\*\//g, "")   // /* block */ comments
                .replace(/^\s*\/\/.*$/gm, "")       // // line comments
