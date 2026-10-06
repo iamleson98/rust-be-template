@@ -1015,20 +1015,27 @@ impl<S: ChatStore> ChatStore for CacheChatStore<S> {
         channel_id: &str,
         employee_id: &str,
     ) -> StoreResult<chat_assignment::Model> {
-        // Assignments are write-path state — never cached (and any
-        // cached channel rows are dropped so status flips propagate).
+        // Write FIRST, then invalidate: invalidating before the write
+        // opens a window where a concurrent cache miss reads the
+        // pre-write row (still `open`) and re-caches it for a full TTL.
+        let result = self
+            .inner
+            .upsert_assignment(channel_id, employee_id)
+            .await?;
         self.invalidate(Some(channel_id)).await;
-        self.inner.upsert_assignment(channel_id, employee_id).await
+        Ok(result)
     }
 
     async fn release_assignment(&self, channel_id: &str) -> StoreResult<()> {
+        self.inner.release_assignment(channel_id).await?;
         self.invalidate(Some(channel_id)).await;
-        self.inner.release_assignment(channel_id).await
+        Ok(())
     }
 
     async fn close_channel(&self, channel_id: &str) -> StoreResult<()> {
+        self.inner.close_channel(channel_id).await?;
         self.invalidate(Some(channel_id)).await;
-        self.inner.close_channel(channel_id).await
+        Ok(())
     }
 
     async fn list_active_assignments(

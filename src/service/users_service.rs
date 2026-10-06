@@ -20,11 +20,6 @@ impl UserService {
         Self { store }
     }
 
-    /// List users with pagination. Permission check is at the route handler.
-    pub async fn list(&self, limit: u64, offset: u64) -> AppResult<Vec<user::Model>> {
-        Ok(self.store.user_store().list_users(limit, offset).await?)
-    }
-
     /// List users + the unfiltered total (server-side pagination for
     /// the admin Users table).
     pub async fn list_page(&self, limit: u64, offset: u64) -> AppResult<(Vec<user::Model>, i64)> {

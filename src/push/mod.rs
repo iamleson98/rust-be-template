@@ -108,13 +108,20 @@ impl PushHub {
         devices.upsert(user_id, token, platform).await
     }
 
-    /// Remove one device token (logout / rotation).
-    pub async fn unregister_device(&self, token: &str) -> Result<u64, StoreError> {
+    /// Remove one device token — scoped to the OWNING user (BOLA-safe:
+    /// one authenticated user must not be able to unregister another
+    /// user's device by guessing / harvesting tokens). Used by the
+    /// `DELETE /api/push/devices/{token}` route.
+    pub async fn unregister_device_for_user(
+        &self,
+        user_id: &str,
+        token: &str,
+    ) -> Result<u64, StoreError> {
         let devices = self
             .devices
             .as_ref()
             .ok_or_else(|| StoreError::Validation("push hub not initialised".into()))?;
-        devices.delete_by_token(token).await
+        devices.delete_by_token_for_user(user_id, token).await
     }
 
     /// Fire a data push to every registered device of an agent.

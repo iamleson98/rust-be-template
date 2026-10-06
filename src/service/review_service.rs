@@ -544,35 +544,60 @@ impl ReviewService {
         Ok(ReviewTagsResponse { items: tags })
     }
 
-    // ── Private helpers ─────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────
 
-    /// Recompute the average rating for a brand from all its approved reviews.
+    /// Recompute the average rating for a brand from all its approved
+    /// reviews. Delegates to the shared [`recompute_brand_rating`]
+    /// helper (also used by `AdminService` on moderation status
+    /// changes — approving / rejecting / hiding a review changes the
+    /// approved set the average is computed over).
     async fn recompute_brand_rating(&self, brand_id: &str) -> AppResult<()> {
-        let reviews = self
-            .store
-            .review_store()
-            .list_reviews_by_brand(brand_id, "approved")
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let avg = if reviews.is_empty() {
-            None
-        } else {
-            let sum: i64 = reviews.iter().map(|r| r.rating).sum();
-            Some(sum as f64 / reviews.len() as f64)
-        };
-
-        // Update the brand's rating
-        let brand_id_uuid =
-            Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
-        self.store
-            .brand_store()
-            .update_brand_rating(brand_id_uuid, avg)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        Ok(())
+        recompute_brand_rating(&self.store, brand_id).await
     }
+}
+
+// ────────────────────────────────────────────────────────────────
+//  Shared domain helper
+// ────────────────────────────────────────────────────────────────
+
+/// Recompute a brand's average rating from its APPROVED reviews and
+/// persist it.
+///
+/// Shared by `ReviewService` (user-driven create / update / remove) and
+/// `AdminService` (moderation status changes): approving, rejecting or
+/// hiding a review changes the approved set the average is computed
+/// over, so the stored rating must be recomputed on BOTH paths —
+/// previously moderation only changed the status and let the DB rating
+/// drift until the next user-driven review event.
+///
+/// The write goes through the cached brand store, so it also evicts the
+/// brand's id/slug cache entries and flushes the rating-ordered
+/// `list_active` cache (see `CacheBrandStore::update_brand_rating`).
+pub(crate) async fn recompute_brand_rating(
+    store: &CompositeStore,
+    brand_id: &str,
+) -> AppResult<()> {
+    let reviews = store
+        .review_store()
+        .list_reviews_by_brand(brand_id, "approved")
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let avg = if reviews.is_empty() {
+        None
+    } else {
+        let sum: i64 = reviews.iter().map(|r| r.rating).sum();
+        Some(sum as f64 / reviews.len() as f64)
+    };
+
+    let brand_id_uuid = Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
+    store
+        .brand_store()
+        .update_brand_rating(brand_id_uuid, avg)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(())
 }
 
 // ────────────────────────────────────────────────────────────────

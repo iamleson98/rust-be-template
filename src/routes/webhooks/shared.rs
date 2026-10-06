@@ -16,8 +16,8 @@
 
 use crate::auth::SessionUser;
 use crate::error::{AppError, AppResult};
+use crate::service::chat_service::ChatMessageInput;
 use crate::state::AppState;
-use crate::store::chat::NewChatMessage;
 use crate::ws::hub::hub;
 
 /// Normalized message from a messaging platform.
@@ -78,15 +78,13 @@ pub async fn handle_platform_message(
     // ── 3. Insert the message as sender_type='user' ────────────────
     let stored_msg = st
         .chats
-        .insert_message(NewChatMessage {
-            channel_id: channel.id,
-            sender_type: "user".into(),
-            sender_id: Some(user.id),
-            content: Some(msg.text.clone()),
-            kind: "text".into(),
-            attachments: None,
-            client_msg_id: msg.platform_msg_id.clone(),
-        })
+        .insert_message(ChatMessageInput::text(
+            channel.id,
+            "user",
+            Some(user.id),
+            msg.text.clone(),
+            msg.platform_msg_id.clone(),
+        ))
         .await?;
 
     // Update the channel preview.
