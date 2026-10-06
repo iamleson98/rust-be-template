@@ -115,24 +115,21 @@ export function FeedbackPanel() {
   const activeSummary = summaries.find((s) => s.brandId === brandId) ?? null
 
   return (
-    <div className="p-3 md:p-6 space-y-4">
+    <div className="p-4 md:p-6 space-y-4">
       {/* Page header */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
-            <MessageSquareHeart className="size-5 text-primary" />
             {t('adminFeedback.title')}
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminFeedback.subtitle')}</p>
         </div>
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
-            void summaryQuery.refetch()
-            void listQuery.refetch()
+            summaryQuery.refetch()
+            listQuery.refetch()
           }}
-          className="gap-1.5"
         >
           <RefreshCw className="size-3.5" /> {t('common.refresh')}
         </Button>

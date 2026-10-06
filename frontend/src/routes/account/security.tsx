@@ -8,7 +8,7 @@ export function AccountSecurityPage() {
   const t = useT()
   return (
     <div className="page-transition">
-      <div className="container mx-auto px-4 py-6 max-w-4xl space-y-4">
+      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 md:px-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">

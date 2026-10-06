@@ -109,19 +109,13 @@ export function RecentBookingsCard({
   const t = useT()
   return (
     <Card className="overflow-hidden h-full">
-      <div className="h-1 bg-linear-to-r from-blue-500 to-blue-500" />
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <Ticket className="h-4 w-4 text-blue-600" />
             {t('adminDash.recentBookingsTitle')}
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onExportCSV}
-            className="gap-1.5 text-blue-700 hover:bg-blue-50 hover:text-blue-800"
-          >
+          <Button variant="outline" size="sm" onClick={onExportCSV}>
             <Download className="h-3.5 w-3.5" />
             {t('adminDash.exportCsv')}
           </Button>

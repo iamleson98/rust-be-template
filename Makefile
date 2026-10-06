@@ -159,8 +159,12 @@ LINT_BIN ?= $(HOME)/.local/bin
 fmt: fmt-rust fmt-toml fmt-web fmt-mobile
 	@echo "✅ all formatting applied (rust, toml, web, mobile)"
 
+# Workspace members only — `--all` would also format the vendored
+# rust-sql submodule and dirty the pin (see ci.yml Rustfmt step).
+FMT_PKGS ?= -p backend -p store_macros -p migrator
+
 fmt-rust:
-	cargo fmt --all
+	cargo fmt $(FMT_PKGS)
 
 fmt-toml:
 	$(LINT_BIN)/taplo fmt
@@ -175,7 +179,7 @@ fmt-check: fmt-check-rust fmt-check-toml fmt-check-web fmt-check-mobile
 	@echo "✅ formatting clean everywhere"
 
 fmt-check-rust:
-	cargo fmt --all -- --check
+	cargo fmt $(FMT_PKGS) -- --check
 
 fmt-check-toml:
 	$(LINT_BIN)/taplo fmt --check

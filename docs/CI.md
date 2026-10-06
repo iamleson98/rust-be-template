@@ -95,7 +95,7 @@ changes.
 
 | Stack | Gate | Tool | Fix recipe |
 |---|---|---|---|
-| Backend | Format | `cargo fmt --check` | `make fmt-rust` |
+| Backend | Format | `cargo fmt -p backend -p store_macros -p migrator -- --check` (workspace members only — the rust-sql submodule is NOT our style responsibility) | `make fmt-rust` |
 | Backend | Compile | `cargo check --all-targets` | read the error 🙂 |
 | Backend | Lint | `cargo clippy -D warnings` | `make lint-rust` |
 | Backend | Tests + doctests | `cargo test --all-targets` / `--doc` | `make test-rust` |

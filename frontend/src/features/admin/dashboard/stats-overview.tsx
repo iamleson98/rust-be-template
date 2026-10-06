@@ -49,11 +49,6 @@ import { CampaignsSummaryCard } from './campaigns-summary-card'
 
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
-function rangeToApi(range: DateRange): string {
-  if (range === '7d') return '7d'
-  if (range === '30d') return '30d'
-  return '90d'
-}
 
 const BOOKING_STATUS_COLORS: Record<string, string> = {
   confirmed: '#2563eb',
@@ -86,7 +81,7 @@ export function StatsOverview({
   // Admin booking stats — drives revenue chart + status donut
   const filter: AdminBookingFilter = useMemo(
     () => ({
-      range: rangeToApi(dateRange),
+      range: dateRange,
       status: 'all',
       sort: 'created_desc',
       limit: 5,
@@ -199,7 +194,6 @@ export function StatsOverview({
           change={lastVsPrev?.delta == null ? '—' : `${Math.abs(lastVsPrev.delta).toFixed(1)}%`}
           up={(lastVsPrev?.delta ?? 0) >= 0}
           color="#16a34a"
-          gradient="from-emerald-500/10 to-emerald-600/5"
         />
         <KpiCard
           icon={<Ticket className="h-5 w-5" />}
@@ -210,7 +204,6 @@ export function StatsOverview({
           }
           up
           color="#2563eb"
-          gradient="from-blue-500/10 to-blue-600/5"
         />
         <KpiCard
           icon={<Bus className="h-5 w-5" />}
@@ -219,7 +212,6 @@ export function StatsOverview({
           change={t('adminDash.currentlyActive')}
           up
           color="#7c3aed"
-          gradient="from-violet-500/10 to-violet-600/5"
         />
         <KpiCard
           icon={<RouteIcon className="h-5 w-5" />}
@@ -228,7 +220,6 @@ export function StatsOverview({
           change={t('adminDash.tracking')}
           up
           color="#0ea5e9"
-          gradient="from-sky-500/10 to-sky-600/5"
         />
       </div>
 

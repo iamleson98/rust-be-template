@@ -363,7 +363,7 @@ export function AccountFeedbackContent() {
   const canNext = page < pages - 1
 
   return (
-    <div className="p-3 md:p-6 space-y-5">
+    <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6">
       {/* ── Hero ── */}
       <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-blue-600 via-blue-700 to-indigo-700 text-white px-5 py-6 md:px-7 md:py-7">
         <div

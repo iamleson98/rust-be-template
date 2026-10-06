@@ -1160,6 +1160,8 @@ export const vi: TranslationMap = {
   'adminTickets.chipSearch': 'Tìm: "{value}"',
   'adminTickets.chipRange': 'Khoảng: {value}',
   'adminTickets.chooseDates': 'Chọn ngày',
+  'adminTickets.pageTitle': 'Vé đã bán',
+  'adminTickets.pageSubtitle': 'Theo dõi doanh thu và tình trạng vé theo thời gian thực',
   'adminTickets.kpiTotal': 'Tổng vé',
   'adminTickets.kpiRevenue': 'Doanh thu',
   'adminTickets.bookedAt': 'Ngày đặt',

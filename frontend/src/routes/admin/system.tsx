@@ -31,7 +31,7 @@ export function AdminSystemPage() {
   const { data, isLoading } = useSystemStatus()
 
   return (
-    <div className="page-transition container mx-auto px-4 py-6 space-y-8">
+    <div className="p-4 md:p-6 space-y-6">
       <h1 className="text-2xl font-bold">System Monitoring</h1>
 
       {/* ── System Status (platform runtime) ───────────────────────── */}

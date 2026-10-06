@@ -136,14 +136,8 @@ export function LeafletMap({
     >
       <BasemapLayer />
       <ZoomControl position="bottomright" />
-      {/* Leaflet measures the container at mount time — inside an
-          animating Dialog (zoom-in, 200ms) that size is stale/zero and
-          the tile grid renders broken/gray. Keep calling invalidateSize
-          until the container reports a stable size (same approach as
-          route-map-inner's FixSize). */}
       <FixSize />
       {onMapClick && <ClickHandler onPick={onMapClick} />}
-      {/* Recenter MUST live inside <MapContainer> so useMap() has a context. */}
       {flyTarget && <Recenter center={flyTarget} zoom={flyZoom} />}
       {marker && (
         <Marker
@@ -404,7 +398,7 @@ export function MapPicker({
       if (Number.isFinite(accuracy) && accuracy > 1000) {
         toast.warning(t('mapPage.lowAccuracy', { m: Math.round(accuracy) }))
       }
-      void reverseGeocode(lat, lon).then((place) => {
+      reverseGeocode(lat, lon).then((place) => {
         setPicked(place)
         setReverseLoading(false)
       })

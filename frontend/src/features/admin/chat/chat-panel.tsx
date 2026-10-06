@@ -305,7 +305,7 @@ export function ChatPanel({
   const avgResponseSecs = chatStats?.avgResponseTimeSecs ?? 0
 
   return (
-    <div className="space-y-4 p-3">
+    <div className="space-y-4 p-3 md:p-4">
       <ChatStatsCards
         channelsLoading={channelsLoading}
         openCount={openCount}

@@ -255,7 +255,13 @@ jobs:
           sudo apt-get install -y pkg-config libssl-dev
 
       - name: Rustfmt (zero diff)
-        run: cargo fmt --all -- --check
+        # Scope: OUR workspace members only (backend + store_macros +
+        # migrator). `--all` also walks PATH dependencies, which reaches
+        # into the rust-sql submodule — vendored engine code with its own
+        # fmt rules maintained in ITS repo. The submodule pin is not this
+        # repo's style responsibility; a submodule bump must not fail on
+        # formatting of files this repo cannot change.
+        run: cargo fmt -p backend -p store_macros -p migrator -- --check
 
       - name: Check (rust-sql engine — the only backend, workspace-wide)
         run: cargo check --workspace --all-targets
@@ -664,9 +670,21 @@ jobs:
               "frontend/.prettierrc",
               "nullclaw.config.json",
             ];
+            // tsconfig.json is JSONC BY SPEC: TypeScript allows // and
+            // /* */ comments + trailing commas. Strict JSON.parse would
+            // reject legal configs (e.g. a trailing comma after the last
+            // compilerOptions key), so those files get a JSONC-tolerant
+            // parse — strip comments + trailing commas, then JSON.parse.
+            // Semantics are gated by tsc --noEmit in the Frontend job.
+            const jsonc = (s) => JSON.parse(
+              s.replace(/\/\*[\s\S]*?\*\//g, "")   // /* block */ comments
+               .replace(/^\s*\/\/.*$/gm, "")       // // line comments
+               .replace(/,(\s*[\]}])/g, (_m, brace) => brace)  // trailing commas
+            );
             for (const f of files) {
-              JSON.parse(fs.readFileSync(f, "utf8"));
-              console.log("valid json: " + f);
+              const text = fs.readFileSync(f, "utf8");
+              (f.includes("tsconfig") ? jsonc(text) : JSON.parse(text));
+              console.log("valid json" + (f.includes("tsconfig") ? "c" : "") + ": " + f);
             }
           '
 

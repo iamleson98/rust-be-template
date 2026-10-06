@@ -63,7 +63,7 @@ export function useMyLocation(
   useEffect(() => {
     onLocatedRef.current = onLocated
     onErrorRef.current = onError
-  })
+  }, [onLocated, onError])
 
   const watchRef = useRef<number | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -136,7 +136,7 @@ export function useMyLocation(
       (pos) => {
         if (request !== requestRef.current) return // stale callback
         const { latitude, longitude, accuracy } = pos.coords
-        const fix: MyLocation = { lat: latitude, lon: longitude, accuracy: accuracy ?? Infinity }
+        const fix: MyLocation = { lat: latitude, lon: longitude, accuracy }
         if (!(Number.isFinite(fix.lat) && Number.isFinite(fix.lon))) return
 
         // Keep the best fix seen so far.

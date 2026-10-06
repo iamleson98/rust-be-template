@@ -155,7 +155,7 @@ use utoipa::OpenApi;
         // system monitoring
         crate::routes::system::system_status,
         crate::routes::system::process_memory,
-        crate::routes::system::chat_stats,
+        crate::routes::admin::chat::chat_stats,
         // admin — vehicle types (schedule form's "Loại xe" catalog).
         // Registered LAST on purpose (see the addresses comment above):
         // appending keeps the existing SDK function numbers stable.

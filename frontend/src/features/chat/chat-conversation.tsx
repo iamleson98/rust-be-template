@@ -187,10 +187,6 @@ export function ChatConversation({
               </span>
             </div>
 
-            {/* ── "Load more" spinner (top of chat) ──────────────────────
-                Shown when the infinite-scroll hook is fetching the next
-                page of older messages. Also serves as a visual anchor
-                so the user knows more are coming. */}
             {isFetchingMoreMessages && (
               <div className="flex items-center justify-center py-3">
                 <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-[11px] text-muted-foreground">
@@ -219,17 +215,6 @@ export function ChatConversation({
                 </div>
               </div>
             )}
-
-            {/* {!waitingForAgent && agentJoinedName && employeesOnline > 0 && (
-              <div className="flex justify-center py-2">
-                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200 px-3 py-1.5 text-xs text-blue-800">
-                  <Users className="h-3 w-3" />
-                  <span>
-                    Nhân viên <strong>{agentJoinedName}</strong> đã tham gia
-                  </span>
-                </div>
-              </div>
-            )} */}
 
             {messages.map((m, i) => {
               const isMe = m.senderType === 'user'

@@ -13,6 +13,14 @@ src/lib/api/
 # against a fresh regeneration, so prettier must never touch it.
 openapi.json
 
+# Hand-edited config files. These are touched constantly by tooling
+# (`bun add` rewrites package.json, IDEs rewrite tsconfig.json) and are
+# JSONC-by-spec on top (comments + trailing commas are legal for tsc).
+# Formatting nits here must not block PRs — SYNTAX is still gated by the
+# repo-hygiene job (JSON/JSONC parse) and semantics by tsc itself.
+tsconfig.json
+package.json
+
 # Lockfile — machine-managed.
 bun.lock
 

@@ -263,7 +263,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           >
             {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
           </Button>
-          <Separator orientation="vertical" className="mr-2 h-5" />
+          <Separator orientation="vertical" className="mr-2 h-full" />
           <span className="text-sm font-medium text-muted-foreground truncate">
             {user?.name || t('auth.account')}
           </span>

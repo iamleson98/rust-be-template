@@ -142,6 +142,7 @@ export function BrandSummaryStrip({
         <LayoutGrid className="size-3.5" />
         {t('adminFeedback.byBrand')}
       </div>
+
       <div className="flex gap-3 overflow-x-auto pb-1 scroll-thin -mx-1 px-1">
         {/* "All brands" card */}
         <button

@@ -15,7 +15,7 @@ export function ComparePage() {
   const t = useT()
   return (
     <div className="page-transition">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-4 py-8">
         <Button
           variant="ghost"
           size="sm"

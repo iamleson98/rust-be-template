@@ -233,7 +233,7 @@ export function AdminBusLayoutsPage() {
   )
 
   return (
-    <div className="page-transition p-3 md:p-6 space-y-4">
+    <div className="page-transition p-4 md:p-6 space-y-4 bus-layouts">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">

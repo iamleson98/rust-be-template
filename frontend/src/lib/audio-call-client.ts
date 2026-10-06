@@ -357,7 +357,7 @@ export class AudioCallClient {
     // getStats() is cheap and local — sampling it every 2.5 s while the
     // call is up costs nothing and gives the UI live network health.
     this.qualityTimer = setInterval(() => {
-      void this.sampleQuality()
+      this.sampleQuality()
     }, AudioCallClient.QUALITY_POLL_MS)
   }
 
@@ -385,21 +385,21 @@ export class AudioCallClient {
 
       stats.forEach((r: RTCStats) => {
         const rep = r as unknown as Record<string, unknown>
-        const t = rep.type as string
-        if (t === 'candidate-pair') {
+        if (rep.type === 'candidate-pair') {
           // Prefer `selected`; older browsers only flag `nominated`+succeeded.
           const isSelected =
             rep.selected === true || (rep.nominated === true && rep.state === 'succeeded')
+
           if (isSelected && typeof rep.currentRoundTripTime === 'number') {
             rttMs = Math.round(rep.currentRoundTripTime * 1000)
             selectedLocalId = typeof rep.localCandidateId === 'string' ? rep.localCandidateId : null
             selectedRemoteId =
               typeof rep.remoteCandidateId === 'string' ? rep.remoteCandidateId : null
           }
-        } else if (t === 'local-candidate' || t === 'remote-candidate') {
+        } else if (rep.type === 'local-candidate' || rep.type === 'remote-candidate') {
           const candidateType = typeof rep.candidateType === 'string' ? rep.candidateType : ''
           candidatesById.set(rep.id as string, { type: candidateType })
-        } else if (t === 'inbound-rtp' && rep.kind === 'audio') {
+        } else if (rep.type === 'inbound-rtp' && rep.kind === 'audio') {
           if (typeof rep.jitter === 'number') {
             jitterMs = Math.round(rep.jitter * 1000)
           }

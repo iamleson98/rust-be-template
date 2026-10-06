@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n'
 export function BookingsHero({ user }: { user?: { name: string } | null }) {
   const t = useT()
   return (
-    <div className="relative overflow-hidden bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
+    <div className="relative overflow-hidden rounded-2xl bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white ring-1 ring-blue-900/10">
       <div className="absolute inset-0 opacity-[0.06]">
         <div className="absolute top-4 left-[10%]">
           <Bus className="h-16 w-16 rotate-[-15deg]" />
@@ -36,13 +36,13 @@ export function BookingsHero({ user }: { user?: { name: string } | null }) {
             'radial-gradient(circle at 20% 50%, white 0, transparent 50%), radial-gradient(circle at 85% 70%, white 0, transparent 50%)',
         }}
       />
-      <div className="container mx-auto px-4 py-12 md:py-16 relative">
+      <div className="px-6 py-8 md:px-10 md:py-10 relative">
         <div className="max-w-2xl">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur-sm px-4 py-1.5 text-xs font-semibold ring-1 ring-white/20 mb-5">
             <User className="h-3.5 w-3.5" />
             {t('bookingHistory.greeting', { name: user?.name ?? '' })}
           </div>
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight mb-3 leading-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight mb-2 leading-tight">
             {t('bookingHistory.myBookingsTitle')}
           </h1>
           <p className="text-blue-100 text-sm md:text-base leading-relaxed max-w-lg">

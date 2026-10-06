@@ -151,24 +151,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   // Nav content — shared between desktop sidebar and mobile drawer
   const navContent = (
     <>
-      {/* Header */}
-      {/* <div className={cn(
-        'bg-linear-to-br from-primary to-primary/80 shrink-0',
-        collapsed ? 'px-2 py-3' : 'px-3 py-4',
-      )}>
-        <Link to="/admin" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
-          <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm ring-1 ring-white/20 shrink-0">
-            <Bus className="size-5 text-white" />
-          </div>
-          {!collapsed && (
-            <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
-              <span className="truncate font-bold text-white">DatXeVui</span>
-              <span className="truncate text-xs text-white/70">{t('admin.adminSystem')}</span>
-            </div>
-          )}
-        </Link>
-      </div> */}
-
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 gap-1">
         {groups.map((group) => (
@@ -260,12 +242,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex w-full h-[calc(100dvh-4rem)] overflow-hidden bg-background">
-      {/* Desktop sidebar — in-flow but full viewport height (the shell is
-       * h-dvh and only the content pane scrolls), so it stays pinned to
-       * the left edge for the entire page. */}
       <aside
         className={cn(
-          'hidden md:flex flex-col shrink-0 h-full border-r border-border/40 bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-linear',
+          'hidden md:flex flex-col shrink-0 h-full border-r border-border/40 text-sidebar-foreground transition-[width] duration-200 ease-linear',
           collapsed ? 'w-14' : 'w-64',
         )}
       >
@@ -285,9 +264,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </SheetContent>
       </Sheet>
 
-      {/* Main content — also viewport-height; only this pane's content
-       * area scrolls (overflow-y-auto), so the header + sidebar remain
-       * fixed on screen while the page data scrolls beneath them. */}
       <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/40 bg-background/95 backdrop-blur px-4">
           {/* Mobile hamburger */}
@@ -308,12 +284,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           >
             {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
           </Button>
-          <Separator orientation="vertical" className="mr-2 h-5" />
+          <Separator orientation="vertical" className="mr-2 h-full" />
           <span className="text-sm font-medium text-muted-foreground truncate">
             {user?.name || 'Admin'} · DatXeVui Admin
           </span>
         </header>
-        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+        {/* Content pane — the single source of the admin canvas: a
+         * theme-aware tint (bg-muted/30) that every panel sits on. Panels
+         * must NOT set their own page background — one canvas, one look,
+         * and dark mode stays correct (the old per-panel bg-slate-50 was
+         * hardcoded light-only). */}
+        <div
+          ref={contentScrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain bg-muted/30"
+        >
           {children}
         </div>
       </div>

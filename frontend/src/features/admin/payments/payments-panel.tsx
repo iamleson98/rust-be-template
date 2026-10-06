@@ -140,7 +140,7 @@ export function AdminPaymentsPanel() {
   }
 
   return (
-    <div className="p-3 space-y-3">
+    <div className="p-4 md:p-6 space-y-4">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -148,7 +148,7 @@ export function AdminPaymentsPanel() {
             <CreditCard className="h-3.5 w-3.5" />
             {t('admin.payments')}
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">{t('adminPayments.title')}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t('adminPayments.title')}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">{t('adminPayments.subtitle')}</p>
         </div>
         <Button
