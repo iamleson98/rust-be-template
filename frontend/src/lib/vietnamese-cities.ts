@@ -95,20 +95,3 @@ export const VIETNAMESE_CITIES: VietnameseCity[] = [
   { id: 'bac-lieu', name: 'Bạc Liêu', region: 'south' },
   { id: 'ca-mau', name: 'Cà Mau', region: 'south' },
 ]
-
-/**
- * Lookup a city by its id (slug).
- * Returns `undefined` if not found.
- */
-export function getCityById(id: string): VietnameseCity | undefined {
-  return VIETNAMESE_CITIES.find((c) => c.id === id)
-}
-
-/**
- * Get the display name for a city id.
- * Returns the id itself if not found (so the UI shows something
- * rather than blank).
- */
-export function getCityName(id: string): string {
-  return getCityById(id)?.name ?? id
-}

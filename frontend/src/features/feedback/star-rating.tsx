@@ -1,9 +1,7 @@
 /**
- * Star-rating primitives shared by the feedback surfaces.
+ * Star-rating display primitive shared by the feedback surfaces.
  *
  *   <StarRating value={4} />        — read-only display (amber fills)
- *   <StarPicker value onChange />   — interactive 1–5 picker with hover
- *                                     states, emoji + label, spring pop
  *
  * Design notes: amber-400 fills (the established "rating" color across
  * the app — reviews-list, testimonials, feedback-form), a scale pop on
@@ -11,21 +9,10 @@
  * (radiogroup semantics), and `prefers-reduced-motion` handled by the
  * global CSS rules.
  */
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import { Star } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-
-/** Emoji + i18n labelKey for each rating level (label rendered via t()). */
-export const RATING_META: Record<number, { emoji: string; labelKey: string }> = {
-  1: { emoji: '😞', labelKey: 'feedbackForm.ratingVeryBad' },
-  2: { emoji: '🙁', labelKey: 'feedbackForm.ratingMediocre' },
-  3: { emoji: '🙂', labelKey: 'feedbackForm.ratingNice' },
-  4: { emoji: '😊', labelKey: 'feedbackForm.ratingVeryGood' },
-  5: { emoji: '🤩', labelKey: 'feedbackForm.ratingExcellent' },
-}
-
-/* ── Read-only display ─────────────────────────────────────────── */
 
 export const StarRating = memo(function StarRating({
   value,
@@ -62,88 +49,3 @@ export const StarRating = memo(function StarRating({
     </span>
   )
 })
-
-/* ── Interactive picker ─────────────────────────────────────────── */
-
-export function StarPicker({
-  value,
-  onChange,
-  size = 'lg',
-  showLabel = true,
-  className,
-}: {
-  value: number
-  onChange: (next: number) => void
-  size?: 'md' | 'lg' | 'xl'
-  showLabel?: boolean
-  className?: string
-}) {
-  const [hover, setHover] = useState(0)
-  const t = useT()
-  const active = hover || value
-  const px = size === 'md' ? 'h-7 w-7' : size === 'xl' ? 'h-11 w-11' : 'h-9 w-9'
-  const meta = RATING_META[active]
-
-  return (
-    <div className={cn('flex flex-col items-center gap-2.5 select-none', className)}>
-      <div
-        role="radiogroup"
-        aria-label={t('feedbackForm.chooseRatingAria')}
-        className="flex items-center gap-1.5"
-        onMouseLeave={() => setHover(0)}
-      >
-        {Array.from({ length: 5 }).map((_, i) => {
-          const star = i + 1
-          const filled = star <= active
-          return (
-            <button
-              key={star}
-              type="button"
-              role="radio"
-              aria-checked={value === star}
-              aria-label={t('feedbackForm.starAria', {
-                count: star,
-                label: t(RATING_META[star].labelKey),
-              })}
-              onMouseEnter={() => setHover(star)}
-              onFocus={() => setHover(star)}
-              onBlur={() => setHover(0)}
-              onClick={() => onChange(star)}
-              className={cn(
-                'cursor-pointer rounded-full p-1 outline-none transition-transform duration-150',
-                'hover:scale-125 focus-visible:scale-125 focus-visible:ring-2 focus-visible:ring-ring',
-                filled && 'scale-110',
-              )}
-            >
-              <Star
-                className={cn(
-                  px,
-                  'transition-colors duration-150',
-                  filled
-                    ? 'fill-amber-400 text-amber-400 drop-shadow-[0_2px_4px_rgba(251,191,36,0.45)]'
-                    : 'fill-transparent text-muted-foreground/40 hover:text-amber-300',
-                )}
-              />
-            </button>
-          )
-        })}
-      </div>
-      {showLabel && (
-        <div
-          className={cn(
-            'flex items-center gap-1.5 text-sm font-medium transition-opacity duration-150',
-            active ? 'opacity-100' : 'opacity-0',
-          )}
-          aria-live="polite"
-        >
-          {active > 0 && (
-            <>
-              <span className="text-xl leading-none">{meta?.emoji}</span>
-              <span className="text-amber-600">{meta ? t(meta.labelKey) : null}</span>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}

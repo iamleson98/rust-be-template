@@ -9,8 +9,6 @@
 import { translate } from '@/lib/i18n'
 import { useApp } from '@/lib/store'
 
-export type CronJobStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
-
 /** Human label for a run status (matching the admin UI language). */
 export function runStatusLabel(status: string): string {
   const lang = useApp.getState().lang

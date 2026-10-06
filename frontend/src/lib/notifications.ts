@@ -93,20 +93,6 @@ export function currentPermission(): CachedPermission {
 }
 
 /**
- * Has the user already been asked for notification permission in this
- * browser? (Checked via localStorage — survives page reloads + tab
- * closures, but not "clear browsing data".)
- *
- * Use this to gate the "🔔 Bật thông báo" button — only show it if we
- * haven't asked yet, or if the user previously denied and might want
- * to re-enable.
- */
-export function hasAskedBefore(): boolean {
-  const cached = readCached()
-  return cached === 'asked' || cached === 'granted' || cached === 'denied'
-}
-
-/**
  * Ensure notification permission has been requested. Call this when the
  * user first engages with the call feature (clicks "Gọi ngay" or
  * opens the audio-call widget). Idempotent — if we've already asked,
@@ -195,7 +181,9 @@ export function showNotification(
     const n = new Notification(title, {
       body,
       icon: '/icons/icon-192.png',
-      badge: '/icon-96.png',
+      // Badge: no 96px variant exists in public/icons/ — reuse the 192px
+      // icon (the OS scales it down for the badge slot).
+      badge: '/icons/icon-192.png',
       tag: options?.tag,
       // silent: false — we want the OS to ring.
     })
@@ -244,27 +232,4 @@ export function notifyIncomingCall(fromName: string): void {
       },
     },
   )
-}
-
-/**
- * For debugging / settings UI — show what's currently cached.
- */
-export function debugNotificationState(): {
-  cached: CachedPermission
-  browser: CachedPermission
-  askedAt: string | null
-} {
-  let askedAt: string | null = null
-  if (typeof window !== 'undefined') {
-    try {
-      askedAt = window.localStorage.getItem(LS_ASKED_AT_KEY)
-    } catch {
-      askedAt = null
-    }
-  }
-  return {
-    cached: readCached(),
-    browser: currentPermission(),
-    askedAt,
-  }
 }

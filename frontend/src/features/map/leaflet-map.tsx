@@ -547,8 +547,7 @@ export function MapPicker({
   )
 }
 
-// ── Re-exports for the route map view ───────────────────────
-export { LeafletMap as LeafletRouteMap, reverseGeocode, BLUE_PIN, RED_PIN, type PlaceHit }
+export { reverseGeocode }
 
 /** Fix leaflet's tile rendering when the container mounts inside a
  *  dynamically-sized wrapper (an animating Dialog, a swapping layout).

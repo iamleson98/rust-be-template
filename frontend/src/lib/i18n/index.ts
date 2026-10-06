@@ -84,3 +84,16 @@ export function useT() {
   return (key: string, params?: Record<string, string | number>): string =>
     translate(lang, key, params)
 }
+
+/**
+ * Synchronous translation for NON-React contexts — zod schemas'
+ * `error: () => …` callbacks, module-level helpers, event handlers.
+ * Reads the CURRENT store language at call time, so a validation error
+ * resolves in the language the user sees on screen, not the language
+ * that was active when the module was first imported.
+ *
+ * Formerly re-implemented as a private `const tSync = …` in every
+ * schema file; one canonical export now.
+ */
+export const tSync = (key: string, params?: Record<string, string | number>): string =>
+  translate(useApp.getState().lang, key, params)

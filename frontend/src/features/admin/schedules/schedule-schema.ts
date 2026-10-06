@@ -8,13 +8,11 @@
 import type { UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { requiredText } from '@/lib/forms'
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 // Error messages use Zod's functional `{ error: () => ... }` form so the
 // string is resolved (in the store's current language) at validation
 // time, not at module load.
-const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 const HHMM = /^\d{2}:\d{2}$/
 

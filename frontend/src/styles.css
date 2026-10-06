@@ -247,28 +247,6 @@
   }
 }
 
-@keyframes float-slow {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-8px);
-  }
-}
-
-@keyframes pulse-glow {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(1.05);
-  }
-}
-
 /* Success checkmark draw-on animation — <400ms for premium feel */
 @keyframes checkmark-draw {
   0% {
@@ -302,18 +280,6 @@
 }
 
 /* Seat pop-in animation when selected */
-@keyframes seat-pop {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.12);
-  }
-  100% {
-    transform: scale(1.05);
-  }
-}
-
 /* Page fade-in on route change — applied to each page's root so the
  * content fades in once the lazy chunk resolves (the persistent
  * sidebar stays mounted, so only the content area animates). */
@@ -337,16 +303,6 @@
 }
 
 /* Trust badge pulse — subtle attention draw */
-@keyframes trust-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.8;
-  }
-}
-
 /* Smooth scrollbar for filter/side panels */
 .scroll-thin {
   scrollbar-width: thin;
@@ -365,15 +321,6 @@
 }
 .scroll-thin::-webkit-scrollbar-thumb:hover {
   background-color: rgb(148 163 184 / 0.6);
-}
-
-/* Hide scrollbar but keep functionality (for horizontal logo strips) */
-.scrollbar-none {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-.scrollbar-none::-webkit-scrollbar {
-  display: none;
 }
 
 /* ── Reduced motion ─────────────────────────────────────────────
@@ -413,8 +360,7 @@
   nav,
   [data-slot='fab'],
   [data-slot='dialog-close'],
-  [aria-label*='chat' i],
-  .no-print {
+  [aria-label*='chat' i] {
     display: none !important;
   }
   main {

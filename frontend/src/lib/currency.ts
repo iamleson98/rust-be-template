@@ -29,16 +29,6 @@ export function formatCurrency(amountVND: number, currency: Currency): string {
   return formatVND(amountVND)
 }
 
-/** Convert VND amount to USD (rounded to 2 decimal places). */
-export function convertToUSD(amountVND: number): number {
-  return Math.round((amountVND / EXCHANGE_RATE) * 100) / 100
-}
-
-/** Convert USD amount back to VND (rounded to nearest VND — no fractional currency). */
-export function convertToVND(amountUSD: number): number {
-  return Math.round(amountUSD * EXCHANGE_RATE)
-}
-
 /** Short human-readable exchange-rate note used in the footer —
  *  language-reactive: "Tỷ giá: 1 USD = 24.500₫" / "Rate: 1 USD = 24,500₫". */
 export function exchangeRateNote(): string {
@@ -46,7 +36,3 @@ export function exchangeRateNote(): string {
   const rate = EXCHANGE_RATE.toLocaleString(lang === 'en' ? 'en-US' : 'vi-VN')
   return translate(lang, 'common.exchangeRateNote', { rate })
 }
-
-/** Legacy module-level (Vietnamese) constant — kept for tests/back-compat;
- *  prefer calling `exchangeRateNote()` at render time. */
-export const EXCHANGE_RATE_NOTE = `Tỷ giá: 1 USD = ${EXCHANGE_RATE.toLocaleString('vi-VN')}₫`

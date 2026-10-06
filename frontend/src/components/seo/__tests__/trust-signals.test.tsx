@@ -1,16 +1,10 @@
 /**
  * Tests for trust-signal components — TrustBar, PrivacyNotice,
- * PaymentTrustBadges, InfoBanner.
+ * PaymentTrustBadges.
  */
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import {
-  TrustBar,
-  PrivacyNotice,
-  PaymentTrustBadges,
-  InfoBanner,
-} from '@/components/seo/trust-signals'
-import { Info } from 'lucide-react'
+import { TrustBar, PrivacyNotice, PaymentTrustBadges } from '@/components/seo/trust-signals'
 
 describe('TrustBar', () => {
   it('renders all 3 trust badges', () => {
@@ -59,31 +53,5 @@ describe('PaymentTrustBadges', () => {
     expect(screen.getByText('Mã hoá SSL')).toBeInTheDocument()
     expect(screen.getByText('PCI DSS')).toBeInTheDocument()
     expect(screen.getByText('Hoàn tiền 24h')).toBeInTheDocument()
-  })
-})
-
-describe('InfoBanner', () => {
-  it('renders title and children', () => {
-    render(
-      <InfoBanner icon={Info} title="Test Title">
-        Test content
-      </InfoBanner>,
-    )
-    expect(screen.getByText('Test Title')).toBeInTheDocument()
-    expect(screen.getByText('Test content')).toBeInTheDocument()
-  })
-
-  it('renders without title', () => {
-    render(<InfoBanner icon={Info}>No title content</InfoBanner>)
-    expect(screen.getByText('No title content')).toBeInTheDocument()
-  })
-
-  it('applies variant classes', () => {
-    const { container: warningContainer } = render(
-      <InfoBanner icon={Info} variant="warning" title="Warning">
-        content
-      </InfoBanner>,
-    )
-    expect(warningContainer.querySelector('[class*="border-warning"]')).toBeTruthy()
   })
 })

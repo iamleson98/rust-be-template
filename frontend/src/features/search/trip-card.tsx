@@ -41,13 +41,9 @@ function isOvernight(
   const dep = parseDateSafe(departureAt)
   const arr = parseDateSafe(arrivalAt)
   if (!dep || !arr) return false
-  const fmt = (d: Date) =>
-    new Intl.DateTimeFormat('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      timeZone: 'Asia/Ho_Chi_Minh',
-    }).format(d)
-  return fmt(dep) !== fmt(arr)
+  // Same dd/mm-in-Vietnam format as formatShortDate — an overnight
+  // trip is exactly "the short dates differ".
+  return formatShortDate(departureAt) !== formatShortDate(arrivalAt)
 }
 
 export const TripCard = memo(function TripCard({
