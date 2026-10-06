@@ -31,7 +31,6 @@ export function RevenueBarChartCard({
   const t = useT()
   return (
     <Card className="overflow-hidden">
-      <div className="h-1 bg-linear-to-r from-blue-500 to-blue-500" />
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-600" />

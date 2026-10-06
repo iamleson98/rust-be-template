@@ -19,7 +19,6 @@ export function KpiCard({
   change,
   up,
   color,
-  gradient,
 }: {
   icon: React.ReactNode
   label: string
@@ -27,16 +26,11 @@ export function KpiCard({
   change: string
   up?: boolean
   color: string
-  gradient: string
 }) {
   const t = useT()
   return (
     <div>
       <Card className="transition-all duration-300 group overflow-hidden">
-        <div
-          className={`h-1 bg-linear-to-r ${gradient.replace('/10', '').replace('/5', '')}`}
-          style={{ background: `linear-gradient(to right, ${color}, ${color}88)` }}
-        />
         <CardContent className="p-5">
           <div className="flex items-start justify-between">
             <div>

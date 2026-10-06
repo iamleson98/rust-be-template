@@ -268,7 +268,7 @@ export function TicketsPanel() {
   }, [filter])
 
   return (
-    <div className="space-y-4 p-3">
+    <div className="space-y-4 p-3 bg-slate-50">
       {/* ─── KPI cards row ─── */}
       <TicketsKpiCards totals={totals} />
 

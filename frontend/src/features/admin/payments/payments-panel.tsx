@@ -140,7 +140,7 @@ export function AdminPaymentsPanel() {
   }
 
   return (
-    <div className="p-3 space-y-3">
+    <div className="p-3 space-y-3 bg-slate-50">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, lazy, Suspense, useCallback } from 'react'
+import { memo, useCallback } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
@@ -10,20 +10,14 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   Bus,
-  Headset,
   LayoutDashboard,
-  Home as HomeIcon,
   Globe,
-  Menu,
   Gift,
   Check,
   LogIn,
   LogOut,
   Phone,
   Briefcase,
-  CreditCard,
-  ChevronRight,
-  Search as SearchIcon,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -37,23 +31,13 @@ import {
 import { toast } from 'sonner'
 import { isStaffUser } from '@/lib/store'
 
-// Lazy-load heavy sub-components to keep the Header chunk small (low memory).
-// They load on the client after hydration.
-const NotificationBell = lazy(() =>
-  import('@/features/notifications/notification-bell').then((m) => ({
-    default: m.NotificationBell,
-  })),
-)
-const LoyaltyWidget = lazy(() =>
-  import('@/features/home/loyalty-widget').then((m) => ({ default: m.LoyaltyWidget })),
-)
 
 export const Header = memo(function Header() {
   // useShallow: re-render only when one of the picked fields actually
   // changes — not on every unrelated store write (perf: the header sits
   // above every customer page; chat typing, booking steps, etc. must not
   // re-render it).
-  const { setChatOpen, compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } =
+  const { compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } =
     useApp(
       useShallow((s) => ({
         setChatOpen: s.setChatOpen,
@@ -96,8 +80,6 @@ export const Header = memo(function Header() {
     .join('')
     .toUpperCase()
 
-  // ─── (parallax mouse-move effect removed) ───
-
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/10 text-white">
       {/* Gradient background layer */}
@@ -113,17 +95,6 @@ export const Header = memo(function Header() {
             <div className="text-[10px] text-blue-200 -mt-0.5">{t('trips.imageTagline')}</div>
           </div>
         </button>
-
-        {/* <nav className="hidden md:flex items-center gap-1">
-          <NavBtn active={pathname === '/search'} onClick={() => navigate({ to: '/search' })} icon={<SearchIcon className="h-4 w-4" />}>
-            {t('nav.searchTrips')}
-          </NavBtn>
-          {isStaffUser(user) && (
-            <NavBtn active={isAdmin} onClick={() => navigate({ to: '/admin' })} icon={<LayoutDashboard className="h-4 w-4" />}>
-              {t('nav.admin')}
-            </NavBtn>
-          )}
-        </nav> */}
 
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Compare quick-access button */}
@@ -141,10 +112,6 @@ export const Header = memo(function Header() {
             </button>
           )}
 
-          <Suspense fallback={null}>
-            <NotificationBell />
-          </Suspense>
-
           {/* Loyalty button */}
           <button
             onClick={() => setLoyaltyOpen(true)}
@@ -154,6 +121,7 @@ export const Header = memo(function Header() {
             <Gift className="h-4 w-4" />
           </button>
 
+          {/* language switch */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -220,7 +188,7 @@ export const Header = memo(function Header() {
                         {initials || 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0">
+                    <div className="min-w-0 space-x-1">
                       <div className="text-sm font-semibold truncate">{user.name}</div>
                       <div className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
                         {user.email ? (
@@ -254,86 +222,29 @@ export const Header = memo(function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => navigate({ to: '/account' })}
-                  className="gap-2.5 bg-linear-to-r from-blue-50 to-indigo-50 focus:bg-blue-100/60 dark:from-blue-950/40 dark:to-indigo-950/40"
+                  className="gap-2"
                 >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white">
-                    <LayoutDashboard className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-blue-900 dark:text-blue-100">
-                      {t('nav.myConsole')}
-                    </span>
-                    <span className="block text-[11px] text-muted-foreground">
-                      {t('nav.myConsoleDesc')}
-                    </span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-blue-600" />
+                  <LayoutDashboard className="h-4 w-4" /> {t('nav.myConsole')}
                 </DropdownMenuItem>
                 {isStaffUser(user) && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
-                      <Briefcase className="h-4 w-4" /> {t('nav.admin')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => navigate({ to: '/admin/payments' })}
-                      className="gap-2"
-                    >
-                      <CreditCard className="h-4 w-4" /> {t('nav.payments')}
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem onClick={() => navigate({ to: '/admin' })} className="gap-2">
+                    <Briefcase className="h-4 w-4" /> {t('nav.admin')}
+                  </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() => logoutMut.mutate()}
                   className="gap-2 text-rose-600 focus:text-rose-700 focus:bg-rose-50"
                 >
-                  <LogOut className="h-4 w-4" /> {t('nav.logout')}
+                  <LogOut className="h-4 w-4 hover:text-rose-600" /> {t('nav.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
 
-          <Suspense fallback={null}>
+          {/* <Suspense fallback={null}>
             <LoyaltyWidget />
-          </Suspense>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden text-white hover:bg-white/10 transition-colors"
-                />
-              }
-            >
-              <Menu className="h-5 w-5" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate({ to: '/' })}>
-                <HomeIcon className="h-4 w-4 mr-2" /> {t('nav.home')}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({ to: '/search' })}>
-                <SearchIcon className="h-4 w-4 mr-2" /> {t('nav.searchTrips')}
-              </DropdownMenuItem>
-              {user && (
-                <DropdownMenuItem onClick={() => navigate({ to: '/account' })}>
-                  <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.myConsole')}
-                </DropdownMenuItem>
-              )}
-              {isStaffUser(user) && (
-                <DropdownMenuItem onClick={() => navigate({ to: '/admin' })}>
-                  <LayoutDashboard className="h-4 w-4 mr-2" /> {t('nav.admin')}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onClick={() => (user ? setChatOpen(true) : navigate({ to: '/login' }))}
-              >
-                <Headset className="h-4 w-4 mr-2" /> {t('nav.support')}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          </Suspense> */}
         </div>
       </div>
     </header>

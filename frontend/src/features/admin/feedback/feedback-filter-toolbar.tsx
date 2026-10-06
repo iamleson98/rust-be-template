@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
+import { ButtonGroup } from '@/components/ui/button-group'
 
 /** Real backend moderation statuses (NOT the legacy `published/flagged`). */
 const STATUS_FILTERS = [
@@ -43,17 +44,16 @@ export function FeedbackFilterToolbar({
   const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1 rounded-lg bg-muted p-0.5">
+      <ButtonGroup>
         {STATUS_FILTERS.map((s) => (
-          <button
+          <Button
             key={s.value}
-            type="button"
             onClick={() => setStatus(s.value)}
-            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-              status === s.value
-                ? 'bg-background text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            variant="outline"
+            className={`${status === s.value
+              ? 'bg-background text-foreground'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
             {t(s.labelKey)}
             {s.value !== 'all' && activeSummary && (
@@ -67,9 +67,9 @@ export function FeedbackFilterToolbar({
                       : activeSummary.hidden}
               </span>
             )}
-          </button>
+          </Button>
         ))}
-      </div>
+      </ButtonGroup>
       <div className="relative min-w-56 flex-1 max-w-xs">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
         <Input

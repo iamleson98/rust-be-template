@@ -47,7 +47,6 @@ export function CampaignsSummaryCard() {
 
   return (
     <Card className="overflow-hidden h-full flex flex-col">
-      <div className="h-1 bg-linear-to-r from-amber-500 to-orange-500" />
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-amber-500" />

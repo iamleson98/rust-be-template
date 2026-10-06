@@ -279,7 +279,7 @@ export function AdminBrandManagement() {
     : null
 
   return (
-    <div className="p-3 md:p-4 space-y-4">
+    <div className="p-3 md:p-4 space-y-4 bg-slate-50">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
