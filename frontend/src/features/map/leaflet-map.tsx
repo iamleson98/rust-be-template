@@ -500,8 +500,9 @@ export function MapPicker({
       {/* Footer with picked info + confirm */}
       <div className="border-t bg-white px-4 py-3 flex items-center gap-3">
         <div
-          className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${pinColor === 'red' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
-            }`}
+          className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center ${
+            pinColor === 'red' ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'
+          }`}
         >
           {reverseLoading ? (
             <Loader2 className="h-5 w-5 animate-spin" />

@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -261,8 +260,9 @@ function BasemapSwitcher({
           item.setAttribute('role', 'menuitemradio')
           item.setAttribute('aria-checked', String(key === current))
           if (key === current) item.classList.add('is-active')
-          item.innerHTML = `<span class="vexevn-basemap-check">${key === current ? '✓' : ''
-            }</span>${tRef.current(VARIANT_LABEL_KEYS[key])}`
+          item.innerHTML = `<span class="vexevn-basemap-check">${
+            key === current ? '✓' : ''
+          }</span>${tRef.current(VARIANT_LABEL_KEYS[key])}`
           L.DomEvent.on(item, 'click', (e) => {
             L.DomEvent.stop(e)
             onChangeRef.current(key)

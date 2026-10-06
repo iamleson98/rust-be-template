@@ -259,7 +259,7 @@ export class AudioCallClient {
       for (const h of set) {
         try {
           h(data)
-        } catch { }
+        } catch {}
       }
   }
 
@@ -440,7 +440,7 @@ export class AudioCallClient {
     if (this.ws) {
       try {
         this.ws.close()
-      } catch { }
+      } catch {}
       this.ws = null
     }
     this.handlers.clear()
@@ -450,7 +450,7 @@ export class AudioCallClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(msg))
-      } catch { }
+      } catch {}
     }
   }
 
@@ -467,7 +467,7 @@ export class AudioCallClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(msg))
-      } catch { }
+      } catch {}
     } else if (this.isCallLive() && this.pendingIce.length < AudioCallClient.MAX_PENDING_ICE) {
       this.pendingIce.push(msg)
     }
@@ -926,11 +926,11 @@ export class AudioCallClient {
       if (this.remoteAudioElement && this.remoteStream) {
         try {
           this.remoteAudioElement.srcObject = this.remoteStream
-        } catch { }
+        } catch {}
         // iOS Safari requires play() within a user gesture.
         try {
-          this.remoteAudioElement.play().catch(() => { })
-        } catch { }
+          this.remoteAudioElement.play().catch(() => {})
+        } catch {}
       }
       if (this.remoteStream) {
         this.emit('remote-stream', { stream: this.remoteStream as MediaStream })
@@ -1015,14 +1015,14 @@ export class AudioCallClient {
     if (this.pc) {
       try {
         this.pc.close()
-      } catch { }
+      } catch {}
       this.pc = null
     }
     if (this.localStream) {
       for (const t of this.localStream.getAudioTracks()) {
         try {
           t.stop()
-        } catch { }
+        } catch {}
       }
       this.localStream = null
     }
@@ -1040,7 +1040,7 @@ export class AudioCallClient {
     if (this.remoteAudioElement) {
       try {
         this.remoteAudioElement.srcObject = null
-      } catch { }
+      } catch {}
     }
   }
 }
