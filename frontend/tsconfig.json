@@ -19,7 +19,6 @@
     },
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "ignoreDeprecations": "6.0"
   },
   "include": ["src", "prerender.mjs", "e2e", "e2e-admin", "scripts", "*.ts"],
   "exclude": ["node_modules", "dist"]
