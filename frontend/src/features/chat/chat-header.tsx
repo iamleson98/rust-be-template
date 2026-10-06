@@ -17,7 +17,6 @@ export function ChatHeader({
   view,
   activeChannel,
   connected,
-  employeesOnline,
   assigneeName,
   botActive,
   showBack,
@@ -29,7 +28,6 @@ export function ChatHeader({
   view: View
   activeChannel: Channel | null
   connected: boolean
-  employeesOnline: number
   /** Live assignee name (three-role routing) — null while unassigned. */
   assigneeName?: string | null
   /** True when no staff is online — the AI bot owns support. */
@@ -83,11 +81,6 @@ export function ChatHeader({
                 <>
                   <CircleCheck className="h-3 w-3 text-emerald-300 shrink-0" />
                   <span>{t('chatWidget.staffOnline')}</span>
-                  {employeesOnline > 0 && (
-                    <span className="ml-1 opacity-80">
-                      {t('chatWidget.staffCount', { count: employeesOnline })}
-                    </span>
-                  )}
                 </>
               )
             ) : (

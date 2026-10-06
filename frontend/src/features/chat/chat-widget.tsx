@@ -102,7 +102,7 @@ export function ChatWidget() {
 
   // Agent presence / waiting-for-agent UI
   const [waitingForAgent, setWaitingForAgent] = useState(false)
-  const [employeesOnline, setEmployeesOnline] = useState(0)
+  const [, setEmployeesOnline] = useState(0)
   const [, setAgentJoinedName] = useState<string | null>(null)
   // Three-role routing: live assignee (from `channel_assigned` events
   // + channel list refetch) + bot status (no staff online).
@@ -297,7 +297,7 @@ export function ChatWidget() {
     // Intentional effect-synced state (dialog reset-on-open /
     // server-data snapshot / DOM-availability gate).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (latestChannel) void openChannel(latestChannel)
+    if (latestChannel) openChannel(latestChannel)
     setInitializingChannel(false)
     // One-shot channel auto-open: `channels` is a derived flatten (new
     // identity per render) and `openChannel` is a non-memoized async fn;
@@ -453,7 +453,6 @@ export function ChatWidget() {
         view={view}
         activeChannel={activeChannel}
         connected={connected}
-        employeesOnline={employeesOnline}
         assigneeName={assignee?.name ?? null}
         botActive={botActive}
         showBack={callOpen}
