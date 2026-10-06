@@ -27,7 +27,7 @@ import { createColumnHelper, type SortingState } from '@tanstack/react-table'
 import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, RefreshCw, TrendingUp } from 'lucide-react'
+import { AlertCircle, RefreshCw, Ticket as TicketIcon, TrendingUp } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   useAdminBookings,
@@ -268,7 +268,18 @@ export function TicketsPanel() {
   }, [filter])
 
   return (
-    <div className="space-y-4 p-3 bg-slate-50">
+    <div className="p-4 md:p-6 space-y-4">
+      {/* ─── Page header (same pattern as every admin panel) ─── */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold flex items-center gap-2">
+            <TicketIcon className="h-5 w-5 text-blue-600" />
+            {t('adminTickets.pageTitle')}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{t('adminTickets.pageSubtitle')}</p>
+        </div>
+      </div>
+
       {/* ─── KPI cards row ─── */}
       <TicketsKpiCards totals={totals} />
 

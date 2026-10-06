@@ -76,7 +76,7 @@ export function AccountNotificationsPage() {
 
   return (
     <div className="page-transition">
-      <div className="container mx-auto px-4 py-6 max-w-3xl">
+      <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
         <Card>
           <CardHeader className="flex-row flex items-center justify-between gap-3 space-y-0">
             <CardTitle className="text-base flex items-center gap-2">

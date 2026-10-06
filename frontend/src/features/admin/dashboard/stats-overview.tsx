@@ -50,7 +50,6 @@ import { CampaignsSummaryCard } from './campaigns-summary-card'
 /** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
 const EMPTY_ITEMS: never[] = []
 
-
 const BOOKING_STATUS_COLORS: Record<string, string> = {
   confirmed: '#2563eb',
   pending: '#f59e0b',

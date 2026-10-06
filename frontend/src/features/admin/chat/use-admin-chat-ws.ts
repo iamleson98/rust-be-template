@@ -42,7 +42,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { WsClient } from '@/lib/ws-client'
-import { useMarkChatRead } from '@/lib/queries'
+import { useMarkChatRead, chatStatsQueryKey } from '@/lib/queries'
 import { playSound } from '@/lib/sound-effects'
 import { startTitleNotification, stopTitleNotification } from '@/lib/title-notifier'
 import type { SessionUser } from '@/lib/api/types.gen'
@@ -294,7 +294,7 @@ export function useAdminChatWs(
       const d = ev as unknown as WsAssignmentEvent
       if (!d?.channelId) return
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
-      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      qc.invalidateQueries({ queryKey: chatStatsQueryKey() })
       // A new assignment changes the active-chats load of the
       // assignee — the hub re-broadcasts staff_presence itself.
     }
@@ -304,7 +304,7 @@ export function useAdminChatWs(
     ws.on('channels_changed', () => {
       if (disposed) return
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
-      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      qc.invalidateQueries({ queryKey: chatStatsQueryKey() })
     })
 
     return () => {

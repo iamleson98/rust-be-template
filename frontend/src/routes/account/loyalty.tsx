@@ -59,7 +59,7 @@ export function AccountLoyaltyPage() {
 
   return (
     <div className="page-transition">
-      <div className="container mx-auto max-w-4xl space-y-4 px-4 py-6">
+      <div className="mx-auto w-full max-w-5xl space-y-4 px-4 py-6 md:px-6">
         {/* ── Hero: points + tier ── */}
         <Card className="overflow-hidden">
           <div className="h-1.5 bg-linear-to-r from-blue-500 via-blue-400 to-blue-500" />

@@ -33,8 +33,9 @@ function BrandSummaryCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`text-left rounded-xl border bg-card p-4 min-w-60 flex-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${active ? 'border-primary/60 ring-2 ring-primary/15' : 'border-border/60 hover:border-border'
-        }`}
+      className={`text-left rounded-xl border bg-card p-4 min-w-60 flex-1 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+        active ? 'border-primary/60 ring-2 ring-primary/15' : 'border-border/60 hover:border-border'
+      }`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -148,10 +149,11 @@ export function BrandSummaryStrip({
           type="button"
           onClick={() => setBrandId(null)}
           aria-pressed={brandId === null}
-          className={`text-left rounded-xl border bg-card p-4 min-w-52 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${brandId === null
+          className={`text-left rounded-xl border bg-card p-4 min-w-52 transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+            brandId === null
               ? 'border-primary/60 ring-2 ring-primary/15'
               : 'border-border/60 hover:border-border'
-            }`}
+          }`}
         >
           <div className="flex items-center gap-2 text-sm font-semibold">
             <LayoutGrid className="size-4 text-primary" />
@@ -169,13 +171,13 @@ export function BrandSummaryStrip({
         {isLoading
           ? Array.from({ length: 3 }).map((_, i) => <BrandSummarySkeleton key={i} />)
           : summaries.map((s) => (
-            <BrandSummaryCard
-              key={s.brandId ?? 'none'}
-              summary={s}
-              active={brandId === s.brandId}
-              onClick={() => setBrandId(brandId === s.brandId ? null : (s.brandId ?? null))}
-            />
-          ))}
+              <BrandSummaryCard
+                key={s.brandId ?? 'none'}
+                summary={s}
+                active={brandId === s.brandId}
+                onClick={() => setBrandId(brandId === s.brandId ? null : (s.brandId ?? null))}
+              />
+            ))}
       </div>
     </div>
   )

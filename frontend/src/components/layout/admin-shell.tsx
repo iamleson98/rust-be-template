@@ -111,12 +111,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.type === 'admin'
   const groups = isAdmin
     ? [
-      ...navGroups(t).slice(0, 5),
-      {
-        label: t('admin.group.governance'),
-        items: adminOnlyItems(t),
-      },
-    ]
+        ...navGroups(t).slice(0, 5),
+        {
+          label: t('admin.group.governance'),
+          items: adminOnlyItems(t),
+        },
+      ]
     : navGroups(t)
 
   const [collapsed, setCollapsed] = useState(false)
@@ -141,11 +141,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   const initials = user?.name
     ? user.name
-      .split(' ')
-      .map((n) => n[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase()
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
     : 'A'
 
   // Nav content — shared between desktop sidebar and mobile drawer
@@ -289,7 +289,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             {user?.name || 'Admin'} · DatXeVui Admin
           </span>
         </header>
-        <div ref={contentScrollRef} className="flex-1 overflow-y-auto overscroll-contain">
+        {/* Content pane — the single source of the admin canvas: a
+         * theme-aware tint (bg-muted/30) that every panel sits on. Panels
+         * must NOT set their own page background — one canvas, one look,
+         * and dark mode stays correct (the old per-panel bg-slate-50 was
+         * hardcoded light-only). */}
+        <div
+          ref={contentScrollRef}
+          className="flex-1 overflow-y-auto overscroll-contain bg-muted/30"
+        >
           {children}
         </div>
       </div>

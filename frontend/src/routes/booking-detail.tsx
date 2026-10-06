@@ -64,7 +64,7 @@ export function BookingDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
         <Skeleton className="h-8 w-48 mb-6" />
         <Skeleton className="h-64 w-full rounded-xl" />
       </div>
@@ -73,7 +73,7 @@ export function BookingDetailPage() {
 
   if (isError || !booking) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-3xl">
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
         <Button asChild variant="ghost" size="sm" className="mb-4">
           <Link to="/account/trips">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}
@@ -144,7 +144,7 @@ export function BookingDetailPage() {
   const totalAmount = booking.total ?? 0
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-3xl">
+    <div className="container mx-auto px-4 py-8 max-w-3xl">
       <Button asChild variant="ghost" size="sm" className="mb-4">
         <Link to="/account/trips">
           <ArrowLeft className="h-4 w-4 mr-1" /> {t('layout.account.tripHistory')}

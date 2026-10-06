@@ -115,7 +115,7 @@ export function FeedbackPanel() {
   const activeSummary = summaries.find((s) => s.brandId === brandId) ?? null
 
   return (
-    <div className="p-3 md:p-6 space-y-4 bg-slate-50">
+    <div className="p-4 md:p-6 space-y-4">
       {/* Page header */}
       <div className="flex items-start justify-between gap-3">
         <div>

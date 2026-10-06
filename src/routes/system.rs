@@ -10,11 +10,12 @@
 //! connections, transaction + busy contention) — sourced from the
 //! engine's built-in counters via `sqlite3::engine_stats()`.
 //!
-//! Also hosts `/api/admin/chat/stats` — aggregate chat stats for the
-//! admin dashboard's top-row cards (open / assigned / closed counts +
-//! average first-response time) — and `/api/admin/system/metrics` —
-//! live host-level metrics (CPU / RAM / disks / process / host info)
-//! for the admin server-monitoring page, ported from pdf-tts.
+//! Also hosts `/api/admin/system/metrics` — live host-level metrics
+//! (CPU / RAM / disks / process / host info) for the admin
+//! server-monitoring page, ported from pdf-tts.
+//!
+//! (`/api/admin/chat/stats` used to live here by mistake — it now
+//! lives in `routes/admin/chat.rs` where its URL says it does.)
 
 use axum::extract::{Query, State};
 use axum::Json;
@@ -24,7 +25,6 @@ use utoipa::ToSchema;
 use crate::audio_call::hub::call_hub;
 use crate::audio_call::janitor::janitor_stats;
 use crate::audio_call::session::{sessions, CallState};
-use crate::dto::chat::ChatStatsResponse;
 use crate::dto::system::SystemMetrics;
 use crate::error::AppResult;
 use crate::middleware::AdminUser;
@@ -535,35 +535,6 @@ pub async fn system_status(
             hostname,
         },
     }))
-}
-
-/// `GET /api/admin/chat/stats` — aggregate chat stats for the admin
-/// dashboard's top-row cards.
-///
-/// Returns counts of channels grouped by status (open / assigned /
-/// closed / total) + the average first-response time in seconds.
-///
-/// Server-side aggregate so the counts are accurate even when there
-/// are more channels than the channel list's page size (capped at 200).
-#[utoipa::path(
-    get,
-    path = "/api/admin/chat/stats",
-    tag = "admin",
-    responses(
-        (status = 200, description = "Chat stats", body = ChatStatsResponse),
-        (status = 401, description = "Unauthorized"),
-        (status = 403, description = "Forbidden"),
-    )
-)]
-pub async fn chat_stats(
-    State(st): State<AppState>,
-    admin: AdminUser,
-) -> AppResult<Json<ChatStatsResponse>> {
-    st.rbac
-        .require(admin.user_id(), rbac::ADMIN_STATS_READ)
-        .await?;
-    let stats = st.chats.chat_stats().await?;
-    Ok(Json(stats))
 }
 
 /// Collect DB stats for the admin system endpoint.
@@ -1200,7 +1171,6 @@ pub fn router() -> axum::Router<crate::state::AppState> {
         .route("/", get(system_status))
         .route("/metrics", get(system_metrics))
         .route("/memory", get(process_memory))
-        .route("/chat/stats", get(chat_stats))
         .route("/database", get(database_size))
         .route("/database/vacuum", post(database_vacuum))
 }

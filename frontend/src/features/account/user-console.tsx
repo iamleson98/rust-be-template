@@ -648,7 +648,7 @@ export function UserConsole() {
   const style = tier ? (TIER_STYLES[tier.key] ?? DEFAULT_TIER_STYLE) : DEFAULT_TIER_STYLE
 
   return (
-    <div className="container mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto w-full max-w-5xl px-4 py-6 md:px-6">
       {/* ── Hero ─────────────────────────────────────────────── */}
       <div className="relative mb-5 overflow-hidden rounded-2xl bg-linear-to-br from-blue-700 via-blue-800 to-blue-900 text-white">
         {/* Decorative buses */}

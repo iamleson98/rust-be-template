@@ -165,10 +165,16 @@ import {
   claimChannelMutation as chatClaimChannelMutation,
   releaseChannelMutation as chatReleaseChannelMutation,
   closeChannelMutation as chatCloseChannelMutation,
+  chatStatsOptions,
+  chatStatsQueryKey,
   getStaffPresenceOptions,
   // system — live host metrics (admin server-monitoring page)
   systemMetricsOptions,
 } from '@/lib/api/@tanstack/react-query.gen'
+
+// Re-export: the generated stats query key — WS/mutation hooks
+// invalidate the admin chat stats query through this key.
+export { chatStatsQueryKey }
 
 // Re-export the generated query keys that dialog components need for
 // direct cache invalidation (kept aliased to stable, readable names).
@@ -947,28 +953,9 @@ export function useChatChannelsInfinite(pageSize = 30) {
  * Refetches every 15s + on WS invalidation (the WS hook invalidates
  * the `listChannels` query which this piggybacks on).
  */
-export type ChatStats = {
-  openCount: number
-  assignedCount: number
-  closedCount: number
-  totalChannels: number
-  avgResponseTimeSecs: number
-}
-
 export function useChatStats() {
-  return useQuery<ChatStats>({
-    queryKey: ['admin', 'chat', 'stats'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/chat/stats', {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Origin: window.location.origin,
-        },
-      })
-      if (!res.ok) throw new Error('Failed to fetch chat stats')
-      return res.json()
-    },
+  return useQuery({
+    ...chatStatsOptions(),
     refetchInterval: 15 * 1000,
     staleTime: 10 * 1000,
   })
@@ -1325,7 +1312,7 @@ export function useClaimChannel() {
     ...chatClaimChannelMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
-      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      qc.invalidateQueries({ queryKey: chatStatsQueryKey() })
     },
   })
 }
@@ -1337,7 +1324,7 @@ export function useReleaseChannel() {
     ...chatReleaseChannelMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
-      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      qc.invalidateQueries({ queryKey: chatStatsQueryKey() })
     },
   })
 }
@@ -1349,7 +1336,7 @@ export function useCloseChannel() {
     ...chatCloseChannelMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [{ _id: 'listChannels' }] })
-      qc.invalidateQueries({ queryKey: ['chatStats'] })
+      qc.invalidateQueries({ queryKey: chatStatsQueryKey() })
     },
   })
 }

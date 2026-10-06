@@ -28,10 +28,7 @@ import { memo, useCallback, useState } from 'react'
 import { useStats, useAdminBookingExport } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
-import {
-  CalendarRange,
-  Download,
-} from 'lucide-react'
+import { CalendarRange, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
 import type { DateRange } from './types'
@@ -70,48 +67,37 @@ export const AdminDashboard = memo(function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
-      <div className="space-y-3 p-3">
-        {/* ─── Header: title + date range + actions ─── */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">
-              {t('adminDash.overviewTitle')}
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Date range selector */}
-            <ButtonGroup>
-              <Button variant="outline" size="icon" aria-label={t('adminDash.dateRangeLabel')}>
-                <CalendarRange />
-              </Button>
-              {[
-                { key: '7d' as DateRange, label: t('adminDash.range7d') },
-                { key: '30d' as DateRange, label: t('adminDash.range30d') },
-                { key: '90d' as DateRange, label: t('adminDash.range90d') },
-              ].map((opt) => (
-                <Button
-                  key={opt.key}
-                  variant="outline"
-                  onClick={() => setDateRange(opt.key)}
-                >
-                  {opt.label}
-                </Button>
-              ))}
-            </ButtonGroup>
-            <Button
-              variant="outline"
-              onClick={handleExportCSV}
-            >
-              <Download className="h-4 w-4" />
-              {t('adminDash.exportCsv')}
-            </Button>
-          </div>
+    <div className="p-4 md:p-6 space-y-4">
+      {/* ─── Header: title + date range + actions ─── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">{t('adminDash.overviewTitle')}</h1>
         </div>
-
-        {/* ─── Summary report (all real backend data) ─── */}
-        <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Date range selector */}
+          <ButtonGroup>
+            <Button variant="outline" size="icon" aria-label={t('adminDash.dateRangeLabel')}>
+              <CalendarRange />
+            </Button>
+            {[
+              { key: '7d' as DateRange, label: t('adminDash.range7d') },
+              { key: '30d' as DateRange, label: t('adminDash.range30d') },
+              { key: '90d' as DateRange, label: t('adminDash.range90d') },
+            ].map((opt) => (
+              <Button key={opt.key} variant="outline" onClick={() => setDateRange(opt.key)}>
+                {opt.label}
+              </Button>
+            ))}
+          </ButtonGroup>
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="h-4 w-4" />
+            {t('adminDash.exportCsv')}
+          </Button>
+        </div>
       </div>
+
+      {/* ─── Summary report (all real backend data) ─── */}
+      <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
     </div>
   )
 })

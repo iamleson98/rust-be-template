@@ -31,25 +31,23 @@ import {
 import { toast } from 'sonner'
 import { isStaffUser } from '@/lib/store'
 
-
 export const Header = memo(function Header() {
   // useShallow: re-render only when one of the picked fields actually
   // changes — not on every unrelated store write (perf: the header sits
   // above every customer page; chat typing, booking steps, etc. must not
   // re-render it).
-  const { compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } =
-    useApp(
-      useShallow((s) => ({
-        setChatOpen: s.setChatOpen,
-        compareList: s.compareList,
-        setCompareOpen: s.setCompareOpen,
-        setLoyaltyOpen: s.setLoyaltyOpen,
-        lang: s.lang,
-        setLang: s.setLang,
-        user: s.user,
-        setUser: s.setUser,
-      })),
-    )
+  const { compareList, setCompareOpen, setLoyaltyOpen, lang, setLang, user, setUser } = useApp(
+    useShallow((s) => ({
+      setChatOpen: s.setChatOpen,
+      compareList: s.compareList,
+      setCompareOpen: s.setCompareOpen,
+      setLoyaltyOpen: s.setLoyaltyOpen,
+      lang: s.lang,
+      setLang: s.setLang,
+      user: s.user,
+      setUser: s.setUser,
+    })),
+  )
   const navigate = useNavigate()
   const t = useT()
 
@@ -220,10 +218,7 @@ export const Header = memo(function Header() {
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => navigate({ to: '/account' })}
-                  className="gap-2"
-                >
+                <DropdownMenuItem onClick={() => navigate({ to: '/account' })} className="gap-2">
                   <LayoutDashboard className="h-4 w-4" /> {t('nav.myConsole')}
                 </DropdownMenuItem>
                 {isStaffUser(user) && (

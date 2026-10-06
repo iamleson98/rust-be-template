@@ -1159,6 +1159,8 @@ export const en: TranslationMap = {
   'adminTickets.chipSearch': 'Search: "{value}"',
   'adminTickets.chipRange': 'Range: {value}',
   'adminTickets.chooseDates': 'Pick dates',
+  'adminTickets.pageTitle': 'Sold tickets',
+  'adminTickets.pageSubtitle': 'Track ticket revenue and status in real time',
   'adminTickets.kpiTotal': 'Total tickets',
   'adminTickets.kpiRevenue': 'Revenue',
   'adminTickets.bookedAt': 'Booked at',

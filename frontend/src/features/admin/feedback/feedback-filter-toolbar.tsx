@@ -50,10 +50,11 @@ export function FeedbackFilterToolbar({
             key={s.value}
             onClick={() => setStatus(s.value)}
             variant="outline"
-            className={`${status === s.value
-              ? 'bg-background text-foreground'
-              : 'text-muted-foreground hover:text-foreground'
-              }`}
+            className={`${
+              status === s.value
+                ? 'bg-background text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
           >
             {t(s.labelKey)}
             {s.value !== 'all' && activeSummary && (

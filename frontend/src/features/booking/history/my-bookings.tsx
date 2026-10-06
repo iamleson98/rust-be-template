@@ -158,12 +158,13 @@ export function MyBookings() {
 
   // ── Render ─────────────────────────────────────────────
   return (
-    <div className="min-h-[60vh] bg-linear-to-b from-slate-50 via-white to-slate-50">
-      {/* Hero Header — pass the user so the greeting shows a real name
-          (previously always rendered "Chào , ..." with an empty name). */}
+    <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 md:px-6">
+      {/* Hero card — same contained rounded-card pattern as the other
+          account pages (user-console / feedback). Passes the user so the
+          greeting shows a real name (previously always "Chào , ..."). */}
       <BookingsHero user={user ? { name: user.name } : null} />
 
-      <div className="container mx-auto px-4 -mt-8 relative z-10">
+      <div>
         <Tabs value={userTab} onValueChange={(v) => setUserTab(v as UserTab)} className="w-full">
           <BookingsTabBar
             upcomingCount={upcomingBookings.length}
