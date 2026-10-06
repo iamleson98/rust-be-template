@@ -679,7 +679,7 @@ jobs:
             const jsonc = (s) => JSON.parse(
               s.replace(/\/\*[\s\S]*?\*\//g, "")   // /* block */ comments
                .replace(/^\s*\/\/.*$/gm, "")       // // line comments
-               .replace(/,(\s*[\]}])/g, "$1")        // trailing commas
+               .replace(/,(\s*[\]}])/g, (_m, brace) => brace)  // trailing commas
             );
             for (const f of files) {
               const text = fs.readFileSync(f, "utf8");
