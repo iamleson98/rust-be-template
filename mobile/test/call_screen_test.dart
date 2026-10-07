@@ -41,55 +41,53 @@ void main() {
   );
 
   ProviderContainer containerWith(CallUiState state) => ProviderContainer(
-    overrides: [callUiStateProvider.overrideWith(() => FakeCallController(state))],
+    overrides: [
+      callUiStateProvider.overrideWith(() => FakeCallController(state)),
+    ],
   );
 
-  testWidgets(
-    'incoming call shows the CALLER identity — name from the frame',
-    (WidgetTester tester) async {
-      final container = containerWith(
-        const CallUiState(
-          status: CallStatus.incoming,
-          peerId: 'customer-9',
-          peerName: 'Nguyễn Văn A',
-          channelId: 'ch-77',
-          remoteOffer: {'type': 'offer', 'sdp': 'v=0'},
-        ),
-      );
-      addTearDown(container.dispose);
+  testWidgets('incoming call shows the CALLER identity — name from the frame', (
+    WidgetTester tester,
+  ) async {
+    final container = containerWith(
+      const CallUiState(
+        status: CallStatus.incoming,
+        peerId: 'customer-9',
+        peerName: 'Nguyễn Văn A',
+        channelId: 'ch-77',
+        remoteOffer: {'type': 'offer', 'sdp': 'v=0'},
+      ),
+    );
+    addTearDown(container.dispose);
 
-      await tester.pumpWidget(harness(container));
-      // The ringing avatar pulses forever — pump a fixed slice instead
-      // of pumpAndSettle (which would wait for it to "finish").
-      await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpWidget(harness(container));
+    // The ringing avatar pulses forever — pump a fixed slice instead
+    // of pumpAndSettle (which would wait for it to "finish").
+    await tester.pump(const Duration(milliseconds: 350));
 
-      // The caller's name leads the screen — an agent must see WHO is
-      // calling before deciding to pick up.
-      expect(find.text('Nguyễn Văn A'), findsOneWidget);
-      expect(find.text('Cuộc gọi đến…'), findsOneWidget);
-      // Initials avatar fallback renders the same identity.
-      expect(find.text('NA'), findsOneWidget);
-      // Accept / decline controls are reachable and labelled.
-      expect(find.bySemanticsLabel('Từ chối'), findsOneWidget);
-      expect(find.bySemanticsLabel('Nghe máy'), findsOneWidget);
-    },
-  );
+    // The caller's name leads the screen — an agent must see WHO is
+    // calling before deciding to pick up.
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('Cuộc gọi đến…'), findsOneWidget);
+    // Initials avatar fallback renders the same identity.
+    expect(find.text('NA'), findsOneWidget);
+    // Accept / decline controls are reachable and labelled.
+    expect(find.bySemanticsLabel('Từ chối'), findsOneWidget);
+    expect(find.bySemanticsLabel('Nghe máy'), findsOneWidget);
+  });
 
-  testWidgets(
-    'incoming call without a captured name falls back to the generic '
-    'customer label',
-    (WidgetTester tester) async {
-      final container = containerWith(
-        const CallUiState(status: CallStatus.incoming, peerId: 'customer-9'),
-      );
-      addTearDown(container.dispose);
+  testWidgets('incoming call without a captured name falls back to the generic '
+      'customer label', (WidgetTester tester) async {
+    final container = containerWith(
+      const CallUiState(status: CallStatus.incoming, peerId: 'customer-9'),
+    );
+    addTearDown(container.dispose);
 
-      await tester.pumpWidget(harness(container));
-      await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpWidget(harness(container));
+    await tester.pump(const Duration(milliseconds: 350));
 
-      expect(find.text('Khách hàng'), findsOneWidget);
-    },
-  );
+    expect(find.text('Khách hàng'), findsOneWidget);
+  });
 
   testWidgets('active call shows the live duration timer', (tester) async {
     final container = containerWith(
