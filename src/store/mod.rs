@@ -66,6 +66,7 @@ pub mod chat;
 mod composite;
 mod error;
 mod jobs;
+pub(crate) mod keys;
 mod notification;
 mod payment;
 mod place;

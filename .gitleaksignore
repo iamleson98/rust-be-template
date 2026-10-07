@@ -1,8 +1,46 @@
 # Gitleaks ignore list.
 #
+# ── FALSE POSITIVE ──────────────────────────────────────────────────────
 # src/push/fcm.rs:274 — TEST_PKCS8_KEY is a THROWAWAY 2048-bit RSA key
 # generated in this repo's CI-sandbox (`openssl genrsa | openssl pkcs8`)
 # purely to unit-test that the FCM service-account key format (PKCS#8)
 # parses. It unlocks nothing (no certificate, no account, never
 # registered anywhere) and exists only inside a #[cfg(test)] block.
 7520a398d4db2aa4e5f5227dee0e23bc8afb2096:src/push/fcm.rs:private-key:274
+
+# ff28e78a:frontend/src/lib/queries/index.ts:89 — generated SDK re-export
+# names (aliased query-key / mutation helper renames) that trip the
+# generic-api-key entropy heuristic. No secret involved.
+ff28e78a6b9e48200336a7e3dd51558e74efa363:frontend/src/lib/queries/index.ts:generic-api-key:89
+
+# ── HISTORICAL LEAKS (rotated & scrubbed; only visible in git history) ──
+# These findings live in OLD commits, not in any current file: PR-triggered
+# gitleaks (which scans only the PR's commits) never sees them, but the
+# scheduled full-history run does. Each secret below was already rotated
+# and the live files were scrubbed — the regression grep in ci.yml
+# ("Reject known-leaked secret patterns") still guards the working tree.
+# Ignoring by fingerprint keeps the scan green while preserving the audit
+# trail in history. Rotate-on-discovery is the policy (SECURITY.md).
+#
+# .env / .env.example committed to the repo in early scaffolding commits
+# (removed from the tree later; the blobs remain in history).
+#   d67d86e / 5c74ed7 — JWT dev secrets (superseded by JWT_SECRET env
+#   injection; also independently caught by the regression grep patterns).
+d67d86e044550e1e33388855e44d530afd229d6c:.env:generic-api-key:30
+d67d86e044550e1e33388855e44d530afd229d6c:.env.example:generic-api-key:30
+5c74ed7192d53cd3e081b9ca14a17f2267794e9a:.env:generic-api-key:34
+5c74ed7192d53cd3e081b9ca14a17f2267794e9a:.env.example:generic-api-key:34
+#   96ac68a — GEMINI_API_KEY dev key in .env (since rotated in the Google
+#   AI Studio account and removed from the tree).
+96ac68a47763f44f641b6f3a0c8d87fafdf10d15:.env:generic-api-key:102
+#   e486edb — Google OAuth client secret in .env/.env.example (rotated in
+#   Google Cloud Console; the exact leaked value is also pinned by the
+#   ci.yml regression grep as defense-in-depth).
+e486edb2edbed5ae23f64ee522e91437239604f8:.env:generic-api-key:159
+e486edb2edbed5ae23f64ee522e91437239604f8:.env.example:generic-api-key:163
+
+# terraform/terraform.tfvars (80d7d9d) — kamatera_api_token committed
+# during early infra experiments; token revoked in the Kamatera panel and
+# the tfvars file removed from the tree. Infra secrets are now injected
+# via terraform environment variables (see terraform/README).
+80d7d9d83f9f360d1d08f062862104f90b04cc62:terraform/terraform.tfvars:generic-api-key:1

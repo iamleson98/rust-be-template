@@ -13,14 +13,6 @@ export const VEHICLE_TYPE_LABELS: Record<string, string> = {
   minivan: 'types.vehicleMinivan',
 }
 
-export const VEHICLE_TYPE_ICONS: Record<string, string> = {
-  limousine: '🚐',
-  sleeper: '🛏️',
-  semi_sleeper: '💺',
-  standard: '🚌',
-  minivan: '🚐',
-}
-
 export const SEAT_CLASS_LABELS: Record<string, string> = {
   standard: 'types.seatStandard',
   premium: 'types.seatPremium',

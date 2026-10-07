@@ -8,22 +8,16 @@
  *  - shadcn/ui <Form> / <FormField> / <FormItem> / <FormLabel> /
  *    <FormControl> / <FormMessage> for accessible field markup
  *
- * Required-field labels render a red asterisk via <FieldLabel required>.
  * Field errors render in red below the control via <FormMessage />
  * (already styled with `text-destructive` in components/ui/form.tsx).
  */
 
 import { z } from 'zod'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 /* Error messages use Zod's functional `{ error: () => … }` form so they
  * resolve the CURRENT app language at validation time (same pattern as
  * the feature-level schemas, e.g. booking-form.tsx). */
-const tSync = (key: string, params?: Record<string, string | number>) =>
-  translate(useApp.getState().lang, key, params)
 
 /* ──────────────────────────────────────────────────────────────
  *  Shared zod schemas — reused across booking / auth / admin forms
@@ -41,14 +35,6 @@ export const emailSchema = z
   .trim()
   .min(1, { error: () => tSync('validation.emailRequired') })
   .email({ error: () => tSync('validation.email') })
-
-/** Booking code — 6+ alphanumeric chars, case-insensitive. */
-export const bookingCodeSchema = z
-  .string()
-  .trim()
-  .min(4, { error: () => tSync('validation.bookingCodeMin') })
-  .max(24, { error: () => tSync('validation.bookingCodeMax') })
-  .regex(/^[A-Z0-9-]+$/i, { error: () => tSync('validation.bookingCode') })
 
 /**
  * Passenger / customer full name — at least 2 chars, max 255 (matches
@@ -91,45 +77,3 @@ export const optionalText = (max = 500) =>
     .max(max, { error: () => tSync('validation.maxChars', { max }) })
     .optional()
     .or(z.literal(''))
-
-/* ──────────────────────────────────────────────────────────────
- *  FieldLabel — shared required-field marker
- * ──────────────────────────────────────────────────────────────
- *
- * Renders a form label with an optional red asterisk for required
- * fields. Use this instead of raw <FormLabel>Label *</FormLabel>
- * so the marker style is consistent across all forms.
- *
- * Usage:
- *   <FieldLabel required>Họ và tên</FieldLabel>
- *   <FieldLabel>Email (tuỳ chọn)</FieldLabel>
- */
-
-export function FieldLabel({
-  children,
-  required,
-  className,
-  htmlFor,
-}: {
-  children: React.ReactNode
-  required?: boolean
-  className?: string
-  htmlFor?: string
-}) {
-  return (
-    <Label
-      htmlFor={htmlFor}
-      className={cn(
-        'text-xs font-semibold uppercase tracking-wide text-muted-foreground',
-        className,
-      )}
-    >
-      {children}
-      {required && (
-        <span className="text-destructive ml-0.5" aria-hidden="true">
-          *
-        </span>
-      )}
-    </Label>
-  )
-}

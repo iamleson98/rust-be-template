@@ -49,7 +49,19 @@ pub trait PushDeviceStore: Send + Sync {
 
     /// Remove one token (client logout / token rotation). Returns the
     /// number of rows deleted.
+    ///
+    /// System-side cleanup only (pruning tokens FCM reported `Gone`).
+    /// User-facing deletes must go through
+    /// [`PushDeviceStore::delete_by_token_for_user`] so one user can
+    /// never unregister another user's device.
     async fn delete_by_token(&self, token: &str) -> StoreResult<u64>;
+
+    /// Remove one token ONLY when it belongs to `user_id` (BOLA-safe
+    /// unregister for the `DELETE /api/push/devices/{token}` route).
+    /// Returns the number of rows deleted (0 = token not found OR not
+    /// owned by the caller — indistinguishable on purpose, so the route
+    /// leaks no ownership information).
+    async fn delete_by_token_for_user(&self, user_id: &str, token: &str) -> StoreResult<u64>;
 
     /// Remove every device row a user owns (account-level logout).
     /// Returns the number of rows deleted.
@@ -127,6 +139,16 @@ impl PushDeviceStore for DbPushDeviceStore {
     #[store_macros::no_retry]
     async fn delete_by_token(&self, token: &str) -> StoreResult<u64> {
         let res = push_device::Entity::delete_many()
+            .filter(push_device::Column::Token.eq(token))
+            .exec(self.db.as_ref())
+            .await?;
+        Ok(res.rows_affected)
+    }
+
+    #[store_macros::no_retry]
+    async fn delete_by_token_for_user(&self, user_id: &str, token: &str) -> StoreResult<u64> {
+        let res = push_device::Entity::delete_many()
+            .filter(push_device::Column::UserId.eq(parse_uuid(user_id)?))
             .filter(push_device::Column::Token.eq(token))
             .exec(self.db.as_ref())
             .await?;

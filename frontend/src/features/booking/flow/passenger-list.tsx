@@ -4,10 +4,8 @@
  * PassengerList — presentational pieces used by the BookingDialog's
  * passenger step (step 1).
  *
- * Extracted from the original `booking-dialog.tsx`. Two exports:
+ * Extracted from the original `booking-dialog.tsx`. One export:
  *
- *   - `PassengerStepHeader` — the step title row with the "Sao chép từ
- *     liên hệ" + "Tự ghép ghế" action buttons.
  *   - `PassengerSummary` — the bottom summary box with passenger-count
  *     badges + the subtotal + validation warnings (unassigned seats,
  *     duplicate seats, all-assigned OK state).
@@ -19,80 +17,13 @@
  * form state to a context provider, which is a larger refactor.
  */
 
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import {
-  AlertTriangle,
-  Baby,
-  CheckCircle2,
-  Copy,
-  Plus,
-  Sparkles,
-  User,
-  UserCheck,
-  Users,
-} from 'lucide-react'
+import { AlertTriangle, Baby, CheckCircle2, User, UserCheck } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
 import type { PassengerFormValue } from './booking-form'
-
-export function PassengerStepHeader({
-  passengerCount,
-  selectedSeatCount,
-  onCopyContactToFirst,
-  onAutoAssignSeats,
-  canCopyContact,
-  hasUnassigned,
-}: {
-  passengerCount: number
-  selectedSeatCount: number
-  onCopyContactToFirst: () => void
-  onAutoAssignSeats: () => void
-  canCopyContact: boolean
-  hasUnassigned: boolean
-}) {
-  const t = useT()
-  return (
-    <div className="flex items-center justify-between gap-2 flex-wrap">
-      <div>
-        <h3 className="font-semibold text-sm flex items-center gap-1.5">
-          <Users className="h-4 w-4 text-blue-600" />
-          {t('bookingFlow.passengerInfo')}
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {t('bookingFlow.passengerSeatSummary', {
-            count: passengerCount,
-            seats: selectedSeatCount,
-          })}
-        </p>
-      </div>
-      <div className="flex items-center gap-1.5">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onCopyContactToFirst}
-          disabled={!canCopyContact}
-          className="gap-1.5 h-8 text-xs"
-        >
-          <Copy className="h-3.5 w-3.5" />
-          {t('bookingFlow.copyFromContact')}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onAutoAssignSeats}
-          disabled={!hasUnassigned}
-          className="gap-1.5 h-8 text-xs"
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          {t('bookingFlow.autoMatchSeats')}
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 export function PassengerSummary({
   passengers,
@@ -165,22 +96,5 @@ export function PassengerSummary({
         {t('bookingFlow.seatsSelectedCount', { count: selectedSeatCount })}
       </span>
     </div>
-  )
-}
-
-export function AddPassengerButton({
-  remaining,
-  onClick,
-}: {
-  remaining: number
-  onClick: () => void
-}) {
-  const t = useT()
-  if (remaining <= 0) return null
-  return (
-    <Button variant="outline" onClick={onClick} className="w-full gap-1.5 border-dashed">
-      <Plus className="h-4 w-4" />
-      {t('bookingFlow.addPassengerRemaining', { count: remaining })}
-    </Button>
   )
 }

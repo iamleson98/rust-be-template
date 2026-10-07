@@ -1,19 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  brandMatchesRouteFilter,
   dayChips,
   daysLabel,
   effectiveWindow,
   matchesBrandSearch,
-  nextScheduleSort,
   routeDirection,
   schedulePointsSummary,
   scheduleStopTimes,
   sortSchedules,
   vehicleCodeLabel,
   vehicleLabelFor,
-  type ScheduleSort,
 } from '../brand-tree-helpers'
 import type { AdminScheduleOut } from '@/lib/api/types.gen'
 
@@ -74,14 +71,6 @@ describe('matchesBrandSearch', () => {
   })
 })
 
-describe('brandMatchesRouteFilter', () => {
-  it('is true only for brands with a matching route', () => {
-    const matching = new Set(['b1', 'b2'])
-    expect(brandMatchesRouteFilter({ id: 'b1' }, matching)).toBe(true)
-    expect(brandMatchesRouteFilter({ id: 'b3' }, matching)).toBe(false)
-  })
-})
-
 describe('sortSchedules', () => {
   const schedules = [
     schedule({
@@ -134,27 +123,6 @@ describe('sortSchedules', () => {
     ]
     const asc = sortSchedules(withMissing, { key: 'departureTime', dir: 'asc' })
     expect(asc[0].id).toBe('y')
-  })
-})
-
-describe('nextScheduleSort', () => {
-  it('starts asc on a new key', () => {
-    expect(nextScheduleSort(null, 'departureTime')).toEqual({ key: 'departureTime', dir: 'asc' })
-    const current: ScheduleSort = { key: 'priceAdult', dir: 'asc' }
-    expect(nextScheduleSort(current, 'departureTime')).toEqual({ key: 'departureTime', dir: 'asc' })
-  })
-
-  it('flips asc → desc on the same key', () => {
-    const current: ScheduleSort = { key: 'departureTime', dir: 'asc' }
-    expect(nextScheduleSort(current, 'departureTime')).toEqual({
-      key: 'departureTime',
-      dir: 'desc',
-    })
-  })
-
-  it('returns asc after desc on the same key', () => {
-    const current: ScheduleSort = { key: 'departureTime', dir: 'desc' }
-    expect(nextScheduleSort(current, 'departureTime')).toEqual({ key: 'departureTime', dir: 'asc' })
   })
 })
 

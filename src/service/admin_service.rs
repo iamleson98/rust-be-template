@@ -37,6 +37,7 @@ use crate::entity::{
     schedule_point, seat, vehicle_type,
 };
 use crate::error::{AppError, AppResult};
+use crate::service::review_service::recompute_brand_rating;
 use crate::store::CompositeStore;
 
 // ────────────────────────────────────────────────────────────────
@@ -1299,6 +1300,25 @@ impl AdminService {
             .update_review(active)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // A status change (approve / reject / hide) changes the APPROVED
+        // set the brand's average rating is computed over — recompute it
+        // so the stored rating (and the rating-ordered public catalog)
+        // doesn't drift until the next user-driven review event. A pure
+        // `brand_reply` edit doesn't touch the average — skip it.
+        if status.is_some() {
+            if let Some(brand_id) = updated.brand_id {
+                if let Err(e) = recompute_brand_rating(&self.store, &brand_id.to_string()).await {
+                    // The moderation itself succeeded — log + continue rather
+                    // than failing the whole request over the derived rating.
+                    tracing::warn!(
+                        brand_id = %brand_id,
+                        error = ?e,
+                        "post-moderation brand rating recompute failed"
+                    );
+                }
+            }
+        }
 
         Ok(ModerateReviewResponse {
             id,

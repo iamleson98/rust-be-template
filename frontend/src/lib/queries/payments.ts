@@ -172,7 +172,10 @@ export function useCreatePayment<
     },
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Payment state drives booking state (pending → confirmed) —
+      // refresh "My bookings" via the generated object key (partial
+      // match; the old plain ['bookings'] string key matched nothing).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data, vars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
@@ -230,7 +233,10 @@ export function useMarkCodCollected<
     },
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // COD collected flips the booking to confirmed — refresh "My
+      // bookings" via the generated object key (partial match; the old
+      // plain ['bookings'] string key matched nothing).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data, vars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars),
@@ -289,7 +295,12 @@ export function useUpdatePaymentStatus<
     onSuccess: (data, vars) => {
       qc.invalidateQueries({ queryKey: ['admin', 'payments'] })
       qc.invalidateQueries({ queryKey: ['payments'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Payment status flips the booking's status too — refresh the
+      // admin bookings table + stats and the user's bookings list
+      // (generated object keys, partial match).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list2' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'stats' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data, vars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars),

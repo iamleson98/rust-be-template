@@ -19,8 +19,8 @@ use tracing::Instrument;
 use crate::auth::SessionUser;
 use crate::error::AppError;
 use crate::presence::presence;
+use crate::service::chat_service::ChatMessageInput;
 use crate::state::AppState;
-use crate::store::chat::NewChatMessage;
 
 use super::hub::hub;
 
@@ -517,15 +517,10 @@ async fn handle_message(
             let now_warn = chrono::Utc::now().to_rfc3339();
             let _ = st
                 .chats
-                .insert_message(NewChatMessage {
-                    channel_id: channel_uuid,
-                    sender_type: "system".into(),
-                    sender_id: None,
-                    content: Some(format!("⚠️ Cảnh báo: {reason}")),
-                    kind: "text".into(),
-                    attachments: None,
-                    client_msg_id: None,
-                })
+                .insert_message(ChatMessageInput::system_notice(
+                    channel_uuid,
+                    format!("⚠️ Cảnh báo: {reason}"),
+                ))
                 .await;
             // Tell the sender why the message was flagged (still allow
             // the original message through — warnings don't block).
@@ -544,15 +539,10 @@ async fn handle_message(
             let now_ban = chrono::Utc::now().to_rfc3339();
             let _ = st
                 .chats
-                .insert_message(NewChatMessage {
-                    channel_id: channel_uuid,
-                    sender_type: "system".into(),
-                    sender_id: None,
-                    content: Some(format!("🚫 Tài khoản bị tạm khóa: {reason}")),
-                    kind: "text".into(),
-                    attachments: None,
-                    client_msg_id: None,
-                })
+                .insert_message(ChatMessageInput::system_notice(
+                    channel_uuid,
+                    format!("🚫 Tài khoản bị tạm khóa: {reason}"),
+                ))
                 .await;
             // Reject the user's message — send a ban notice to the client.
             hub().send_to(
@@ -596,19 +586,17 @@ async fn handle_message(
 
     let stored = st
         .chats
-        .insert_message(NewChatMessage {
-            channel_id: channel_uuid,
-            sender_type: user.actor_type.clone(),
-            sender_id: Some(user.id),
-            content: Some(text.clone()),
-            kind: "text".into(),
-            attachments: None,
-            client_msg_id: if client_msg_id.is_empty() {
+        .insert_message(ChatMessageInput::text(
+            channel_uuid,
+            &user.actor_type,
+            Some(user.id),
+            text.clone(),
+            if client_msg_id.is_empty() {
                 None
             } else {
                 Some(client_msg_id.clone())
             },
-        })
+        ))
         .await?;
     let id = stored.id.to_string();
     let now = stored.created_at.clone();

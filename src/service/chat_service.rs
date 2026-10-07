@@ -471,11 +471,19 @@ impl ChatService {
     /// fallback. Idempotent via `client_msg_id` — if a message with the
     /// same `client_msg_id` already exists, it's returned without
     /// re-inserting.
-    pub async fn insert_message(&self, msg: NewChatMessage) -> AppResult<chat_message::Model> {
+    pub async fn insert_message(&self, msg: ChatMessageInput) -> AppResult<chat_message::Model> {
         let stored = self
             .store
             .chat_store()
-            .insert_message(msg)
+            .insert_message(NewChatMessage {
+                channel_id: msg.channel_id,
+                sender_type: msg.sender_type,
+                sender_id: msg.sender_id,
+                content: msg.content,
+                kind: msg.kind,
+                attachments: msg.attachments,
+                client_msg_id: msg.client_msg_id,
+            })
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -639,15 +647,6 @@ impl ChatService {
             total_channels,
             avg_response_time_secs,
         })
-    }
-
-    /// Expose the DB connection for admin stats endpoints (e.g.
-    /// `pg_stat_activity` queries in `/api/admin/system`). This is a
-    /// narrow escape hatch for system-level queries that don't fit
-    /// the domain-store pattern — route handlers should NOT use this
-    /// for business logic, only for admin/observability queries.
-    pub fn db_for_stats(&self) -> &sea_orm::DatabaseConnection {
-        self.store.db()
     }
 
     // ── Assignment routing (three-role spec) ─────────────────────
@@ -915,7 +914,64 @@ impl ChatService {
     }
 }
 
-// `NewChatMessage` re-export so route handlers don't need to import
-// from `crate::store::chat` directly — they can pull the DTO from
-// the service layer.
-pub use crate::store::chat::NewChatMessage as ChatMessageInput;
+// ────────────────────────────────────────────────────────────
+//  Service-owned message input
+// ────────────────────────────────────────────────────────────
+
+/// Service-layer input for persisting a chat message.
+///
+/// Routes, the WS handler and the messaging-platform webhooks construct
+/// THIS type — never the store's `NewChatMessage` — so the store DTO
+/// stays an implementation detail of the data layer (the same rule
+/// `AppState` enforces by keeping the store private). Field-compatible
+/// with the store DTO by design; the conversion happens inside
+/// [`ChatService::insert_message`].
+#[derive(Debug, Clone)]
+pub struct ChatMessageInput {
+    pub channel_id: Uuid,
+    /// `"user"` | `"employee"` | `"system"` | `"assistant"`.
+    pub sender_type: String,
+    pub sender_id: Option<Uuid>,
+    pub content: Option<String>,
+    /// `"text"` (only kind the API accepts today).
+    pub kind: String,
+    /// JSON-encoded attachment descriptors (unused today — `None`).
+    pub attachments: Option<String>,
+    /// Client-generated idempotency key (WS + REST send paths).
+    pub client_msg_id: Option<String>,
+}
+
+impl ChatMessageInput {
+    /// A normal user / employee / platform-user text message.
+    pub fn text(
+        channel_id: Uuid,
+        sender_type: &str,
+        sender_id: Option<Uuid>,
+        content: String,
+        client_msg_id: Option<String>,
+    ) -> Self {
+        Self {
+            channel_id,
+            sender_type: sender_type.to_string(),
+            sender_id,
+            content: Some(content),
+            kind: "text".into(),
+            attachments: None,
+            client_msg_id: client_msg_id.filter(|s| !s.is_empty()),
+        }
+    }
+
+    /// A system notice persisted into the channel timeline (abuse-guard
+    /// warnings / bans) — no sender, no idempotency key.
+    pub fn system_notice(channel_id: Uuid, content: String) -> Self {
+        Self {
+            channel_id,
+            sender_type: "system".into(),
+            sender_id: None,
+            content: Some(content),
+            kind: "text".into(),
+            attachments: None,
+            client_msg_id: None,
+        }
+    }
+}

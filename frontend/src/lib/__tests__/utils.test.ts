@@ -2,13 +2,7 @@
  * Tests for utility functions — currency, formatting, phone normalization.
  */
 import { describe, it, expect } from 'vitest'
-import {
-  formatCurrency,
-  convertToUSD,
-  convertToVND,
-  EXCHANGE_RATE,
-  EXCHANGE_RATE_NOTE,
-} from '@/lib/currency'
+import { formatCurrency, EXCHANGE_RATE } from '@/lib/currency'
 import {
   formatVND,
   formatNum,
@@ -46,20 +40,10 @@ describe('formatCurrency', () => {
   })
 })
 
-describe('convertToUSD / convertToVND', () => {
-  it('converts VND to USD using the static rate', () => {
-    expect(convertToUSD(EXCHANGE_RATE)).toBeCloseTo(1, 2)
-    expect(convertToUSD(49000)).toBeCloseTo(2, 2)
-  })
-
-  it('converts USD to VND', () => {
-    expect(convertToVND(1)).toBe(EXCHANGE_RATE)
-    expect(convertToVND(10)).toBe(245000)
-  })
-
-  it('EXCHANGE_RATE_NOTE contains the rate', () => {
-    expect(EXCHANGE_RATE_NOTE).toContain('24.500')
-    expect(EXCHANGE_RATE_NOTE).toContain('USD')
+describe('formatCurrency / USD conversion', () => {
+  it('formats USD via the static rate with 2 decimal places', () => {
+    // formatCurrency(245000, 'USD') === $10.00 at EXCHANGE_RATE 24500.
+    expect(formatCurrency(EXCHANGE_RATE, 'USD')).toMatch(/\$1\.00/)
   })
 })
 

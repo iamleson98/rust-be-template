@@ -1,8 +1,7 @@
 // Extracted from the original 'cancel-dialog.tsx'.
 
 import { z } from 'zod'
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 export const CANCEL_REASONS = [
   { key: 'change', labelKey: 'cancel.reason.change' },
@@ -26,7 +25,6 @@ export type Step = 1 | 2 | 3
  * string is resolved (in the store's current language) at validation
  * time, not at module load.
  */
-const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 export const cancelSchema = z.object({
   selectedReason: z.string().min(1, { error: () => tSync('cancelSchema.reasonRequired') }),

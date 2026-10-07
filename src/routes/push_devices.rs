@@ -72,10 +72,16 @@ pub async fn register_device(
 )]
 pub async fn unregister_device(
     State(_st): State<AppState>,
-    AuthUser(_uid): AuthUser,
+    AuthUser(uid): AuthUser,
     Path(token): Path<String>,
 ) -> Result<Json<UnregisterDeviceResponse>, AppError> {
-    let deleted = crate::push::push().unregister_device(&token).await?;
+    // Ownership is enforced in the store delete (`WHERE user_id = ?`):
+    // a token that belongs to a DIFFERENT user is simply not matched,
+    // so `deleted=0` — no cross-user unregistration, and the response
+    // leaks no ownership information.
+    let deleted = crate::push::push()
+        .unregister_device_for_user(&uid.to_string(), &token)
+        .await?;
     Ok(Json(UnregisterDeviceResponse { ok: true, deleted }))
 }
 

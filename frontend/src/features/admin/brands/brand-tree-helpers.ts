@@ -55,16 +55,6 @@ export function matchesBrandSearch(
   )
 }
 
-/** Smart filter — a brand is relevant when at least one of its routes
- *  matches the selected start AND end points. `matchingBrandIds` comes
- *  from the server-side filtered route list. */
-export function brandMatchesRouteFilter(
-  brand: Pick<AdminBrandOut, 'id'>,
-  matchingBrandIds: Set<string>,
-): boolean {
-  return matchingBrandIds.has(brand.id)
-}
-
 /** Sort a route group's schedule rows. Sorting is stable (equal keys
  *  keep their server order) and scoped to the group — brand and route
  *  rows never interleave with schedule rows. */
@@ -89,14 +79,6 @@ function compareBySortKey(a: AdminScheduleOut, b: AdminScheduleOut, key: Schedul
     case 'effectiveFrom':
       return (a.effectiveFrom ?? '').localeCompare(b.effectiveFrom ?? '')
   }
-}
-
-/** Cycle the sort: none → key asc → key desc → (keep desc). */
-export function nextScheduleSort(current: ScheduleSort | null, key: ScheduleSortKey): ScheduleSort {
-  if (!current || current.key !== key) {
-    return { key, dir: 'asc' }
-  }
-  return { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
 }
 
 /** Pretty-prints a 7-char `daysOfWeek` bitmask (`1111111` = daily). */

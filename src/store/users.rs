@@ -445,9 +445,8 @@ fn user_key(id: Uuid) -> String {
     format!("entity:user:{id}")
 }
 
-fn perms_key(id: Uuid) -> String {
-    format!("rbac:perms:{id}")
-}
+// `rbac:perms:{id}` — shared with `CacheRbacStore` (see `store::keys`).
+use super::keys::perms_key;
 
 #[async_trait]
 impl<S: UserStore> UserStore for CacheUserStore<S> {
@@ -522,9 +521,17 @@ impl<S: UserStore> UserStore for CacheUserStore<S> {
         avatar_url: Option<String>,
         role: String,
     ) -> StoreResult<user::Model> {
-        self.inner
+        let model = self
+            .inner
             .upsert_oauth_user(email, name, provider, subject, avatar_url, role)
-            .await
+            .await?;
+        // The row changed (avatar / OAuth linkage / role) — drop the
+        // cached entity so `SessionUser::from_model` (WS hubs,
+        // AdminUser extractor) and any cached permission bundle see the
+        // fresh state instead of the pre-link row until TTL.
+        let _ = self.cache.delete(&user_key(model.id)).await;
+        let _ = self.cache.delete(&perms_key(model.id)).await;
+        Ok(model)
     }
 
     async fn delete_user(&self, id: Uuid) -> StoreResult<()> {

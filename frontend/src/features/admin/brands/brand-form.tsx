@@ -39,7 +39,7 @@ import { useT } from '@/lib/i18n'
 import { optionalText } from '@/lib/forms'
 import { useUpsertAdminBrand } from '@/lib/queries'
 import type { AdminBrandOut } from '@/lib/api'
-import { slugify } from './helpers'
+import { slugify } from '@/lib/slug'
 import { getErrorMessage } from '@/lib/error-message'
 
 const makeBrandSchema = (t: ReturnType<typeof useT>) =>

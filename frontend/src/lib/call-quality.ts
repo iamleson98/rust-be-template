@@ -82,7 +82,3 @@ export function hangupReasonText(reason: string | null | undefined, isAgent: boo
 export function micDeniedGuidance(): string {
   return L('call.micDeniedGuidance')
 }
-
-/** Legacy module-level (Vietnamese) constant — kept for back-compat;
- *  prefer `micDeniedGuidance()` at render time. */
-export const MIC_DENIED_GUIDANCE = micDeniedGuidance()

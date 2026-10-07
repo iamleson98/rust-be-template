@@ -141,12 +141,9 @@ import {
   summaryOptions as adminReviewsSummaryOptions,
   summaryQueryKey as adminReviewsSummaryQueryKey,
   moderateMutation,
-  // admin — addresses (list/create/delete_/update — unnumbered, first alphabetically)
-  listOptions as adminAddressesListOptions,
+  // admin — addresses (list/create — unnumbered, first alphabetically)
   listQueryKey as adminAddressesListQueryKey,
   createMutation as createAddressMutation,
-  updateMutation as updateAddressMutation,
-  deleteMutation as deleteAddressMutation,
   // admin — bookings (list2)
   list2Options as adminBookingsListOptions,
   getOptions as adminGetBookingOptions,
@@ -161,13 +158,13 @@ import {
   createChannelMutation as chatCreateChannelMutation,
   markReadMutation as chatMarkReadMutation,
   listUsersOptions,
+  listUsersQueryKey,
   setUserRoleMutation,
   claimChannelMutation as chatClaimChannelMutation,
   releaseChannelMutation as chatReleaseChannelMutation,
   closeChannelMutation as chatCloseChannelMutation,
   chatStatsOptions,
   chatStatsQueryKey,
-  getStaffPresenceOptions,
   // system — live host metrics (admin server-monitoring page)
   systemMetricsOptions,
 } from '@/lib/api/@tanstack/react-query.gen'
@@ -175,15 +172,6 @@ import {
 // Re-export: the generated stats query key — WS/mutation hooks
 // invalidate the admin chat stats query through this key.
 export { chatStatsQueryKey }
-
-// Re-export the generated query keys that dialog components need for
-// direct cache invalidation (kept aliased to stable, readable names).
-export {
-  adminBrandsListQueryKey,
-  adminRoutesListQueryKey,
-  adminSchedulesListQueryKey,
-  adminPickupPointsListQueryKey,
-}
 
 // Generated types — re-exported so components can import from here
 import type {
@@ -265,12 +253,6 @@ export type {
 }
 
 // Convenience types used by components
-export type ListEnvelope<T> = {
-  items: T[]
-  total?: number | null
-  unread?: number
-}
-
 export type TripSearchParams = {
   from: string
   to: string
@@ -655,7 +637,9 @@ export function useCancelBooking<TData = unknown, TVars = unknown>(
   return useMutation<TData, unknown, TVars>({
     ...(cancel2Mutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Refresh "My bookings" (partial key match on the generated object
+      // key — the old plain ['bookings'] string key matched nothing).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
@@ -671,7 +655,8 @@ export function useHoldBooking<TData = unknown, TVars = unknown>(
   return useMutation<TData, unknown, TVars>({
     ...(holdMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Refresh "My bookings" (partial key match — see useCancelBooking).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
@@ -687,7 +672,8 @@ export function useConfirmBooking<TData = unknown, TVars = unknown>(
   return useMutation<TData, unknown, TVars>({
     ...(confirmMutation() as unknown as UseMutationOptions<TData, unknown, TVars>),
     onSuccess: (data, vars) => {
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Refresh "My bookings" (partial key match — see useCancelBooking).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
@@ -748,7 +734,6 @@ export function useCreatePriceAlert() {
     ...priceAlertCreateMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['price-alerts'] })
     },
   })
 }
@@ -759,7 +744,6 @@ export function useRemovePriceAlert() {
     ...priceAlertRemoveMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: priceAlertsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['price-alerts'] })
     },
   })
 }
@@ -1341,21 +1325,7 @@ export function useCloseChannel() {
   })
 }
 
-/**
- * Staff presence snapshot (REST bootstrap for the admin chat panel's
- * presence column). The WS `staff_presence` broadcasts keep it live
- * afterwards — this hook covers first paint + reconnects.
- */
-export function useStaffPresence() {
-  return useQuery({
-    ...getStaffPresenceOptions(),
-    // WS pushes updates; the REST query is a fallback refresher.
-    refetchInterval: 60 * 1000,
-    staleTime: 15 * 1000,
-  })
-}
-
-// ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
 // Campaign validation (for booking dialog)
 // ─────────────────────────────────────────────────────────────
 
@@ -1447,7 +1417,6 @@ export function useUpsertAdminBrand() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['brands'] })
     },
   })
 }
@@ -1458,7 +1427,6 @@ export function useDeleteAdminBrand() {
     ...deleteBrandMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminBrandsListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['brands'] })
     },
   })
 }
@@ -1493,7 +1461,6 @@ export function useUpsertAdminRoute() {
     ...createRouteMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['routes'] })
     },
   })
 }
@@ -1507,7 +1474,6 @@ export function useUpdateAdminRoute() {
     ...update6Mutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['routes'] })
     },
   })
 }
@@ -1518,7 +1484,6 @@ export function useDeleteAdminRoute() {
     ...deleteRouteMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminRoutesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['routes'] })
     },
   })
 }
@@ -1526,15 +1491,6 @@ export function useDeleteAdminRoute() {
 // ─────────────────────────────────────────────────────────────
 // Admin — Addresses (brand-owned points for schedule sequences)
 // ─────────────────────────────────────────────────────────────
-
-/** List a brand's addresses — options for the schedule point selects. */
-export function useAdminAddresses(brandId?: string) {
-  return useQuery({
-    ...adminAddressesListOptions({ query: { brandId } }),
-    enabled: !!brandId,
-    staleTime: 30 * 1000,
-  })
-}
 
 /**
  * Fetch one page of a brand's addresses for the searchable,
@@ -1579,31 +1535,8 @@ export function useCreateAdminAddress() {
     onSuccess: (_data, vars) => {
       // Invalidate the whole admin-addresses key family — the brandId
       // filter may differ between consumers.
-      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
       qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
       void vars
-    },
-  })
-}
-
-export function useUpdateAdminAddress() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...updateAddressMutation(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
-      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
-    },
-  })
-}
-
-export function useDeleteAdminAddress() {
-  const qc = useQueryClient()
-  return useMutation({
-    ...deleteAddressMutation(),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'addresses'] })
-      qc.invalidateQueries({ queryKey: adminAddressesListQueryKey() })
     },
   })
 }
@@ -1754,7 +1687,6 @@ export function useModerateAdminReview() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminReviewsListQueryKey() })
       qc.invalidateQueries({ queryKey: adminReviewsSummaryQueryKey() })
-      qc.invalidateQueries({ queryKey: ['reviews'] })
     },
   })
 }
@@ -1858,7 +1790,6 @@ export function useCreateAdminVehicleType() {
     ...createVehicleTypeMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
   })
 }
@@ -1869,7 +1800,6 @@ export function useUpdateAdminVehicleType() {
     ...updateVehicleTypeMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
   })
 }
@@ -1880,7 +1810,6 @@ export function useDeleteAdminVehicleType() {
     ...deleteVehicleTypeMutation(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: adminVehicleTypesListQueryKey() })
-      qc.invalidateQueries({ queryKey: ['admin', 'vehicle-types'] })
     },
   })
 }
@@ -1942,8 +1871,12 @@ export function useUpdateBookingStatus() {
   return useMutation({
     ...updateStatusMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Refresh the admin bookings table + its aggregate stats. The old
+      // plain ['admin','bookings'] string key never matched the generated
+      // object key, so the tickets panel silently kept stale rows after a
+      // status change until the next manual refetch.
+      qc.invalidateQueries({ queryKey: [{ _id: 'list2' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'stats' }] })
     },
   })
 }
@@ -1953,8 +1886,10 @@ export function useAdminCreateBooking() {
   return useMutation({
     ...holdMutation(),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin', 'bookings'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      // Same refresh set as useUpdateBookingStatus (new booking from the
+      // chat ticket picker must appear in the table + stats).
+      qc.invalidateQueries({ queryKey: [{ _id: 'list2' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'stats' }] })
     },
   })
 }
@@ -2056,11 +1991,14 @@ export function useSetUserRole() {
   return useMutation({
     ...setUserRoleMutation(),
     onSuccess: () => {
-      // Refresh the users page (the changed row may reorder).
-      qc.invalidateQueries({ queryKey: ['listUsers'] })
+      // Refresh the users page (the changed row may reorder). MUST use
+      // the generated object key — a plain ['listUsers'] string key never
+      // matches the SDK's [{ _id: 'listUsers', ... }] key, so the table
+      // would keep serving the pre-change roles until staleTime ran out.
+      qc.invalidateQueries({ queryKey: listUsersQueryKey() })
       // Role changes can flip what this account is allowed to see —
       // drop the cached /me so guards re-evaluate on next load.
-      qc.invalidateQueries({ queryKey: ['me'] })
+      qc.invalidateQueries({ queryKey: meQueryKey() })
     },
   })
 }

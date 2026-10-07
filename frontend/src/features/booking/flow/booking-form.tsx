@@ -8,8 +8,7 @@
 
 import { z } from 'zod'
 import { fullNameSchema, phoneSchema, emailSchema } from '@/lib/forms'
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 import { User, UserCheck, Baby } from 'lucide-react'
 import type { TripSeat } from '@/lib/api/types.gen'
 
@@ -48,7 +47,6 @@ export type Gender = 'male' | 'female' | 'other'
 // Error messages use Zod's functional `{ error: () => ... }` form so the
 // string is resolved (in the store's current language) at validation
 // time, not at module load.
-const tSync = (key: string) => translate(useApp.getState().lang, key)
 
 export const passengerSchema = z.object({
   name: fullNameSchema,

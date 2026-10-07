@@ -159,9 +159,7 @@ impl<S: RbacStore> Clone for CacheRbacStore<S> {
     }
 }
 
-fn perms_key(id: Uuid) -> String {
-    format!("rbac:perms:{id}")
-}
+use super::keys::perms_key;
 
 #[async_trait]
 impl<S: RbacStore> RbacStore for CacheRbacStore<S> {
