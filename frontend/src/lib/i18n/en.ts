@@ -58,6 +58,7 @@ export const en: TranslationMap = {
   'booking.contactEmail': 'Email',
   'booking.passenger': 'Passenger {n}',
   'booking.passengerAge': 'Age',
+  'booking.passengerName': 'Passenger name',
   'booking.passengerType.adult': 'Adult',
   'booking.passengerType.child': 'Child',
   'booking.passengerType.infant': 'Infant',
@@ -2130,5 +2131,14 @@ export const en: TranslationMap = {
   'tripDetail.needMoreSeats': '{count} more seats needed',
   'tripDetail.enoughSeats': 'All seats selected',
   'tripDetail.routeTimelineTitle': 'Detailed route',
+  'tripDetail.scheduleTimelineTitle': 'Trip schedule',
+  'tripDetail.localTimeNote': 'local time',
+  'tripDetail.timetableFallbackNotice':
+    'A detailed per-stop timetable appears once the operator configures arrival times. The departure time shown above is accurate.',
+  'bookingFlow.paymentFailedTitle': 'Payment failed',
+  'bookingFlow.retryPayment': 'Try again',
+  'bookingFlow.chooseOtherMethod': 'Choose another method',
+  'bookingFlow.waitingForGateway': 'Waiting for the gateway to confirm…',
+  'bookingFlow.preparingPayment': 'Preparing payment…',
   'tripDetail.fewSeatsLeft': 'Only {count} seats left',
 }

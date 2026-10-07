@@ -12,6 +12,11 @@ describe('PaymentMethodStep', () => {
     seatCount: 2,
     subtotal: 300000,
     campaignCode: '',
+    setCampaignCode: vi.fn(),
+    setCampaignResult: vi.fn(),
+    checkingCampaign: false,
+    checkCampaign: vi.fn(),
+    campaignResult: null,
     discount: 0,
     fees: 0,
     total: 300000,
@@ -28,6 +33,29 @@ describe('PaymentMethodStep', () => {
     expect(screen.getByText('VNPay QR')).toBeInTheDocument()
     expect(screen.getByText('Chuyển khoản')).toBeInTheDocument()
     expect(screen.getByText('Thanh toán tại xe')).toBeInTheDocument()
+  })
+
+  it('shows the coupon box on the checkout step', () => {
+    // Coupons live on the PAYMENT step now (moved off the contact step).
+    render(<PaymentMethodStep {...baseProps} />)
+    expect(screen.getByText('Mã khuyến mãi')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/VD: TET2025/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Áp dụng' })).toBeDisabled()
+  })
+
+  it('shows an applied coupon with its discount', () => {
+    render(
+      <PaymentMethodStep
+        {...baseProps}
+        campaignCode="summer2024"
+        campaignResult={{ valid: true, discount: 30000 }}
+        discount={30000}
+        total={270000}
+      />,
+    )
+    expect(screen.getByText('Đã áp dụng mã SUMMER2024')).toBeInTheDocument()
+    // The discount appears in the coupon box AND the price summary.
+    expect(screen.getAllByText(/-30\.000/).length).toBeGreaterThan(0)
   })
 
   it('exposes the method picker as a radio group with per-option state', () => {

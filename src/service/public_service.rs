@@ -18,8 +18,8 @@ use crate::dto::public::{
     BrandDetailOut, BrandListResponse, BrandOut, CampaignListResponse, CampaignOut,
     CampaignValidateResponse, RouteBrandPreview, RouteEndpoint, RouteListResponse, RouteOut,
     StatsResponse, TripAmenity, TripBrandDetail, TripBusLayout, TripCampaign, TripCore, TripDetail,
-    TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSearchResponse,
-    TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
+    TripEndpoint, TripPickupPoint, TripPricing, TripResult, TripRouteDetail, TripSchedulePoint,
+    TripSearchResponse, TripSeat, TripSeatDeck, TripSeatMap, TripSeatRow,
 };
 use crate::entity::{
     brand, bus_layout, route, schedule, seat_inventory, trip_session, vehicle_type,
@@ -1261,6 +1261,44 @@ impl PublicService {
             })
             .collect();
 
+        // Schedule points — the real per-stop timetable (with arrival
+        // times) the admin configured for this trip's schedule. Joined
+        // with their addresses for display names + coordinates.
+        let schedule_point_rows = self
+            .store
+            .address_store()
+            .list_points_by_schedule(trip.schedule_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let address_ids: Vec<Uuid> = schedule_point_rows.iter().map(|p| p.address_id).collect();
+        let address_rows = if address_ids.is_empty() {
+            Vec::new()
+        } else {
+            self.store
+                .address_store()
+                .list_addresses_by_ids(address_ids)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?
+        };
+        let address_map: std::collections::HashMap<Uuid, crate::entity::address::Model> =
+            address_rows.into_iter().map(|a| (a.id, a)).collect();
+        let schedule_items: Vec<TripSchedulePoint> = schedule_point_rows
+            .iter()
+            .filter_map(|p| {
+                let a = address_map.get(&p.address_id)?;
+                Some(TripSchedulePoint {
+                    id: p.id,
+                    stop_order: p.stop_order,
+                    kind: p.kind.clone(),
+                    arrival_time: p.arrival_time.clone(),
+                    name: a.name.clone(),
+                    address: a.address.clone(),
+                    lat: a.lat,
+                    lon: a.lon,
+                })
+            })
+            .collect();
+
         // Seat map — fetch all seats for the bus layout + their inventory
         let seat_rows = if let Some(blid) = schedule.bus_layout_id {
             self.store
@@ -1431,6 +1469,7 @@ impl PublicService {
             },
             amenities: amenities_vec,
             pickup_points: pickup_items,
+            schedule_points: schedule_items,
             seat_map: TripSeatMap { decks },
             campaigns: campaigns_vec,
         })

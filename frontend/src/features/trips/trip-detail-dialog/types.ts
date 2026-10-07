@@ -62,8 +62,16 @@ export type TripDetailDialogData = {
   amenities: { key: string; label: string }[]
   pickupPoints: {
     id: string
-    name: string
+    /** Nullable per the API — render a fallback, never `undefined`. */
+    name: string | null
     stopOrder: number
+    /**
+     * Position-derived kind the backend emits: "pickup" (first) /
+     * "middle" / "drop" (last). NULLABLE — older rows may carry none.
+     * (The API field is `kind`; a former local alias `pickupType`
+     * never existed on the wire and crashed `.replace()` consumers.)
+     */
+    kind?: string | null
     /** Optional per the API — the backend currently emits no ETA
      *  offset for pickup points, so consumers must render nothing
      *  (never a fake "+NaN phút") when it's absent. */
@@ -71,8 +79,25 @@ export type TripDetailDialogData = {
     /** Nullable per the API — points without coords can't be mapped. */
     lat: number | null
     lon: number | null
-    pickupType: string
     address: string | null
+  }[]
+  /**
+   * The schedule's ordered timetable with REAL arrival times from the
+   * `schedule_point` table (source of truth the admin maintains).
+   * Empty when the schedule has no points — consumers fall back to
+   * `pickupPoints` (which carries no times).
+   */
+  schedulePoints?: {
+    id: string
+    stopOrder: number
+    /** "pickup" (first) / "middle" / "drop" (last). */
+    kind: string
+    /** "HH:MM" arrival at this stop — null when not configured. */
+    arrivalTime: string | null
+    name: string
+    address: string | null
+    lat: number
+    lon: number
   }[]
   seatMap: {
     decks: { deck: number; rows: { row: number; seats: (SeatInv | null)[] }[] }[]

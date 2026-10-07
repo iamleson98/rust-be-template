@@ -13,12 +13,18 @@ import {
   useHoldBooking,
   useConfirmBooking,
 } from '@/lib/queries'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  useCreatePayment,
+  useCancelPayment,
+  usePayment,
+  type PaymentProvider,
+} from '@/lib/queries/payments'
 import { Form } from '@/components/ui/form'
 import { normalizePhone } from '@/lib/types'
-import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 import { formatCurrency } from '@/lib/currency'
+import { getErrorMessage } from '@/lib/error-message'
 import { toast } from 'sonner'
+import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 import {
   type TripDetail,
   type BookingValues,
@@ -28,14 +34,15 @@ import {
   getPassengerType,
 } from './booking-form'
 import { PaymentMethodStep, type PaymentMethodKey } from './payment-method'
+import { PaymentProcessingStep } from './payment-processing-step'
 import { BookingSuccess, type LastBooking } from './booking-success'
 import { BookingStepHeader } from './booking-step-header'
 import { BookingPassengerStep } from './booking-passenger-step'
 import { BookingContactStep } from './booking-contact-step'
 
 /**
- * Structural type for the hold-booking result this dialog consumes.
- * The generated SDK models this as a union (HoldResponses); the dialog
+ * Structural type for the hold-booking result this flow consumes.
+ * The generated SDK models this as a union (HoldResponses); the flow
  * only needs the success shape's fields.
  */
 type HoldBookingData = {
@@ -44,7 +51,35 @@ type HoldBookingData = {
   total: number
 }
 
-export function BookingDialog() {
+/** Online booking-flow methods → payment providers on the API side. */
+const PROVIDER_BY_METHOD: Record<string, PaymentProvider> = {
+  momo: 'momo',
+  vnpay: 'vnpay',
+  bank: 'vietqr',
+}
+
+/**
+ * BookingFlow — the seat-booking wizard rendered INSIDE the
+ * TripDetailDialog (single-dialog checkout).
+ *
+ * Steps: passengers → contact → payment → (pay — online methods only)
+ * → success.
+ *
+ * Payment semantics (mirrors the backend state machine exactly):
+ *  - `cod` — hold, then immediately confirm with `paymentMethod: cod`
+ *    (pay on the bus; the driver collects).
+ *  - online methods (momo / vnpay / bank) — hold, then create a payment
+ *    intent and let the gateway do the confirming: the booking stays
+ *    `pending` until the provider's IPN webhook verifies the payment,
+ *    after which the backend flips it to `confirmed`. Confirming up
+ *    front would break later payment attempts ("booking is not in
+ *    pending status").
+ *
+ * This component renders NO dialog chrome — the trip dialog provides
+ * the shell. It is mounted whenever `bookingStep !== 'idle'` while the
+ * trip dialog is open.
+ */
+export function BookingFlow() {
   const t = useT()
   const qc = useQueryClient()
   const {
@@ -58,13 +93,11 @@ export function BookingDialog() {
     setGuestPhone,
     setGuestName,
     currency,
+    guestName,
   } = useApp()
 
   // Fetch trip detail via the centralized TanStack Query hook — the
   // BookingContext carries the tripId the user picked in TripDetailDialog.
-  // We use `as unknown as TripDetail` because the centralized type in
-  // `@/lib/queries/types` is out of sync with the actual backend response
-  // (missing `seatMap.decks` wrapper, `pricing.basePriceAdult`, etc.).
   const { data: rawTripDetail } = useTripDetail(bookingContext?.tripId)
   const trip = rawTripDetail as unknown as TripDetail | null | undefined
 
@@ -74,10 +107,12 @@ export function BookingDialog() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKey>('momo')
-
-  const { guestName } = useApp()
-
-  const open = bookingStep !== 'idle'
+  /** Online-payment state — the id of the created payment intent. */
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null)
+  /** Hold result mirrored into STATE for the render path (the refs below
+   *  stay callback-only — reading refs during render trips
+   *  react-hooks/refs and breaks concurrent rendering). */
+  const [holdData, setHoldData] = useState<HoldBookingData | null>(null)
 
   // ── RHF form (passengers + contact) ─────────────────────
   const form = useForm<BookingValues>({
@@ -105,7 +140,9 @@ export function BookingDialog() {
   // no manual clearing in close().
   const selectedSeatCodes: SelectedSeat[] = useMemo(() => {
     if (!bookingContext || !trip) return []
-    return trip.seatMap.decks
+    // Parentheses matter: `a ?? [].map(...)` binds as `a ?? ([].map(...))`
+    // and would return the raw decks array instead of the seats.
+    return (trip.seatMap?.decks ?? [])
       .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
       .filter((s) => bookingContext.seatIds.includes(s.id))
       .map((s) => ({
@@ -127,11 +164,11 @@ export function BookingDialog() {
 
   // When trip detail arrives (or booking context changes), map the
   // selected seat ids to seat codes/prices and initialise the passenger
-  // form. Replaces the old manual `fetch + setTrip + setSeats` effect.
+  // form.
   useEffect(() => {
     if (!bookingContext || !trip) return
-    // map seat ids to codes/prices
-    const seats: SelectedSeat[] = trip.seatMap.decks
+    // map seat ids to codes/prices (parenthesized — see selectedSeatCodes)
+    const seats: SelectedSeat[] = (trip.seatMap?.decks ?? [])
       .flatMap((dk) => dk.rows.flatMap((r) => r.seats))
       .filter((s) => bookingContext.seatIds.includes(s.id))
       .map((s) => ({
@@ -234,10 +271,6 @@ export function BookingDialog() {
   const canContinueStep1 =
     allNamesFilled && unassignedCount === 0 && !hasDuplicateSeats && passengers.length > 0
 
-  // No insurance add-on: the backend `HoldReq` has no insurance field —
-  // a client-side-only fee would make the displayed total diverge from
-  // the real booking total returned by the server.
-
   const subtotal = selectedSeatCodes.reduce((s, x) => s + x.price, 0)
   const discount = campaignResult?.valid ? (campaignResult.discount ?? 0) : 0
   const fees = 0
@@ -275,19 +308,20 @@ export function BookingDialog() {
     validateCampaignMut.mutate({ code: campaignCode.trim(), subtotal })
   }
 
-  // Final submit — called by `form.handleSubmit(onSubmit)` after the
-  // entire schema (passengers + contact) has validated.
-  //
-  // Two-step mutation chain: hold → confirm. Each mutation defines its
-  // own onSuccess/onError/onSettled at HOOK CREATION time. The hold's
-  // onSuccess kicks off the confirm mutation by calling mutate() with
-  // only the variables.
-  const confirmMut = useConfirmBooking({
-    onSuccess: (_data, vars) => {
-      const v = (vars ?? {}) as { path?: { id?: string } }
-      const holdData = (holdResultRef.current ?? {}) as HoldBookingData
-      const holdBookingId = v.path?.id ?? holdData.bookingId
-      setLastBooking({ id: holdBookingId, code: holdData.code, total: holdData.total })
+  // ── Success handling (shared by COD + online paths) ──────────
+  // Refs to share hold-time data + form values with mutation callbacks
+  // without re-creating the mutation hooks each render.
+  const holdResultRef = useRef<HoldBookingData | null>(null)
+  const contactPhoneRef = useRef('')
+  const contactNameRef = useRef('')
+  const paymentMethodRef = useRef<string>('cod')
+  const successFiredRef = useRef(false)
+
+  const finishSuccess = useCallback(
+    (holdData: HoldBookingData) => {
+      if (successFiredRef.current) return
+      successFiredRef.current = true
+      setLastBooking({ id: holdData.bookingId, code: holdData.code, total: holdData.total })
       setGuestPhone(normalizePhone(contactPhoneRef.current))
       if (contactNameRef.current) setGuestName(contactNameRef.current)
       setBookingStep('success')
@@ -306,15 +340,27 @@ export function BookingDialog() {
         }),
         duration: 5000,
       })
-      // Refresh the real loyalty summary + booking lists — points are
-      // earned per COMPLETED trip and are always computed by the
-      // backend (1 point / 10,000 VND), never incremented client-side.
+      // Refresh the real loyalty summary + booking lists + the trip's
+      // seat map (the seats we just booked must show as taken when the
+      // user returns to the trip dialog).
       qc.invalidateQueries({ queryKey: ['loyalty'] })
-      qc.invalidateQueries({ queryKey: ['bookings'] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
+      qc.invalidateQueries({ queryKey: [{ _id: 'tripDetail' }] })
       toast.success(t('bookingFlow.loyaltyEarned'), {
         description: t('bookingFlow.loyaltyEarnedDesc'),
         duration: 4000,
       })
+    },
+    [setLastBooking, setGuestPhone, setGuestName, setBookingStep, qc, t, currency],
+  )
+
+  // ── COD path: hold → confirm ──────────────────────────────────
+  const confirmMut = useConfirmBooking({
+    onSuccess: (_data, vars) => {
+      const v = (vars ?? {}) as { path?: { id?: string } }
+      const holdData = (holdResultRef.current ?? {}) as HoldBookingData
+      const holdBookingId = v.path?.id ?? holdData.bookingId
+      finishSuccess({ ...holdData, bookingId: holdBookingId })
     },
     onError: () => {
       setError(t('payment.failed'))
@@ -324,12 +370,32 @@ export function BookingDialog() {
     },
   })
 
-  // Refs to share hold-time data + form values with confirm's onSuccess
-  // without re-creating the mutation hooks each render.
-  const holdResultRef = useRef<HoldBookingData | null>(null)
-  const contactPhoneRef = useRef('')
-  const contactNameRef = useRef('')
-  const paymentMethodRef = useRef<string>('cod')
+  // ── Online path: hold → create payment intent ─────────────────
+  const createPaymentMut = useCreatePayment()
+  const cancelPaymentMut = useCancelPayment()
+
+  // Poll the active payment while the user is on the 'pay' step.
+  const activePaymentQuery = usePayment(activePaymentId ?? undefined, {
+    enabled: bookingStep === 'pay' && !!activePaymentId,
+  })
+  const activePayment = activePaymentQuery.data
+
+  // Payment completion → booking confirmed server-side (IPN) → success.
+  useEffect(() => {
+    if (bookingStep !== 'pay') return
+    if (activePayment?.status === 'completed') {
+      const holdData = (holdResultRef.current ?? {}) as HoldBookingData
+      if (holdData.bookingId) {
+        // The 'purchase' conversion — the payment actually cleared.
+        trackConversion('purchase', {
+          value: activePayment.amount,
+          currency: activePayment.currency,
+          transactionId: holdData.code,
+        })
+        finishSuccess(holdData)
+      }
+    }
+  }, [bookingStep, activePayment, finishSuccess])
 
   const holdMut = useHoldBooking({
     onSuccess: (holdResult: unknown) => {
@@ -342,13 +408,49 @@ export function BookingDialog() {
         return
       }
       holdResultRef.current = holdData
-      confirmMut.mutate({
-        path: { id: holdData.bookingId },
-        body: { paymentMethod: paymentMethodRef.current },
-      } as unknown as Parameters<typeof confirmMut.mutate>[0])
+      setHoldData(holdData)
+      successFiredRef.current = false
+
+      const method = paymentMethodRef.current
+      if (method === 'cod') {
+        // Pay on the bus — confirm immediately; the driver collects.
+        confirmMut.mutate({
+          path: { id: holdData.bookingId },
+          body: { paymentMethod: 'cod' },
+        } as unknown as Parameters<typeof confirmMut.mutate>[0])
+        return
+      }
+
+      // Online method — create a payment intent; the booking stays
+      // `pending` and is confirmed by the provider's IPN webhook.
+      const provider = PROVIDER_BY_METHOD[method] ?? 'vnpay'
+      createPaymentMut.mutate(
+        { bookingId: holdData.bookingId, provider },
+        {
+          onSuccess: (res) => {
+            const payment = (res as unknown as { payment?: { id?: string } }).payment
+            if (!payment?.id) {
+              setError(t('payment.createFailed'))
+              setSubmitting(false)
+              return
+            }
+            setSubmitting(false)
+            setError('')
+            setActivePaymentId(payment.id)
+            setBookingStep('pay')
+          },
+          onError: (err) => {
+            // Most common cause: the provider is not configured
+            // server-side ("provider 'vnpay' is not enabled"). Surface
+            // the real reason and let the user pick another method.
+            setSubmitting(false)
+            setError(getErrorMessage(err, t('payment.createFailed')))
+          },
+        },
+      )
     },
-    onError: () => {
-      setError(t('bookingFlow.holdFailed'))
+    onError: (err) => {
+      setError(getErrorMessage(err, t('bookingFlow.holdFailed')))
       setSubmitting(false)
     },
   })
@@ -404,6 +506,9 @@ export function BookingDialog() {
     setCampaignCode('')
     setCampaignResult(null)
     setError('')
+    setActivePaymentId(null)
+    setHoldData(null)
+    successFiredRef.current = false
   }
 
   // Step transitions use `form.trigger` to validate just the relevant
@@ -431,93 +536,154 @@ export function BookingDialog() {
     setBookingStep('payment')
   }
 
+  // Cancel the in-flight online payment → back to the method picker.
+  const handleCancelPayment = () => {
+    if (!activePaymentId) return
+    cancelPaymentMut.mutate(
+      { id: activePaymentId },
+      {
+        onSuccess: () => {
+          toast.success(t('bookingFlow.paymentCancelled'))
+          setActivePaymentId(null)
+          setBookingStep('payment')
+        },
+        onError: (err) => {
+          toast.error(t('bookingFlow.cancelFailed'), {
+            description: getErrorMessage(err),
+          })
+        },
+      },
+    )
+  }
+
+  // Retry the online payment with the same provider — a fresh intent
+  // for the still-pending booking.
+  const handleRetryPayment = () => {
+    const holdData = (holdResultRef.current ?? {}) as HoldBookingData
+    if (!holdData.bookingId) return
+    const provider = PROVIDER_BY_METHOD[paymentMethodRef.current] ?? 'vnpay'
+    setSubmitting(true)
+    createPaymentMut.mutate(
+      { bookingId: holdData.bookingId, provider },
+      {
+        onSuccess: (res) => {
+          const payment = (res as unknown as { payment?: { id?: string } }).payment
+          setSubmitting(false)
+          if (payment?.id) {
+            setError('')
+            setActivePaymentId(payment.id)
+          } else {
+            setError(t('payment.createFailed'))
+          }
+        },
+        onError: (err) => {
+          setSubmitting(false)
+          setError(getErrorMessage(err, t('payment.createFailed')))
+          setBookingStep('payment')
+        },
+      },
+    )
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && close()}>
-      <DialogContent className="max-w-3xl w-[95vw] max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
-        {/* Header */}
-        <BookingStepHeader
-          bookingStep={bookingStep}
-          trip={trip}
-          selectedSeatCodes={selectedSeatCodes}
-        />
+    <div className="mx-auto flex w-full max-w-3xl flex-col">
+      {/* Header */}
+      <BookingStepHeader
+        bookingStep={bookingStep}
+        trip={trip}
+        selectedSeatCodes={selectedSeatCodes}
+      />
 
-        {/* Body scrolls under the fixed header — no magic header-height
-            arithmetic; the flex column + min-h-0 chain sizes it for any
-            viewport (and dvh tracks the iOS dynamic toolbar). */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <Form {...form}>
-            {/* Step: passengers */}
-            {bookingStep === 'passengers' && (
-              <BookingPassengerStep
-                form={form}
-                passengers={passengers}
-                passengerFields={passengerFields}
-                selectedSeatCodes={selectedSeatCodes}
-                currency={currency}
-                guestName={guestName}
-                subtotal={subtotal}
-                unassignedCount={unassignedCount}
-                hasDuplicateSeats={hasDuplicateSeats}
-                canContinueStep1={canContinueStep1}
-                error={error}
-                addPassenger={addPassenger}
-                removePassenger={removePassenger}
-                autoAssignSeats={autoAssignSeats}
-                copyContactToFirst={copyContactToFirst}
-                gotoContact={gotoContact}
-              />
-            )}
-
-            {/* Step: contact + campaign */}
-            {bookingStep === 'contact' && (
-              <BookingContactStep
-                form={form}
-                setBookingStep={setBookingStep}
-                currency={currency}
-                campaignCode={campaignCode}
-                setCampaignCode={setCampaignCode}
-                setCampaignResult={setCampaignResult}
-                checkingCampaign={checkingCampaign}
-                checkCampaign={checkCampaign}
-                campaignResult={campaignResult}
-                discount={discount}
-                error={error}
-                gotoPayment={gotoPayment}
-              />
-            )}
-
-            {/* Step: payment */}
-            {bookingStep === 'payment' && (
-              <PaymentMethodStep
-                paymentMethod={paymentMethod}
-                onSetPaymentMethod={setPaymentMethod}
-                seatCount={selectedSeatCodes.length}
-                subtotal={subtotal}
-                campaignCode={campaignCode}
-                discount={discount}
-                fees={fees}
-                total={total}
-                currency={currency}
-                error={error}
-                submitting={submitting}
-                onGoBack={() => setBookingStep('contact')}
-                onSubmit={() => form.handleSubmit(onSubmit)()}
-              />
-            )}
-          </Form>
-
-          {/* Step: success — outside the Form (no inputs) */}
-          {bookingStep === 'success' && lastBooking && (
-            <BookingSuccess
-              trip={trip}
-              lastBooking={lastBooking as LastBooking}
-              selectedSeats={selectedSeatCodes}
+      {/* Body scrolls under the fixed header */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        <Form {...form}>
+          {/* Step: passengers */}
+          {bookingStep === 'passengers' && (
+            <BookingPassengerStep
+              form={form}
+              passengers={passengers}
+              passengerFields={passengerFields}
+              selectedSeatCodes={selectedSeatCodes}
               currency={currency}
-              onClose={close}
+              guestName={guestName}
+              subtotal={subtotal}
+              unassignedCount={unassignedCount}
+              hasDuplicateSeats={hasDuplicateSeats}
+              canContinueStep1={canContinueStep1}
+              error={error}
+              addPassenger={addPassenger}
+              removePassenger={removePassenger}
+              autoAssignSeats={autoAssignSeats}
+              copyContactToFirst={copyContactToFirst}
+              gotoContact={gotoContact}
             />
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+          {/* Step: contact */}
+          {bookingStep === 'contact' && (
+            <BookingContactStep
+              form={form}
+              setBookingStep={setBookingStep}
+              error={error}
+              gotoPayment={gotoPayment}
+            />
+          )}
+
+          {/* Step: payment (method picker + coupon + summary + submit) */}
+          {bookingStep === 'payment' && (
+            <PaymentMethodStep
+              paymentMethod={paymentMethod}
+              onSetPaymentMethod={setPaymentMethod}
+              seatCount={selectedSeatCodes.length}
+              subtotal={subtotal}
+              campaignCode={campaignCode}
+              setCampaignCode={setCampaignCode}
+              setCampaignResult={setCampaignResult}
+              checkingCampaign={checkingCampaign}
+              checkCampaign={checkCampaign}
+              campaignResult={campaignResult}
+              discount={discount}
+              fees={fees}
+              total={total}
+              currency={currency}
+              error={error}
+              submitting={submitting}
+              onGoBack={() => setBookingStep('contact')}
+              onSubmit={() => form.handleSubmit(onSubmit)()}
+            />
+          )}
+
+          {/* Step: pay — online payment processing (gateway/QR + poll) */}
+          {bookingStep === 'pay' &&
+            (activePayment && holdData ? (
+              <PaymentProcessingStep
+                payment={activePayment}
+                bookingCode={holdData.code}
+                currency={currency}
+                cancelling={cancelPaymentMut.isPending}
+                onCancelPayment={handleCancelPayment}
+                onRetry={handleRetryPayment}
+                onBackToMethods={() => setBookingStep('payment')}
+              />
+            ) : (
+              <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                {t('bookingFlow.preparingPayment')}
+              </div>
+            ))}
+        </Form>
+
+        {/* Step: success — outside the Form (no inputs) */}
+        {bookingStep === 'success' && lastBooking && (
+          <BookingSuccess
+            trip={trip}
+            lastBooking={lastBooking as LastBooking}
+            selectedSeats={selectedSeatCodes}
+            currency={currency}
+            onClose={close}
+          />
+        )}
+      </div>
+    </div>
   )
 }

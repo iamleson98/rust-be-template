@@ -621,6 +621,9 @@ export const hold = <ThrowOnError extends boolean = false>(options: Options<Hold
 
 /**
  * `GET /api/bookings/{id}` — get booking detail.
+ *
+ * `{id}` accepts EITHER the booking UUID (legacy/admin callers) or the
+ * human-facing booking code (frontend deep links like `/bookings/{code}`).
  */
 export const detail = <ThrowOnError extends boolean = false>(options: Options<DetailData, ThrowOnError>): RequestResult<DetailResponses, DetailErrors, ThrowOnError> => (options.client ?? client).get<DetailResponses, DetailErrors, ThrowOnError>({ url: '/api/bookings/{id}', ...options });
 

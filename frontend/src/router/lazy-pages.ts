@@ -107,9 +107,6 @@ export const ChatWidget = lazy(() =>
 export const AudioCallWidget = lazy(() =>
   import('@/components/layout/audio-call-widget').then((m) => ({ default: m.AudioCallWidget })),
 )
-export const BookingDialog = lazy(() =>
-  import('@/features/booking/flow/booking-dialog').then((m) => ({ default: m.BookingDialog })),
-)
 export const TripCompare = lazy(() =>
   import('@/features/search/trip-compare').then((m) => ({ default: m.TripCompare })),
 )

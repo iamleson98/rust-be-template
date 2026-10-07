@@ -335,7 +335,10 @@ export function ChatWidget() {
   }
 
   const sendMessage = async (text?: string) => {
-    const content = (text ?? input).trim()
+    // Guard: only accept string overrides — a stray DOM Event forwarded
+    // by a bare `onClick={sendMessage}`-style handler must not become
+    // the message body (the MouseEvent had no .trim()).
+    const content = (typeof text === 'string' ? text : input).trim()
     if (!content || !activeChannel) return
     setInput('')
     // Clear typing indicator after sending.

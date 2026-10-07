@@ -1606,6 +1606,9 @@ export const detailQueryKey = (options: Options<DetailData>) => createQueryKey('
 
 /**
  * `GET /api/bookings/{id}` — get booking detail.
+ *
+ * `{id}` accepts EITHER the booking UUID (legacy/admin callers) or the
+ * human-facing booking code (frontend deep links like `/bookings/{code}`).
  */
 export const detailOptions = (options: Options<DetailData>) => queryOptions<DetailResponse, DefaultError, DetailResponse, ReturnType<typeof detailQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

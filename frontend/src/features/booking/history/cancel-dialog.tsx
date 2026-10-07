@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { XCircle, Loader2, ArrowRight, ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/error-message'
 import { cancelSchema, type CancelValues, type Step } from './cancel-dialog-schema'
 import { CancelReasonStep } from './cancel-reason-step'
 import { CancelPolicyStep } from './cancel-policy-step'
@@ -80,8 +81,11 @@ export function CancelDialog() {
         toast.error(d?.error || t('common.error'))
       }
     },
-    onError: () => {
-      toast.error(t('common.error'))
+    onError: (err) => {
+      // Surface the backend's reason — e.g. "booking already cancelled"
+      // (double-cancel is blocked server-side; the message tells the
+      // user instead of a generic failure).
+      toast.error(getErrorMessage(err, t('common.error')))
     },
   })
   const loading = cancelMutation.isPending

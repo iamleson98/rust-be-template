@@ -88,22 +88,33 @@ export function PassengerFormCard({
         )}
       </div>
 
-      {/* Inputs: name + age + gender */}
-      <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_120px] gap-2">
+      {/* Inputs: name + age + gender — each field gets a small label
+          above it so validation errors stay in context, and the icon sits
+          INSIDE the input's wrapper (not the whole FormItem) so it stays
+          vertically centered on the input even when an error message
+          appears below. items-start keeps the row aligned when one
+          field's error makes it taller than its neighbours. */}
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_120px] gap-2 items-start">
         <FormField
           control={control}
           name={`passengers.${i}.name`}
           render={({ field }) => (
-            <FormItem className="relative space-y-0">
-              <User className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none z-10" />
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder={t('bookingFlow.passengerNamePh')}
-                  className="pl-8 bg-white"
-                />
-              </FormControl>
-              <FormMessage className="mt-1" />
+            <FormItem className="space-y-1">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t('booking.passengerName')}
+              </span>
+              <div className="relative">
+                <User className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder={t('bookingFlow.passengerNamePh')}
+                    className="pl-8 bg-white"
+                    aria-label={t('booking.passengerName')}
+                  />
+                </FormControl>
+              </div>
+              <FormMessage className="text-[11px]" />
             </FormItem>
           )}
         />
@@ -111,7 +122,10 @@ export function PassengerFormCard({
           control={control}
           name={`passengers.${i}.age`}
           render={({ field }) => (
-            <FormItem className="space-y-0">
+            <FormItem className="space-y-1">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t('booking.passengerAge')}
+              </span>
               <FormControl>
                 <Input
                   type="number"
@@ -124,9 +138,10 @@ export function PassengerFormCard({
                   ref={field.ref}
                   placeholder={t('booking.passengerAge')}
                   className="bg-white"
+                  aria-label={t('booking.passengerAge')}
                 />
               </FormControl>
-              <FormMessage className="mt-1" />
+              <FormMessage className="text-[11px]" />
             </FormItem>
           )}
         />
@@ -134,7 +149,10 @@ export function PassengerFormCard({
           control={control}
           name={`passengers.${i}.gender`}
           render={({ field }) => (
-            <FormItem className="space-y-0">
+            <FormItem className="space-y-1">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                {t('bookingFlow.genderLabel')}
+              </span>
               <FormControl>
                 <ComboboxField
                   value={field.value}
@@ -150,7 +168,7 @@ export function PassengerFormCard({
                   aria-label={t('bookingFlow.genderLabel')}
                 />
               </FormControl>
-              <FormMessage className="mt-1" />
+              <FormMessage className="text-[11px]" />
             </FormItem>
           )}
         />
@@ -187,7 +205,7 @@ export function PassengerFormCard({
                   aria-label={t('bookingFlow.passengerSeatAria')}
                 />
               </FormControl>
-              <FormMessage className="mt-1" />
+              <FormMessage className="text-[11px]" />
             </FormItem>
           )}
         />

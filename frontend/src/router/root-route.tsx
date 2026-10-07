@@ -23,7 +23,6 @@ import {
   MobileNav,
   ChatWidget,
   AudioCallWidget,
-  BookingDialog,
   TripCompare,
   LoyaltyWidget,
   CancelDialog,
@@ -98,7 +97,6 @@ function RootComponent() {
     cancelDialogOpen,
     priceAlertOpen,
     shareOpen,
-    bookingStep,
   } = useApp()
 
   const hideFooter = pathname === '/login'
@@ -135,12 +133,10 @@ function RootComponent() {
         </Suspense>
       )}
 
-      {/* Persistent overlays — lazy-loaded, stay mounted after first open */}
-      {bookingStep !== 'idle' && (
-        <Suspense fallback={null}>
-          <BookingDialog />
-        </Suspense>
-      )}
+      {/* Persistent overlays — lazy-loaded, stay mounted after first open.
+          The booking flow is NOT mounted here anymore: it renders inside
+          the TripDetailDialog (single-dialog checkout — see
+          features/trips/trip-detail-dialog). */}
       {chatOpen && (
         <Suspense fallback={null}>
           <ChatWidget />

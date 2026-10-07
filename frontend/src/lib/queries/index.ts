@@ -640,6 +640,11 @@ export function useCancelBooking<TData = unknown, TVars = unknown>(
       // Refresh "My bookings" (partial key match on the generated object
       // key — the old plain ['bookings'] string key matched nothing).
       qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
+      // The cancelled booking's seats went back to "available" on the
+      // trip — refresh trip details so the seat map + availableSeats
+      // counters stay in sync with the backend (a later booking can
+      // immediately re-pick those seats).
+      qc.invalidateQueries({ queryKey: [{ _id: 'tripDetail' }] })
       opts?.onSuccess?.(data as TData, vars as TVars)
     },
     onError: (err, vars) => opts?.onError?.(err, vars as TVars),
