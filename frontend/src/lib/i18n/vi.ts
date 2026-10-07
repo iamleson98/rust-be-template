@@ -58,6 +58,7 @@ export const vi: TranslationMap = {
   'booking.contactEmail': 'Email',
   'booking.passenger': 'Hành khách {n}',
   'booking.passengerAge': 'Tuổi',
+  'booking.passengerName': 'Tên hành khách',
   'booking.passengerType.adult': 'Người lớn',
   'booking.passengerType.child': 'Trẻ em',
   'booking.passengerType.infant': 'Em bé',
@@ -2126,5 +2127,14 @@ export const vi: TranslationMap = {
   'tripDetail.needMoreSeats': 'Cần chọn thêm {count} ghế',
   'tripDetail.enoughSeats': 'Đã đủ ghế',
   'tripDetail.routeTimelineTitle': 'Lộ trình chi tiết',
+  'tripDetail.scheduleTimelineTitle': 'Lịch trình chuyến',
+  'tripDetail.localTimeNote': 'giờ địa phương',
+  'tripDetail.timetableFallbackNotice':
+    'Lịch trình chi tiết theo từng điểm dừng sẽ hiển thị khi nhà xe cấu hình giờ đến. Giờ xuất phát hiển thị ở trên là chính xác.',
+  'bookingFlow.paymentFailedTitle': 'Thanh toán không thành công',
+  'bookingFlow.retryPayment': 'Thử lại',
+  'bookingFlow.chooseOtherMethod': 'Chọn phương thức khác',
+  'bookingFlow.waitingForGateway': 'Đang chờ cổng thanh toán xác nhận…',
+  'bookingFlow.preparingPayment': 'Đang khởi tạo thanh toán…',
   'tripDetail.fewSeatsLeft': 'Chỉ còn {count} chỗ',
 }

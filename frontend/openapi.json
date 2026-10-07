@@ -3123,16 +3123,16 @@
           "bookings"
         ],
         "summary": "`GET /api/bookings/{id}` — get booking detail.",
+        "description": "`{id}` accepts EITHER the booking UUID (legacy/admin callers) or the\nhuman-facing booking code (frontend deep links like `/bookings/{code}`).",
         "operationId": "detail",
         "parameters": [
           {
             "name": "id",
             "in": "path",
-            "description": "Booking ID",
+            "description": "Booking ID (UUID) or booking code",
             "required": true,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -12366,6 +12366,7 @@
           "pricing",
           "amenities",
           "pickupPoints",
+          "schedulePoints",
           "seatMap",
           "campaigns"
         ],
@@ -12402,6 +12403,13 @@
           },
           "route": {
             "$ref": "#/components/schemas/TripRouteDetail"
+          },
+          "schedulePoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TripSchedulePoint"
+            },
+            "description": "The schedule's ordered stops WITH arrival times — the real\nper-stop timetable from the `schedule_point` table (what the\nadmin configured). Empty when the schedule has no points; the\nfrontend falls back to the route-level `pickup_points`."
           },
           "seatMap": {
             "$ref": "#/components/schemas/TripSeatMap"
@@ -12690,6 +12698,57 @@
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TripSchedulePoint": {
+        "type": "object",
+        "description": "One ordered stop of a schedule's timetable (`schedule_point` joined\nwith `address`). Unlike `TripPickupPoint` (route-level, no times),\nthese carry the `arrival_time` the admin configured per stop —\nthe source of truth for the trip's schedule timeline.",
+        "required": [
+          "id",
+          "stopOrder",
+          "kind",
+          "name",
+          "lat",
+          "lon"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "arrivalTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional `HH:MM` — when the vehicle reaches this stop."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`pickup` (first) / `middle` / `drop` (last) — derived from the\npoint's position when the admin upserts the schedule."
+          },
+          "lat": {
+            "type": "number",
+            "format": "double"
+          },
+          "lon": {
+            "type": "number",
+            "format": "double"
+          },
+          "name": {
+            "type": "string",
+            "description": "Address (stop place) display name."
+          },
+          "stopOrder": {
+            "type": "integer",
+            "format": "int64"
           }
         }
       },

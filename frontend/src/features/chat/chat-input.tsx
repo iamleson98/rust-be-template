@@ -116,10 +116,14 @@ export function ChatInput({
           )}
         </div>
         <Button
-          onClick={onSend}
+          // () => onSend() — NOT onClick={onSend}: passing the handler
+          // directly forwards the MouseEvent as `sendMessage(text)`'s
+          // first arg, and `(MouseEvent).trim()` throws ".trim() is not
+          // a function" on every click-to-send.
+          onClick={() => onSend()}
           // Disable on empty input, while sending, OR when the message
           // exceeds the 500-char limit.
-          disabled={!input.trim() || sending || overLimit}
+          disabled={typeof input !== 'string' || !input.trim() || sending || overLimit}
           size="icon"
           // h-11 w-11 = 44px — Apple HIG minimum touch target.
           className="bg-rose-600 hover:bg-rose-700 shrink-0 h-11 w-11"

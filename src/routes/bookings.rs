@@ -69,11 +69,14 @@ pub async fn hold(
 }
 
 /// `GET /api/bookings/{id}` — get booking detail.
+///
+/// `{id}` accepts EITHER the booking UUID (legacy/admin callers) or the
+/// human-facing booking code (frontend deep links like `/bookings/{code}`).
 #[utoipa::path(
     get,
     path = "/api/bookings/{id}",
     tag = "bookings",
-    params(("id" = Uuid, Path, description = "Booking ID")),
+    params(("id" = String, Path, description = "Booking ID (UUID) or booking code")),
     responses(
         (status = 200, description = "Booking detail", body = BookingListItem),
         (status = 401, description = "Unauthorized"),
@@ -83,9 +86,13 @@ pub async fn hold(
 pub async fn detail(
     State(st): State<AppState>,
     AuthUser(uid): AuthUser,
-    Path(id): Path<Uuid>,
+    Path(id): Path<String>,
 ) -> Result<Json<BookingDetailResponse>, AppError> {
-    Ok(Json(st.bookings.detail(Some(&uid.to_string()), id).await?))
+    Ok(Json(
+        st.bookings
+            .detail_by_id_or_code(Some(&uid.to_string()), &id)
+            .await?,
+    ))
 }
 
 /// `POST /api/bookings/{id}/cancel` — cancel a booking.

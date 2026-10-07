@@ -197,7 +197,9 @@ export function PaymentDialog({
 //  Sub-components
 // ─────────────────────────────────────────────────────────────
 
-function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
+/** Status pill shared with the booking-flow payment step
+ *  (single-dialog checkout). Exported for reuse. */
+export function StatusPill({ status }: { status: PaymentOut['status'] | string }) {
   const t = useT()
   const map = {
     pending: { label: t('payment.pending'), color: 'bg-amber-100 text-amber-800', icon: Clock },

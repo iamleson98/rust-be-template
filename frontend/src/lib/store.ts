@@ -71,7 +71,9 @@ type AppState = {
   setBookingContext: (c: AppState['bookingContext']) => void
 
   // ── Booking flow state machine ──
-  bookingStep: 'idle' | 'passengers' | 'contact' | 'payment' | 'success'
+  // 'pay' = online-payment processing step (gateway redirect / QR +
+  // status polling) between the payment picker and success.
+  bookingStep: 'idle' | 'passengers' | 'contact' | 'payment' | 'pay' | 'success'
   setBookingStep: (s: AppState['bookingStep']) => void
   lastBooking: { id: string; code: string; total: number } | null
   setLastBooking: (b: AppState['lastBooking']) => void

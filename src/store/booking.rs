@@ -35,6 +35,10 @@ pub trait BookingStore: Send + Sync {
 
     async fn find_booking_by_id(&self, id: Uuid) -> StoreResult<Option<booking::Model>>;
 
+    /// Find a booking by its human-facing code (e.g. "VEX-AB12CD").
+    /// Codes are unique (`UNIQUE` constraint) — at most one row.
+    async fn find_booking_by_code(&self, code: &str) -> StoreResult<Option<booking::Model>>;
+
     /// Batch fetch bookings by id. Used by the payment admin list to
     /// resolve booking codes without an N+1 round-trip per payment row.
     async fn find_bookings_by_ids(&self, ids: Vec<Uuid>) -> StoreResult<Vec<booking::Model>>;
@@ -143,6 +147,13 @@ impl RetryPolicy for DbBookingStore {}
 impl BookingStore for DbBookingStore {
     async fn find_booking_by_id(&self, id: Uuid) -> StoreResult<Option<booking::Model>> {
         Ok(booking::Entity::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?)
+    }
+
+    async fn find_booking_by_code(&self, code: &str) -> StoreResult<Option<booking::Model>> {
+        Ok(booking::Entity::find()
+            .filter(booking::Column::Code.eq(code))
             .one(self.db.as_ref())
             .await?)
     }

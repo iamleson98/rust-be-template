@@ -191,6 +191,11 @@ pub struct TripDetail {
     pub pricing: TripPricing,
     pub amenities: Vec<TripAmenity>,
     pub pickup_points: Vec<TripPickupPoint>,
+    /// The schedule's ordered stops WITH arrival times — the real
+    /// per-stop timetable from the `schedule_point` table (what the
+    /// admin configured). Empty when the schedule has no points; the
+    /// frontend falls back to the route-level `pickup_points`.
+    pub schedule_points: Vec<TripSchedulePoint>,
     pub seat_map: TripSeatMap,
     pub campaigns: Vec<TripCampaign>,
 }
@@ -286,6 +291,29 @@ pub struct TripPickupPoint {
     pub kind: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+}
+
+/// One ordered stop of a schedule's timetable (`schedule_point` joined
+/// with `address`). Unlike `TripPickupPoint` (route-level, no times),
+/// these carry the `arrival_time` the admin configured per stop —
+/// the source of truth for the trip's schedule timeline.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TripSchedulePoint {
+    pub id: Uuid,
+    pub stop_order: i64,
+    /// `pickup` (first) / `middle` / `drop` (last) — derived from the
+    /// point's position when the admin upserts the schedule.
+    pub kind: String,
+    /// Optional `HH:MM` — when the vehicle reaches this stop.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub arrival_time: Option<String>,
+    /// Address (stop place) display name.
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    pub lat: f64,
+    pub lon: f64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]

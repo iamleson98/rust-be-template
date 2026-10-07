@@ -25,12 +25,14 @@ import { BasemapLayer } from '@/features/map/basemap-layer'
 
 export type RouteScheduleStop = {
   id: string
-  name: string
+  name: string | null
   stopOrder: number
   etaOffsetMin?: number
   lat: number | null
   lon: number | null
-  pickupType: string
+  /** Position-derived stop kind ("pickup" | "middle" | "drop") —
+   * nullable per the API; never call .replace() on it unguarded. */
+  kind?: string | null
 }
 
 type Props = {
@@ -184,9 +186,9 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName, acc
             >
               <Popup>
                 <div className="text-sm min-w-40">
-                  <div className="font-semibold">{s.name}</div>
+                  <div className="font-semibold">{s.name ?? '—'}</div>
                   <div className="text-xs text-slate-500 capitalize">
-                    {s.pickupType.replace(/_/g, ' ')}
+                    {(s.kind ?? '').replace(/_/g, ' ')}
                   </div>
                   {s.etaOffsetMin != null && (
                     <div className="text-xs text-slate-500 tabular-nums mt-0.5">

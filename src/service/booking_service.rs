@@ -125,6 +125,45 @@ impl BookingService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
 
+        self.detail_serialize(user_id, b).await
+    }
+
+    /// Booking detail by id OR code — the frontend's deep links carry the
+    /// human-facing booking code (`/bookings/{code}`), while older callers
+    /// and admin tooling use the UUID. Resolution order: try UUID parse,
+    /// fall back to a code lookup (codes are unique).
+    pub async fn detail_by_id_or_code(
+        &self,
+        user_id: Option<&str>,
+        id_or_code: &str,
+    ) -> AppResult<BookingListItem> {
+        let b = match Uuid::parse_str(id_or_code) {
+            Ok(id) => self
+                .store
+                .booking_store()
+                .find_booking_by_id(id)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?,
+            Err(_) => self
+                .store
+                .booking_store()
+                .find_booking_by_code(id_or_code)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?,
+        }
+        .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
+
+        self.detail_serialize(user_id, b).await
+    }
+
+    /// Shared serializer for a resolved booking row — ownership check +
+    /// seats + trip + schedule join. Takes the row by value (the final
+    /// `BookingListItem` moves its scalar fields out).
+    async fn detail_serialize(
+        &self,
+        user_id: Option<&str>,
+        b: booking::Model,
+    ) -> AppResult<BookingListItem> {
         // Ownership check
         if let Some(uid) = user_id {
             if b.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {

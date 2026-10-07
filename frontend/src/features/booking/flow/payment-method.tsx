@@ -1,23 +1,26 @@
 'use client'
 
 /**
- * PaymentMethod — the payment step (step 3) of the BookingDialog.
- *
- * Extracted from the original `booking-dialog.tsx`. Renders the
- * payment-method picker (MoMo / VNPay / bank transfer / cash-on-bus)
- * + the price summary + the SSL trust note + the submit button.
+ * PaymentMethodStep — the checkout step (step 3) of the booking flow:
+ * the payment-method picker (MoMo / VNPay / bank transfer / cash-on-bus),
+ * the coupon (promo code) box — coupons belong HERE, at checkout, not on
+ * the contact step — the price summary, the SSL trust note and the
+ * submit button.
  *
  * The method picker uses brand-colored icon tiles instead of emoji —
  * emoji render differently on every platform and read as cheap; solid
  * color chips with lucide icons keep the step visually consistent with
  * the rest of the redesigned funnel.
  *
- * The parent owns the form (`onSubmit` is `form.handleSubmit(...)`) so
- * this component stays purely presentational.
+ * The parent owns the form (`onSubmit` is `form.handleSubmit(...)`) and
+ * the campaign state (code / result / validate callback) so this
+ * component stays purely presentational.
  */
 
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
+  CheckCircle2,
   ChevronLeft,
   Loader2,
   Lock,
@@ -26,11 +29,14 @@ import {
   QrCode,
   Landmark,
   Banknote,
+  Tag,
+  X,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/currency'
 import type { Currency } from '@/lib/currency'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
+import type { CampaignValidateResponse } from '@/lib/api/types.gen'
 import { PriceSummary } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 
@@ -82,6 +88,11 @@ export function PaymentMethodStep({
   seatCount,
   subtotal,
   campaignCode,
+  setCampaignCode,
+  setCampaignResult,
+  checkingCampaign,
+  checkCampaign,
+  campaignResult,
   discount,
   fees,
   total,
@@ -95,7 +106,13 @@ export function PaymentMethodStep({
   onSetPaymentMethod: (m: PaymentMethodKey) => void
   seatCount: number
   subtotal: number
+  /** Campaign (promo code) state — owned by the parent BookingFlow. */
   campaignCode: string
+  setCampaignCode: (code: string) => void
+  setCampaignResult: (result: CampaignValidateResponse | null) => void
+  checkingCampaign: boolean
+  checkCampaign: () => void
+  campaignResult: CampaignValidateResponse | null
   discount: number
   fees: number
   total: number
@@ -156,6 +173,58 @@ export function PaymentMethodStep({
             )
           })}
         </div>
+      </div>
+
+      {/* Coupon (promo code) — checkout is where it belongs: right
+          next to the price it discounts. */}
+      <div className="rounded-lg border bg-amber-50/50 p-3">
+        <div className="flex items-center gap-2 mb-2">
+          <Tag className="h-4 w-4 text-amber-600" />
+          <span className="font-medium text-sm">{t('bookingFlow.promoCode')}</span>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={campaignCode}
+            onChange={(e) => {
+              setCampaignCode(e.target.value)
+              setCampaignResult(null)
+            }}
+            placeholder={t('bookingFlow.promoCodePh')}
+            className="bg-white"
+            aria-label={t('bookingFlow.promoCode')}
+          />
+          <Button
+            variant="outline"
+            onClick={checkCampaign}
+            disabled={checkingCampaign || !campaignCode.trim()}
+          >
+            {checkingCampaign ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              t('bookingFlow.apply')
+            )}
+          </Button>
+        </div>
+        {campaignResult?.valid && discount > 0 && (
+          <div className="mt-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-blue-600" />
+              <div>
+                <div className="font-medium text-blue-800">
+                  {t('bookingFlow.promoApplied', { code: campaignCode.trim().toUpperCase() })}
+                </div>
+                <div className="text-xs text-blue-600">{t('bookingFlow.promoAppliedDesc')}</div>
+              </div>
+            </div>
+            <div className="font-bold text-blue-700">-{formatCurrency(discount, currency)}</div>
+          </div>
+        )}
+        {campaignResult?.valid === false && (
+          <div className="mt-2 rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-700 flex items-center gap-2">
+            <X className="h-4 w-4" />
+            {t('bookingFlow.promoInvalid')}
+          </div>
+        )}
       </div>
 
       <PriceSummary

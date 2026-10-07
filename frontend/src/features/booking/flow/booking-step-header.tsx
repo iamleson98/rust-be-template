@@ -29,7 +29,8 @@ export function BookingStepHeader({
   const t = useT()
   const stepIndex = ((bookingStep: string): number => {
     if (bookingStep === 'contact') return 1
-    if (bookingStep === 'payment') return 2
+    // 'pay' (online-payment processing) is still the payment step.
+    if (bookingStep === 'payment' || bookingStep === 'pay') return 2
     if (bookingStep === 'success') return 3
     return 0 // 'idle' or 'passengers'
   })(bookingStep)

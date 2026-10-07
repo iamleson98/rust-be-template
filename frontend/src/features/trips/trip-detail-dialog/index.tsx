@@ -37,9 +37,11 @@ import { PriceSummary } from './price-summary'
 import { RouteScheduleMap } from '@/features/map/route-schedule-map'
 import { RouteTimeline } from './route-timeline'
 import { PolicyBlock } from './policy-block'
+import { BookingFlow } from '@/features/booking/flow/booking-dialog'
 
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const {
+    bookingStep,
     setBookingStep,
     setBookingContext,
     searchParams,
@@ -73,9 +75,12 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
     // server-data snapshot / DOM-availability gate).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedSeats([])
-    if (detail?.pickupPoints?.length) {
-      setBoardingPoint(detail.pickupPoints[0].id)
-      setDroppingPoint(detail.pickupPoints[detail.pickupPoints.length - 1].id)
+    // Guard the whole chain — a malformed payload (or a legacy shape
+    // without pickup points) must not crash the dialog on open.
+    const points = detail.pickupPoints ?? []
+    if (points.length > 0) {
+      setBoardingPoint(points[0].id)
+      setDroppingPoint(points[points.length - 1].id)
     }
   }, [detail])
 
@@ -90,9 +95,12 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   }
 
   const maxSeats = searchParams.adults + searchParams.children
+  // Guard every nested access — a malformed payload (200 with an
+  // unexpected shape) previously crashed the dialog with
+  // "Cannot read properties of undefined (reading 'decks')".
   const selectedSeatDetails =
-    detail?.seatMap.decks
-      .flatMap((d) => d.rows.flatMap((r) => r.seats.filter(Boolean) as SeatInv[]))
+    detail?.seatMap?.decks
+      ?.flatMap((d) => d.rows.flatMap((r) => r.seats.filter(Boolean) as SeatInv[]))
       .filter((s) => selectedSeats.includes(s.id)) ?? []
 
   const total = selectedSeatDetails.reduce((sum, s) => sum + s.finalPrice, 0)
@@ -104,19 +112,39 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
       boardingPointId: boardingPoint,
       droppingPointId: droppingPoint,
     })
-    // Don't navigate away — the BookingDialog overlay renders on top of
-    // the trip detail page (it's a persistent overlay in the root layout,
-    // gated by `bookingStep !== 'idle'`). The trip detail stays mounted
-    // so the user can return to it if they cancel the booking.
+    // Single-dialog checkout: the booking wizard takes over THIS dialog's
+    // body (see the `bookingStep !== 'idle'` branch below) — no second
+    // dialog stacked on top of the trip information anymore. Closing the
+    // wizard (or finishing it) returns to the trip view.
     setBookingStep('passengers')
   }
 
   const canProceed = selectedSeats.length === maxSeats && !!boardingPoint && !!droppingPoint
 
+  // Safety: if the dialog unmounts mid-booking (browser Back, route
+  // change), reset the flow state — otherwise `bookingStep` stays stuck
+  // non-idle with nothing rendered AND the body scroll lock stays on.
+  useEffect(() => {
+    return () => {
+      if (useApp.getState().bookingStep !== 'idle') {
+        useApp.getState().setBookingStep('idle')
+        useApp.getState().setBookingContext(null)
+      }
+    }
+  }, [])
+
   return (
     <Dialog open={true} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-7xl w-[97vw] max-h-[92dvh] p-0 gap-0 overflow-hidden flex flex-col">
-        {loading || !detail ? (
+        {/* Booking wizard takes over the dialog body (single-dialog
+            checkout) while the flow is active. */}
+        {bookingStep !== 'idle' ? (
+          <>
+            <DialogTitle className="sr-only">{t('bookingFlow.completeBooking')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('tripDetail.loadingDesc')}</DialogDescription>
+            <BookingFlow />
+          </>
+        ) : loading || !detail ? (
           isError ? (
             // Error branch — previously a 404/network failure left the
             // skeleton spinning forever (e.g. stale "recently viewed"
@@ -162,27 +190,45 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
               {/* Left: seat map / route / info tabs */}
               <div className="overflow-hidden md:border-r flex flex-col min-h-0">
                 <Tabs defaultValue="seats" className="flex-1 flex flex-col min-h-0">
-                  {/* Horizontal-scrollable tab strip (5 tabs on mobile) —
-                      plain overflow-x beats a ScrollArea here. */}
-                  <div className="shrink-0 overflow-x-auto overscroll-x-contain">
-                    <TabsList className="rounded-none border-b bg-slate-50 justify-start px-3 h-auto py-2 w-max">
-                      <TabsTrigger value="seats" className="gap-1.5">
-                        <Bus className="h-4 w-4" /> {t('booking.seatSelector')}
+                  {/* Proportional tab strip — equal-width segments that
+                      together fill the parent width (grid, not
+                      content-sized). 5 columns on mobile (the points tab
+                      is mobile-only), 4 from md up. */}
+                  <div className="shrink-0">
+                    <TabsList className="rounded-none border-b bg-slate-50 p-0 h-auto w-full grid grid-cols-5 md:grid-cols-4">
+                      <TabsTrigger
+                        value="seats"
+                        className="gap-1.5 rounded-none border-r border-slate-200/70 flex flex-col sm:flex-row items-center justify-center py-2.5 px-1 text-[11px] sm:text-xs leading-tight whitespace-normal"
+                      >
+                        <Bus className="h-4 w-4 shrink-0" /> {t('booking.seatSelector')}
                       </TabsTrigger>
                       {/* Mobile-only tab — pickup/drop-off selection used to be
                           desktop-only (hidden md:flex right rail), so phone
                           users could never change boarding points. */}
-                      <TabsTrigger value="points" className="gap-1.5 md:hidden">
-                        <ArrowLeftRight className="h-4 w-4" /> {t('tripDetail.tabPoints')}
+                      <TabsTrigger
+                        value="points"
+                        className="gap-1.5 rounded-none border-r border-slate-200/70 md:border-r-0 flex flex-col sm:flex-row items-center justify-center py-2.5 px-1 text-[11px] sm:text-xs leading-tight whitespace-normal md:hidden"
+                      >
+                        <ArrowLeftRight className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPoints')}
                       </TabsTrigger>
-                      <TabsTrigger value="route" className="gap-1.5">
-                        <MapPin className="h-4 w-4" /> {t('tripDetail.tabRoute')}
+                      <TabsTrigger
+                        value="route"
+                        className="gap-1.5 rounded-none border-r border-slate-200/70 flex flex-col sm:flex-row items-center justify-center py-2.5 px-1 text-[11px] sm:text-xs leading-tight whitespace-normal"
+                      >
+                        <MapPin className="h-4 w-4 shrink-0" /> {t('tripDetail.tabRoute')}
                       </TabsTrigger>
-                      <TabsTrigger value="info" className="gap-1.5">
-                        <CheckCircle2 className="h-4 w-4" /> {t('tripDetail.tabPolicy')}
+                      <TabsTrigger
+                        value="info"
+                        className="gap-1.5 rounded-none border-r border-slate-200/70 flex flex-col sm:flex-row items-center justify-center py-2.5 px-1 text-[11px] sm:text-xs leading-tight whitespace-normal"
+                      >
+                        <CheckCircle2 className="h-4 w-4 shrink-0" /> {t('tripDetail.tabPolicy')}
                       </TabsTrigger>
-                      <TabsTrigger value="reviews" className="gap-1.5">
-                        <MessageSquareQuote className="h-4 w-4" /> {t('tripDetail.tabReviews')}
+                      <TabsTrigger
+                        value="reviews"
+                        className="gap-1.5 rounded-none flex flex-col sm:flex-row items-center justify-center py-2.5 px-1 text-[11px] sm:text-xs leading-tight whitespace-normal"
+                      >
+                        <MessageSquareQuote className="h-4 w-4 shrink-0" />{' '}
+                        {t('tripDetail.tabReviews')}
                       </TabsTrigger>
                     </TabsList>
                   </div>
@@ -206,7 +252,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         </div>
                       </div>
                       <SeatMap
-                        decks={detail.seatMap.decks}
+                        decks={detail.seatMap?.decks ?? []}
                         selectedSeatIds={selectedSeats}
                         onToggleSeat={toggleSeat}
                         maxSeats={maxSeats}
@@ -248,6 +294,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                         fromName={detail.from.name}
                         toName={detail.to.name}
                         pickupPoints={detail.pickupPoints}
+                        schedulePoints={detail.schedulePoints}
                       />
                     </TabsContent>
 

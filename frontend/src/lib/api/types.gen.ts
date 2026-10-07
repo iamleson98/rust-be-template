@@ -2831,6 +2831,13 @@ export type TripDetail = {
     pickupPoints: Array<TripPickupPoint>;
     pricing: TripPricing;
     route: TripRouteDetail;
+    /**
+     * The schedule's ordered stops WITH arrival times — the real
+     * per-stop timetable from the `schedule_point` table (what the
+     * admin configured). Empty when the schedule has no points; the
+     * frontend falls back to the route-level `pickup_points`.
+     */
+    schedulePoints: Array<TripSchedulePoint>;
     seatMap: TripSeatMap;
     to: TripEndpoint;
     /**
@@ -2910,6 +2917,33 @@ export type TripResult = {
 export type TripRouteDetail = {
     id: string;
     name: string;
+};
+
+/**
+ * One ordered stop of a schedule's timetable (`schedule_point` joined
+ * with `address`). Unlike `TripPickupPoint` (route-level, no times),
+ * these carry the `arrival_time` the admin configured per stop —
+ * the source of truth for the trip's schedule timeline.
+ */
+export type TripSchedulePoint = {
+    address?: string | null;
+    /**
+     * Optional `HH:MM` — when the vehicle reaches this stop.
+     */
+    arrivalTime?: string | null;
+    id: string;
+    /**
+     * `pickup` (first) / `middle` / `drop` (last) — derived from the
+     * point's position when the admin upserts the schedule.
+     */
+    kind: string;
+    lat: number;
+    lon: number;
+    /**
+     * Address (stop place) display name.
+     */
+    name: string;
+    stopOrder: number;
 };
 
 /**
@@ -5508,7 +5542,7 @@ export type DetailData = {
     body?: never;
     path: {
         /**
-         * Booking ID
+         * Booking ID (UUID) or booking code
          */
         id: string;
     };

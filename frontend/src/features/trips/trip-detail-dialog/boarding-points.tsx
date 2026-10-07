@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n'
 import { formatCurrency, type Currency } from '@/lib/currency'
 import type { SeatInv } from '@/features/trips/seat-map'
 import type { TripDetailDialogData as TripDetail } from './types'
+import { ScheduleTimeline } from './schedule-timeline'
 
 function PointLists({
   detail,
@@ -40,6 +41,12 @@ function PointLists({
   onSetDroppingPoint: (id: string) => void
 }) {
   const t = useT()
+  // The store returns points ordered by stop_order. Boarding at the
+  // FINAL stop (or alighting at the FIRST) makes no sense — filter
+  // them out so each list only offers valid choices.
+  const ordered = detail.pickupPoints
+  const pickupCandidates = ordered.slice(0, Math.max(ordered.length - 1, 1))
+  const dropoffCandidates = ordered.slice(Math.min(1, ordered.length - 1))
   return (
     <>
       {/* Pickup points */}
@@ -51,7 +58,7 @@ function PointLists({
           </div>
         </div>
         <div className="space-y-2">
-          {detail.pickupPoints.map((p) => {
+          {pickupCandidates.map((p) => {
             const selected = boardingPoint === p.id
             return (
               <button
@@ -72,7 +79,7 @@ function PointLists({
                       <div
                         className={`font-medium truncate ${selected ? 'text-blue-900' : 'text-slate-800'}`}
                       >
-                        {p.name}
+                        {p.name ?? '—'}
                       </div>
                       {p.address && (
                         <div className="text-xs text-muted-foreground truncate mt-0.5">
@@ -106,7 +113,7 @@ function PointLists({
           </div>
         </div>
         <div className="space-y-2">
-          {detail.pickupPoints.map((p) => {
+          {dropoffCandidates.map((p) => {
             const selected = droppingPoint === p.id
             return (
               <button
@@ -127,7 +134,7 @@ function PointLists({
                       <div
                         className={`font-medium truncate ${selected ? 'text-rose-900' : 'text-slate-800'}`}
                       >
-                        {p.name}
+                        {p.name ?? '—'}
                       </div>
                     </div>
                   </div>
@@ -198,6 +205,12 @@ export function BoardingPoints({
     <div className="bg-slate-50 flex flex-col min-h-0 hidden md:flex">
       <ScrollArea className="flex-1 min-h-0">
         <div className="p-4 md:p-5 space-y-5">
+          {/* Trip schedule timeline — the real per-stop timetable
+              (place + arrival time) from the schedule_point table. */}
+          <ScheduleTimeline detail={detail} />
+
+          <div className="border-t border-slate-200" />
+
           <PointLists
             detail={detail}
             boardingPoint={boardingPoint}
