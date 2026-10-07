@@ -583,6 +583,7 @@ impl PublicService {
         to: &str,
         date: &str,
         limit: u64,
+        offset: u64,
         vehicle_types: Vec<String>,
         sort: &str,
         min_seats: i64,
@@ -630,14 +631,10 @@ impl PublicService {
             .await?;
 
         if matching_routes.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
+            return Ok(TripSearchResponse::paged_empty(limit, offset));
         }
 
-        let route_ids: Vec<String> = matching_routes.iter().map(|r| r.id.to_string()).collect();
-        let route_uuids: Vec<Uuid> = route_ids
-            .iter()
-            .filter_map(|s| Uuid::parse_str(s).ok())
-            .collect();
+        let route_uuids: Vec<Uuid> = matching_routes.iter().map(|r| r.id).collect();
 
         // Find schedules for these routes
         let schedules = self
@@ -873,8 +870,13 @@ impl PublicService {
         // `sort` used to be parsed into `_sort` and silently ignored —
         // the UI offered price/rating sorts that did nothing. Now the
         // fetched page (see the fetch_cap note above) is sorted by the
-        // requested key with a deterministic tie-break on departure
-        // time, then truncated to the requested limit.
+        // requested key with deterministic tie-breaks (departure time,
+        // then trip_id), then sliced to the requested page.
+        //
+        // The trip_id tie-break is what makes OFFSET pagination stable:
+        // two trips with the same price AND departure time must always
+        // land in the same relative order across pages, otherwise
+        // "load more" could skip or duplicate rows at page seams.
         //
         // No "duration" key: the schedule model has no arrival time,
         // so trip duration is genuinely unknowable — the frontend no
@@ -886,18 +888,35 @@ impl PublicService {
                 a.min_price
                     .cmp(&b.min_price)
                     .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
+                    .then_with(|| a.trip_id.cmp(&b.trip_id))
             }),
             "rating" => items.sort_by(|a, b| {
                 b.brand_rating
                     .partial_cmp(&a.brand_rating)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| departure_minutes(a).cmp(&departure_minutes(b)))
+                    .then_with(|| a.trip_id.cmp(&b.trip_id))
             }),
-            _ => items.sort_by_key(departure_minutes),
+            _ => items.sort_by(|a, b| {
+                departure_minutes(a)
+                    .cmp(&departure_minutes(b))
+                    .then_with(|| a.trip_id.cmp(&b.trip_id))
+            }),
         }
-        items.truncate(limit as usize);
 
-        Ok(TripSearchResponse { items })
+        // ── Paginate ───────────────────────────────────────────────
+        // `total` counts every matching trip BEFORE the offset window
+        // is applied (capped by fetch_cap upstream); `has_more` is
+        // derived from it so the client's "load more" button never has
+        // to guess from an empty page.
+        let total = items.len() as u64;
+        let page: Vec<TripResult> = items
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .collect();
+
+        Ok(TripSearchResponse::paged(page, total, limit, offset))
     }
 
     /// Geospatial trip search — find routes where pickup points are closest
@@ -912,7 +931,8 @@ impl PublicService {
     /// - `from_lat, from_lon` — desired pickup coordinates
     /// - `to_lat, to_lon` — desired drop coordinates
     /// - `date` — departure date "YYYY-MM-DD"
-    /// - `limit, offset` — pagination
+    /// - `limit, offset` — pagination over the distance-ranked TRIP list
+    ///   (a route with 3 schedules that day contributes 3 ranked items)
     /// - `min_seats` — minimum available seats (default 1)
     /// - `vehicle_types` — filter by vehicle type (empty = all)
     /// - `max_distance_km` — max distance from desired pickup/drop to
@@ -962,7 +982,7 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         if candidates.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
+            return Ok(TripSearchResponse::paged_empty(limit, offset));
         }
 
         // ── Group by route_id + find closest pickup/drop per route ──────
@@ -1039,38 +1059,45 @@ impl PublicService {
         }
 
         if matches.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
+            return Ok(TripSearchResponse::paged_empty(limit, offset));
         }
 
-        // Sort by combined distance (closest first)
+        // Sort routes by combined distance (closest first) — the RANK
+        // every trip on that route inherits in the final list.
         matches.sort_by(|a, b| {
             a.combined_distance_km
                 .partial_cmp(&b.combined_distance_km)
                 .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.route_id.cmp(&b.route_id))
         });
 
-        // Paginate
-        let total = matches.len();
-        let paged: Vec<&RouteMatch> = matches
-            .iter()
-            .skip(offset as usize)
-            .take(limit as usize)
-            .collect();
-        if paged.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
-        }
-
-        // Load schedules + trips for the matched routes
-        let route_uuids: Vec<Uuid> = paged.iter().map(|m| m.route_id).collect();
+        // Load schedules + trips for ALL matched routes — pagination
+        // happens at the TRIP level further down. The old route-level
+        // skip/take produced short or EMPTY pages whenever a route page
+        // had no trips on the date (a whole page of routes with zero
+        // departures read as "no more results" while trips remained).
+        let route_uuids: Vec<Uuid> = matches.iter().map(|m| m.route_id).collect();
         let schedules = self
             .store
             .schedule_store()
-            .list_schedules_by_routes(route_uuids.clone())
+            .list_schedules_by_routes(route_uuids)
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         if schedules.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
+            return Ok(TripSearchResponse::paged_empty(limit, offset));
+        }
+
+        // On-demand trip materialization — same contract as the text
+        // search: a brand-new schedule must be findable the FIRST time
+        // somebody runs a geo search, not only after a city-to-city
+        // search happened to materialize its trips. Failures degrade
+        // gracefully (the query below serves existing rows).
+        if let Err(error) = self
+            .ensure_trips_for_schedules_on_date(&schedules, date)
+            .await
+        {
+            tracing::warn!(?error, %date, "geo on-demand trip generation failed — serving existing rows");
         }
 
         let schedule_uuids: Vec<Uuid> = schedules.iter().map(|s| s.id).collect();
@@ -1082,7 +1109,7 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
         if trips.is_empty() {
-            return Ok(TripSearchResponse { items: Vec::new() });
+            return Ok(TripSearchResponse::paged_empty(limit, offset));
         }
 
         // Build schedule lookup: schedule_id → schedule
@@ -1091,13 +1118,12 @@ impl PublicService {
 
         // Build route match lookup: route_id → RouteMatch
         let match_map: HashMap<Uuid, &RouteMatch> =
-            paged.iter().map(|m| (m.route_id, *m)).collect();
-        let _ = total; // total count for potential future pagination metadata
+            matches.iter().map(|m| (m.route_id, m)).collect();
 
         // Build route lookup — the PickupPointWithRoute already has route_name
         // + brand_id, so we don't need to re-fetch routes. Use the candidate data.
         use std::collections::HashSet;
-        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> = paged
+        let route_info_map: HashMap<Uuid, &PickupPointWithRoute> = matches
             .iter()
             .map(|m| {
                 (m.route_id, {
@@ -1111,7 +1137,7 @@ impl PublicService {
             .collect();
 
         // Build brand lookup — fetch by IDs using raw SQL
-        let brand_ids: Vec<Uuid> = paged
+        let brand_ids: Vec<Uuid> = matches
             .iter()
             .filter_map(|m| m.brand_id)
             .collect::<HashSet<_>>()
@@ -1157,7 +1183,7 @@ impl PublicService {
         let geo_route_map: HashMap<Uuid, route::Model> = self
             .store
             .route_store()
-            .list_routes_by_ids(paged.iter().map(|m| m.route_id).collect())
+            .list_routes_by_ids(matches.iter().map(|m| m.route_id).collect())
             .await
             .unwrap_or_default()
             .into_iter()
@@ -1185,8 +1211,13 @@ impl PublicService {
             }
         }
 
-        // Build items — sorted by combined_distance_km (already sorted)
-        let mut items: Vec<TripResult> = Vec::new();
+        // Build items WITH their route's proximity score — the final list
+        // must rank TRIPS closest → least-close (a route with several
+        // departures that day contributes one item per departure at the
+        // route's rank; the old code iterated the DB-ordered trip list,
+        // so the response wasn't actually distance-sorted despite the
+        // matches being sorted).
+        let mut scored: Vec<(TripResult, f64)> = Vec::new();
         for trip in &trips {
             let schedule = match schedule_map.get(&trip.schedule_id) {
                 Some(s) => *s,
@@ -1229,7 +1260,7 @@ impl PublicService {
                 })
                 .unwrap_or_default();
 
-            items.push(TripResult {
+            let item = TripResult {
                 trip_id: trip.id,
                 schedule_id: trip.schedule_id,
                 route_id: schedule.route_id,
@@ -1279,10 +1310,31 @@ impl PublicService {
                 vehicle_type_label: vt_label,
                 capacity: None,
                 amenities,
-            });
+            };
+            scored.push((item, m.combined_distance_km));
         }
 
-        Ok(TripSearchResponse { items })
+        // ── Rank + paginate (TRIP level) ───────────────────
+        // Closest combined pickup+drop proximity first, then departure
+        // time, then trip_id — the trip_id tie-break keeps OFFSET
+        // pagination stable across pages (same contract as the text
+        // search's sort).
+        scored.sort_by(|x, y| {
+            x.1.partial_cmp(&y.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| departure_minutes(&x.0).cmp(&departure_minutes(&y.0)))
+                .then_with(|| x.0.trip_id.cmp(&y.0.trip_id))
+        });
+
+        let total = scored.len() as u64;
+        let page: Vec<TripResult> = scored
+            .into_iter()
+            .skip(offset as usize)
+            .take(limit as usize)
+            .map(|(item, _rank)| item)
+            .collect();
+
+        Ok(TripSearchResponse::paged(page, total, limit, offset))
     }
 
     /// Trip detail by id — full enriched TripDetail shape.
@@ -1761,7 +1813,7 @@ impl PublicService {
                 .collect()
         };
 
-        Ok(TripSearchResponse { items })
+        Ok(TripSearchResponse::unpaginated(items))
     }
 
     // ── Campaigns ───────────────────────────────────────────────

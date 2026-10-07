@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useTripSearch, type TripSearchParams } from '@/lib/queries'
+import { useTripSearchInfinite, type TripSearchParams } from '@/lib/queries'
 import { buildSearchInput } from '@/lib/search-params'
 import { Bell, GitCompare, Heart, Navigation2, X } from 'lucide-react'
 import { SearchWidget } from '@/features/home/search-widget'
@@ -58,6 +58,11 @@ export function SearchResults({
   // "searching…" skeleton — without it a re-search gave ZERO visual
   // feedback while the old list stayed on screen.
   //
+  // PAGINATION: the infinite variant fetches page 1 (10 trips) and the
+  // "load more" button at the end of the list appends further pages —
+  // city-to-city searches can match a day's whole departure board, and
+  // one giant first page made the results page crawl on phones.
+  //
   // BROWSE MODE: when from/to aren't both set there is nothing to
   // search for — instead of a dead-end "no results" page, the
   // RouteDirectory below renders the full active-route catalog.
@@ -89,7 +94,10 @@ export function SearchResults({
     isLoading: searchLoading,
     isPlaceholderData,
     isFetching,
-  } = useTripSearch(tripSearchParams)
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage: loadingMore,
+  } = useTripSearchInfinite(tripSearchParams)
   // A re-search in flight while the previous results are still rendered.
   const fetchingNew = isPlaceholderData || (isFetching && !searchData)
   // Stale-data gate: when the query is DISABLED (from/to set but no
@@ -97,7 +105,27 @@ export function SearchResults({
   // keep rendering the PREVIOUS search's trips forever under the new
   // heading. Treat a dateless search as "no results" so the pick-a-date
   // prompt shows instead.
-  const searchResults = hasDate ? (searchData?.items ?? EMPTY_ITEMS) : EMPTY_ITEMS
+  //
+  // Memoized: flatMap builds a fresh array every render, and this
+  // value feeds filter/price-bounds memos downstream.
+  const searchResults = useMemo(
+    () => (hasDate ? (searchData?.pages.flatMap((p) => p.items) ?? EMPTY_ITEMS) : EMPTY_ITEMS),
+    [hasDate, searchData],
+  )
+  // Server-truth total (from the LAST loaded page's metadata — it's
+  // page-independent). Falls back to the loaded count when the server
+  // didn't paginate (older backend) or the query is disabled.
+  const totalTrips = useMemo(() => {
+    if (!hasDate || !searchData?.pages.length) return 0
+    const last = searchData.pages[searchData.pages.length - 1]
+    return typeof last.total === 'number' ? last.total : searchResults.length
+  }, [hasDate, searchData, searchResults.length])
+  // The load-more button is meaningless while a NEW search is replacing
+  // the list — hasNextPage refers to the incoming query's pages then.
+  const canLoadMore = hasNextPage && !fetchingNew && !loadingMore
+  const loadMore = useCallback(() => {
+    void fetchNextPage()
+  }, [fetchNextPage])
 
   // slug → display name for the active brand chips.
   const brandNames = useMemo(() => {
@@ -362,7 +390,7 @@ export function SearchResults({
                         ? t('searchPage.searchingTrips')
                         : t('searchPage.tripsFound', {
                             found: filteredResults.length,
-                            total: searchResults.length,
+                            total: totalTrips || searchResults.length,
                           })}
                     </p>
                   </div>
@@ -486,6 +514,11 @@ export function SearchResults({
                   // list shows a "pick a date" prompt instead of the generic
                   // "no trips found" empty state (or stale previous results).
                   awaitingDate={!browseMode && !hasDate}
+                  // Pagination — "load more" appends the next page.
+                  hasMore={canLoadMore}
+                  loadingMore={loadingMore}
+                  onLoadMore={loadMore}
+                  totalTrips={totalTrips}
                 />
               </div>
             </div>

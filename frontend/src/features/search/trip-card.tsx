@@ -213,7 +213,7 @@ export const TripCard = memo(function TripCard({
   )
 
   return (
-    <div onMouseEnter={handleHoverPrefetch}>
+    <div onMouseEnter={handleHoverPrefetch} data-testid="trip-card">
       {/* Blue border highlight on hover — no lift, no transform, no
           colored rings (per the flat user-page design language). */}
       <Card className="overflow-visible border-border/60 hover:border-primary/40 transition-colors group relative">

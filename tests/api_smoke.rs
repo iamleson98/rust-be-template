@@ -428,7 +428,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // the trip and the search must return it.
     let res = st
         .public
-        .search_trips("hà nội", "đà nẵng", &today, 20, vec![], "departure", 1)
+        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -444,7 +444,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
     // Idempotency: a SECOND search for the same date must not duplicate.
     let res2 = st
         .public
-        .search_trips("hà nội", "đà nẵng", &today, 20, vec![], "departure", 1)
+        .search_trips("hà nội", "đà nẵng", &today, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res2.items.len(),
@@ -458,7 +458,7 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .to_string();
     let res_past = st
         .public
-        .search_trips("hà nội", "đà nẵng", &yesterday, 20, vec![], "departure", 1)
+        .search_trips("hà nội", "đà nẵng", &yesterday, 20, 0, vec![], "departure", 1)
         .await?;
     assert!(res_past.items.is_empty(), "past dates are never generated");
 
@@ -720,7 +720,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Official names (differ from the route name entirely).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -768,7 +768,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
         .await?;
     let res = st
         .public
-        .search_trips("Sài Gòn", "Cần Thơ", &today, 20, vec![], "departure", 1)
+        .search_trips("Sài Gòn", "Cần Thơ", &today, 20, 0, vec![], "departure", 1)
         .await?;
     assert_eq!(
         res.items.len(),
@@ -779,7 +779,7 @@ async fn search_matches_routes_by_city_slugs_not_just_name() -> anyhow::Result<(
     // Direction still matters: the reverse direction must NOT match.
     let res = st
         .public
-        .search_trips("Đà Nẵng", "Hà Nội", &today, 20, vec![], "departure", 1)
+        .search_trips("Đà Nẵng", "Hà Nội", &today, 20, 0, vec![], "departure", 1)
         .await?;
     assert!(
         res.items.iter().all(|t| t.route_id != route.id),
@@ -891,7 +891,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=price → ascending min_price.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "price", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "price", 1)
         .await?;
     let prices: Vec<i64> = res.items.iter().map(|t| t.min_price).collect();
     let mut sorted = prices.clone();
@@ -903,7 +903,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // cities via name or slugs — Huế route only matches by name here).
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "rating", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "rating", 1)
         .await?;
     if let Some(first) = res.items.first() {
         assert_eq!(first.brand_slug, "sort-test-b", "highest rating first");
@@ -912,7 +912,7 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     // sort=departure (default) → 08:00 before 21:00 on the same route.
     let res = st
         .public
-        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, vec![], "departure", 1)
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 20, 0, vec![], "departure", 1)
         .await?;
     let times: Vec<&str> = res
         .items
@@ -922,6 +922,259 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
     let mut sorted_times = times.clone();
     sorted_times.sort();
     assert_eq!(times, sorted_times, "sort=departure must be chronological");
+
+    Ok(())
+}
+
+/// City-to-city search paginates correctly: `total`/`hasMore` metadata,
+/// page slicing via `offset`, deterministic ordering across pages (no
+/// trip appears in two pages, no trip is skipped at a page seam).
+///
+/// This pins the contract the frontend's "load more" button relies on:
+/// fetch page 1 → `hasMore: true` → fetch `offset += limit` → append.
+#[tokio::test]
+async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    let route = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Hà Nội - Đà Nẵng".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("da-nang".into()),
+            status: None,
+        })
+        .await?;
+
+    // THREE schedules on the same route → three trips on the date.
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    for time in ["07:00", "12:00", "18:00"] {
+        st.admin
+            .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+                route_id: Some(route.id),
+                departure_time: Some(time.into()),
+                effective_from: None,
+                effective_to: None,
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: None,
+                vehicle_type_id: Some(vt_id),
+                base_price_adult: Some(300_000),
+                base_price_child: None,
+                amenities: None,
+                points: None,
+            })
+            .await?;
+    }
+
+    // Page 1: two of three trips, hasMore true, total 3.
+    let page1 = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 0, vec![], "departure", 1)
+        .await?;
+    assert_eq!(page1.items.len(), 2, "page 1 returns exactly limit items");
+    assert_eq!(page1.total, Some(3), "total counts ALL matching trips");
+    assert_eq!(page1.limit, Some(2), "limit echoes the applied page size");
+    assert_eq!(page1.offset, Some(0));
+    assert_eq!(page1.has_more, Some(true), "more trips remain past page 1");
+
+    // Page 2: the remaining trip, hasMore false.
+    let page2 = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 2, vec![], "departure", 1)
+        .await?;
+    assert_eq!(page2.items.len(), 1, "page 2 returns the last trip only");
+    assert_eq!(page2.total, Some(3));
+    assert_eq!(page2.offset, Some(2));
+    assert_eq!(page2.has_more, Some(false), "last page must clear hasMore");
+
+    // Deterministic pagination: no overlap, no gap, stable order.
+    let mut seen: Vec<uuid::Uuid> = page1.items.iter().map(|t| t.trip_id).collect();
+    seen.extend(page2.items.iter().map(|t| t.trip_id));
+    assert_eq!(seen.len(), 3, "pages 1+2 cover all three trips");
+    let distinct: std::collections::HashSet<uuid::Uuid> = seen.iter().copied().collect();
+    assert_eq!(distinct.len(), 3, "no trip may appear in two pages");
+
+    // Order preserved across the seam: 07:00, 12:00 | 18:00.
+    fn dep(p: &backend::dto::public::TripSearchResponse) -> Vec<String> {
+        p.items
+            .iter()
+            .map(|t| t.departure_time.clone().unwrap_or_default())
+            .collect()
+    }
+    assert_eq!(dep(&page1), vec!["07:00".to_string(), "12:00".to_string()]);
+    assert_eq!(dep(&page2), vec!["18:00".to_string()]);
+
+    // Offset past the end: empty page, hasMore false (not an error).
+    let past = st
+        .public
+        .search_trips("Hà Nội", "Đà Nẵng", &today, 2, 10, vec![], "departure", 1)
+        .await?;
+    assert!(past.items.is_empty());
+    assert_eq!(past.has_more, Some(false));
+    assert_eq!(past.total, Some(3), "total is independent of the page window");
+
+    // A no-match search still returns page metadata (clients can trust
+    // hasMore:false instead of guessing from an empty array).
+    let none = st
+        .public
+        .search_trips("Hà Nội", "Cà Mau", &today, 2, 0, vec![], "departure", 1)
+        .await?;
+    assert!(none.items.is_empty());
+    assert_eq!(none.has_more, Some(false));
+    assert_eq!(none.total, Some(0));
+
+    Ok(())
+}
+
+/// Geo (refined) search ranks trips by proximity to the user's exact
+/// pickup/drop coordinates — closest first — and paginates over the
+/// ranked TRIP list (not routes): a nearer route with multiple
+/// departures contributes several items before a farther route's trips.
+#[tokio::test]
+async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
+    let st = boot_state().await?;
+
+    let vt = st
+        .admin
+        .list_vehicle_types(Some("limousine"), Some(1), 0)
+        .await?;
+    let vt_id = vt
+        .items
+        .first()
+        .map(|v| v.id)
+        .ok_or_else(|| anyhow::anyhow!("seeded vehicle types missing"))?;
+
+    // User's desired endpoints: central Hanoi → central Hải Phòng.
+    let (from_lat, from_lon) = (21.0287, 105.8524);
+    let (to_lat, to_lon) = (20.8651, 106.6835);
+
+    // Route A ("near"): stops hugging the user's exact points.
+    let route_a = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Near Route".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("hai-phong".into()),
+            status: None,
+        })
+        .await?;
+    // Route B ("far"): stops a few km off the desired points.
+    let route_b = st
+        .admin
+        .create_route(&backend::dto::admin::UpsertRouteRequest {
+            name: Some("Far Route".into()),
+            brand_id: None,
+            start_location_id: Some("ha-noi".into()),
+            end_location_id: Some("hai-phong".into()),
+            status: None,
+        })
+        .await?;
+
+    // Pickup/drop coordinates — ~0.01° ≈ 1.1 km, well inside the
+    // default 50 km radius. Far route stops sit ~0.05° further out.
+    let near_pickup = (21.0290, 105.8530);
+    let near_drop = (20.8660, 106.6840);
+    let far_pickup = (21.0790, 105.9030);
+    let far_drop = (20.9160, 106.7330);
+    let route_stops: [(uuid::Uuid, (f64, f64), (f64, f64)); 2] = [
+        (route_a.id, near_pickup, near_drop),
+        (route_b.id, far_pickup, far_drop),
+    ];
+    for (route_id, pickup, drop_pt) in route_stops {
+        st.admin
+            .create_pickup_point(&backend::dto::admin::UpsertPickupPointRequest {
+                route_id: Some(route_id),
+                name: Some("pickup".into()),
+                address: None,
+                lat: Some(pickup.0),
+                lon: Some(pickup.1),
+                stop_order: Some(0),
+                kind: Some("pickup".into()),
+            })
+            .await?;
+        st.admin
+            .create_pickup_point(&backend::dto::admin::UpsertPickupPointRequest {
+                route_id: Some(route_id),
+                name: Some("drop".into()),
+                address: None,
+                lat: Some(drop_pt.0),
+                lon: Some(drop_pt.1),
+                stop_order: Some(1),
+                kind: Some("drop".into()),
+            })
+            .await?;
+    }
+
+    // Route A gets TWO departures, route B one — the ranked list must
+    // interleave them as A, A, B (proximity dominates).
+    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let geo_departures: [(uuid::Uuid, &str); 3] = [
+        (route_a.id, "08:00"),
+        (route_a.id, "14:00"),
+        (route_b.id, "10:00"),
+    ];
+    for (route_id, time) in geo_departures {
+        st.admin
+            .create_schedule(&backend::dto::admin::UpsertScheduleRequest {
+                route_id: Some(route_id),
+                departure_time: Some(time.into()),
+                effective_from: None,
+                effective_to: None,
+                days_of_week: Some("1111111".into()),
+                bus_layout_id: None,
+                vehicle_type_id: Some(vt_id),
+                base_price_adult: Some(250_000),
+                base_price_child: None,
+                amenities: None,
+                points: None,
+            })
+            .await?;
+    }
+
+    // Full ranked list first — closest route's trips first.
+    let ranked = st
+        .public
+        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 10, 0, 1, vec![], 50.0)
+        .await?;
+    assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
+    assert_eq!(ranked.total, Some(3));
+    assert_eq!(ranked.has_more, Some(false));
+    let order: Vec<&str> = ranked.items.iter().map(|t| t.route_name.as_str()).collect();
+    assert_eq!(
+        order,
+        vec!["Near Route", "Near Route", "Far Route"],
+        "trips must be ranked closest → least close (route proximity, then departure)"
+    );
+
+    // Page 1 (limit 2): both Near Route trips, hasMore true.
+    let page1 = st
+        .public
+        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 2, 0, 1, vec![], 50.0)
+        .await?;
+    assert_eq!(page1.items.len(), 2);
+    assert_eq!(page1.has_more, Some(true));
+    assert!(page1.items.iter().all(|t| t.route_name == "Near Route"));
+
+    // Page 2 (offset 2): the Far Route trip, hasMore false.
+    let page2 = st
+        .public
+        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 2, 2, 1, vec![], 50.0)
+        .await?;
+    assert_eq!(page2.items.len(), 1);
+    assert_eq!(page2.has_more, Some(false));
+    assert_eq!(page2.items[0].route_name, "Far Route");
 
     Ok(())
 }
