@@ -8,17 +8,7 @@ import { useT } from '@/lib/i18n'
 import { useLogout } from '@/lib/queries'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
-  Bus,
-  LayoutDashboard,
-  Globe,
-  Gift,
-  Check,
-  LogIn,
-  LogOut,
-  Phone,
-  Briefcase,
-} from 'lucide-react'
+import { LayoutDashboard, Globe, Gift, Check, LogIn, LogOut, Phone, Briefcase } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,9 +75,12 @@ export const Header = memo(function Header() {
 
       <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <button onClick={() => navigate({ to: '/' })} className="flex items-center gap-2.5 group">
-          <div className="h-9 w-9 rounded-xl bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center">
-            <Bus className="h-5 w-5 text-white" />
-          </div>
+          <img
+            src="/logo.svg"
+            alt=""
+            aria-hidden
+            className="h-9 w-9 shrink-0 transition-transform duration-300 group-hover:scale-105"
+          />
           <div className="leading-tight">
             <div className="font-extrabold text-lg tracking-tight">DatXeVui</div>
             <div className="text-[10px] text-blue-200 -mt-0.5">{t('trips.imageTagline')}</div>

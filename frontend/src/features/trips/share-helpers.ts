@@ -16,7 +16,7 @@ export type ShareTripData = NonNullable<ReturnType<typeof useApp.getState>['shar
  *
  * The URL is the REAL deep link (`/trips/$tripId` — the registered,
  * deep-linkable route). The previous implementation fabricated
- * `https://datxevui.vn/s/{code}`, a path that exists nowhere: every
+ * `https://datxevui.com/s/{code}`, a path that exists nowhere: every
  * copied link, social share and email pointed at a 404.
  *
  * `code` is kept as a short display-only reference derived from the trip
