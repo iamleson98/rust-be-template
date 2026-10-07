@@ -54,6 +54,19 @@
     <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
     <link rel="dns-prefetch" href="https://unpkg.com" />
 
+    <!-- ── Google tags — injected by prerender.mjs at build time ────
+         Placeholders replaced when `bun run build` runs:
+           %VITE_GSC_VERIFICATION_META%  ← VITE_GSC_VERIFICATION env var
+                                            (Search Console ownership)
+           %GOOGLE_TAGS%                 ← gtag.js + GA4 / Google Ads
+                                            config + Ads conversion labels
+                                            (VITE_GA4_ID, VITE_GOOGLE_ADS_ID,
+                                            VITE_GOOGLE_ADS_CONVERSIONS)
+         Unset vars collapse to nothing — see docs/GOOGLE_ADS.md.
+    -->
+    <!-- %VITE_GSC_VERIFICATION_META% -->
+    <!-- %GOOGLE_TAGS% -->
+
     <link rel="stylesheet" href="/fonts/geist.css" />
 
     <link

@@ -39,6 +39,12 @@ import { createAuthFetch } from './lib/auth-fetch'
 import './styles.css'
 import { bootstrapWebVitals } from './lib/web-vitals'
 import { initConsoleProtection } from './lib/console-protection'
+import { captureClickIds } from './lib/analytics'
+
+// Capture Google Ads click ids (gclid/wbraid/gbraid) from the landing
+// URL NOW — before the SPA router rewrites history and drops them
+// (see lib/analytics.ts). Must run before render, exactly once.
+captureClickIds()
 
 // Override the generated SDK's baseUrl with an empty string so all
 // requests use RELATIVE URLs. This makes them go through the Vite proxy

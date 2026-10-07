@@ -143,3 +143,147 @@ test.describe('Calendar', () => {
     }
   })
 })
+
+test.describe('InfiniteSelect', () => {
+  test('opens, first page renders 10 items, selecting updates the trigger + mirror', async ({
+    page,
+  }) => {
+    const sec = page.getByTestId('sec-infinite-select')
+    await sec.getByTestId('infinite-select-demo').locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    // The mock backend pages 10 rows at a time — page 1 is there, and
+    // because the sentinel sits inside its 200px rootMargin for a list
+    // this short, page 2 prefetches automatically (that IS the
+    // observer working — see the dedicated infinite-scroll test).
+    await expect
+      .poll(async () => content.locator('[data-slot="combobox-item"]').count())
+      .toBeGreaterThanOrEqual(10)
+    await expect
+      .poll(async () => content.locator('[data-slot="combobox-item"]').count())
+      .toBeGreaterThanOrEqual(20)
+
+    await content.locator('[data-slot="combobox-item"]').first().click()
+    await expect(page.getByTestId('infinite-select-mirror')).toHaveText('city-1')
+    await expect(
+      sec.getByTestId('infinite-select-demo').locator('[data-slot="combobox-trigger"]'),
+    ).toContainText('City 1')
+    await expect(content).toBeHidden()
+  })
+
+  test('server-side search narrows the list', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-select')
+    await sec.getByTestId('infinite-select-demo').locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    // 'City 55' matches exactly one mock row ('City 550'+ don't exist)
+    await content.locator('[data-slot="combobox-input"]').fill('City 55')
+    // Debounced 250ms — wait for the filtered page to settle
+    await expect(content.locator('[data-slot="combobox-item"]')).toHaveCount(1)
+    expect(await content.locator('[data-slot="combobox-item"]').first().textContent()).toContain(
+      'City 55',
+    )
+  })
+
+  test('scrolling to the bottom loads the next page (infinite scroll)', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-select')
+    await sec.getByTestId('infinite-select-demo').locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    // First page (10 rows) is loaded. The sentinel sits within its
+    // 200px rootMargin for a list this short, so page 2 may already
+    // be appending — the contract to verify is "pages keep appending
+    // as the user scrolls", not an exact page boundary.
+    await expect(content.locator('[data-slot="combobox-item"]').first()).toHaveCount(1)
+    await expect(content.locator('[data-slot="combobox-item"]').first()).toContainText('City 1')
+
+    // Scroll the list to the bottom — the sentinel enters view and
+    // the IntersectionObserver fetches the next page.
+    const list = content.locator('[data-slot="combobox-list"]')
+    await list.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+    await expect
+      .poll(async () => content.locator('[data-slot="combobox-item"]').count())
+      .toBeGreaterThanOrEqual(20)
+
+    // …and again — the wheel keeps turning.
+    await list.evaluate((el) => el.scrollTo({ top: el.scrollHeight }))
+    await expect
+      .poll(async () => content.locator('[data-slot="combobox-item"]').count())
+      .toBeGreaterThanOrEqual(30)
+  })
+})
+
+test.describe('InfiniteMultiSelect', () => {
+  test('selecting several items accumulates badges + mirror', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-multi-select')
+    const demo = sec.getByTestId('infinite-multi-select-demo')
+    await demo.locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    // Multi mode: clicking items toggles them without closing the popup
+    await content.locator('[data-slot="combobox-item"]').nth(0).click()
+    await content.locator('[data-slot="combobox-item"]').nth(1).click()
+    await content.locator('[data-slot="combobox-item"]').nth(2).click()
+
+    const mirror = page.getByTestId('infinite-multi-select-mirror')
+    await expect(mirror).toHaveText('city-1, city-2, city-3')
+
+    // Trigger shows the first maxBadges=2 badges; the third selection
+    // collapses into the "+1" overflow counter.
+    const trigger = demo.locator('[data-slot="combobox-trigger"]')
+    await expect(trigger).toContainText('City 1')
+    await expect(trigger).toContainText('City 2')
+    await expect(trigger).toContainText('+1')
+  })
+
+  test('more than maxBadges selections collapse to "+N" overflow', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-multi-select')
+    const demo = sec.getByTestId('infinite-multi-select-demo')
+    await demo.locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    // maxBadges defaults to 2 — pick 4 items
+    for (let i = 0; i < 4; i++) {
+      await content.locator('[data-slot="combobox-item"]').nth(i).click()
+    }
+    const trigger = demo.locator('[data-slot="combobox-trigger"]')
+    await expect(trigger).toContainText('+2')
+
+    const mirror = page.getByTestId('infinite-multi-select-mirror')
+    await expect(mirror).toHaveText('city-1, city-2, city-3, city-4')
+  })
+
+  test('deselecting an item removes it from the selection', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-multi-select')
+    const demo = sec.getByTestId('infinite-multi-select-demo')
+    await demo.locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    await content.locator('[data-slot="combobox-item"]').nth(0).click()
+    await content.locator('[data-slot="combobox-item"]').nth(1).click()
+    await expect(page.getByTestId('infinite-multi-select-mirror')).toHaveText('city-1, city-2')
+
+    // Click the first item again to toggle it off
+    await content.locator('[data-slot="combobox-item"]').nth(0).click()
+    await expect(page.getByTestId('infinite-multi-select-mirror')).toHaveText('city-2')
+  })
+
+  test('search works the same as the single-select flavor', async ({ page }) => {
+    const sec = page.getByTestId('sec-infinite-multi-select')
+    const demo = sec.getByTestId('infinite-multi-select-demo')
+    await demo.locator('[data-slot="combobox-trigger"]').click()
+    const content = page.locator('[data-slot="combobox-content"]')
+    await expect(content).toBeVisible()
+
+    await content.locator('[data-slot="combobox-input"]').fill('City 42')
+    await expect(content.locator('[data-slot="combobox-item"]')).toHaveCount(1)
+    await content.locator('[data-slot="combobox-item"]').first().click()
+    await expect(page.getByTestId('infinite-multi-select-mirror')).toHaveText('city-42')
+  })
+})

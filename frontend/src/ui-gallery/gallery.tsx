@@ -57,6 +57,7 @@ const SECTIONS = [
   'date-picker',
   'time-picker',
   'infinite-select',
+  'infinite-multi-select',
   'toast',
 ]
 

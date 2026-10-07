@@ -1,8 +1,8 @@
 'use client'
 
 /**
- * InfiniteSelect — a searchable select that pages data from the
- * server as the user scrolls.
+ * InfiniteSelect / InfiniteMultiSelect — searchable selects that page
+ * data from the server as the user scrolls.
  *
  * Built on the Base UI `Combobox` primitive + a TanStack
  * `useInfiniteQuery`: when the scroll sentinel at the bottom of the
@@ -118,15 +118,25 @@ function useMergedItems<T>(
   }, [pages, extraItems, itemValue])
 }
 
-/** IntersectionObserver on the sentinel → fetchNextPage near bottom. */
+/**
+ * IntersectionObserver on the sentinel → fetchNextPage near bottom.
+ *
+ * The list and sentinel elements are held in STATE via callback refs,
+ * not `useRef`: the popup's DOM only exists while the combobox is
+ * open, which can happen long after the data settled (e.g. the query
+ * was cached by an earlier open). With plain refs that sequence never
+ * re-runs this effect — no observer is ever created and infinite
+ * scroll silently dies. State refs make "node appeared" a render
+ * event, so the observer is (re)created whenever the popup mounts.
+ */
 function useLoadMoreSentinel(
   enabled: boolean,
   hasNextPage: boolean,
   isFetchingNextPage: boolean,
   fetchNextPage: () => void,
 ) {
-  const listRef = useRef<HTMLDivElement | null>(null)
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const [listEl, setListEl] = useState<HTMLDivElement | null>(null)
+  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null)
   const fetchRef = useRef(fetchNextPage)
   // Keep the ref pointing at the LATEST callback without writing during
   // render (unsafe under concurrent rendering — a discarded render would
@@ -137,10 +147,7 @@ function useLoadMoreSentinel(
   })
 
   useEffect(() => {
-    if (!enabled) return
-    const root = listRef.current
-    const sentinel = sentinelRef.current
-    if (!root || !sentinel) return
+    if (!enabled || !listEl || !sentinelEl) return
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -150,13 +157,13 @@ function useLoadMoreSentinel(
       },
       // Watch from inside the scrolling list; start loading a bit
       // before the user actually hits the bottom.
-      { root, rootMargin: `${LOAD_MORE_MARGIN}px` },
+      { root: listEl, rootMargin: `${LOAD_MORE_MARGIN}px` },
     )
-    observer.observe(sentinel)
+    observer.observe(sentinelEl)
     return () => observer.disconnect()
-  }, [enabled, hasNextPage, isFetchingNextPage])
+  }, [enabled, listEl, sentinelEl, hasNextPage, isFetchingNextPage])
 
-  return { listRef, sentinelRef }
+  return { listRef: setListEl, sentinelRef: setSentinelEl }
 }
 
 const listSurface = (className?: string) =>
@@ -323,3 +330,148 @@ export function InfiniteSelect<T>({
 }
 
 // ────────────────────────────────────────────────────────────────
+//  Multi select
+// ────────────────────────────────────────────────────────────────
+
+export interface InfiniteMultiSelectProps<T> {
+  /** Stable identity for the TanStack Query cache key. */
+  scope: string
+  fetchPage: InfiniteFetchPage<T>
+  values: string[]
+  onValuesChange: (values: string[]) => void
+  itemValue: (item: T) => string
+  itemLabel: (item: T) => string
+  renderItem?: (item: T, selected: boolean) => ReactNode
+  /** Items always available (selected-on-edit / just-created). */
+  extraItems?: T[]
+  placeholder?: string
+  searchPlaceholder?: string
+  /** Hide the search input (small fixed lists). Default: shown. */
+  searchable?: boolean
+  disabled?: boolean
+  size?: Size
+  className?: string
+  /** Max badges rendered in the trigger before "+N". Default 2. */
+  maxBadges?: number
+  id?: string
+}
+
+/**
+ * Multi-value flavor of `InfiniteSelect` — same server-paged list,
+ * same search and sentinel wiring, but selection is a `string[]`
+ * rendered as removable-looking badges in the trigger (max `maxBadges`
+ * shown, then "+N").
+ *
+ * Currently exercised by the UI gallery (see
+ * `ui-gallery/sections/selection-sections.tsx`) so it stays a living
+ * part of the design system; adopt it wherever a long backend list
+ * needs multi-pick (e.g. assigning multiple stops or amenities).
+ */
+export function InfiniteMultiSelect<T>({
+  scope,
+  fetchPage,
+  values,
+  onValuesChange,
+  itemValue,
+  itemLabel,
+  renderItem,
+  extraItems,
+  placeholder,
+  searchPlaceholder,
+  searchable = true,
+  disabled,
+  size = 'default',
+  className,
+  maxBadges = 2,
+  id,
+}: InfiniteMultiSelectProps<T>) {
+  const t = useT()
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebouncedValue(search, 250)
+  const effectivePlaceholder = placeholder ?? t('ui.choose')
+  const effectiveSearchPlaceholder = searchPlaceholder ?? t('ui.search')
+
+  const query = useInfiniteOptions(scope, fetchPage, debouncedSearch)
+  const items = useMergedItems(query.data?.pages, extraItems, itemValue)
+
+  const labelByValue = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const item of items) m.set(itemValue(item), itemLabel(item))
+    return m
+  }, [items, itemValue, itemLabel])
+
+  const { listRef, sentinelRef } = useLoadMoreSentinel(
+    true,
+    !!query.hasNextPage,
+    query.isFetchingNextPage,
+    () => void query.fetchNextPage(),
+  )
+
+  const selectedValues = useMemo(() => new Set(values), [values])
+  const badges = values.slice(0, maxBadges)
+  const overflow = values.length - badges.length
+
+  return (
+    <Combobox<string, true>
+      multiple
+      value={values}
+      onValueChange={(next) => onValuesChange(next ?? [])}
+      onInputValueChange={(v) => setSearch(v)}
+    >
+      <ComboboxTrigger
+        id={id}
+        disabled={disabled}
+        className={cn('w-full', size === 'sm' && 'h-8', className)}
+      >
+        {values.length === 0 ? (
+          <span className="flex-1 truncate text-left text-muted-foreground">
+            {effectivePlaceholder}
+          </span>
+        ) : (
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-left">
+            {badges.map((v) => (
+              <span
+                key={v}
+                className="bg-muted text-muted-foreground inline-flex max-w-40 items-center rounded px-1.5 py-0.5 text-xs"
+              >
+                <span className="truncate">{labelByValue.get(v) ?? v}</span>
+              </span>
+            ))}
+            {overflow > 0 ? (
+              <span className="text-xs text-muted-foreground">+{overflow}</span>
+            ) : null}
+          </span>
+        )}
+      </ComboboxTrigger>
+      <ComboboxContent>
+        {searchable ? (
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <ComboboxInput placeholder={effectiveSearchPlaceholder} className="pl-9" />
+          </div>
+        ) : null}
+        <ComboboxList ref={listRef} className={listSurface()}>
+          {items.map((item) => {
+            const v = itemValue(item)
+            return (
+              <ComboboxItem key={v} value={v}>
+                {renderItem ? (
+                  renderItem(item, selectedValues.has(v))
+                ) : (
+                  <span className="truncate">{itemLabel(item)}</span>
+                )}
+              </ComboboxItem>
+            )
+          })}
+          <ListFooter
+            isLoading={query.isLoading}
+            isFetchingNextPage={query.isFetchingNextPage}
+            hasItems={items.length > 0}
+          />
+          {/* Scroll sentinel — observed from within the list. */}
+          <div ref={sentinelRef} aria-hidden className="h-px" />
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  )
+}

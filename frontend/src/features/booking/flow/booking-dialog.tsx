@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
+import { trackConversion } from '@/lib/analytics'
 import {
   useTripDetail,
   useValidateCampaign,
@@ -290,6 +291,14 @@ export function BookingDialog() {
       setGuestPhone(normalizePhone(contactPhoneRef.current))
       if (contactNameRef.current) setGuestName(contactNameRef.current)
       setBookingStep('success')
+      // Google Ads conversion — the booking moment (lead). Payment
+      // completion fires the 'purchase' conversion separately (see
+      // routes/booking-detail.tsx). No-op unless Ads is configured.
+      trackConversion('booking', {
+        value: holdData.total,
+        currency: 'VND',
+        transactionId: holdData.code,
+      })
       toast.success(t('booking.success'), {
         description: t('bookingFlow.successToastDesc', {
           code: holdData.code,

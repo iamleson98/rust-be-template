@@ -36,6 +36,8 @@ import { PaymentDialog } from '@/features/booking/flow/payment-dialog'
 import { useBookingPayments } from '@/lib/queries/payments'
 import { formatDateTimeVN } from '@/lib/types'
 import { getErrorMessage } from '@/lib/error-message'
+import { trackConversion } from '@/lib/analytics'
+import type { PaymentOut } from '@/lib/api/types.gen'
 
 export function BookingDetailPage() {
   const { code } = useParams({ from: '/bookings/$code' })
@@ -53,13 +55,23 @@ export function BookingDetailPage() {
   const activePayment = paymentsData?.items?.[0] // most recent (list is DESC)
   const activePaymentId = activePayment?.id
 
-  const handlePaid = () => {
+  const handlePaid = (payment: PaymentOut) => {
     // The PaymentDialog polls the payment status; when it becomes `completed`,
     // we close it. The booking query will refetch automatically because the
     // invalidateQueries in `useCancelPayment` / `useCreatePayment` includes
     // `['bookings']`. But just to be safe, we also force a refetch here by
     // toggling the dialog closed.
     setPaymentDialogOpen(false)
+    // Google Ads conversion — the purchase moment (paid). The booking's
+    // creation already fired the 'booking' conversion (see
+    // features/booking/flow/booking-dialog.tsx). Google Ads dedupes by
+    // transaction_id, so a re-fired payment collapse to one conversion.
+    // No-op unless Ads is configured.
+    trackConversion('purchase', {
+      value: payment.amount,
+      currency: payment.currency,
+      transactionId: booking?.code,
+    })
   }
 
   if (isLoading) {

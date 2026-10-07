@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { DatePicker } from '@/components/ui/date-picker'
 import { TimePicker } from '@/components/ui/time-picker'
-import { InfiniteSelect } from '@/components/ui/infinite-select'
+import { InfiniteSelect, InfiniteMultiSelect } from '@/components/ui/infinite-select'
 import {
   Combobox,
   ComboboxContent,
@@ -62,7 +62,7 @@ async function galleryFetchPage(page: number, search: string, signal?: AbortSign
 
 /**
  * Selection base components: Select, Combobox, Toggle, ToggleGroup,
- * Calendar.
+ * Calendar, InfiniteSelect (+ multi).
  */
 export function SelectionSections() {
   const [vehicle, setVehicle] = useState('')
@@ -73,6 +73,7 @@ export function SelectionSections() {
   const [isoDate, setIsoDate] = useState<string | null>(null)
   const [time, setTime] = useState<string | null>('08:30')
   const [pagedCity, setPagedCity] = useState<string | null>(null)
+  const [pagedCities, setPagedCities] = useState<string[]>([])
 
   return (
     <>
@@ -264,6 +265,33 @@ export function SelectionSections() {
           </div>
           <span className="text-sm">
             City: <Mirror testId="infinite-select-mirror">{pagedCity ?? 'null'}</Mirror>
+          </span>
+        </div>
+      </Section>
+
+      <Section
+        id="infinite-multi-select"
+        title="InfiniteMultiSelect"
+        description="Multi-pick flavor of InfiniteSelect — badges + “+N” overflow in the trigger."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="w-72" data-testid="infinite-multi-select-demo">
+            <InfiniteMultiSelect
+              scope="gallery-cities"
+              fetchPage={galleryFetchPage}
+              values={pagedCities}
+              onValuesChange={setPagedCities}
+              itemValue={(c) => c.value}
+              itemLabel={(c) => c.label}
+              placeholder="Pick several cities…"
+              searchPlaceholder="Search cities…"
+            />
+          </div>
+          <span className="text-sm">
+            Cities:{' '}
+            <Mirror testId="infinite-multi-select-mirror">
+              {pagedCities.length ? pagedCities.join(', ') : 'none'}
+            </Mirror>
           </span>
         </div>
       </Section>
