@@ -18,7 +18,6 @@ import {
   Gift,
   Bell,
   ShieldCheck,
-  Bus,
   History,
   ArrowLeft,
   LogOut,
@@ -115,9 +114,7 @@ export function AccountShell({ children }: { children: React.ReactNode }) {
           className="flex items-center gap-2.5"
           onClick={() => setMobileOpen(false)}
         >
-          <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm ring-1 ring-white/20 shrink-0">
-            <Bus className="size-5 text-white" />
-          </div>
+          <img src="/logo.svg" alt="" aria-hidden className="aspect-square size-9 shrink-0" />
           {!collapsed && (
             <div className="grid flex-1 text-left text-sm leading-tight overflow-hidden">
               <span className="truncate font-bold text-white">DatXeVui</span>

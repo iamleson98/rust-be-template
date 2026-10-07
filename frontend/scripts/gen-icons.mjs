@@ -1,8 +1,27 @@
 /**
- * Generate PWA icons (192×192, 512×512) + apple-touch-icon + og-image.
- * Uses `sharp` if installed; falls back to SVG-as-PNG otherwise.
+ * Regenerate the brand raster assets from the vector logo.
+ *
+ * Source of truth:
+ *   - public/logo.svg      the "dx + heart" brand mark (white disc, soft
+ *                          shadow, transparent outside the disc) — favicon,
+ *                          in-app <img> brand marks.
+ *   - public/logo-icon.svg the full-bleed square icon variant (brand
+ *                          off-white background, disc at 86%, no shadow) —
+ *                          app icons / PWA icons / apple-touch-icon.
+ *
+ * Outputs (committed to the repo):
+ *   - public/icons/icon-192.png        (PWA, "any" + "maskable")
+ *   - public/icons/icon-512.png        (PWA, "any" + "maskable")
+ *   - public/icons/apple-touch-icon.png (180×180)
+ *   - public/og-image.png              (1200×630 social share card)
+ *
+ * Not regenerated here (one-off, hand-tuned):
+ *   - public/favicon.ico   multi-size ICO (16/32/48) — see git history.
+ *   - mobile launcher / launch images — see git history.
+ *
+ * Run: bun run scripts/gen-icons.mjs   (or: node scripts/gen-icons.mjs)
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,64 +30,75 @@ const ROOT = resolve(__dirname, '..')
 const PUBLIC = resolve(ROOT, 'public')
 const ICONS_DIR = resolve(PUBLIC, 'icons')
 
-mkdirSync(ICONS_DIR, { recursive: true })
-
 let sharp
 try {
   sharp = (await import('sharp')).default
 } catch {
-  console.warn('⚠️  sharp not installed — generating SVG-as-PNG fallback')
+  console.error('✗ sharp is required (it is a devDependency): bun install')
+  process.exit(1)
 }
 
-const BG = '#1d4ed8'
+const iconSvg = readFileSync(resolve(PUBLIC, 'logo-icon.svg'))
+const markSvg = readFileSync(resolve(PUBLIC, 'logo.svg'))
 
-function maskableSvg(size) {
-  const logoSize = size * 0.6
-  const offset = (size - logoSize) / 2
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  <rect width="${size}" height="${size}" fill="${BG}" />
-  <g transform="translate(${offset} ${offset})">
-    <svg width="${logoSize}" height="${logoSize}" viewBox="0 0 100 100">
-      <rect x="20" y="35" width="60" height="40" rx="6" fill="#ffffff" />
-      <circle cx="35" cy="75" r="6" fill="#1d4ed8" stroke="#fff" stroke-width="2" />
-      <circle cx="65" cy="75" r="6" fill="#1d4ed8" stroke="#fff" stroke-width="2" />
-      <rect x="30" y="20" width="40" height="15" rx="3" fill="#ffffff" opacity="0.9" />
-    </svg>
-  </g>
-</svg>`
-}
-
-function ogImageSvg() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1e3a8a" />
-      <stop offset="1" stop-color="#1d4ed8" />
-    </linearGradient>
-  </defs>
-  <rect width="1200" height="630" fill="url(#bg)" />
-  <text x="600" y="290" text-anchor="middle" font-family="-apple-system, Segoe UI, sans-serif" font-size="120" font-weight="800" fill="#ffffff">VeXeVN</text>
-  <text x="600" y="380" text-anchor="middle" font-family="-apple-system, Segoe UI, sans-serif" font-size="36" font-weight="500" fill="#bfdbfe">Đặt vé xe khách online toàn Việt Nam</text>
-  <text x="600" y="450" text-anchor="middle" font-family="-apple-system, Segoe UI, sans-serif" font-size="28" fill="#93c5fd">limousine · giường nằm · ghế ngồi</text>
-</svg>`
-}
-
-const tasks = [
-  { svg: maskableSvg(192), out: resolve(ICONS_DIR, 'icon-192.png') },
-  { svg: maskableSvg(512), out: resolve(ICONS_DIR, 'icon-512.png') },
-  { svg: maskableSvg(180), out: resolve(ICONS_DIR, 'apple-touch-icon.png') },
-  { svg: ogImageSvg(), out: resolve(PUBLIC, 'og-image.png') },
+// ── App / PWA icons: direct rasterization of the full-bleed variant ──────────
+const iconTasks = [
+  { size: 192, out: resolve(ICONS_DIR, 'icon-192.png') },
+  { size: 512, out: resolve(ICONS_DIR, 'icon-512.png') },
+  { size: 180, out: resolve(ICONS_DIR, 'apple-touch-icon.png') },
 ]
-
-if (sharp) {
-  for (const t of tasks) {
-    await sharp(Buffer.from(t.svg)).png().toFile(t.out)
-    console.log('✓', resolve(ROOT, t.out).replace(ROOT, '.'))
-  }
-} else {
-  for (const t of tasks) {
-    writeFileSync(t.out, t.svg)
-    console.log('✓ (svg-as-png)', resolve(ROOT, t.out).replace(ROOT, '.'))
-  }
+for (const { size, out } of iconTasks) {
+  // 4× supersample then downscale for crisp small-size antialiasing.
+  await sharp(iconSvg, { density: 96 * 4 })
+    .resize(size, size)
+    .png()
+    .toFile(out)
+  console.log(`✓ ${resolve(ROOT, out) ? out.slice(ROOT.length + 1) : out} (${size}×${size})`)
 }
-console.log('\nDone.')
+
+// ── og-image: 1200×630 social card (deep-blue brand gradient + mark) ─────────
+const BLUE_DEEP = '#07254A'
+const BLUE_MID = '#147CD3'
+const ORANGE = '#F3740D'
+
+// The mark SVG has its own viewBox (265 30 492 492) — nest it via <svg x y
+// width height>; the outer <svg> supplies the card layout + typography.
+const ogSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${BLUE_MID}" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="${BLUE_MID}" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.27" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="${BLUE_MID}" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="${BLUE_MID}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="${BLUE_DEEP}"/>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+
+  <!-- echo rings, top right -->
+  <circle cx="1180" cy="0" r="340" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  <circle cx="1180" cy="0" r="260" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+  <circle cx="1180" cy="0" r="180" fill="none" stroke="#ffffff" stroke-opacity="0.10"/>
+
+  <!-- brand mark (white disc pops on the deep blue) -->
+  <svg x="80" y="115" width="400" height="400" viewBox="265 30 492 492">${markSvg
+    .toString()
+    .replace(/^<\?xml[^>]*\?>\s*/, '')
+    .replace(/^<svg[^>]*>/, '')
+    .replace(/<\/svg>\s*$/, '')}</svg>
+
+  <!-- typography -->
+  <text x="560" y="248" font-family="Carlito, 'Segoe UI', sans-serif" font-size="108" font-weight="700" fill="#ffffff">DatXeVui</text>
+  <text x="560" y="336" font-family="Carlito, 'Segoe UI', sans-serif" font-size="42" font-weight="700" fill="#d6e9fa">Đặt vé xe khách online</text>
+  <text x="560" y="388" font-family="Carlito, 'Segoe UI', sans-serif" font-size="42" font-weight="700" fill="#d6e9fa">toàn Việt Nam</text>
+  <rect x="560" y="424" width="120" height="4" rx="2" fill="${ORANGE}"/>
+  <text x="560" y="480" font-family="Carlito, 'Segoe UI', sans-serif" font-size="30" fill="#a0bedc">limousine  ·  giường nằm  ·  ghế ngồi</text>
+  <text x="560" y="545" font-family="Carlito, 'Segoe UI', sans-serif" font-size="40" font-weight="700" fill="${ORANGE}">datxevui.com</text>
+</svg>`
+
+await sharp(Buffer.from(ogSvg)).png({ quality: 90 }).toFile(resolve(PUBLIC, 'og-image.png'))
+console.log('✓ public/og-image.png (1200×630)')

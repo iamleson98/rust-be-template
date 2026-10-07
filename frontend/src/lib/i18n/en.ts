@@ -2083,7 +2083,7 @@ export const en: TranslationMap = {
   'trips.imageVehicleType': 'VEHICLE TYPE',
   'trips.imagePriceFrom': 'FROM',
   'trips.imageShareCode': 'Share code:',
-  'trips.imageFooter': 'Visit datxevui.vn to book now',
+  'trips.imageFooter': 'Visit datxevui.com to book now',
   'trips.imageCreateFailed': 'Could not generate the image',
   'trips.imageDownloaded': 'Trip image downloaded',
   'trips.tagline': 'Book bus tickets online',

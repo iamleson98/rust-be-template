@@ -2080,7 +2080,7 @@ export const vi: TranslationMap = {
   'trips.imageVehicleType': 'LOẠI XE',
   'trips.imagePriceFrom': 'GIÁ TỪ',
   'trips.imageShareCode': 'Mã chia sẻ:',
-  'trips.imageFooter': 'Truy cập datxevui.vn để đặt vé ngay',
+  'trips.imageFooter': 'Truy cập datxevui.com để đặt vé ngay',
   'trips.imageCreateFailed': 'Không thể tạo ảnh',
   'trips.imageDownloaded': 'Đã tải ảnh chuyến đi',
   'trips.tagline': 'Đặt vé xe online',
