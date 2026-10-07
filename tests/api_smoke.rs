@@ -458,7 +458,16 @@ async fn search_generates_trips_on_demand() -> anyhow::Result<()> {
         .to_string();
     let res_past = st
         .public
-        .search_trips("hà nội", "đà nẵng", &yesterday, 20, 0, vec![], "departure", 1)
+        .search_trips(
+            "hà nội",
+            "đà nẵng",
+            &yesterday,
+            20,
+            0,
+            vec![],
+            "departure",
+            1,
+        )
         .await?;
     assert!(res_past.items.is_empty(), "past dates are never generated");
 
@@ -1022,7 +1031,11 @@ async fn search_paginates_with_offset_and_has_more() -> anyhow::Result<()> {
         .await?;
     assert!(past.items.is_empty());
     assert_eq!(past.has_more, Some(false));
-    assert_eq!(past.total, Some(3), "total is independent of the page window");
+    assert_eq!(
+        past.total,
+        Some(3),
+        "total is independent of the page window"
+    );
 
     // A no-match search still returns page metadata (clients can trust
     // hasMore:false instead of guessing from an empty array).
@@ -1146,7 +1159,18 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     // Full ranked list first — closest route's trips first.
     let ranked = st
         .public
-        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 10, 0, 1, vec![], 50.0)
+        .search_trips_geo(
+            from_lat,
+            from_lon,
+            to_lat,
+            to_lon,
+            &today,
+            10,
+            0,
+            1,
+            vec![],
+            50.0,
+        )
         .await?;
     assert_eq!(ranked.items.len(), 3, "both routes' trips must match");
     assert_eq!(ranked.total, Some(3));
@@ -1161,7 +1185,18 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     // Page 1 (limit 2): both Near Route trips, hasMore true.
     let page1 = st
         .public
-        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 2, 0, 1, vec![], 50.0)
+        .search_trips_geo(
+            from_lat,
+            from_lon,
+            to_lat,
+            to_lon,
+            &today,
+            2,
+            0,
+            1,
+            vec![],
+            50.0,
+        )
         .await?;
     assert_eq!(page1.items.len(), 2);
     assert_eq!(page1.has_more, Some(true));
@@ -1170,7 +1205,18 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     // Page 2 (offset 2): the Far Route trip, hasMore false.
     let page2 = st
         .public
-        .search_trips_geo(from_lat, from_lon, to_lat, to_lon, &today, 2, 2, 1, vec![], 50.0)
+        .search_trips_geo(
+            from_lat,
+            from_lon,
+            to_lat,
+            to_lon,
+            &today,
+            2,
+            2,
+            1,
+            vec![],
+            50.0,
+        )
         .await?;
     assert_eq!(page2.items.len(), 1);
     assert_eq!(page2.has_more, Some(false));
