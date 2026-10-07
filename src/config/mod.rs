@@ -571,6 +571,10 @@ pub struct AudioCallConfig {
     /// is closed"). Empty → device push disabled (WS ring + Android
     /// duty mode still cover backgrounded apps).
     pub fcm_credentials_json: String,
+    /// Apple APNs credentials for the iOS VoIP push path (CallKit
+    /// wake-ups). Empty → APNs disabled (iOS relies on the WS ring
+    /// while foregrounded + offer re-delivery on reconnect).
+    pub apns: ApnsConfig,
     /// Server-side ring timeout: how long a session may stay RINGING
     /// (per agent attempt — every ring-escalation re-arms the clock)
     /// before the janitor expires it. The client's own ring timer
@@ -620,12 +624,52 @@ pub struct AudioCallConfig {
     pub turn_cred_ttl_sec: u64,
 }
 
+/// Apple APNs (iOS VoIP push) credentials — the `APNS_*` env group.
+///
+/// Token-based auth: the `.p8` provider key (inline `APNS_KEY_PEM`
+/// wins over `APNS_KEY_PATH`), its 10-char key id, and the 10-char
+/// team id. `APNS_TOPIC` is the app's bundle id every push is addressed
+/// to. All fields must be present together or the whole group is
+/// treated as unset (push::init logs it and runs FCM-only).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ApnsConfig {
+    /// The `.p8` key PEM, inline (multi-line ok — env files support it
+    /// via quoting; docker/secrets files are often mounted and read via
+    /// `APNS_KEY_PATH` instead).
+    pub key_pem: String,
+    /// Filesystem path to the `.p8` key — read once at boot.
+    pub key_path: String,
+    /// `APNS_KEY_ID` — the key's id in the Apple developer console.
+    pub key_id: String,
+    /// `APNS_TEAM_ID` — the Apple Developer team id (`iss` claim).
+    pub team_id: String,
+    /// `APNS_TOPIC` — the app bundle id (push topic).
+    pub topic: String,
+    /// `APNS_SANDBOX` — route to the sandbox APNs environment while
+    /// the app is still signed with a development profile.
+    pub sandbox: bool,
+}
+
+impl Default for ApnsConfig {
+    fn default() -> Self {
+        Self {
+            key_pem: env_var("APNS_KEY_PEM").unwrap_or_default(),
+            key_path: env_var("APNS_KEY_PATH").unwrap_or_default(),
+            key_id: env_var("APNS_KEY_ID").unwrap_or_default(),
+            team_id: env_var("APNS_TEAM_ID").unwrap_or_default(),
+            topic: env_var("APNS_TOPIC").unwrap_or_default(),
+            sandbox: env_parse("APNS_SANDBOX").unwrap_or(false),
+        }
+    }
+}
+
 impl Default for AudioCallConfig {
     fn default() -> Self {
         Self {
             enabled: env_parse("AUDIO_CALL_ENABLED").unwrap_or(true),
             ice_servers: env_var("AUDIO_CALL_ICE_SERVERS").unwrap_or_default(),
             fcm_credentials_json: env_var("FCM_CREDENTIALS_JSON").unwrap_or_default(),
+            apns: ApnsConfig::default(),
             // 60s matches the mobile app's own ring timer; the janitor
             // only fires when that timer failed to (frozen app, dead
             // client, reconnect-race).

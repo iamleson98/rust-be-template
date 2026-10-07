@@ -377,12 +377,23 @@ class CallController extends Notifier<CallUiState> {
     if (from == null || sdp is! Map) return;
 
     final channelId = msg['channelId'] as String?;
-    final peerName = _resolveName(channelId);
+    // Caller identity straight from the signaling frame — captured at
+    // offer time from the caller's VERIFIED auth session (never
+    // client-supplied). Falls back to the queue snapshot's channel
+    // name, then the generic customer label.
+    final callerName = (msg['callerName'] as String?)?.trim();
+    final callerAvatar = (msg['callerAvatar'] as String?)?.trim();
+    final peerName = (callerName != null && callerName.isNotEmpty)
+        ? callerName
+        : _resolveName(channelId);
 
     state = CallUiState(
       status: CallStatus.incoming,
       peerId: from,
       peerName: peerName,
+      peerAvatar: (callerAvatar != null && callerAvatar.isNotEmpty)
+          ? callerAvatar
+          : null,
       channelId: channelId,
       remoteOffer: Map<String, dynamic>.from(sdp),
     );

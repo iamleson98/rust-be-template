@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../auth/models.dart';
 import '../auth/token_store.dart';
@@ -243,6 +244,43 @@ class ApiClient {
     final res = await dio.get('/api/presence/staff');
     _throwIfNotOk(res, 200, 'Không tải được trạng thái nhân viên');
     return res.data as Map<String, dynamic>;
+  }
+
+  // ── Push devices ────────────────────────────────────────────────────
+
+  /// `POST /api/push/devices` — register THIS device's push token so
+  /// the server can wake the app for incoming calls ("ring even when
+  /// closed": APNs VoIP → CallKit on iOS, FCM data messages on
+  /// Android). Idempotent: re-registering a known (user, token) pair
+  /// only refreshes its timestamp — safe to call on every app start
+  /// and on every PushKit token rotation.
+  Future<void> registerPushDevice({
+    required String token,
+    required String platform, // 'ios' | 'android'
+  }) async {
+    try {
+      await dio.post(
+        '/api/push/devices',
+        data: {'token': token, 'platform': platform},
+      );
+    } on ApiException catch (e) {
+      // Non-fatal: push is an accelerator, never a prerequisite — the
+      // WS ring still covers foregrounded use. Surface it in logs for
+      // diagnosis (a persistently failing registration usually means
+      // the backend lacks the FCM/APNS credentials).
+      debugPrint('[push] device registration failed: $e');
+    }
+  }
+
+  /// `DELETE /api/push/devices/{token}` — unregister on logout so a
+  /// signed-out phone stops being rung. Ownership is enforced
+  /// server-side (the token is only removable by its own user).
+  Future<void> unregisterPushDevice(String token) async {
+    try {
+      await dio.delete('/api/push/devices/$token');
+    } on ApiException catch (e) {
+      debugPrint('[push] device unregistration failed: $e');
+    }
   }
 
   // ── Health ─────────────────────────────────────────────────────────

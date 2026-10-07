@@ -31,7 +31,7 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
 use crate::audio_call::hub::{call_hub, CallRole};
-use crate::audio_call::session::{sessions, HangupOutcome, OfferOutcome};
+use crate::audio_call::session::{sessions, CallerProfile, HangupOutcome, OfferOutcome};
 use crate::auth::cookies::ACCESS_COOKIE;
 use crate::auth::SessionUser;
 use crate::error::AppError;
@@ -324,68 +324,15 @@ pub async fn handle_socket(
                                         ));
                                         continue;
                                     }
-                                    match do_register(&user_r, &v, tx.clone(), sid) {
-                                        Ok(role) => {
-                                            registered_role = Some(role);
-                                            let n = call_hub().online_agent_count();
-                                            let ice_n = ice_servers
-                                                .as_array()
-                                                .map(|a| a.len())
-                                                .unwrap_or(0);
-                                            tracing::info!(
-                                                user_id = %user_r.id,
-                                                role = role.as_str(),
-                                                online_agents = n,
-                                                ice_servers = ice_n,
-                                                "ws-call peer registered"
-                                            );
-                                            // Server-side call truth: the live
-                                            // session this user is part of, if
-                                            // any. (Re)connecting clients whose
-                                            // local UI shows a call compare
-                                            // against this — a mismatch (usually
-                                            // `null`) means the session is gone
-                                            // server-side and their call UI is
-                                            // a zombie that must end now. The
-                                            // end-of-call hangup is delivered to
-                                            // the OTHER side (and to this
-                                            // user's other sockets) — a socket
-                                            // that reconnected would otherwise
-                                            // never hear about it.
-                                            let active_call =
-                                                sessions().active_call_of(&user_r.id.to_string());
-                                            let _ = tx.try_send(bytes::Bytes::from(
-                                                json!({
-                                                    "type": "registered",
-                                                    "role": role.as_str(),
-                                                    "userId": user_r.id,
-                                                    "onlineAgents": n,
-                                                    "iceServers": &ice_servers,
-                                                    "activeCall": active_call,
-                                                })
-                                                .to_string(),
-                                            ));
-                                            // Presence fan-out ONLY for agent
-                                            // registrations: a customer
-                                            // register changes NOTHING in
-                                            // the presence payload
-                                            // (onlineAgents / agentInCall /
-                                            // agentsAvailable are all
-                                            // agent-side facts) — firing a
-                                            // full O(peers) + O(staff-chat)
-                                            // broadcast per customer used
-                                            // to make connect storms
-                                            // quadratic.
-                                            if role == CallRole::Agent {
-                                                call_hub().broadcast_presence();
-                                            }
-                                        }
-                                        Err(msg) => {
-                                            let _ = tx.try_send(
-                                                bytes::Bytes::from(json!({ "type": "error", "code": "bad-register", "message": msg }).to_string()),
-                                            );
-                                        }
+                                    if let Ok(role) =
+                                        process_register(&user_r, &v, &tx, sid, &ice_servers)
+                                    {
+                                        registered_role = Some(role);
                                     }
+                                    // `Err` — the bad-register error frame was
+                                    // already sent on `tx`; the loop's
+                                    // per-socket bookkeeping stays unset so
+                                    // the client may retry the register.
                                     continue;
                                 }
 
@@ -627,6 +574,79 @@ fn do_register(
     Ok(role)
 }
 
+/// Process a `register` message END-TO-END (extracted from the socket
+/// loop so tests can drive the full frame sequence): validate +
+/// hub-insert ([`do_register`]), reply `registered` (with the server's
+/// call truth for this user), re-deliver a missed ringing offer to
+/// THIS socket, and fan out agent presence.
+///
+/// `Err` means "bad register" — the error frame has already been sent
+/// on `tx`; the loop only resets its per-socket bookkeeping.
+fn process_register(
+    user: &SessionUser,
+    msg: &Value,
+    tx: &mpsc::Sender<bytes::Bytes>,
+    sid: u64,
+    ice_servers: &Value,
+) -> Result<CallRole, String> {
+    let role = match do_register(user, msg, tx.clone(), sid) {
+        Ok(role) => role,
+        Err(msg) => {
+            let _ = tx.try_send(bytes::Bytes::from(
+                json!({ "type": "error", "code": "bad-register", "message": msg }).to_string(),
+            ));
+            return Err(msg);
+        }
+    };
+
+    let n = call_hub().online_agent_count();
+    let ice_n = ice_servers.as_array().map(|a| a.len()).unwrap_or(0);
+    tracing::info!(
+        user_id = %user.id,
+        role = role.as_str(),
+        online_agents = n,
+        ice_servers = ice_n,
+        "ws-call peer registered"
+    );
+    // Server-side call truth: the live session this user is part of,
+    // if any. (Re)connecting clients whose local UI shows a call
+    // compare against this — a mismatch (usually `null`) means the
+    // session is gone server-side and their call UI is a zombie that
+    // must end now. The end-of-call hangup is delivered to the OTHER
+    // side (and to this user's other sockets) — a socket that
+    // reconnected would otherwise never hear about it.
+    let active_call = sessions().active_call_of(&user.id.to_string());
+    let _ = tx.try_send(bytes::Bytes::from(
+        json!({
+            "type": "registered",
+            "role": role.as_str(),
+            "userId": user.id,
+            "onlineAgents": n,
+            "iceServers": ice_servers,
+            "activeCall": active_call,
+        })
+        .to_string(),
+    ));
+    // Missed-offer re-delivery (see `re_deliver_missed_offer_to`): a
+    // socket that (re)connects while its agent is still being rung
+    // never saw the `incoming` frame — it went to the user's PREVIOUS
+    // (now dead) sockets. The iOS production path: VoIP push wakes the
+    // app → socket re-registers → offer re-delivered HERE, on THIS
+    // socket, AFTER `registered` (clients reconcile before ringing).
+    if role == CallRole::Agent {
+        re_deliver_missed_offer_to(&user.id.to_string(), sid);
+    }
+    // Presence fan-out ONLY for agent registrations: a customer
+    // register changes NOTHING in the presence payload (onlineAgents /
+    // agentInCall / agentsAvailable are all agent-side facts) — firing
+    // a full O(peers) + O(staff-chat) broadcast per customer used to
+    // make connect storms quadratic.
+    if role == CallRole::Agent {
+        call_hub().broadcast_presence();
+    }
+    Ok(role)
+}
+
 /// Dispatch a post-registration signal (`call` / `hangup`). `sid` is
 /// the sending socket's id — the session manager records it so calls
 /// are pinned to the device that actually carries them (multi-session
@@ -748,6 +768,10 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
         // ── Offer: the session manager owns routing + busy guards ────
         "offer" => {
             let offer = sdp.cloned().unwrap_or(serde_json::Value::Null);
+            // Caller identity for the callee's UI ("who is calling") —
+            // captured from the VERIFIED auth session of the offerer,
+            // never from client-supplied fields.
+            let caller = CallerProfile::of(user);
             match role {
                 CallRole::Customer => {
                     let uid = user.id.to_string();
@@ -757,6 +781,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
                         channel_id.map(str::to_string),
                         Some(sid),
                         pick_agent,
+                        caller,
                     ) {
                         OfferOutcome::Ringing { agent_id } => relay_offer(&uid, &agent_id),
                         OfferOutcome::CustomerBusy => {
@@ -802,6 +827,7 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
                         offer,
                         channel_id.map(str::to_string),
                         Some(sid),
+                        caller,
                     ) {
                         // The session is keyed by the CUSTOMER id (`to`).
                         OfferOutcome::Ringing { agent_id } => relay_offer(to, &agent_id),
@@ -932,6 +958,10 @@ fn handle_call(user: &SessionUser, role: CallRole, msg: &Value, sid: u64) -> Res
 /// with `peer-unavailable` (the next offer attempt will re-pick).
 /// `pub(crate)` so the janitor's ring-escalation reuses the identical
 /// relay (offer SDP + push ring + rollback) the handler uses.
+///
+/// The frame carries the CALLER's identity (`callerName` / `callerAvatar`,
+/// captured at offer time from the caller's verified auth session) so the
+/// ringing side can show **who is calling** without any extra round-trip.
 pub(crate) fn relay_offer(customer_id: &str, agent_id: &str) {
     let Some(s) = sessions().get(customer_id) else {
         return;
@@ -942,21 +972,20 @@ pub(crate) fn relay_offer(customer_id: &str, agent_id: &str) {
         channel = s.channel_id.as_deref().unwrap_or(""),
         "call offer relayed — RINGING"
     );
-    let sent = call_hub().send_to(
-        agent_id,
-        &json!({
-            "type": "incoming",
-            "from": s.customer_id,
-            "channelId": s.channel_id,
-            "sdp": s.offer,
-            "kind": "offer",
-        }),
-    );
+    let sent = call_hub().send_to(agent_id, &incoming_frame(&s));
     if sent {
         // Fire-and-forget device push: wakes backgrounded/frozen apps
         // (and force-stopped apps once FCM is configured). The WS ring
         // above remains the source of truth — push only accelerates.
-        crate::push::push().notify_incoming_call(agent_id, customer_id, s.channel_id.as_deref());
+        crate::push::push().notify_incoming_call(
+            agent_id,
+            crate::push::IncomingCallPush {
+                customer_id,
+                channel_id: s.channel_id.as_deref(),
+                caller_name: s.caller.name.as_deref(),
+                caller_avatar: s.caller.avatar_url.as_deref(),
+            },
+        );
     } else {
         tracing::warn!(
             customer = customer_id,
@@ -972,6 +1001,55 @@ pub(crate) fn relay_offer(customer_id: &str, agent_id: &str) {
             "Peer not online or unavailable",
         );
     }
+}
+
+/// The `incoming` frame for a session's stored offer — one builder so
+/// the initial ring, the janitor's ring escalations, and the missed-
+/// offer re-delivery on register all send byte-identical frames.
+fn incoming_frame(s: &crate::audio_call::session::CallSession) -> Value {
+    json!({
+        "type": "incoming",
+        "from": s.customer_id,
+        "channelId": s.channel_id,
+        "callerName": s.caller.name,
+        "callerAvatar": s.caller.avatar_url,
+        "sdp": s.offer,
+        "kind": "offer",
+    })
+}
+
+/// Missed-offer re-delivery: re-send the stored `incoming` frame to ONE
+/// socket — the one that just (re)registered — when that user is still
+/// the current callee of a RINGING session.
+///
+/// Why this exists: the original `incoming` frame went to the user's
+/// sockets as they were at ring time. A phone whose app was suspended
+/// (iOS freezes the process seconds after backgrounding) never saw it —
+/// its socket was dead. This is THE iOS production path: the VoIP push
+/// wakes the app, the signaling socket reconnects + re-registers, and
+/// without this re-send the offer (and with it the call) is lost while
+/// the customer times out against a ghost ring.
+///
+/// Deliberately narrow: no device push (the phone is already ringing
+/// via the VoIP push that woke it — re-pushing would pop the CallKit
+/// screen over the app a second time), no rollback (a failed send here
+/// means the socket died again — the janitor's ring escalation owns
+/// that outcome), and the agent's OTHER sockets are untouched (they got
+/// the original frame and are already ringing).
+fn re_deliver_missed_offer_to(agent_id: &str, sid: u64) {
+    let Some((customer_id, _)) = sessions().ringing_call_of_agent(agent_id) else {
+        return;
+    };
+    let Some(s) = sessions().get(&customer_id) else {
+        return;
+    };
+    tracing::info!(
+        customer = %customer_id,
+        agent = agent_id,
+        socket_id = sid,
+        "missed offer re-delivered to freshly (re)registered socket"
+    );
+    let _ = call_hub().send_to_sid(sid, &incoming_frame(&s));
 }
 
 /// Send an error frame to a peer (best-effort).
@@ -1075,7 +1153,7 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
 }
 
 #[cfg(test)]
-mod renegotiate_tests {
+mod handler_tests {
     use super::*;
     use crate::audio_call::session::CallState;
     use crate::auth::SessionUser;
@@ -1099,6 +1177,16 @@ mod renegotiate_tests {
             brand_id: None,
             brand_name: None,
             employee_role: None,
+        }
+    }
+
+    /// A customer WITH display identity — the caller-identity path is
+    /// only exercised when the auth session actually carries a name.
+    fn named_user(id: &str, name: &str, avatar: Option<&str>) -> SessionUser {
+        SessionUser {
+            name: name.into(),
+            avatar_url: avatar.map(str::to_string),
+            ..fake_user(id, "user")
         }
     }
 
@@ -1139,10 +1227,16 @@ mod renegotiate_tests {
         // Session: customer offers, the picker selects our agent.
         sessions().clear();
         let offer = json!({"type": "offer", "sdp": "v=0 fake"});
-        let outcome =
-            sessions().begin_customer_offer(&customer_id, offer, None, Some(csid), |exclude| {
+        let outcome = sessions().begin_customer_offer(
+            &customer_id,
+            offer,
+            None,
+            Some(csid),
+            |exclude| {
                 (exclude.is_empty() || !exclude.contains(&agent_id)).then(|| agent_id.clone())
-            });
+            },
+            crate::audio_call::session::CallerProfile::anon(),
+        );
         assert!(matches!(outcome, OfferOutcome::Ringing { .. }));
 
         // Agent answers → ACTIVE.
@@ -1286,6 +1380,188 @@ mod renegotiate_tests {
 
         // Teardown (see the offer test).
         call_hub().unregister(&customer_id, csid);
+        sessions().clear();
+    }
+
+    #[tokio::test]
+    async fn incoming_frame_carries_the_callers_identity() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let customer_id = Uuid::new_v4().to_string();
+        let agent_id = Uuid::new_v4().to_string();
+        let (ctx, mut crx) = mpsc::channel::<bytes::Bytes>(8);
+        let (atx, mut arx) = mpsc::channel::<bytes::Bytes>(8);
+        let h = call_hub();
+        let csid = h.next_socket_id();
+        let asid = h.next_socket_id();
+        h.register(
+            fake_user(&customer_id, "user"),
+            CallRole::Customer,
+            None,
+            ctx,
+            csid,
+        );
+        h.register(
+            fake_user(&agent_id, "employee"),
+            CallRole::Agent,
+            None,
+            atx,
+            asid,
+        );
+        sessions().clear();
+
+        // A customer with a REAL auth-session identity places the call.
+        let msg = json!({
+            "type": "call",
+            "to": "agent",
+            "kind": "offer",
+            "channelId": "ch-77",
+            "sdp": {"type": "offer", "sdp": "v=0 offer"},
+        });
+        handle_call(
+            &named_user(&customer_id, "  Nguyễn Văn A  ", Some("https://cdn/a.png")),
+            CallRole::Customer,
+            &msg,
+            csid,
+        )
+        .expect("offer accepted");
+
+        let frame = next_frame(&mut arx, "incoming").expect("agent must be rung");
+        // ── THE caller-identity contract (mobile + web both parse it):
+        // captured from the verified auth session, whitespace-trimmed,
+        // never client-supplied (the frame carries no `name` field the
+        // caller could have forged).
+        assert_eq!(frame["callerName"], "Nguyễn Văn A");
+        assert_eq!(frame["callerAvatar"], "https://cdn/a.png");
+        assert_eq!(frame["channelId"], "ch-77");
+        assert_eq!(frame["from"], customer_id);
+        // The customer's own socket sees no extra frames for this.
+        assert!(next_frame(&mut crx, "incoming").is_none());
+
+        // Teardown: unregister sockets so the hub is pristine for the
+        // next test, and clear the ringing session.
+        call_hub().unregister(&customer_id, csid);
+        call_hub().unregister(&agent_id, asid);
+        sessions().clear();
+    }
+
+    #[tokio::test]
+    async fn fresh_agent_socket_receives_the_missed_ringing_offer() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let customer_id = Uuid::new_v4().to_string();
+        let agent_id = Uuid::new_v4().to_string();
+
+        // Ring WITHOUT registering any agent socket — the realistic
+        // iOS scenario: the phone's socket died before the offer, so
+        // relay at ring time reached nobody. Begin the session directly
+        // (handle_call requires a live agent socket for re-routing).
+        sessions().clear();
+        let outcome = sessions().begin_customer_offer(
+            &customer_id,
+            json!({"type": "offer", "sdp": "v=0 offer"}),
+            Some("ch-1".into()),
+            None,
+            |_| Some(agent_id.clone()),
+            crate::audio_call::session::CallerProfile {
+                name: Some("Nguyễn Văn A".into()),
+                avatar_url: None,
+            },
+        );
+        assert!(matches!(outcome, OfferOutcome::Ringing { .. }));
+
+        // The phone wakes (VoIP push), its socket connects + registers.
+        let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(8);
+        let sid = call_hub().next_socket_id();
+        process_register(
+            &fake_user(&agent_id, "employee"),
+            &json!({"type": "register", "role": "agent"}),
+            &tx,
+            sid,
+            &json!([]),
+        )
+        .expect("agent register ok");
+
+        // Frame order: `registered` FIRST (clients reconcile), then the
+        // re-delivered `incoming` with the caller's identity intact.
+        let registered = next_frame(&mut rx, "registered").expect("registered frame");
+        assert_eq!(registered["activeCall"]["callerName"], "Nguyễn Văn A");
+        assert_eq!(registered["activeCall"]["state"], "ringing");
+        let incoming = next_frame(&mut rx, "incoming").expect("missed offer re-delivered");
+        assert_eq!(incoming["callerName"], "Nguyễn Văn A");
+        assert_eq!(incoming["from"], customer_id);
+        assert_eq!(incoming["sdp"]["sdp"], "v=0 offer");
+
+        // A SECOND register (another reconnect while still ringing)
+        // re-delivers again — the phone may reconnect several times
+        // during one ring window; each fresh socket gets exactly one.
+        let (tx2, mut rx2) = mpsc::channel::<bytes::Bytes>(8);
+        let sid2 = call_hub().next_socket_id();
+        process_register(
+            &fake_user(&agent_id, "employee"),
+            &json!({"type": "register", "role": "agent"}),
+            &tx2,
+            sid2,
+            &json!([]),
+        )
+        .expect("second register ok");
+        assert!(next_frame(&mut rx2, "incoming").is_some());
+
+        // Answer → the session goes ACTIVE; a THIRD register now must
+        // NOT re-deliver (nothing is ringing anymore).
+        assert!(sessions()
+            .on_answer(&agent_id, &customer_id, Some(sid2))
+            .is_some());
+        let (tx3, mut rx3) = mpsc::channel::<bytes::Bytes>(8);
+        let sid3 = call_hub().next_socket_id();
+        process_register(
+            &fake_user(&agent_id, "employee"),
+            &json!({"type": "register", "role": "agent"}),
+            &tx3,
+            sid3,
+            &json!([]),
+        )
+        .expect("third register ok");
+        assert!(next_frame(&mut rx3, "incoming").is_none());
+
+        // Teardown.
+        call_hub().unregister(&agent_id, sid);
+        call_hub().unregister(&agent_id, sid2);
+        call_hub().unregister(&agent_id, sid3);
+        sessions().clear();
+    }
+
+    #[tokio::test]
+    async fn customer_register_never_re_delivers_offers() {
+        let _guard = TEST_LOCK.lock().unwrap();
+        let customer_id = Uuid::new_v4().to_string();
+        let agent_id = Uuid::new_v4().to_string();
+        sessions().clear();
+        // A RINGING session exists, but the registering user is the
+        // CUSTOMER side — re-delivery is agent-only (the customer's
+        // client owns the ring timer and its own UI state).
+        assert!(matches!(
+            sessions().begin_customer_offer(
+                &customer_id,
+                json!({"type": "offer", "sdp": "v=0"}),
+                None,
+                None,
+                |_| Some(agent_id.clone()),
+                crate::audio_call::session::CallerProfile::anon(),
+            ),
+            OfferOutcome::Ringing { .. }
+        ));
+        let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(8);
+        let sid = call_hub().next_socket_id();
+        process_register(
+            &fake_user(&customer_id, "user"),
+            &json!({"type": "register", "role": "customer"}),
+            &tx,
+            sid,
+            &json!([]),
+        )
+        .expect("customer register ok");
+        assert!(next_frame(&mut rx, "registered").is_some());
+        assert!(next_frame(&mut rx, "incoming").is_none());
+        call_hub().unregister(&customer_id, sid);
         sessions().clear();
     }
 }

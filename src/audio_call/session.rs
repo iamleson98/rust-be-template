@@ -64,6 +64,8 @@ use std::time::Instant;
 use dashmap::DashMap;
 use serde_json::Value;
 
+use crate::auth::SessionUser;
+
 /// Lifecycle of one call session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -80,6 +82,42 @@ pub enum CallState {
 pub enum Initiator {
     Customer,
     Agent,
+}
+
+/// Display identity of the side that PLACED the call, captured once
+/// at offer time from the caller's verified auth session
+/// ([`SessionUser`] — JWT claims, never client-supplied). Relayed with
+/// every ring so the callee's UI can render **who is calling** (name +
+/// avatar) with zero extra round-trips, on both the mobile app and the
+/// web widget.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CallerProfile {
+    pub name: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
+impl CallerProfile {
+    /// "No identity captured" — legacy callers, missing claims. Callees
+    /// fall back to their local channel/customer naming.
+    pub const fn anon() -> Self {
+        Self {
+            name: None,
+            avatar_url: None,
+        }
+    }
+
+    /// Capture the caller's display identity from their auth session.
+    pub fn of(user: &SessionUser) -> Self {
+        let name = if user.name.trim().is_empty() {
+            None
+        } else {
+            Some(user.name.trim().to_string())
+        };
+        Self {
+            name,
+            avatar_url: user.avatar_url.clone(),
+        }
+    }
 }
 
 /// One live call between a customer and an agent.
@@ -112,6 +150,10 @@ pub struct CallSession {
     /// the call even when the user still has other live sockets (multi-
     /// session: web + phone).
     pub answered_on: Option<u64>,
+    /// Who PLACED the call (see [`CallerProfile`]) — captured at offer
+    /// time and relayed with every ring so the callee sees the caller's
+    /// identity immediately, including on janitor re-routes.
+    pub caller: CallerProfile,
 }
 
 /// Result of trying to place a call (customer- or agent-initiated).
@@ -188,6 +230,10 @@ pub struct ActiveCallInfo {
     pub state: CallState,
     /// `"customer"` | `"agent"` — who placed the call.
     pub initiator: Initiator,
+    /// Who placed the call — lets a (re)connecting callee render the
+    /// caller's identity before the re-delivered offer lands.
+    pub caller_name: Option<String>,
+    pub caller_avatar: Option<String>,
 }
 
 /// The process-wide session registry.
@@ -312,7 +358,27 @@ impl SessionManager {
                 },
                 state: s.state,
                 initiator: s.initiator,
+                caller_name: s.caller.name.clone(),
+                caller_avatar: s.caller.avatar_url.clone(),
             })
+    }
+
+    /// The RINGING session a just-(re)registered AGENT is the current
+    /// callee of, if any: `(customer_id, agent_id)`. Only sessions still
+    /// in `Ringing` **with this agent** — a call already re-routed to a
+    /// colleague, or already answered (`Active`), must not re-ring here.
+    ///
+    /// This powers missed-offer re-delivery on register: a socket that
+    /// (re)connects mid-ring never saw the `incoming` frame (it was sent
+    /// to a previous, now-dead socket of the same user), which is THE
+    /// iOS production path — the VoIP push wakes the app, the socket
+    /// re-registers, and without re-delivery the offer (and the call)
+    /// is lost while the customer times out against a ghost ring.
+    pub fn ringing_call_of_agent(&self, agent_id: &str) -> Option<(String, String)> {
+        self.sessions
+            .iter()
+            .find(|s| s.state == CallState::Ringing && s.agent_id == agent_id)
+            .map(|s| (s.customer_id.clone(), s.agent_id.clone()))
     }
 
     /// Agents currently RINGING for some customer — excluded from new
@@ -344,6 +410,7 @@ impl SessionManager {
         channel_id: Option<String>,
         offerer_sid: Option<u64>,
         pick_agent: impl FnOnce(&HashSet<String>) -> Option<String>,
+        caller: CallerProfile,
     ) -> OfferOutcome {
         // Busy guard: this customer is already in (or placing) a call.
         if self.sessions.contains_key(customer_id) {
@@ -367,6 +434,7 @@ impl SessionManager {
                         created_at: Instant::now(),
                         offerer_sid,
                         answered_on: None,
+                        caller,
                     },
                 );
                 OfferOutcome::Ringing { agent_id }
@@ -384,6 +452,7 @@ impl SessionManager {
         offer: Value,
         channel_id: Option<String>,
         offerer_sid: Option<u64>,
+        caller: CallerProfile,
     ) -> OfferOutcome {
         if self.sessions.contains_key(customer_id) {
             return OfferOutcome::PeerBusy;
@@ -406,6 +475,7 @@ impl SessionManager {
                 created_at: Instant::now(),
                 offerer_sid,
                 answered_on: None,
+                caller,
             },
         );
         OfferOutcome::Ringing {
@@ -639,6 +709,7 @@ impl SessionManager {
 mod tests {
     use super::*;
     use serde_json::json;
+    use uuid::Uuid;
 
     /// SessionManager is a process-global singleton and the tests make
     /// absolute assertions — serialise them. The lock is SHARED with the
@@ -676,6 +747,7 @@ mod tests {
             Some("ch-1".into()),
             None,
             picker_pick("a1"),
+            CallerProfile::anon(),
         );
         assert_eq!(
             out,
@@ -695,12 +767,26 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // Same customer tries again (double-tap, second tab, …).
-        let out = m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        let out = m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         assert_eq!(out, OfferOutcome::CustomerBusy);
         // Another AGENT calling that busy customer is rejected too.
-        let out = m.begin_agent_offer("a2", "cust-1", offer(), None, None);
+        let out = m.begin_agent_offer("a2", "cust-1", offer(), None, None, CallerProfile::anon());
         assert_eq!(out, OfferOutcome::PeerBusy);
         m.clear();
     }
@@ -710,7 +796,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        let out = m.begin_customer_offer("cust-1", offer(), None, None, picker_none());
+        let out = m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_none(),
+            CallerProfile::anon(),
+        );
         assert_eq!(out, OfferOutcome::NoAgent);
         assert!(m.is_empty());
     }
@@ -720,7 +813,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // A late answer from an agent the call was re-routed AWAY from.
         assert_eq!(m.on_answer("a2", "cust-1", None), None);
         // The real agent answers.
@@ -736,7 +836,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // a1 declines; a2 is free → re-route.
         let out = m.on_agent_hangup("a1", "declined", picker_pick("a2"));
         assert_eq!(
@@ -766,7 +873,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // The only agent available is a1 again (already tried) → no
         // re-route, the queue is dry.
         let out = m.on_agent_hangup("a1", "busy", picker_pick("a1"));
@@ -785,7 +899,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         m.on_answer("a1", "cust-1", None);
         let out = m.on_agent_hangup("a1", "remote", picker_none());
         assert_eq!(
@@ -803,7 +924,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         m.on_answer("a1", "cust-1", None);
         assert_eq!(
             m.on_customer_hangup("cust-1"),
@@ -821,7 +949,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_agent_offer("a1", "cust-1", offer(), Some("ch-9".into()), None);
+        m.begin_agent_offer(
+            "a1",
+            "cust-1",
+            offer(),
+            Some("ch-9".into()),
+            None,
+            CallerProfile::anon(),
+        );
         // Agent cancels their own outbound offer — even though other
         // agents exist, re-route doesn't apply (there is exactly one
         // intended callee).
@@ -841,7 +976,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         assert!(m.is_user_in_call("cust-1"));
         assert!(m.is_user_in_call("a1"));
         assert!(!m.is_user_in_call("a2"));
@@ -856,8 +998,22 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
-        m.begin_customer_offer("cust-2", offer(), None, None, picker_pick("a2"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
+        m.begin_customer_offer(
+            "cust-2",
+            offer(),
+            None,
+            None,
+            picker_pick("a2"),
+            CallerProfile::anon(),
+        );
         // Agent a1's socket drops: their session goes, cust-2/a2 stays.
         let dropped = m.drop_sessions_of("a1");
         assert_eq!(dropped.len(), 1);
@@ -874,9 +1030,16 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // a1 is mid-call and tries to START a call to another customer.
-        let out = m.begin_agent_offer("a1", "cust-2", offer(), None, None);
+        let out = m.begin_agent_offer("a1", "cust-2", offer(), None, None, CallerProfile::anon());
         assert_eq!(out, OfferOutcome::AgentBusy);
         // No session was created for cust-2.
         assert!(m.get("cust-2").is_none());
@@ -888,7 +1051,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         // Customer's ICE → their session's agent.
         assert_eq!(m.agent_for("cust-1").as_deref(), Some("a1"));
         // Agent's ICE with an explicit `to` → validated against the session.
@@ -905,7 +1075,14 @@ mod tests {
         m.clear();
         // Customer sockets 1 (offerer) and agent socket 9 (answerer) carry
         // an ACTIVE call; agent's OTHER socket 10 must not affect it.
-        m.begin_customer_offer("cust-1", offer(), None, Some(1), picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            Some(1),
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         assert!(m.on_answer("a1", "cust-1", Some(9)).is_some());
 
         // An unrelated socket of the agent drops → call survives.
@@ -920,7 +1097,14 @@ mod tests {
         assert!(!m.is_user_in_call("cust-1"));
 
         // A RINGING call whose offerer socket drops dies with it.
-        m.begin_customer_offer("cust-2", offer(), None, Some(5), picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-2",
+            offer(),
+            None,
+            Some(5),
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
         let ended = m.end_sessions_of_socket("cust-2", 5);
         assert_eq!(ended.len(), 1);
         assert_eq!(ended[0].notify_user_id, "a1");
@@ -933,7 +1117,14 @@ mod tests {
         let m = sessions();
         m.clear();
         // Customer socket 1 sends the offer; agent socket 9 answers.
-        m.begin_customer_offer("cust-1", offer(), None, Some(1), picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            Some(1),
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
 
         // While RINGING only the OFFERER's socket carries the call — the
         // answerer hasn't picked up yet (idle budget stays plain for 9).
@@ -967,7 +1158,14 @@ mod tests {
         let _g = TEST_LOCK.lock().unwrap();
         let m = sessions();
         m.clear();
-        m.begin_customer_offer("cust-1", offer(), None, None, picker_pick("a1"));
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
 
         // Customer sees the agent as the peer, agent sees the customer.
         let c = m.active_call_of("cust-1").unwrap();
@@ -997,6 +1195,8 @@ mod tests {
             peer_id: "a".into(),
             state: CallState::Active,
             initiator: Initiator::Agent,
+            caller_name: None,
+            caller_avatar: None,
         }))
         .unwrap();
         assert_eq!(
@@ -1006,7 +1206,126 @@ mod tests {
                 "peerId": "a",
                 "state": "active",
                 "initiator": "agent",
+                "callerName": null,
+                "callerAvatar": null,
             })
         );
+    }
+
+    #[test]
+    fn caller_profile_is_stored_and_surfaced_everywhere_it_is_needed() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+
+        // The trim guarantee lives in `CallerProfile::of` — the ONLY
+        // production construction path (the handler captures the
+        // offerer's auth session). Caller-side whitespace never leaks
+        // into the callee's UI.
+        let caller = CallerProfile::of(&SessionUser {
+            id: Uuid::new_v4(),
+            actor_type: "user".into(),
+            role: "customer".into(),
+            name: "  Nguyễn Văn A  ".into(),
+            email: None,
+            phone: None,
+            avatar_url: Some("https://cdn.example/a.png".into()),
+            brand_id: None,
+            brand_name: None,
+            employee_role: None,
+        });
+        assert_eq!(caller.name.as_deref(), Some("Nguyễn Văn A"));
+        assert_eq!(
+            caller.avatar_url.as_deref(),
+            Some("https://cdn.example/a.png")
+        );
+
+        // Customer-initiated: the caller is the customer.
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            caller.clone(),
+        );
+        let s = m.get("cust-1").unwrap();
+        assert_eq!(s.caller.name.as_deref(), Some("Nguyễn Văn A"));
+        assert_eq!(
+            s.caller.avatar_url.as_deref(),
+            Some("https://cdn.example/a.png")
+        );
+
+        // `registered.activeCall` carries the identity so a reconnecting
+        // callee can render it before the re-delivered offer lands.
+        let info = m.active_call_of("a1").unwrap();
+        assert_eq!(info.caller_name.as_deref(), Some("Nguyễn Văn A"));
+        assert_eq!(
+            info.caller_avatar.as_deref(),
+            Some("https://cdn.example/a.png")
+        );
+
+        // The ringing agent is discoverable for offer re-delivery.
+        assert_eq!(
+            m.ringing_call_of_agent("a1"),
+            Some(("cust-1".into(), "a1".into()))
+        );
+        // Not the callee, or answered/re-routed away → nothing to re-ring.
+        assert!(m.ringing_call_of_agent("a2").is_none());
+        assert!(m.on_answer("a1", "cust-1", None).is_some());
+        assert!(m.ringing_call_of_agent("a1").is_none());
+        m.clear();
+
+        // Agent-initiated: the caller is the agent.
+        m.begin_agent_offer(
+            "a2",
+            "cust-9",
+            offer(),
+            None,
+            None,
+            CallerProfile {
+                name: Some("Tổng đài VIP".into()),
+                avatar_url: None,
+            },
+        );
+        assert_eq!(
+            m.get("cust-9").unwrap().caller.name.as_deref(),
+            Some("Tổng đài VIP")
+        );
+        m.clear();
+    }
+
+    #[test]
+    fn ringing_call_of_agent_ignores_sessions_ringing_at_other_agents() {
+        let _g = TEST_LOCK.lock().unwrap();
+        let m = sessions();
+        m.clear();
+        m.begin_customer_offer(
+            "cust-1",
+            offer(),
+            None,
+            None,
+            picker_pick("a1"),
+            CallerProfile::anon(),
+        );
+        m.begin_customer_offer(
+            "cust-2",
+            offer(),
+            None,
+            None,
+            picker_pick("a2"),
+            CallerProfile::anon(),
+        );
+        // Each ringing agent maps ONLY to their own session.
+        assert_eq!(
+            m.ringing_call_of_agent("a1"),
+            Some(("cust-1".into(), "a1".into()))
+        );
+        assert_eq!(
+            m.ringing_call_of_agent("a2"),
+            Some(("cust-2".into(), "a2".into()))
+        );
+        assert!(m.ringing_call_of_agent("a3").is_none());
+        m.clear();
     }
 }

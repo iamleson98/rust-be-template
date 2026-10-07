@@ -169,12 +169,22 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let audit_store = Arc::new(DbAuditStore::new(db.clone()));
     let notification_store = Arc::new(DbNotificationStore::new(db.clone()));
 
-    // Push hub (FCM device push for incoming-call wake-ups) — must be
+    // Push hub (device push for incoming-call wake-ups: FCM data
+    // messages for Android, APNs VoIP pushes for iOS/CallKit) — must be
     // initialised before the first /ws-call upgrade arrives.
     crate::push::init(
         db.clone(),
         std::option::Option::from(config.audio_call.fcm_credentials_json.as_str())
             .filter(|s| !s.is_empty()),
+        Some(&crate::push::apns::ApnsProviderKey {
+            key_pem: config.audio_call.apns.key_pem.clone(),
+            key_path: config.audio_call.apns.key_path.clone(),
+            key_id: config.audio_call.apns.key_id.clone(),
+            team_id: config.audio_call.apns.team_id.clone(),
+        }),
+        Some(config.audio_call.apns.topic.as_str()),
+        config.audio_call.apns.sandbox,
+        config.audio_call.ring_timeout_sec,
     );
     let payment_store = Arc::new(DbPaymentStore::new(db.clone()));
     let address_store = Arc::new(DbAddressStore::new(db.clone()));

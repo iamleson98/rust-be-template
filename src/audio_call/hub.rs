@@ -490,6 +490,19 @@ impl CallHub {
         self.send_raw_to(user_id, &msg.to_string())
     }
 
+    /// Serialise + send to ONE socket (by session id). Used by the
+    /// missed-offer re-delivery on register: the frame must land on the
+    /// socket that JUST registered — the user's other sockets already
+    /// have it (or don't need it), and a user-wide fan-out would make
+    /// every reconnect re-ring the agent's web console too.
+    pub fn send_to_sid(&self, sid: u64, msg: &serde_json::Value) -> bool {
+        let payload = msg.to_string();
+        match self.peers.get(&sid) {
+            Some(p) => p.send_raw(&payload),
+            None => false,
+        }
+    }
+
     /// Send to every socket of a user EXCEPT one (e.g. the socket that
     /// just answered the call — the agent's OTHER devices get a
     /// `answered-elsewhere` hangup so they stop ringing without killing

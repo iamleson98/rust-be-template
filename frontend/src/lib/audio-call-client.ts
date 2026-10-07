@@ -102,7 +102,16 @@ export interface AudioCallEventMap {
   state: CallState
   registered: Record<string, unknown>
   presence: { onlineAgents: number; agentInCall?: boolean; agentsAvailable?: boolean }
-  incoming: { from: string; channelId?: string; sdp: RTCSessionDescriptionInit }
+  /** The caller's identity rides the frame — captured at offer time
+   * from the caller's VERIFIED auth session by the backend (never
+   * client-supplied) — so the ringing UI can show WHO is calling. */
+  incoming: {
+    from: string
+    channelId?: string
+    callerName?: string
+    callerAvatar?: string
+    sdp: RTCSessionDescriptionInit
+  }
   error: { code: string; message: string }
   hangup: { reason: string }
   _close: { code: number; reason: string }
@@ -562,6 +571,8 @@ export class AudioCallClient {
         this.emit('incoming', {
           from: asStr(msg.from) ?? '',
           channelId: asStr(msg.channelId) ?? undefined,
+          callerName: asStr(msg.callerName) ?? undefined,
+          callerAvatar: asStr(msg.callerAvatar) ?? undefined,
           sdp: msg.sdp as RTCSessionDescriptionInit,
         })
         this.startRingTimeout()

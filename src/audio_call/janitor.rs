@@ -329,10 +329,17 @@ mod tests {
     /// then backdate `created_at` so the sweeper sees it as expired.
     fn aged_ringing(customer: &str, agent: &str, age: Duration) {
         let m = sessions();
-        let out = m.begin_customer_offer(customer, offer(), None, None, {
-            let agent = agent.to_string();
-            move |_| Some(agent.clone())
-        });
+        let out = m.begin_customer_offer(
+            customer,
+            offer(),
+            None,
+            None,
+            {
+                let agent = agent.to_string();
+                move |_| Some(agent.clone())
+            },
+            crate::audio_call::session::CallerProfile::anon(),
+        );
         assert_eq!(
             out,
             crate::audio_call::session::OfferOutcome::Ringing {

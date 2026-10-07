@@ -93,10 +93,7 @@ class ConversationsScreen extends ConsumerWidget {
                       onRetry: () =>
                           ref.read(conversationsProvider.notifier).refetch(),
                     )
-                  : const Center(
-                      key: ValueKey('loading'),
-                      child: CircularProgressIndicator(),
-                    ),
+                  : const _ConversationSkeleton(key: ValueKey('loading')),
             ),
           ),
         ],
@@ -577,6 +574,100 @@ class _ConversationRow extends ConsumerWidget {
           fontWeight: FontWeight.w600,
           fontSize: 10.5,
         ),
+      ),
+    );
+  }
+}
+
+/// Loading placeholder for the queue — messenger-style skeleton rows
+/// (avatar disc + name bar + preview bar) under one shared breathing
+/// animation, instead of a bare centered spinner.
+///
+/// One [AnimationController] drives the WHOLE list (a `repaint`-
+/// efficient single opacity sweep) — no per-row animations, no
+/// per-frame layout changes: the skeleton renders once and only its
+/// opacity animates, so even low-end devices paint it at 60fps.
+class _ConversationSkeleton extends StatefulWidget {
+  const _ConversationSkeleton({super.key});
+
+  @override
+  State<_ConversationSkeleton> createState() => _ConversationSkeletonState();
+}
+
+class _ConversationSkeletonState extends State<_ConversationSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _breath = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _breath.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: Tween(
+        begin: 0.45,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _breath, curve: Curves.easeInOut)),
+      child: ListView.separated(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 110),
+        itemCount: 7,
+        separatorBuilder: (_, __) => const SizedBox(height: 4),
+        itemBuilder: (context, _) => const _SkeletonRow(),
+      ),
+    );
+  }
+}
+
+/// One skeleton row, shaped exactly like [_ConversationRow] so the
+/// loaded list "lands" without any layout jump.
+class _SkeletonRow extends StatelessWidget {
+  const _SkeletonRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final block = context.theme.colors.muted;
+    Widget bar(double w, double h) => Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: block,
+        borderRadius: BorderRadius.circular(6),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          // Avatar disc (same 46dp as the real rows).
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: block),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [bar(120, 12), bar(34, 10)],
+                ),
+                const SizedBox(height: 9),
+                bar(210, 10),
+                const SizedBox(height: 5),
+                bar(150, 10),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
