@@ -178,6 +178,7 @@ pub fn build_router(state: AppState) -> Router<()> {
         .nest("/presence", crate::routes::presence::router())
         .nest("/notifications", crate::routes::notifications::router())
         .nest("/push", crate::routes::push_devices::router())
+        .nest("/ads", crate::routes::ads::router())
         .nest("/admin", crate::routes::admin::router())
         .nest("/admin/payments", crate::routes::payments::admin_router())
         .nest("/admin/system", crate::routes::system::router())

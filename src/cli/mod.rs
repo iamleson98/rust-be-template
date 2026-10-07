@@ -7,6 +7,7 @@
 //! - `config show` — print the resolved config (with secrets masked)
 //! - `key generate` — generate a fresh 32-byte JWT secret
 //! - `key hash <PASSWORD>` — hash a password with argon2
+//! - `ads-sweep` — backfill-upload stored ad conversions to Google Ads
 //!
 //! Database migration commands have been moved to the standalone `migrator`
 //! binary. Build it with: `cargo build -p migrator --release`

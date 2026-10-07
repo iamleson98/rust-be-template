@@ -36,6 +36,7 @@ pub async fn run() -> anyhow::Result<()> {
             heap_bytes,
             threads,
         } => commands::import_osm::run(pbf_path, index_dir, heap_bytes, threads).await,
+        Command::AdsSweep { limit } => commands::ads_sweep::run(limit).await,
     }
 }
 

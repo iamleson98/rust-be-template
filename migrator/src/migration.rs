@@ -56,6 +56,7 @@ mod m20260912_000013_create_staff_presence_state;
 mod m20260926_000014_add_bus_layouts_write_permission;
 mod m20260927_000015_drop_wishlist_item;
 mod m20261002_000016_add_query_indexes;
+mod m20261007_000017_create_ad_conversions;
 
 pub struct Migrator;
 
@@ -79,6 +80,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260926_000014_add_bus_layouts_write_permission::Migration),
             Box::new(m20260927_000015_drop_wishlist_item::Migration),
             Box::new(m20261002_000016_add_query_indexes::Migration),
+            Box::new(m20261007_000017_create_ad_conversions::Migration),
         ]
     }
 }

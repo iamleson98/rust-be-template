@@ -31,6 +31,7 @@ pub struct Config {
     #[allow(dead_code)]
     pub contact: ContactConfig,
     pub oauth: OAuthConfig,
+    pub google_ads: GoogleAdsConfig,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -938,6 +939,63 @@ impl ContactConfig {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct GoogleAdsConfig {
+    /// API developer token (Google Ads API access).
+    pub developer_token: String,
+    /// The Ads account whose conversions are uploaded
+    /// (`customers/{customer_id}:uploadClickConversions`).
+    pub customer_id: String,
+    /// Manager-account (MCC) id when the developer token belongs to a
+    /// manager — sent as `login-customer-id`.
+    pub login_customer_id: Option<String>,
+    /// OAuth2 app credentials (the same Google Cloud OAuth client
+    /// used to mint the refresh token).
+    pub client_id: String,
+    pub client_secret: String,
+    /// An offline-access refresh token for the Google Ads API scope.
+    pub refresh_token: String,
+    /// Event name → conversion-action resource name, e.g.
+    /// `{"booking":"customers/123/conversionActions/456"}` — the
+    /// server-side twin of the browser's
+    /// `VITE_GOOGLE_ADS_CONVERSIONS` label map.
+    pub conversion_actions: std::collections::HashMap<String, String>,
+}
+
+impl Default for GoogleAdsConfig {
+    fn default() -> Self {
+        Self::from_env()
+    }
+}
+
+impl GoogleAdsConfig {
+    pub fn from_env() -> Self {
+        let conversion_actions = env_var("GOOGLE_ADS_CONVERSION_ACTIONS")
+            .and_then(|raw| {
+                serde_json::from_str::<std::collections::HashMap<String, String>>(&raw).ok()
+            })
+            .unwrap_or_default();
+        Self {
+            developer_token: env_var("GOOGLE_ADS_DEVELOPER_TOKEN").unwrap_or_default(),
+            customer_id: env_var("GOOGLE_ADS_CUSTOMER_ID").unwrap_or_default(),
+            login_customer_id: env_var("GOOGLE_ADS_LOGIN_CUSTOMER_ID"),
+            client_id: env_var("GOOGLE_ADS_CLIENT_ID").unwrap_or_default(),
+            client_secret: env_var("GOOGLE_ADS_CLIENT_SECRET").unwrap_or_default(),
+            refresh_token: env_var("GOOGLE_ADS_REFRESH_TOKEN").unwrap_or_default(),
+            conversion_actions,
+        }
+    }
+
+    /// All credentials needed for `uploadClickConversions` present.
+    pub fn is_active(&self) -> bool {
+        !self.developer_token.is_empty()
+            && !self.customer_id.is_empty()
+            && !self.client_id.is_empty()
+            && !self.client_secret.is_empty()
+            && !self.refresh_token.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PaymentConfig {
     pub public_base_url: String,
     pub default_expiry_minutes: u32,
@@ -1173,6 +1231,7 @@ impl Config {
             memory: MemoryConfig::default(),
             contact: ContactConfig::from_env(),
             oauth: OAuthConfig::from_env(),
+            google_ads: GoogleAdsConfig::from_env(),
         };
 
         cfg.validate()?;

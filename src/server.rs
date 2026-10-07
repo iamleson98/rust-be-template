@@ -190,6 +190,21 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     let address_store = Arc::new(DbAddressStore::new(db.clone()));
     let vehicle_type_store = Arc::new(DbVehicleTypeStore::new(db.clone()));
 
+    // Ads hub (server-side Google Ads conversion recording + gated
+    // uploadClickConversions). Records are durable regardless of
+    // credentials — enabling the GOOGLE_ADS_* group later + a sweep
+    // backfills everything stored meanwhile.
+    let ads_api = if config.google_ads.is_active() {
+        tracing::info!(
+            "ads: Google Ads server-side uploads enabled (customer {})",
+            config.google_ads.customer_id
+        );
+        Some(crate::ads::GoogleAdsApi::new(config.google_ads.clone()))
+    } else {
+        None
+    };
+    crate::ads::init(db.clone(), ads_api);
+
     let store: Arc<CompositeStore> = Arc::new(CompositeStore::new(
         db.clone(),
         user_store,

@@ -186,6 +186,10 @@ use utoipa::OpenApi;
         crate::routes::admin::bus_layouts::create,
         crate::routes::admin::bus_layouts::update,
         crate::routes::admin::bus_layouts::delete,
+        // ads — server-side Google Ads conversion recording. Appended
+        // LAST on purpose (see the addresses comment above): appending
+        // keeps the existing SDK function numbers stable.
+        crate::routes::ads::report_conversion,
     ),
     components(schemas(
         // auth
@@ -387,6 +391,10 @@ use utoipa::OpenApi;
         // admin — bus layout CRUD (appended last, same ordering rule)
         crate::dto::admin::UpsertBusLayoutRequest,
         crate::dto::admin::SeatGridSpec,
+        // ads — server-side conversion recording (appended last, same rule)
+        crate::dto::ad_conversion::ClickIds,
+        crate::dto::ad_conversion::ReportConversionRequest,
+        crate::dto::ad_conversion::ReportConversionResponse,
     )),
     tags(
         (name = "auth", description = "Authentication endpoints"),
@@ -407,6 +415,7 @@ use utoipa::OpenApi;
         (name = "routing", description = "Routing & directions (Valhalla proxy)"),
         (name = "admin", description = "Admin CRUD + moderation (requires employee role)"),
         (name = "nullclaw", description = "NullClaw AI provider"),
+        (name = "ads", description = "Server-side Google Ads conversion recording"),
     )
 )]
 pub struct ApiDoc;

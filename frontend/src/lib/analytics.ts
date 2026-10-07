@@ -71,14 +71,25 @@ export interface ConversionPayload {
 }
 
 /**
- * Fire a Google Ads conversion. No-op unless BOTH the gtag runtime
- * and this event's label are configured — safe to call unconditionally
- * from feature code (dev and untagged builds just skip it).
+ * Track a conversion. Two independent paths, both fire-and-forget:
+ *
+ * 1. **gtag dispatch** (browser tag) — no-op unless the gtag runtime
+ *    and this event's label are configured; safe to call
+ *    unconditionally from feature code.
+ * 2. **Server-side beacon** — `POST /api/ads/conversions` with the
+ *    stored click ids, where the record lands in the first-party
+ *    `ad_conversion` table (deduped by transaction id) and is uploaded
+ *    to the Google Ads API server-side when credentials are live.
+ *    This path survives cookie blocking / ITP and is recorded even
+ *    when neither gtag nor Ads is configured yet — enabling Ads later
+ *    backfills everything recorded meanwhile.
  *
  * @example
  *   trackConversion('purchase', { value: 250000, currency: 'VND', transactionId: code })
  */
 export function trackConversion(event: ConversionEvent, payload: ConversionPayload = {}): void {
+  beaconConversionServerSide(event, payload)
+
   const sendTo =
     typeof window !== 'undefined' ? window.__GOOGLE_ADS_CONVERSIONS__?.[event] : undefined
   if (typeof window === 'undefined' || !window.gtag || !sendTo) {
@@ -93,6 +104,28 @@ export function trackConversion(event: ConversionEvent, payload: ConversionPaylo
     ...(payload.currency && { currency: payload.currency }),
     ...(payload.transactionId && { transaction_id: payload.transactionId }),
   })
+}
+
+/**
+ * Fire-and-forget server-side record via `navigator.sendBeacon` —
+ * survives page unload mid-redirect (the money moment often
+ * navigates), never blocks the UI, and never throws.
+ */
+function beaconConversionServerSide(event: ConversionEvent, payload: ConversionPayload): void {
+  if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return
+  try {
+    const body = JSON.stringify({
+      event,
+      ...(payload.transactionId && { transactionId: payload.transactionId }),
+      ...(payload.value !== undefined && { value: String(payload.value) }),
+      ...(payload.currency && { currency: payload.currency }),
+      clickIds: getClickIds(),
+    })
+    navigator.sendBeacon('/api/ads/conversions', new Blob([body], { type: 'application/json' }))
+  } catch {
+    // Beacon is best-effort on top of the gtag path — never let it
+    // disturb the conversion UX (e.g. quota errors on exotic browsers).
+  }
 }
 
 // ────────────────────────────────────────────────────────────────

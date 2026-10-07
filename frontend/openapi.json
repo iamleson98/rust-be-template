@@ -2683,6 +2683,41 @@
         }
       }
     },
+    "/api/ads/conversions": {
+      "post": {
+        "tags": [
+          "ads"
+        ],
+        "summary": "`POST /api/ads/conversions` — record a conversion (beacon).",
+        "description": "Fire-and-forget semantics: `200` means the row is durable (or a\ndeduped repeat — also fine). The Google Ads API upload happens in\nthe background and is retried by a later sweep; its outcome is\nobservable in the `ad_conversion` table's `status` column, never in\nthis response.",
+        "operationId": "report_conversion",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportConversionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Conversion recorded (or deduped)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportConversionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid event / transaction id"
+          }
+        }
+      }
+    },
     "/api/auth/employee-login": {
       "post": {
         "tags": [
@@ -8544,6 +8579,33 @@
           }
         }
       },
+      "ClickIds": {
+        "type": "object",
+        "description": "Google Ads click ids captured on landing (see\n`frontend/src/lib/analytics.ts` — `captureClickIds`). At most one\nis ever set per landing, but the beacon forwards whatever it has.",
+        "properties": {
+          "gbraid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Click id for Performance Max / App campaigns (app, iOS-side)."
+          },
+          "gclid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Google Ads click id (Search/Display campaigns)."
+          },
+          "wbraid": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Click id for Performance Max / App campaigns (web)."
+          }
+        }
+      },
       "ConfirmReq": {
         "type": "object",
         "description": "Request body for `POST /api/bookings/:id/confirm`.",
@@ -11072,6 +11134,71 @@
           }
         }
       },
+      "ReportConversionRequest": {
+        "type": "object",
+        "description": "Request body for `POST /api/ads/conversions`.\n\nThe browser beacons this at the money moment (booking confirmed /\npayment completed) alongside the click ids it captured on landing.\nFire-and-forget: the response only acknowledges storage — the\nGoogle Ads API upload happens asynchronously and never blocks the\nuser's flow.",
+        "required": [
+          "event"
+        ],
+        "properties": {
+          "clickIds": {
+            "$ref": "#/components/schemas/ClickIds",
+            "description": "The landing click ids (attribution join key)."
+          },
+          "currency": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-4217 currency code (`VND`)."
+          },
+          "event": {
+            "type": "string",
+            "description": "Conversion event name — must match a key in the\n`GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`)."
+          },
+          "transactionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stable dedupe id — the booking code. Repeat beacons collapse.\nOptional: an id-less conversion can't be deduped (mirroring\nGoogle's own optional `orderId`) — the server mints a uuid so\neach fire is recorded distinctly."
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Revenue (decimal string, e.g. `\"250000\"` or `\"250000.00\"`) —\nkept verbatim so no float rounding reaches Google."
+          }
+        }
+      },
+      "ReportConversionResponse": {
+        "type": "object",
+        "description": "Response of `POST /api/ads/conversions`.",
+        "required": [
+          "ok",
+          "stored",
+          "uploadAttempted",
+          "serverUploadEnabled"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "serverUploadEnabled": {
+            "type": "boolean",
+            "description": "Whether the Google Ads API credentials are configured\nserver-side. `false` = the record is stored and backfillable,\nbut no upload happens yet."
+          },
+          "stored": {
+            "type": "boolean",
+            "description": "Whether a NEW row was stored (false = deduped repeat beacon)."
+          },
+          "uploadAttempted": {
+            "type": "boolean",
+            "description": "Whether a server-side Google Ads upload was attempted."
+          }
+        }
+      },
       "ResourceGuardStats": {
         "type": "object",
         "description": "Hardware-bounded admission telemetry — \"how much headroom does this\nbox have for more realtime connections right now\".",
@@ -13595,6 +13722,10 @@
     {
       "name": "nullclaw",
       "description": "NullClaw AI provider"
+    },
+    {
+      "name": "ads",
+      "description": "Server-side Google Ads conversion recording"
     }
   ]
 }
