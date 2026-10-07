@@ -56,6 +56,12 @@ export const Footer = memo(function Footer() {
   const { setChatOpen, user } = useApp()
   const navigate = useNavigate()
   const t = useT()
+  // Live search date — footer quick-route links carry it over so the
+  // destination search actually RUNS (a dateless /search URL disables
+  // the query and the results column never updates). Falls back to
+  // today so the link always produces a working search.
+  const searchDate = useApp((s) => s.searchParams.date)
+  const dateForLinks = searchDate || new Date().toISOString().slice(0, 10)
 
   const form = useForm<NewsletterValues>({
     resolver: zodResolver(newsletterSchema),
@@ -270,7 +276,7 @@ export const Footer = memo(function Footer() {
                       onClick={() =>
                         navigate({
                           to: '/search',
-                          search: buildSearchInput({ from, to }),
+                          search: buildSearchInput({ from, to, date: dateForLinks }),
                         })
                       }
                       className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"

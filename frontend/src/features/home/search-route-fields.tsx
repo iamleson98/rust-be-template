@@ -16,14 +16,30 @@ import type { SearchFormValues } from './search-widget-schema'
 const LABEL_CLASS =
   'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
+/** Reserved space for the validation message — keeps every field the
+ *  SAME height whether or not an error is showing, so an error on one
+ *  field never staggers the row (the old bug: From/To inputs jumped
+ *  ~30px apart when only one had a red message under it). */
+function MessageSlot({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+  return (
+    <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+      {children}
+    </div>
+  )
+}
+
 export function SearchRouteFields({
   form,
   swap,
   compact = false,
+  stackedSwap = false,
 }: {
   form: UseFormReturn<SearchFormValues>
   swap: () => void
   compact?: boolean
+  /** Render the swap button on its own centered row (mobile bottom-sheet
+   *  layout — the desktop grid hides it below md). */
+  stackedSwap?: boolean
 }) {
   const t = useT()
   const setSearchParams = useApp((s) => s.setSearchParams)
@@ -48,6 +64,7 @@ export function SearchRouteFields({
                 onChange={(v) => {
                   field.onChange(v)
                 }}
+                onBlur={field.onBlur}
                 onPick={(p) => {
                   // Write BOTH layers atomically: the RHF form (read at
                   // submit) and the store's live searchParams. The
@@ -70,15 +87,21 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            <FormMessage />
+            <MessageSlot compact>
+              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+            </MessageSlot>
           </FormItem>
         )}
       />
 
       {/* Swap — round icon straddling the two city fields (desktop grid
-          column; hidden on the stacked mobile layout, same as before). */}
+          column; below md it only appears in the bottom-sheet layout via
+          `stackedSwap`, centered on its own row). */}
       <div
-        className={cn('hidden md:flex items-center justify-center', compact ? 'pb-0.5' : 'pb-1')}
+        className={cn(
+          stackedSwap ? 'flex justify-center py-0.5' : 'hidden md:flex items-center justify-center',
+          compact ? 'pb-0.5' : 'pb-1',
+        )}
       >
         <button
           type="button"
@@ -109,6 +132,7 @@ export function SearchRouteFields({
                 onChange={(v) => {
                   field.onChange(v)
                 }}
+                onBlur={field.onBlur}
                 onPick={(p) => {
                   // Keep both layers in sync — see the From field note.
                   form.setValue('toLat', p.lat ?? undefined, { shouldValidate: false })
@@ -127,7 +151,9 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            <FormMessage />
+            <MessageSlot compact>
+              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+            </MessageSlot>
           </FormItem>
         )}
       />

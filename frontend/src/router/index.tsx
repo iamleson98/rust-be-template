@@ -108,7 +108,7 @@ const searchRoute = createRoute({
     adults?: number
     children?: number
     sort?: 'departure' | 'price' | 'rating'
-    vehicleTypes?: string[]
+    vt?: string
     roundTrip?: boolean
     returnDate?: string
     fromLat?: number
@@ -124,6 +124,12 @@ const searchRoute = createRoute({
     // omitting empty/falsy defaults here keeps them out of the address bar.
     // Components read these via `useSearch({ from: '/search' })` and apply
     // defaults (adults=1, children=0, sort='departure', etc.) at read time.
+    //
+    // `vt` is the CANONICAL vehicle-type filter param ("limousine,sleeper")
+    // — the reader (routes/search.tsx) splits it into an array. Accept a
+    // `vehicleTypes` ARRAY too (programmatic navigate() callers may pass
+    // one), normalizing both into the single `vt` string so the URL never
+    // carries a JSON-encoded array param.
     const out: Record<string, unknown> = {}
     if (typeof search.from === 'string' && search.from) out.from = search.from
     if (typeof search.to === 'string' && search.to) out.to = search.to
@@ -132,23 +138,35 @@ const searchRoute = createRoute({
     if (typeof search.adults === 'string') {
       const n = Math.max(1, parseInt(search.adults, 10) || 1)
       if (n !== 1) out.adults = n
+    } else if (typeof search.adults === 'number' && search.adults > 1) {
+      out.adults = search.adults
     }
     if (typeof search.children === 'string') {
       const n = Math.max(0, parseInt(search.children, 10) || 0)
       if (n !== 0) out.children = n
+    } else if (typeof search.children === 'number' && search.children > 0) {
+      out.children = search.children
     }
     if (typeof search.sort === 'string') {
       const s = search.sort
       if (s === 'price' || s === 'rating') out.sort = s
     }
+    // Vehicle types: canonical `vt` string OR an array passed by a
+    // navigate() caller — both normalize to the `vt` string.
+    const vtList: string[] = []
     if (typeof search.vt === 'string') {
-      const list = search.vt
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-      if (list.length) out.vehicleTypes = list
+      vtList.push(
+        ...search.vt
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      )
+    } else if (Array.isArray(search.vehicleTypes)) {
+      vtList.push(...search.vehicleTypes.filter((v): v is string => typeof v === 'string' && !!v))
     }
-    if (search.roundTrip === '1' || search.roundTrip === 'true') out.roundTrip = true
+    if (vtList.length) out.vt = vtList.join(',')
+    if (search.roundTrip === '1' || search.roundTrip === 'true' || search.roundTrip === true)
+      out.roundTrip = true
     if (typeof search.returnDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.returnDate))
       out.returnDate = search.returnDate
     // Smart-search coordinates: accept numbers (navigate() calls) and

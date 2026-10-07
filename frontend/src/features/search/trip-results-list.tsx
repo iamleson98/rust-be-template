@@ -3,15 +3,21 @@
 /**
  * TripResultsList — the results column of the search-results page:
  * skeleton loading state, the per-filter empty state, and the trip list
- * itself (plain list, or virtualized via @tanstack/react-virtual once it
- * grows past ~30 items). Also pre-computes the top-rated / cheapest flags
- * for the recommended badge.
+ * itself. Also pre-computes the top-rated / cheapest flags for the
+ * recommended badge.
+ *
+ * FREE-HEIGHT LIST: the list grows naturally and the PAGE scrolls — no
+ * inner `max-h-*` + `overflow-y-auto` container (the old virtualized
+ * branch capped the list at 80vh, which looked like a scroll-box glued
+ * inside the page). Virtualization was removed entirely: the backend
+ * caps searches at 100 trips, and memoized cards at that scale render
+ * fine — the virtualizer's absolute-positioning + own scroll container
+ * cost more (in layout complexity and UX) than it saved.
  *
  * Extracted from the original `search-results.tsx`.
  */
 
-import { useMemo, useRef } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { useMemo } from 'react'
 import type { TripResult } from '@/lib/store'
 import { AlertCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -29,6 +35,9 @@ export function TripResultsList({
   navigate,
   awaitingDate = false,
 }: {
+  /** True on the FIRST fetch AND on every re-search in flight (the
+   *  caller merges isLoading/isPlaceholderData) — skeletons replace the
+   *  list so a re-search visibly resets instead of showing stale trips. */
   searchLoading: boolean
   searchResults: TripResult[]
   filteredResults: TripResult[]
@@ -52,22 +61,8 @@ export function TripResultsList({
     return { topRating, cheapestPrice }
   }, [filteredResults])
 
-  // Virtualize the trip list when it grows past ~30 items — otherwise the
-  // overhead of the virtualizer (ResizeObserver + absolute positioning)
-  // isn't worth the perf win for typical ~12-result pages.
-  const TRIP_VIRTUAL_THRESHOLD = 30
-  const shouldVirtualize = filteredResults.length > TRIP_VIRTUAL_THRESHOLD
-  const listParentRef = useRef<HTMLDivElement>(null)
-  const virtualizer = useVirtualizer({
-    count: shouldVirtualize ? filteredResults.length : 0,
-    getScrollElement: () => listParentRef.current,
-    estimateSize: () => 200,
-    overscan: 4,
-    enabled: shouldVirtualize,
-  })
-
   return searchLoading ? (
-    <div className="space-y-3">
+    <div className="space-y-3" aria-busy="true" aria-live="polite">
       {Array.from({ length: 4 }).map((_, i) => (
         <TripCardSkeleton key={i} />
       ))}
@@ -101,66 +96,22 @@ export function TripResultsList({
       )}
     </div>
   ) : (
+    /* Free height — the page scrolls; no inner scroll container. */
     <div className="space-y-3">
-      {shouldVirtualize ? (
-        <div ref={listParentRef} className="max-h-[80vh] overflow-y-auto">
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              position: 'relative',
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const t = filteredResults[virtualRow.index]
-              const isTopRated = t.brandRating === topRating
-              const isCheapest = t.minPrice === cheapestPrice
-              const isRecommended = virtualRow.index === 0 || (isTopRated && isCheapest)
-              return (
-                <div
-                  key={t.tripId}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  className="pb-3"
-                >
-                  <TripCard
-                    trip={t}
-                    onSelect={() =>
-                      navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })
-                    }
-                    isRecommended={
-                      filteredResults.length > 1 && isRecommended && virtualRow.index === 0
-                    }
-                  />
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ) : (
-        <>
-          {filteredResults.map((t, i) => {
-            // Determine recommended: trip with highest rating AND lowest price in results
-            const isTopRated = t.brandRating === topRating
-            const isCheapest = t.minPrice === cheapestPrice
-            const isRecommended = i === 0 || (isTopRated && isCheapest)
-            return (
-              <TripCard
-                key={t.tripId}
-                trip={t}
-                onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })}
-                isRecommended={filteredResults.length > 1 && isRecommended && i === 0}
-              />
-            )
-          })}
-        </>
-      )}
+      {filteredResults.map((t, i) => {
+        // Determine recommended: trip with highest rating AND lowest price in results
+        const isTopRated = t.brandRating === topRating
+        const isCheapest = t.minPrice === cheapestPrice
+        const isRecommended = i === 0 || (isTopRated && isCheapest)
+        return (
+          <TripCard
+            key={t.tripId}
+            trip={t}
+            onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })}
+            isRecommended={filteredResults.length > 1 && isRecommended && i === 0}
+          />
+        )
+      })}
     </div>
   )
 }

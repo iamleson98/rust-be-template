@@ -266,17 +266,15 @@
   }
 }
 
-/* Card lift on hover — used by TripCard, BookingCard, BrandShowcase.
- * Flat design: no box-shadow — the card lifts slightly and brightens
- * its border instead (shadow-free affordance per the design system). */
+/* Card border highlight on hover — used by the admin tickets table.
+ * Flat design: NO box-shadow, NO lift/transform — just a calm blue
+ * border brighten (the primary brand hue, replacing the old orange
+ * hue 41 which fought the blue design system). */
 .card-hover-lift {
-  transition:
-    transform 120ms ease-out,
-    border-color 120ms ease-out;
+  transition: border-color 120ms ease-out;
 }
 .card-hover-lift:hover {
-  transform: translateY(-2px);
-  border-color: oklch(0.62 0.16 41);
+  border-color: var(--color-primary);
 }
 
 /* Seat pop-in animation when selected */

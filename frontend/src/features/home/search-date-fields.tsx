@@ -14,6 +14,16 @@ import type { SearchFormValues } from './search-widget-schema'
 const LABEL_CLASS =
   'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
+/** Reserved error slot — see search-route-fields.tsx (keeps every field
+ *  the same height with or without a validation message). */
+function MessageSlot({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+  return (
+    <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+      {children}
+    </div>
+  )
+}
+
 export function SearchDateFields({
   form,
   searchParams,
@@ -64,7 +74,9 @@ export function SearchDateFields({
               clearable={false}
               triggerClassName="h-10 bg-white/95"
             />
-            <FormMessage />
+            <MessageSlot compact>
+              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+            </MessageSlot>
           </FormItem>
         )}
       />
@@ -95,7 +107,9 @@ export function SearchDateFields({
                 clearable={false}
                 triggerClassName="h-10 bg-white/95"
               />
-              <FormMessage />
+              <MessageSlot compact>
+                <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+              </MessageSlot>
             </FormItem>
           )}
         />

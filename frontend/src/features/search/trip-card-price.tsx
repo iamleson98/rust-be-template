@@ -22,7 +22,10 @@ import type { Currency } from '@/lib/currency'
 
 /* Price + action — clear hierarchy: seats-left warning first (when real),
    then the price, then the CTA. Wider column (md:w-52) so prices like
-   "1.250.000₫" never overflow. */
+   "1.250.000₫" never overflow.
+   Mobile: STACKED (price line above the full-width CTA) — the old
+   `flex-row` let the w-full action wrapper crush the price block to
+   0px width, hiding the fare behind the button. */
 export function TripCardPrice({
   trip,
   sellingFast,
@@ -40,8 +43,8 @@ export function TripCardPrice({
   const hasPriceRange = trip.maxPrice > trip.minPrice
 
   return (
-    <div className="shrink-0 p-3 md:p-4 border-t md:border-t-0 md:border-l border-border/50 bg-slate-50/70 flex flex-row md:flex-col items-center md:items-end justify-between gap-2.5 md:w-52">
-      <div className="text-left md:text-right min-w-0 flex-1 md:flex-none">
+    <div className="shrink-0 p-3 md:p-4 border-t md:border-t-0 md:border-l border-border/50 bg-slate-50/70 flex flex-col items-stretch md:items-end justify-between gap-2.5 md:w-52">
+      <div className="text-left md:text-right min-w-0 w-full md:w-auto">
         {sellingFast && (
           <div className="text-[10px] font-bold text-rose-600 mb-1 flex items-center gap-1 md:justify-end">
             <Flame className="h-3 w-3" />
@@ -49,7 +52,7 @@ export function TripCardPrice({
           </div>
         )}
         {/* Current price — prominent, clearly the booking price */}
-        <div className="text-xl md:text-2xl font-extrabold text-slate-900 leading-none tabular-nums">
+        <div className="text-xl md:text-2xl font-extrabold text-slate-900 leading-none tabular-nums whitespace-nowrap">
           {formatCurrency(trip.minPrice, currency)}
         </div>
         {/* Per-seat + real range hint (range renders only when the backend
@@ -63,7 +66,7 @@ export function TripCardPrice({
         <Button
           onClick={onSelect}
           size="sm"
-          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 transition-all w-full md:w-auto h-9"
+          className="bg-primary hover:bg-primary/90 text-primary-foreground gap-1 w-full md:w-auto h-9"
         >
           <span className="flex items-center gap-1">
             {t('searchPage.selectTrip')}

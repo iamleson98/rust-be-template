@@ -30,7 +30,10 @@ export type SearchRouteParams = {
   toCity?: string
 }
 
-/** The /search route's validated search shape (all optional for clean URLs). */
+/** The /search route's validated search shape (all optional for clean URLs).
+ *  `vt` is the CANONICAL URL param for vehicle-type filters (comma-
+ *  separated) — the only form ever written to the address bar. It's
+ *  parsed back into a `vehicleTypes` array at read time (routes/search.tsx). */
 export type SearchRouteOutput = Partial<{
   from: string
   to: string
@@ -38,10 +41,9 @@ export type SearchRouteOutput = Partial<{
   adults: number
   children: number
   sort: 'departure' | 'price' | 'rating'
-  vehicleTypes: string[]
+  vt: string
   roundTrip: boolean
   returnDate: string
-  vt: string
   fromLat: number
   fromLon: number
   toLat: number
@@ -60,7 +62,10 @@ export function buildSearchInput(p: SearchRouteParams): SearchRouteOutput {
   if (p.children && p.children !== 0) out.children = p.children
   if (p.sort && p.sort !== 'departure') out.sort = p.sort
   if (p.vehicleTypes && p.vehicleTypes.length > 0) {
-    out.vehicleTypes = p.vehicleTypes
+    // Canonical URL form: `vt=limousine,sleeper`. Never emit a
+    // `vehicleTypes` array param — the route validator only reads `vt`,
+    // so an array would be silently dropped and the filter lost.
+    out.vt = p.vehicleTypes.join(',')
   }
   if (p.roundTrip) out.roundTrip = true
   if (p.returnDate) out.returnDate = p.returnDate

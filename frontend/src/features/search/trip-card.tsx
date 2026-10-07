@@ -18,8 +18,8 @@ import { TripCardPrice } from './trip-card-price'
 import { TripCardBrand } from './trip-card-brand'
 
 /** Format a date to short dd/mm for overnight trip display ('' when
- *  the value is missing/unparseable — e.g. arrivalAt is currently always
- *  null because the backend no longer computes it). Parses via
+ *  the value is missing/unparseable — e.g. arrivalAt is null for
+ *  schedules without configured arrival times). Parses via
  *  parseDateSafe so timezone-less ISO strings are read as Vietnam time. */
 function formatShortDate(dateStr: string | null | undefined): string {
   const d = parseDateSafe(dateStr)
@@ -98,8 +98,8 @@ export const TripCard = memo(function TripCard({
     })
   }, [queryClient, trip.tripId])
 
-  // Overnight trip detection — arrivalAt is genuinely null today, so
-  // this only fires when the backend starts providing arrival times.
+  // Overnight trip detection — arrivalAt comes from the schedule's last
+  // stop; trips without configured arrival times simply don't badge.
   const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
   // Date differs from search date?
   const searchDateShort = searchParams.date
@@ -185,9 +185,38 @@ export const TripCard = memo(function TripCard({
     setShareOpen(true)
   }
 
+  // The share/compare cluster — rendered inline (NOT absolute) so it can
+  // never overlap the price column. Shared by the desktop time-row (as a
+  // trailing element) and the mobile header row.
+  const quickActions = (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <button
+        onClick={handleCompareToggle}
+        title={t('searchPage.addToCompare')}
+        aria-pressed={inCompare}
+        className={`h-8 w-8 rounded-full inline-flex items-center justify-center transition-colors ${
+          inCompare
+            ? 'bg-violet-600 text-white'
+            : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
+        }`}
+      >
+        <GitCompare className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={handleShare}
+        title={t('searchPage.shareTrip')}
+        className="h-8 w-8 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-colors"
+      >
+        <Share2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+
   return (
     <div onMouseEnter={handleHoverPrefetch}>
-      <Card className="overflow-visible border-border/60 card-hover-lift hover:border-primary/30 group relative">
+      {/* Blue border highlight on hover — no lift, no transform, no
+          colored rings (per the flat user-page design language). */}
+      <Card className="overflow-visible border-border/60 hover:border-primary/40 transition-colors group relative">
         {/* Recommended badge — sits flush on the top-left, above content */}
         {isRecommended && (
           <div className="absolute -top-2 left-3 z-20">
@@ -198,68 +227,23 @@ export const TripCard = memo(function TripCard({
           </div>
         )}
 
-        {/* Quick action buttons (top-right, desktop) — appear muted, light
-            up on hover. On mobile they move inline above the time row so
-            they never overlap the brand name. */}
-        <div className="hidden md:flex absolute top-2 right-2 z-10 items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleCompareToggle}
-            title={t('searchPage.addToCompare')}
-            aria-pressed={inCompare}
-            className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${
-              inCompare
-                ? 'bg-violet-600 text-white'
-                : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
-            }`}
-          >
-            <GitCompare className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={handleShare}
-            title={t('searchPage.shareTrip')}
-            className="h-9 w-9 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
-          >
-            <Share2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-
         <div className="flex flex-col md:flex-row">
           <TripCardBrand trip={trip} onBrandClick={handleBrandClick} />
 
           {/* Main content */}
           <div className="flex-1 p-3 md:p-3.5 min-w-0">
-            {/* Mobile quick actions — compact, never overlap content */}
-            <div className="md:hidden flex justify-end items-center gap-1.5 mb-2">
-              <button
-                onClick={handleCompareToggle}
-                title={t('searchPage.addToCompare')}
-                aria-pressed={inCompare}
-                className={`h-9 w-9 rounded-full inline-flex items-center justify-center transition-all ${
-                  inCompare
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 ring-1 ring-slate-200'
-                }`}
-              >
-                <GitCompare className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={handleShare}
-                title={t('searchPage.shareTrip')}
-                className="h-9 w-9 rounded-full inline-flex items-center justify-center bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 ring-1 ring-slate-200 transition-all"
-              >
-                <Share2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {/* Mobile quick actions — inline row, never overlap content */}
+            <div className="md:hidden flex justify-end mb-2">{quickActions}</div>
 
             <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-5">
-              {/* Time + route — fixed min widths so times never clip.
-                  Arrival slot: real time when the API provides it; when it
-                  doesn't (today: no route-level duration on the backend)
-                  the destination takes the slot with a "view detail" hint —
-                  honest, and never an orphaned "—". */}
+              {/* Time + route — SYMMETRIC slots: departure time + start
+                  city on the left, arrival time + end city on the right
+                  (same value types on both ends). Fixed min widths so
+                  times never clip; names truncate instead of wrapping
+                  into the connector. */}
               <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
                 <div className="text-center shrink-0 min-w-15">
-                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">
+                  <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900">
                     {trip.departureTime}
                   </div>
                   {showDepartureDate && (
@@ -290,7 +274,7 @@ export const TripCard = memo(function TripCard({
                 <div className="text-center shrink-0 min-w-15">
                   {trip.arrivalAt ? (
                     <>
-                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900 group-hover:text-blue-700 transition-colors">
+                      <div className="text-xl md:text-2xl font-bold leading-tight tabular-nums text-slate-900">
                         {formatTimeVN(trip.arrivalAt)}
                       </div>
                       {showArrivalDate && (
@@ -300,7 +284,10 @@ export const TripCard = memo(function TripCard({
                       )}
                     </>
                   ) : (
-                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900 group-hover:text-blue-700 transition-colors">
+                    /* Data gap (schedule has no arrival times configured):
+                     * the destination takes the slot with a "view detail"
+                     * hint — honest, never an orphaned dash. */
+                    <div className="text-base md:text-lg font-semibold leading-tight text-slate-900">
                       {trip.toName}
                     </div>
                   )}
@@ -308,6 +295,11 @@ export const TripCard = memo(function TripCard({
                     {trip.arrivalAt ? trip.toName : t('searchPage.viewArrival')}
                   </div>
                 </div>
+
+                {/* Desktop quick actions — trailing element of the time
+                    row: right-aligned in the content area, structurally
+                    clear of the price column (no more absolute overlap). */}
+                <div className="hidden md:flex ml-auto">{quickActions}</div>
               </div>
 
               <TripCardAmenities
