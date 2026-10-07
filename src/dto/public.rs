@@ -166,11 +166,58 @@ pub struct TripResult {
     pub amenities: Vec<String>,
 }
 
-/// Response of `GET /api/search` and `GET /api/recommendations`.
+/// Response of `GET /api/search`, `GET /api/search/geo` and `GET /api/recommendations`. The search endpoints are paginated; `/api/recommendations` omits the page metadata.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TripSearchResponse {
     pub items: Vec<TripResult>,
+    /// Total matching trips across ALL pages (before the offset window is applied). Omitted on non-paginated responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total: Option<u64>,
+    /// Page size the server actually applied (after clamping). Omitted on non-paginated responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Index of the first item inside this page. Omitted on non-paginated responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+    /// True when more matching trips exist past this page — the signal for the frontend's "load more" button. Omitted on non-paginated responses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_more: Option<bool>,
+}
+
+impl TripSearchResponse {
+    /// Single-shot (non-paginated) response — the legacy shape with no
+    /// page metadata, used by `/api/recommendations` and other internal
+    /// callers that return a fixed small set.
+    pub fn unpaginated(items: Vec<TripResult>) -> Self {
+        Self {
+            items,
+            total: None,
+            limit: None,
+            offset: None,
+            has_more: None,
+        }
+    }
+
+    /// Paginated response. `total` is the pre-slice match count;
+    /// `has_more` is derived from it so consumers never need to infer.
+    pub fn paged(items: Vec<TripResult>, total: u64, limit: u64, offset: u64) -> Self {
+        let has_more = offset.saturating_add(items.len() as u64) < total;
+        Self {
+            items,
+            total: Some(total),
+            limit: Some(limit),
+            offset: Some(offset),
+            has_more: Some(has_more),
+        }
+    }
+
+    /// Paginated EMPTY response — early returns (no matching routes, no
+    /// trips on the date, …) still carry the page metadata so clients
+    /// can trust `hasMore: false` instead of guessing from `[]`.
+    pub fn paged_empty(limit: u64, offset: u64) -> Self {
+        Self::paged(Vec::new(), 0, limit, offset)
+    }
 }
 
 // ── Trip detail ────────────────────────────────────────────────
@@ -425,6 +472,7 @@ pub struct SearchTripsQuery {
     pub to: String,
     pub date: String,
     pub limit: Option<u64>,
+    pub offset: Option<u64>,
     pub vehicle_types: Option<String>,
     pub sort: Option<String>,
     pub min_seats: Option<i64>,

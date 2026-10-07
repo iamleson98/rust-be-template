@@ -153,6 +153,7 @@ pub async fn search_trips(
                 &q.to,
                 &q.date,
                 q.limit.unwrap_or(20).min(200),
+                q.offset.unwrap_or(0),
                 vehicle_types,
                 q.sort.as_deref().unwrap_or("departure"),
                 q.min_seats.unwrap_or(0),

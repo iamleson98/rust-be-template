@@ -56,7 +56,9 @@ import {
   routesOptions,
   // trips
   searchTripsOptions,
+  searchTripsInfiniteOptions,
   searchTripsGeoOptions,
+  searchTripsGeoInfiniteOptions,
   tripDetailOptions,
   recommendationsOptions,
   // campaigns
@@ -211,6 +213,7 @@ import type {
   CronJobRunOut,
   DiskInfo,
   SystemMetrics,
+  TripSearchResponse,
 } from '@/lib/api/types.gen'
 
 // ─────────────────────────────────────────────────────────────
@@ -441,6 +444,86 @@ export function useTripSearch(params: TripSearchParams | null) {
     : searchTripsOptions({ query })
   return useQuery({
     ...options,
+    enabled: !!params && (!!params.from || !!params.to) && !!params.date,
+    placeholderData: keepPreviousData,
+    staleTime: 30 * 1000,
+    retry: 1,
+  })
+}
+
+// ── Paginated trip search (the results page's "load more") ──────
+
+/** Page size for the search results list. Ten keeps the first paint
+ *  fast on mobile; each "load more" click appends one page of this
+ *  size to the accumulated list. */
+export const TRIP_SEARCH_PAGE_SIZE = 10
+
+/** Compute the next page's offset from the server's page metadata —
+ *  `undefined` ends the sequence (no more pages). Extracted as a pure
+ *  function so the pagination contract (`offset += limit` while
+ *  `hasMore`) is unit-tested outside of React rendering. */
+export function tripSearchNextPageParam(lastPage: TripSearchResponse): number | undefined {
+  if (lastPage.hasMore !== true) return undefined
+  const limit =
+    typeof lastPage.limit === 'number' && lastPage.limit > 0
+      ? lastPage.limit
+      : TRIP_SEARCH_PAGE_SIZE
+  const offset = typeof lastPage.offset === 'number' && lastPage.offset >= 0 ? lastPage.offset : 0
+  const next = offset + limit
+  // Degenerate guard: a corrupt page (e.g. limit <= 0) must never make
+  // the client re-request the same offset forever.
+  return next > offset ? next : undefined
+}
+
+/** Paginated variant of {@link useTripSearch} for the results page.
+ *
+ * Page 1 renders immediately; "load more" calls `fetchNextPage()` which
+ * requests `offset += limit` and APPENDS the new page's items to the
+ * flattened list. Works for both the city-to-city search
+ * (`/api/search`) and the geo proximity search (`/api/search/geo`) —
+ * both return the same `TripSearchResponse` contract with page
+ * metadata (`total` / `limit` / `offset` / `hasMore`).
+ *
+ * Other consumers (admin ticket pickers, brand dialogs, the route
+ * directory) keep the single-page {@link useTripSearch} — they render
+ * fixed small lists and don't paginate. */
+export function useTripSearchInfinite(params: TripSearchParams | null) {
+  const geo = !!params && hasGeoCoords(params)
+  const minSeats = (params?.adults ?? 1) + (params?.children ?? 0)
+  const vehicleTypes =
+    params?.vehicleTypes && params.vehicleTypes.length > 0
+      ? params.vehicleTypes.join(',')
+      : undefined
+
+  const options: ReturnType<typeof searchTripsInfiniteOptions> = geo
+    ? (searchTripsGeoInfiniteOptions({
+        query: {
+          fromLat: params!.fromLat!,
+          fromLon: params!.fromLon!,
+          toLat: params!.toLat!,
+          toLon: params!.toLon!,
+          date: params!.date,
+          limit: TRIP_SEARCH_PAGE_SIZE,
+          minSeats,
+          vehicleTypes,
+        },
+      }) as unknown as ReturnType<typeof searchTripsInfiniteOptions>)
+    : searchTripsInfiniteOptions({
+        query: {
+          from: params?.from ?? '',
+          to: params?.to ?? '',
+          date: params?.date ?? '',
+          sort: params?.sort ?? 'departure',
+          limit: TRIP_SEARCH_PAGE_SIZE,
+          minSeats,
+          vehicleTypes,
+        },
+      })
+
+  return useInfiniteQuery({
+    ...options,
+    initialPageParam: 0,
+    getNextPageParam: tripSearchNextPageParam,
     enabled: !!params && (!!params.from || !!params.to) && !!params.date,
     placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
