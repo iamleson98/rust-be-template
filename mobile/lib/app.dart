@@ -1,10 +1,14 @@
 import 'package:material_ui/material_ui.dart';
+
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 
 import 'core/design.dart';
 import 'core/duty_mode.dart';
 import 'core/router.dart';
+import 'core/auth/auth_controller.dart';
 import 'core/theme_mode.dart';
 import 'features/call/call_controller.dart';
 import 'features/call/callkit_service.dart';
@@ -53,6 +57,13 @@ class _DatXeVuiAppState extends ConsumerState<DatXeVuiApp>
     final resumed = state == AppLifecycleState.resumed;
     ref.read(appResumedProvider.notifier).set(resumed);
     if (resumed) {
+      // Auto-login upkeep: rotate a stale access token the moment the
+      // app comes forward (single-flight — the WS reconnect below hits
+      // the same refresh at most once). Keeps the 7-day sliding
+      // refresh window extending on every app use, not just cold starts.
+      if (globalTokenStore.accessIsStale) {
+        unawaited(ref.read(apiClientProvider).refreshNow());
+      }
       // Mobile OSes freeze sockets in the background — reconnect now
       // instead of waiting for the backoff timer.
       ref.read(chatLiveServiceProvider)?.reconnectNow();

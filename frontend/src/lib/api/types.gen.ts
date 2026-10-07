@@ -900,6 +900,26 @@ export type ChatStatsResponse = {
 };
 
 /**
+ * Google Ads click ids captured on landing (see
+ * `frontend/src/lib/analytics.ts` — `captureClickIds`). At most one
+ * is ever set per landing, but the beacon forwards whatever it has.
+ */
+export type ClickIds = {
+    /**
+     * Click id for Performance Max / App campaigns (app, iOS-side).
+     */
+    gbraid?: string | null;
+    /**
+     * Google Ads click id (Search/Display campaigns).
+     */
+    gclid?: string | null;
+    /**
+     * Click id for Performance Max / App campaigns (web).
+     */
+    wbraid?: string | null;
+};
+
+/**
  * Request body for `POST /api/bookings/:id/confirm`.
  */
 export type ConfirmReq = {
@@ -2222,6 +2242,64 @@ export type RegisterRequest = {
     fullName: string;
     password: string;
     phone?: string | null;
+};
+
+/**
+ * Request body for `POST /api/ads/conversions`.
+ *
+ * The browser beacons this at the money moment (booking confirmed /
+ * payment completed) alongside the click ids it captured on landing.
+ * Fire-and-forget: the response only acknowledges storage — the
+ * Google Ads API upload happens asynchronously and never blocks the
+ * user's flow.
+ */
+export type ReportConversionRequest = {
+    /**
+     * The landing click ids (attribution join key).
+     */
+    clickIds?: ClickIds;
+    /**
+     * ISO-4217 currency code (`VND`).
+     */
+    currency?: string | null;
+    /**
+     * Conversion event name — must match a key in the
+     * `GOOGLE_ADS_CONVERSION_ACTIONS` map (`booking` | `purchase`).
+     */
+    event: string;
+    /**
+     * Stable dedupe id — the booking code. Repeat beacons collapse.
+     * Optional: an id-less conversion can't be deduped (mirroring
+     * Google's own optional `orderId`) — the server mints a uuid so
+     * each fire is recorded distinctly.
+     */
+    transactionId?: string | null;
+    /**
+     * Revenue (decimal string, e.g. `"250000"` or `"250000.00"`) —
+     * kept verbatim so no float rounding reaches Google.
+     */
+    value?: string | null;
+};
+
+/**
+ * Response of `POST /api/ads/conversions`.
+ */
+export type ReportConversionResponse = {
+    ok: boolean;
+    /**
+     * Whether the Google Ads API credentials are configured
+     * server-side. `false` = the record is stored and backfillable,
+     * but no upload happens yet.
+     */
+    serverUploadEnabled: boolean;
+    /**
+     * Whether a NEW row was stored (false = deduped repeat beacon).
+     */
+    stored: boolean;
+    /**
+     * Whether a server-side Google Ads upload was attempted.
+     */
+    uploadAttempted: boolean;
 };
 
 /**
@@ -5179,6 +5257,29 @@ export type Update8Responses = {
 };
 
 export type Update8Response = Update8Responses[keyof Update8Responses];
+
+export type ReportConversionData = {
+    body: ReportConversionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/ads/conversions';
+};
+
+export type ReportConversionErrors = {
+    /**
+     * Invalid event / transaction id
+     */
+    400: unknown;
+};
+
+export type ReportConversionResponses = {
+    /**
+     * Conversion recorded (or deduped)
+     */
+    200: ReportConversionResponse;
+};
+
+export type ReportConversionResponse2 = ReportConversionResponses[keyof ReportConversionResponses];
 
 export type EmployeeLoginData = {
     body: LoginRequest;

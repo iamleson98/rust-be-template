@@ -2,11 +2,15 @@ import 'package:material_ui/material_ui.dart';
 
 import 'dart:ui';
 
+import 'dart:async' show unawaited;
+
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/design.dart';
+import '../../core/haptics.dart';
 import '../../shared/widgets.dart';
 import '../call/call_controller.dart';
 import '../notifications/notification_service.dart';
@@ -44,6 +48,14 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
   int _newCount = 0;
   bool _showJump = false;
   bool _jumpedInitial = false;
+
+  // ── Edge-swipe back (Messenger-style) ─────────────────────────
+  // go_router's CustomTransitionPage (the slide-from-right push) loses
+  // iOS's built-in swipe-back gesture; this restores it on BOTH
+  // platforms: a horizontal drag armed only within the leftmost 32px
+  // of the screen pops the room once it travels 90px rightward.
+  bool _edgeDragArmed = false;
+  double _edgeDragDistance = 0;
 
   /// Beyond this offset (from the bottom) the agent counts as "reading
   /// history": incoming messages no longer dock, they stack into the
@@ -109,6 +121,36 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     );
   }
 
+  // ── Edge-swipe back gesture handlers ──────────────────────────
+
+  void _onEdgeDragStart(DragStartDetails details) {
+    // Arm only for drags beginning in the leftmost 32 logical px —
+    // the classic iOS back-gesture zone. A drag starting anywhere
+    // else (scrolling, composer) stays inert so the list never fights
+    // the gesture.
+    _edgeDragArmed = details.globalPosition.dx <= 32;
+    _edgeDragDistance = 0;
+  }
+
+  void _onEdgeDragUpdate(DragUpdateDetails details) {
+    if (!_edgeDragArmed) return;
+    _edgeDragDistance += details.delta.dx;
+  }
+
+  void _onEdgeDragEnd(DragEndDetails details) {
+    if (!_edgeDragArmed) return;
+    _edgeDragArmed = false;
+    // Pop on a decisive rightward swipe (drag distance or fling
+    // velocity — a flick beats the distance threshold).
+    final flung =
+        details.primaryVelocity != null && details.primaryVelocity! > 380;
+    if (_edgeDragDistance > 90 || flung) {
+      ref.read(hapticsProvider).select();
+      context.pop();
+    }
+    _edgeDragDistance = 0;
+  }
+
   void _onMessagesChanged(List<ChatMessage> messages) {
     // First page landing: dock to the newest message without animation.
     if (!_jumpedInitial) {
@@ -155,6 +197,9 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
     final text = _composer.text;
     if (text.trim().isEmpty) return;
     _composer.clear();
+    // The soft tick that makes a send feel acknowledged — the same
+    // physical feedback Messenger/Telegram ship on message dispatch.
+    ref.read(hapticsProvider).messageSent();
     await ref.read(roomsProvider.notifier).send(widget.channelId, text);
     // Our own message always docks the view.
     _jumpToBottom();
@@ -171,6 +216,7 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
       );
       return;
     }
+    ref.read(hapticsProvider).call();
     ref
         .read(callUiStateProvider.notifier)
         .startCall(
@@ -178,6 +224,21 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
           customerName: channel.displayName,
           channelId: channel.id,
         );
+  }
+
+  void _copyMessage(String text) {
+    // Messenger staple: long-press a bubble → clipboard + soft tick +
+    // toast. Bookings/phones/addresses arrive as plain text — copying
+    // them out is a constant agent need.
+    unawaited(Clipboard.setData(ClipboardData(text: text)));
+    ref.read(hapticsProvider).select();
+    if (!mounted) return;
+    showFToast(
+      context: context,
+      variant: FToastVariant.primary,
+      title: const Text('Đã sao chép'),
+      alignment: FToastAlignment.bottomCenter,
+    );
   }
 
   void _openActions(Channel channel) {
@@ -332,105 +393,117 @@ class _RoomScreenState extends ConsumerState<RoomScreen> {
 
     _onMessagesChanged(messages);
 
-    return Scaffold(
-      backgroundColor: context.theme.colors.background,
-      resizeToAvoidBottomInset: true,
-      body: Column(
-        children: [
-          _RoomHeader(
-            channel: channel,
-            online: room?.customerOnline ?? false,
-            typingName: room?.typingName,
-            onBack: () => context.pop(),
-            onCall: channel == null || channel.isClosed
-                ? null
-                : () => _startCall(channel),
-            onMore: channel == null ? null : () => _openActions(channel),
-          ),
-          if (channel != null && channel.isOpen && !channel.assignedToMe)
-            _claimBar(context),
-          if (room?.error != null) _errorBar(context, room!.error!),
-          Expanded(
-            child: Stack(
-              children: [
-                if (room == null || room.loading)
-                  const Center(child: CircularProgressIndicator())
-                else if (messages.isEmpty)
-                  EmptyState(
-                    icon: FLucideIcons.messageSquare,
-                    title: 'Chưa có tin nhắn',
-                    message: 'Hãy gửi lời chào để bắt đầu hỗ trợ.',
-                  )
-                else
-                  _MessageList(
-                    messages: messages,
-                    channel: channel,
-                    typingName: room.typingName,
-                    loadingOlder: room.loadingOlder,
-                    scroll: _scroll,
-                    onRetry: (clientMsgId) => ref
-                        .read(roomsProvider.notifier)
-                        .retry(widget.channelId, clientMsgId),
-                  ),
-                // New-messages pill: floats just above the composer when
-                // history reading outruns the live edge.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 10,
-                  child: IgnorePointer(
-                    ignoring: _newCount == 0,
-                    child: AnimatedScale(
-                      scale: _newCount > 0 ? 1 : 0,
-                      duration: AppMotion.quick,
-                      curve: AppMotion.overshoot,
-                      child: AnimatedOpacity(
-                        opacity: _newCount > 0 ? 1 : 0,
+    return GestureDetector(
+      // Edge-swipe back (Messenger-grade navigation affordance) — see
+      // the handler docs above. Wrapped AROUND the Scaffold so the
+      // gesture zone spans header + list + composer.
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: _onEdgeDragStart,
+      onHorizontalDragUpdate: _onEdgeDragUpdate,
+      onHorizontalDragEnd: _onEdgeDragEnd,
+      child: Scaffold(
+        backgroundColor: context.theme.colors.background,
+        resizeToAvoidBottomInset: true,
+        body: Column(
+          children: [
+            _RoomHeader(
+              channel: channel,
+              online: room?.customerOnline ?? false,
+              typingName: room?.typingName,
+              onBack: () => context.pop(),
+              onCall: channel == null || channel.isClosed
+                  ? null
+                  : () => _startCall(channel),
+              onMore: channel == null ? null : () => _openActions(channel),
+            ),
+            if (channel != null && channel.isOpen && !channel.assignedToMe)
+              _claimBar(context),
+            if (room?.error != null) _errorBar(context, room!.error!),
+            Expanded(
+              child: Stack(
+                children: [
+                  if (room == null || room.loading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (messages.isEmpty)
+                    EmptyState(
+                      icon: FLucideIcons.messageSquare,
+                      title: 'Chưa có tin nhắn',
+                      message: 'Hãy gửi lời chào để bắt đầu hỗ trợ.',
+                    )
+                  else
+                    _MessageList(
+                      messages: messages,
+                      channel: channel,
+                      typingName: room.typingName,
+                      loadingOlder: room.loadingOlder,
+                      scroll: _scroll,
+                      onRetry: (clientMsgId) => ref
+                          .read(roomsProvider.notifier)
+                          .retry(widget.channelId, clientMsgId),
+                      onCopy: _copyMessage,
+                    ),
+                  // New-messages pill: floats just above the composer when
+                  // history reading outruns the live edge.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 10,
+                    child: IgnorePointer(
+                      ignoring: _newCount == 0,
+                      child: AnimatedScale(
+                        scale: _newCount > 0 ? 1 : 0,
                         duration: AppMotion.quick,
-                        child: Center(
-                          child: _NewMessagesPill(
-                            count: _newCount,
-                            onTap: () {
-                              setState(() => _newCount = 0);
-                              _jumpToBottom();
-                            },
+                        curve: AppMotion.overshoot,
+                        child: AnimatedOpacity(
+                          opacity: _newCount > 0 ? 1 : 0,
+                          duration: AppMotion.quick,
+                          child: Center(
+                            child: _NewMessagesPill(
+                              count: _newCount,
+                              onTap: () {
+                                ref.read(hapticsProvider).select();
+                                setState(() => _newCount = 0);
+                                _jumpToBottom();
+                              },
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                // Jump-to-bottom FAB sits above the pill, right edge.
-                Positioned(
-                  right: 6,
-                  bottom: 64,
-                  child: IgnorePointer(
-                    ignoring: !_showJump,
-                    child: AnimatedScale(
-                      scale: _showJump ? 1 : 0,
-                      duration: AppMotion.quick,
-                      curve: AppMotion.overshoot,
-                      child: _JumpFab(
-                        newCount: _newCount,
-                        onTap: () {
-                          setState(() => _newCount = 0);
-                          _jumpToBottom();
-                        },
+                  // Jump-to-bottom FAB sits above the pill, right edge.
+                  Positioned(
+                    right: 6,
+                    bottom: 64,
+                    child: IgnorePointer(
+                      ignoring: !_showJump,
+                      child: AnimatedScale(
+                        scale: _showJump ? 1 : 0,
+                        duration: AppMotion.quick,
+                        curve: AppMotion.overshoot,
+                        child: _JumpFab(
+                          newCount: _newCount,
+                          onTap: () {
+                            ref.read(hapticsProvider).select();
+                            setState(() => _newCount = 0);
+                            _jumpToBottom();
+                          },
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          _ComposerBar(
-            controller: _composer,
-            onTyping: (text) => ref
-                .read(roomsProvider.notifier)
-                .typing(widget.channelId, text.isNotEmpty),
-            onSend: _send,
-          ),
-        ],
+            _ComposerBar(
+              controller: _composer,
+              onTyping: (text) => ref
+                  .read(roomsProvider.notifier)
+                  .typing(widget.channelId, text.isNotEmpty),
+              onSend: _send,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -684,6 +757,7 @@ class _MessageList extends StatelessWidget {
     required this.loadingOlder,
     required this.scroll,
     required this.onRetry,
+    required this.onCopy,
   });
 
   final List<ChatMessage> messages;
@@ -692,6 +766,10 @@ class _MessageList extends StatelessWidget {
   final bool loadingOlder;
   final ScrollController scroll;
   final void Function(String clientMsgId) onRetry;
+
+  /// Long-press-to-copy handler (Messenger staple) — owned by the room
+  /// state so it can fire the haptic tick + toast.
+  final void Function(String text) onCopy;
 
   /// Messages from the same sender group when closer than this.
   static const _groupWindow = Duration(minutes: 3);
@@ -969,6 +1047,11 @@ class _MessageList extends StatelessWidget {
       onTap: failed && m.clientMsgId != null
           ? () => onRetry(m.clientMsgId!)
           : null,
+      // Long-press copies the bubble text. System meta rows carry no
+      // user-copyable content, and empty bubbles stay inert.
+      onLongPress: m.isSystem || (m.content ?? '').isEmpty
+          ? null
+          : () => onCopy(m.content!),
       child: Opacity(
         opacity: sending ? 0.65 : 1,
         child: Container(

@@ -64,16 +64,27 @@ class AuthController extends Notifier<AuthState> {
       restored: true,
     );
 
+    // Proactive rotation when the cached access JWT is (about to be)
+    // expired — which is the COMMON cold-start case (15-minute access
+    // TTL vs. hours/days between app opens). Rotating here saves the
+    // `/auth/me` → 401 → refresh → retry round-trip chain, so the
+    // session validates in ONE request instead of three and the
+    // 7-day sliding refresh window extends on every app open.
+    final api = ref.read(apiClientProvider);
+    if (tokens.accessIsStale) {
+      await api.refreshNow();
+      if (ticket != _restoreToken) return;
+    }
+
     // Validate in the background; a 401 here means the refresh already
     // failed inside the interceptor → log out.
-    final api = ref.read(apiClientProvider);
     try {
       final fresh = await api.me();
       if (ticket != _restoreToken) return;
       state = AuthState(
         user: fresh,
-        accessToken: access,
-        refreshToken: refresh,
+        accessToken: tokens.cachedAccess,
+        refreshToken: tokens.cachedRefresh,
         restored: true,
       );
     } on ApiException catch (e) {

@@ -23,6 +23,7 @@
 //! helpers (`SortOrder`, `ListQuery`, `ListEnvelope`) that every list
 //! endpoint shares.
 
+pub mod ad_conversion;
 pub mod admin;
 pub mod booking;
 pub mod chat;

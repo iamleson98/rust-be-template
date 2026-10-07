@@ -13,6 +13,7 @@
 //!   services as `Arc<dyn Store>`.
 
 pub use self::address::{AddressStore, DbAddressStore};
+pub use self::ads_conversion::{AdConversionStore, DbAdConversionStore, NewAdConversion};
 pub use self::audit::{AuditStore, DbAuditStore};
 pub use self::booking::{BookingStore, DbBookingStore};
 pub use self::brands::{BrandStore, CacheBrandStore, DbBrandStore};
@@ -59,6 +60,7 @@ pub(crate) fn parse_uuid(s: &str) -> StoreResult<uuid::Uuid> {
 #[macro_use]
 mod macros;
 mod address;
+mod ads_conversion;
 mod audit;
 mod booking;
 mod brands;

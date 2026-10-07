@@ -67,17 +67,67 @@ moment the router rewrites the URL, so `entry-client.tsx` calls
 - a later paid landing **overwrites** the stored ids (most-recent-click
   wins, mirroring gtag's own model); internal navigations without ids
   keep the previous capture;
-- `getClickIds()` exposes the stored ids for a future server-side
-  conversion upload through the Google Ads API (offline conversions,
-  enhanced conversions). No backend endpoint consumes them yet — that
-  integration is deliberately deferred until Ads is actually live.
+- `getClickIds()` feeds the server-side conversion recording below.
+
+## Server-side conversion recording (the durable half)
+
+`trackConversion()` now does BOTH of these, fire-and-forget:
+
+1. the gtag dispatch (above), and
+2. a `navigator.sendBeacon` to `POST /api/ads/conversions` carrying
+   the event, transaction id, value, currency and the stored click
+   ids.
+
+The backend persists every beacon in the first-party `ad_conversion`
+table — deduped by `(event, transaction_id)`, so browser retries and
+double-fires collapse. Beaconing is **independent of any Ads
+configuration**: records accumulate from day one, and enabling
+credentials later loses nothing (see the sweep below).
+
+Row status lifecycle:
+
+| status         | meaning                                                  |
+| -------------- | -------------------------------------------------------- |
+| `pending`      | stored, upload about to run (or attempted asynchronously) |
+| `uploaded`     | accepted by the Google Ads API                            |
+| `error`        | API rejected it — retried by the next sweep               |
+| `unconfigured` | stored while credentials were off — backfillable          |
+| `skipped`      | no click id on the record (organic conversion)             |
+
+### Enabling server-side uploads (production backend)
+
+Set the `GOOGLE_ADS_*` group in the backend env (see `.env.example`):
+developer token, customer id, OAuth client + secret, an offline-access
+refresh token for the `adwords` scope, and the
+`GOOGLE_ADS_CONVERSION_ACTIONS` map from event name to conversion
+action resource name (`customers/{cid}/conversionActions/{id}` — the
+resource names, not the gtag labels). With the group set, each new
+record uploads via `customers/{cid}:uploadClickConversions`
+immediately after the beacon lands; OAuth access tokens are minted
+from the refresh token and cached in-process.
+
+Backfill the backlog (rows stored before the credentials existed, plus
+`error` rows) any time:
+
+```sh
+cargo run -p backend -- ads-sweep [--limit 500]
+```
+
+The endpoint is `MaybeAuthUser` on purpose: the beacon fires seconds
+after the money moment, and an expired session must not lose a
+measurement record that carries no PII.
 
 ## Testing
 
-- Unit: `frontend/src/lib/__tests__/analytics.test.ts` covers the
-  conversion dispatch (configured / unconfigured / partial payload)
-  and the click-id lifecycle (capture, overwrite, TTL, corruption).
+- Unit (frontend): `frontend/src/lib/__tests__/analytics.test.ts`
+  covers the conversion dispatch (configured / unconfigured / partial
+  payload), the beacon (URL, JSON body shape, no-throw on quota
+  errors, fires even unconfigured) and the click-id lifecycle
+  (capture, overwrite, TTL, corruption).
+- Unit (backend): `src/ads/mod.rs` tests the conversion-datetime
+  normalisation Google's API requires.
 - Manual: build with the env vars above, land on
   `/?gclid=test&wbraid=01a…`, complete a booking → payment, then check
   the `conversion` events in the Google Ads **Conversions → diagnose
-  tag** or in GA4 DebugView.
+  tag** or in GA4 DebugView; with the server-side group configured,
+  also inspect the `ad_conversion` table (`status = 'uploaded'`).

@@ -1,6 +1,7 @@
 /**
  * Tests for the analytics module — GA4 page views, Google Ads
- * conversion dispatch and click-id capture/persistence.
+ * conversion dispatch (gtag + server-side beacon) and click-id
+ * capture/persistence.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { trackPageView, trackConversion, captureClickIds, getClickIds } from '@/lib/analytics'
@@ -14,6 +15,7 @@ describe('analytics', () => {
     window.__GOOGLE_ADS_CONVERSIONS__ = undefined
     localStorage.clear()
     window.history.replaceState({}, '', '/')
+    vi.restoreAllMocks()
   })
 
   describe('trackPageView', () => {
@@ -89,6 +91,77 @@ describe('analytics', () => {
 
     it('is a no-op when nothing is configured', () => {
       expect(() => trackConversion('booking')).not.toThrow()
+    })
+  })
+
+  describe('trackConversion server-side beacon', () => {
+    const beacon = vi.fn()
+
+    beforeEach(() => {
+      // The shared spy target is a standalone vi.fn — restoreAllMocks
+      // (outer beforeEach) unspies sendBeacon but does not clear its
+      // call history; reset it here so each test counts only its own
+      // beacons.
+      beacon.mockClear()
+    })
+
+    it('beacons to /api/ads/conversions alongside the gtag dispatch', () => {
+      window.gtag = vi.fn()
+      window.__GOOGLE_ADS_CONVERSIONS__ = { purchase: 'AW-123/DeF-456' }
+      window.history.replaceState({}, '', '/?gclid=EAIaIQobChM')
+      captureClickIds()
+      vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
+
+      trackConversion('purchase', { value: 250000, currency: 'VND', transactionId: 'DXV-8X2' })
+
+      expect(beacon).toHaveBeenCalledTimes(1)
+      const [url, blob] = beacon.mock.calls[0] as [string, Blob]
+      expect(url).toBe('/api/ads/conversions')
+      expect(blob.type).toBe('application/json')
+    })
+
+    it('beacons even when gtag/labels are unconfigured (durable record)', () => {
+      vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
+
+      trackConversion('booking', { transactionId: 'DXV-1' })
+
+      expect(beacon).toHaveBeenCalledTimes(1)
+    })
+
+    it('the beacon body carries event, stringified value, currency, transaction id and click ids', async () => {
+      vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
+      window.history.replaceState({}, '', '/?gclid=click-1')
+      captureClickIds()
+
+      trackConversion('purchase', { value: 250000, currency: 'VND', transactionId: 'DXV-9' })
+
+      const blob = beacon.mock.calls[0][1] as Blob
+      const body = JSON.parse(await blob.text()) as Record<string, unknown>
+      expect(body).toEqual({
+        event: 'purchase',
+        transactionId: 'DXV-9',
+        value: '250000',
+        currency: 'VND',
+        clickIds: { gclid: 'click-1' },
+      })
+    })
+
+    it('omits absent payload fields instead of sending them null/undefined', async () => {
+      vi.spyOn(navigator, 'sendBeacon').mockImplementation(beacon)
+
+      trackConversion('booking', {})
+
+      const blob = beacon.mock.calls[0][1] as Blob
+      const body = JSON.parse(await blob.text()) as Record<string, unknown>
+      expect(body).toEqual({ event: 'booking', clickIds: {} })
+    })
+
+    it('never throws when sendBeacon is unavailable', () => {
+      vi.spyOn(navigator, 'sendBeacon').mockImplementation(() => {
+        throw new Error('quota exceeded')
+      })
+
+      expect(() => trackConversion('booking', { transactionId: 'DXV-2' })).not.toThrow()
     })
   })
 

@@ -58,6 +58,15 @@ pub enum Command {
     /// rust-sql engine — rustqlite via the sqlx-sqlite C-ABI compat).
     DbBackend,
 
+    /// Backfill-upload stored ad conversions to the Google Ads API
+    /// (rows recorded while credentials were off, plus failed rows).
+    /// Usage: `ads-sweep [--limit <n>]`
+    AdsSweep {
+        /// Max rows to process in this batch (default: 200).
+        #[arg(long, default_value_t = 200)]
+        limit: u64,
+    },
+
     /// Build the Tantivy place-search index from an OSM PBF file.
     /// Usage: `import-osm <path-to-vietnam.osm.pbf> [--index-dir <dir>]`
     ImportOsm {

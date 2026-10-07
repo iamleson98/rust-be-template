@@ -151,7 +151,11 @@ void main() {
     container: container,
     child: FTheme(
       data: vexevnTheme(dark: false),
-      child: MaterialApp(home: RoomScreen(channelId: channelId)),
+      // FToaster: the room's toasts (e.g. "Đã sao chép" on long-press
+      // copy) need an overlay ancestor to render into.
+      child: MaterialApp(
+        home: FToaster(child: RoomScreen(channelId: channelId)),
+      ),
     ),
   );
 
@@ -256,6 +260,47 @@ void main() {
     expect(room.messages.last.content, 'Xin chào khách');
     expect(room.messages.last.sendState, SendState.sent);
     expect(find.text('Xin chào khách'), findsOneWidget);
+
+    // The typing stopwatch (1.5s auto-stop) must fire before the test
+    // ends — otherwise the binding flags a pending timer.
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('long-press a message bubble copies its text', (
+    WidgetTester tester,
+  ) async {
+    // Clipboard mock: capture setData payloads. Clipboard (and
+    // HapticFeedback!) ride the shared 'flutter/platform' channel —
+    // mock it and answer null for everything else.
+    String? copied;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map?)?['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+
+    final fake = FakeApiClient(channels, newestFirst);
+    final container = ProviderContainer(
+      overrides: [apiClientProvider.overrideWithValue(fake)],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(harness(container));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    // Long-press the newest customer bubble → its text lands on the
+    // clipboard and the confirmation toast shows.
+    await tester.longPress(find.text('Tin nhắn 85 (84)').first);
+    await tester.pumpAndSettle();
+
+    expect(copied, 'Tin nhắn 85 (84)');
+    expect(find.text('Đã sao chép'), findsOneWidget);
 
     // The typing stopwatch (1.5s auto-stop) must fire before the test
     // ends — otherwise the binding flags a pending timer.

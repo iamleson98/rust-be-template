@@ -20,6 +20,7 @@
 //! - `state`: AppState
 //! - `server`: bootstrap + run
 
+pub mod ads;
 pub mod audio_call;
 pub mod auth;
 pub mod cache;
