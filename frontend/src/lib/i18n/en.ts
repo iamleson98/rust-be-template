@@ -1894,9 +1894,9 @@ export const en: TranslationMap = {
   'searchPage.regionNorth': 'North',
   'searchPage.regionCentral': 'Central',
   'searchPage.regionSouth': 'South',
-  'searchPage.smartSearchActive':
-    'Smart search: showing trips with the closest pickup and drop-off points to your selected locations',
-  'searchPage.citySearchActive': 'Showing trips between the selected cities',
+  'searchPage.smartSearchShort': 'Smart search',
+  'searchPage.editSearch': 'Edit search',
+  'searchPage.paxCountUnit': 'guests',
   'searchPage.placeCity': 'City',
   'searchPage.placeTown': 'Town',
   'searchPage.placeVillage': 'Village',

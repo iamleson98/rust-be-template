@@ -57,7 +57,6 @@ export const FeedbackForm = memo(function FeedbackForm({
   const t = useT()
   const isEditingExisting = !!existingReview
   const [editMode, setEditMode] = useState(!isEditingExisting)
-  const [hoverRating, setHoverRating] = useState(0)
   const [submitted, setSubmitted] = useState(false)
 
   // Two mutations defined at HOOK CREATION — each carries its own
@@ -108,10 +107,11 @@ export const FeedbackForm = memo(function FeedbackForm({
   const comment = form.watch('content')
 
   const onSubmit = (values: FeedbackValues) => {
-    if (!booking.trip?.routeId || !booking.trip?.brandId) {
-      toast.error(t('feedbackForm.missingTripInfo'))
-      return
-    }
+    // NOTE: no routeId/brandId guard — the bookings LIST payload has no
+    // trip.routeId/brandId (only the admin detail payload does), so the
+    // old guard ALWAYS tripped and submit never fired. The backend
+    // derives route + brand from bookingId (trip → schedule → route →
+    // brand chain) — sending bookingId alone is the supported path.
     const payload = {
       body: {
         bookingId: booking.id,
@@ -137,7 +137,6 @@ export const FeedbackForm = memo(function FeedbackForm({
       tags: [],
       photos: [],
     })
-    setHoverRating(0)
     setSubmitted(false)
   }
 
@@ -158,17 +157,16 @@ export const FeedbackForm = memo(function FeedbackForm({
   // ─── "Submitted" success state ─────────────────────────────
   if (submitted) {
     return (
-      <Card className="ring-1 ring-amber-200 overflow-hidden">
-        <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
+      <Card className="border-border overflow-hidden">
         <CardContent className="p-6 text-center">
-          <div className="inline-flex h-16 w-16 rounded-full bg-linear-to-br from-amber-400 to-orange-500 items-center justify-center mb-3">
-            <Check className="h-8 w-8 text-white" strokeWidth={3} />
+          <div className="inline-flex h-14 w-14 rounded-full bg-amber-50 items-center justify-center mb-3">
+            <Check className="h-7 w-7 text-amber-600" strokeWidth={3} />
           </div>
           <h4 className="font-bold text-lg mb-1">{t('feedbackForm.thanksToast')}</h4>
           <p className="text-sm text-muted-foreground max-w-sm mx-auto">
             {t('feedbackForm.thanksDesc')}
           </p>
-          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 ring-1 ring-amber-200 px-3 py-1.5">
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-amber-50 px-3 py-1.5">
             <Sparkles className="h-3.5 w-3.5 text-amber-500" />
             <span className="text-xs font-medium text-amber-700">
               {t('feedbackForm.pointsEarned')}
@@ -193,8 +191,7 @@ export const FeedbackForm = memo(function FeedbackForm({
 
   // ─── Editable form (POST new OR PATCH existing) ────────────
   return (
-    <Card className="ring-1 ring-amber-200 overflow-hidden">
-      <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
+    <Card className="border-border overflow-hidden">
       <CardContent className="p-4 md:p-5 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -229,13 +226,7 @@ export const FeedbackForm = memo(function FeedbackForm({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {/* Star rating — custom control */}
-            <FeedbackRatingField
-              form={form}
-              setHoverRating={setHoverRating}
-              hoverRating={hoverRating}
-              rating={rating}
-              accent={accent}
-            />
+            <FeedbackRatingField form={form} accent={accent} />
 
             {/* Tag picker — custom control */}
             <FeedbackTagPickerField form={form} />
@@ -276,7 +267,7 @@ export const FeedbackForm = memo(function FeedbackForm({
               <Button
                 type="submit"
                 disabled={rating === 0 || submitting || isShortComment}
-                className="flex-1 gap-2 bg-linear-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white"
+                className="flex-1 gap-2"
               >
                 {submitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

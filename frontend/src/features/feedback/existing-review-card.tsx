@@ -26,7 +26,7 @@ export function ExistingReviewCard({
 }) {
   const t = useT()
   return (
-    <Card className="ring-1 ring-amber-200 overflow-hidden">
+    <Card className="border-border overflow-hidden">
       <div className="h-1 bg-linear-to-r from-amber-400 to-orange-500" />
       <CardContent className="p-4 md:p-5 space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -108,7 +108,7 @@ export function ExistingReviewCard({
                 href={src}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 hover:ring-amber-400 transition-all"
+                className="aspect-square rounded-lg overflow-hidden ring-1 ring-black/5 hover:ring-primary/40 transition-colors"
               >
                 <img
                   src={src}

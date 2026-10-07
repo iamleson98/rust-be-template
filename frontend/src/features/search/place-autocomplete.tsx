@@ -39,7 +39,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useT } from '@/lib/i18n'
 import { toast } from 'sonner'
-import { VIETNAMESE_CITIES } from '@/lib/vietnamese-cities'
+import { VIETNAMESE_CITIES, type VietnameseCity } from '@/lib/vietnamese-cities'
 import { noTones } from '@/lib/types'
 
 // Leaflet touches `window` at import time, so we must load the MapPicker
@@ -64,6 +64,14 @@ type PickedPlace = {
 type Props = {
   value: string
   onChange: (val: string) => void
+  /** RHF blur handler — forwarded to the inner Input so `mode: 'onBlur'`
+   *  validation actually fires for this field (the Slot passes it down
+   *  but this component must hand it to the <Input> itself). */
+  onBlur?: () => void
+  /** RHF error state — forwarded so the Input renders its red
+   *  aria-invalid border (the Slot injects it on this component; without
+   *  explicit forwarding it lands nowhere). */
+  'aria-invalid'?: boolean
   /**
    * Fired on every deliberate value choice — city pick, place pick,
    * map confirm, or free typing — with the current name and (for
@@ -87,8 +95,19 @@ type Props = {
   className?: string
 }
 
-/** One selectable row — either a city or a precise place hit. */
-type CityRow = { kind: 'city'; id: string; name: string; region: string }
+/** One selectable row — either a city (optionally matched via one of
+ *  its popular aliases like "Đà Lạt" → Lâm Đồng) or a precise place hit. */
+type CityRow = {
+  kind: 'city'
+  id: string
+  name: string
+  /** The label to render — the official province name, or the alias the
+   *  user's query matched ("Đà Lạt") with the province as a hint. */
+  label: string
+  /** Province hint shown under the label when an alias matched. */
+  sub?: string
+  region: string
+}
 type PlaceRow = {
   kind: 'place'
   id: string
@@ -109,11 +128,13 @@ const REGION_LABEL_KEYS: Record<string, string> = {
 export function PlaceAutocomplete({
   value,
   onChange,
+  onBlur,
   onPick,
   placeholder,
   icon,
   pinColor = 'blue',
   className,
+  'aria-invalid': ariaInvalid,
 }: Props) {
   const t = useT()
   const [query, setQuery] = useState(value)
@@ -152,16 +173,32 @@ export function PlaceAutocomplete({
     return map[type] ?? type.replace(/_/g, ' ')
   }
 
-  // ── City rows: the hardcoded province list, filtered locally ──
+  // ── City rows: the hardcoded province list, filtered locally.
+  // Matching covers the official name AND the popular city aliases
+  // (typing "Đà Lạt" finds Lâm Đồng, "Nha Trang" finds Khánh Hòa…).
+  // An alias match renders the alias as the row label with the official
+  // province as the hint — the picked VALUE stays the official name so
+  // the backend's slug resolver sees a known province. ──
   const cityRows: CityRow[] = useMemo(() => {
     const nq = noTones(query)
+    const matchCity = (c: VietnameseCity): string | null => {
+      if (nq && noTones(c.name).includes(nq)) return c.name
+      if (nq && c.aliases?.some((a) => noTones(a).includes(nq))) {
+        return c.aliases.find((a) => noTones(a).includes(nq))!
+      }
+      return null
+    }
     const source = nq
-      ? VIETNAMESE_CITIES.filter((c) => noTones(c.name).includes(nq))
-      : VIETNAMESE_CITIES
-    return source.slice(0, nq ? 8 : 12).map((c) => ({
+      ? VIETNAMESE_CITIES.map((c) => ({ c, m: matchCity(c) })).filter(
+          (x): x is { c: VietnameseCity; m: string } => x.m !== null,
+        )
+      : VIETNAMESE_CITIES.map((c) => ({ c, m: c.name }))
+    return source.slice(0, nq ? 8 : 12).map(({ c, m }) => ({
       kind: 'city' as const,
       id: `city-${c.id}`,
       name: c.name,
+      label: m,
+      sub: m !== c.name ? c.name : undefined,
       region: c.region,
     }))
   }, [query])
@@ -265,6 +302,8 @@ export function PlaceAutocomplete({
         <Input
           value={query}
           onChange={(e) => onInput(e.target.value)}
+          onBlur={onBlur}
+          aria-invalid={ariaInvalid || undefined}
           onFocus={() => {
             setOpen(true)
             // If the user has already typed something, immediately debounce-
@@ -333,7 +372,10 @@ export function PlaceAutocomplete({
                 >
                   <Building2 className="h-4 w-4 shrink-0 text-blue-600" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{row.name}</div>
+                    <div className="font-medium truncate">{row.label}</div>
+                    {row.sub && (
+                      <div className="text-xs text-muted-foreground truncate">{row.sub}</div>
+                    )}
                   </div>
                   <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground shrink-0">
                     {t(REGION_LABEL_KEYS[row.region] ?? row.region)}

@@ -11,18 +11,25 @@ import { Button } from '@/components/ui/button'
 import { Search } from 'lucide-react'
 import { buildSearchInput } from '@/lib/search-params'
 import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { searchSchema, type SearchFormValues } from './search-widget-schema'
 import { SearchRouteFields } from './search-route-fields'
 import { SearchDateFields } from './search-date-fields'
 import { SearchPassengerPicker } from './search-passenger-picker'
 import { SearchActionsRow } from './search-actions-row'
 import { PopularRoutesQuickSelect } from './popular-routes-quick-select'
+import { MobileSearchSummary } from './mobile-search-summary'
 
 export function SearchWidget({ compact = false }: { compact?: boolean }) {
   const t = useT()
   const { searchParams, setSearchParams } = useApp()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [paxOpen, setPaxOpen] = useState(false)
+  // Mobile (compact mode): the stacked form lives in a bottom sheet that
+  // opens from the one-line summary row — a 48px bar instead of a ~380px
+  // stacked form covering the results on phones.
+  const [mobileFormOpen, setMobileFormOpen] = useState(false)
   // Local "submitting" flag — we briefly disable the submit button while
   // the router is navigating to /search so the user gets visual feedback.
   // (The actual data fetch happens on the /search route via useTripSearch.)
@@ -150,6 +157,30 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
   // its own validation message, so no manual "open the picker" hint.
   const onSubmit = form.handleSubmit(onValid)
 
+  // ── Compact mode on a PHONE: summary row + bottom-sheet form ──
+  // The full stacked widget measured ~380px on a 844px viewport and sat
+  // above the results — the results column started below the fold. The
+  // summary row keeps the sticky bar at one line; tapping it opens the
+  // form in a sheet with proper focus + big touch targets.
+  if (compact && isMobile) {
+    return (
+      <MobileSearchSummary
+        searchParams={searchParams}
+        setSearchParams={setSearchParams}
+        swap={swap}
+        onOpen={() => setMobileFormOpen(true)}
+        sheetOpen={mobileFormOpen}
+        setSheetOpen={setMobileFormOpen}
+        form={form}
+        onSubmit={form.handleSubmit(async (values) => {
+          await onValid(values)
+          setMobileFormOpen(false)
+        })}
+        submitting={submitting}
+      />
+    )
+  }
+
   return (
     <div
       className={cn(
@@ -160,10 +191,12 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
       <Form {...form}>
         <form onSubmit={onSubmit} className="contents" noValidate aria-label={t('search.title')}>
           {compact ? (
-            /* ── Compact bar (results page): one dense row on md+.
+            /* ── Compact bar (results page, ≥ md): one dense row.
                 Vehicle-type pills are intentionally omitted here — they
                 remain fully available in the results-page filter sidebar /
-                mobile filter sheet, so no functionality is lost. ── */
+                mobile filter sheet, so no functionality is lost. Every
+                field reserves a fixed-height message slot so a validation
+                error on ONE field never staggers the row alignment. ── */
             <>
               <div
                 className={cn(
