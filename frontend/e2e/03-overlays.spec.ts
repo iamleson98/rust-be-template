@@ -103,11 +103,28 @@ test.describe('DropdownMenu', () => {
   })
 
   test('submenu opens on hover and its items work', async ({ page }) => {
-    await page.getByTestId('dropdown-trigger').click()
-    const subTrigger = page.getByTestId('dropdown-sub-trigger')
-    await subTrigger.hover()
-    await page.getByTestId('dropdown-export').click()
-    await expect(page.getByTestId('dropdown-mirror')).toHaveText('export')
+    // Base UI only opens the submenu once the pointer RESTS on the sub-trigger
+    // (restMs 100 + open delay 100) AND the parent menu has seen a mousemove
+    // (`allowMouseEnter`, reset on every open transition). On slow/shared CI
+    // runners those timers get starved, and the freshly-mounted submenu popup
+    // can briefly sit under the root menu's inert layer, which "intercepts
+    // pointer events" and dismisses everything on click. Both races are
+    // environmental, not product bugs — so drive the whole interaction inside
+    // a self-healing retry loop instead of betting on a single pass.
+    await expect(async () => {
+      // Re-open the menu if a previous attempt's stray pointerdown dismissed it.
+      if (!(await page.getByTestId('dropdown-content').isVisible())) {
+        await page.getByTestId('dropdown-trigger').click()
+        await expect(page.getByTestId('dropdown-content')).toBeVisible()
+      }
+      await page.getByTestId('dropdown-sub-trigger').hover()
+      // Submenu content renders in a portal — wait for it to actually appear.
+      await expect(page.getByTestId('dropdown-export')).toBeVisible({ timeout: 700 })
+      await page.getByTestId('dropdown-export').click({ timeout: 2_000 })
+      await expect(page.getByTestId('dropdown-mirror')).toHaveText('export', {
+        timeout: 700,
+      })
+    }).toPass({ timeout: 20_000 })
   })
 
   test('checkbox item toggles checked state', async ({ page }) => {

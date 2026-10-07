@@ -64,12 +64,19 @@ conclusion `skipped`, which branch protection counts as success
 (GitHub-documented: required checks need `successful`, `skipped`, or
 `neutral`) — so the required-check contract keeps working.
 
+**`docker-build` never runs on PRs** (any path filter outcome): the
+smoke build dominates PR wall-clock time, cargo already gates the
+backend code, and `deploy.yml` builds the identical tree when a tag
+ships. It remains part of the matrix for `schedule`, `merge_group`,
+and `workflow_dispatch` runs, where it keeps catching Dockerfile /
+engine-build drift that cargo cannot see.
+
 | Changed files | Jobs that run |
 |---|---|
-| `**/*.rs`, `Cargo.toml`/`lock`, `rust-sql` (submodule pin), `.cargo/`, `deny.toml`, `taplo.toml`, `frontend/openapi.json` | backend, backend-audit, backend-quality, docker-build |
-| `frontend/**` (non-markdown) | frontend, frontend-e2e, docker-build |
+| `**/*.rs`, `Cargo.toml`/`lock`, `rust-sql` (submodule pin), `.cargo/`, `deny.toml`, `taplo.toml`, `frontend/openapi.json` | backend, backend-audit, backend-quality, docker-build (non-PR events only) |
+| `frontend/**` (non-markdown) | frontend, frontend-e2e, docker-build (non-PR events only) |
 | `mobile/**` (non-markdown) | mobile |
-| `Dockerfile`, `.dockerignore` | docker-build |
+| `Dockerfile`, `.dockerignore` | docker-build (non-PR events only) |
 | `.github/**` | **everything** (CI integrity) |
 | `*.md` (anywhere — incl. stack-dir READMEs), `.markdownlint-cli2.yaml`, `.hadolint.yaml`, `.gitleaksignore`, `LICENSE` | repo-hygiene + secrets-scan only (they always run) |
 | anything else (Makefile, `scripts/`, `deploy/`, `terraform/`, configs…) | **everything** — fail-safe |
@@ -85,7 +92,8 @@ Fail-safe rules, in order of precedence:
   filter cannot silently disarm the harness.
 - **repo-hygiene and secrets-scan always run.** They are cheap, whole-tree
   gates — a secret can hide in any file, not just code.
-- **docker-build follows backend + frontend** — the image ships both.
+- **docker-build follows backend + frontend** — the image ships both — but
+  only on non-PR events (see the note above the table).
 
 `frontend/openapi.json` counts as a backend file: the OpenAPI drift and
 SDK-freshness gates (below) stay coupled when the backend API surface
@@ -123,7 +131,7 @@ changes.
 | Repo | Markdown | `markdownlint-cli2` (`.markdownlint-cli2.yaml`) | add `--fix` to the command |
 | Repo | JSON | parse `openapi.json`, `manifest.webmanifest`, tsconfigs… | fix the JSON |
 | Repo | Secrets | gitleaks (full history) + known-leaked-pattern grep | rotate the secret, scrub |
-| Repo | Image | `docker build` end-to-end smoke | fix the Dockerfile |
+| Repo | Image | `docker build` end-to-end smoke — schedule/merge_group/dispatch only, never on PRs | fix the Dockerfile |
 | Security | Semantics | CodeQL `rust` + `javascript-typescript` (weekly re-scan too) | fix the query finding |
 | Classifier | Paths | `changes` job — diff → per-stack booleans (fail-safe) | fix the regex / add the class |
 
