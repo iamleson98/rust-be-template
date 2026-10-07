@@ -57,7 +57,7 @@ no-op; the reason is logged via `console.debug` in dev mode only.
 ## Click-id attribution (`gclid` / `wbraid` / `gbraid`)
 
 Ads auto-tagging appends the click id to the landing URL
-(`https://datxevui.vn/?gclid=EAIa…`). An SPA would normally lose it the
+(`https://datxevui.com/?gclid=EAIa…`). An SPA would normally lose it the
 moment the router rewrites the URL, so `entry-client.tsx` calls
 `captureClickIds()` before the app renders:
 

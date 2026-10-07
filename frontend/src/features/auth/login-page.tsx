@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react'
 import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import { ShieldCheck, Bus, User, ArrowLeft, UserPlus } from 'lucide-react'
+import { ShieldCheck, User, ArrowLeft, UserPlus } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
@@ -68,9 +68,7 @@ export function LoginPage() {
           <div className="relative bg-linear-to-br from-blue-600 via-blue-700 to-blue-800 px-6 pt-6 pb-7 text-white">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,white,transparent_60%)]" />
             <div className="relative flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-white/15 ring-1 ring-white/30 backdrop-blur inline-flex items-center justify-center">
-                <Bus className="h-6 w-6" />
-              </div>
+              <img src="/logo.svg" alt="" aria-hidden className="h-11 w-11 shrink-0" />
               <div>
                 <h1 className="font-bold text-xl leading-tight">DatXeVui</h1>
                 <p className="text-[12px] text-blue-100 mt-0.5">{t('authPage.headerSubtitle')}</p>

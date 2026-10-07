@@ -1,5 +1,5 @@
 /**
- * Service Worker — VeXeVN PWA.
+ * Service Worker — DatXeVui PWA.
  *
  * Caching strategy:
  *   - App shell (HTML/CSS/JS): stale-while-revalidate.
@@ -13,7 +13,8 @@
  *   - fetch: route requests to the right strategy.
  */
 
-const VERSION = 'v1'
+// v2 — new brand logo/icon assets (old precached logo.svg must go).
+const VERSION = 'v2'
 const PRECACHE = `datxevui-precache-${VERSION}`
 const RUNTIME = `datxevui-runtime-${VERSION}`
 

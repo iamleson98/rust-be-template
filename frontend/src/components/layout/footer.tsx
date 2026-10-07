@@ -9,7 +9,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
 import { exchangeRateNote } from '@/lib/currency'
 import {
-  Bus,
   Phone,
   Mail,
   MapPin,
@@ -191,9 +190,7 @@ export const Footer = memo(function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2.5 mb-3">
-              <div className="h-10 w-10 rounded-xl bg-linear-to-br from-blue-400 to-blue-500 flex items-center justify-center">
-                <Bus className="h-5 w-5 text-white" />
-              </div>
+              <img src="/logo.svg" alt="" aria-hidden className="h-10 w-10 shrink-0" />
               <div>
                 <div className="font-extrabold text-white text-lg tracking-tight">DatXeVui</div>
                 <div className="text-[10px] text-blue-400 font-medium -mt-0.5">
@@ -308,10 +305,10 @@ export const Footer = memo(function Footer() {
               </li>
               <li>
                 <a
-                  href="mailto:cskh@datxevui.vn"
+                  href="mailto:cskh@datxevui.com"
                   className="relative flex items-center gap-1.5 text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"
                 >
-                  <Mail className="h-3.5 w-3.5" /> cskh@datxevui.vn
+                  <Mail className="h-3.5 w-3.5" /> cskh@datxevui.com
                 </a>
               </li>
               <li className="flex items-center gap-1.5 text-slate-400">

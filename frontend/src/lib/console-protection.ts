@@ -68,7 +68,7 @@ function logWarning(): void {
     '⚠️ Không nhập thông tin nhạy cảm vào console.',
     '⚠️ Chúng tôi KHÔNG bao giờ yêu cầu bạn chạy script trong console.',
     '',
-    'Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.vn để được cấp quyền dev.',
+    'Nếu bạn là lập trình viên, vui lòng liên hệ admin@datxevui.com để được cấp quyền dev.',
   ].join('\n')
 
   console.log(banner, style)

@@ -11,9 +11,9 @@ import '../../core/env.dart';
 /// run). The server URL is persisted; `--dart-define=API_BASE_URL` locks
 /// it for managed deployments.
 ///
-/// Layout: violet→fuchsia gradient hero (taxi logo mark + "đặt xe vui"
-/// wordmark), then the sign-in card slides over the hero's rounded
-/// bottom edge, then a quiet footer.
+/// Layout: violet→fuchsia gradient hero (DatXeVui "dx + heart" logo +
+/// "đặt xe vui" wordmark), then the sign-in card slides over the hero's
+/// rounded bottom edge, then a quiet footer.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -307,7 +307,7 @@ class _LoginButton extends StatelessWidget {
   }
 }
 
-/// Gradient brand header with the taxi logo mark.
+/// Gradient brand header with the DatXeVui "dx + heart" logo mark.
 class _Hero extends StatelessWidget {
   const _Hero({required this.theme});
 
@@ -332,15 +332,12 @@ class _Hero extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Container(
+          Image.asset(
+            'assets/logo/logo-mark.png',
             width: 84,
             height: 84,
-            decoration: BoxDecoration(
-              color: fg.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(26),
-              border: Border.all(color: fg.withValues(alpha: 0.35), width: 1.2),
-            ),
-            child: Icon(FLucideIcons.carTaxiFront, size: 40, color: fg),
+            fit: BoxFit.contain,
+            excludeFromSemantics: true,
           ),
           const SizedBox(height: 18),
           Text(
