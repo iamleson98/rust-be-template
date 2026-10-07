@@ -1101,29 +1101,43 @@ async fn geo_search_ranks_by_proximity_and_paginates() -> anyhow::Result<()> {
     let near_drop = (20.8660, 106.6840);
     let far_pickup = (21.0790, 105.9030);
     let far_drop = (20.9160, 106.7330);
-    let route_stops: [(uuid::Uuid, (f64, f64), (f64, f64)); 2] = [
-        (route_a.id, near_pickup, near_drop),
-        (route_b.id, far_pickup, far_drop),
+    // A flat struct per route (nested tuples trip clippy::type_complexity).
+    struct RouteStops {
+        route_id: uuid::Uuid,
+        pickup: (f64, f64),
+        drop: (f64, f64),
+    }
+    let route_stops = [
+        RouteStops {
+            route_id: route_a.id,
+            pickup: near_pickup,
+            drop: near_drop,
+        },
+        RouteStops {
+            route_id: route_b.id,
+            pickup: far_pickup,
+            drop: far_drop,
+        },
     ];
-    for (route_id, pickup, drop_pt) in route_stops {
+    for stops in route_stops {
         st.admin
             .create_pickup_point(&backend::dto::admin::UpsertPickupPointRequest {
-                route_id: Some(route_id),
+                route_id: Some(stops.route_id),
                 name: Some("pickup".into()),
                 address: None,
-                lat: Some(pickup.0),
-                lon: Some(pickup.1),
+                lat: Some(stops.pickup.0),
+                lon: Some(stops.pickup.1),
                 stop_order: Some(0),
                 kind: Some("pickup".into()),
             })
             .await?;
         st.admin
             .create_pickup_point(&backend::dto::admin::UpsertPickupPointRequest {
-                route_id: Some(route_id),
+                route_id: Some(stops.route_id),
                 name: Some("drop".into()),
                 address: None,
-                lat: Some(drop_pt.0),
-                lon: Some(drop_pt.1),
+                lat: Some(stops.drop.0),
+                lon: Some(stops.drop.1),
                 stop_order: Some(1),
                 kind: Some("drop".into()),
             })
