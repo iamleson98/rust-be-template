@@ -52,11 +52,18 @@ export function SearchResults({
   // the hook) keeps the previous results visible while the new ones load,
   // so filter changes feel instantaneous.
   //
+  // LOADING FEEDBACK: with keepPreviousData `isLoading` stays false on a
+  // key switch (the observer is never pending), so `fetchingNew`
+  // (isPlaceholderData || in-flight first fetch) is what drives the
+  // "searching…" skeleton — without it a re-search gave ZERO visual
+  // feedback while the old list stayed on screen.
+  //
   // BROWSE MODE: when from/to aren't both set there is nothing to
   // search for — instead of a dead-end "no results" page, the
   // RouteDirectory below renders the full active-route catalog.
   const browseMode = !routeSearch.from || !routeSearch.to
   const smartMode = isSmartSearch(routeSearch)
+  const hasDate = !!routeSearch.date && String(routeSearch.date).trim() !== ''
   const tripSearchParams: TripSearchParams | null =
     routeSearch.from && routeSearch.to
       ? {
@@ -77,8 +84,20 @@ export function SearchResults({
           toCity: routeSearch.toCity,
         }
       : null
-  const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
-  const searchResults = searchData?.items ?? EMPTY_ITEMS
+  const {
+    data: searchData,
+    isLoading: searchLoading,
+    isPlaceholderData,
+    isFetching,
+  } = useTripSearch(tripSearchParams)
+  // A re-search in flight while the previous results are still rendered.
+  const fetchingNew = isPlaceholderData || (isFetching && !searchData)
+  // Stale-data gate: when the query is DISABLED (from/to set but no
+  // date — e.g. a quick link that dropped it) keepPreviousData would
+  // keep rendering the PREVIOUS search's trips forever under the new
+  // heading. Treat a dateless search as "no results" so the pick-a-date
+  // prompt shows instead.
+  const searchResults = hasDate ? (searchData?.items ?? EMPTY_ITEMS) : EMPTY_ITEMS
 
   // slug → display name for the active brand chips.
   const brandNames = useMemo(() => {
@@ -279,9 +298,11 @@ export function SearchResults({
 
   return (
     <div className="bg-slate-50 min-h-[60vh]">
-      {/* Compact search bar */}
+      {/* Compact search bar — sticky under the header. On phones the
+          SearchWidget collapses to a one-line summary (opens a bottom
+          sheet), so this bar stays ~72px instead of covering the page. */}
       <div className="bg-white/90 backdrop-blur-lg border-b sticky top-16 z-30">
-        <div className="container mx-auto px-4 py-3">
+        <div className="container mx-auto px-4 py-2 md:py-3">
           <SearchWidget compact />
         </div>
       </div>
@@ -294,29 +315,23 @@ export function SearchResults({
         </div>
       ) : (
         <>
-          {/* Search-mode indicator — replaces the old 7-request
-              "compare nearby dates" strip (the removed advance-days
-              feature). Exact-date search: one request for the chosen
-              day only; each result card shows the trip's exact
-              remaining seats. In smart mode the geo proximity endpoint
-              ranks trips by combined pickup+drop distance. */}
-          <div className="bg-white/80 backdrop-blur border-b">
-            <div className="container mx-auto px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-medium">
-                {smartMode ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-3 py-1.5 text-emerald-700">
+          {/* Search-mode indicator — SMART MODE ONLY, one compact chip.
+              The default city-to-city mode needs no banner (it's the
+              baseline), and the old full-sentence tooltip ate vertical
+              space. The chip is a single short label; the long
+              explanation lives in the trip-detail page instead. */}
+          {smartMode && (
+            <div className="bg-white/80 backdrop-blur border-b">
+              <div className="container mx-auto px-4 py-2">
+                <div className="flex items-center gap-2 text-xs font-medium">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-3 py-1 text-emerald-700">
                     <Navigation2 className="h-3.5 w-3.5" />
-                    {t('searchPage.smartSearchActive')}
+                    {t('searchPage.smartSearchShort')}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 ring-1 ring-blue-100 px-3 py-1.5 text-blue-700">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    {t('searchPage.citySearchActive')}
-                  </span>
-                )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="container mx-auto px-4 py-6">
             <div className="flex flex-col lg:flex-row gap-6">
@@ -343,7 +358,7 @@ export function SearchResults({
                       {routeSearch.from} → {routeSearch.to}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                      {searchLoading
+                      {searchLoading || fetchingNew
                         ? t('searchPage.searchingTrips')
                         : t('searchPage.tripsFound', {
                             found: filteredResults.length,
@@ -461,7 +476,7 @@ export function SearchResults({
                   </div>
                 )}
                 <TripResultsList
-                  searchLoading={searchLoading}
+                  searchLoading={searchLoading || fetchingNew}
                   searchResults={searchResults}
                   filteredResults={filteredResults}
                   activeFilterCount={activeFilterCount}
@@ -469,10 +484,8 @@ export function SearchResults({
                   navigate={navigate}
                   // When no date is picked the search query is disabled — the
                   // list shows a "pick a date" prompt instead of the generic
-                  // "no trips found" empty state.
-                  awaitingDate={
-                    !browseMode && (!routeSearch.date || String(routeSearch.date).trim() === '')
-                  }
+                  // "no trips found" empty state (or stale previous results).
+                  awaitingDate={!browseMode && !hasDate}
                 />
               </div>
             </div>

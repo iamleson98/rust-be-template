@@ -534,6 +534,13 @@ pub fn name_for_slug(slug: &str) -> String {
 /// explicit table. Everything else (`Hà Nội` → `hanoi`, `Đà Nẵng` →
 /// `danang`, …) is handled by diacritic-stripping + alnum-only
 /// normalization in [`normalize_for_match`].
+///
+/// Beyond the nicknames, this also carries the popular CITY names that
+/// differ from the official PROVINCE names travelers never type —
+/// "Đà Lạt" (not "Lâm Đồng"), "Nha Trang" (not "Khánh Hòa"), "Vũng Tàu",
+/// "Phan Thiết", "Hội An", "Quy Nhơn"… Each alias is normalized the
+/// same way as the query, so `match_city_slugs("Đà Lạt")` → `lam-dong`.
+/// Mirrors the frontend autocomplete's alias list — keep both in sync.
 const CITY_ALIASES: &[(&str, &[&str])] = &[
     (
         "ho-chi-minh",
@@ -543,6 +550,24 @@ const CITY_ALIASES: &[(&str, &[&str])] = &[
     ("da-nang", &["dn"]),
     ("hai-phong", &["hp"]),
     ("can-tho", &["ct"]),
+    ("quang-ninh", &["halong"]),
+    ("nghe-an", &["vinh"]),
+    ("hue", &["hue"]),
+    ("quang-nam", &["hoian"]),
+    ("binh-dinh", &["quynhon"]),
+    ("phu-yen", &["tuyhoa"]),
+    ("khanh-hoa", &["nhatrang"]),
+    ("binh-thuan", &["phanthiet"]),
+    ("gia-lai", &["pleiku"]),
+    ("dak-lak", &["buonmathuot", "buonmathuat"]),
+    ("lam-dong", &["dalat", "daliat"]),
+    ("ba-ria-vung-tau", &["vungtau", "baria"]),
+    ("dong-nai", &["bienhoa"]),
+    ("tien-giang", &["mytho"]),
+    ("dong-thap", &["sadec", "caolanh"]),
+    ("an-giang", &["chaudoc", "longxuyen"]),
+    ("kien-giang", &["rachgia", "phuquoc"]),
+    ("hau-giang", &["vithanh"]),
 ];
 
 /// Normalize a free-text place query for matching: lowercase, strip
@@ -711,6 +736,23 @@ mod tests {
         assert_eq!(match_city_slugs("hcm"), vec!["ho-chi-minh"]);
         assert_eq!(match_city_slugs("tphcm"), vec!["ho-chi-minh"]);
         assert_eq!(match_city_slugs("hn"), vec!["ha-noi"]);
+    }
+
+    #[test]
+    fn popular_city_names_resolve_to_their_provinces() {
+        // Travelers type the CITY, not the province — the footer
+        // quick-routes and the autocomplete aliases send these exact
+        // strings.
+        assert_eq!(match_city_slugs("Đà Lạt"), vec!["lam-dong"]);
+        assert_eq!(match_city_slugs("Da Lat"), vec!["lam-dong"]);
+        assert_eq!(match_city_slugs("Nha Trang"), vec!["khanh-hoa"]);
+        assert_eq!(match_city_slugs("Vũng Tàu"), vec!["ba-ria-vung-tau"]);
+        assert_eq!(match_city_slugs("Huế"), vec!["hue"]);
+        assert_eq!(match_city_slugs("Phan Thiết"), vec!["binh-thuan"]);
+        assert_eq!(match_city_slugs("Hội An"), vec!["quang-nam"]);
+        assert_eq!(match_city_slugs("Quy Nhơn"), vec!["binh-dinh"]);
+        assert_eq!(match_city_slugs("Phú Quốc"), vec!["kien-giang"]);
+        assert_eq!(match_city_slugs("Hạ Long"), vec!["quang-ninh"]);
     }
 
     #[test]

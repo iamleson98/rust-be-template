@@ -104,7 +104,7 @@ function PendingRideCard({
   const t = useT()
   const trip = booking.trip
   return (
-    <Card className="group ring-1 ring-black/5 overflow-hidden">
+    <Card className="group border-border overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
@@ -179,7 +179,7 @@ function SentFeedbackCard({
   const status = REVIEW_STATUS[review.status] ?? REVIEW_STATUS.pending
   const canEdit = !!booking && review.status !== 'approved'
   return (
-    <Card className="ring-1 ring-black/5 overflow-hidden">
+    <Card className="border-border overflow-hidden">
       <div className="px-4 py-4 space-y-3">
         {/* Ride context line */}
         <div className="flex items-center justify-between gap-3">
@@ -271,7 +271,7 @@ function SentFeedbackCard({
 /* ── Skeletons (structure-matched, never a white flash) ────────── */
 function PendingRideSkeleton() {
   return (
-    <Card className="ring-1 ring-black/5 overflow-hidden" aria-hidden>
+    <Card className="border-border overflow-hidden" aria-hidden>
       <div className="px-4 py-3.5 flex items-center gap-4">
         <Skeleton className="size-11 rounded-xl" />
         <div className="flex-1 space-y-2">
@@ -286,7 +286,7 @@ function PendingRideSkeleton() {
 
 function SentFeedbackSkeleton() {
   return (
-    <Card className="ring-1 ring-black/5 overflow-hidden" aria-hidden>
+    <Card className="border-border overflow-hidden" aria-hidden>
       <div className="px-4 py-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -427,7 +427,7 @@ export function AccountFeedbackContent() {
           {bookingsLoading ? (
             Array.from({ length: 3 }).map((_, i) => <PendingRideSkeleton key={i} />)
           ) : pendingBookings.length === 0 ? (
-            <Card className="ring-1 ring-black/5">
+            <Card className="border-border">
               <CardContent className="py-12 px-6 text-center space-y-2">
                 <div className="mx-auto size-12 rounded-2xl bg-emerald-500/10 grid place-items-center">
                   <Star className="size-6 fill-emerald-500 text-emerald-500" />
@@ -464,7 +464,7 @@ export function AccountFeedbackContent() {
           {reviewsLoading && !reviewsData ? (
             Array.from({ length: 3 }).map((_, i) => <SentFeedbackSkeleton key={i} />)
           ) : reviews.length === 0 ? (
-            <Card className="ring-1 ring-black/5">
+            <Card className="border-border">
               <CardContent className="py-12 px-6 text-center space-y-2">
                 <div className="mx-auto size-12 rounded-2xl bg-amber-500/10 grid place-items-center">
                   <MessageSquareHeart className="size-6 text-amber-500" />

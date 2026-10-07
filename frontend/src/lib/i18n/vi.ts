@@ -1893,9 +1893,9 @@ export const vi: TranslationMap = {
   'searchPage.regionNorth': 'Miền Bắc',
   'searchPage.regionCentral': 'Miền Trung',
   'searchPage.regionSouth': 'Miền Nam',
-  'searchPage.smartSearchActive':
-    'Tìm kiếm thông minh: hiển thị các chuyến có điểm đón và điểm trả gần nhất với vị trí bạn chọn',
-  'searchPage.citySearchActive': 'Hiển thị các chuyến giữa hai thành phố đã chọn',
+  'searchPage.smartSearchShort': 'Tìm kiếm thông minh',
+  'searchPage.editSearch': 'Sửa tìm kiếm',
+  'searchPage.paxCountUnit': 'khách',
   'searchPage.placeCity': 'Thành phố',
   'searchPage.placeTown': 'Thị trấn',
   'searchPage.placeVillage': 'Xã / làng',

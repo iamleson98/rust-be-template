@@ -34,6 +34,16 @@ export type RouteSearch = {
   toCity?: string
 }
 
+/** Parse the canonical `vt` URL param ("limousine,sleeper") into the
+ *  array the app consumes. Empty/missing → []. */
+function parseVehicleTypes(vt: string | undefined): string[] {
+  if (typeof vt !== 'string' || !vt) return []
+  return vt
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export function SearchPage() {
   const raw = useSearch({ from: '/search' })
   const { setSearchParams } = useApp()
@@ -50,7 +60,7 @@ export function SearchPage() {
       adults: raw.adults ?? 1,
       children: raw.children ?? 0,
       sort: raw.sort ?? 'departure',
-      vehicleTypes: raw.vehicleTypes ?? [],
+      vehicleTypes: parseVehicleTypes(raw.vt),
       roundTrip: raw.roundTrip ?? false,
       returnDate: raw.returnDate ?? '',
       fromLat: raw.fromLat,
@@ -67,7 +77,7 @@ export function SearchPage() {
       raw.adults,
       raw.children,
       raw.sort,
-      raw.vehicleTypes,
+      raw.vt,
       raw.roundTrip,
       raw.returnDate,
       raw.fromLat,
