@@ -28,6 +28,7 @@ class CallUiState {
     this.status = CallStatus.idle,
     this.peerId,
     this.peerName = '',
+    this.peerAvatar,
     this.channelId,
     this.remoteOffer,
     this.startedAt,
@@ -44,7 +45,17 @@ class CallUiState {
   /// routing goes to THIS id — never the literal 'agent'.
   final String? peerId;
 
+  /// The CALLER's display name — `incoming.callerName` (captured at
+  /// offer time from the caller's verified auth session, never
+  /// client-supplied) when the call is inbound, or the customer's
+  /// name for agent-initiated calls. The ringing UI shows this so the
+  /// agent always sees WHO is calling.
   final String peerName;
+
+  /// The caller's avatar URL, when their auth session carries one —
+  /// rendered on the ringing + active call screen.
+  final String? peerAvatar;
+
   final String? channelId;
 
   /// The pending SDP offer while `incoming` (JSON: `{type, sdp}`).
@@ -69,6 +80,7 @@ class CallUiState {
     CallStatus? status,
     String? peerId,
     String? peerName,
+    String? peerAvatar,
     String? channelId,
     Map<String, dynamic>? remoteOffer,
     DateTime? startedAt,
@@ -79,10 +91,12 @@ class CallUiState {
     bool clearOffer = false,
     bool clearError = false,
     bool clearReason = false,
+    bool clearAvatar = false,
   }) => CallUiState(
     status: status ?? this.status,
     peerId: peerId ?? this.peerId,
     peerName: peerName ?? this.peerName,
+    peerAvatar: clearAvatar ? null : (peerAvatar ?? this.peerAvatar),
     channelId: channelId ?? this.channelId,
     remoteOffer: clearOffer ? null : (remoteOffer ?? this.remoteOffer),
     startedAt: startedAt ?? this.startedAt,

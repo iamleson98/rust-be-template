@@ -35,6 +35,12 @@ dependencies:
   # Calls (audio over WebRTC; signaling via /ws-call).
   flutter_webrtc: ^1.6.0
 
+  # iOS production call receiving: PushKit VoIP pushes + the native
+  # CallKit incoming-call screen (Apple requires every VoIP push to be
+  # reported to CallKit). Android keeps the in-app call screen +
+  # FCM/full-screen-notification path — the plugin is dormant there.
+  flutter_callkit_incoming: ^3.1.6
+
   # Persistence.
   flutter_secure_storage: ^11.0.0
   shared_preferences: ^2.5.0

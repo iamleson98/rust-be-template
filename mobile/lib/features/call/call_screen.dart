@@ -15,6 +15,14 @@ import 'call_state.dart';
 /// The screen is intentionally audio-first — the production flow is a
 /// customer tapping the call button on the web widget; remote audio plays
 /// through the earpiece/loudspeaker (see [CallEngine]).
+///
+/// The ringing state leads with the CALLER'S IDENTITY — big avatar (image
+/// when the caller's auth session carries one, initials-on-gradient
+/// otherwise), their name, and a soft animated wave — so the agent always
+/// sees exactly WHO is calling before deciding to pick up. The identity
+/// travels in the signaling frame (`callerName`/`callerAvatar`, captured
+/// from the caller's verified auth session) and in the VoIP push that
+/// wakes a suspended iPhone (CallKit shows the same name).
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({super.key});
 
@@ -55,6 +63,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
 
     final status = _statusText(call);
+    final ringing =
+        call.status == CallStatus.incoming || call.status == CallStatus.calling;
+    final name = call.peerName.isEmpty ? 'Khách hàng' : call.peerName;
 
     return Scaffold(
       body: Container(
@@ -77,14 +88,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             children: [
               const Spacer(flex: 2),
               PulsingAvatar(
-                pulse:
-                    call.status == CallStatus.incoming ||
-                    call.status == CallStatus.calling,
-                child: AgentAvatar(name: call.peerName, size: 112),
+                pulse: ringing,
+                child: AgentAvatar(
+                  name: name,
+                  imageUrl: call.peerAvatar,
+                  size: 112,
+                ),
               ),
               const SizedBox(height: 24),
+              // ── WHO is calling: the name, hero-sized. ─────────────────
               Text(
-                call.peerName.isEmpty ? 'Khách hàng' : call.peerName,
+                name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: theme.typography.display.xl.copyWith(
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,

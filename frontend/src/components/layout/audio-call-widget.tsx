@@ -139,6 +139,8 @@ export function AudioCallWidget() {
   const [callDuration, setCallDuration] = useState(0)
   const [incomingFrom, setIncomingFrom] = useState<{
     from: string
+    callerName?: string
+    callerAvatar?: string
     sdp: RTCSessionDescriptionInit
   } | null>(null)
 
@@ -307,12 +309,13 @@ export function AudioCallWidget() {
       setAgentInCall(false)
       setAgentsAvailable(false)
     })
-    client.on('incoming', ({ from, sdp }) => {
-      setIncomingFrom({ from, sdp })
+    client.on('incoming', ({ from, sdp, callerName, callerAvatar }) => {
+      setIncomingFrom({ from, sdp, callerName, callerAvatar })
       // ── Browser push notification for incoming call (when page is hidden).
-      // Label the caller by OUR perspective: agents are called BY
-      // customers; a customer being called back is called by staff.
-      notifyIncomingCall(isAgent ? t('users.roleUser') : t('chat.agentName'))
+      // Lead with the CALLER'S identity (captured server-side from the
+      // caller's verified auth session); fall back to the role label
+      // our perspective implies when the server didn't send one.
+      notifyIncomingCall(callerName ?? (isAgent ? t('users.roleUser') : t('chat.agentName')))
     })
     client.on('quality', (q) => {
       setQuality({
@@ -634,11 +637,25 @@ export function AudioCallWidget() {
               )}
               {state === 'incoming' && incomingFrom && (
                 <div className="flex flex-col items-center gap-2">
+                  {/* WHO is calling: avatar + name lead the ring so the
+                      callee can decide instantly (identity captured
+                      server-side from the caller's verified session). */}
+                  {incomingFrom.callerAvatar && (
+                    <img
+                      src={incomingFrom.callerAvatar}
+                      alt=""
+                      className="h-14 w-14 rounded-full object-cover ring-2 ring-emerald-500/40 animate-pulse"
+                    />
+                  )}
                   <PhoneIncoming className="h-8 w-8 text-emerald-600 animate-bounce" />
                   <div className="text-sm text-zinc-600 dark:text-zinc-300">
                     {isAgent
-                      ? t('layout.call.incomingFromCustomer')
-                      : t('layout.call.incomingFromAgent')}
+                      ? t('layout.call.incomingFromCustomer', {
+                          name: incomingFrom.callerName ?? t('users.roleUser'),
+                        })
+                      : t('layout.call.incomingFromAgent', {
+                          name: incomingFrom.callerName ?? t('chat.agentName'),
+                        })}
                   </div>
                 </div>
               )}

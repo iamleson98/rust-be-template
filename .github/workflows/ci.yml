@@ -731,11 +731,19 @@ jobs:
   docker-build:
     name: Docker image build (smoke)
     needs: changes
+    # PRs SKIP the docker smoke build: it dominates PR wall-clock time
+    # (cache-cold builds of the rust-sql engine can run 20+ minutes) and
+    # cargo already gates the backend code on every PR — the same tree is
+    # built anyway by deploy.yml when a tag ships. A skipped job reports
+    # conclusion "skipped", which branch protection counts as success, so
+    # the required-check contract keeps working. The job still runs on
+    # schedule (weekly drift canary), merge_group, and workflow_dispatch.
     if: |
-      needs.changes.outputs.run_all == 'true' ||
-      needs.changes.outputs.backend == 'true' ||
-      needs.changes.outputs.frontend == 'true' ||
-      needs.changes.outputs.docker == 'true'
+      github.event_name != 'pull_request' &&
+      (needs.changes.outputs.run_all == 'true' ||
+       needs.changes.outputs.backend == 'true' ||
+       needs.changes.outputs.frontend == 'true' ||
+       needs.changes.outputs.docker == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

@@ -206,7 +206,33 @@ sender that relays every ring (`incoming-call`) and cancellation
    the same full-screen call notification the local path already
    renders; `call-ended` dismisses it.
 
-The payload contract (`{"type":"incoming-call","customerId":...}` /
-`{"type":"call-ended",...}` with `collapseKey = call-<customerId>`)
-matches the WS frames, and `NotificationService.onTap` already routes
-`{"type":"call"}` taps to the call screen.
+The payload contract (`{"type":"incoming-call","customerId":...,
+"callerName":...,"callerAvatar":...}` / `{"type":"call-ended",...}`
+with `collapseKey = call-<customerId>`) matches the WS frames, and
+`NotificationService.onTap` already routes `{"type":"call"}` taps to
+the call screen.
+
+### iOS VoIP push + CallKit (built-in, needs `APNS_*` env)
+
+iOS freezes a backgrounded app seconds after it leaves the screen —
+no foreground service, no live socket. Production call receiving rides
+Apple's only path: APNs **VoIP pushes** (which wake even a terminated
+app) reported to **CallKit** (iOS 13+ requirement). The app ships the
+full client half:
+
+- `flutter_callkit_incoming` + PushKit wiring in
+  `ios/Runner/AppDelegate.swift` — the native incoming-call screen
+  rings with the **caller's name and avatar** from the push payload;
+- `lib/features/call/callkit_service.dart` — registers the VoIP token
+  with `POST /api/push/devices` after login (and clears it on logout),
+  bridges native Accept/Decline into the shared call controller
+  (including the accept-before-offer race), and ends orphan native
+  rings on any call-state exit;
+- the backend re-delivers the missed `incoming` offer when the freshly
+  woken socket re-registers (`re_deliver_missed_offer_to`), so the
+  CallKit Accept actually connects a call.
+
+Setup (Apple console `.p8` key + the `APNS_*` env group, sandbox flag
+while on dev profiles) is documented end-to-end in
+[`docs/IOS_CALLS.md`](../docs/IOS_CALLS.md). Android is unaffected:
+the plugin stays dormant there and duty mode + FCM keep covering it.

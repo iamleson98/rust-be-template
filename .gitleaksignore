@@ -8,6 +8,13 @@
 # registered anywhere) and exists only inside a #[cfg(test)] block.
 7520a398d4db2aa4e5f5227dee0e23bc8afb2096:src/push/fcm.rs:private-key:274
 
+# src/push/apns.rs:212 — TEST_EC_KEY is a THROWAWAY P-256 key generated
+# in this repo's CI-sandbox (`openssl ecparam -name prime256v1 -genkey |
+# openssl pkcs8 -topk8 -nocrypt`) purely to unit-test that the Apple
+# .p8 APNs provider-key format (PKCS#8 EC) parses. Same class as the
+# RSA fixture above: unlocks nothing, exists only in #[cfg(test)].
+b16222b607af63d04a3fa38e5ef053760b3f77a4:src/push/apns.rs:private-key:212
+
 # ff28e78a:frontend/src/lib/queries/index.ts:89 — generated SDK re-export
 # names (aliased query-key / mutation helper renames) that trip the
 # generic-api-key entropy heuristic. No secret involved.

@@ -7,6 +7,7 @@ import 'core/duty_mode.dart';
 import 'core/router.dart';
 import 'core/theme_mode.dart';
 import 'features/call/call_controller.dart';
+import 'features/call/callkit_service.dart';
 import 'features/chat/chat_service.dart';
 import 'features/call/call_signaling.dart';
 import 'features/notifications/notification_service.dart';
@@ -77,6 +78,10 @@ class _DatXeVuiAppState extends ConsumerState<DatXeVuiApp>
   Widget build(BuildContext context) {
     // Keep the alert wiring alive for the app's lifetime.
     ref.watch(agentAlertsProvider);
+    // Same for the iOS CallKit bridge (no-op provider on Android/web):
+    // VoIP-token registration, native accept/decline bridging into the
+    // shared call state, and orphan-native-ring reconciliation.
+    ref.watch(callKitServiceProvider);
 
     final mode = ref.watch(themeModeProvider);
     final dark = switch (mode) {
