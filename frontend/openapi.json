@@ -12772,20 +12772,18 @@
           "items"
         ],
         "properties": {
+          "hasMore": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True when more matching trips exist past this page — the signal for the frontend's \"load more\" button. Omitted on non-paginated responses."
+          },
           "items": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TripResult"
             }
-          },
-          "total": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Total matching trips across ALL pages (before the offset window is applied). Omitted on non-paginated responses.",
-            "minimum": 0
           },
           "limit": {
             "type": [
@@ -12805,12 +12803,14 @@
             "description": "Index of the first item inside this page. Omitted on non-paginated responses.",
             "minimum": 0
           },
-          "hasMore": {
+          "total": {
             "type": [
-              "boolean",
+              "integer",
               "null"
             ],
-            "description": "True when more matching trips exist past this page — the signal for the frontend's \"load more\" button. Omitted on non-paginated responses."
+            "format": "int64",
+            "description": "Total matching trips across ALL pages (before the offset window is applied). Omitted on non-paginated responses.",
+            "minimum": 0
           }
         }
       },
