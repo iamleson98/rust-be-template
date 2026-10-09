@@ -82,7 +82,9 @@ export function SearchPassengerPicker({
                 </PopoverContent>
               </Popover>
             </div>
-            <FormMessage />
+            <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+              <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
+            </div>
           </FormItem>
         )}
       />

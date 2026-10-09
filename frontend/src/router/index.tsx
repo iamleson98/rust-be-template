@@ -19,7 +19,7 @@ import { AccountLayout } from '@/app/layout/account-layout'
 import { AdminLayout } from '@/app/layout/admin-layout'
 import { NotFoundPage } from '@/app/not-found'
 import { RootLayout } from '@/app/root-layout'
-import { parseSearch, SEARCH_DEFAULTS, type SearchInput } from '@/lib/search-params'
+import { parseSearch, SEARCH_DEFAULTS, toQuery, type SearchInput } from '@/lib/search-params'
 import { requireAdmin, requireAuth, requireStaff } from './guards'
 
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage })
@@ -36,10 +36,10 @@ const home = createRoute({
 const search = createRoute({
   getParentRoute: () => rootRoute,
   path: '/search',
-  // Typed input for links; output has every default applied, and the URL
-  // only carries what differs from them.
+  // Typed input for links; the output is the URL form with every default
+  // applied, and the URL only carries what differs from them.
   validateSearch: (raw: SearchInput & SearchSchemaInput) =>
-    parseSearch(raw as Record<string, unknown>),
+    toQuery(parseSearch(raw as Record<string, unknown>)),
   search: { middlewares: [stripSearchParams(SEARCH_DEFAULTS)] },
   component: lazy(() => import('@/features/search/search-page'), 'SearchPage'),
   staticData: { seo: 'search' },

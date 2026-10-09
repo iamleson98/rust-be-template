@@ -27,7 +27,7 @@ export function PendingRideCard({
   const t = useT()
   const trip = booking.trip
   return (
-    <Card className="group overflow-hidden ring-1 ring-black/5">
+    <Card className="group overflow-hidden border-border">
       <button
         type="button"
         onClick={onToggle}
@@ -78,7 +78,7 @@ export function PendingRideCard({
 
 export function PendingRideSkeleton() {
   return (
-    <Card className="overflow-hidden ring-1 ring-black/5" aria-hidden>
+    <Card className="overflow-hidden border-border" aria-hidden>
       <div className="flex items-center gap-4 px-4 py-3.5">
         <Skeleton className="size-11 rounded-xl" />
         <div className="flex-1 space-y-2">

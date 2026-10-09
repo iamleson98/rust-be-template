@@ -145,6 +145,37 @@ fn compute_iso_timestamps(
     (Some(dep_iso), None)
 }
 
+/// Build the trip's arrival ISO timestamp from its departure date, the
+/// schedule's departure time and the last stop's arrival time
+/// (admin-configured `HH:MM`, validated on write). If the arrival
+/// clock time is not after the departure clock time the trip crosses
+/// midnight, so the calendar day rolls over +1 — this is what lets the
+/// client flag "overnight" and show the correct arrival date. Returns
+/// `None` when the schedule has no arrival times configured at all
+/// (the frontend shows an honest "view detail" hint for that gap).
+fn compute_arrival_iso(
+    departure_date: &str,
+    departure_hhmm: &str,
+    arrival_hhmm: &str,
+) -> Option<String> {
+    let minutes_of = |t: &str| -> Option<i64> {
+        let (h, m) = t.split_once(':')?;
+        let h: i64 = h.parse().ok()?;
+        let m: i64 = m.parse().ok()?;
+        Some(h * 60 + m)
+    };
+    let arr = minutes_of(arrival_hhmm)?;
+    let dep = minutes_of(departure_hhmm).unwrap_or(i64::MIN);
+    let date_only = departure_date.split('T').next().unwrap_or(departure_date);
+    let base = chrono::NaiveDate::parse_from_str(date_only, "%Y-%m-%d").ok()?;
+    let day = if arr <= dep {
+        base + chrono::Duration::days(1)
+    } else {
+        base
+    };
+    Some(format!("{}T{}:00", day.format("%Y-%m-%d"), arrival_hhmm))
+}
+
 /// Amenity key → Vietnamese label.
 fn amenity_label(key: &str) -> &'static str {
     match key {
@@ -739,6 +770,28 @@ impl PublicService {
             .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
             .collect();
 
+        // Batch-load the schedules' stop timetables — the LAST stop's
+        // arrival time becomes the trip's `arrival_at` so the result
+        // cards show real "start city + start time / end city + end
+        // time" pairs instead of a destination name with no time.
+        // Rows arrive ordered by stop_order asc, so inserting only on
+        // non-empty times leaves each schedule's LATEST timed stop in
+        // the map (a trailing stop without a time falls back to the
+        // previous one that has it).
+        let schedule_point_rows = self
+            .store
+            .address_store()
+            .list_points_by_schedules(sched_map.values().map(|s| s.id).collect::<Vec<Uuid>>())
+            .await
+            .unwrap_or_default();
+        let mut arrival_map: std::collections::HashMap<Uuid, String> =
+            std::collections::HashMap::new();
+        for p in &schedule_point_rows {
+            if let Some(t) = p.arrival_time.as_deref().filter(|t| !t.is_empty()) {
+                arrival_map.insert(p.schedule_id, t.to_string());
+            }
+        }
+
         // Build trip results
         let items: Vec<TripResult> = trips
             .iter()
@@ -765,10 +818,18 @@ impl PublicService {
                 let to_place = place_map.get(route.end_location_id.as_str());
 
                 let amenities = parse_amenities(&sched.amenities);
-                let (dep_iso, arr_iso) = compute_iso_timestamps(
+                let (dep_iso, _) = compute_iso_timestamps(
                     &Some(t.departure_date.clone()),
                     &Some(sched.departure_time.clone()),
                 );
+                // Real arrival from the last configured stop; overnight
+                // crossings roll the date +1 inside compute_arrival_iso.
+                let arr_iso = arrival_map
+                    .get(&sched.id)
+                    .filter(|t| !t.is_empty())
+                    .and_then(|hhmm| {
+                        compute_arrival_iso(&t.departure_date, &sched.departure_time, hhmm)
+                    });
 
                 Some(TripResult {
                     trip_id: t.id,
@@ -1092,6 +1153,40 @@ impl PublicService {
             }
         };
 
+        // Resolve the matched routes' start/end cities — the result cards
+        // show real city names ("Hà Nội → Đà Nẵng"), NOT the user's raw
+        // search coordinates which used to leak into from_name/to_name.
+        let geo_route_map: HashMap<Uuid, route::Model> = self
+            .store
+            .route_store()
+            .list_routes_by_ids(paged.iter().map(|m| m.route_id).collect())
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|r| (r.id, r))
+            .collect();
+        let geo_city_map: std::collections::HashMap<&str, &crate::cities::City> = geo_route_map
+            .values()
+            .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
+            .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
+            .collect();
+
+        // Last-stop arrival times per schedule (same rule as the text
+        // search — see the arrival_map comment there).
+        let geo_arrival_rows = self
+            .store
+            .address_store()
+            .list_points_by_schedules(schedule_map.values().map(|s| s.id).collect::<Vec<Uuid>>())
+            .await
+            .unwrap_or_default();
+        let mut geo_arrival_map: std::collections::HashMap<Uuid, String> =
+            std::collections::HashMap::new();
+        for p in &geo_arrival_rows {
+            if let Some(t) = p.arrival_time.as_deref().filter(|t| !t.is_empty()) {
+                geo_arrival_map.insert(p.schedule_id, t.to_string());
+            }
+        }
+
         // Build items — sorted by combined_distance_km (already sorted)
         let mut items: Vec<TripResult> = Vec::new();
         for trip in &trips {
@@ -1116,6 +1211,14 @@ impl PublicService {
             }
 
             let brand = m.brand_id.and_then(|bid| brand_map.get(&bid)).cloned();
+
+            // Route's own start/end cities (fall back to the raw
+            // coordinates only when the slug doesn't resolve — data
+            // corruption case, same contract as the text search).
+            let route_model = geo_route_map.get(&schedule.route_id);
+            let from_city =
+                route_model.and_then(|r| geo_city_map.get(r.start_location_id.as_str()));
+            let to_city = route_model.and_then(|r| geo_city_map.get(r.end_location_id.as_str()));
 
             let amenities: Vec<String> = schedule
                 .amenities
@@ -1148,15 +1251,27 @@ impl PublicService {
                 brand_accent: brand
                     .and_then(|b| b.accent_color.clone())
                     .unwrap_or_default(),
-                from_name: format!("{:.4}, {:.4}", from_lat, from_lon),
-                to_name: format!("{:.4}, {:.4}", to_lat, to_lon),
-                from_lat,
-                from_lon,
-                to_lat,
-                to_lon,
+                from_name: from_city.map(|c| c.name.to_string()).unwrap_or_default(),
+                from_lat: from_city.map(|c| c.lat).unwrap_or(from_lat),
+                from_lon: from_city.map(|c| c.lon).unwrap_or(from_lon),
+                to_name: to_city.map(|c| c.name.to_string()).unwrap_or_default(),
+                to_lat: to_city.map(|c| c.lat).unwrap_or(to_lat),
+                to_lon: to_city.map(|c| c.lon).unwrap_or(to_lon),
                 departure_time: Some(schedule.departure_time.clone()),
-                departure_at: trip.actual_departure_at.clone(),
-                arrival_at: None,
+                // Same computed departure as the text search (the
+                // actual_departure_at live-tracking field stays null
+                // until the bus physically departs).
+                departure_at: compute_iso_timestamps(
+                    &Some(trip.departure_date.clone()),
+                    &Some(schedule.departure_time.clone()),
+                )
+                .0,
+                arrival_at: geo_arrival_map
+                    .get(&schedule.id)
+                    .filter(|t| !t.is_empty())
+                    .and_then(|hhmm| {
+                        compute_arrival_iso(&trip.departure_date, &schedule.departure_time, hhmm)
+                    }),
                 bus_layout_id: schedule.bus_layout_id.map(|u| u.to_string()),
                 min_price: schedule.base_price_adult,
                 max_price: schedule.base_price_adult,
@@ -1433,10 +1548,21 @@ impl PublicService {
             })
             .collect();
 
-        let (dep_iso, arr_iso) = compute_iso_timestamps(
+        let (dep_iso, _) = compute_iso_timestamps(
             &Some(trip.departure_date.clone()),
             &Some(schedule.departure_time.clone()),
         );
+        // Real arrival from the last configured schedule stop (same
+        // rule as the search endpoints) — the detail header + booking
+        // flow can then show "start time → end time" honestly.
+        let arr_iso = schedule_point_rows
+            .iter()
+            .rev()
+            .filter_map(|p| p.arrival_time.as_deref())
+            .find(|t| !t.is_empty())
+            .and_then(|hhmm| {
+                compute_arrival_iso(&trip.departure_date, &schedule.departure_time, hhmm)
+            });
         let vt_map: HashMap<Uuid, vehicle_type::Model> = {
             let ids: Vec<Uuid> = schedule.vehicle_type_id.into_iter().collect();
             if ids.is_empty() {
@@ -1580,6 +1706,28 @@ impl PublicService {
                 .map(|b| (b.id.to_string(), b))
                 .collect();
 
+            // Start/end city names (the homepage carousel cards used to
+            // show blank cities) + last-stop arrival times.
+            let place_map: std::collections::HashMap<&str, &crate::cities::City> = route_map
+                .values()
+                .flat_map(|r| [r.start_location_id.as_str(), r.end_location_id.as_str()])
+                .filter_map(|slug| crate::cities::find_by_slug(slug).map(|c| (c.slug, c)))
+                .collect();
+            let sched_uuids: Vec<Uuid> = sched_map.values().map(|s| s.id).collect();
+            let rec_arrival_rows = self
+                .store
+                .address_store()
+                .list_points_by_schedules(sched_uuids)
+                .await
+                .unwrap_or_default();
+            let mut rec_arrival_map: std::collections::HashMap<Uuid, String> =
+                std::collections::HashMap::new();
+            for p in &rec_arrival_rows {
+                if let Some(t) = p.arrival_time.as_deref().filter(|t| !t.is_empty()) {
+                    rec_arrival_map.insert(p.schedule_id, t.to_string());
+                }
+            }
+
             trips
                 .iter()
                 .filter_map(|t| {
@@ -1591,12 +1739,20 @@ impl PublicService {
                         .as_deref()
                         .and_then(|bid| brand_map.get(bid));
                     let amenities = parse_amenities(&sched.amenities);
-                    let (dep_iso, arr_iso) = compute_iso_timestamps(
+                    let (dep_iso, _) = compute_iso_timestamps(
                         &Some(t.departure_date.clone()),
                         &Some(sched.departure_time.clone()),
                     );
+                    let arr_iso = rec_arrival_map
+                        .get(&sched.id)
+                        .filter(|t| !t.is_empty())
+                        .and_then(|hhmm| {
+                            compute_arrival_iso(&t.departure_date, &sched.departure_time, hhmm)
+                        });
                     let vehicle_type = "standard".to_string();
                     let vt_label = vehicle_type_label(&vehicle_type);
+                    let from_city = place_map.get(route.start_location_id.as_str());
+                    let to_city = place_map.get(route.end_location_id.as_str());
 
                     Some(TripResult {
                         trip_id: t.id,
@@ -1615,12 +1771,12 @@ impl PublicService {
                         brand_accent: brand
                             .and_then(|b| b.accent_color.clone())
                             .unwrap_or_else(|| "#0d9488".into()),
-                        from_name: String::new(),
-                        from_lat: 0.0,
-                        from_lon: 0.0,
-                        to_name: String::new(),
-                        to_lat: 0.0,
-                        to_lon: 0.0,
+                        from_name: from_city.map(|c| c.name.to_string()).unwrap_or_default(),
+                        from_lat: from_city.map(|c| c.lat).unwrap_or(0.0),
+                        from_lon: from_city.map(|c| c.lon).unwrap_or(0.0),
+                        to_name: to_city.map(|c| c.name.to_string()).unwrap_or_default(),
+                        to_lat: to_city.map(|c| c.lat).unwrap_or(0.0),
+                        to_lon: to_city.map(|c| c.lon).unwrap_or(0.0),
                         departure_time: Some(sched.departure_time.clone()),
                         departure_at: dep_iso,
                         arrival_at: arr_iso,
@@ -1873,5 +2029,31 @@ mod tests {
         // Since "2026-08-05" has no time part, both are None.
         assert_eq!(dep, None);
         assert_eq!(arr, None);
+    }
+
+    #[test]
+    fn compute_arrival_iso_same_day() {
+        let iso = compute_arrival_iso("2026-08-05", "08:30", "14:45");
+        assert_eq!(iso.as_deref(), Some("2026-08-05T14:45:00"));
+    }
+
+    #[test]
+    fn compute_arrival_iso_overnight_rolls_one_day() {
+        // Departure 22:00, last-stop arrival 06:00 → next calendar day.
+        let iso = compute_arrival_iso("2026-08-05", "22:00", "06:00");
+        assert_eq!(iso.as_deref(), Some("2026-08-06T06:00:00"));
+        // Equality (a degenerate 24h trip) also rolls — the arrival is
+        // unambiguously AFTER the departure either way.
+        let iso = compute_arrival_iso("2026-12-31", "23:30", "23:30");
+        assert_eq!(iso.as_deref(), Some("2027-01-01T23:30:00"));
+    }
+
+    #[test]
+    fn compute_arrival_iso_rejects_garbage() {
+        assert_eq!(
+            compute_arrival_iso("2026-08-05", "08:30", "not-a-time"),
+            None
+        );
+        assert_eq!(compute_arrival_iso("garbage", "08:30", "14:45"), None);
     }
 }

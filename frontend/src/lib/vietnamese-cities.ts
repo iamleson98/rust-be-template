@@ -23,6 +23,11 @@ export type VietnameseCity = {
   id: string
   name: string
   region: 'north' | 'central' | 'south'
+  /** Popular city names travelers actually type (the province list uses
+   *  official names like "Lâm Đồng" — nobody types that; they type "Đà Lạt").
+   *  Matched diacritic-insensitively by the search autocomplete, and shown
+   *  as the row label so "Đà Lạt" resolves to a bookable province. */
+  aliases?: string[]
 }
 
 export const VIETNAMESE_CITIES: VietnameseCity[] = [
@@ -46,7 +51,7 @@ export const VIETNAMESE_CITIES: VietnameseCity[] = [
   { id: 'hoa-binh', name: 'Hoà Bình', region: 'north' },
   { id: 'thai-nguyen', name: 'Thái Nguyên', region: 'north' },
   { id: 'lang-son', name: 'Lạng Sơn', region: 'north' },
-  { id: 'quang-ninh', name: 'Quảng Ninh', region: 'north' },
+  { id: 'quang-ninh', name: 'Quảng Ninh', region: 'north', aliases: ['Hạ Long'] },
   { id: 'bac-giang', name: 'Bắc Giang', region: 'north' },
   { id: 'vinh-phuc', name: 'Vĩnh Phúc', region: 'north' },
   { id: 'bac-ninh', name: 'Bắc Ninh', region: 'north' },
@@ -59,38 +64,38 @@ export const VIETNAMESE_CITIES: VietnameseCity[] = [
 
   // ── Central provinces ────────────────────────────────────────────
   { id: 'thanh-hoa', name: 'Thanh Hóa', region: 'central' },
-  { id: 'nghe-an', name: 'Nghệ An', region: 'central' },
+  { id: 'nghe-an', name: 'Nghệ An', region: 'central', aliases: ['Vinh'] },
   { id: 'ha-tinh', name: 'Hà Tĩnh', region: 'central' },
   { id: 'quang-binh', name: 'Quảng Bình', region: 'central' },
   { id: 'quang-tri', name: 'Quảng Trị', region: 'central' },
-  { id: 'hue', name: 'Thừa Thiên Huế', region: 'central' },
-  { id: 'quang-nam', name: 'Quảng Nam', region: 'central' },
+  { id: 'hue', name: 'Thừa Thiên Huế', region: 'central', aliases: ['Huế'] },
+  { id: 'quang-nam', name: 'Quảng Nam', region: 'central', aliases: ['Hội An'] },
   { id: 'quang-ngai', name: 'Quảng Ngãi', region: 'central' },
-  { id: 'binh-dinh', name: 'Bình Định', region: 'central' },
-  { id: 'phu-yen', name: 'Phú Yên', region: 'central' },
-  { id: 'khanh-hoa', name: 'Khánh Hòa', region: 'central' },
-  { id: 'binh-thuan', name: 'Bình Thuận', region: 'central' },
+  { id: 'binh-dinh', name: 'Bình Định', region: 'central', aliases: ['Quy Nhơn'] },
+  { id: 'phu-yen', name: 'Phú Yên', region: 'central', aliases: ['Tuy Hòa'] },
+  { id: 'khanh-hoa', name: 'Khánh Hòa', region: 'central', aliases: ['Nha Trang'] },
+  { id: 'binh-thuan', name: 'Bình Thuận', region: 'central', aliases: ['Phan Thiết'] },
   { id: 'kon-tum', name: 'Kon Tum', region: 'central' },
-  { id: 'gia-lai', name: 'Gia Lai', region: 'central' },
-  { id: 'dak-lak', name: 'Đắk Lắk', region: 'central' },
+  { id: 'gia-lai', name: 'Gia Lai', region: 'central', aliases: ['Pleiku'] },
+  { id: 'dak-lak', name: 'Đắk Lắk', region: 'central', aliases: ['Buôn Ma Thuột'] },
   { id: 'dak-nong', name: 'Đắk Nông', region: 'central' },
-  { id: 'lam-dong', name: 'Lâm Đồng', region: 'central' },
+  { id: 'lam-dong', name: 'Lâm Đồng', region: 'central', aliases: ['Đà Lạt'] },
 
   // ── Southern provinces ──────────────────────────────────────────
-  { id: 'ba-ria-vung-tau', name: 'Bà Rịa - Vũng Tàu', region: 'south' },
+  { id: 'ba-ria-vung-tau', name: 'Bà Rịa - Vũng Tàu', region: 'south', aliases: ['Vũng Tàu'] },
   { id: 'binh-duong', name: 'Bình Dương', region: 'south' },
   { id: 'binh-phuoc', name: 'Bình Phước', region: 'south' },
-  { id: 'dong-nai', name: 'Đồng Nai', region: 'south' },
+  { id: 'dong-nai', name: 'Đồng Nai', region: 'south', aliases: ['Biên Hòa'] },
   { id: 'tay-ninh', name: 'Tây Ninh', region: 'south' },
   { id: 'long-an', name: 'Long An', region: 'south' },
-  { id: 'tien-giang', name: 'Tiền Giang', region: 'south' },
+  { id: 'tien-giang', name: 'Tiền Giang', region: 'south', aliases: ['Mỹ Tho'] },
   { id: 'ben-tre', name: 'Bến Tre', region: 'south' },
   { id: 'tra-vinh', name: 'Trà Vinh', region: 'south' },
   { id: 'vinh-long', name: 'Vĩnh Long', region: 'south' },
-  { id: 'dong-thap', name: 'Đồng Tháp', region: 'south' },
-  { id: 'an-giang', name: 'An Giang', region: 'south' },
-  { id: 'kien-giang', name: 'Kiên Giang', region: 'south' },
-  { id: 'hau-giang', name: 'Hậu Giang', region: 'south' },
+  { id: 'dong-thap', name: 'Đồng Tháp', region: 'south', aliases: ['Sa Đéc', 'Cao Lãnh'] },
+  { id: 'an-giang', name: 'An Giang', region: 'south', aliases: ['Châu Đốc', 'Long Xuyên'] },
+  { id: 'kien-giang', name: 'Kiên Giang', region: 'south', aliases: ['Rạch Giá', 'Phú Quốc'] },
+  { id: 'hau-giang', name: 'Hậu Giang', region: 'south', aliases: ['Vị Thanh'] },
   { id: 'soc-trang', name: 'Sóc Trăng', region: 'south' },
   { id: 'bac-lieu', name: 'Bạc Liêu', region: 'south' },
   { id: 'ca-mau', name: 'Cà Mau', region: 'south' },

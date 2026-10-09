@@ -30,8 +30,17 @@ export type SearchParams = {
   toCity?: string
 }
 
-/** What callers may pass to `navigate` / `<Link search>`: any subset. */
-export type SearchInput = Partial<SearchParams>
+/**
+ * What callers may pass to `navigate` / `<Link search>`: any subset, with
+ * vehicle types either as an array or already as the URL's `vt`.
+ */
+export type SearchInput = Partial<SearchParams> & { vt?: string }
+
+/**
+ * The address bar's form of the search: vehicle types travel as one
+ * comma-separated `vt` (`vt=limousine,sleeper`), never as a JSON array.
+ */
+export type SearchQuery = Omit<SearchParams, 'vehicleTypes'> & { vt: string }
 
 /** Values omitted from the URL (`stripSearchParams` on the route). */
 export const SEARCH_DEFAULTS = {
@@ -41,10 +50,10 @@ export const SEARCH_DEFAULTS = {
   adults: 1,
   children: 0,
   sort: 'departure',
-  vehicleTypes: [],
+  vt: '',
   roundTrip: false,
   returnDate: '',
-} satisfies Partial<SearchParams>
+} satisfies Partial<SearchQuery>
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
 
@@ -60,7 +69,7 @@ function num(v: unknown): number | undefined {
 
 const atLeast = (v: unknown, min: number) => Math.max(min, Math.trunc(num(v) ?? min))
 
-/** `["a","b"]` (the router's JSON), `a,b` (the legacy `vt=` param) or a real array. */
+/** `a,b` (the `vt=` param), `["a","b"]` (JSON from older links) or a real array. */
 function list(v: unknown): string[] {
   let items: unknown[] = []
   if (Array.isArray(v)) items = v
@@ -100,16 +109,28 @@ export function parseSearch(raw: Record<string, unknown>): SearchParams {
   }
 }
 
+/** The URL form of parsed params (`vt` instead of `vehicleTypes`). */
+export function toQuery({ vehicleTypes, ...rest }: SearchParams): SearchQuery {
+  return { ...rest, vt: vehicleTypes.join(',') }
+}
+
 /**
- * Navigation input for `/search`. Precise picks keep their coordinates
- * only when both ends are precise; a MIXED pick (one precise end, one
- * plain city) degrades the precise end to its city so the ordinary
- * city-to-city search runs instead of an unresolvable place name.
+ * Navigation input for `/search`: only what differs from the defaults, vehicle
+ * types as `vt`. Precise picks keep their coordinates only when both ends are
+ * precise; a MIXED pick (one precise end, one plain city) degrades the precise
+ * end to its city so the ordinary city-to-city search runs instead of an
+ * unresolvable place name.
  */
-export function buildSearchInput(p: SearchInput): SearchInput {
-  const { fromLat, fromLon, toLat, toLon, fromCity, toCity, ...rest } = p
+export function buildSearchInput(input: SearchInput): SearchInput {
+  const { vehicleTypes, vt, fromLat, fromLon, toLat, toLon, fromCity, toCity, ...rest } = input
+  const out: SearchInput = { ...rest, vt: vehicleTypes ? vehicleTypes.join(',') : vt }
+  for (const key of Object.keys(SEARCH_DEFAULTS) as (keyof typeof SEARCH_DEFAULTS)[]) {
+    if (out[key] === SEARCH_DEFAULTS[key] || out[key] === undefined) delete out[key]
+  }
   const geo = [fromLat, fromLon, toLat, toLon].every((c) => typeof c === 'number' && Number.isFinite(c))
-  if (geo) return { ...rest, fromLat, fromLon, toLat, toLon }
-  const half = typeof fromLat === 'number' || typeof toLat === 'number'
-  return half ? { ...rest, from: fromCity || rest.from, to: toCity || rest.to } : rest
+  if (geo) return { ...out, fromLat, fromLon, toLat, toLon }
+  if (typeof fromLat === 'number' || typeof toLat === 'number') {
+    return { ...out, from: fromCity || out.from, to: toCity || out.to }
+  }
+  return out
 }

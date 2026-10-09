@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildSearchInput, parseSearch, SEARCH_DEFAULTS } from '../search-params'
+import { buildSearchInput, parseSearch, SEARCH_DEFAULTS, toQuery } from '../search-params'
 
 describe('parseSearch', () => {
   it('applies the defaults to an empty URL', () => {
-    expect(parseSearch({})).toMatchObject(SEARCH_DEFAULTS)
+    expect(toQuery(parseSearch({}))).toMatchObject(SEARCH_DEFAULTS)
   })
 
   it('reads router-parsed values and URLSearchParams strings alike', () => {
@@ -78,6 +78,19 @@ describe('parseSearch', () => {
   })
 })
 
+describe('toQuery', () => {
+  it('writes vehicle types as one comma-separated vt', () => {
+    const query = toQuery(parseSearch({ vehicleTypes: ['limousine', 'sleeper'] }))
+    expect(query.vt).toBe('limousine,sleeper')
+    expect(query).not.toHaveProperty('vehicleTypes')
+  })
+
+  it('round-trips through parseSearch', () => {
+    const params = parseSearch({ from: 'A', adults: 2, vt: 'limousine,sleeper', roundTrip: '1' })
+    expect(parseSearch(toQuery(params))).toEqual(params)
+  })
+})
+
 describe('buildSearchInput', () => {
   const geo = { fromLat: 1, fromLon: 2, toLat: 3, toLon: 4 }
 
@@ -89,12 +102,42 @@ describe('buildSearchInput', () => {
     })
   })
 
+  // A `vehicleTypes` array in the URL used to be dropped by the route's
+  // validator, so sidebar filters never reached the results.
+  it('emits the canonical vt string for vehicle types, never an array', () => {
+    const out = buildSearchInput({ from: 'A', to: 'B', vehicleTypes: ['limousine', 'sleeper'] })
+    expect(out.vt).toBe('limousine,sleeper')
+    expect(out).not.toHaveProperty('vehicleTypes')
+  })
+
+  it('omits vt when no vehicle types are selected', () => {
+    expect(buildSearchInput({ from: 'A', vehicleTypes: [] })).not.toHaveProperty('vt')
+  })
+
+  it('drops default values for a clean URL', () => {
+    const out = buildSearchInput({
+      from: 'Hà Nội',
+      to: 'Đà Nẵng',
+      date: '2026-10-10',
+      adults: 1,
+      children: 0,
+      sort: 'departure',
+      roundTrip: false,
+    })
+    expect(out).toEqual({ from: 'Hà Nội', to: 'Đà Nẵng', date: '2026-10-10' })
+  })
+
   it('keeps coordinates when both ends are precise, dropping the city fallbacks', () => {
     expect(buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', ...geo, fromCity: 'X', toCity: 'Y' })).toEqual({
       from: 'Bến xe A',
       to: 'Bến xe B',
       ...geo,
     })
+  })
+
+  it('keeps vt through the precise-pick branch', () => {
+    const out = buildSearchInput({ from: 'Bến xe A', to: 'Bến xe B', vehicleTypes: ['limousine'], ...geo })
+    expect(out).toMatchObject({ vt: 'limousine', fromLat: 1 })
   })
 
   it('degrades a mixed pick to its cities and drops the half coordinates', () => {

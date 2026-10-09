@@ -38,7 +38,7 @@ export function SentFeedbackCard({
   const canEdit = !!booking && review.status !== 'approved'
 
   return (
-    <Card className="overflow-hidden ring-1 ring-black/5">
+    <Card className="overflow-hidden border-border">
       <div className="space-y-3 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5 text-sm">
@@ -117,7 +117,7 @@ export function SentFeedbackCard({
 
 export function SentFeedbackSkeleton() {
   return (
-    <Card className="overflow-hidden ring-1 ring-black/5" aria-hidden>
+    <Card className="overflow-hidden border-border" aria-hidden>
       <div className="space-y-3 px-4 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">

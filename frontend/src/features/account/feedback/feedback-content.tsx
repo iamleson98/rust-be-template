@@ -12,7 +12,7 @@ import { PAGE_SIZE, useFeedbackData } from './use-feedback-data'
 
 function EmptyCard({ icon, tone, title, desc }: { icon: React.ReactNode; tone: string; title: string; desc: string }) {
   return (
-    <Card className="ring-1 ring-black/5">
+    <Card className="border-border">
       <CardContent className="space-y-2 px-6 py-12 text-center">
         <div className={`mx-auto grid size-12 place-items-center rounded-2xl ${tone}`}>{icon}</div>
         <div className="font-semibold">{title}</div>

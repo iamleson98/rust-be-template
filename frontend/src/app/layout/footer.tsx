@@ -1,4 +1,5 @@
 import { useSession } from '@/stores/session'
+import { useSearchForm } from '@/stores/search-form'
 import { useUi } from '@/stores/ui'
 import { memo, useCallback } from 'react'
 import { useForm } from 'react-hook-form'
@@ -46,6 +47,8 @@ export const Footer = memo(function Footer() {
   const user = useSession((s) => s.user)
   const navigate = useNavigate()
   const t = useT()
+  // Quick-route links carry the search date over (a dateless /search URL leaves the query idle), defaulting to today.
+  const searchDate = useSearchForm((s) => s.searchParams.date)
 
   const form = useForm<NewsletterValues>({
     resolver: zodResolver(newsletterSchema),
@@ -260,7 +263,11 @@ export const Footer = memo(function Footer() {
                       onClick={() =>
                         navigate({
                           to: '/search',
-                          search: buildSearchInput({ from, to }),
+                          search: buildSearchInput({
+                            from,
+                            to,
+                            date: searchDate || new Date().toISOString().slice(0, 10),
+                          }),
                         })
                       }
                       className="relative text-slate-400 hover:text-blue-400 transition-colors after:content-[''] after:absolute after:-bottom-0.5 after:left-0 after:w-0 after:h-[1.5px] after:bg-blue-400 after:transition-all after:duration-300 hover:after:w-full"

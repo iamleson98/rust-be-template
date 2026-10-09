@@ -28,8 +28,12 @@ export function SearchResults() {
   const saved = useSavedSearches()
 
   const browsing = !search.from || !search.to
-  const { data, isLoading } = useTripSearch(browsing ? null : search)
-  const results = data?.items ?? NO_RESULTS
+  const query = useTripSearch(browsing ? null : search)
+  // `keepPreviousData` keeps the old list on screen during a re-search, so `isLoading`
+  // stays false; without this the new search would give no feedback at all.
+  const loading = query.isLoading || query.isPlaceholderData || (query.isFetching && !query.data)
+  // A search without a date is idle: ignore the previous search's trips that the cache still holds.
+  const results = search.date ? (query.data?.items ?? NO_RESULTS) : NO_RESULTS
   const rf = useResultFilters(results)
 
   const brandNames = useMemo(
@@ -64,7 +68,7 @@ export function SearchResults() {
   return (
     <div className="min-h-[60vh] bg-slate-50">
       <div className="sticky top-16 z-30 border-b bg-white/90 backdrop-blur-lg">
-        <div className="container mx-auto px-4 py-3">
+        <div className="container mx-auto px-4 py-2 md:py-3">
           <SearchWidget compact />
         </div>
       </div>
@@ -75,23 +79,16 @@ export function SearchResults() {
         </div>
       ) : (
         <>
-          <div className="border-b bg-white/80 backdrop-blur">
-            <div className="container mx-auto px-4 py-3">
-              <div className="flex items-center gap-2 text-xs font-medium">
-                {precise ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-200">
-                    <Navigation2 className="h-3.5 w-3.5" />
-                    {t('searchPage.smartSearchActive')}
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 ring-1 ring-blue-100">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    {t('searchPage.citySearchActive')}
-                  </span>
-                )}
+          {precise && (
+            <div className="border-b bg-white/80 backdrop-blur">
+              <div className="container mx-auto px-4 py-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">
+                  <Navigation2 className="h-3.5 w-3.5" />
+                  {t('searchPage.smartSearchShort')}
+                </span>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="container mx-auto px-4 py-6">
             <div className="flex flex-col gap-6 lg:flex-row">
@@ -104,7 +101,7 @@ export function SearchResults() {
                       {search.from} → {search.to}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                      {isLoading
+                      {loading
                         ? t('searchPage.searchingTrips')
                         : t('searchPage.tripsFound', {
                             found: rf.filtered.length,
@@ -121,7 +118,7 @@ export function SearchResults() {
                 )}
                 <CompareTray />
                 <TripResultsList
-                  loading={isLoading}
+                  loading={loading}
                   results={results}
                   filtered={rf.filtered}
                   hasActiveFilters={rf.activeCount > 0}
