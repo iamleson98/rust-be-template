@@ -1,14 +1,28 @@
-import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import {
+  useQueries,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query'
 import { tripDetail, type TripDetail, type TripResult, type TripSearchResponse } from '@/api'
 
-/** A row any search on this page already fetched (both search endpoints are tagged `search`). */
-function fromSearchCache(queryClient: QueryClient, tripId: string): TripResult | undefined {
-  const searches = queryClient.getQueriesData<TripSearchResponse>({
+type CachedSearch = TripSearchResponse | InfiniteData<TripSearchResponse>
+
+/**
+ * A row any search on this page already fetched (both search endpoints are
+ * tagged `search`). The results page pages through an infinite query, so
+ * an entry holds `pages`; a plain query holds the response itself.
+ */
+export function fromSearchCache(queryClient: QueryClient, tripId: string): TripResult | undefined {
+  const searches = queryClient.getQueriesData<CachedSearch>({
     predicate: (q) => (q.queryKey[0] as { tags?: string[] }).tags?.includes('search') ?? false,
   })
-  for (const [, response] of searches) {
-    const hit = response?.items.find((r) => r.tripId === tripId)
-    if (hit) return hit
+  for (const [, cached] of searches) {
+    const pages = cached && 'pages' in cached ? cached.pages : [cached]
+    for (const page of pages) {
+      const hit = page?.items.find((r) => r.tripId === tripId)
+      if (hit) return hit
+    }
   }
 }
 
@@ -22,7 +36,7 @@ function detailToResult(d: TripDetail): TripResult {
     brandAccent: d.brand.accentColor ?? '#2563eb',
     brandId: d.brand.id ?? undefined,
     brandName: d.brand.name ?? '',
-    brandRating: d.brand.rating,
+    brandRating: d.brand.rating ?? undefined,
     brandSlug: d.brand.slug ?? '',
     busLayoutId: d.busLayout.id,
     capacity: d.busLayout.capacity ?? undefined,

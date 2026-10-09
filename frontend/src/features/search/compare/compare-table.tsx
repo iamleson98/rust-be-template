@@ -19,14 +19,14 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="sticky left-0 z-10 w-32 bg-muted/50 px-4 py-3 text-left sm:w-40 sm:px-6">
+          <tr className="border-b bg-muted">
+            <th className="sticky left-0 z-10 w-24 bg-muted px-3 py-3 text-left sm:w-40 sm:px-6">
               <span className="text-xs font-semibold uppercase text-muted-foreground">
                 {t('searchPage.criteria')}
               </span>
             </th>
             {trips.map((tr) => (
-              <th key={tr.tripId} className="min-w-45 px-3 py-3 align-top sm:px-4">
+              <th key={tr.tripId} className="min-w-36 px-3 py-3 align-top sm:min-w-45 sm:px-4">
                 <div className="space-y-1.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-base font-bold leading-tight">{tr.brandName}</div>
@@ -61,7 +61,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
                 key={row.labelKey}
                 className="border-b transition-colors last:border-b-0 hover:bg-muted/40"
               >
-                <td className="sticky left-0 z-10 bg-background px-4 py-3 text-xs text-muted-foreground sm:px-6">
+                <td className="sticky left-0 z-10 bg-background px-3 py-3 text-xs text-muted-foreground sm:px-6">
                   <div className="flex items-center gap-1.5">
                     {row.icon}
                     {t(row.labelKey)}
@@ -92,7 +92,7 @@ export function CompareTable({ trips, onPick }: { trips: TripResult[]; onPick: (
             )
           })}
           <tr>
-            <td className="sticky left-0 z-10 bg-white px-4 py-3 sm:px-6" />
+            <td className="sticky left-0 z-10 bg-background px-3 py-3 sm:px-6" />
             {trips.map((tr) => (
               <td key={tr.tripId} className="px-3 py-3 text-center sm:px-4">
                 <Button
