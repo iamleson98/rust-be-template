@@ -360,6 +360,11 @@ export class AudioCallClient {
     switch (msg.type) {
       case 'registered':
         return this.onRegistered(msg)
+      case 'ice-servers':
+        // Fresh TURN credentials while the socket stays open; calls started from now use them.
+        if (Array.isArray(msg.iceServers) && msg.iceServers.length > 0)
+          this.cfg.iceServers = msg.iceServers
+        return
       case 'presence':
         this.onlineAgents = asNum(msg.onlineAgents)
         return this.events.emit('presence', { onlineAgents: this.onlineAgents })

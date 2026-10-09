@@ -36,6 +36,15 @@ use backend::service::seat_plan_presets;
 /// Boot the AppState directly (see `api_smoke::boot_state` for the env
 /// contract — same values, duplicated so the two files stay
 /// independently runnable).
+/// Tomorrow in Vietnam: a 21:00 departure today has already left (and
+/// is no longer on sale) from 21:00 on, so the trips under test leave
+/// tomorrow.
+fn tomorrow() -> String {
+    let today = backend::service::trip_time::local_today();
+    let today = chrono::NaiveDate::parse_from_str(&today, "%Y-%m-%d").expect("YYYY-MM-DD");
+    (today + chrono::Duration::days(1)).to_string()
+}
+
 async fn boot_state() -> anyhow::Result<backend::state::AppState> {
     use std::sync::Once;
     static INIT: Once = Once::new();
@@ -169,10 +178,10 @@ async fn bus_layout_create_generates_seats_and_drives_trip_capacity() -> anyhow:
         })
         .await?;
 
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let day = tomorrow();
     let res = st
         .public
-        .search_trips("sài gòn", "cần thơ", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("sài gòn", "cần thơ", &day, 20, 0, vec![], "departure", 1)
         .await?;
     let trip = res
         .items
@@ -415,10 +424,10 @@ async fn trip_on_layout(
             points: None,
         })
         .await?;
-    let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let day = tomorrow();
     let res = st
         .public
-        .search_trips("sài gòn", "cần thơ", &today, 20, 0, vec![], "departure", 1)
+        .search_trips("sài gòn", "cần thơ", &day, 20, 0, vec![], "departure", 1)
         .await?;
     Ok(res
         .items

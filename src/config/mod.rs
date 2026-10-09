@@ -619,10 +619,24 @@ pub struct AudioCallConfig {
     /// `--static-auth-secret`). Empty in `rest` mode disables minting and
     /// falls back to the static iceServers (logged loudly).
     pub turn_shared_secret: String,
-    /// Lifetime of minted TURN credentials in seconds
-    /// (`AUDIO_CALL_TURN_CRED_TTL_SECS`, default 3600 — one hour comfortably
-    /// covers a shift's calls; reconnects mint fresh ones).
+    /// Minimum lifetime of minted TURN credentials in seconds
+    /// (`AUDIO_CALL_TURN_CRED_TTL_SECS`, default 3600). The lifetime is
+    /// raised to cover a whole call (see [`Self::turn_cred_lifetime_sec`]),
+    /// and open sockets get fresh credentials every
+    /// [`TURN_CRED_REFRESH`](Self::TURN_CRED_REFRESH).
     pub turn_cred_ttl_sec: u64,
+    /// Countries callers must be in (`CALL_ALLOWED_COUNTRIES`, ISO 3166
+    /// alpha-2, comma-separated — production sets `VN`). Empty lets
+    /// everyone call. Staff are never gated: they answer, they don't call
+    /// in.
+    pub allowed_countries: Vec<String>,
+    /// Registry statistics file the call gate reads country blocks from
+    /// (`GEO_RANGES_PATH`). Missing → the built-in Vietnam snapshot.
+    pub geo_ranges_path: Option<PathBuf>,
+    /// Where to re-download that file daily (`GEO_RANGES_URL`, e.g.
+    /// `https://ftp.apnic.net/stats/apnic/delegated-apnic-latest`). Empty
+    /// disables the refresh.
+    pub geo_ranges_url: String,
 }
 
 /// Apple APNs (iOS VoIP push) credentials — the `APNS_*` env group.
@@ -684,11 +698,37 @@ impl Default for AudioCallConfig {
                 .to_ascii_lowercase(),
             turn_shared_secret: env_var("TURN_SECRET").unwrap_or_default(),
             turn_cred_ttl_sec: env_parse("AUDIO_CALL_TURN_CRED_TTL_SECS").unwrap_or(3600),
+            allowed_countries: env_var("CALL_ALLOWED_COUNTRIES")
+                .unwrap_or_default()
+                .split(',')
+                .map(|c| c.trim().to_ascii_uppercase())
+                .filter(|c| !c.is_empty())
+                .collect(),
+            geo_ranges_path: env_var("GEO_RANGES_PATH")
+                .filter(|p| !p.trim().is_empty())
+                .map(PathBuf::from),
+            geo_ranges_url: env_var("GEO_RANGES_URL").unwrap_or_default(),
         }
     }
 }
 
 impl AudioCallConfig {
+    /// How often an open `/ws-call` socket gets fresh TURN credentials
+    /// (`rest` mode): a long-lived staff socket must never hold expired ones.
+    pub const TURN_CRED_REFRESH: std::time::Duration = std::time::Duration::from_secs(30 * 60);
+
+    /// How long a minted TURN credential stays valid: at least the
+    /// configured TTL, and long enough that credentials up to one refresh
+    /// old still last a maximum-length call (the relay re-authenticates
+    /// its allocation every few minutes for the whole call).
+    pub fn turn_cred_lifetime_sec(&self) -> u64 {
+        let whole_call = match self.max_call_duration_sec {
+            0 => 0,
+            secs => secs + Self::TURN_CRED_REFRESH.as_secs(),
+        };
+        self.turn_cred_ttl_sec.max(60).max(whole_call)
+    }
+
     /// Ring timeout as a `Duration`; `Duration::MAX` when disabled (0).
     pub fn ring_timeout(&self) -> std::time::Duration {
         secs_or_max(self.ring_timeout_sec)
@@ -744,14 +784,14 @@ impl AudioCallConfig {
 
     /// iceServers for one specific user: static JSON passthrough, or the
     /// REST-mode list with a freshly-minted per-user credential on every
-    /// entry. Called once per `/ws-call` upgrade (the value is pushed in
-    /// the `registered` frame) — minting is one HMAC-SHA1 over ~40 bytes.
+    /// entry. Called when a `/ws-call` socket registers and on every
+    /// credential refresh — minting is one HMAC-SHA1 over ~40 bytes.
     pub fn ice_servers_for(&self, user_id: &str) -> serde_json::Value {
         let expiry = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0)
-            + self.turn_cred_ttl_sec.max(60);
+            + self.turn_cred_lifetime_sec();
         self.ice_servers_for_at(user_id, expiry)
     }
 
@@ -1450,6 +1490,23 @@ mod tests {
             .and_then(|v| v.as_str())
             .unwrap();
         assert_ne!(other, first);
+    }
+
+    /// A credential up to one refresh old must outlive a maximum-length
+    /// call, or the relay drops the call when it re-authenticates.
+    #[test]
+    fn turn_credentials_outlive_a_whole_call() {
+        let cfg = |ttl, max_call| AudioCallConfig {
+            turn_cred_ttl_sec: ttl,
+            max_call_duration_sec: max_call,
+            ..AudioCallConfig::default()
+        };
+        let refresh = AudioCallConfig::TURN_CRED_REFRESH.as_secs();
+        assert_eq!(cfg(3600, 14_400).turn_cred_lifetime_sec(), 14_400 + refresh);
+        assert_eq!(cfg(86_400, 14_400).turn_cred_lifetime_sec(), 86_400);
+        // Uncapped calls: the configured TTL, never under a minute.
+        assert_eq!(cfg(3600, 0).turn_cred_lifetime_sec(), 3600);
+        assert_eq!(cfg(0, 0).turn_cred_lifetime_sec(), 60);
     }
 
     /// `static` mode (default) is a byte-for-byte passthrough — the

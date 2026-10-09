@@ -22,7 +22,7 @@ use crate::presence::presence;
 use crate::service::chat_service::ChatMessageInput;
 use crate::state::AppState;
 
-use super::hub::hub;
+use super::hub::{hub, Admission, Refusal};
 
 /// Extract the browser-origin `https://host` or `http://host` from the
 /// `Origin` header. Returns `None` if the header is missing or malformed.
@@ -183,25 +183,27 @@ pub async fn ws_upgrade(
         ));
     }
 
-    // ── Global connection cap (checked FIRST — cheapest rejection) ────
-    if !hub().try_acquire_global() {
-        tracing::warn!(
-            ip = %ip,
-            connections = hub().connection_count(),
-            max = hub().max_connections(),
-            "WS upgrade rejected: global connection cap reached"
-        );
-        return Err(AppError::ServiceUnavailable(
-            "ws connection cap reached".into(),
-        ));
-    }
-
-    // ── Per-IP connection cap ───────────────────────────────────────────
-    if !hub().try_acquire_ip(&ip, limits.max_per_ip) {
-        hub().release_global();
-        tracing::warn!(ip = %ip, max_per_ip = limits.max_per_ip, "WS upgrade rejected: per-IP cap reached");
-        return Err(AppError::TooManyRequests("ws per-ip cap reached".into()));
-    }
+    // ── Connection caps (WS_MAX_CONNECTIONS / WS_MAX_PER_IP) ────────
+    // The slots belong to `admission` until the socket's session is
+    // registered; a failed upgrade drops it and gives them back.
+    let admission = match super::hub::admit(&ip, limits.max_per_ip) {
+        Ok(admission) => admission,
+        Err(Refusal::Full) => {
+            tracing::warn!(
+                ip = %ip,
+                connections = hub().connection_count(),
+                max = hub().max_connections(),
+                "WS upgrade rejected: global connection cap reached"
+            );
+            return Err(AppError::ServiceUnavailable(
+                "ws connection cap reached".into(),
+            ));
+        }
+        Err(Refusal::IpFull) => {
+            tracing::warn!(ip = %ip, max_per_ip = limits.max_per_ip, "WS upgrade rejected: per-IP cap reached");
+            return Err(AppError::TooManyRequests("ws per-ip cap reached".into()));
+        }
+    };
 
     let ws = ws
         .max_message_size(st.config.ws.max_message_bytes)
@@ -213,7 +215,7 @@ pub async fn ws_upgrade(
         // larger frames just take an extra write poll.
         .write_buffer_size(st.config.ws.write_buffer_bytes());
 
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, st, user, ip, limits)))
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, st, user, admission, limits)))
 }
 
 /// Main socket loop: split into read/write halves, register the session,
@@ -224,7 +226,7 @@ pub async fn handle_socket(
     socket: WebSocket,
     st: AppState,
     user: SessionUser,
-    ip: String,
+    admission: Admission,
     limits: WsLimits,
 ) {
     use futures::StreamExt as _;
@@ -233,7 +235,7 @@ pub async fn handle_socket(
     let (tx, mut rx) = mpsc::channel::<bytes::Bytes>(limits.channel_cap.max(1));
     let (close_tx, mut close_rx) = mpsc::channel::<()>(1);
 
-    let sid = hub().register(user.clone(), ip.clone(), tx);
+    let sid = hub().register(user.clone(), admission.into_session(), tx);
     // Give the reaper a priority close path that works even when the
     // outbound queue is completely full (the reaping condition itself):
     // the write pump's `close_rx` select branch sends a proper Close

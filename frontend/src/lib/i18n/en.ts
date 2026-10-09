@@ -1506,6 +1506,8 @@ export const en: TranslationMap = {
   'layout.account.tripFeedback': 'Trip feedback',
   'layout.account.utilities': 'Utilities',
   'layout.call.startFailed': 'Could not start the call. You can still continue chatting.',
+  'layout.call.regionBlocked':
+    'Calls are only available in Vietnam. You can still message us right here.',
   'layout.call.noAgentsToast':
     'No support agents are online right now. You can still continue chatting.',
   'layout.call.busyToast': 'All agents are busy right now. You can still continue chatting.',

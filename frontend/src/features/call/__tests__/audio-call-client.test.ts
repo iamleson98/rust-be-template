@@ -28,9 +28,9 @@ class FakeSocket {
     this.readyState = FakeSocket.OPEN
     this.onopen?.()
   }
-  drop() {
+  drop(code = 1006, reason = '') {
     this.readyState = 3
-    this.onclose?.({ code: 1006, reason: '' })
+    this.onclose?.({ code, reason })
   }
   receive(msg: Record<string, unknown>) {
     this.onmessage?.({ data: JSON.stringify(msg) })
@@ -276,6 +276,37 @@ describe('AudioCallClient', () => {
     )
     await client.startCall()
     expect(created[0]).toMatchObject({ iceServers: [{ urls: 'turn:t' }] })
+  })
+
+  it('uses refreshed TURN credentials for calls started after the refresh', async () => {
+    const { client, ws } = setup()
+    ws.receive({ type: 'registered', iceServers: [{ urls: 'turn:t', credential: 'old' }] })
+    ws.receive({ type: 'ice-servers', iceServers: [{ urls: 'turn:t', credential: 'new' }] })
+    const created: unknown[] = []
+    vi.stubGlobal(
+      'RTCPeerConnection',
+      class extends FakePeer {
+        constructor(cfg: unknown) {
+          super()
+          created.push(cfg)
+        }
+      },
+    )
+    await client.startCall()
+    expect(created[0]).toMatchObject({ iceServers: [{ credential: 'new' }] })
+  })
+
+  it('does not reconnect a caller refused for their region', async () => {
+    const { ws, errors } = setup()
+    ws.receive({
+      type: 'error',
+      code: 'region-blocked',
+      message: 'Calls are only available in Vietnam',
+    })
+    ws.drop(4403, 'region-blocked')
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(errors).toContain('region-blocked')
+    expect(FakeSocket.instances.at(-1)).toBe(ws)
   })
 
   it('times out when media never connects — on every call, not only the first', async () => {

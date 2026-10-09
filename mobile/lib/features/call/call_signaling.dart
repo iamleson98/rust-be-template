@@ -18,6 +18,7 @@ import 'call_state.dart' show parseIceServers;
 /// Protocol (JSON frames):
 ///   → `register {role, userId, channelId?}`
 ///   ← `registered {role, userId, onlineAgents, iceServers, activeCall}`
+///   ← `ice-servers {iceServers}` — fresh TURN credentials, every 30 min
 ///   → `call {to, kind: offer|answer|ice, sdp?, candidate?, channelId?}`
 ///   ← `incoming {from, channelId, sdp, kind}`
 ///   ← `answer {from, sdp}` / `ice {from, candidate}` / `hangup {from, reason}`
@@ -40,12 +41,14 @@ class CallSignalingService {
         heartbeatType: 'heartbeat',
       ) {
     _signals = _client.events.map((msg) {
-      if (msg['type'] == 'registered') {
+      // `ice-servers` refreshes the TURN credentials while the socket
+      // stays open (they expire; a duty-mode socket lives all shift).
+      if (msg['type'] == 'registered' || msg['type'] == 'ice-servers') {
         final servers = parseIceServers(msg['iceServers']);
         if (servers.isNotEmpty) iceServers = servers;
-        if (msg['onlineAgents'] is int) {
-          onlineAgents = msg['onlineAgents'] as int;
-        }
+      }
+      if (msg['type'] == 'registered' && msg['onlineAgents'] is int) {
+        onlineAgents = msg['onlineAgents'] as int;
       }
       return msg;
     }).asBroadcastStream();

@@ -143,6 +143,46 @@ pub fn call_hub() -> &'static CallHub {
     })
 }
 
+/// Why [`admit`] turned a socket away.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Refusal {
+    /// `WS_MAX_CONNECTIONS` call sockets are open.
+    Full,
+    /// `WS_MAX_PER_IP` call sockets are open from this address.
+    IpFull,
+}
+
+/// The connection slots (global + per-IP) one `/ws-call` socket holds,
+/// given back when dropped: at the end of the socket task, on a panic, or
+/// when the HTTP upgrade fails and the socket task never runs (axum then
+/// drops the upgrade callback holding this — before, those slots leaked).
+#[must_use = "dropping an Admission gives its slots back"]
+#[derive(Debug)]
+pub struct Admission {
+    ip: String,
+}
+
+impl Drop for Admission {
+    fn drop(&mut self) {
+        call_hub().release_ip(&self.ip);
+        call_hub().release_global();
+    }
+}
+
+/// Take a global and a per-IP slot for a socket from `ip` (global first:
+/// the cheapest refusal), or neither.
+pub fn admit(ip: &str) -> Result<Admission, Refusal> {
+    let hub = call_hub();
+    if !hub.try_acquire_global() {
+        return Err(Refusal::Full);
+    }
+    if !hub.try_acquire_ip(ip) {
+        hub.release_global();
+        return Err(Refusal::IpFull);
+    }
+    Ok(Admission { ip: ip.to_string() })
+}
+
 /// Wire `WsConfig.max_connections` / `WsConfig.max_per_ip` into the
 /// call hub. MUST be called before the first `call_hub()` call (the
 /// boot order in `server.rs::bootstrap` guarantees that). Second call
@@ -232,12 +272,13 @@ impl CallHub {
         }
     }
 
-    /// Release a global slot (idempotent-safe: clamps at zero).
+    /// Release a global slot. Saturates at zero in one atomic step: a
+    /// double release must neither wrap to usize::MAX for another thread
+    /// to see nor, by "undoing" it, erase a concurrent acquire.
     pub fn release_global(&self) {
-        let prev = self.global_conns.fetch_sub(1, Ordering::AcqRel);
-        if prev == 0 {
-            self.global_conns.store(0, Ordering::Release);
-        }
+        let _ = self
+            .global_conns
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1));
     }
 
     /// Live call-WS connection count (metrics / caps logging).
@@ -270,7 +311,10 @@ impl CallHub {
     /// (so `ip_conns` cannot grow one-entry-per-IP-seen forever).
     pub fn release_ip(&self, ip: &str) {
         if let Some(entry) = self.ip_conns.get(ip) {
-            let prev = entry.fetch_sub(1, Ordering::AcqRel);
+            // Saturating, like `release_global`: an extra release leaves 0.
+            let prev = entry
+                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_sub(1))
+                .unwrap_or(0);
             let hit_zero = prev <= 1;
             drop(entry);
             if hit_zero {
@@ -416,7 +460,10 @@ impl CallHub {
             user_has_sockets = !now_empty;
             drop(v);
             if now_empty {
-                self.by_user.remove(user_id);
+                // Re-checked under the shard lock: the user's other device
+                // may have registered since `drop(v)`, and a plain
+                // `remove` would delete its socket from the index.
+                self.by_user.remove_if(user_id, |_, v| v.is_empty());
             }
         }
 
@@ -730,6 +777,25 @@ mod tests {
 
     use super::*;
     use crate::auth::SessionUser;
+
+    /// An upgrade that fails drops the callback holding the admission:
+    /// its slots must come back, leaving no stale per-IP entry.
+    #[test]
+    fn a_dropped_admission_gives_its_slots_back() {
+        let ip = "192.0.2.211";
+        let slots = || {
+            call_hub()
+                .ip_conns
+                .get(ip)
+                .map(|n| n.load(Ordering::Acquire))
+                .unwrap_or(0)
+        };
+        let admission = admit(ip).unwrap();
+        assert_eq!(slots(), 1);
+        drop(admission);
+        assert_eq!(slots(), 0);
+        assert!(call_hub().ip_conns.get(ip).is_none());
+    }
 
     /// All these tests run against the SAME global singleton hub, and some
     /// make absolute assertions about global agent counts. Rust runs tests

@@ -27,7 +27,7 @@
 //! ```
 
 pub use self::auth_extractor::{AdminUser, AuthUser, MaybeAuthUser};
-pub use self::client_ip::real_client_ip;
+pub use self::client_ip::{header_client_ip, real_client_ip};
 pub use self::request_id::RequestId;
 pub use self::timeout::request_timeout;
 

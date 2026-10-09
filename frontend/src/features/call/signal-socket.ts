@@ -1,5 +1,7 @@
 const HEARTBEAT_MS = 25_000
 const MAX_RECONNECTS = 5
+/** Close code for callers outside the countries calls are offered in: reconnecting cannot help. */
+export const REGION_BLOCKED_CLOSE = 4403
 
 export interface SignalSocketEvents {
   /** Socket (re)opened. */
@@ -57,7 +59,8 @@ export class SignalSocket {
     this.ws.onclose = (ev) => {
       this.stopHeartbeat()
       this.events.close(ev.code, ev.reason)
-      if (!this.disposed && this.attempts < MAX_RECONNECTS) this.scheduleReconnect()
+      if (!this.disposed && this.attempts < MAX_RECONNECTS && ev.code !== REGION_BLOCKED_CLOSE)
+        this.scheduleReconnect()
     }
     this.ws.onerror = () => this.events.error('ws-error', 'WebSocket error')
   }

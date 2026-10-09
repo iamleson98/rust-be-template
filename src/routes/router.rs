@@ -35,15 +35,8 @@ use crate::middleware::anti_scraping;
 use crate::middleware::request_id::request_id_layer;
 use crate::state::AppState;
 
-/// Rate-limit key = the REAL client IP, derived right-anchored from
-/// X-Forwarded-For (SEC-2026-RL).
-///
-/// Deployment chain is Cloudflare -> Caddy -> app. Caddy (reverse_proxy)
-/// appends its immediate peer (a Cloudflare edge IP) to XFF, and
-/// Cloudflare appends the true client IP before that. The client's own
-/// XFF entries (spoofable padding) sit at the FRONT of the list. The
-/// true client IP is therefore `TRUSTED_PROXY_HOPS + 1` entries from
-/// the RIGHT — the same proven parse used by pdf-tts's limiter.
+/// Rate-limit key = the REAL client IP from the proxy chain
+/// (`middleware::header_client_ip`, SEC-2026-RL), else the socket peer.
 ///
 /// tower_governor's default `PeerIpKeyExtractor` keys on the socket
 /// peer, which behind Caddy is the PROXY's IP — one global bucket for
@@ -56,58 +49,15 @@ impl KeyExtractor for ClientIpKeyExtractor {
     type Key = std::net::IpAddr;
 
     fn extract<T>(&self, req: &axum::http::Request<T>) -> Result<Self::Key, GovernorError> {
-        fn parse_ip(s: &str) -> Option<std::net::IpAddr> {
-            s.trim().parse::<std::net::IpAddr>().ok()
-        }
-
-        if let Some(xff) = req
-            .headers()
-            .get("x-forwarded-for")
-            .and_then(|v| v.to_str().ok())
-        {
-            let hops = hops();
-            if hops > 0 {
-                let ips: Vec<&str> = xff.split(',').collect();
-                // Take the entry `hops` from the right (0-based:
-                // len - hops - 1 is the entry appended by the proxy
-                // BEFORE the last `hops` trusted appends).
-                let idx = ips.len().saturating_sub(hops + 1);
-                if let Some(ip) = ips.get(idx).and_then(|s| parse_ip(s)) {
-                    return Ok(ip);
-                }
-            }
-        }
-
-        // Cloudflare sets the authoritative client IP here (cannot be
-        // spoofed through the public chain; only reachable from inside
-        // the private overlay network, which is already post-compromise).
-        if let Some(ip) = req
-            .headers()
-            .get("cf-connecting-ip")
-            .and_then(|v| v.to_str().ok())
-            .and_then(parse_ip)
-        {
-            return Ok(ip);
-        }
-
-        // Direct connection (dev, health checks): socket peer.
         use axum::extract::ConnectInfo;
-        if let Some(ci) = req.extensions().get::<ConnectInfo<std::net::SocketAddr>>() {
-            return Ok(ci.0.ip());
-        }
-
-        Err(GovernorError::UnableToExtractKey)
+        crate::middleware::header_client_ip(req.headers())
+            .or_else(|| {
+                req.extensions()
+                    .get::<ConnectInfo<std::net::SocketAddr>>()
+                    .map(|ci| ci.0.ip())
+            })
+            .ok_or(GovernorError::UnableToExtractKey)
     }
-}
-
-fn hops() -> usize {
-    static HOPS: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
-    *HOPS.get_or_init(|| {
-        std::env::var("TRUSTED_PROXY_HOPS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(1)
-    })
 }
 
 async fn serve_service_worker(path: std::path::PathBuf) -> axum::response::Response {

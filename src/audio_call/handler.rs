@@ -30,7 +30,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
 
-use crate::audio_call::hub::{call_hub, CallRole};
+use crate::audio_call::hub::{call_hub, Admission, CallRole, Refusal};
 use crate::audio_call::session::{sessions, CallerProfile, HangupOutcome, OfferOutcome};
 use crate::auth::cookies::ACCESS_COOKIE;
 use crate::auth::SessionUser;
@@ -106,7 +106,18 @@ pub async fn ws_upgrade(
     // handler: the socket peer is Caddy's overlay IP for every browser,
     // so keying the per-IP cap on it would cap the whole site at
     // `WS_MAX_PER_IP` concurrent signaling sockets.
-    let ip = crate::middleware::real_client_ip(&headers, addr.ip()).to_string();
+    let client_ip = crate::middleware::real_client_ip(&headers, addr.ip());
+    let ip = client_ip.to_string();
+
+    // ── Country gate (CALL_ALLOWED_COUNTRIES) ───────────────────────
+    // Callers outside the allowed countries are told so over the socket
+    // and disconnected with REGION_BLOCKED_CLOSE: a refused HTTP upgrade
+    // reaches the browser as an anonymous close, which clients retry.
+    // Checked before admission, so a refused caller holds no slot.
+    if !user.is_staff() && !crate::geo::call_gate().allows(client_ip) {
+        tracing::info!(user_id = %user.id, ip = %ip, "ws-call refused: caller outside the allowed countries");
+        return Ok(ws.on_upgrade(refuse_region).into_response());
+    }
 
     // ── Hardware-bounded admission (RAM / fd watermarks) ─────────────
     // Same guard as the chat `/ws` handler: caps default to UNLIMITED,
@@ -127,30 +138,29 @@ pub async fn ws_upgrade(
         ));
     }
 
-    // ── Connection caps (global FIRST — cheapest rejection) ────────
-    // `/ws-call` previously had NO admission control: every
-    // authenticated account could hold unlimited signaling sockets
-    // (2 spawned tasks + a channel + hub entries each). Same caps as
-    // the chat hub (WS_MAX_CONNECTIONS / WS_MAX_PER_IP) — released in
-    // `handle_socket`'s teardown, the ONE release site.
-    if !call_hub().try_acquire_global() {
-        tracing::warn!(
-            ip = %ip,
-            connections = call_hub().connection_count(),
-            "ws-call upgrade rejected: global connection cap reached"
-        );
-        return Err(AppError::ServiceUnavailable(
-            "ws-call connection cap reached".into(),
-        ));
-    }
-    if !call_hub().try_acquire_ip(&ip) {
-        // Roll the global slot back — the per-IP cap rejected this one.
-        call_hub().release_global();
-        tracing::warn!(ip = %ip, "ws-call upgrade rejected: per-IP cap reached");
-        return Err(AppError::TooManyRequests(
-            "ws-call per-ip cap reached".into(),
-        ));
-    }
+    // ── Connection caps (WS_MAX_CONNECTIONS / WS_MAX_PER_IP) ────────
+    // The slots belong to `admission`, moved into the socket task: they
+    // are given back when it ends — or when the upgrade fails and the
+    // task never runs.
+    let admission = match crate::audio_call::hub::admit(&ip) {
+        Ok(admission) => admission,
+        Err(Refusal::Full) => {
+            tracing::warn!(
+                ip = %ip,
+                connections = call_hub().connection_count(),
+                "ws-call upgrade rejected: global connection cap reached"
+            );
+            return Err(AppError::ServiceUnavailable(
+                "ws-call connection cap reached".into(),
+            ));
+        }
+        Err(Refusal::IpFull) => {
+            tracing::warn!(ip = %ip, "ws-call upgrade rejected: per-IP cap reached");
+            return Err(AppError::TooManyRequests(
+                "ws-call per-ip cap reached".into(),
+            ));
+        }
+    };
     // Client fingerprint for call diagnostics: browsers send their UA,
     // the Flutter app sends Dart's. Keeps "which build is the phone
     // running" answerable straight from the server logs.
@@ -182,36 +192,53 @@ pub async fn ws_upgrade(
     let heartbeat_sec = st.config.ws.heartbeat_sec.max(5);
     let idle_timeout_sec = st.config.ws.idle_timeout_sec.max(heartbeat_sec * 2 + 1);
 
-    // STUN/TURN servers pushed to the peer in the `registered` message.
-    // Per-USER list: in `rest` auth mode the backend mints a fresh,
-    // time-limited HMAC credential scoped to this user + this socket's
-    // expected lifetime (see `AudioCallConfig::ice_servers_for`); in the
-    // default `static` mode it is the plain env JSON passthrough.
-    let ice_servers = st.config.audio_call.ice_servers_for(&user.id.to_string());
     // Channel capacity from config — was previously hardcoded to 64.
     let channel_capacity = st.config.ws.channel_capacity.max(1);
+    let config = st.config.clone();
 
-    Ok(ws.on_upgrade(move |socket| {
-        handle_socket(
-            socket,
-            user,
-            ip,
-            heartbeat_sec,
-            idle_timeout_sec,
-            ice_servers,
-            channel_capacity,
-        )
-    }))
+    Ok(ws
+        .on_upgrade(move |socket| {
+            handle_socket(
+                socket,
+                user,
+                admission,
+                heartbeat_sec,
+                idle_timeout_sec,
+                config,
+                channel_capacity,
+            )
+        })
+        .into_response())
+}
+
+/// WebSocket close code for callers outside the allowed countries (4000–4999
+/// is reserved for applications). Clients stop reconnecting on it.
+pub const REGION_BLOCKED_CLOSE: u16 = 4403;
+
+/// Tell a caller outside the allowed countries why, then close.
+async fn refuse_region(mut socket: WebSocket) {
+    let frame = json!({
+        "type": "error",
+        "code": "region-blocked",
+        "message": "Calls are only available in Vietnam",
+    });
+    let _ = socket.send(Message::Text(frame.to_string().into())).await;
+    let _ = socket
+        .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+            code: REGION_BLOCKED_CLOSE,
+            reason: "region-blocked".into(),
+        })))
+        .await;
 }
 
 /// Main socket loop: split into read/write halves and drive them.
 pub async fn handle_socket(
     socket: WebSocket,
     user: SessionUser,
-    ip: String,
+    admission: Admission,
     heartbeat_sec: u64,
     idle_timeout_sec: u64,
-    ice_servers: Value,
+    config: std::sync::Arc<crate::config::Config>,
     channel_capacity: usize,
 ) {
     use futures::StreamExt as _;
@@ -229,13 +256,33 @@ pub async fn handle_socket(
     );
 
     // ── Write pump ──────────────────────────────────────────────────────
+    // TURN credentials (`rest` mode) expire; a socket can stay open far
+    // longer (staff stay connected all shift), so it gets fresh ones on a
+    // timer and every call starts from credentials that outlive it.
+    let refresh_config = config
+        .audio_call
+        .uses_rest_turn_auth()
+        .then(|| (config.clone(), user.id.to_string()));
     let mut write_task = tokio::spawn(async move {
         use futures::SinkExt;
         let mut sink = sink;
         let mut heartbeat = tokio::time::interval(Duration::from_secs(heartbeat_sec));
         heartbeat.tick().await;
+        let refresh_every = crate::config::AudioCallConfig::TURN_CRED_REFRESH;
+        let mut refresh =
+            tokio::time::interval_at(tokio::time::Instant::now() + refresh_every, refresh_every);
         loop {
             tokio::select! {
+                _ = refresh.tick(), if refresh_config.is_some() => {
+                    let Some((config, uid)) = &refresh_config else { continue };
+                    let frame = json!({
+                        "type": "ice-servers",
+                        "iceServers": config.audio_call.ice_servers_for(uid),
+                    });
+                    if sink.send(Message::Text(frame.to_string().into())).await.is_err() {
+                        break;
+                    }
+                }
                 maybe_msg = rx.recv() => {
                     match maybe_msg {
                         Some(msg) => {
@@ -324,6 +371,12 @@ pub async fn handle_socket(
                                         ));
                                         continue;
                                     }
+                                    // STUN/TURN servers for the `registered` frame:
+                                    // per-user credentials minted now in `rest` mode
+                                    // (see `AudioCallConfig::ice_servers_for`), the
+                                    // env JSON as-is in `static` mode.
+                                    let ice_servers =
+                                        config.audio_call.ice_servers_for(&user_r.id.to_string());
                                     if let Ok(role) =
                                         process_register(&user_r, &v, &tx, sid, &ice_servers)
                                     {
@@ -441,13 +494,9 @@ pub async fn handle_socket(
         crate::push::push().notify_call_ended(&ended.agent_id, &ended.customer_id);
     }
     let role = call_hub().unregister(&uid, sid);
-    // Release the admission slots acquired at upgrade — THE one release
-    // site, after `unregister` (which does NOT release: a socket that
-    // never sent `register` has no peer there, so releasing inside it
-    // would leak this socket's slots). Runs exactly once per socket on
-    // EVERY teardown path, registered or not.
-    call_hub().release_ip(&ip);
-    call_hub().release_global();
+    // Give the connection slots back, after `unregister` (which does not
+    // release: a socket that never sent `register` has no peer there).
+    drop(admission);
     if let Some(role) = role {
         match role {
             CallRole::Agent => {
@@ -1149,6 +1198,40 @@ fn handle_hangup(user: &SessionUser, role: CallRole, msg: &Value) -> Result<(), 
             agent_session_cleanup(&uid);
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod region_tests {
+    use super::*;
+    use futures::StreamExt as _;
+    use tokio_tungstenite::tungstenite::Message as WsMessage;
+
+    /// A refused caller learns why over the socket, then gets the close
+    /// code clients stop reconnecting on.
+    #[tokio::test]
+    async fn a_caller_outside_the_allowed_countries_is_told_and_disconnected() {
+        let app = Router::new().route(
+            "/ws-call",
+            get(|ws: WebSocketUpgrade| async move { ws.on_upgrade(refuse_region) }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let (mut socket, _) = tokio_tungstenite::connect_async(format!("ws://{addr}/ws-call"))
+            .await
+            .unwrap();
+        let Some(Ok(WsMessage::Text(text))) = socket.next().await else {
+            panic!("expected the error frame first");
+        };
+        let frame: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(frame["type"], "error");
+        assert_eq!(frame["code"], "region-blocked");
+        let Some(Ok(WsMessage::Close(Some(close)))) = socket.next().await else {
+            panic!("expected a close frame");
+        };
+        assert_eq!(u16::from(close.code), REGION_BLOCKED_CLOSE);
     }
 }
 

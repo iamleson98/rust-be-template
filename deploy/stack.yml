@@ -64,18 +64,24 @@ services:
       # CGNAT (5G ↔ home WiFi) can almost never connect — calls sit
       # on "connecting" until they time out.
       - AUDIO_CALL_ICE_SERVERS=${AUDIO_CALL_ICE_SERVERS:-}
-      # TURN credential mode: `static` (default — one shared pair baked
-      # into AUDIO_CALL_ICE_SERVERS) or `rest` (per-user time-limited
-      # HMAC credentials minted by the backend; coturn must run with
-      # `--use-auth-secret --static-auth-secret=$TURN_SECRET` — see
-      # deploy/turn.sh --use-auth-secret). Flip BOTH sides together.
-      - AUDIO_CALL_TURN_AUTH_MODE=${AUDIO_CALL_TURN_AUTH_MODE:-static}
+      # TURN credential mode: `rest` (default — per-user, time-limited
+      # HMAC credentials minted by the backend and refreshed on open
+      # sockets; coturn runs `--use-auth-secret`) or `static` (one shared
+      # pair baked into AUDIO_CALL_ICE_SERVERS; turn.sh --static). turn.sh
+      # writes the mode it configured coturn with to .env.
+      - AUDIO_CALL_TURN_AUTH_MODE=${AUDIO_CALL_TURN_AUTH_MODE:-rest}
       # Shared HMAC secret for `rest` mode (same value as coturn's
-      # --static-auth-secret; turn.sh writes it to .env). Only used when
-      # AUTH_MODE=rest.
+      # --static-auth-secret; turn.sh writes it to .env).
       - TURN_SECRET=${TURN_SECRET:-}
-      # Lifetime of minted TURN credentials (rest mode only).
+      # Minimum lifetime of minted TURN credentials; the backend raises it
+      # to cover a whole call (AUDIO_CALL_MAX_CALL_DURATION_SECS).
       - AUDIO_CALL_TURN_CRED_TTL_SECS=${AUDIO_CALL_TURN_CRED_TTL_SECS:-3600}
+      # Calls are accepted from these countries only (staff exempt).
+      # Country blocks: the built-in Vietnam snapshot, replaced by APNIC's
+      # registry file, re-downloaded daily onto the data volume.
+      - CALL_ALLOWED_COUNTRIES=${CALL_ALLOWED_COUNTRIES:-VN}
+      - GEO_RANGES_PATH=${GEO_RANGES_PATH:-/app/data/geo/delegated-apnic-latest}
+      - GEO_RANGES_URL=${GEO_RANGES_URL:-https://ftp.apnic.net/stats/apnic/delegated-apnic-latest}
       # FCM service-account JSON (single line) — when set, incoming
       # call rings ALSO wake closed/force-stopped apps via push.
       # Empty = push disabled (WS ring + Android duty mode still work).

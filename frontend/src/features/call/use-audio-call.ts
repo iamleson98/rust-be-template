@@ -49,6 +49,8 @@ export function useAudioCall() {
   const [quality, setQuality] = useState<CallQuality | null>(null)
   const [endReason, setEndReason] = useState<string | null>(null)
   const [incoming, setIncoming] = useState<IncomingCall | null>(null)
+  /** Calls aren't offered where the customer is; the chat still is. Kept for the session. */
+  const [regionBlocked, setRegionBlocked] = useState(false)
 
   const duration = useCallDuration(state === 'active')
   useWakeLock(state === 'active')
@@ -105,7 +107,8 @@ export function useAudioCall() {
     })
     client.on('quality', setQuality)
     client.on('error', ({ code, message }) => {
-      if (code === 'mic-denied') setError({ message, micDenied: true })
+      if (code === 'region-blocked') setRegionBlocked(true)
+      else if (code === 'mic-denied') setError({ message, micDenied: true })
       else flashError(message)
     })
     client.on('hangup', ({ reason }) => {
@@ -156,7 +159,7 @@ export function useAudioCall() {
 
   // Connect: staff on sign-in, customers when the panel opens.
   useEffect(() => {
-    if (!user || (!isAgent && !open)) return
+    if (!user || (!isAgent && !open) || regionBlocked) return
     let cancelled = false
     ensureClient().catch((e) => {
       if (!cancelled) flashError(t('layout.call.connectFailed', { error: String(e) }))
@@ -165,7 +168,14 @@ export function useAudioCall() {
     return () => {
       cancelled = true
     }
-  }, [open, user, isAgent, ensureClient, flashError, t])
+  }, [open, user, isAgent, regionBlocked, ensureClient, flashError, t])
+
+  // Customer outside the countries calls are offered in: say so and stay in the chat.
+  useEffect(() => {
+    if (!open || isAgent || !regionBlocked) return
+    toast.info(t('layout.call.regionBlocked'))
+    setOpen(false)
+  }, [open, isAgent, regionBlocked, setOpen, t])
 
   // Customer: the phone icon in the chat is the call action itself.
   useEffect(() => {

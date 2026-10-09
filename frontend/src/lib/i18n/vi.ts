@@ -1505,6 +1505,8 @@ export const vi: TranslationMap = {
   'layout.account.tripFeedback': 'Phản hồi chuyến đi',
   'layout.account.utilities': 'Tiện ích',
   'layout.call.startFailed': 'Không thể bắt đầu cuộc gọi. Bạn vẫn có thể tiếp tục nhắn tin.',
+  'layout.call.regionBlocked':
+    'Gọi điện chỉ hỗ trợ trong Việt Nam. Bạn vẫn có thể nhắn tin với chúng tôi ngay tại đây.',
   'layout.call.noAgentsToast':
     'Hiện không có nhân viên trực tuyến. Bạn vẫn có thể tiếp tục nhắn tin.',
   'layout.call.busyToast': 'Nhân viên đang bận. Bạn vẫn có thể tiếp tục nhắn tin.',

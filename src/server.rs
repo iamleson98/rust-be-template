@@ -301,6 +301,15 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
             config.audio_call.max_call_duration(),
             config.audio_call.janitor_interval(),
         );
+
+        // Country gate for callers (CALL_ALLOWED_COUNTRIES), kept current
+        // from the registry file when GEO_RANGES_URL is set. See src/geo.
+        let geo_path = config.audio_call.geo_ranges_path.clone();
+        crate::geo::install(crate::geo::CallGate::load(
+            config.audio_call.allowed_countries.clone(),
+            geo_path.as_deref(),
+        ));
+        crate::geo::spawn_refresh(config.audio_call.geo_ranges_url.clone(), geo_path);
     }
 
     // ---- Domain services (pre-built, shared via Arc) -----------------

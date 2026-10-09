@@ -216,6 +216,8 @@ ignored = ["rustqlite-compat", "sea-query"]
 
 [dev-dependencies]
 tokio-test = "0.4"
+# WebSocket client for socket-level tests (same version axum links).
+tokio-tungstenite = "0.29"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
 # Direct C-ABI access for the engine regression test

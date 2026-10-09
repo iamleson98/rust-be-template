@@ -49,26 +49,27 @@ set -euo pipefail
 
 cd "$(cd "$(dirname "$0")" && pwd)"
 
-# ── 0. TURN REST auth mode flag ──────────────────────────────────────
+# ── 0. TURN credential mode ──────────────────────────────────────────
 #
-# `--use-auth-secret` (or TURN_USE_AUTH_SECRET=1) switches BOTH sides to
-# draft-uberti-behave-turn-rest credentials:
+# Default: draft-uberti-behave-turn-rest credentials on BOTH sides —
 #   * coturn: --use-auth-secret --static-auth-secret=$TURN_SECRET
 #     (no fixed --user; it challenges, then verifies
 #     base64(HMAC-SHA1(secret, "<expiry>:<userId>")) itself);
 #   * backend: AUDIO_CALL_TURN_AUTH_MODE=rest in .env → the backend mints
-#     per-user, time-limited credentials into the `registered` frame
-#     (config.rs ice_servers_for).
+#     per-user, time-limited credentials into the `registered` frame and
+#     refreshes them on open sockets (config ice_servers_for).
+# A credential is only handed to a signed-in caller who passed the call
+# gate, and it stops working on its own; the old static mode gave every
+# caller one shared password that worked forever, for any traffic.
 #
-# This is a COORDINATED flip — run it while you can restart the backend:
-#   1. ./turn.sh --use-auth-secret        (recreates coturn + writes env)
-#   2. deploy.sh (stack deploy picks up AUDIO_CALL_TURN_AUTH_MODE=rest)
-# A half-flip (backend mints, coturn still static — or vice versa) fails
-# every TURN allocation with 401; calls fall back to STUN-only and break
-# behind CGNAT. Re-running WITHOUT the flag flips both back to static.
-USE_AUTH_SECRET=0
-[ "${1:-}" = "--use-auth-secret" ] && USE_AUTH_SECRET=1
-[ "${TURN_USE_AUTH_SECRET:-0}" = "1" ] && USE_AUTH_SECRET=1
+# `--static` (or TURN_USE_AUTH_SECRET=0) keeps the legacy shared pair.
+# Both sides flip together: deploy.sh runs this script, then the stack
+# deploy, so coturn and the backend agree after one deploy. Running this
+# script ALONE leaves the backend on the old mode until the next stack
+# deploy — TURN allocations 401 in between.
+USE_AUTH_SECRET=1
+[ "${1:-}" = "--static" ] && USE_AUTH_SECRET=0
+[ "${TURN_USE_AUTH_SECRET:-1}" = "0" ] && USE_AUTH_SECRET=0
 
 STACK=datxevui
 CONTAINER=coturn-vexevn
@@ -140,7 +141,7 @@ ensure_env TURN_DOMAIN "$TURN_DOMAIN"
 if [ "$USE_AUTH_SECRET" = "1" ]; then
   ensure_env AUDIO_CALL_TURN_AUTH_MODE rest
 else
-  # No flag → static mode (also heals a stray `rest` left in .env).
+  # --static: the legacy shared pair (also heals a stray `rest` in .env).
   ensure_env AUDIO_CALL_TURN_AUTH_MODE static
 fi
 
@@ -247,14 +248,28 @@ fi
 # ports long before the range does. 1M matches the backend container.
 # REST mode swaps the fixed --user for the shared-secret HMAC flow: the
 # backend mints "<expiry>:<userId>" + base64(HMAC-SHA1(secret, ...)) per
-# user per hour; coturn verifies the same formula. Static mode keeps the
-# long-lived shared pair (documented, deliberate — see ICE above).
+# user; coturn verifies the same formula. Static mode keeps the
+# long-lived shared pair (opt-in only, see section 0).
+#
+# Relay hardening — a TURN server relays to whatever peer address a client
+# names, so without limits any caller could reach the host's private
+# networks through it (the swarm overlay with the backend, the docker
+# bridge, link-local cloud metadata):
+#   * --denied-peer-ip: private, shared (CGNAT), link-local and unique-
+#     local ranges. WebRTC never needs them: two peers on one LAN talk
+#     directly; the relay only ever sends to public addresses.
+#   * --no-tcp-relay: WebRTC relays UDP only (clients reach coturn over
+#     TCP/TLS, but the relayed leg is UDP); RFC 6062 TCP relays would
+#     make coturn a generic TCP proxy.
+#   * --no-cli: no telnet admin console on 5766.
+# coturn 4.6 already refuses loopback and multicast peers by default.
 if [ "$USE_AUTH_SECRET" = "1" ]; then
   auth_args="--lt-cred-mech --use-auth-secret --static-auth-secret=${TURN_SECRET}"
 else
   auth_args="--lt-cred-mech --user=${TURN_USERNAME}:${TURN_SECRET}"
 fi
-base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=65500 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} ${auth_args} --user-quota=0 --total-quota=0 --no-dtls"
+deny_args="--denied-peer-ip=0.0.0.0-0.255.255.255 --denied-peer-ip=10.0.0.0-10.255.255.255 --denied-peer-ip=100.64.0.0-100.127.255.255 --denied-peer-ip=169.254.0.0-169.254.255.255 --denied-peer-ip=172.16.0.0-172.31.255.255 --denied-peer-ip=192.168.0.0-192.168.255.255 --denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff --denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+base_cmd="-n --Verbose --realm=datxevui.com --listening-port=3478 --min-port=49160 --max-port=65500 --listening-ip=0.0.0.0 --external-ip=${PUBLIC_IP} ${auth_args} --user-quota=0 --total-quota=0 --no-dtls --no-tcp-relay --no-cli ${deny_args}"
 tls_args="--tls-listening-port=5349 --cert=/etc/cert/fullchain.pem --pkey=/etc/cert/privkey.pem"
 desired_cmd="$base_cmd $tls_args"
 
