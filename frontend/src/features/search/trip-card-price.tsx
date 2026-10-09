@@ -13,12 +13,12 @@
  * warning and the CTAs.
  */
 
-import type { TripResult } from '@/lib/store'
+import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
 import { ChevronRight, Flame, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 
 /* Price + action — clear hierarchy: seats-left warning first (when real),
    then the price, then the CTA. Wider column (md:w-52) so prices like

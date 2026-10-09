@@ -15,8 +15,8 @@
  * could diverge from the real booking total shown on the success screen.
  */
 
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 
 export function PriceSummary({

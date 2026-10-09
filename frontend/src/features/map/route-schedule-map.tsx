@@ -19,7 +19,7 @@ import { MapContainer, Marker, Polyline, Popup, useMap, ZoomControl } from 'reac
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Navigation } from 'lucide-react'
-import { formatDuration } from '@/lib/types'
+import { formatDuration } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 
@@ -155,7 +155,7 @@ export function RouteScheduleMap({ geometry, pickupPoints, fromName, toName, acc
           zoom={8}
           scrollWheelZoom={false}
           zoomControl={false}
-          className="h-[300px] md:h-[380px] w-full"
+          className="h-75 md:h-95 w-full"
           style={{ background: '#e2eaf2' }}
         >
           <BasemapLayer switcher={false} />

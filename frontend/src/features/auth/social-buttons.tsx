@@ -1,33 +1,7 @@
-'use client'
-
-/**
- * SocialAuthButtons — renders the three social-auth buttons (Facebook,
- * Google, X/Twitter) that link to the backend OAuth start routes.
- *
- * The buttons are pure anchor tags — they navigate to
- * `/api/auth/oauth/<provider>/start` which issues a 302 to the
- * provider's authorization URL. The backend handles the entire flow.
- *
- * All three buttons are rendered unconditionally; if a provider isn't
- * configured on the backend, the start route returns 404 and the user
- * sees a friendly error. (We don't query the backend's enabled-state
- * to avoid an extra round-trip on page load.)
- *
- * After a successful OAuth flow, the backend redirects to the frontend
- * URL with auth cookies set. If there's an error, the redirect
- * includes `?oauth_error=<message>` which the login page surfaces via
- * a toast.
- */
-
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 
-// Use empty base URL so OAuth links are relative → go through the Vite
-// proxy in dev (same-origin) or the Rust static server in production.
-// Previously used VITE_API_BASE_URL which produced absolute URLs like
-// http://127.0.0.1:8080 — cross-origin from localhost:3000.
-const API_BASE = ''
 
 export function SocialAuthButtons() {
   const t = useT()
@@ -57,7 +31,7 @@ export function SocialAuthButtons() {
 
       <div className="grid grid-cols-3 gap-2">
         <a
-          href={`${API_BASE}/api/auth/oauth/facebook/start`}
+          href={`/api/auth/oauth/facebook/start`}
           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-xs font-semibold transition-colors"
           aria-label={t('authPage.loginWithFacebook')}
         >
@@ -68,7 +42,7 @@ export function SocialAuthButtons() {
         </a>
 
         <a
-          href={`${API_BASE}/api/auth/oauth/google/start`}
+          href={`/api/auth/oauth/google/start`}
           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors"
           aria-label={t('authPage.loginWithGoogle')}
         >
@@ -94,7 +68,7 @@ export function SocialAuthButtons() {
         </a>
 
         <a
-          href={`${API_BASE}/api/auth/oauth/twitter/start`}
+          href={`/api/auth/oauth/twitter/start`}
           className="flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-black hover:bg-slate-900 text-white text-xs font-semibold transition-colors"
           aria-label={t('authPage.loginWithX')}
         >

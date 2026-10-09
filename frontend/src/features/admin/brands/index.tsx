@@ -19,6 +19,8 @@
  * for every level.
  */
 
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import { adminBrandsListOptions, adminBrandsDeleteMutation, adminRoutesDeleteMutation, adminSchedulesDeleteMutation, adminRoutesListOptions, adminBusLayoutsListOptions } from '@/api'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertDialog,
@@ -35,18 +37,10 @@ import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
 import { Building2, Loader2, Plus, RotateCcw, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  useAdminBrands,
-  useAdminRoutes,
-  useAdminBusLayouts,
-  useDeleteAdminBrand,
-  useDeleteAdminRoute,
-  useDeleteAdminSchedule,
-} from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import type { DeleteTarget } from '@/features/admin/types'
-import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 import { CITY_ITEMS, cityLabel } from '@/features/admin/routes/city-select-content'
 import { BrandFormDialog } from './brand-form'
 import { RouteFormDialog } from '@/features/admin/routes/route-form'
@@ -100,21 +94,23 @@ export function AdminBrandManagement() {
   const [expandedRoutes, setExpandedRoutes] = useState<Set<string>>(new Set())
 
   /* ── Queries ─────────────────────────────────────────────── */
-  const brandsQuery = useAdminBrands()
+  const brandsQuery = useQuery(adminBrandsListOptions())
   const brands: AdminBrandOut[] = (brandsQuery.data?.items ?? EMPTY_ITEMS) as AdminBrandOut[]
 
   const locationFilterActive = !!(startLocationId || endLocationId)
   // The smart filter's single cross-brand route query — only fires when
   // at least one endpoint is picked.
-  const filteredRoutesQuery = useAdminRoutes(
-    locationFilterActive
-      ? {
-          startLocationId: startLocationId || undefined,
-          endLocationId: endLocationId || undefined,
-          limit: 200,
-        }
-      : undefined,
-  )
+  const filteredRoutesQuery = useQuery({
+    ...adminRoutesListOptions({
+      query: {
+        startLocationId: startLocationId || undefined,
+        endLocationId: endLocationId || undefined,
+        limit: 200,
+      },
+    }),
+    enabled: locationFilterActive,
+    placeholderData: keepPreviousData,
+  })
   const filteredRoutes = useMemo(
     () =>
       locationFilterActive
@@ -168,9 +164,9 @@ export function AdminBrandManagement() {
     })
   }, [locationFilterActive, matchingBrandIds])
   /* ── Mutations ───────────────────────────────────────────── */
-  const deleteBrandMutation = useDeleteAdminBrand()
-  const deleteRouteMutation = useDeleteAdminRoute()
-  const deleteScheduleMutation = useDeleteAdminSchedule()
+  const deleteBrandMutation = useMutation(adminBrandsDeleteMutation())
+  const deleteRouteMutation = useMutation(adminRoutesDeleteMutation())
+  const deleteScheduleMutation = useMutation(adminSchedulesDeleteMutation())
 
   /* ── Dialog state ────────────────────────────────────────── */
   const [brandDialog, setBrandDialog] = useState<{ open: boolean; brand: AdminBrandOut | null }>({
@@ -192,8 +188,11 @@ export function AdminBrandManagement() {
 
   // Bus layouts for the schedule form — the brand of the route being
   // edited scopes the picker.
-  const busLayoutsQuery = useAdminBusLayouts({
-    brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined,
+  const busLayoutsQuery = useQuery({
+    ...adminBusLayoutsListOptions({
+      query: { brandId: scheduleDialog.route?.brandId ?? routeDialog.brand?.id ?? undefined },
+    }),
+    placeholderData: keepPreviousData,
   })
   const busLayouts = (busLayoutsQuery.data?.items ?? []) as never[]
 

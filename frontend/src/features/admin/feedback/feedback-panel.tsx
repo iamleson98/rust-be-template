@@ -20,12 +20,13 @@
  * orchestrator (state + data wiring + layout).
  */
 
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query'
+import { adminReviewsSummaryOptions, adminReviewsModerateMutation, adminReviewsListOptions } from '@/api'
 import { useState, useCallback } from 'react'
 import { DataTable } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { MessageSquareHeart, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAdminReviewBrandSummary, useAdminReviews, useModerateAdminReview } from '@/lib/queries'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useT } from '@/lib/i18n'
 import { BrandSummaryStrip } from './brand-summary-card'
@@ -61,15 +62,20 @@ export function FeedbackPanel() {
     setPage(0)
   }
 
-  const summaryQuery = useAdminReviewBrandSummary()
-  const listQuery = useAdminReviews({
-    brandId: brandId ?? undefined,
-    status: status === 'all' ? undefined : status,
-    search: debouncedSearch.trim() || undefined,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+  const summaryQuery = useQuery(adminReviewsSummaryOptions())
+  const listQuery = useQuery({
+    ...adminReviewsListOptions({
+      query: {
+        brandId: brandId ?? undefined,
+        status: status === 'all' ? undefined : status,
+        search: debouncedSearch.trim() || undefined,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      },
+    }),
+    placeholderData: keepPreviousData,
   })
-  const moderateMut = useModerateAdminReview()
+  const moderateMut = useMutation(adminReviewsModerateMutation())
 
   const rows: FeedbackRow[] = listQuery.data?.items ?? []
   const total = listQuery.data?.total ?? 0

@@ -7,10 +7,10 @@
  *   - NO fake price-trend indicator (the old component derived a trend
  *     from a tripId hash).
  */
+import type { TripResult } from '@/api'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TripCardPrice } from '@/features/search/trip-card-price'
-import type { TripResult } from '@/lib/store'
 
 const baseTrip = {
   amenities: [],

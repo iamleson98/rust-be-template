@@ -12,6 +12,9 @@
  *   - Provider + status badges with semantic colors
  */
 
+import { markCodCollectedMutation, updatePaymentStatusMutation, listAdminPaymentsOptions } from '@/api'
+import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
+import { usePrefs } from '@/stores/prefs'
 import { useMemo, useState } from 'react'
 import { DataTable, DataTableViewOptions } from '@/components/data-table'
 import { Card, CardContent } from '@/components/ui/card'
@@ -28,15 +31,10 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
-import {
-  useAdminPayments,
-  useMarkCodCollected,
-  useUpdatePaymentStatus,
-} from '@/lib/queries/payments'
-import type { AdminPaymentOut, PaymentProvider, PaymentStatus } from '@/lib/queries/payments'
+import type { AdminPaymentOut } from '@/api'
+import type { PaymentProvider, PaymentStatus } from '@/lib/payment'
 import { KpiCard } from './payment-kpi-card'
 import { PROVIDER_OPTIONS } from './payment-badges'
 import { usePaymentColumns } from './payment-columns'
@@ -66,7 +64,7 @@ export function AdminPaymentsPanel() {
   const [actionDialog, setActionDialog] = useState<PaymentAction | null>(null)
   const [actionReason, setActionReason] = useState('')
   const [actionAmount, setActionAmount] = useState('')
-  const { currency } = useApp()
+  const currency = usePrefs((s) => s.currency)
   const t = useT()
 
   const query = useMemo(
@@ -79,12 +77,15 @@ export function AdminPaymentsPanel() {
     [statusFilter, providerFilter, page],
   )
 
-  const { data, isLoading, isError, refetch, isFetching } = useAdminPayments(query)
-  const updateStatus = useUpdatePaymentStatus()
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    ...listAdminPaymentsOptions({ query }),
+    placeholderData: keepPreviousData,
+  })
+  const updateStatus = useMutation(updatePaymentStatusMutation())
   // Goes through the shared SDK client (cookie auth + token refresh +
   // error parsing) — the previous raw `fetch` bypassed all of it, so an
   // expired access token surfaced as a bare "HTTP 401" toast.
-  const markCollected = useMarkCodCollected()
+  const markCollected = useMutation(markCodCollectedMutation())
 
   const items = data?.items ?? EMPTY_ITEMS
   const total = data?.total ?? 0
@@ -110,22 +111,22 @@ export function AdminPaymentsPanel() {
     try {
       if (type === 'cancel') {
         await updateStatus.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { status: 'cancelled', reason: actionReason || undefined },
-        } as unknown as { id: string; body: { status: PaymentStatus; reason?: string } })
+        })
         toast.success(t('adminPayments.cancelledToast'))
       } else if (type === 'refund') {
         await updateStatus.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { status: 'refunded', reason: actionReason || undefined },
-        } as unknown as { id: string; body: { status: PaymentStatus; reason?: string } })
+        })
         toast.success(t('adminPayments.refundedToast'))
       } else if (type === 'mark_collected') {
         const amount = actionAmount ? parseInt(actionAmount, 10) : payment.amount
         await markCollected.mutateAsync({
-          id: payment.id,
+          path: { id: payment.id },
           body: { amountCollected: amount },
-        } as unknown as { id: string; body: { amountCollected?: number } })
+        })
         toast.success(t('adminPayments.collectedToast'))
       }
       setActionDialog(null)

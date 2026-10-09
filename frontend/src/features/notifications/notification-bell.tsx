@@ -1,10 +1,12 @@
 'use client'
 
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { notificationsListOptions, notificationsMarkReadMutation } from '@/api'
+import { useSession } from '@/stores/session'
+import { useUi } from '@/stores/ui'
 import { useState } from 'react'
-import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
-import { useNotifications, useMarkNotificationsRead } from '@/lib/queries'
-import type { NotificationItem } from '@/lib/queries'
+import type { NotificationOut } from '@/api'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -19,7 +21,7 @@ import {
   Settings,
   X,
 } from 'lucide-react'
-import { relativeTime } from '@/lib/types'
+import { relativeTime } from '@/lib/format'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { NoNotifications } from '@/features/notifications/no-notifications'
@@ -35,7 +37,10 @@ const ICONS: Record<string, { icon: React.ReactNode; cls: string }> = {
 }
 
 export function NotificationBell() {
-  const { notifOpen, setNotifOpen, setChatOpen, user } = useApp()
+  const notifOpen = useUi((s) => s.notifOpen)
+  const setNotifOpen = useUi((s) => s.setNotifOpen)
+  const setChatOpen = useUi((s) => s.setChatOpen)
+  const user = useSession((s) => s.user)
   const navigate = useNavigate()
   const t = useT()
   const isLoggedIn = !!user
@@ -43,8 +48,8 @@ export function NotificationBell() {
   // Polling + dedup + caching handled by the centralized hook (60s interval).
   // The hook is disabled entirely for guests — no point fetching notifications
   // for an unauthenticated session.
-  const { data, isLoading, isError, refetch } = useNotifications(20, { enabled: isLoggedIn })
-  const { mutateAsync: markRead } = useMarkNotificationsRead()
+  const { data, isLoading, isError, refetch } = useQuery({ ...notificationsListOptions({ query: { limit: 20 } }), enabled: isLoggedIn })
+  const { mutateAsync: markRead } = useMutation(notificationsMarkReadMutation())
 
   // Local optimistic map of id → readAt so the UI updates instantly when the
   // user clicks a notification (the server round-trip can take 100ms+).
@@ -55,7 +60,7 @@ export function NotificationBell() {
   // Apply optimistic reads to the items list + unread count.
   // A notification is "read" when either the backend's `read` flag is
   // true OR the frontend's optimistic `readAt` timestamp is set.
-  const isRead = (n: NotificationItem) => n.read === true || !!optimisticReads[n.id]
+  const isRead = (n: NotificationOut) => n.read === true || !!optimisticReads[n.id]
   const effectiveItems = items.map((n) =>
     optimisticReads[n.id] ? { ...n, readAt: optimisticReads[n.id] } : n,
   )

@@ -18,7 +18,7 @@
 
 import { useMemo } from 'react'
 import { Clock, Timer, ArrowDown, Navigation } from 'lucide-react'
-import { formatDuration, formatTimeVN, parseDateSafe } from '@/lib/types'
+import { formatDuration, formatTimeVN, parseDateSafe } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 
 type SchedulePointItem = {

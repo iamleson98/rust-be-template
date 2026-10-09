@@ -14,6 +14,8 @@
  * group (schedule rows never interleave with route/brand rows).
  */
 
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { adminRoutesListOptions, adminSchedulesListOptions } from '@/api'
 import { useMemo } from 'react'
 import {
   ChevronRight,
@@ -39,9 +41,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useT } from '@/lib/i18n'
-import { useAdminRoutes, useAdminSchedules } from '@/lib/queries'
-import { formatVND } from '@/lib/types'
-import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
+import { formatVND } from '@/lib/format'
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 import { cn } from '@/lib/utils'
 import {
   dayChips,
@@ -244,7 +245,11 @@ function BrandNode({
   // routes across brands (one query); slice this brand's share and
   // never fetch again. Otherwise fetch lazily on expansion.
   const shouldFetch = expanded && !filteredRoutes
-  const routesQuery = useAdminRoutes(shouldFetch ? { brandId: brand.id } : undefined)
+  const routesQuery = useQuery({
+    ...adminRoutesListOptions({ query: { brandId: brand.id } }),
+    enabled: shouldFetch,
+    placeholderData: keepPreviousData,
+  })
   const visibleRoutes = useMemo(
     () =>
       filteredRoutes
@@ -407,7 +412,10 @@ function RouteNode({
   callbacks: BrandTreeCallbacks
 }) {
   const t = useT()
-  const schedulesQuery = useAdminSchedules(expanded ? route.id : undefined)
+  const schedulesQuery = useQuery({
+    ...adminSchedulesListOptions({ query: { routeId: route.id } }),
+    enabled: expanded,
+  })
   const sorted = useMemo(() => {
     const schedules = (schedulesQuery.data?.items ?? []) as unknown as AdminScheduleOut[]
     return scheduleSort ? sortSchedules(schedules, scheduleSort) : schedules

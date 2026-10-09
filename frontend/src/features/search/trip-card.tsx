@@ -1,16 +1,18 @@
 'use client'
 
+import type { TripResult } from '@/api'
 import { memo, useCallback } from 'react'
-import type { TripResult } from '@/lib/store'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { formatTimeVN, parseDateSafe } from '@/lib/types'
+import { formatTimeVN, parseDateSafe } from '@/lib/format'
 import { GitCompare, Sparkles, Share2, ArrowRight } from 'lucide-react'
-import { useApp } from '@/lib/store'
+import { useUi } from '@/stores/ui'
+import { useGuest } from '@/stores/guest'
+import { usePrefs } from '@/stores/prefs'
+import { useSearchForm } from '@/stores/search-form'
 import { useT } from '@/lib/i18n'
-import { useShallow } from 'zustand/react/shallow'
 import { useQueryClient } from '@tanstack/react-query'
-import { tripDetailOptions } from '@/lib/api/@tanstack/react-query.gen'
+import { tripDetailOptions } from '@/api'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { TripCardAmenities, TripCardAmenitiesMobile } from './trip-card-amenities'
@@ -57,33 +59,17 @@ export const TripCard = memo(function TripCard({
 }) {
   const lowSeats = trip.availableSeats <= 5 && trip.availableSeats > 0
   const sellingFast = trip.availableSeats <= 3 && trip.availableSeats > 0
-  const {
-    toggleCompare,
-    compareList,
-    pushRecentlyViewed,
-    searchParams,
-    setPriceAlertOpen,
-    setPriceAlertContext,
-    currency,
-    setShareOpen,
-    setShareTripData,
-  } = useApp(
-    useShallow((s) => ({
-      toggleCompare: s.toggleCompare,
-      compareList: s.compareList,
-      pushRecentlyViewed: s.pushRecentlyViewed,
-      searchParams: s.searchParams,
-      setPriceAlertOpen: s.setPriceAlertOpen,
-      setPriceAlertContext: s.setPriceAlertContext,
-      currency: s.currency,
-      setShareOpen: s.setShareOpen,
-      setShareTripData: s.setShareTripData,
-    })),
-  )
+  const toggleCompare = useUi((s) => s.toggleCompare)
+  const compareCount = useUi((s) => s.compareList.length)
+  const inCompare = useUi((s) => s.compareList.includes(trip.tripId))
+  const openPriceAlert = useUi((s) => s.openPriceAlert)
+  const openShare = useUi((s) => s.openShare)
+  const pushRecentlyViewed = useGuest((s) => s.pushRecentlyViewed)
+  const searchDate = useSearchForm((s) => s.searchParams.date)
+  const currency = usePrefs((s) => s.currency)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const t = useT()
-  const inCompare = compareList.includes(trip.tripId)
 
   // Prefetch trip detail on hover so clicking feels instant — the dialog
   // reads from the same query cache, so when the user clicks the result is
@@ -102,8 +88,8 @@ export const TripCard = memo(function TripCard({
   // this only fires when the backend starts providing arrival times.
   const overnight = isOvernight(trip.departureAt, trip.arrivalAt)
   // Date differs from search date?
-  const searchDateShort = searchParams.date
-    ? formatShortDate(searchParams.date + 'T00:00:00+07:00')
+  const searchDateShort = searchDate
+    ? formatShortDate(searchDate + 'T00:00:00+07:00')
     : null
   const departureDateShort = formatShortDate(trip.departureAt)
   const arrivalDateShort = formatShortDate(trip.arrivalAt)
@@ -145,7 +131,7 @@ export const TripCard = memo(function TripCard({
 
   const handleCompareToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!inCompare && compareList.length >= 3) {
+    if (!inCompare && compareCount >= 3) {
       toast.info(t('searchPage.compareMax'))
       return
     }
@@ -160,17 +146,12 @@ export const TripCard = memo(function TripCard({
 
   const handlePriceAlert = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setPriceAlertContext({
-      fromName: trip.fromName,
-      toName: trip.toName,
-      minPrice: trip.minPrice,
-    })
-    setPriceAlertOpen(true)
+    openPriceAlert({ fromName: trip.fromName, toName: trip.toName, minPrice: trip.minPrice })
   }
 
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setShareTripData({
+    openShare({
       tripId: trip.tripId,
       fromName: trip.fromName,
       toName: trip.toName,
@@ -182,7 +163,6 @@ export const TripCard = memo(function TripCard({
       minPrice: trip.minPrice,
       vehicleTypeLabel: trip.vehicleTypeLabel,
     })
-    setShareOpen(true)
   }
 
   return (

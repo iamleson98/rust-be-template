@@ -10,6 +10,8 @@
  * DataTable, create/edit dialog and a delete confirmation.
  */
 
+import { adminVehicleTypesDeleteMutation, adminVehicleTypesListOptions } from '@/api'
+import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Bus, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
@@ -30,8 +32,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
-import { useAdminVehicleTypes, useDeleteAdminVehicleType } from '@/lib/queries'
-import type { AdminVehicleTypeOut } from '@/lib/api/types.gen'
+import type { AdminVehicleTypeOut } from '@/api'
 
 import { VehicleTypeFormDialog } from './vehicle-type-form'
 import { getErrorMessage } from '@/lib/error-message'
@@ -49,12 +50,13 @@ export function VehicleTypesPanel() {
   const [editType, setEditType] = useState<AdminVehicleTypeOut | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminVehicleTypeOut | null>(null)
 
-  const query = useAdminVehicleTypes({
-    q: search.trim() || undefined,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+  const query = useQuery({
+    ...adminVehicleTypesListOptions({
+      query: { q: search.trim() || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
+    }),
+    placeholderData: keepPreviousData,
   })
-  const deleteMutation = useDeleteAdminVehicleType()
+  const deleteMutation = useMutation(adminVehicleTypesDeleteMutation())
 
   const items = (query.data?.items ?? []) as AdminVehicleTypeOut[]
   const total = query.data?.total ?? 0

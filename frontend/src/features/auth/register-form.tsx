@@ -1,24 +1,11 @@
-'use client'
-
-/**
- * RegisterForm — new-account form for end-customers.
- *
- * Extracted from the original `login-page.tsx`. Uses the shared
- * `makeRegisterSchema` from `./_shared` so the email/phone/password
- * validation rules stay consistent with the customer-login schema.
- *
- * Backend route: `POST /api/auth/register` with body
- * `{ fullName, email?, phone?, password }` (camelCase — matches
- * `RegisterRequest` in `src/routes/auth.rs`).
- */
-
+import { useSession } from '@/stores/session'
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import { useRegister } from '@/lib/queries'
+import { useMutation } from '@tanstack/react-query'
+import { authRegisterMutation } from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -47,7 +34,7 @@ import { SocialAuthButtons } from './social-buttons'
 import { makeRegisterSchema, scorePassword, type RegisterFormValues } from './_shared'
 
 export function RegisterForm() {
-  const { setUser } = useApp()
+  const setUser = useSession((s) => s.setUser)
   const navigate = useNavigate()
   const t = useT()
   const [showPwd, setShowPwd] = useState(false)
@@ -74,19 +61,14 @@ export function RegisterForm() {
   // Live password strength meter
   const pwdStrength = scorePassword(password)
 
-  const registerMut = useRegister({
-    onSuccess: (data) => {
-      const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
-        ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as
-        Parameters<typeof setUser>[0] | undefined
-      if (!user) return
+  const registerMut = useMutation({
+    ...authRegisterMutation(),
+    onSuccess: ({ user }) => {
       setUser(user)
       setSuccess(true)
       toast.success(t('authPage.accountCreated'))
     },
-    onError: () => {
-      toast.error(t('authPage.registerFailedEmail'))
-    },
+    onError: () => toast.error(t('authPage.registerFailedEmail')),
   })
 
   const onSubmit = (values: RegisterFormValues) => {
@@ -97,7 +79,7 @@ export function RegisterForm() {
         phone: values.phone || undefined,
         password: values.password,
       },
-    } as unknown as Parameters<typeof registerMut.mutate>[0])
+    })
   }
 
   if (success) {

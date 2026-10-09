@@ -2,7 +2,7 @@
 
 // Extracted from the original 'booking-card.tsx'.
 
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 
 /* ───────────────────────────────────────────────────────────────────────
  * Small presentational helpers — kept in this file so the BookingCard is

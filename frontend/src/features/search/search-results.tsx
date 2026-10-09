@@ -1,315 +1,90 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
-import { useApp } from '@/lib/store'
-import { useT } from '@/lib/i18n'
-import { useTripSearch, type TripSearchParams } from '@/lib/queries'
-import { buildSearchInput } from '@/lib/search-params'
-import { Bell, GitCompare, Heart, Navigation2, X } from 'lucide-react'
-import { SearchWidget } from '@/features/home/search-widget'
-import { RouteDirectory } from '@/features/search/route-directory'
-import { Button } from '@/components/ui/button'
+import { useMemo } from 'react'
+import { Navigation2 } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  getHourOfDeparture,
-  isSmartSearch,
-  matchesTimeRange,
-  type Filters,
-  type NavigateFn,
-  type RouteSearch,
-} from './helpers'
-import {
-  type SavedSearch,
-  loadSavedSearches,
-  persistSavedSearches,
-  SavedSearchesList,
-} from './saved-searches'
-import { FiltersSidebar } from './filters-sidebar'
-import { MobileFiltersSheet } from './mobile-filters'
+import type { TripResult } from '@/api'
+import { useT } from '@/lib/i18n'
+import type { SortKey } from '@/lib/search-params'
+import { SearchWidget } from './widget/search-widget'
 import { ActiveFilterChips } from './active-filter-chips'
+import { CompareTray } from './compare-tray'
+import { FiltersSidebar } from './filters-sidebar'
+import { ResultsActions } from './results-actions'
+import { RouteDirectory } from './route-directory'
+import { SavedSearchesList } from './saved-searches'
+import { useTripSearch } from './api'
 import { TripResultsList } from './trip-results-list'
+import { useResultFilters } from './use-result-filters'
+import { useSavedSearches, type SavedSearch } from './use-saved-searches'
+import { useSearchUrl } from './use-search-url'
 
-/** Stable empty default — keeps useMemo deps referentially stable when data is not loaded yet. */
-const EMPTY_ITEMS: never[] = []
-export type { RouteSearch } from './helpers'
+const NO_RESULTS: TripResult[] = []
 
-/* ─── Main Component ─── */
-
-export function SearchResults({
-  routeSearch,
-  navigate,
-}: {
-  routeSearch: RouteSearch
-  navigate: NavigateFn
-}) {
-  const { compareList, setCompareOpen, clearCompare, setPriceAlertOpen, setPriceAlertContext } =
-    useApp()
+/** The `/search` page body: query bar, filters, results; or the route catalogue until both ends are picked. */
+export function SearchResults() {
   const t = useT()
+  const { search, update } = useSearchUrl()
+  const saved = useSavedSearches()
 
-  // Drive the search via TanStack Query — the URL (routeSearch) is the
-  // single source of truth: updating filters updates the URL, which
-  // re-runs this query. `placeholderData: keepPreviousData` (set inside
-  // the hook) keeps the previous results visible while the new ones load,
-  // so filter changes feel instantaneous.
-  //
-  // BROWSE MODE: when from/to aren't both set there is nothing to
-  // search for — instead of a dead-end "no results" page, the
-  // RouteDirectory below renders the full active-route catalog.
-  const browseMode = !routeSearch.from || !routeSearch.to
-  const smartMode = isSmartSearch(routeSearch)
-  const tripSearchParams: TripSearchParams | null =
-    routeSearch.from && routeSearch.to
-      ? {
-          from: routeSearch.from,
-          to: routeSearch.to,
-          date: routeSearch.date,
-          adults: routeSearch.adults,
-          children: routeSearch.children,
-          sort: routeSearch.sort,
-          vehicleTypes: routeSearch.vehicleTypes,
-          roundTrip: routeSearch.roundTrip,
-          returnDate: routeSearch.returnDate,
-          fromLat: routeSearch.fromLat,
-          fromLon: routeSearch.fromLon,
-          toLat: routeSearch.toLat,
-          toLon: routeSearch.toLon,
-          fromCity: routeSearch.fromCity,
-          toCity: routeSearch.toCity,
-        }
-      : null
-  const { data: searchData, isLoading: searchLoading } = useTripSearch(tripSearchParams)
-  const searchResults = searchData?.items ?? EMPTY_ITEMS
+  const browsing = !search.from || !search.to
+  const { data, isLoading } = useTripSearch(browsing ? null : search)
+  const results = data?.items ?? NO_RESULTS
+  const rf = useResultFilters(results)
 
-  // slug → display name for the active brand chips.
-  const brandNames = useMemo(() => {
-    const m: Record<string, string> = {}
-    for (const tr of searchResults) {
-      if (tr.brandSlug && !(tr.brandSlug in m)) m[tr.brandSlug] = tr.brandName || tr.brandSlug
-    }
-    return m
-  }, [searchResults])
+  const brandNames = useMemo(
+    () => Object.fromEntries(results.map((r) => [r.brandSlug, r.brandName || r.brandSlug])),
+    [results],
+  )
 
-  // Cache results in window global so compare can read them without refetch
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.__lastSearchResults = searchResults
-    }
-  }, [searchResults])
-
-  // Helper: navigate to /search with merged params. The URL is the source
-  // of truth — updating it re-runs useTripSearch automatically. Uses
-  // buildSearchInput so only non-default values appear in the URL.
-  const updateRouteSearch = (changes: Partial<RouteSearch>) => {
-    const next: RouteSearch = { ...routeSearch, ...changes }
-    navigate({
-      to: '/search',
-      search: buildSearchInput({
-        from: next.from,
-        to: next.to,
-        date: next.date,
-        adults: next.adults,
-        children: next.children,
-        sort: next.sort,
-        vehicleTypes: next.vehicleTypes,
-        roundTrip: next.roundTrip,
-        returnDate: next.returnDate,
-        fromLat: next.fromLat,
-        fromLon: next.fromLon,
-        toLat: next.toLat,
-        toLon: next.toLon,
-        fromCity: next.fromCity,
-        toCity: next.toCity,
-      }),
+  const saveSearch = () => {
+    saved.add({
+      from: search.from,
+      to: search.to,
+      date: search.date,
+      adults: search.adults,
+      children: search.children,
+      sort: search.sort,
+      vehicleTypes: search.vehicleTypes,
+      filters: rf.filters,
     })
-  }
-
-  // Compute price bounds from results
-  const priceBounds = useMemo<[number, number]>(() => {
-    if (searchResults.length === 0) return [0, 1000000]
-    const min = Math.min(...searchResults.map((tr) => tr.minPrice))
-    const max = Math.max(...searchResults.map((tr) => tr.maxPrice))
-    // Round to nearest 50k for nicer slider
-    const rMin = Math.floor(min / 50000) * 50000
-    const rMax = Math.ceil(max / 50000) * 50000
-    return [rMin, rMax]
-  }, [searchResults])
-
-  // Filter state — priceMin/priceMax stored as raw user selection.
-  // Use 0 as sentinel for"use bounds"so we don't need to sync via effect.
-  const [filters, setFilters] = useState<Filters>({
-    priceMin: 0,
-    priceMax: 0,
-    timeRanges: [],
-    minRating: 0,
-    availableOnly: false,
-    amenities: [],
-    brands: [],
-  })
-
-  // Effective price range used for slider display + filtering (clamped to bounds)
-  const effectivePriceRange = useMemo<[number, number]>(() => {
-    const lo =
-      filters.priceMin === 0 || filters.priceMin < priceBounds[0]
-        ? priceBounds[0]
-        : filters.priceMin
-    const hi =
-      filters.priceMax === 0 || filters.priceMax > priceBounds[1]
-        ? priceBounds[1]
-        : filters.priceMax
-    return [lo, hi]
-  }, [filters.priceMin, filters.priceMax, priceBounds])
-
-  // Reset filter selection when bounds signature changes (new search) — render-phase sync
-  const boundsSignature = `${priceBounds[0]}-${priceBounds[1]}`
-  const [lastBoundsSig, setLastBoundsSig] = useState(boundsSignature)
-  if (boundsSignature !== lastBoundsSig) {
-    setLastBoundsSig(boundsSignature)
-    if (filters.priceMin !== 0 || filters.priceMax !== 0) {
-      setFilters((prev) => ({ ...prev, priceMin: 0, priceMax: 0 }))
-    }
-  }
-
-  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([])
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
-
-  // Load saved searches from localStorage after mount (avoids SSR mismatch)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSavedSearches(loadSavedSearches())
-  }, [])
-
-  // Apply filters client-side
-  const filteredResults = useMemo(() => {
-    if (searchResults.length === 0) return []
-    const [pLo, pHi] = effectivePriceRange
-    return searchResults.filter((tr) => {
-      if (tr.minPrice < pLo) return false
-      if (tr.minPrice > pHi) return false
-      if (filters.timeRanges.length > 0) {
-        const hour = getHourOfDeparture(tr)
-        const matched = filters.timeRanges.some((r) => matchesTimeRange(hour, r))
-        if (!matched) return false
-      }
-      if (filters.minRating > 0 && tr.brandRating < filters.minRating) return false
-      if (filters.brands.length > 0 && !filters.brands.includes(tr.brandSlug)) return false
-      if (filters.availableOnly && tr.availableSeats <= 5) return false
-      if (filters.amenities.length > 0) {
-        const trAmenities = tr.amenities ?? []
-        const hasAll = filters.amenities.every((a) => trAmenities.includes(a))
-        if (!hasAll) return false
-      }
-      return true
-    })
-  }, [searchResults, filters, effectivePriceRange])
-
-  // Count active filters (excluding price when at bounds)
-  const activeFilterCount = useMemo(() => {
-    let count = 0
-    if (effectivePriceRange[0] > priceBounds[0] || effectivePriceRange[1] < priceBounds[1]) count++
-    if (filters.timeRanges.length > 0) count += filters.timeRanges.length
-    if (filters.minRating > 0) count++
-    if (filters.brands.length > 0) count += filters.brands.length
-    if (filters.availableOnly) count++
-    if (filters.amenities.length > 0) count += filters.amenities.length
-    return count
-  }, [effectivePriceRange, priceBounds, filters])
-
-  const resetFilters = () => {
-    setFilters({
-      priceMin: 0,
-      priceMax: 0,
-      timeRanges: [],
-      minRating: 0,
-      availableOnly: false,
-      amenities: [],
-      brands: [],
-    })
-  }
-
-  const handleSaveSearch = () => {
-    const saved: SavedSearch = {
-      id: `s${Date.now()}`,
-      savedAt: Date.now(),
-      from: routeSearch.from,
-      to: routeSearch.to,
-      date: routeSearch.date,
-      adults: routeSearch.adults,
-      children: routeSearch.children,
-      sort: routeSearch.sort,
-      vehicleTypes: routeSearch.vehicleTypes,
-      filters: { ...filters },
-    }
-    const next = [saved, ...savedSearches].slice(0, 20)
-    setSavedSearches(next)
-    persistSavedSearches(next)
     toast.success(t('searchPage.searchSaved'), {
-      description: `${routeSearch.from} → ${routeSearch.to} • ${routeSearch.date}`,
+      description: `${search.from} → ${search.to} • ${search.date}`,
     })
   }
 
-  const removeSavedSearch = (id: string) => {
-    const next = savedSearches.filter((s) => s.id !== id)
-    setSavedSearches(next)
-    persistSavedSearches(next)
-  }
-
-  const applySavedSearch = (s: SavedSearch) => {
-    updateRouteSearch({
-      from: s.from,
-      to: s.to,
-      date: s.date,
-      adults: s.adults,
-      children: s.children,
-      sort: s.sort as never,
-      vehicleTypes: s.vehicleTypes,
-    })
-    setFilters(s.filters)
+  const applySaved = (s: SavedSearch) => {
+    update({ ...s, sort: s.sort as SortKey })
+    rf.setFilters(s.filters)
     toast.success(t('searchPage.savedSearchApplied'))
   }
 
-  const minPrice = useMemo(
-    () => (searchResults.length > 0 ? Math.min(...searchResults.map((tr) => tr.minPrice)) : 0),
-    [searchResults],
-  )
-  const maxAvail = useMemo(
-    () =>
-      searchResults.length > 0 ? Math.max(...searchResults.map((tr) => tr.availableSeats)) : 0,
-    [searchResults],
-  )
+  const precise = search.fromLat !== undefined
 
   return (
-    <div className="bg-slate-50 min-h-[60vh]">
-      {/* Compact search bar */}
-      <div className="bg-white/90 backdrop-blur-lg border-b sticky top-16 z-30">
+    <div className="min-h-[60vh] bg-slate-50">
+      <div className="sticky top-16 z-30 border-b bg-white/90 backdrop-blur-lg">
         <div className="container mx-auto px-4 py-3">
           <SearchWidget compact />
         </div>
       </div>
 
-      {/* Browse mode — no from/to picked yet: the full route catalog
-          (real schedule counts + real prices) instead of a dead end. */}
-      {browseMode ? (
+      {browsing ? (
         <div className="container mx-auto px-4 py-6">
           <RouteDirectory />
         </div>
       ) : (
         <>
-          {/* Search-mode indicator — replaces the old 7-request
-              "compare nearby dates" strip (the removed advance-days
-              feature). Exact-date search: one request for the chosen
-              day only; each result card shows the trip's exact
-              remaining seats. In smart mode the geo proximity endpoint
-              ranks trips by combined pickup+drop distance. */}
-          <div className="bg-white/80 backdrop-blur border-b">
+          <div className="border-b bg-white/80 backdrop-blur">
             <div className="container mx-auto px-4 py-3">
               <div className="flex items-center gap-2 text-xs font-medium">
-                {smartMode ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 ring-1 ring-emerald-200 px-3 py-1.5 text-emerald-700">
+                {precise ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-200">
                     <Navigation2 className="h-3.5 w-3.5" />
                     {t('searchPage.smartSearchActive')}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 ring-1 ring-blue-100 px-3 py-1.5 text-blue-700">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1.5 text-blue-700 ring-1 ring-blue-100">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
                     {t('searchPage.citySearchActive')}
                   </span>
@@ -319,160 +94,39 @@ export function SearchResults({
           </div>
 
           <div className="container mx-auto px-4 py-6">
-            <div className="flex flex-col lg:flex-row gap-6">
-              {/* Sidebar filters (desktop) */}
-              <FiltersSidebar
-                routeSearch={routeSearch}
-                updateRouteSearch={updateRouteSearch}
-                searchResults={searchResults}
-                filters={filters}
-                setFilters={setFilters}
-                priceBounds={priceBounds}
-                effectivePriceRange={effectivePriceRange}
-                activeFilterCount={activeFilterCount}
-                resetFilters={resetFilters}
-                minPrice={minPrice}
-                maxAvail={maxAvail}
-              />
+            <div className="flex flex-col gap-6 lg:flex-row">
+              <FiltersSidebar results={results} rf={rf} />
 
-              {/* Results */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-4 gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
-                    <h1 className="text-xl md:text-2xl font-extrabold">
-                      {routeSearch.from} → {routeSearch.to}
+                    <h1 className="text-xl font-extrabold md:text-2xl">
+                      {search.from} → {search.to}
                     </h1>
                     <p className="text-sm text-muted-foreground">
-                      {searchLoading
+                      {isLoading
                         ? t('searchPage.searchingTrips')
                         : t('searchPage.tripsFound', {
-                            found: filteredResults.length,
-                            total: searchResults.length,
+                            found: rf.filtered.length,
+                            total: results.length,
                           })}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {/* Save Search */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleSaveSearch}
-                      disabled={searchResults.length === 0}
-                      className="gap-1.5"
-                      title={t('searchPage.saveThisSearch')}
-                    >
-                      <Heart className="h-3.5 w-3.5 text-rose-500" />
-                      <span className="hidden sm:inline">{t('common.save')}</span>
-                    </Button>
-                    {/* Price Alert (existing feature) */}
-                    {routeSearch.from && routeSearch.to && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setPriceAlertContext({
-                            fromName: routeSearch.from,
-                            toName: routeSearch.to,
-                            minPrice: minPrice > 0 ? minPrice : 0,
-                          })
-                          setPriceAlertOpen(true)
-                        }}
-                        className="gap-1.5"
-                      >
-                        <Bell className="h-3.5 w-3.5 text-blue-600" />
-                        <span className="hidden sm:inline">{t('searchPage.trackPrice')}</span>
-                      </Button>
-                    )}
-                    {/* Mobile filter trigger */}
-                    <MobileFiltersSheet
-                      mobileFilterOpen={mobileFilterOpen}
-                      setMobileFilterOpen={setMobileFilterOpen}
-                      activeFilterCount={activeFilterCount}
-                      routeSearch={routeSearch}
-                      updateRouteSearch={updateRouteSearch}
-                      searchResults={searchResults}
-                      filters={filters}
-                      setFilters={setFilters}
-                      priceBounds={priceBounds}
-                      effectivePriceRange={effectivePriceRange}
-                      resetFilters={resetFilters}
-                    />
-                    {compareList.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCompareOpen(true)}
-                        className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50"
-                      >
-                        <GitCompare className="h-3.5 w-3.5" />
-                        {t('searchPage.compareCount', { count: compareList.length })}
-                      </Button>
-                    )}
-                  </div>
+                  <ResultsActions search={search} results={results} rf={rf} onSave={saveSearch} />
                 </div>
 
-                {/* Active Filters Chips */}
-                {activeFilterCount > 0 && (
-                  <ActiveFilterChips
-                    filters={filters}
-                    setFilters={setFilters}
-                    effectivePriceRange={effectivePriceRange}
-                    priceBounds={priceBounds}
-                    resetFilters={resetFilters}
-                    brandNames={brandNames}
-                  />
+                {rf.activeCount > 0 && <ActiveFilterChips rf={rf} brandNames={brandNames} />}
+                {saved.items.length > 0 && (
+                  <SavedSearchesList items={saved.items} onApply={applySaved} onRemove={saved.remove} />
                 )}
-                {/* Saved Searches (collapsible list) */}
-                {savedSearches.length > 0 && (
-                  <SavedSearchesList
-                    savedSearches={savedSearches}
-                    applySavedSearch={applySavedSearch}
-                    removeSavedSearch={removeSavedSearch}
-                  />
-                )}
-
-                {/* Compare tray */}
-                {compareList.length > 0 && (
-                  <div className="mb-3 overflow-hidden">
-                    <div className="rounded-xl bg-linear-to-r from-violet-50 to-fuchsia-50 ring-1 ring-violet-200 p-3 flex items-center gap-3">
-                      <GitCompare className="h-4 w-4 text-violet-600 shrink-0" />
-                      <div className="text-xs text-violet-700 flex-1">
-                        <span className="font-semibold">{compareList.length}/3</span>{' '}
-                        {t('searchPage.compareSelected')}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-7 gap-1 text-xs bg-violet-600 hover:bg-violet-700"
-                        onClick={() => setCompareOpen(true)}
-                      >
-                        {t('searchPage.compareNow')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 gap-1 text-xs text-violet-700 hover:bg-violet-100"
-                        onClick={clearCompare}
-                      >
-                        <X className="h-3 w-3" />
-                        {t('common.delete')}
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <CompareTray />
                 <TripResultsList
-                  searchLoading={searchLoading}
-                  searchResults={searchResults}
-                  filteredResults={filteredResults}
-                  activeFilterCount={activeFilterCount}
-                  resetFilters={resetFilters}
-                  navigate={navigate}
-                  // When no date is picked the search query is disabled — the
-                  // list shows a "pick a date" prompt instead of the generic
-                  // "no trips found" empty state.
-                  awaitingDate={
-                    !browseMode && (!routeSearch.date || String(routeSearch.date).trim() === '')
-                  }
+                  loading={isLoading}
+                  results={results}
+                  filtered={rf.filtered}
+                  hasActiveFilters={rf.activeCount > 0}
+                  onResetFilters={rf.reset}
+                  awaitingDate={!search.date}
                 />
               </div>
             </div>

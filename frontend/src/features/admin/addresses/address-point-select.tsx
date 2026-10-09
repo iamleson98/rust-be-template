@@ -1,31 +1,9 @@
-'use client'
-
-/**
- * AddressPointSelect — an infinite-scroll, searchable select bound to
- * address ids.
- *
- * Display value = address name; actual value = the address id, exactly
- * as the schedule-points API expects. Options come from the paginated
- * `GET /api/admin/addresses?brandId=&q=&limit=&offset=` endpoint: each
- * keystroke re-searches server-side (debounced) and scrolling to the
- * bottom of the list loads the next page — a brand with thousands of
- * stops never has to ship them all to the browser.
- *
- * `extraAddresses` (the schedule's existing points on edit + ones just
- * created in the map modal) are always merged in front of the fetched
- * pages so the current selection always resolves its label.
- *
- * The small "＋" button next to the trigger opens the map dialog so
- * users can define a brand-new address without leaving the form.
- */
-
 import { CircleDot, Flag, MapPin, Plus } from 'lucide-react'
-
 import { InfiniteSelect } from '@/components/ui/infinite-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useT } from '@/lib/i18n'
-import type { AdminAddressOut } from '@/lib/api/types.gen'
-import { fetchAdminAddressesPage } from '@/lib/queries'
+import type { AdminAddressOut } from '@/api'
+import { brandAddressesPage } from './api'
 import { cn } from '@/lib/utils'
 
 type PointKind = 'pickup' | 'middle' | 'drop'
@@ -94,9 +72,7 @@ export function AddressPointSelect({
       ) : (
         <InfiniteSelect<AdminAddressOut>
           scope={`brand-addresses-${brandId}`}
-          fetchPage={(page, search, signal) =>
-            fetchAdminAddressesPage(brandId, page, search, 25, signal)
-          }
+          fetchPage={brandAddressesPage(brandId)}
           value={value ?? null}
           onValueChange={(v) => onChange(v ?? undefined)}
           itemValue={(a) => a.id}

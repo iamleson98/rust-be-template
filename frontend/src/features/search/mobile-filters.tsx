@@ -1,153 +1,49 @@
 'use client'
 
-/**
- * MobileFiltersSheet — the mobile filter trigger button ("Lọc" with the
- * active-filter count badge) + the left-side Sheet with sort options,
- * vehicle-type checkboxes, the FilterPanel controls and the reset button.
- *
- * Extracted from the original `search-results.tsx`.
- */
-
-import type { TripResult } from '@/lib/store'
-import { useT } from '@/lib/i18n'
-import { SlidersHorizontal, Filter, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Filter, SlidersHorizontal, X } from 'lucide-react'
+import type { TripResult } from '@/api'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { useT } from '@/lib/i18n'
 import { FilterPanel } from './filter-panel'
-import { sortOptions, type Filters, type RouteSearch } from './helpers'
+import { UrlFilters } from './filter-controls'
+import type { ResultFilters } from './use-result-filters'
 
-export function MobileFiltersSheet({
-  mobileFilterOpen,
-  setMobileFilterOpen,
-  activeFilterCount,
-  routeSearch,
-  updateRouteSearch,
-  searchResults,
-  filters,
-  setFilters,
-  priceBounds,
-  effectivePriceRange,
-  resetFilters,
-}: {
-  mobileFilterOpen: boolean
-  setMobileFilterOpen: (open: boolean) => void
-  activeFilterCount: number
-  routeSearch: RouteSearch
-  updateRouteSearch: (changes: Partial<RouteSearch>) => void
-  searchResults: TripResult[]
-  filters: Filters
-  setFilters: (f: Filters) => void
-  priceBounds: [number, number]
-  effectivePriceRange: [number, number]
-  resetFilters: () => void
-}) {
+/** Phone filter button (with the active count) and the sheet it opens. */
+export function MobileFilters({ results, rf }: { results: TripResult[]; rf: ResultFilters }) {
   const t = useT()
   return (
-    <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
+    <Sheet>
       <SheetTrigger asChild>
-        <Button variant="outline" size="sm" className="lg:hidden gap-1.5 relative">
+        <Button variant="outline" size="sm" className="relative gap-1.5 lg:hidden">
           <Filter className="h-3.5 w-3.5" />
           {t('searchPage.filter')}
-          {activeFilterCount > 0 && (
-            <Badge className="bg-blue-600 text-white text-[10px] h-4 min-w-4 px-1 flex items-center justify-center absolute -top-1 -right-1">
-              {activeFilterCount}
+          {rf.activeCount > 0 && (
+            <Badge className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-blue-600 px-1 text-[10px] text-white">
+              {rf.activeCount}
             </Badge>
           )}
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[85vw] sm:max-w-md overflow-y-auto">
+      <SheetContent side="left" className="w-[85vw] overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <SlidersHorizontal className="h-4 w-4 text-blue-600" />
             {t('searchPage.filters')}
-            {activeFilterCount > 0 && (
-              <Badge className="bg-blue-600 text-white text-[10px]">{activeFilterCount}</Badge>
+            {rf.activeCount > 0 && (
+              <Badge className="bg-blue-600 text-[10px] text-white">{rf.activeCount}</Badge>
             )}
           </SheetTitle>
         </SheetHeader>
-        <div className="px-4 pb-6 space-y-4">
-          <div>
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-              {t('searchPage.sort')}
-            </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {sortOptions.map((o) => (
-                <button
-                  key={o.key}
-                  onClick={() => updateRouteSearch({ sort: o.key })}
-                  className={cn(
-                    'text-left px-3 py-1.5 rounded-md text-sm transition-all duration-200',
-                    routeSearch.sort === o.key
-                      ? 'bg-blue-50 text-blue-700 font-medium border border-blue-300'
-                      : 'hover:bg-slate-100 border border-transparent',
-                  )}
-                >
-                  <span className="mr-1.5">{o.icon}</span>
-                  {t(o.labelKey)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="pt-3 border-t">
-            <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-              {t('searchPage.vehicleType')}
-            </div>
-            <div className="grid grid-cols-1 gap-1.5">
-              {[
-                { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
-                { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
-                { key: 'semi_sleeper', labelKey: 'searchPage.vehicleSemiSleeper', emoji: '🛌' },
-                { key: 'minivan', labelKey: 'searchPage.vehicleMinivan', emoji: '🚐' },
-                { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
-              ].map((v) => {
-                const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                const count = searchResults.filter(
-                  (tr) => (tr.vehicleType ?? null) === v.key,
-                ).length
-                return (
-                  <label
-                    key={v.key}
-                    className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
-                  >
-                    <Checkbox
-                      checked={active}
-                      onCheckedChange={() => {
-                        const next = active
-                          ? (routeSearch.vehicleTypes ?? []).filter((x) => x !== v.key)
-                          : [...(routeSearch.vehicleTypes ?? []), v.key]
-                        updateRouteSearch({ vehicleTypes: next })
-                      }}
-                      className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                    />
-                    <span className="group-hover:text-blue-700 transition-colors flex-1">
-                      {v.emoji} {t(v.labelKey)}
-                    </span>
-                    {count > 0 && (
-                      <span className="text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
-                        {count}
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
-          </div>
-          <FilterPanel
-            searchResults={searchResults}
-            filters={filters}
-            setFilters={setFilters}
-            priceBounds={priceBounds}
-            effectivePriceRange={effectivePriceRange}
-            isMobile
-          />
-          {activeFilterCount > 0 && (
+        <div className="space-y-4 px-4 pb-6">
+          <UrlFilters results={results} grid />
+          <FilterPanel results={results} rf={rf} mobile />
+          {rf.activeCount > 0 && (
             <Button
               variant="outline"
-              onClick={resetFilters}
-              className="w-full text-rose-600 border-rose-300 hover:bg-rose-50"
+              onClick={rf.reset}
+              className="w-full border-rose-300 text-rose-600 hover:bg-rose-50"
             >
               <X className="h-4 w-4" /> {t('searchPage.clearAllFilters')}
             </Button>

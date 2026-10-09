@@ -3,7 +3,7 @@
 // Extracted from the original 'hero.tsx'.
 
 import { useEffect, useRef, useState } from 'react'
-import { formatNum } from '@/lib/types'
+import { formatNum } from '@/lib/format'
 
 /* Stat — animated count-up on mount, with a soft glowing background card */
 export function HeroStat({ value, label }: { value: number; label: string }) {

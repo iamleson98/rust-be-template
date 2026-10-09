@@ -9,6 +9,8 @@
  * without manual refetch calls.
  */
 
+import { useMutation } from '@tanstack/react-query'
+import { adminBrandsCreateMutation, adminBrandsUpdateMutation } from '@/api'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -37,9 +39,8 @@ import { Building2, Phone, Mail, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
 import { optionalText } from '@/lib/forms'
-import { useUpsertAdminBrand } from '@/lib/queries'
-import type { AdminBrandOut } from '@/lib/api'
-import { slugify } from '@/lib/slug'
+import type { AdminBrandOut, UpsertBrandRequest } from '@/api'
+import { slugify } from '@/lib/text'
 import { getErrorMessage } from '@/lib/error-message'
 
 const makeBrandSchema = (t: ReturnType<typeof useT>) =>
@@ -96,7 +97,9 @@ export function BrandFormDialog({
   const t = useT()
   const isEdit = !!brand
   const [slugTouched, setSlugTouched] = useState(false)
-  const upsertMutation = useUpsertAdminBrand()
+  const createMutation = useMutation(adminBrandsCreateMutation())
+  const updateMutation = useMutation(adminBrandsUpdateMutation())
+  const saving = createMutation.isPending || updateMutation.isPending
   const brandSchema = useMemo(() => makeBrandSchema(t), [t])
 
   const form = useForm<BrandFormValues>({
@@ -141,7 +144,7 @@ export function BrandFormDialog({
 
   const onSubmit = async (values: BrandFormValues) => {
     try {
-      const payload: Record<string, unknown> = {
+      const body: UpsertBrandRequest = {
         name: values.name.trim(),
         slug: values.slug.trim(),
         description: (values.description ?? '').trim(),
@@ -150,12 +153,8 @@ export function BrandFormDialog({
         accentColor: values.accentColor,
         status: values.status,
       }
-      if (isEdit) {
-        payload.id = brand!.id
-      }
-      await upsertMutation.mutateAsync({ body: payload } as unknown as Parameters<
-        typeof upsertMutation.mutateAsync
-      >[0])
+      if (isEdit) await updateMutation.mutateAsync({ path: { id: brand!.id }, body })
+      else await createMutation.mutateAsync({ body })
       toast.success(isEdit ? t('brandForm.updated') : t('brandForm.created'))
       onSaved()
     } catch (e) {
@@ -164,7 +163,7 @@ export function BrandFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !upsertMutation.isPending && onOpenChange(o)}>
+    <Dialog open={open} onOpenChange={(o) => !saving && onOpenChange(o)}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -324,16 +323,16 @@ export function BrandFormDialog({
               <Button
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                disabled={upsertMutation.isPending}
+                disabled={saving}
               >
                 {t('common.cancel')}
               </Button>
               <Button
                 type="submit"
-                disabled={upsertMutation.isPending}
+                disabled={saving}
                 className="bg-rose-600 hover:bg-rose-700"
               >
-                {upsertMutation.isPending ? (
+                {saving ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {t('common.saving')}
                   </>

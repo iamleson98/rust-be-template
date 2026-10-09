@@ -7,7 +7,7 @@
  * mock arrays, no hardcoded revenue series, no client-side forecasts.
  *
  * Data sources (TanStack Query hooks from `@/lib/queries`):
- *   - `useStats()`                       → `/api/stats` (public)
+ *   - `useQuery(statsOptions())`                       → `/api/stats` (public)
  *       { brands, routes, trips } — KPI cards row
  *   - `useAdminBookingStats(filter)`     → `/api/admin/bookings/stats`
  *       { totals: { total, confirmed, pending, cancelled, completed, revenue },
@@ -22,22 +22,23 @@
  * selected period.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { statsOptions } from '@/api'
 import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { DollarSign, Bus, Ticket, Route as RouteIcon, Activity } from 'lucide-react'
-import { formatNum } from '@/lib/types'
+import { formatNum } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import {
-  useStats,
   useAdminBookingStats,
   useAdminBookings,
   type AdminBookingFilter,
-} from '@/lib/queries'
+} from '@/features/admin/tickets/api'
 import type {
   AdminBookingOut,
   AdminBookingDayBucket,
   AdminBookingTotals,
-} from '@/lib/api/types.gen'
+} from '@/api'
 import type { DateRange } from './types'
 import { formatVNDShort } from './helpers'
 import { KpiCard } from './kpi-card'
@@ -76,7 +77,7 @@ export function StatsOverview({
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   // Public stats (brands, routes, trips)
-  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useStats()
+  const { data: rawStats, isError: statsErr, refetch: refetchStats } = useQuery(statsOptions())
 
   // Admin booking stats — drives revenue chart + status donut
   const filter: AdminBookingFilter = useMemo(

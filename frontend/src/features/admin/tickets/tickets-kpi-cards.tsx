@@ -1,7 +1,7 @@
 'use client'
 
 import { Ticket as TicketIcon, DollarSign, CheckCircle2, TrendingUp, Ban } from 'lucide-react'
-import type { AdminBookingTotals } from '@/lib/api/types.gen'
+import type { AdminBookingTotals } from '@/api'
 import { KpiCard } from '@/features/admin/dashboard/kpi-card'
 import { useT } from '@/lib/i18n'
 import { formatVND } from './tickets-helpers'

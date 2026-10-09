@@ -13,7 +13,7 @@
 import type { FieldArrayWithId, UseFormReturn } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Users, Copy, Sparkles, Plus, ChevronRight } from 'lucide-react'
-import type { Currency } from '@/lib/currency'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { SeatSelector } from './seat-selector'
 import { PassengerSummary } from './passenger-list'

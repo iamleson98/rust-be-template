@@ -13,7 +13,8 @@
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, ExternalLink, Wallet, QrCode, Banknote } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
+import type { PaymentOut } from '@/api'
+import type { PaymentProvider } from '@/lib/payment'
 
 function providerMeta(
   provider: PaymentProvider,

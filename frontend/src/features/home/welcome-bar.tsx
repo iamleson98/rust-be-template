@@ -1,28 +1,8 @@
-'use client'
-
-/**
- * WelcomeBar — a small, warm, personalized strip that sits directly above
- * the hero's SearchWidget. It is the "friendly doorman" of the site:
- *
- *   - Signed in  → greeting with the user's first name, their REAL
- *                  active-ticket count (from GET /api/bookings — same
- *                  TanStack Query cache the bookings page uses) and one
- *                  tap into their personal console (/account).
- *   - Guest      → a cheerful welcome + the 3-step reassurance
- *                  (pick → book → board). No queries, no timers — the
- *                  guest path renders pure static markup.
- *
- * Performance notes:
- *   - No intervals, no animations, no images — it paints with the hero.
- *   - The bookings query is enabled ONLY for authenticated users and is
- *     deduped/cached by TanStack Query (staleTime inherited), so repeat
- *     visits don't refetch while the cache is fresh.
- */
-
+import { useQuery } from '@tanstack/react-query'
+import { bookingsListOptions } from '@/api'
+import { useSession } from '@/stores/session'
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useApp } from '@/lib/store'
-import { useMyBookings } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -32,10 +12,10 @@ import { isBookingUpcoming, type BookingItem } from '@/features/booking/history/
 export function WelcomeBar() {
   const t = useT()
   const navigate = useNavigate()
-  const { user } = useApp()
+  const user = useSession((s) => s.user)
 
   // Only authenticated users trigger the fetch — guests render instantly.
-  const bookingsQuery = useMyBookings('all', { enabled: !!user })
+  const bookingsQuery = useQuery({ ...bookingsListOptions({ query: { status: 'all' } }), enabled: !!user })
   const activeCount = useMemo(() => {
     if (!user || !bookingsQuery.data) return 0
     const items = (bookingsQuery.data.items ?? []) as unknown as BookingItem[]

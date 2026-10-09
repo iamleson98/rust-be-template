@@ -1,71 +1,44 @@
 'use client'
 
-/**
- * FiltersSidebar — the desktop (lg+) filter sidebar of the search-results
- * page: the sticky card with sort options, vehicle-type checkboxes, the
- * FilterPanel controls and the quick-stats summary.
- *
- * Extracted from the original `search-results.tsx`.
- */
-
-import { useApp, type TripResult } from '@/lib/store'
-import { useT } from '@/lib/i18n'
 import { SlidersHorizontal } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import type { TripResult } from '@/api'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
-import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency'
+import { Button } from '@/components/ui/button'
+import { formatCurrency } from '@/lib/format'
+import { useT } from '@/lib/i18n'
+import { usePrefs } from '@/stores/prefs'
+import { FilterSection } from './filter-ui'
 import { FilterPanel } from './filter-panel'
-import { sortOptions, type Filters, type RouteSearch } from './helpers'
+import { UrlFilters } from './filter-controls'
+import type { ResultFilters } from './use-result-filters'
 
-export function FiltersSidebar({
-  routeSearch,
-  updateRouteSearch,
-  searchResults,
-  filters,
-  setFilters,
-  priceBounds,
-  effectivePriceRange,
-  activeFilterCount,
-  resetFilters,
-  minPrice,
-  maxAvail,
-}: {
-  routeSearch: RouteSearch
-  updateRouteSearch: (changes: Partial<RouteSearch>) => void
-  searchResults: TripResult[]
-  filters: Filters
-  setFilters: (f: Filters) => void
-  priceBounds: [number, number]
-  effectivePriceRange: [number, number]
-  activeFilterCount: number
-  resetFilters: () => void
-  minPrice: number
-  maxAvail: number
-}) {
-  const { currency } = useApp()
+/** Desktop (lg+) filter card: sort, vehicle type, the client filters and a quick summary. */
+export function FiltersSidebar({ results, rf }: { results: TripResult[]; rf: ResultFilters }) {
   const t = useT()
+  const currency = usePrefs((s) => s.currency)
+  const cheapest = results.length ? Math.min(...results.map((r) => r.minPrice)) : 0
+  const mostSeats = results.length ? Math.max(...results.map((r) => r.availableSeats)) : 0
+
   return (
-    <aside className="lg:w-80 shrink-0 hidden lg:block">
-      <div className="lg:sticky lg:top-32 space-y-4">
+    <aside className="hidden shrink-0 lg:block lg:w-80">
+      <div className="space-y-4 lg:sticky lg:top-32">
         <div className="rounded-xl border bg-white p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2 font-semibold">
               <SlidersHorizontal className="h-4 w-4 text-blue-600" />
               {t('searchPage.filters')}
-              {activeFilterCount > 0 && (
-                <Badge className="bg-blue-600 text-white text-[10px] ml-1 h-5 min-w-5 px-1 flex items-center justify-center">
-                  {activeFilterCount}
+              {rf.activeCount > 0 && (
+                <Badge className="ml-1 flex h-5 min-w-5 items-center justify-center bg-blue-600 px-1 text-[10px] text-white">
+                  {rf.activeCount}
                 </Badge>
               )}
             </div>
-            {activeFilterCount > 0 && (
+            {rf.activeCount > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={resetFilters}
-                className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                onClick={rf.reset}
+                className="h-7 text-xs text-rose-600 hover:bg-rose-50 hover:text-rose-700"
               >
                 {t('searchPage.clearAll')}
               </Button>
@@ -73,103 +46,26 @@ export function FiltersSidebar({
           </div>
 
           <div className="space-y-3">
-            <div>
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                {t('searchPage.sort')}
-              </div>
-              <div className="space-y-1">
-                {sortOptions.map((o) => (
-                  <button
-                    key={o.key}
-                    onClick={() => updateRouteSearch({ sort: o.key })}
-                    className={cn(
-                      'w-full text-left px-3 py-1.5 rounded-md text-sm transition-all duration-200',
-                      routeSearch.sort === o.key
-                        ? 'bg-blue-50 text-blue-700 font-medium '
-                        : 'hover:bg-slate-100',
-                    )}
-                  >
-                    <span className="mr-1.5">{o.icon}</span>
-                    {t(o.labelKey)}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <UrlFilters results={results} />
+            <FilterPanel results={results} rf={rf} />
 
-            <div className="pt-3 border-t">
-              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                {t('searchPage.vehicleType')}
-              </div>
-              <div className="space-y-1.5">
-                {[
-                  { key: 'limousine', labelKey: 'searchPage.vehicleLimousine', emoji: '🚐' },
-                  { key: 'sleeper', labelKey: 'searchPage.vehicleSleeper', emoji: '🛏️' },
-                  { key: 'semi_sleeper', labelKey: 'searchPage.vehicleSemiSleeper', emoji: '🛌' },
-                  { key: 'minivan', labelKey: 'searchPage.vehicleMinivan', emoji: '🚐' },
-                  { key: 'standard', labelKey: 'searchPage.vehicleStandard', emoji: '🚌' },
-                ].map((v) => {
-                  const active = (routeSearch.vehicleTypes ?? []).includes(v.key)
-                  const count = searchResults.filter(
-                    (tr) => (tr.vehicleType ?? null) === v.key,
-                  ).length
-                  return (
-                    <label
-                      key={v.key}
-                      className="flex items-center gap-2 cursor-pointer text-sm py-1 group"
-                    >
-                      <Checkbox
-                        checked={active}
-                        onCheckedChange={() => {
-                          const next = active
-                            ? (routeSearch.vehicleTypes ?? []).filter((x) => x !== v.key)
-                            : [...(routeSearch.vehicleTypes ?? []), v.key]
-                          updateRouteSearch({ vehicleTypes: next })
-                        }}
-                        className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                      />
-                      <span className="group-hover:text-blue-700 transition-colors">
-                        {v.emoji} {t(v.labelKey)}
-                      </span>
-                      {count > 0 && (
-                        <span className="ml-auto text-xs text-muted-foreground bg-slate-100 rounded-full px-1.5 py-0.5">
-                          {count}
-                        </span>
-                      )}
-                    </label>
-                  )
-                })}
-              </div>
-            </div>
-
-            <FilterPanel
-              searchResults={searchResults}
-              filters={filters}
-              setFilters={setFilters}
-              priceBounds={priceBounds}
-              effectivePriceRange={effectivePriceRange}
-            />
-
-            {/* Quick stats */}
-            {searchResults.length > 0 && (
-              <div className="pt-3 border-t">
-                <div className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                  {t('searchPage.summary')}
-                </div>
+            {results.length > 0 && (
+              <FilterSection title={t('searchPage.summary')}>
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between">
                     <span>{t('common.fromPrice')}</span>
                     <span className="font-semibold text-blue-700">
-                      {formatCurrency(minPrice, currency)}
+                      {formatCurrency(cheapest, currency)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span>{t('searchPage.mostSeats')}</span>
                     <span className="font-semibold">
-                      {t('searchPage.seatsCount', { count: maxAvail })}
+                      {t('searchPage.seatsCount', { count: mostSeats })}
                     </span>
                   </div>
                 </div>
-              </div>
+              </FilterSection>
             )}
           </div>
         </div>

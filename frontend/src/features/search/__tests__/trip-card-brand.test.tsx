@@ -5,10 +5,10 @@
  * NO fabricated review count is rendered next to it (the old component
  * computed `rating * 250` and formatted it as "1.1k").
  */
+import type { TripResult } from '@/api'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { TripCardBrand } from '@/features/search/trip-card-brand'
-import type { TripResult } from '@/lib/store'
 
 const baseTrip = {
   amenities: [],

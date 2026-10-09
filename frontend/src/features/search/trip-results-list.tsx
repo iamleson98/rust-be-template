@@ -1,166 +1,116 @@
 'use client'
 
-/**
- * TripResultsList — the results column of the search-results page:
- * skeleton loading state, the per-filter empty state, and the trip list
- * itself (plain list, or virtualized via @tanstack/react-virtual once it
- * grows past ~30 items). Also pre-computes the top-rated / cheapest flags
- * for the recommended badge.
- *
- * Extracted from the original `search-results.tsx`.
- */
-
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { TripResult } from '@/lib/store'
 import { AlertCircle, X } from 'lucide-react'
+import type { TripResult } from '@/api'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
-import { TripCard } from '@/features/search/trip-card'
+import { TripCard } from './trip-card'
 import { TripCardSkeleton } from './trip-card-skeleton'
-import type { NavigateFn } from './helpers'
 
+/** Beyond this many results the list is virtualized; below it the overhead isn't worth it. */
+const VIRTUALIZE_ABOVE = 30
+
+/** The results column: skeletons while loading, an explanatory empty state, or the trip cards. */
 export function TripResultsList({
-  searchLoading,
-  searchResults,
-  filteredResults,
-  activeFilterCount,
-  resetFilters,
-  navigate,
-  awaitingDate = false,
+  loading,
+  results,
+  filtered,
+  hasActiveFilters,
+  onResetFilters,
+  awaitingDate,
 }: {
-  searchLoading: boolean
-  searchResults: TripResult[]
-  filteredResults: TripResult[]
-  activeFilterCount: number
-  resetFilters: () => void
-  navigate: NavigateFn
-  /** True when from/to are set but no date — the query is disabled. */
-  awaitingDate?: boolean
+  loading: boolean
+  results: TripResult[]
+  filtered: TripResult[]
+  hasActiveFilters: boolean
+  onResetFilters: () => void
+  /** from/to are set but no date: the query is idle. */
+  awaitingDate: boolean
 }) {
   const t = useT()
-  // Pre-compute top-rated / cheapest flags once for the recommended badge
-  // (avoids O(n²) Math.max/Math.min inside the render loop).
-  const { topRating, cheapestPrice } = useMemo(() => {
-    if (filteredResults.length === 0) return { topRating: 0, cheapestPrice: 0 }
-    let topRating = -Infinity
-    let cheapestPrice = Infinity
-    for (const r of filteredResults) {
-      if (r.brandRating > topRating) topRating = r.brandRating
-      if (r.minPrice < cheapestPrice) cheapestPrice = r.minPrice
-    }
-    return { topRating, cheapestPrice }
-  }, [filteredResults])
-
-  // Virtualize the trip list when it grows past ~30 items — otherwise the
-  // overhead of the virtualizer (ResizeObserver + absolute positioning)
-  // isn't worth the perf win for typical ~12-result pages.
-  const TRIP_VIRTUAL_THRESHOLD = 30
-  const shouldVirtualize = filteredResults.length > TRIP_VIRTUAL_THRESHOLD
-  const listParentRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+  const parentRef = useRef<HTMLDivElement>(null)
+  const virtual = filtered.length > VIRTUALIZE_ABOVE
   const virtualizer = useVirtualizer({
-    count: shouldVirtualize ? filteredResults.length : 0,
-    getScrollElement: () => listParentRef.current,
+    count: virtual ? filtered.length : 0,
+    getScrollElement: () => parentRef.current,
     estimateSize: () => 200,
     overscan: 4,
-    enabled: shouldVirtualize,
+    enabled: virtual,
   })
 
-  return searchLoading ? (
-    <div className="space-y-3">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <TripCardSkeleton key={i} />
-      ))}
-    </div>
-  ) : filteredResults.length === 0 ? (
-    <div className="rounded-xl border bg-white p-10 text-center">
-      <AlertCircle className="h-10 w-10 text-amber-500 mx-auto mb-3" />
-      <h3 className="font-semibold text-lg">
-        {awaitingDate
-          ? t('searchPage.pickDateTitle')
-          : searchResults.length === 0
-            ? t('searchPage.noTripsFound')
-            : t('searchPage.noTripsMatchFilters')}
-      </h3>
-      <p className="text-sm text-muted-foreground mt-1">
-        {awaitingDate
-          ? t('searchPage.pickDateHint')
-          : searchResults.length === 0
-            ? t('searchPage.noTripsHint')
-            : t('searchPage.noMatchHint')}
-      </p>
-      {searchResults.length > 0 && activeFilterCount > 0 && (
-        <Button
-          onClick={resetFilters}
-          variant="outline"
-          className="mt-4 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
-        >
-          <X className="h-4 w-4" />
-          {t('searchPage.clearAllFilters')}
-        </Button>
-      )}
-    </div>
-  ) : (
-    <div className="space-y-3">
-      {shouldVirtualize ? (
-        <div ref={listParentRef} className="max-h-[80vh] overflow-y-auto">
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              position: 'relative',
-            }}
+  const card = (trip: TripResult, index: number) => (
+    <TripCard
+      key={trip.tripId}
+      trip={trip}
+      onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: trip.tripId } })}
+      isRecommended={index === 0 && filtered.length > 1}
+    />
+  )
+
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 4 }, (_, i) => (
+          <TripCardSkeleton key={i} />
+        ))}
+      </div>
+    )
+  }
+
+  if (filtered.length === 0) {
+    const [title, hint] = awaitingDate
+      ? ['searchPage.pickDateTitle', 'searchPage.pickDateHint']
+      : results.length === 0
+        ? ['searchPage.noTripsFound', 'searchPage.noTripsHint']
+        : ['searchPage.noTripsMatchFilters', 'searchPage.noMatchHint']
+    return (
+      <div className="rounded-xl border bg-white p-10 text-center">
+        <AlertCircle className="mx-auto mb-3 h-10 w-10 text-amber-500" />
+        <h3 className="text-lg font-semibold">{t(title)}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{t(hint)}</p>
+        {results.length > 0 && hasActiveFilters && (
+          <Button
+            onClick={onResetFilters}
+            variant="outline"
+            className="mt-4 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
           >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const t = filteredResults[virtualRow.index]
-              const isTopRated = t.brandRating === topRating
-              const isCheapest = t.minPrice === cheapestPrice
-              const isRecommended = virtualRow.index === 0 || (isTopRated && isCheapest)
-              return (
-                <div
-                  key={t.tripId}
-                  data-index={virtualRow.index}
-                  ref={virtualizer.measureElement}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualRow.start}px)`,
-                  }}
-                  className="pb-3"
-                >
-                  <TripCard
-                    trip={t}
-                    onSelect={() =>
-                      navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })
-                    }
-                    isRecommended={
-                      filteredResults.length > 1 && isRecommended && virtualRow.index === 0
-                    }
-                  />
-                </div>
-              )
-            })}
-          </div>
+            <X className="h-4 w-4" />
+            {t('searchPage.clearAllFilters')}
+          </Button>
+        )}
+      </div>
+    )
+  }
+
+  if (!virtual) return <div className="space-y-3">{filtered.map(card)}</div>
+
+  return (
+    <div className="space-y-3">
+      <div ref={parentRef} className="max-h-[80vh] overflow-y-auto">
+        <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+          {virtualizer.getVirtualItems().map((row) => (
+            <div
+              key={filtered[row.index].tripId}
+              data-index={row.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${row.start}px)`,
+              }}
+              className="pb-3"
+            >
+              {card(filtered[row.index], row.index)}
+            </div>
+          ))}
         </div>
-      ) : (
-        <>
-          {filteredResults.map((t, i) => {
-            // Determine recommended: trip with highest rating AND lowest price in results
-            const isTopRated = t.brandRating === topRating
-            const isCheapest = t.minPrice === cheapestPrice
-            const isRecommended = i === 0 || (isTopRated && isCheapest)
-            return (
-              <TripCard
-                key={t.tripId}
-                trip={t}
-                onSelect={() => navigate({ to: '/trips/$tripId', params: { tripId: t.tripId } })}
-                isRecommended={filteredResults.length > 1 && isRecommended && i === 0}
-              />
-            )
-          })}
-        </>
-      )}
+      </div>
     </div>
   )
 }

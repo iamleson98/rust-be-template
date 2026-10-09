@@ -1,7 +1,7 @@
+import { usePrefs } from '@/stores/prefs'
 import { format, parseISO, isValid, differenceInCalendarDays } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
 import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export function formatDepartureDate(s: string | null | undefined): string {
     // trip.departureDate is YYYY-MM-DD
     const d = parseISO(s)
     if (!isValid(d)) return s
-    const dateLocale = useApp.getState().lang === 'en' ? enUS : vi
+    const dateLocale = usePrefs.getState().lang === 'en' ? enUS : vi
     return format(d, 'dd/MM/yyyy', { locale: dateLocale })
   } catch {
     return s
@@ -33,7 +33,7 @@ export function timeAgo(s: string | null | undefined): string {
     const d = parseISO(s)
     if (!isValid(d)) return ''
     const diffMin = differenceInCalendarDays(new Date(), d) * 24 * 60
-    const lang = useApp.getState().lang
+    const lang = usePrefs.getState().lang
     if (diffMin < 1) return translate(lang, 'adminTickets.justNow')
     if (diffMin < 60)
       return translate(lang, 'adminTickets.minutesAgo', { count: Math.floor(diffMin) })

@@ -20,6 +20,8 @@
  * and accessible (every interactive element has an aria-label).
  */
 
+import { bookingsHoldMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
   Dialog,
@@ -32,7 +34,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { SeatMapSkeleton } from '@/features/trips/seat-map-skeleton'
+import { SeatMapSkeleton } from '@/features/seat-plan'
 import { toast } from 'sonner'
 import {
   Search,
@@ -45,9 +47,11 @@ import {
   Ticket as TicketIcon,
 } from 'lucide-react'
 import { format } from 'date-fns'
-import { usePlaceSearch, useTripSearch, useTripDetail, useAdminCreateBooking } from '@/lib/queries'
-import type { TripResult } from '@/lib/api/types.gen'
-import type { AdminChannel as Channel } from '@/features/admin/dashboard/types'
+import { usePlaceSearch } from '@/features/map/api'
+import { useTripSearch } from '@/features/search/api'
+import { useTripDetail } from '@/features/trips/api'
+import type { TripResult } from '@/api'
+import type { ChatChannelOut as Channel } from '@/api'
 import type { Seat, Passenger, Step } from './chat-ticket-picker-types'
 import { SearchStep } from './ticket-picker-search-step'
 import { SeatsStep } from './ticket-picker-seats-step'
@@ -165,7 +169,7 @@ export function ChatTicketPicker({
     fromPlace && toPlace && date ? { from: fromPlace.name, to: toPlace.name, date } : null,
   )
   const tripDetail = useTripDetail(selectedTrip?.tripId)
-  const createBooking = useAdminCreateBooking()
+  const createBooking = useMutation(bookingsHoldMutation())
 
   // ── Derived state ──
   const trip = tripDetail.data

@@ -1,9 +1,10 @@
 'use client'
 
-import { SearchWidget } from '@/features/home/search-widget'
+import { useQuery } from '@tanstack/react-query'
+import { statsOptions } from '@/api'
+import { SearchWidget } from '@/features/search/widget/search-widget'
 import { TrustBar } from '@/components/seo/trust-signals'
 import { useT } from '@/lib/i18n'
-import { useStats } from '@/lib/queries'
 import { ChevronDown } from 'lucide-react'
 import { HeroBackground } from './hero-background'
 import { WelcomeBar } from './welcome-bar'
@@ -23,7 +24,7 @@ export function Hero() {
   // Real platform stats (brands / routes / trips straight from
   // GET /api/stats). The previous version ALSO showed a made-up
   // "125.000+ passengers" badge and a "Places: 0" stat tile — both gone.
-  const { data: statsData } = useStats()
+  const { data: statsData } = useQuery(statsOptions())
 
   return (
     <section className="relative overflow-hidden isolate">

@@ -13,10 +13,10 @@
 import { useMemo, useState } from 'react'
 import { Building2, CheckCircle2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentOut } from '@/lib/queries/payments'
+import type { PaymentOut } from '@/api'
 
 export function VietQrDisplay({ payment, currency }: { payment: PaymentOut; currency: Currency }) {
   const t = useT()

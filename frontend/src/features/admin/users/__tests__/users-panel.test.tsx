@@ -1,5 +1,9 @@
-import { render, screen, within, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, within, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type { SessionUser } from '@/api'
+import { useSession } from '@/stores/session'
+import { mockApi, renderWithQuery } from '@/test/api'
+import { UsersPanel } from '../users-panel'
 
 /**
  * Tests for the three-role system's admin Users panel:
@@ -8,49 +12,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *   - bots + the admin themself cannot have their role changed
  */
 
-vi.mock('@/lib/queries', () => {
-  return {
-    useUsers: vi.fn(),
-    useSetUserRole: vi.fn(() => ({
-      isPending: false,
-      mutateAsync: vi.fn(),
-    })),
-  }
+const LIST = 'GET /api/users'
+
+const persona = (role: 'admin' | 'employee'): SessionUser => ({
+  id: role === 'admin' ? 'admin-1' : 'emp-1',
+  type: role,
+  role,
+  name: role === 'admin' ? 'Root Admin' : 'Nguyễn Văn A',
 })
-
-/** Mutable mock state — each test can switch the logged-in persona.
- *  `lang` feeds the useT() hook (labels assert Vietnamese). */
-const mockState: {
-  user: { id: string; type: string; name: string } | null
-  lang: 'vi' | 'en'
-} = {
-  user: { id: 'admin-1', type: 'admin', name: 'Root Admin' },
-  lang: 'vi',
-}
-
-vi.mock('@/lib/store', () => {
-  return {
-    useApp: () => mockState,
-    isStaffUser: (u: { type: string } | null | undefined) =>
-      u?.type === 'employee' || u?.type === 'admin',
-    hydrateFromStorage: vi.fn(),
-  }
-})
-
-import { useUsers } from '@/lib/queries'
-import { UsersPanel } from '../users-panel'
-
-const fetchMock = useUsers as unknown as ReturnType<typeof vi.fn>
-
-function mockQueryResult(items: unknown[], total = items.length) {
-  return {
-    data: { items, total },
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-    refetch: vi.fn(),
-  }
-}
 
 const USERS = [
   {
@@ -93,15 +62,15 @@ const USERS = [
 
 describe('UsersPanel (three-role management)', () => {
   beforeEach(() => {
-    mockState.user = { id: 'admin-1', type: 'admin', name: 'Root Admin' }
+    useSession.setState({ user: persona('admin') })
   })
   it('renders users with role badges for each of the three roles', async () => {
-    fetchMock.mockReturnValue(mockQueryResult(USERS))
+    mockApi({ [LIST]: { items: USERS, total: USERS.length } })
 
-    render(<UsersPanel />)
+    renderWithQuery(<UsersPanel />)
 
     const table = await screen.findByTestId('users-table')
-    expect(within(table).getByText('Root Admin')).toBeInTheDocument()
+    expect(await within(table).findByText('Root Admin')).toBeInTheDocument()
     expect(within(table).getByText('Quản trị')).toBeInTheDocument()
     expect(within(table).getByText('Nhân viên')).toBeInTheDocument()
     expect(within(table).getAllByText('Khách hàng').length).toBeGreaterThan(0)
@@ -110,11 +79,11 @@ describe('UsersPanel (three-role management)', () => {
   })
 
   it('offers role-change selects for non-bot, non-self rows (admin view)', async () => {
-    fetchMock.mockReturnValue(mockQueryResult(USERS))
+    mockApi({ [LIST]: { items: USERS, total: USERS.length } })
 
-    render(<UsersPanel />)
+    renderWithQuery(<UsersPanel />)
 
-    await screen.findByTestId('users-table')
+    await screen.findByText('Trần Thị B')
     // Employee + plain user rows get a select; the admin themself and
     // the bot do not. Identified by per-row aria-label (Radix renders
     // exactly one combobox per Select).
@@ -126,22 +95,18 @@ describe('UsersPanel (three-role management)', () => {
   })
 
   it('hides all role-change selects for employees', async () => {
-    // Re-mock the store with an employee user (mutable module-level
-    // state, hoisted into the factory above).
-    mockState.user = { id: 'emp-1', type: 'employee', name: 'Nguyễn Văn A' }
-    fetchMock.mockReturnValue(mockQueryResult(USERS))
+    useSession.setState({ user: persona('employee') })
+    mockApi({ [LIST]: { items: USERS, total: USERS.length } })
 
-    render(<UsersPanel />)
-    await screen.findByTestId('users-table')
+    renderWithQuery(<UsersPanel />)
+    await screen.findByText('Trần Thị B')
     expect(screen.queryByRole('combobox')).toBeNull()
   })
 
   it('shows the pagination footer with the server total', async () => {
-    fetchMock.mockReturnValue(
-      mockQueryResult(USERS, 47), // 47 total → "trang 1 / 3"
-    )
+    mockApi({ [LIST]: { items: USERS, total: 47 } }) // 47 total → "trang 1 / 3"
 
-    render(<UsersPanel />)
+    renderWithQuery(<UsersPanel />)
 
     const table = await screen.findByTestId('users-table')
     await waitFor(() => {

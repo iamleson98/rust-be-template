@@ -29,16 +29,19 @@
  * `CodDisplay` stay here.
  */
 
+import { cancelPaymentMutation, createPaymentMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Banknote, CheckCircle2, Clock, Loader2, ShieldCheck, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import { useCancelPayment, useCreatePayment, usePayment } from '@/lib/queries/payments'
-import type { PaymentOut, PaymentProvider } from '@/lib/queries/payments'
+import { usePayment } from '../api'
+import type { PaymentOut } from '@/api'
+import type { PaymentProvider } from '@/lib/payment'
 import { ProviderPicker } from './payment-provider-picker'
 import { GatewayRedirect } from './gateway-redirect'
 import { VietQrDisplay } from './vietqr-display'
@@ -74,9 +77,9 @@ export function PaymentDialog({
     setResumeId(paymentId)
   }, [paymentId])
 
-  const payment = usePayment(resumeId, { enabled: open && !!resumeId })
-  const cancelPayment = useCancelPayment()
-  const createPayment = useCreatePayment()
+  const payment = usePayment(resumeId, open)
+  const cancelPayment = useMutation(cancelPaymentMutation())
+  const createPayment = useMutation(createPaymentMutation())
 
   // When the payment becomes `completed`, fire onPaid + auto-close after 1.5s.
   useEffect(() => {
@@ -98,11 +101,8 @@ export function PaymentDialog({
       return
     }
     try {
-      const result = await createPayment.mutateAsync({
-        bookingId,
-        provider,
-      } as unknown as { bookingId: string; provider: PaymentProvider })
-      setResumeId((result as unknown as { payment: PaymentOut }).payment.id)
+      const result = await createPayment.mutateAsync({ body: { bookingId, provider } })
+      setResumeId(result.payment.id)
     } catch (e: unknown) {
       toast.error(t('payment.createFailed'), {
         description: e instanceof Error ? e.message : undefined,
@@ -167,7 +167,7 @@ export function PaymentDialog({
                   disabled={cancelPayment.isPending}
                   onClick={async () => {
                     try {
-                      await cancelPayment.mutateAsync({ id: p.id })
+                      await cancelPayment.mutateAsync({ path: { id: p.id }, body: {} })
                       toast.success(t('bookingFlow.paymentCancelled'))
                       // Reset to provider-picker for retry.
                       setResumeId(undefined)

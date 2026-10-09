@@ -10,13 +10,14 @@
  * (or fails) the section simply doesn't render — no fake fallback.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { reviewsListOptions } from '@/api'
 import { memo } from 'react'
 import { Star, Quote, ThumbsUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useT } from '@/lib/i18n'
-import { useLatestReviews } from '@/lib/queries'
-import type { ReviewOut } from '@/lib/api/types.gen'
-import { formatDateTimeVN } from '@/lib/types'
+import type { ReviewOut } from '@/api'
+import { formatDateTimeVN } from '@/lib/format'
 import { TestimonialsSkeleton } from '@/features/home/components/testimonials-skeleton'
 
 /* Generate initials from a Vietnamese name */
@@ -56,7 +57,7 @@ const StarRating = memo(function StarRating({ rating }: { rating: number }) {
 
 export const Testimonials = memo(function Testimonials() {
   const t = useT()
-  const { data, isLoading } = useLatestReviews(6)
+  const { data, isLoading } = useQuery(reviewsListOptions({ query: { limit: 6 } }))
   const items: ReviewOut[] = data?.items ?? []
 
   if (isLoading) {

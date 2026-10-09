@@ -1,8 +1,4 @@
-'use client'
-
 import { memo } from 'react'
-
-// Simple inline SVG icons to avoid extra deps
 
 export const SteeringWheel = memo(function SteeringWheel({ className }: { className?: string }) {
   return (
@@ -35,6 +31,22 @@ export const Driver = memo(function Driver({ className }: { className?: string }
     >
       <circle cx="12" cy="7" r="4" />
       <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
+    </svg>
+  )
+})
+
+export const Stairs = memo(function Stairs({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M3 20h5v-5h5v-5h5V5h3" />
     </svg>
   )
 })

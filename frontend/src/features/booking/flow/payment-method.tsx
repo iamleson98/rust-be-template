@@ -32,11 +32,11 @@ import {
   Tag,
   X,
 } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import type { CampaignValidateResponse } from '@/lib/api/types.gen'
+import type { CampaignValidateResponse } from '@/api'
 import { PriceSummary } from './price-summary'
 import { PaymentTrustBadges } from '@/components/seo/trust-signals'
 

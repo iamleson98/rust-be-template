@@ -6,7 +6,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Search, Loader2, MapPin, Crosshair, X, Check } from 'lucide-react'
 import { toast } from 'sonner'
-import { search as sdkPlaceSearch, reverse as sdkReverseGeocode } from '@/lib/api/sdk.gen'
+import { placesReverse as sdkReverseGeocode, placesSearch as sdkPlaceSearch } from '@/api'
 import { useT } from '@/lib/i18n'
 import { BasemapLayer } from '@/features/map/basemap-layer'
 import {

@@ -16,10 +16,10 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Ban, CheckCircle2, ArrowLeftRight } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { AdminPaymentOut } from '@/lib/queries/payments'
+import type { AdminPaymentOut } from '@/api'
 import { ProviderBadge, StatusBadge } from './payment-badges'
 import type { PaymentAction, UpdatePaymentStatusMutation } from './types'
 

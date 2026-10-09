@@ -12,12 +12,12 @@ import { HardDrive } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import type { SystemMetricDisk } from '@/lib/queries'
+import type { DiskInfo } from '@/api'
 import { formatBytes, usagePercent, usageTone } from './metric-helpers'
 
 // ─── Disks ──────────────────────────────────────────────────────────
 
-export function DisksCard({ disks }: { disks: SystemMetricDisk[] }) {
+export function DisksCard({ disks }: { disks: DiskInfo[] }) {
   return (
     <Card data-testid="metric-disks-card">
       <CardHeader className="pb-2">

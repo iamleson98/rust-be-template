@@ -13,7 +13,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Armchair, AlertTriangle, CheckCircle2, ChevronRight } from 'lucide-react'
-import { formatCurrency, type Currency } from '@/lib/currency'
+import { formatCurrency, type Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 
 export function PriceSummary({

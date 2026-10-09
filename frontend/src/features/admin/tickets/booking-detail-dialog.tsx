@@ -1,5 +1,7 @@
 'use client'
 
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { adminBookingsGetOptions, adminBookingsUpdateStatusMutation } from '@/api'
 import { useCallback, useState } from 'react'
 import {
   Dialog,
@@ -30,7 +32,6 @@ import {
   MapPin,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAdminBookingDetail, useUpdateBookingStatus } from '@/lib/queries'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import { TicketDetailSkeleton } from './ticket-detail-skeleton'
 import { formatVND, formatDepartureDate } from './tickets-helpers'
@@ -46,8 +47,11 @@ export function BookingDetailDialog({
   bookingId: string | null
   onClose: () => void
 }) {
-  const { data, isLoading, isError, refetch } = useAdminBookingDetail(bookingId ?? undefined)
-  const updateStatus = useUpdateBookingStatus()
+  const { data, isLoading, isError, refetch } = useQuery({
+    ...adminBookingsGetOptions({ path: { id: bookingId ?? '' } }),
+    enabled: !!bookingId,
+  })
+  const updateStatus = useMutation(adminBookingsUpdateStatusMutation())
   const [reason, setReason] = useState('')
   const [force, setForce] = useState(false)
   const t = useT()

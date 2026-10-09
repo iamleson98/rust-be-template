@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { fullNameSchema, phoneSchema, emailSchema } from '@/lib/forms'
 import { tSync } from '@/lib/i18n'
 import { User, UserCheck, Baby } from 'lucide-react'
-import type { TripSeat } from '@/lib/api/types.gen'
+import type { TripSeat } from '@/api'
 
 // ── Trip detail shape (local — matches the actual backend response) ──
 // The centralized type in `@/lib/queries/types` lacks `seatMap.decks`,

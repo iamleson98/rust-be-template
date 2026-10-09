@@ -1,35 +1,19 @@
-'use client'
-
-/**
- * LoginPage — the public `/login` page shell.
- *
- * Owns the page-level layout (background, header, tab switcher, trust
- * note) and delegates each form to its own file under `auth/`:
- *   - CustomerLogin   → `./customer-login` (customers and employees)
- *   - RegisterForm    → `./register-form`
- *
- * The shared zod schemas, the password-strength meter helper and the
- * `TabButton` presentational component live in `./_shared`.
- */
-
+import { isStaffUser, useSession } from '@/stores/session'
 import { useEffect, useState } from 'react'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
 import { ShieldCheck, User, ArrowLeft, UserPlus } from 'lucide-react'
 import { TabButton, type Tab } from './_shared'
 import { CustomerLogin } from './customer-login'
 import { RegisterForm } from './register-form'
-import { isStaffUser } from '@/lib/store'
 
 export function LoginPage() {
-  const { user } = useApp()
+  const user = useSession((s) => s.user)
   const t = useT()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('customer')
 
   // If already logged in, redirect to the right place.
-  // The user object comes from /api/auth/me (server-verified) — see store.tsx.
   useEffect(() => {
     if (user) {
       if (isStaffUser(user)) navigate({ to: '/admin' })

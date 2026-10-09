@@ -1,12 +1,16 @@
 'use client'
 
-import { useApp } from '@/lib/store'
+import { useQuery } from '@tanstack/react-query'
+import { recommendationsOptions } from '@/api'
+import { useGuest } from '@/stores/guest'
+import { usePrefs } from '@/stores/prefs'
+import { useSession } from '@/stores/session'
 import { useNavigate } from '@tanstack/react-router'
-import { useRecommendations, type RecommendationItem } from '@/lib/queries'
+import type { TripResult } from '@/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/layout/error-state'
-import { formatCurrency } from '@/lib/currency'
+import { ErrorState } from '@/components/error-state'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import {
   Sparkles,
@@ -66,7 +70,10 @@ function reasonFor(tripId: string): Reason {
 }
 
 export function Recommendations() {
-  const { user, guestPhone, recentlyViewed, currency } = useApp()
+  const user = useSession((s) => s.user)
+  const guestPhone = useGuest((s) => s.guestPhone)
+  const recentlyViewed = useGuest((s) => s.recentlyViewed)
+  const currency = usePrefs((s) => s.currency)
   const navigate = useNavigate()
   const t = useT()
 
@@ -78,12 +85,12 @@ export function Recommendations() {
   // nothing, so a stale-then-refetch is fine).
   void guestPhone
   void recentlyViewed
-  const { data, isLoading, isError, refetch } = useRecommendations()
-  const items: RecommendationItem[] = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(recommendationsOptions())
+  const items: TripResult[] = data?.items ?? []
 
   // Click → navigate to /search with the recommended route's from/to.
   // The /search route owns the actual trip-search fetch via useTripSearch.
-  const handleView = (rec: RecommendationItem) => {
+  const handleView = (rec: TripResult) => {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const date = tomorrow.toISOString().slice(0, 10)

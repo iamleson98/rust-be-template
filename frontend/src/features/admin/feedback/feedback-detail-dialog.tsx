@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2, EyeOff, Send, XCircle } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { StarRating } from '@/features/feedback/star-rating'
+import { StarRating } from '@/features/account/feedback/star-rating'
 import { formatDate, type FeedbackRow } from './helpers'
 
 export function FeedbackDetailDialog({

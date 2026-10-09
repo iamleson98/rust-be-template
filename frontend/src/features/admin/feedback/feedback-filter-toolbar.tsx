@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Search } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { AdminReviewBrandSummary } from '@/lib/api/types.gen'
+import type { AdminReviewBrandSummary } from '@/api'
 import { ButtonGroup } from '@/components/ui/button-group'
 
 /** Real backend moderation statuses (NOT the legacy `published/flagged`). */

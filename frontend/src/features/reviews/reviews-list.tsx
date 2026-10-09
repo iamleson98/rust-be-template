@@ -1,7 +1,8 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { reviewsListOptions, reviewsTagsOptions } from '@/api'
 import { memo, useState } from 'react'
-import { useReviewsByRoute, useReviewsByBrand, useReviewTags } from '@/lib/queries'
 import {
   Star,
   Loader2,
@@ -71,7 +72,7 @@ export const ReviewsList = memo(function ReviewsList({
   // field names (`content` / `photos` / `reply` / `tags`). We cast the
   // response to our local Review type so the renderer can access those
   // fields without touching the centralized type definition.
-  const reviewsQuery = useReviewsByRoute(routeId)
+  const reviewsQuery = useQuery(reviewsListOptions({ query: { route_id: routeId, limit: 20 } }))
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
   // ── Brand-wide aggregate (avg + 5-bucket distribution) ──
@@ -79,7 +80,7 @@ export const ReviewsList = memo(function ReviewsList({
   // shape. We compute the avg + distribution client-side from the items
   // we fetched. (The previous `?aggregate=1` query param was ignored by
   // the backend and the response shape was wrong anyway.)
-  const aggregateQuery = useReviewsByBrand(brandId)
+  const aggregateQuery = useQuery(reviewsListOptions({ query: { brand_id: brandId, limit: 20 } }))
   const aggregate: Aggregate | null = aggregateQuery.data
     ? {
         avgRating:
@@ -96,7 +97,7 @@ export const ReviewsList = memo(function ReviewsList({
   // Top praised features for this specific route. Backend `GET /api/reviews/tags`
   // takes NO params — returns the global tag index. We filter client-side
   // by routeId if the items carry it.
-  const tagStatsQuery = useReviewTags()
+  const tagStatsQuery = useQuery(reviewsTagsOptions())
   const tagStats: TagStat[] = (
     ((tagStatsQuery.data ?? {}) as { items?: Array<Record<string, unknown>> }).items ?? []
   ).filter((t) => !('routeId' in t) || t.routeId === routeId) as TagStat[]

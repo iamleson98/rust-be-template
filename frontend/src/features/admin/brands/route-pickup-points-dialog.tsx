@@ -11,6 +11,8 @@
  * brands page had in its detail column.
  */
 
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { placesListOptions, adminPickupPointsDeleteMutation, adminPickupPointsListOptions } from '@/api'
 import { useMemo, useState } from 'react'
 import {
   Dialog,
@@ -33,9 +35,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin, Pencil, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAdminPickupPoints, useDeleteAdminPickupPoint, usePlacesList } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
-import type { AdminPickupPointOut, AdminRouteOut } from '@/lib/api/types.gen'
+import type { AdminPickupPointOut, AdminRouteOut } from '@/api'
 import { PICKUP_TYPE_LABELS } from '@/features/admin/types'
 import { PickupPointFormDialog } from '@/features/admin/pickup-points/pickup-form'
 import { getErrorMessage } from '@/lib/error-message'
@@ -50,9 +51,12 @@ export function RoutePickupPointsDialog({
   const t = useT()
   const open = !!route
   const routeId = route?.id
-  const pickupQuery = useAdminPickupPoints(routeId)
-  const placesQuery = usePlacesList(200)
-  const deleteMutation = useDeleteAdminPickupPoint()
+  const pickupQuery = useQuery({
+    ...adminPickupPointsListOptions({ query: { routeId } }),
+    enabled: !!routeId,
+  })
+  const placesQuery = useQuery(placesListOptions({ query: { limit: 200 } }))
+  const deleteMutation = useMutation(adminPickupPointsDeleteMutation())
 
   const pickupPoints = useMemo(
     () => [...(pickupQuery.data?.items ?? [])].sort((a, b) => a.stopOrder - b.stopOrder),

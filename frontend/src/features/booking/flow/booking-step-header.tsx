@@ -11,7 +11,7 @@
 
 import { DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { Check, Ticket, Calendar, Bus } from 'lucide-react'
 import { cn } from '@/lib/utils'

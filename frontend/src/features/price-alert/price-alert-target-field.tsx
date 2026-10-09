@@ -14,7 +14,7 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input'
 import { TrendingDown } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { formatVND } from '@/lib/types'
+import { formatVND } from '@/lib/format'
 
 export function PriceAlertTargetField({
   form,

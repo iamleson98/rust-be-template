@@ -12,7 +12,7 @@ import {
   vehicleCodeLabel,
   vehicleLabelFor,
 } from '../brand-tree-helpers'
-import type { AdminScheduleOut } from '@/lib/api/types.gen'
+import type { AdminScheduleOut } from '@/api'
 
 function schedule(overrides: Partial<AdminScheduleOut> = {}): AdminScheduleOut {
   return {

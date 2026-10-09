@@ -5,7 +5,7 @@
 
 # Auto-generated OpenAPI SDK — regenerated wholesale by `bun run openapi`
 # from openapi.json; hand-formatting is thrown away on regeneration.
-src/lib/api/
+src/api/generated/
 
 # The OpenAPI spec itself — generated deterministically by the backend
 # test `dump_openapi_spec_for_the_frontend_sdk` (serde_json

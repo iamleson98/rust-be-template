@@ -1,11 +1,3 @@
-'use client'
-
-/**
- * Column-visibility dropdown following the shadcn data-table guide's
- * `DataTableViewOptions`. Column labels come from `meta.label` (falling
- * back to the column id) so the menu stays Vietnamese.
- */
-
 import type { RowData, ReactTable } from '@tanstack/react-table'
 import { Settings2 } from 'lucide-react'
 

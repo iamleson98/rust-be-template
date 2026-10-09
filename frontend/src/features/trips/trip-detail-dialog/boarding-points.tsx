@@ -20,10 +20,11 @@
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { MapPin, Flag } from 'lucide-react'
-import { formatDuration, SEAT_CLASS_LABELS } from '@/lib/types'
+import { formatDuration } from '@/lib/format'
+import { SEAT_CLASS_LABELS } from '@/lib/labels'
 import { useT } from '@/lib/i18n'
-import { formatCurrency, type Currency } from '@/lib/currency'
-import type { SeatInv } from '@/features/trips/seat-map'
+import { formatCurrency, type Currency } from '@/lib/format'
+import type { TripSeat } from '@/api'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { ScheduleTimeline } from './schedule-timeline'
 
@@ -197,7 +198,7 @@ export function BoardingPoints({
   droppingPoint: string
   onSetBoardingPoint: (id: string) => void
   onSetDroppingPoint: (id: string) => void
-  selectedSeatDetails: SeatInv[]
+  selectedSeatDetails: TripSeat[]
   currency: Currency
 }) {
   const t = useT()
@@ -236,7 +237,7 @@ export function BoardingPoints({
                         {s.code}
                       </Badge>
                       <span className="text-xs text-muted-foreground">
-                        {t(SEAT_CLASS_LABELS[s.seatClass] ?? s.seatClass)}
+                        {t(SEAT_CLASS_LABELS[s.seatClass ?? 'standard'] ?? 'types.seatStandard')}
                       </span>
                     </div>
                     <div className="font-semibold text-blue-800">

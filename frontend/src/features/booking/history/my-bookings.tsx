@@ -10,14 +10,17 @@
  * their tickets sign in — the account guard redirects them.
  */
 
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
+import { bookingsListOptions, reviewsMineOptions } from '@/api'
+import { useUi } from '@/stores/ui'
+import { usePrefs } from '@/stores/prefs'
+import { useSession } from '@/stores/session'
 import { useEffect, useMemo, useState, Suspense } from 'react'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import { useMyBookings, useMyReviews } from '@/lib/queries'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { Ticket, CalendarCheck, Wallet } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
 
 // Re-export shared types for backward compatibility (other modules may
 // still `import { BookingItem } from '@/features/booking/history/my-bookings'`).
@@ -48,7 +51,9 @@ const EMPTY_ITEMS: never[] = []
 type UserTab = 'upcoming' | 'past' | 'cancelled' | 'reviews'
 
 export function MyBookings() {
-  const { setCancelDialogOpen, setCancelBookingId, currency, user } = useApp()
+  const openCancel = useUi((s) => s.openCancel)
+  const currency = usePrefs((s) => s.currency)
+  const user = useSession((s) => s.user)
   const t = useT()
   const navigate = useNavigate()
 
@@ -64,7 +69,7 @@ export function MyBookings() {
     data: bookingsData,
     isLoading: bookingsLoading,
     refetch: refetchBookings,
-  } = useMyBookings('all')
+  } = useQuery(bookingsListOptions({ query: { status: 'all' } }))
   const userBookings: BookingItem[] = (bookingsData?.items ??
     EMPTY_ITEMS) as unknown as BookingItem[]
   const bookingsLoaded = !!bookingsData
@@ -75,7 +80,11 @@ export function MyBookings() {
     data: reviewsData,
     isLoading: reviewsLoading,
     refetch: refetchReviews,
-  } = useMyReviews({ enabled: userTab === 'reviews' })
+  } = useQuery({
+    ...reviewsMineOptions({ query: { limit: 10, offset: 0 } }),
+    enabled: userTab === 'reviews',
+    placeholderData: keepPreviousData,
+  })
   const userReviews: ReviewItem[] = (reviewsData?.items ?? EMPTY_ITEMS) as unknown as ReviewItem[]
 
   // Auto-expand the first booking once after the initial load.
@@ -114,11 +123,6 @@ export function MyBookings() {
   )
 
   // ── Actions ────────────────────────────────────────────
-  const openCancelDialog = (bookingId: string) => {
-    setCancelBookingId(bookingId)
-    setCancelDialogOpen(true)
-  }
-
   const handleFeedbackSubmitted = (_bookingId: string, _review: ReviewSummary) => {
     // Refresh both the bookings list (so the booking's `review` field
     // updates) and the reviews list (so the new review appears).
@@ -184,7 +188,7 @@ export function MyBookings() {
               loaded={bookingsLoaded}
               expandedId={expandedId}
               onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
-              onCancelClick={openCancelDialog}
+              onCancelClick={openCancel}
               cancellingId={null}
               onExploreOther={() => navigate({ to: '/' })}
               onReload={refetchBookings}
@@ -201,7 +205,7 @@ export function MyBookings() {
               loaded={bookingsLoaded}
               expandedId={expandedId}
               onToggleExpand={(id) => setExpandedId(expandedId === id ? null : id)}
-              onCancelClick={openCancelDialog}
+              onCancelClick={openCancel}
               cancellingId={null}
               onExploreOther={() => navigate({ to: '/' })}
               onReload={refetchBookings}

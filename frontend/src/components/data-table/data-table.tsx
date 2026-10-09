@@ -1,28 +1,3 @@
-'use client'
-
-/**
- * Core data table following the official shadcn data-table guide
- * (https://ui.shadcn.com/docs/components/base/data-table), adapted to this
- * project's design system: Vietnamese empty/error states, the shared
- * `dataTableFeatures` set, and built-in support for both client-side and
- * server-side ("manual") pagination + sorting.
- *
- * Conventions:
- *  - The table renders inside the official `overflow-hidden rounded-lg
- *    border` surface (no shadow — admin screens stay flat; disable with
- *    `bordered={false}` when a parent Card already provides the surface).
- *  - While `isLoading` the component renders a STRUCTURE-MATCHED
- *    shimmer skeleton (header row + body rows + pagination footer) —
- *    never the real table headers/cells with skeleton fillers.
- *  - Column alignment/responsive classes come from `meta: { align,
- *    headerClassName, cellClassName }` so every table renders identically.
- *  - Rows are optional click targets (`onRowClick`): they get
- *    `cursor-pointer`, a keyboard handler and an accessible label.
- *  - Sorting/pagination state lives here unless the caller controls it —
- *    server-backed tables pass `manualPagination` + `pageIndex`/`rowCount`
- *    (and optionally `manualSorting` + `sorting`).
- */
-
 import { useState, type ReactNode } from 'react'
 import {
   FlexRender,
@@ -379,10 +354,10 @@ export function DataTable<TData extends RowData>({
                       onKeyDown={
                         onRowClick
                           ? (event) => {
-                              if (event.key === 'Enter' && event.target === event.currentTarget) {
-                                onRowClick(row.original)
-                              }
+                            if (event.key === 'Enter' && event.target === event.currentTarget) {
+                              onRowClick(row.original)
                             }
+                          }
                           : undefined
                       }
                     >

@@ -14,6 +14,7 @@
  * Date objects leak to callers.
  */
 
+import { usePrefs } from '@/stores/prefs'
 import { useMemo, useState } from 'react'
 import { format, parse, isValid } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
@@ -24,7 +25,6 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
-import { useApp } from '@/lib/store'
 
 const ISO_FMT = 'yyyy-MM-dd'
 
@@ -72,7 +72,7 @@ export function DatePicker({
   const selected = parseIsoDate(value)
   const t = useT()
   // Calendar locale + weekday names follow the VI/EN app language.
-  const lang = useApp((s) => s.lang)
+  const lang = usePrefs((s) => s.lang)
   const dateLocale = lang === 'en' ? enUS : vi
   const effectiveFormat = displayFormat ?? (lang === 'en' ? 'EEEE, MM/dd/yyyy' : 'EEEE, dd/MM/yyyy')
   const effectivePlaceholder = placeholder ?? t('ui.pickDate')

@@ -9,10 +9,10 @@
  * duplicated management panels (each management surface lives on its
  * own dedicated route):
  *
- *   - `useStats()`                     → `/api/stats`            (brands, routes, trips)
+ *   - `useQuery(statsOptions())`                     → `/api/stats`            (brands, routes, trips)
  *   - `useAdminBookingStats(filter)`   → `/api/admin/bookings/stats` (totals + byDay)
  *   - `useAdminBookings({ limit: 5 })` → `/api/admin/bookings`   (5 most-recent bookings)
- *   - `useCampaigns()`                 → `/api/campaigns`        (live campaigns)
+ *   - `useQuery(campaignsOptions())`                 → `/api/campaigns`        (live campaigns)
  *
  * What was intentionally REMOVED in the 2026-09 redesign:
  *   - the "revenue forecast" card (a client-side linear regression —
@@ -24,43 +24,23 @@
  *     dedicated `/admin/tickets`, `/admin/brands`, `/admin/chat` pages.
  */
 
-import { memo, useCallback, useState } from 'react'
-import { useStats, useAdminBookingExport } from '@/lib/queries'
+import { useQuery } from '@tanstack/react-query'
+import { statsOptions } from '@/api'
+import { memo, useState } from 'react'
+import { useBookingsCsvExport } from '@/features/admin/tickets/api'
 import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { CalendarRange, Download } from 'lucide-react'
-import { toast } from 'sonner'
 import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
 import type { DateRange } from './types'
-import { downloadCSV } from './helpers'
 import { StatsOverview } from './stats-overview'
-import { getErrorMessage } from '@/lib/error-message'
 import { ButtonGroup } from '@/components/ui/button-group'
 
 export const AdminDashboard = memo(function AdminDashboard() {
   const t = useT()
   const [dateRange, setDateRange] = useState<DateRange>('7d')
-  const statsQuery = useStats()
-  const exportQuery = useAdminBookingExport({})
-
-  const handleExportCSV = useCallback(async () => {
-    try {
-      const result = await exportQuery.refetch()
-      const data = result.data
-      if (!data) throw new Error('Export failed')
-      downloadCSV(data.filename, data.csv)
-      toast.success(t('adminDash.exportCsvSuccess'), {
-        description: t('adminDash.exportCsvSuccessDesc', {
-          count: data.count,
-          file: data.filename,
-        }),
-      })
-    } catch (e) {
-      toast.error(t('adminDash.exportCsvFailed'), {
-        description: getErrorMessage(e, t('adminDash.pleaseRetry')),
-      })
-    }
-  }, [exportQuery, t])
+  const statsQuery = useQuery(statsOptions())
+  const csvExport = useBookingsCsvExport()
 
   if (statsQuery.isLoading) {
     return <AdminDashboardSkeleton />
@@ -89,7 +69,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
               </Button>
             ))}
           </ButtonGroup>
-          <Button variant="outline" onClick={handleExportCSV}>
+          <Button variant="outline" onClick={csvExport.exportCsv}>
             <Download className="h-4 w-4" />
             {t('adminDash.exportCsv')}
           </Button>
@@ -97,7 +77,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
       </div>
 
       {/* ─── Summary report (all real backend data) ─── */}
-      <StatsOverview dateRange={dateRange} onExportCSV={handleExportCSV} />
+      <StatsOverview dateRange={dateRange} onExportCSV={csvExport.exportCsv} />
     </div>
   )
 })

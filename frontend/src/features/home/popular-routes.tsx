@@ -1,22 +1,24 @@
 'use client'
 
+import { usePrefs } from '@/stores/prefs'
+import { useSearchForm } from '@/stores/search-form'
 import { memo, useCallback } from 'react'
-import { useApp } from '@/lib/store'
 import { useNavigate } from '@tanstack/react-router'
-import { usePopularRoutes, type RouteItem } from '@/lib/queries'
-import { useQueryClient } from '@tanstack/react-query'
-import { searchTripsOptions } from '@/lib/api/@tanstack/react-query.gen'
+import type { RouteOut } from '@/api'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
+import { searchTripsOptions, routesOptions } from '@/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { ErrorState } from '@/components/layout/error-state'
-import { formatCurrency } from '@/lib/currency'
+import { ErrorState } from '@/components/error-state'
+import { formatCurrency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { ArrowRight, Star, Bus, ChevronRight } from 'lucide-react'
 import { PopularRoutesSkeleton } from '@/features/home/components/popular-routes-skeleton'
 import { buildSearchInput } from '@/lib/search-params'
 
 export const PopularRoutes = memo(function PopularRoutes() {
-  const { setSearchParams, currency } = useApp()
+  const setSearchParams = useSearchForm((s) => s.setSearchParams)
+  const currency = usePrefs((s) => s.currency)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const t = useT()
@@ -24,8 +26,8 @@ export const PopularRoutes = memo(function PopularRoutes() {
   // ── Data: TanStack Query ─────────────────────────────────────────
   // Replaces the bespoke `useEffect + fetch + useState` pattern with
   // a cached, deduped, retryable query shared app-wide via `queryKeys.routes`.
-  const { data, isLoading, isError, refetch } = usePopularRoutes()
-  const items: RouteItem[] = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(routesOptions())
+  const items: RouteOut[] = data?.items ?? []
 
   // Navigate to /search with the route's from/to prefilled. Replaces the
   // old `setSearchLoading + setView('results') + fetch + setSearchResults`

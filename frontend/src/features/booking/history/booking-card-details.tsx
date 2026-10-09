@@ -16,9 +16,10 @@ import {
   CreditCard,
   MapPin,
 } from 'lucide-react'
-import { formatDateTimeVN, SEAT_CLASS_LABELS } from '@/lib/types'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatDateTimeVN } from '@/lib/format'
+import { SEAT_CLASS_LABELS } from '@/lib/labels'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { BookingItem, PAYMENT_LABELS } from '@/features/booking/history/booking-types'
 import { InfoTile, PriceRow, TimelineItem } from './booking-card-parts'

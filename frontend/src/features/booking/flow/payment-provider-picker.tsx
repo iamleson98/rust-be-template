@@ -10,10 +10,10 @@
  */
 
 import { Loader2, ShieldCheck } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentProvider } from '@/lib/queries/payments'
+import type { PaymentProvider } from '@/lib/payment'
 
 // ─────────────────────────────────────────────────────────────
 //  Provider picker

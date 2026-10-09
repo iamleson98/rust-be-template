@@ -1,9 +1,10 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { reviewsListOptions, reviewsTagsOptions, routesOptions, brandDetailOptions } from '@/api'
+import { useSearchForm } from '@/stores/search-form'
 import { useState } from 'react'
-import { useBrand, useReviewsByBrand, usePopularRoutes, useReviewTags } from '@/lib/queries'
 import { useNavigate } from '@tanstack/react-router'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -20,7 +21,7 @@ import {
   Star,
   ThumbsUp,
 } from 'lucide-react'
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 import { buildSearchInput } from '@/lib/search-params'
 import { renderStars, type BrandDetail, type TagStat, type Review } from './brand-detail-helpers'
 import { EmptyState } from './brand-dialog-parts'
@@ -44,27 +45,24 @@ type TagStatsResponse = { items: TagStat[] }
 
 export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: () => void }) {
   const navigate = useNavigate()
-  const { setSearchParams } = useApp()
+  const setSearchParams = useSearchForm((s) => s.setSearchParams)
   const t = useT()
   const [tab, setTab] = useState('routes')
 
   // ── Brand identity + brand-wide reviews ──────────────────
-  // useBrand is enabled only when slug is truthy; the dialog is only ever
-  // rendered for a real slug (the route guards this), so this is always
-  // enabled in practice.
-  const brandQuery = useBrand(slug)
+  const brandQuery = useQuery(brandDetailOptions({ path: { slug } }))
   const brand = brandQuery.data as BrandDetail | undefined
 
   // Reviews come back with the legacy field names (`content` / `photos` /
   // `reply` / `tags`) — the centralized ReviewItem type uses different
   // names, so we cast through unknown to our local Review shape.
-  const reviewsQuery = useReviewsByBrand(brand?.id)
+  const reviewsQuery = useQuery(reviewsListOptions({ query: { brand_id: brand?.id, limit: 20 } }))
   const reviews: Review[] = (reviewsQuery.data?.items ?? []) as unknown as Review[]
 
   // ── Tag aggregate (brand-wide) ───────────────────────────
   // Backend `GET /api/reviews/tags` returns the global tag index.
   // We filter client-side by brandId if the items carry it.
-  const tagStatsQuery = useReviewTags()
+  const tagStatsQuery = useQuery(reviewsTagsOptions())
   const tagStats: TagStat[] = (
     (tagStatsQuery.data as unknown as TagStatsResponse | undefined)?.items ?? []
   ).filter((t) => !('brandId' in t) || (t as { brandId?: string }).brandId === brand?.id)
@@ -74,7 +72,7 @@ export function BrandDetailDialog({ slug, onClose }: { slug: string; onClose: ()
   // route item carries a `brand.slug` so we filter on the client. This
   // reuses the same query cache as the homepage's popular-routes section
   // — no extra network round-trip if the user has already seen it.
-  const routesQuery = usePopularRoutes()
+  const routesQuery = useQuery(routesOptions())
   const routes = (routesQuery.data?.items ?? []).filter((r) => r.brand.slug === slug)
 
   // ── Derived aggregate stats ──────────────────────────────

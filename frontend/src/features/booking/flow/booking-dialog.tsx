@@ -1,30 +1,26 @@
 'use client'
 
+import { invalidateResources } from '@/api/query-client'
+import { bookingsConfirmMutation, bookingsHoldMutation, cancelPaymentMutation, createPaymentMutation, validateCampaign } from '@/api'
+import { useBookingFlow } from '@/stores/booking-flow'
+import { useGuest } from '@/stores/guest'
+import { usePrefs } from '@/stores/prefs'
+import { useSearchForm } from '@/stores/search-form'
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
-import { useApp } from '@/lib/store'
+import { useQueryClient, useMutation } from '@tanstack/react-query'
 import { useT } from '@/lib/i18n'
 import { trackConversion } from '@/lib/analytics'
-import {
-  useTripDetail,
-  useValidateCampaign,
-  useHoldBooking,
-  useConfirmBooking,
-} from '@/lib/queries'
-import {
-  useCreatePayment,
-  useCancelPayment,
-  usePayment,
-  type PaymentProvider,
-} from '@/lib/queries/payments'
+import { useTripDetail } from '@/features/trips/api'
+import type { PaymentProvider } from '@/lib/payment'
+import { usePayment } from '../api'
 import { Form } from '@/components/ui/form'
-import { normalizePhone } from '@/lib/types'
-import { formatCurrency } from '@/lib/currency'
+import { normalizePhone } from '@/lib/text'
+import { formatCurrency } from '@/lib/format'
 import { getErrorMessage } from '@/lib/error-message'
 import { toast } from 'sonner'
-import type { CampaignValidateResponse } from '@/lib/api/types.gen'
+import type { CampaignValidateResponse } from '@/api'
 import {
   type TripDetail,
   type BookingValues,
@@ -82,19 +78,17 @@ const PROVIDER_BY_METHOD: Record<string, PaymentProvider> = {
 export function BookingFlow() {
   const t = useT()
   const qc = useQueryClient()
-  const {
-    bookingStep,
-    setBookingStep,
-    bookingContext,
-    setBookingContext,
-    searchParams,
-    lastBooking,
-    setLastBooking,
-    setGuestPhone,
-    setGuestName,
-    currency,
-    guestName,
-  } = useApp()
+  const bookingStep = useBookingFlow((s) => s.step)
+  const setBookingStep = useBookingFlow((s) => s.setStep)
+  const bookingContext = useBookingFlow((s) => s.context)
+  const setBookingContext = useBookingFlow((s) => s.setContext)
+  const searchParams = useSearchForm((s) => s.searchParams)
+  const lastBooking = useBookingFlow((s) => s.lastBooking)
+  const setLastBooking = useBookingFlow((s) => s.setLastBooking)
+  const setGuestPhone = useGuest((s) => s.setGuestPhone)
+  const setGuestName = useGuest((s) => s.setGuestName)
+  const currency = usePrefs((s) => s.currency)
+  const guestName = useGuest((s) => s.guestName)
 
   // Fetch trip detail via the centralized TanStack Query hook — the
   // BookingContext carries the tripId the user picked in TripDetailDialog.
@@ -276,7 +270,9 @@ export function BookingFlow() {
   const fees = 0
   const total = Math.max(0, subtotal - discount + fees)
 
-  const validateCampaignMut = useValidateCampaign<CampaignValidateResponse>({
+  const validateCampaignMut = useMutation({
+    mutationFn: async (query: { code: string; subtotal: number }) =>
+      (await validateCampaign({ query, throwOnError: true })).data,
     onSuccess: (data) => {
       setCampaignResult(data)
       if (data?.valid) {
@@ -343,9 +339,7 @@ export function BookingFlow() {
       // Refresh the real loyalty summary + booking lists + the trip's
       // seat map (the seats we just booked must show as taken when the
       // user returns to the trip dialog).
-      qc.invalidateQueries({ queryKey: ['loyalty'] })
-      qc.invalidateQueries({ queryKey: [{ _id: 'list11' }] })
-      qc.invalidateQueries({ queryKey: [{ _id: 'tripDetail' }] })
+      invalidateResources(qc, 'bookings', 'trips', 'loyalty')
       toast.success(t('bookingFlow.loyaltyEarned'), {
         description: t('bookingFlow.loyaltyEarnedDesc'),
         duration: 4000,
@@ -355,7 +349,7 @@ export function BookingFlow() {
   )
 
   // ── COD path: hold → confirm ──────────────────────────────────
-  const confirmMut = useConfirmBooking({
+  const confirmMut = useMutation({ ...bookingsConfirmMutation(),
     onSuccess: (_data, vars) => {
       const v = (vars ?? {}) as { path?: { id?: string } }
       const holdData = (holdResultRef.current ?? {}) as HoldBookingData
@@ -371,13 +365,11 @@ export function BookingFlow() {
   })
 
   // ── Online path: hold → create payment intent ─────────────────
-  const createPaymentMut = useCreatePayment()
-  const cancelPaymentMut = useCancelPayment()
+  const createPaymentMut = useMutation(createPaymentMutation())
+  const cancelPaymentMut = useMutation(cancelPaymentMutation())
 
   // Poll the active payment while the user is on the 'pay' step.
-  const activePaymentQuery = usePayment(activePaymentId ?? undefined, {
-    enabled: bookingStep === 'pay' && !!activePaymentId,
-  })
+  const activePaymentQuery = usePayment(activePaymentId ?? undefined, bookingStep === 'pay')
   const activePayment = activePaymentQuery.data
 
   // Payment completion → booking confirmed server-side (IPN) → success.
@@ -397,12 +389,10 @@ export function BookingFlow() {
     }
   }, [bookingStep, activePayment, finishSuccess])
 
-  const holdMut = useHoldBooking({
-    onSuccess: (holdResult: unknown) => {
-      const holdData =
-        ((holdResult ?? {}) as { data?: HoldBookingData }).data ??
-        (holdResult as HoldBookingData | undefined)
-      if (!holdData?.bookingId) {
+  const holdMut = useMutation({ ...bookingsHoldMutation(),
+    onSuccess: (holdResult) => {
+      const holdData: HoldBookingData = holdResult
+      if (!holdData.bookingId) {
         setError(t('bookingFlow.holdFailed'))
         setSubmitting(false)
         return
@@ -414,10 +404,7 @@ export function BookingFlow() {
       const method = paymentMethodRef.current
       if (method === 'cod') {
         // Pay on the bus — confirm immediately; the driver collects.
-        confirmMut.mutate({
-          path: { id: holdData.bookingId },
-          body: { paymentMethod: 'cod' },
-        } as unknown as Parameters<typeof confirmMut.mutate>[0])
+        confirmMut.mutate({ path: { id: holdData.bookingId }, body: { paymentMethod: 'cod' } })
         return
       }
 
@@ -425,10 +412,9 @@ export function BookingFlow() {
       // `pending` and is confirmed by the provider's IPN webhook.
       const provider = PROVIDER_BY_METHOD[method] ?? 'vnpay'
       createPaymentMut.mutate(
-        { bookingId: holdData.bookingId, provider },
+        { body: { bookingId: holdData.bookingId, provider } },
         {
-          onSuccess: (res) => {
-            const payment = (res as unknown as { payment?: { id?: string } }).payment
+          onSuccess: ({ payment }) => {
             if (!payment?.id) {
               setError(t('payment.createFailed'))
               setSubmitting(false)
@@ -492,7 +478,7 @@ export function BookingFlow() {
         contactEmail: values.contactEmail || undefined,
         campaignCode: campaignResult?.valid ? campaignCode.trim().toUpperCase() : undefined,
       },
-    } as unknown as Parameters<typeof holdMut.mutate>[0])
+    })
   }
 
   const close = () => {
@@ -540,7 +526,7 @@ export function BookingFlow() {
   const handleCancelPayment = () => {
     if (!activePaymentId) return
     cancelPaymentMut.mutate(
-      { id: activePaymentId },
+      { path: { id: activePaymentId }, body: {} },
       {
         onSuccess: () => {
           toast.success(t('bookingFlow.paymentCancelled'))
@@ -564,10 +550,9 @@ export function BookingFlow() {
     const provider = PROVIDER_BY_METHOD[paymentMethodRef.current] ?? 'vnpay'
     setSubmitting(true)
     createPaymentMut.mutate(
-      { bookingId: holdData.bookingId, provider },
+      { body: { bookingId: holdData.bookingId, provider } },
       {
-        onSuccess: (res) => {
-          const payment = (res as unknown as { payment?: { id?: string } }).payment
+        onSuccess: ({ payment }) => {
           setSubmitting(false)
           if (payment?.id) {
             setError('')

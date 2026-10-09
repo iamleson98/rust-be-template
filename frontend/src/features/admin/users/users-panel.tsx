@@ -13,6 +13,9 @@
  * with optimistic feedback via toast.
  */
 
+import { setUserRoleMutation, listUsersOptions } from '@/api'
+import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
+import { useSession } from '@/stores/session'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import { Bot, Loader2, RefreshCw, ShieldCheck, User as UserIcon, Users } from 'lucide-react'
@@ -24,9 +27,7 @@ import { Button } from '@/components/ui/button'
 import { ComboboxField } from '@/components/ui/combobox'
 
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
-import { useApp } from '@/lib/store'
-import { useSetUserRole, useUsers } from '@/lib/queries'
-import type { UserOut } from '@/lib/api/types.gen'
+import type { UserOut } from '@/api'
 import { cn } from '@/lib/utils'
 import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
@@ -57,12 +58,15 @@ function initials(name: string): string {
 }
 
 export function UsersPanel() {
-  const { user: me } = useApp()
+  const me = useSession((s) => s.user)
   const t = useT()
   const [page, setPage] = useState(0)
 
-  const query = useUsers({ limit: PAGE_SIZE, offset: page * PAGE_SIZE })
-  const roleMutation = useSetUserRole()
+  const query = useQuery({
+    ...listUsersOptions({ query: { limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
+    placeholderData: keepPreviousData,
+  })
+  const roleMutation = useMutation(setUserRoleMutation())
 
   const items = (query.data?.items ?? []) as UserOut[]
   const total = query.data?.total ?? 0

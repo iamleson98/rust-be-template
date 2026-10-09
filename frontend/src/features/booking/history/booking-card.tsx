@@ -3,9 +3,9 @@
 import { memo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { VEHICLE_TYPE_LABELS } from '@/lib/types'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { VEHICLE_TYPE_LABELS } from '@/lib/labels'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import {
   Bus,

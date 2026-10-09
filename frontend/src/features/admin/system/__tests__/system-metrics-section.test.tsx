@@ -1,17 +1,11 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
-vi.mock('@/lib/queries', () => {
-  return {
-    useSystemMetrics: vi.fn(),
-  }
-})
-
-import { useSystemMetrics } from '@/lib/queries'
-import type { SystemMetrics } from '@/lib/queries'
+import type { SystemMetrics } from '@/api'
+import { mockApi, renderWithQuery } from '@/test/api'
 import { SystemMetricsSection } from '../system-metrics-section'
 
-const useSystemMetricsMock = useSystemMetrics as unknown as ReturnType<typeof vi.fn>
+const METRICS_URL = 'GET /api/admin/system/metrics'
 
 const METRICS: SystemMetrics = {
   cpuUsagePercent: 12.4,
@@ -49,43 +43,21 @@ const METRICS: SystemMetrics = {
   timestamp: '2026-09-07T05:10:39Z',
 }
 
-function mockQueryResult(partial: {
-  data?: SystemMetrics
-  isLoading?: boolean
-  isError?: boolean
-  isFetching?: boolean
-  error?: Error | null
-  refetch?: ReturnType<typeof vi.fn>
-}) {
-  return {
-    data: undefined,
-    isLoading: false,
-    isError: false,
-    isFetching: false,
-    error: null,
-    refetch: vi.fn(),
-    ...partial,
-  }
-}
-
 describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
-  beforeEach(() => {
-    useSystemMetricsMock.mockReset()
-  })
-
-  it('renders the section header with the live badge and refresh button', () => {
-    useSystemMetricsMock.mockReturnValue(mockQueryResult({ data: METRICS, isFetching: true }))
-    render(<SystemMetricsSection />)
+  it('renders the section header with the live badge and refresh button', async () => {
+    mockApi({ [METRICS_URL]: METRICS })
+    renderWithQuery(<SystemMetricsSection />)
 
     expect(screen.getByTestId('system-metrics')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /server metrics/i })).toBeInTheDocument()
     expect(screen.getByText('live · 5s')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled()
+    await screen.findByTestId('metric-cpu-card')
+    expect(screen.getByRole('button', { name: /refresh/i })).toBeEnabled()
   })
 
   it('shows a structure-matched skeleton (not a data table) while the first snapshot loads', () => {
-    useSystemMetricsMock.mockReturnValue(mockQueryResult({ isLoading: true }))
-    render(<SystemMetricsSection />)
+    mockApi({ [METRICS_URL]: () => new Promise(() => {}) })
+    renderWithQuery(<SystemMetricsSection />)
 
     // The skeleton mirrors the loaded card layout…
     expect(screen.getByTestId('system-metrics-skeleton')).toBeInTheDocument()
@@ -99,12 +71,12 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     expect(screen.queryByTestId('metric-host-card')).not.toBeInTheDocument()
   })
 
-  it('renders the five metric cards once data arrives', () => {
-    useSystemMetricsMock.mockReturnValue(mockQueryResult({ data: METRICS }))
-    render(<SystemMetricsSection />)
+  it('renders the five metric cards once data arrives', async () => {
+    mockApi({ [METRICS_URL]: METRICS })
+    renderWithQuery(<SystemMetricsSection />)
 
     // CPU card: overall percent + core count summary.
-    expect(screen.getByTestId('metric-cpu-card')).toBeInTheDocument()
+    expect(await screen.findByTestId('metric-cpu-card')).toBeInTheDocument()
     expect(screen.getByText('12.4%')).toBeInTheDocument()
     expect(screen.getByText('4 logical · 2 physical cores')).toBeInTheDocument()
     // Per-core mini-bars are rendered for every core.
@@ -134,13 +106,16 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
     expect(screen.getByText('6.8.0-45-generic')).toBeInTheDocument()
   })
 
-  it('renders the backend error message in a red alert card', () => {
-    useSystemMetricsMock.mockReturnValue(
-      mockQueryResult({ isError: true, error: new Error('forbidden: missing permission') }),
-    )
-    render(<SystemMetricsSection />)
+  it('renders the backend error message in a red alert card', async () => {
+    mockApi({
+      [METRICS_URL]: Response.json(
+        { error: 'forbidden', message: 'forbidden: missing permission' },
+        { status: 403 },
+      ),
+    })
+    renderWithQuery(<SystemMetricsSection />)
 
-    expect(screen.getByTestId('system-metrics-error')).toBeInTheDocument()
+    expect(await screen.findByTestId('system-metrics-error')).toBeInTheDocument()
     expect(screen.getByText('Failed to load server metrics')).toBeInTheDocument()
     expect(screen.getByText('forbidden: missing permission')).toBeInTheDocument()
     // No cards, no skeleton — just the error state.
@@ -149,11 +124,12 @@ describe('SystemMetricsSection (pdf-tts server-metrics port)', () => {
   })
 
   it('requests a refetch when Refresh is clicked', async () => {
-    const refetch = vi.fn()
-    useSystemMetricsMock.mockReturnValue(mockQueryResult({ data: METRICS, refetch }))
-    render(<SystemMetricsSection />)
+    const api = mockApi({ [METRICS_URL]: METRICS })
+    renderWithQuery(<SystemMetricsSection />)
 
-    await screen.getByRole('button', { name: /refresh/i }).click()
-    expect(refetch).toHaveBeenCalledTimes(1)
+    await screen.findByTestId('metric-cpu-card')
+    expect(api.calls).toHaveLength(1)
+    screen.getByRole('button', { name: /refresh/i }).click()
+    await waitFor(() => expect(api.calls).toHaveLength(2))
   })
 })

@@ -10,7 +10,7 @@
  *   - `useAdminBookings(filter)`     — paginated list + inline stats
  *   - `useAdminBookingStats(filter)` — per-day + per-brand aggregates
  *   - `useAdminBookingExport({})`      — CSV export mutation
- *   - `useUpdateBookingStatus()`     — confirm / cancel / complete
+ *   - `useMutation(adminBookingsUpdateStatusMutation())`     — confirm / cancel / complete
  *   - `useAdminBookingDetail(id)`    — full detail (seats, trip, owner)
  *
  * Features:
@@ -22,30 +22,23 @@
  *   - Mobile-responsive (table → card list on small screens)
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { adminBrandsListOptions } from '@/api'
 import { useMemo, useState, useCallback, useEffect } from 'react'
 import { createColumnHelper, type SortingState } from '@tanstack/react-table'
 import { DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { AlertCircle, RefreshCw, Ticket as TicketIcon, TrendingUp } from 'lucide-react'
-import { toast } from 'sonner'
-import {
-  useAdminBookings,
-  useAdminBookingStats,
-  useAdminBookingExport,
-  useAdminBrands,
-} from '@/lib/queries'
-import type { AdminBookingFilter } from '@/lib/queries'
-import type { AdminBookingOut } from '@/lib/api/types.gen'
+import { useAdminBookings, useAdminBookingStats, useBookingsCsvExport, type AdminBookingFilter } from './api'
+import type { AdminBookingOut } from '@/api'
 
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
-import { downloadCSV } from '@/features/admin/dashboard/helpers'
 import { PAGE_SIZE, formatVND, timeAgo } from './tickets-helpers'
 import { TicketsKpiCards } from './tickets-kpi-cards'
 import { TicketsFilterBar } from './tickets-filter-bar'
 import { TicketsBookingsTable } from './tickets-bookings-table'
 import { BookingDetailDialog } from './booking-detail-dialog'
-import { getErrorMessage } from '@/lib/error-message'
 import { useT } from '@/lib/i18n'
 
 // ── Server-side sort mapping ─────────────────────────────────
@@ -93,8 +86,8 @@ export function TicketsPanel() {
 
   const bookingsQuery = useAdminBookings(filter)
   const statsQuery = useAdminBookingStats(filter)
-  const brandsQuery = useAdminBrands()
-  const exportMutation = useAdminBookingExport({})
+  const brandsQuery = useQuery(adminBrandsListOptions())
+  const csvExport = useBookingsCsvExport()
 
   // Debounce search: commit to filter 400ms after the last keystroke.
   const [searchTimer, setSearchTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
@@ -233,25 +226,6 @@ export function TicketsPanel() {
     setSearchInput('')
   }, [])
 
-  const handleExport = useCallback(async () => {
-    try {
-      const result = await exportMutation.refetch()
-      const data = result.data
-      if (!data) throw new Error('Export failed')
-      downloadCSV(data.filename, data.csv)
-      toast.success(t('adminTickets.exportSuccess'), {
-        description: t('adminTickets.exportSuccessDesc', {
-          count: data.count,
-          file: data.filename,
-        }),
-      })
-    } catch (e) {
-      toast.error(t('adminTickets.exportFailed'), {
-        description: getErrorMessage(e, t('adminTickets.pleaseRetry')),
-      })
-    }
-  }, [exportMutation, t])
-
   // KPI totals — come from the dedicated /stats endpoint
   // (`AdminBookingStatsResponse.totals`), not from the list response.
   const totals = statsQuery.data?.totals
@@ -292,8 +266,8 @@ export function TicketsPanel() {
         onSearchChange={onSearchChange}
         setRangeFilter={setRangeFilter}
         setShowStats={setShowStats}
-        handleExport={handleExport}
-        exportMutation={exportMutation}
+        handleExport={csvExport.exportCsv}
+        exporting={csvExport.isPending}
         brandsQuery={brandsQuery}
         setBrandFilter={setBrandFilter}
         setStatusFilter={setStatusFilter}

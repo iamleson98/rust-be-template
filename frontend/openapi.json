@@ -844,7 +844,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`POST /api/admin/bus-layouts` — create a bus layout (with generated\nseat rows when `seatGrid` is provided; defaults to 10×4×1 = 40).",
+        "summary": "`POST /api/admin/bus-layouts` — create a bus layout. A `plan` makes\nthe seat rows from the floor plan; else `seatGrid` (default 10×4×1 =\n40) generates a plain grid.",
         "operationId": "create",
         "requestBody": {
           "content": {
@@ -882,7 +882,74 @@
         }
       }
     },
+    "/api/admin/bus-layouts/presets": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/bus-layouts/presets` — ready-made seat plans for\ncommon vehicles (limousine, sleeper, 29/45-seat coach, …).",
+        "operationId": "presets",
+        "responses": {
+          "200": {
+            "description": "Layout templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusLayoutPresetListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
     "/api/admin/bus-layouts/{id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`GET /api/admin/bus-layouts/{id}` — one layout with its seat plan.\nLayouts that predate plans come back with a plain derived grid\n(`planned = false`).",
+        "operationId": "detail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Layout with plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBusLayoutDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
       "put": {
         "tags": [
           "admin"
@@ -977,6 +1044,120 @@
           },
           "409": {
             "description": "Conflict — schedules / trips / tickets reference the layout"
+          }
+        }
+      }
+    },
+    "/api/admin/bus-layouts/{id}/plan": {
+      "put": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`PUT /api/admin/bus-layouts/{id}/plan` — replace the seat plan.",
+        "description": "Seats are matched to cells by `seatId`, then by label, and keep their\nidentity. Once trips or tickets use the layout, cells may only be\nmoved, relabelled or re-classed: adding or removing seats is a 409.",
+        "operationId": "replace_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertSeatPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMutationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid plan"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Conflict — the layout is in use and the plan adds/removes seats"
+          }
+        }
+      }
+    },
+    "/api/admin/bus-layouts/{id}/plan/fit": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "`POST /api/admin/bus-layouts/{id}/plan/fit` — preview a catalog\ntemplate laid over this layout's existing seats (ids and labels\nkept). Nothing is saved; send the result to `PUT …/plan` to apply it.",
+        "operationId": "fit_plan",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Bus layout ID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitSeatPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The fitted plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The template cannot hold exactly these seats"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Layout or template not found"
           }
         }
       }
@@ -6665,6 +6846,68 @@
           }
         }
       },
+      "AdminBusLayoutDetail": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/bus-layouts/{id}`.",
+        "required": [
+          "id",
+          "plan",
+          "planned",
+          "inUse",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "brandId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "inUse": {
+            "type": "boolean",
+            "description": "Trips already sell these seats: seats can be moved/relabelled but\nnot added or removed."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan",
+            "description": "The saved plan, or — for layouts created before plans existed — a\nplain grid derived from the seat rows (`planned = false`)."
+          },
+          "planned": {
+            "type": "boolean",
+            "description": "`true` once a real plan has been saved for this layout."
+          },
+          "totalSeats": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "vehicleType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AdminBusLayoutListResponse": {
         "type": "object",
         "description": "Response of `GET /api/admin/bus-layouts`.",
@@ -6693,6 +6936,7 @@
         "type": "object",
         "required": [
           "id",
+          "planned",
           "createdAt",
           "updatedAt"
         ],
@@ -6716,6 +6960,10 @@
               "string",
               "null"
             ]
+          },
+          "planned": {
+            "type": "boolean",
+            "description": "`true` once a real seat plan (not just a derived grid) is saved."
           },
           "totalSeats": {
             "type": [
@@ -8158,6 +8406,56 @@
           }
         }
       },
+      "BusLayoutPreset": {
+        "type": "object",
+        "description": "A ready-made plan for a common vehicle (admin \"create from template\").",
+        "required": [
+          "id",
+          "name",
+          "vehicleType",
+          "capacity",
+          "description",
+          "plan"
+        ],
+        "properties": {
+          "capacity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Sellable units in the plan."
+          },
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan"
+          },
+          "vehicleType": {
+            "type": "string",
+            "description": "Vehicle-type catalog code (`limousine`, `sleeper`, …)."
+          }
+        }
+      },
+      "BusLayoutPresetListResponse": {
+        "type": "object",
+        "description": "Response of `GET /api/admin/bus-layouts/presets`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BusLayoutPreset"
+            }
+          }
+        }
+      },
       "CallSystemStats": {
         "type": "object",
         "description": "Audio-call subsystem stats — live sessions plus the janitor's\ncumulative resource-release counters. The janitor counters answer\n\"are calls being left dangling?\" without grepping logs: anything\nabove zero means the server (not a client) had to end a call.",
@@ -8326,6 +8624,20 @@
             ]
           }
         }
+      },
+      "CellKind": {
+        "type": "string",
+        "description": "What occupies a grid cell.",
+        "enum": [
+          "seat",
+          "bed",
+          "cabin",
+          "cabin_double",
+          "driver",
+          "door",
+          "stairs",
+          "wc"
+        ]
       },
       "ChannelAssignmentResponse": {
         "type": "object",
@@ -9267,6 +9579,40 @@
           }
         }
       },
+      "DeckPlan": {
+        "type": "object",
+        "description": "One deck's grid.",
+        "required": [
+          "rows",
+          "cols",
+          "cells"
+        ],
+        "properties": {
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanCell"
+            }
+          },
+          "cols": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Grid width in columns (driver's side → door side)."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional display name (`Tầng dưới`); clients fall back to the index."
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Grid height in rows (front → rear)."
+          }
+        }
+      },
       "DirectionsResponse": {
         "type": "object",
         "description": "Turn-by-turn driving directions.\n\nReturned by `GET /api/routing/directions`. The `valhalla` field\ncarries the raw Valhalla `trip` object (kept opaque — different\nValhalla versions emit slightly different shapes; we expose the\ntop-level summary fields the UI cares about).",
@@ -9710,6 +10056,19 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "FitSeatPlanRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/admin/bus-layouts/{id}/plan/fit`.",
+        "required": [
+          "presetId"
+        ],
+        "properties": {
+          "presetId": {
+            "type": "string",
+            "description": "Catalog template id (`sleeper_42`, `cabin_24`, …)."
           }
         }
       },
@@ -10841,6 +11200,52 @@
           }
         }
       },
+      "PlanCell": {
+        "type": "object",
+        "description": "One occupied grid cell.",
+        "required": [
+          "row",
+          "col",
+          "kind"
+        ],
+        "properties": {
+          "col": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based, counted from the driver's side."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CellKind"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Customer-facing code of a sellable cell (`A01`, `12`, …), ≤ 10 chars."
+          },
+          "row": {
+            "type": "integer",
+            "format": "int32",
+            "description": "1-based, counted from the front."
+          },
+          "seatClass": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Pricing/colour class (`standard`, `vip`, `bed_lower`, …)."
+          },
+          "seatId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Existing `seat` row this cell stands for (admin round-trip only —\nnever persisted in `layout_data`)."
+          }
+        }
+      },
       "PostOut": {
         "type": "object",
         "required": [
@@ -11751,6 +12156,21 @@
           }
         }
       },
+      "SeatPlan": {
+        "type": "object",
+        "description": "A vehicle's full seat plan: one grid per deck (1 or 2).",
+        "required": [
+          "decks"
+        ],
+        "properties": {
+          "decks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeckPlan"
+            }
+          }
+        }
+      },
       "SessionUser": {
         "type": "object",
         "description": "Identity of an authenticated actor, derived from the `user` row.\n\n`actor_type` mirrors the `user.role` column and is one of:\n  - `\"user\"`      — customer (book trips, feedback, ticket status)\n  - `\"employee\"`  — support staff (bookings, tickets, chat, calls, promos)\n  - `\"admin\"`     — full-access superuser (the first registered account)\n\nThe distinction matters for the chat / call hubs (only staff — employees\nOR admins — may register as agents) and for nullclaw (the human-fallback\nthreshold counts online staff).",
@@ -12353,6 +12773,37 @@
           }
         }
       },
+      "TripDeckPlan": {
+        "type": "object",
+        "description": "The drawable frame of one deck: grid size plus the non-sellable\nfixtures (driver, door, stairs, WC). Seats are placed by their own\n`row`/`col`; every other cell is an aisle or gap.",
+        "required": [
+          "rows",
+          "cols",
+          "fixtures"
+        ],
+        "properties": {
+          "cols": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fixtures": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlanCell"
+            }
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "TripDetail": {
         "type": "object",
         "description": "Trip detail returned by `GET /api/trips/{id}`.",
@@ -12799,6 +13250,17 @@
             "type": "string",
             "format": "uuid"
           },
+          "kind": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CellKind",
+                "description": "What the seat physically is (`seat`, `bed`, `cabin`, …). Absent\nfor layouts that predate seat plans."
+              }
+            ]
+          },
           "row": {
             "type": "integer",
             "format": "int32"
@@ -12827,6 +13289,17 @@
           "deck": {
             "type": "integer",
             "format": "int32"
+          },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TripDeckPlan",
+                "description": "Physical grid of the deck. Absent for layouts that predate seat\nplans — clients then infer a grid from the seats' row/col."
+              }
+            ]
           },
           "rows": {
             "type": "array",
@@ -13239,6 +13712,17 @@
               "null"
             ]
           },
+          "plan": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/SeatPlan",
+                "description": "Full floor plan — only honoured on CREATE, and wins over\n`seatGrid`. Edit an existing layout's plan with\n`PUT /api/admin/bus-layouts/{id}/plan`."
+              }
+            ]
+          },
           "seatGrid": {
             "oneOf": [
               {
@@ -13457,6 +13941,18 @@
             ],
             "format": "uuid",
             "description": "Vehicle class from the admin-managed `vehicle_type` catalog.\nValidated in the service (404-style validation error when unknown)."
+          }
+        }
+      },
+      "UpsertSeatPlanRequest": {
+        "type": "object",
+        "description": "Body of `PUT /api/admin/bus-layouts/{id}/plan`.",
+        "required": [
+          "plan"
+        ],
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/SeatPlan"
           }
         }
       },

@@ -1,11 +1,12 @@
 'use client'
 
+import { bookingsCancelMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
+import { useUi } from '@/stores/ui'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useCancelBooking } from '@/lib/queries'
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,8 @@ import { CancelPolicyStep } from './cancel-policy-step'
 import { CancelSuccessStep } from './cancel-success-step'
 
 export function CancelDialog() {
-  const { cancelDialogOpen, setCancelDialogOpen, cancelBookingId, setCancelBookingId } = useApp()
+  const cancelBookingId = useUi((s) => s.cancelBookingId)
+  const closeCancel = useUi((s) => s.closeCancel)
   const t = useT()
 
   const [step, setStep] = useState<Step>(1)
@@ -64,7 +66,7 @@ export function CancelDialog() {
     error?: string
   }
 
-  const cancelMutation = useCancelBooking({
+  const cancelMutation = useMutation({ ...bookingsCancelMutation(),
     onSuccess: (data) => {
       const d =
         ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
@@ -92,8 +94,7 @@ export function CancelDialog() {
 
   const handleClose = (open: boolean) => {
     if (!open) {
-      setCancelDialogOpen(false)
-      setCancelBookingId(null)
+      closeCancel()
       setStep(1)
       cancelMutation.reset()
       form.reset({ selectedReason: '', otherReason: '', agreed: false })
@@ -166,7 +167,7 @@ export function CancelDialog() {
   }
 
   return (
-    <Dialog open={cancelDialogOpen} onOpenChange={handleClose}>
+    <Dialog open={!!cancelBookingId} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-rose-700">

@@ -1,10 +1,12 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { campaignsOptions } from '@/api'
 import { memo, useEffect, useState } from 'react'
-import { useCampaigns, type Campaign } from '@/lib/queries'
+import type { CampaignOut } from '@/api'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ErrorState } from '@/components/layout/error-state'
+import { ErrorState } from '@/components/error-state'
 import { Tag, Copy, Check, Zap, Timer } from 'lucide-react'
 import { toast } from 'sonner'
 import { useT } from '@/lib/i18n'
@@ -44,8 +46,8 @@ function CampaignCountdown({ endTime }: { endTime: number }) {
 
 export const CampaignsBanner = memo(function CampaignsBanner() {
   const t = useT()
-  const { data, isLoading, isError, refetch } = useCampaigns()
-  const items: Campaign[] = data?.items ?? []
+  const { data, isLoading, isError, refetch } = useQuery(campaignsOptions())
+  const items: CampaignOut[] = data?.items ?? []
   const [copied, setCopied] = useState<string | null>(null)
 
   /* Copy a campaign code — guarded: navigator.clipboard is undefined on

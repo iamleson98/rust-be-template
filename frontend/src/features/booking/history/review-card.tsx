@@ -6,7 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Bus, ArrowRightLeft, Clock, Star, Quote } from 'lucide-react'
-import { formatDateVN, formatDateTimeVN } from '@/lib/types'
+import { formatDateVN, formatDateTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { ReviewItem, REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
 

@@ -9,7 +9,7 @@
  * Extracted from the original `trip-card.tsx`.
  */
 
-import type { TripResult } from '@/lib/store'
+import type { TripResult } from '@/api'
 import { useT } from '@/lib/i18n'
 import { Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'

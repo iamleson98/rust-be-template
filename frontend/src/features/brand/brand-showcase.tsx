@@ -1,23 +1,25 @@
 'use client'
 
+import { useQuery } from '@tanstack/react-query'
+import { brandsOptions } from '@/api'
 import { memo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Star, Bus, ChevronRight } from 'lucide-react'
-import { useBrands, type Brand } from '@/lib/queries'
+import type { BrandOut } from '@/api'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import { ErrorState } from '@/components/layout/error-state'
+import { ErrorState } from '@/components/error-state'
 import { BrandShowcaseSkeleton } from '@/features/brand/components/brand-showcase-skeleton'
 
 export const BrandShowcase = memo(function BrandShowcase() {
-  const { data, isLoading, isError, refetch } = useBrands()
+  const { data, isLoading, isError, refetch } = useQuery(brandsOptions())
   const navigate = useNavigate()
   const t = useT()
   // Map the API brand shape to what the card UI expects.
   // `BrandOut` doesn't expose `routeCount`, so we fall back to `totalTrips`.
-  const brands: Brand[] = data?.items ?? []
+  const brands: BrandOut[] = data?.items ?? []
 
   /** Get initials from brand name (up to 2 chars) */
   const getInitials = (name: string) => {
@@ -90,7 +92,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
                       />
 
                       <div className="p-4 flex flex-col gap-3">
-                        {/* Brand logo/initials + name */}
+                        {/* BrandOut logo/initials + name */}
                         <div className="flex items-center gap-3">
                           <div
                             className="h-11 w-11 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"

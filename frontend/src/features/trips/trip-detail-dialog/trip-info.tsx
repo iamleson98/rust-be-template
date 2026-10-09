@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/lib/i18n'
 import { Star, Navigation, Calendar, Clock, AlertTriangle, Share2 } from 'lucide-react'
-import { formatTimeVN, formatDateVN } from '@/lib/types'
+import { formatTimeVN, formatDateVN } from '@/lib/format'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { amenityIcon } from './amenity-icons'
 

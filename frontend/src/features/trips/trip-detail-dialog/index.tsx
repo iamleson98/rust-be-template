@@ -17,19 +17,23 @@
  * mileage). Every remaining tab renders real API data only.
  */
 
+import { useUi } from '@/stores/ui'
+import { usePrefs } from '@/stores/prefs'
+import { useSearchForm } from '@/stores/search-form'
+import { useBookingFlow } from '@/stores/booking-flow'
 import { useEffect, useState } from 'react'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
-import { useTripDetail } from '@/lib/queries'
+import { useTripDetail } from '@/features/trips/api'
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { SeatMap, type SeatInv } from '@/features/trips/seat-map'
+import { SeatMap } from '@/features/seat-plan'
 import { ReviewsList } from '@/features/reviews/reviews-list'
 import { TripDetailSkeleton } from './trip-detail-skeleton'
-import { formatCurrency } from '@/lib/currency'
-import { ErrorState } from '@/components/layout/error-state'
+import { formatCurrency } from '@/lib/format'
+import { ErrorState } from '@/components/error-state'
 import { Bus, MapPin, CheckCircle2, MessageSquareQuote, Users, ArrowLeftRight } from 'lucide-react'
+import type { TripSeat } from '@/api'
 import type { TripDetailDialogData as TripDetail } from './types'
 import { TripInfo } from './trip-info'
 import { BoardingPoints, BoardingPointsInline } from './boarding-points'
@@ -40,15 +44,12 @@ import { PolicyBlock } from './policy-block'
 import { BookingFlow } from '@/features/booking/flow/booking-dialog'
 
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
-  const {
-    bookingStep,
-    setBookingStep,
-    setBookingContext,
-    searchParams,
-    currency,
-    setShareOpen,
-    setShareTripData,
-  } = useApp()
+  const bookingStep = useBookingFlow((s) => s.step)
+  const setBookingStep = useBookingFlow((s) => s.setStep)
+  const setBookingContext = useBookingFlow((s) => s.setContext)
+  const searchParams = useSearchForm((s) => s.searchParams)
+  const currency = usePrefs((s) => s.currency)
+  const openShare = useUi((s) => s.openShare)
   const t = useT()
   const [selectedSeats, setSelectedSeats] = useState<string[]>([])
   const [boardingPoint, setBoardingPoint] = useState<string>('')
@@ -84,12 +85,12 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
     }
   }, [detail])
 
-  const toggleSeat = (seatId: string) => {
+  const toggleSeat = ({ id }: TripSeat) => {
     setSelectedSeats((prev) =>
-      prev.includes(seatId)
-        ? prev.filter((s) => s !== seatId)
+      prev.includes(id)
+        ? prev.filter((s) => s !== id)
         : prev.length < searchParams.adults + searchParams.children
-          ? [...prev, seatId]
+          ? [...prev, id]
           : prev,
     )
   }
@@ -100,7 +101,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   // "Cannot read properties of undefined (reading 'decks')".
   const selectedSeatDetails =
     detail?.seatMap?.decks
-      ?.flatMap((d) => d.rows.flatMap((r) => r.seats.filter(Boolean) as SeatInv[]))
+      ?.flatMap((d) => d.rows.flatMap((r) => r.seats))
       .filter((s) => selectedSeats.includes(s.id)) ?? []
 
   const total = selectedSeatDetails.reduce((sum, s) => sum + s.finalPrice, 0)
@@ -126,9 +127,9 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
   // non-idle with nothing rendered AND the body scroll lock stays on.
   useEffect(() => {
     return () => {
-      if (useApp.getState().bookingStep !== 'idle') {
-        useApp.getState().setBookingStep('idle')
-        useApp.getState().setBookingContext(null)
+      if (useBookingFlow.getState().step !== 'idle') {
+        useBookingFlow.getState().setStep('idle')
+        useBookingFlow.getState().setContext(null)
       }
     }
   }, [])
@@ -169,7 +170,7 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
             <TripInfo
               detail={detail}
               onShare={() => {
-                setShareTripData({
+                openShare({
                   tripId: detail.trip.id,
                   fromName: detail.from.name,
                   toName: detail.to.name,
@@ -181,7 +182,6 @@ export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose:
                   minPrice: detail.pricing.basePriceAdult,
                   vehicleTypeLabel: detail.busLayout.vehicleTypeLabel,
                 })
-                setShareOpen(true)
               }}
             />
 

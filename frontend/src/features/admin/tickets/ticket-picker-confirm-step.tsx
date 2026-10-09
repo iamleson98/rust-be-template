@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { useT } from '@/lib/i18n'
-import type { TripResult, TripDetail } from '@/lib/api/types.gen'
+import type { TripResult, TripDetail } from '@/api'
 import type { Seat, Passenger } from './chat-ticket-picker-types'
 
 // ── ConfirmStep ─────────────────────────────────────────────

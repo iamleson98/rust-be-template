@@ -1,26 +1,12 @@
-'use client'
-
-/**
- * CustomerLogin — unified email + password login form for all users.
- *
- * Extracted from the original `login-page.tsx`. Uses the shared
- * `makeCustomerSchema` from `./_shared` so the validation rules stay
- * in sync with the registration form's email/password rules.
- *
- * Backend route: `POST /api/auth/login` with body `{ email, password }`
- * (camelCase — matches `LoginRequest` in `src/routes/auth.rs`).
- * Response: `{ user: SessionUser, expiresAt }` + sets `access_token` /
- * `refresh_token` httpOnly cookies.
- */
-
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useApp } from '@/lib/store'
 import { useT } from '@/lib/i18n'
+import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useLogin } from '@/lib/queries'
-import { isStaffUser } from '@/lib/store'
+import { toast } from 'sonner'
+import { authLoginMutation } from '@/api'
+import { isStaffUser, useSession } from '@/stores/session'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -31,7 +17,6 @@ import {
   FormControl,
   FormMessage,
 } from '@/components/ui/form'
-import { toast } from 'sonner'
 import {
   ShieldCheck,
   Loader2,
@@ -47,8 +32,6 @@ import { makeCustomerSchema, type CustomerFormValues } from './_shared'
 import { SocialAuthButtons } from './social-buttons'
 
 export function CustomerLogin() {
-  const { setUser, setGuestPhone } = useApp()
-  const navigate = useNavigate()
   const t = useT()
   const [showPwd, setShowPwd] = useState(false)
   const customerSchema = useMemo(() => makeCustomerSchema(t), [t])
@@ -59,35 +42,31 @@ export function CustomerLogin() {
     reValidateMode: 'onChange',
     defaultValues: { email: '', password: '' },
   })
-  const { control, handleSubmit } = form
 
-  const loginMut = useLogin({
-    onSuccess: (data) => {
-      const user = (((data ?? {}) as { user?: unknown; data?: { user?: unknown } }).user ??
-        ((data ?? {}) as { data?: { user?: unknown } }).data?.user) as
-        Parameters<typeof setUser>[0] | undefined
-      if (!user) return
+  const navigate = useNavigate()
+  const setUser = useSession((s) => s.setUser)
+
+  const loginMut = useMutation({
+    ...authLoginMutation(),
+    onSuccess: ({ user }) => {
       setUser(user)
-      if (user.phone) setGuestPhone(user.phone)
-      toast.success(t('authPage.loginWelcome', { name: user.name ?? t('authPage.you') }))
+      toast.success(t('authPage.loginWelcome', { name: user.name }))
       navigate({ to: isStaffUser(user) ? '/admin' : '/account' })
     },
-    onError: () => {
-      toast.error(t('authPage.loginFailedCheck'))
-    },
+    onError: () => toast.error(t('authPage.loginFailedCheck')),
   })
 
   const onSubmit = (values: CustomerFormValues) => {
     loginMut.mutate({
       body: { email: values.email, password: values.password },
-    } as unknown as Parameters<typeof loginMut.mutate>[0])
+    })
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <FormField
-          control={control}
+          control={form.control}
           name="email"
           render={({ field }) => (
             <FormItem className="space-y-1.5">
@@ -111,7 +90,7 @@ export function CustomerLogin() {
           )}
         />
         <FormField
-          control={control}
+          control={form.control}
           name="password"
           render={({ field }) => (
             <FormItem className="space-y-1.5">

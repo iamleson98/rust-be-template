@@ -4,33 +4,28 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import type { AdminChatMessage as ChatMessage } from '@/features/admin/dashboard/types'
+import type { ChatMessageOut } from '@/api'
 import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
 import type { CreatedTicketPayload } from '@/features/admin/tickets/chat-ticket-picker'
 
-export function parseTicketPayload(m: ChatMessage): CreatedTicketPayload | null {
-  // Prefer the `attachments` field (canonical).
-  if (m.attachments) {
-    try {
-      const parsed = JSON.parse(m.attachments)
-      if (parsed && parsed.bookingCode) return parsed as CreatedTicketPayload
-    } catch {
-      /* fall through */
-    }
+const asPayload = (json: string | null | undefined): CreatedTicketPayload | null => {
+  try {
+    const parsed = json ? JSON.parse(json) : null
+    return parsed?.bookingCode ? (parsed as CreatedTicketPayload) : null
+  } catch {
+    return null
   }
-  // Fallback: `kind === 'ticket'` + content is JSON.
-  if (m.kind === 'ticket' && m.content.trim().startsWith('{')) {
-    try {
-      const parsed = JSON.parse(m.content)
-      if (parsed && parsed.bookingCode) return parsed as CreatedTicketPayload
-    } catch {
-      /* fall through */
-    }
-  }
-  return null
 }
 
-/** Render a beautiful booking-card message inside the chat scroll area. */
+/** The booking card carried by a message: in `attachments`, or as JSON content of a `ticket` message. */
+export function parseTicketPayload(message: ChatMessageOut): CreatedTicketPayload | null {
+  return (
+    asPayload(message.attachments) ??
+    (message.kind === 'ticket' && message.content?.trim().startsWith('{') ? asPayload(message.content) : null)
+  )
+}
+
+/** A booking rendered as a ticket card inside the conversation. */
 export function TicketCardMessage({
   payload,
   isEmployee,

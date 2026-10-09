@@ -10,7 +10,7 @@
  * flat shape returned by `GET /api/trips/{id}`.
  */
 
-import type { SeatInv } from '@/features/trips/seat-map'
+import type { TripSeatDeck } from '@/api'
 
 export type TripDetailDialogData = {
   trip: {
@@ -99,9 +99,7 @@ export type TripDetailDialogData = {
     lat: number
     lon: number
   }[]
-  seatMap: {
-    decks: { deck: number; rows: { row: number; seats: (SeatInv | null)[] }[] }[]
-  }
+  seatMap: { decks: TripSeatDeck[] }
   campaigns: {
     id: string
     code: string

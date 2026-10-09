@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/layout/empty-state'
+import { EmptyState } from '@/components/empty-state'
 import { useT } from '@/lib/i18n'
 
 /* ─── SVG Illustrations (line-art style with teal accents) ─── */

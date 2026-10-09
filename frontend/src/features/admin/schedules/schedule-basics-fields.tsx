@@ -12,9 +12,9 @@ import { InfiniteSelect } from '@/components/ui/infinite-select'
 import { TimePicker } from '@/components/ui/time-picker'
 import { ComboboxField } from '@/components/ui/combobox'
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form'
-import { fetchVehicleTypesPage } from '@/lib/queries'
+import { fetchVehicleTypesPage } from '@/features/admin/vehicle-types/api'
 import { useT } from '@/lib/i18n'
-import type { AdminBusLayoutOut, AdminVehicleTypeOut } from '@/lib/api/types.gen'
+import type { AdminBusLayoutOut, AdminVehicleTypeOut } from '@/api'
 import { NO_LAYOUT, type ScheduleFormInstance } from './schedule-schema'
 
 export function ScheduleBasicsFields({

@@ -9,6 +9,8 @@
  * cadence; and shows recent run history. Auto-refreshes every 10s.
  */
 
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { adminCronJobsListOptions, listRunsOptions, adminCronJobsCancelMutation, adminCronJobsTriggerMutation, adminCronJobsUpdateMutation } from '@/api'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
 import {
@@ -31,14 +33,7 @@ import { RunHistorySkeleton } from '@/features/admin/cron-jobs/run-history-skele
 import { Switch } from '@/components/ui/switch'
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 
-import {
-  useAdminCronJobRuns,
-  useAdminCronJobs,
-  useCancelCronJob,
-  useTriggerCronJob,
-  useUpdateCronJob,
-} from '@/lib/queries'
-import type { CronJobOut, CronJobRunOut } from '@/lib/api/types.gen'
+import type { CronJobOut, CronJobRunOut, UpdateCronJobRequest } from '@/api'
 
 import {
   dateTimeLabel,
@@ -327,11 +322,11 @@ const buildRunHistoryColumns = (t: ReturnType<typeof useT>) =>
 
 export function CronJobsPanel() {
   const t = useT()
-  const jobsQuery = useAdminCronJobs()
-  const runsQuery = useAdminCronJobRuns()
-  const triggerMutation = useTriggerCronJob()
-  const updateMutation = useUpdateCronJob()
-  const cancelMutation = useCancelCronJob()
+  const jobsQuery = useQuery({ ...adminCronJobsListOptions(), refetchInterval: 10_000 })
+  const runsQuery = useQuery({ ...listRunsOptions(), refetchInterval: 10_000 })
+  const triggerMutation = useMutation(adminCronJobsTriggerMutation())
+  const updateMutation = useMutation(adminCronJobsUpdateMutation())
+  const cancelMutation = useMutation(adminCronJobsCancelMutation())
 
   const [editJob, setEditJob] = useState<CronJobOut | null>(null)
   const [editOpen, setEditOpen] = useState(false)
@@ -375,7 +370,7 @@ export function CronJobsPanel() {
     }
   }
 
-  const saveSchedule = async (body: import('@/lib/api/types.gen').UpdateCronJobRequest) => {
+  const saveSchedule = async (body: UpdateCronJobRequest) => {
     if (!editJob) return
     try {
       await updateMutation.mutateAsync({

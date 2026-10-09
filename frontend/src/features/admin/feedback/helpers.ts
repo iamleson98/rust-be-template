@@ -4,10 +4,10 @@
  * Extracted from the original 'src/features/admin/feedback/feedback-panel.tsx'.
  */
 
+import { usePrefs } from '@/stores/prefs'
 import { format, isValid, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
-import { useApp } from '@/lib/store'
-import type { ReviewOut } from '@/lib/api/types.gen'
+import type { ReviewOut } from '@/api'
 
 /** One row of the admin feedback table — a customer review. */
 export type FeedbackRow = ReviewOut
@@ -17,7 +17,7 @@ export function formatDate(s: string | null | undefined): string {
   try {
     const d = parseISO(s)
     if (!isValid(d)) return s
-    const loc = useApp.getState().lang === 'en' ? enUS : vi
+    const loc = usePrefs.getState().lang === 'en' ? enUS : vi
     return format(d, 'dd/MM/yyyy HH:mm', { locale: loc })
   } catch {
     return s ?? '—'

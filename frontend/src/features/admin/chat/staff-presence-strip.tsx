@@ -2,41 +2,14 @@
 
 import { Bot } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { relativeTime } from '@/lib/types'
-
-/** Live staff presence (WS `staff_presence` broadcasts). */
-export type StaffPresence = {
-  staff: {
-    userId: string
-    name: string
-    role: string
-    online: boolean
-    available: boolean
-    busy: boolean
-    inCall: boolean
-    activeChats: number
-    lastSeenAt?: string | null
-  }[]
-  offline?: {
-    userId: string
-    name: string
-    role: string
-    lastSeenAt: string
-    lastOnlineAt?: string | null
-  }[]
-  onlineCount: number
-  availableCount: number
-  botActive: boolean
-} | null
+import { relativeTime } from '@/lib/format'
+import type { StaffPresenceSnapshot } from '@/features/chat/events'
 
 /**
- * Staff presence strip — live availability (WS pushes).
- * Employees + admins with online/busy/available state;
- * recently-offline staff render dimmed with a durable
- * "last seen" (DB backstop); the bot chip shows when nobody
- * is online.
+ * Who can answer right now (pushed over the socket): online staff by availability,
+ * recently dropped staff dimmed with when they were last seen, and whether the bot is covering.
  */
-export function StaffPresenceStrip({ staffPresence }: { staffPresence?: StaffPresence }) {
+export function StaffPresenceStrip({ presence: staffPresence }: { presence: StaffPresenceSnapshot | null }) {
   const t = useT()
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -63,7 +36,7 @@ export function StaffPresenceStrip({ staffPresence }: { staffPresence?: StaffPre
               {st.role === 'admin' && <span className="text-[10px] uppercase">admin</span>}
             </span>
           ))}
-          {(staffPresence.offline ?? []).map((st) => (
+          {staffPresence.offline.map((st) => (
             <span
               key={`off-${st.userId}`}
               className="inline-flex items-center gap-1 rounded-full border border-slate-200/70 border-dashed bg-slate-50/50 px-2 py-0.5 text-[10px] font-medium text-slate-400"

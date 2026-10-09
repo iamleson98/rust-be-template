@@ -1,5 +1,6 @@
 'use client'
 
+import { usePrefs } from '@/stores/prefs'
 import { useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -24,9 +25,10 @@ import {
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
-import { useAdminBrands, useAdminBookingExport, type AdminBookingFilter } from '@/lib/queries'
+import type { AdminBrandsListResponse } from '@/api'
+import type { UseQueryResult } from '@tanstack/react-query'
+import type { AdminBookingFilter } from './api'
 import { useT } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
 
 // ── Constants ────────────────────────────────────────────────
 
@@ -78,7 +80,7 @@ export function TicketsFilterBar({
   setRangeFilter,
   setShowStats,
   handleExport,
-  exportMutation,
+  exporting,
   brandsQuery,
   setBrandFilter,
   setStatusFilter,
@@ -94,8 +96,8 @@ export function TicketsFilterBar({
   setRangeFilter: (range: string) => void
   setShowStats: Dispatch<SetStateAction<boolean>>
   handleExport: () => void
-  exportMutation: ReturnType<typeof useAdminBookingExport>
-  brandsQuery: ReturnType<typeof useAdminBrands>
+  exporting: boolean
+  brandsQuery: UseQueryResult<AdminBrandsListResponse>
   setBrandFilter: (brandId: string) => void
   setStatusFilter: (status: string) => void
   activeFilterCount: number
@@ -148,11 +150,11 @@ export function TicketsFilterBar({
                 size="sm"
                 className="h-9 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
                 onClick={handleExport}
-                disabled={exportMutation.isPending}
+                disabled={exporting}
               >
                 <Download className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">
-                  {exportMutation.isPending
+                  {exporting
                     ? t('adminTickets.exporting')
                     : t('adminTickets.exportCsv')}
                 </span>
@@ -301,7 +303,7 @@ function CustomDateRange({
   const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
   const t = useT()
-  const lang = useApp((s) => s.lang)
+  const lang = usePrefs((s) => s.lang)
   const dateLocale = lang === 'en' ? enUS : vi
   const from = dateFrom ? parseISO(dateFrom) : undefined
   const to = dateTo ? parseISO(dateTo) : undefined

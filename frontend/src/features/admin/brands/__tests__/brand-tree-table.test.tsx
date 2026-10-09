@@ -1,46 +1,14 @@
-import { render, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { mockApi, renderWithQuery } from '@/test/api'
+import { AdminBrandManagement } from '../index'
 
 /**
  * Integration test for the /admin/brands redesign: the 3-level subtree
  * table (brands → routes → schedules), the smart start/end filter and
- * the schedule sorting — all against mocked query hooks.
+ * the schedule sorting — all against a fake API.
  */
-
-vi.mock('@/lib/queries', () => {
-  const pendingMutation = () => ({ isPending: false, mutateAsync: vi.fn() })
-  return {
-    useAdminBrands: vi.fn(),
-    useAdminRoutes: vi.fn(),
-    useAdminSchedules: vi.fn(),
-    useAdminBusLayouts: vi.fn(() => ({ data: { items: [] }, isLoading: false })),
-    useAdminPickupPoints: vi.fn(() => ({ data: { items: [] }, isLoading: false })),
-    usePlacesList: vi.fn(() => ({ data: { items: [] } })),
-    usePlaceSearch: vi.fn(() => ({ data: { items: [] }, isLoading: false })),
-    useAdminBrandsListQueryKey: vi.fn(() => ['brands']),
-    useDeleteAdminBrand: vi.fn(pendingMutation),
-    useDeleteAdminRoute: vi.fn(pendingMutation),
-    useDeleteAdminSchedule: vi.fn(pendingMutation),
-    useUpsertAdminBrand: vi.fn(pendingMutation),
-    useUpsertAdminRoute: vi.fn(pendingMutation),
-    useUpdateAdminRoute: vi.fn(pendingMutation),
-    useUpsertAdminSchedule: vi.fn(pendingMutation),
-    useUpdateAdminSchedule: vi.fn(pendingMutation),
-    useUpsertAdminPickupPoint: vi.fn(pendingMutation),
-    useDeleteAdminPickupPoint: vi.fn(pendingMutation),
-    useCreateAdminAddress: vi.fn(pendingMutation),
-    useUpsertAdminBusLayout: vi.fn(pendingMutation),
-    useUpdateAdminBusLayout: vi.fn(pendingMutation),
-  }
-})
-
-import { useAdminBrands, useAdminRoutes, useAdminSchedules } from '@/lib/queries'
-import { AdminBrandManagement } from '../index'
-
-const brandsMock = useAdminBrands as unknown as ReturnType<typeof vi.fn>
-const routesMock = useAdminRoutes as unknown as ReturnType<typeof vi.fn>
-const schedulesMock = useAdminSchedules as unknown as ReturnType<typeof vi.fn>
 
 const BRANDS = [
   {
@@ -169,70 +137,35 @@ async function pickOption(user: ReturnType<typeof userEvent.setup>, label: strin
   await user.click(items[items.length - 1])
 }
 
-const okQuery = (data: unknown) => ({
-  data,
-  isLoading: false,
-  isError: false,
-  isFetching: false,
-  refetch: vi.fn(),
-})
-
-function setupDefaultMocks() {
-  brandsMock.mockReturnValue(okQuery({ items: BRANDS }))
-  // Routes: filter by the brandId arg (mirrors the real query). The
-  // result objects are memoized per argument shape so `data` keeps a
-  // stable reference across renders — exactly what react-query does —
-  // otherwise every render looks like a data swap.
-  const routeResults = new Map<string, unknown>()
-  routesMock.mockImplementation(
-    (query?: { brandId?: string; startLocationId?: string; endLocationId?: string }) => {
-      if (!query)
-        return {
-          data: undefined,
-          isLoading: false,
-          isError: false,
-          isFetching: false,
-          refetch: vi.fn(),
-        }
-      const key = `${query.brandId ?? ''}|${query.startLocationId ?? ''}|${query.endLocationId ?? ''}`
-      if (!routeResults.has(key)) {
-        let items = ROUTES
-        if (query.brandId) items = items.filter((r) => r.brandId === query.brandId)
-        if (query.startLocationId)
-          items = items.filter((r) => r.startLocationId === query.startLocationId)
-        if (query.endLocationId)
-          items = items.filter((r) => r.endLocationId === query.endLocationId)
-        routeResults.set(key, okQuery({ items, total: items.length }))
-      }
-      return routeResults.get(key)
-    },
-  )
-  const scheduleResults = new Map<string, unknown>()
-  schedulesMock.mockImplementation((routeId?: string) => {
-    if (!routeId)
-      return {
-        data: undefined,
-        isLoading: false,
-        isError: false,
-        isFetching: false,
-        refetch: vi.fn(),
-      }
-    if (!scheduleResults.has(routeId)) {
-      scheduleResults.set(
-        routeId,
-        okQuery({ items: SCHEDULES.filter((s) => s.routeId === routeId) }),
+function setupApi() {
+  mockApi({
+    'GET /api/admin/brands': { items: BRANDS },
+    // Mirrors the real query: filter by the brand / start / end params.
+    'GET /api/admin/routes': (url: URL) => {
+      const q = url.searchParams
+      const items = ROUTES.filter(
+        (r) =>
+          (!q.get('brandId') || r.brandId === q.get('brandId')) &&
+          (!q.get('startLocationId') || r.startLocationId === q.get('startLocationId')) &&
+          (!q.get('endLocationId') || r.endLocationId === q.get('endLocationId')),
       )
-    }
-    return scheduleResults.get(routeId)
+      return { items, total: items.length }
+    },
+    'GET /api/admin/schedules': (url: URL) => ({
+      items: SCHEDULES.filter((s) => s.routeId === url.searchParams.get('routeId')),
+    }),
+    'GET /api/admin/bus-layouts': { items: [] },
+    'GET /api/admin/pickup-points': { items: [] },
+    'GET /api/places': { items: [] },
   })
 }
 
 describe('AdminBrandManagement (tree table redesign)', () => {
   it('renders the brand level with counts and hides routes until expanded', async () => {
-    setupDefaultMocks()
-    render(<AdminBrandManagement />)
+    setupApi()
+    renderWithQuery(<AdminBrandManagement />)
 
-    const brandRow = screen.getByTestId('brand-row-phuong-trang')
+    const brandRow = await screen.findByTestId('brand-row-phuong-trang')
     expect(within(brandRow).getByText('Phương Trang')).toBeInTheDocument()
     expect(within(brandRow).getByText('2 tuyến')).toBeInTheDocument()
     // Route rows only render after expansion.
@@ -241,12 +174,12 @@ describe('AdminBrandManagement (tree table redesign)', () => {
 
   it('expands brand → route → schedule levels step by step', async () => {
     const user = userEvent.setup()
-    setupDefaultMocks()
-    render(<AdminBrandManagement />)
+    setupApi()
+    renderWithQuery(<AdminBrandManagement />)
 
     // Level 2: expand the brand.
     await user.click(
-      screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!,
+      (await screen.findByTestId('brand-row-phuong-trang')).querySelector('button[aria-expanded]')!,
     )
     const routeRow = await screen.findByText('Sài Gòn → Nha Trang')
     expect(routeRow).toBeInTheDocument()
@@ -274,12 +207,12 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     // transition runs — jsdom never fires transitionend, so the check
     // must be off to click them (same as the smart-filter test).
     const user = userEvent.setup({ pointerEventsCheck: 0 })
-    setupDefaultMocks()
-    render(<AdminBrandManagement />)
+    setupApi()
+    renderWithQuery(<AdminBrandManagement />)
 
     // Expand down to schedules.
     await user.click(
-      screen.getByTestId('brand-row-phuong-trang').querySelector('button[aria-expanded]')!,
+      (await screen.findByTestId('brand-row-phuong-trang')).querySelector('button[aria-expanded]')!,
     )
     await screen.findByText('Sài Gòn → Nha Trang')
     await user.click(
@@ -305,8 +238,8 @@ describe('AdminBrandManagement (tree table redesign)', () => {
     // transition runs — jsdom never fires transitionend, so the check
     // must be off to click them.
     const user = userEvent.setup({ pointerEventsCheck: 0 })
-    setupDefaultMocks()
-    render(<AdminBrandManagement />)
+    setupApi()
+    renderWithQuery(<AdminBrandManagement />)
 
     // Pick start (Hồ Chí Minh) + end (Nha Trang → Khánh Hoà province list).
     await pickOption(user, 'Điểm đi', 'TP. Hồ Chí Minh')
@@ -328,8 +261,8 @@ describe('AdminBrandManagement (tree table redesign)', () => {
 
   it('shows a filter-aware empty state when nothing matches', async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
-    setupDefaultMocks()
-    render(<AdminBrandManagement />)
+    setupApi()
+    renderWithQuery(<AdminBrandManagement />)
 
     await pickOption(user, 'Điểm đi', 'Hà Nội')
 

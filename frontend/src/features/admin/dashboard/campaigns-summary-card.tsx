@@ -12,13 +12,14 @@
  * gone.
  */
 
+import { useQuery } from '@tanstack/react-query'
+import { campaignsOptions } from '@/api'
 import { Sparkles, Percent, Tag } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useT } from '@/lib/i18n'
-import { useCampaigns } from '@/lib/queries'
-import type { CampaignOut } from '@/lib/api/types.gen'
+import type { CampaignOut } from '@/api'
 
 function formatDiscount(c: CampaignOut): string {
   if (c.discountType === 'percent') return `-${c.discountValue}%`
@@ -42,7 +43,7 @@ function formatExpiry(
 
 export function CampaignsSummaryCard() {
   const t = useT()
-  const { data, isLoading } = useCampaigns()
+  const { data, isLoading } = useQuery(campaignsOptions())
   const campaigns = data?.items ?? []
 
   return (

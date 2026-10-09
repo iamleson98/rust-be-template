@@ -1,25 +1,11 @@
-/**
- * Shared types, schemas and small presentational helpers used by the
- * login and registration forms.
- *
- * Extracted from the original `login-page.tsx` so each form can live
- * in its own file without duplicating the zod schemas or the
- * password-strength meter / tab-button component.
- */
-
 import type React from 'react'
 import { z } from 'zod'
 import { cn } from '@/lib/utils'
 import { emailSchema, fullNameSchema } from '@/lib/forms'
-import { translate, useT } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { useT, tSync } from '@/lib/i18n'
 
 export type Tab = 'customer' | 'register'
 
-// ── Customer login schema ─────────────────────────────────
-// Backend route: `POST /api/auth/login` with body `{ email, password }`.
-// Factory takes `t` so validation messages follow the active language
-// (same pattern as `makeBrandSchema` in the admin brand form).
 export const makeCustomerSchema = (t: ReturnType<typeof useT>) =>
   z.object({
     email: emailSchema,
@@ -56,7 +42,6 @@ export const makeRegisterSchema = (t: ReturnType<typeof useT>) =>
     })
 export type RegisterFormValues = z.infer<ReturnType<typeof makeRegisterSchema>>
 
-// ── Helpers ───────────────────────────────────────────────
 /** Heuristic password-strength scorer used by the registration meter. */
 const STRENGTH_LABEL_KEYS = [
   'auth.passwordWeak',
@@ -74,7 +59,7 @@ export function scorePassword(pwd: string): { score: number; label: string } {
   if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score++
   if (/\d/.test(pwd) && /[^A-Za-z0-9]/.test(pwd)) score++
   const labelKey = STRENGTH_LABEL_KEYS[score]
-  return { score, label: labelKey ? translate(useApp.getState().lang, labelKey) : '' }
+  return { score, label: labelKey ? tSync(labelKey) : '' }
 }
 
 // ── Tab button ───────────────────────────────────────────

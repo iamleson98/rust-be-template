@@ -5,14 +5,13 @@
  */
 
 import { DAY_LABELS, VEHICLE_LABELS } from '@/features/admin/types'
-import { translate } from '@/lib/i18n'
-import { useApp } from '@/lib/store'
+import { tSync } from '@/lib/i18n'
 
 /** Resolve a dictionary key in the CURRENT app language (vi default).
  *  Called at render/compute time so VI/EN switches re-localize. */
 const L = (key: string, params?: Record<string, string | number>) =>
-  translate(useApp.getState().lang, key, params)
-import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/lib/api/types.gen'
+  tSync(key, params)
+import type { AdminBrandOut, AdminRouteOut, AdminScheduleOut } from '@/api'
 
 /** Sort-key labels — I18N KEYS (resolved by the consumer's `t`). */
 export type ScheduleSortKey = 'departureTime' | 'priceAdult' | 'effectiveFrom'

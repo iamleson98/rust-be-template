@@ -10,7 +10,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PieChart } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { formatNum } from '@/lib/types'
+import { formatNum } from '@/lib/format'
 import type { DonutSegment } from './segmentation-donut'
 
 export function BookingStatusDonutCard({

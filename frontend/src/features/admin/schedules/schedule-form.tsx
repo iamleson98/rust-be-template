@@ -27,11 +27,13 @@
  * `<input type="time">`, HH:MM value); dates use `DatePicker`
  * (Popover + Calendar, Vietnamese locale).
  *
- * Migrated from manual `fetch` POST/PUT to the `useUpsertAdminSchedule()`
+ * Migrated from manual `fetch` POST/PUT to the `useMutation(adminSchedulesCreateMutation())`
  * TanStack Query mutation. The mutation auto-invalidates the schedules list
  * query on success.
  */
 
+import { adminSchedulesCreateMutation, adminSchedulesUpdateMutation } from '@/api'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -48,14 +50,13 @@ import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { Clock, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useUpsertAdminSchedule, useUpdateAdminSchedule } from '@/lib/queries'
 import { useT } from '@/lib/i18n'
 import type {
   AdminAddressOut,
   AdminBusLayoutOut,
   AdminRouteOut,
   AdminScheduleOut,
-} from '@/lib/api/types.gen'
+} from '@/api'
 import { AddressMapDialog } from '@/features/admin/addresses/address-map-dialog'
 import { scheduleSchema, type ScheduleFormValues } from './schedule-schema'
 import { ScheduleRouteSection } from './schedule-route-section'
@@ -85,8 +86,8 @@ export function ScheduleFormDialog({
 }) {
   const t = useT()
   const isEdit = !!schedule
-  const createMutation = useUpsertAdminSchedule()
-  const updateMutation = useUpdateAdminSchedule()
+  const createMutation = useMutation(adminSchedulesCreateMutation())
+  const updateMutation = useMutation(adminSchedulesUpdateMutation())
   const saving = createMutation.isPending || updateMutation.isPending
 
   // Addresses created inside this dialog session — merged as extras so

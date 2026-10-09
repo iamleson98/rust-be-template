@@ -18,7 +18,7 @@
 import { useMemo } from 'react'
 import { CalendarClock, CircleDot, Flag, MapPin, Navigation } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { formatTimeVN, parseDateSafe } from '@/lib/types'
+import { formatTimeVN, parseDateSafe } from '@/lib/format'
 import type { TripDetailDialogData as TripDetail } from './types'
 
 type Entry = {

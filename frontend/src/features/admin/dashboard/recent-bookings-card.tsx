@@ -14,8 +14,8 @@ import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/comp
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MapPin, Ticket, Download } from 'lucide-react'
 import { useT } from '@/lib/i18n'
-import { formatVND } from '@/lib/types'
-import type { AdminBookingOut } from '@/lib/api/types.gen'
+import { formatVND } from '@/lib/format'
+import type { AdminBookingOut } from '@/api'
 import { BookingStatusBadge } from './booking-status-badge'
 
 // ── "Recent bookings" table columns (shared DataTable) ────────

@@ -19,10 +19,10 @@
 
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, ChevronLeft, Ban, Ticket } from 'lucide-react'
-import { formatCurrency } from '@/lib/currency'
-import type { Currency } from '@/lib/currency'
+import { formatCurrency } from '@/lib/format'
+import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import type { PaymentOut } from '@/lib/queries/payments'
+import type { PaymentOut } from '@/api'
 import { StatusPill } from './payment-dialog'
 import { GatewayRedirect } from './gateway-redirect'
 import { VietQrDisplay } from './vietqr-display'

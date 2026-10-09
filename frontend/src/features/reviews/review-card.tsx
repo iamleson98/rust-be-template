@@ -11,7 +11,7 @@
 
 import { Star, ThumbsUp, Quote, Images } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { formatDateTimeVN } from '@/lib/types'
+import { formatDateTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 
 export type Review = {
