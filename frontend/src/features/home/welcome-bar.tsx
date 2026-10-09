@@ -7,7 +7,7 @@ import { useT } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { CalendarClock, ChevronRight, LayoutDashboard, Sparkles } from 'lucide-react'
-import { isBookingUpcoming, type BookingItem } from '@/features/booking/history/booking-types'
+import { isBookingUpcoming } from '@/features/booking/history/booking-types'
 
 export function WelcomeBar() {
   const t = useT()
@@ -16,13 +16,12 @@ export function WelcomeBar() {
 
   // Only authenticated users trigger the fetch — guests render instantly.
   const bookingsQuery = useQuery({
-    ...bookingsListOptions({ query: { status: 'all' } }),
+    ...bookingsListOptions(),
     enabled: !!user,
   })
   const activeCount = useMemo(() => {
     if (!user || !bookingsQuery.data) return 0
-    const items = (bookingsQuery.data.items ?? []) as unknown as BookingItem[]
-    return items.filter((b) => isBookingUpcoming(b)).length
+    return bookingsQuery.data.items.filter(isBookingUpcoming).length
   }, [user, bookingsQuery.data])
 
   const firstName = (user?.name ?? '').trim().split(/\s+/).slice(-1)[0] ?? ''

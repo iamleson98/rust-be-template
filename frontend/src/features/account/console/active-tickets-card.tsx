@@ -6,7 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   effectiveDeparture,
   isBookingUpcoming,
-  STATUS_CONFIG,
+  STAGE_CONFIG,
+  ticketStage,
   type BookingItem,
 } from '@/features/booking/history/booking-types'
 import { formatDayTime } from '@/lib/format'
@@ -95,12 +96,12 @@ export function ActiveTicketsCard({
         <ul className="space-y-2">
           {upcoming.map((b, i) => {
             const departureMs = effectiveDeparture(b)
-            const status = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.confirmed
+            const status = STAGE_CONFIG[ticketStage(b)]
             return (
               <li key={b.id}>
                 <button
                   type="button"
-                  onClick={() => navigate({ to: '/bookings/$code', params: { code: b.code } })}
+                  onClick={() => navigate({ to: '/account/trips/$code', params: { code: b.code } })}
                   className="group flex w-full items-center gap-3 rounded-xl border bg-slate-50/60 p-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50/40"
                 >
                   <BusTile accent={b.trip?.brandAccent} size="lg" />

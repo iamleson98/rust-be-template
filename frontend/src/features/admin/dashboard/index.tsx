@@ -34,6 +34,7 @@ import { CalendarRange, Download } from 'lucide-react'
 import { AdminDashboardSkeleton } from '@/features/admin/dashboard/dashboard-skeleton'
 import type { DateRange } from './types'
 import { StatsOverview } from './stats-overview'
+import { AwaitingTicketsCard } from './awaiting-tickets-card'
 import { ButtonGroup } from '@/components/ui/button-group'
 
 export const AdminDashboard = memo(function AdminDashboard() {
@@ -76,7 +77,8 @@ export const AdminDashboard = memo(function AdminDashboard() {
         </div>
       </div>
 
-      {/* ─── Summary report (all real backend data) ─── */}
+      <AwaitingTicketsCard />
+
       <StatsOverview dateRange={dateRange} onExportCSV={csvExport.exportCsv} />
     </div>
   )

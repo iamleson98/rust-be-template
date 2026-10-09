@@ -11,6 +11,7 @@ use utoipa::ToSchema;
 use uuid::Uuid;
 use validator::Validate;
 
+use crate::dto::booking::BookingOut;
 use crate::dto::fares::{ChildFarePolicy, SeatClassCount, SeatClassFare};
 use crate::dto::seat_plan::SeatPlan;
 use crate::validation::validate_phone;
@@ -640,132 +641,37 @@ pub struct ModerateReviewResponse {
 //  Bookings management
 // ────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AdminBookingSeatOut {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub seat_id: Option<String>,
-    pub price: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub passenger_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub passenger_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub passenger_age: Option<i16>,
-}
-
-/// Admin booking list item — slim shape for the table view.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AdminBookingOut {
-    pub id: Uuid,
-    pub code: String,
-    pub status: String,
-    pub total: i64,
-    pub currency: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_phone: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payment_method: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pickup_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dropoff_name: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<String>,
-}
-
 /// Response of `GET /api/admin/bookings`.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminBookingListResponse {
-    pub items: Vec<AdminBookingOut>,
-    /// Total matching-row count (independent of pagination). Omitted when
-    /// the server didn't compute it (older callers may rely on this).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total: Option<u64>,
+    pub items: Vec<BookingOut>,
+    /// Bookings matching the filter, across all pages.
+    pub total: u64,
     pub limit: u64,
     pub offset: u64,
 }
 
-/// Admin booking detail — full shape with seats.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AdminBookingDetail {
-    pub id: Uuid,
-    pub code: String,
-    pub status: String,
-    pub subtotal: i64,
-    pub discount: i64,
-    pub fees: i64,
-    pub total: i64,
-    pub currency: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_phone: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub contact_email: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payment_method: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pickup_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dropoff_name: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expires_at: Option<String>,
-    pub seats: Vec<AdminBookingSeatOut>,
-}
-
-/// Response of `GET /api/admin/bookings/{id}`.
+/// Response of `GET /api/admin/bookings/{id}` and of a status change.
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminBookingDetailResponse {
-    pub item: AdminBookingDetail,
+    pub item: BookingOut,
 }
 
 /// Request body for `PATCH /api/admin/bookings/{id}`.
+///
+/// `confirmed` (after phoning the customer, from `pending`), `completed`
+/// (from `confirmed`) or `cancelled` (from either). Completed and
+/// cancelled tickets are final.
 #[derive(Debug, Deserialize, ToSchema, Validate)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateBookingStatusRequest {
-    /// `pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.
-    /// `paid` is normalized to `confirmed`; `refunded` to `cancelled`.
     #[validate(length(min = 1, max = 30))]
     pub status: String,
+    /// Why, for the audit log (e.g. "customer did not answer").
     #[validate(length(max = 1000))]
     pub reason: Option<String>,
-    /// When `true`, skips the state-machine transition check (admin override).
-    #[serde(default)]
-    pub force: bool,
-}
-
-/// Response of `PATCH /api/admin/bookings/{id}`.
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateBookingStatusResponse {
-    pub item: AdminBookingStatusUpdate,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct AdminBookingStatusUpdate {
-    pub id: Uuid,
-    pub status: String,
-    /// The original requested status (before normalization). Useful
-    /// when the caller sends `paid` and we store `confirmed`.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub previous_status: Option<String>,
-    pub updated_at: String,
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -818,18 +724,25 @@ pub struct AdminBookingExportResponse {
 //  Query params
 // ────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, utoipa::IntoParams)]
+/// Which tickets an admin listing, report or export covers.
+#[derive(Debug, Default, Deserialize, utoipa::IntoParams)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]
 pub struct AdminBookingsQuery {
+    /// A booking status, `awaiting` (pay on board, waiting for the phone
+    /// call) or `all`.
     pub status: Option<String>,
     pub brand_id: Option<Uuid>,
     pub route_id: Option<Uuid>,
+    /// First day booked on (`YYYY-MM-DD`, Vietnam).
     pub date_from: Option<String>,
+    /// Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.
     pub date_to: Option<String>,
+    /// Code, contact name or phone contains this.
     pub search: Option<String>,
     pub limit: Option<u64>,
     pub offset: Option<u64>,
+    /// `created_desc` (default), `created_asc`, `total_desc` or `total_asc`.
     pub sort: Option<String>,
 }
 

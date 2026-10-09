@@ -17,7 +17,8 @@ type BookingFlowState = {
   /** `pay` = online-payment step (gateway redirect / QR + status polling). */
   step: BookingStep
   setStep: (step: BookingStep) => void
-  lastBooking: { id: string; code: string; total: number } | null
+  /** The booking just made; `awaitingCall` when the operator still has to phone to confirm it. */
+  lastBooking: { id: string; code: string; total: number; awaitingCall: boolean } | null
   setLastBooking: (booking: BookingFlowState['lastBooking']) => void
 }
 

@@ -101,7 +101,6 @@ function FormControl({ ...props }: ComponentProps<typeof Slot>) {
       id={formItemId}
       aria-describedby={!error ? `${formDescriptionId}` : `${formDescriptionId} ${formMessageId}`}
       aria-invalid={!!error}
-      asChild
       {...props}
     />
   )

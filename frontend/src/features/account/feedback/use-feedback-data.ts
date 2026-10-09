@@ -12,12 +12,12 @@ const NONE: never[] = []
 
 /** The customer's past rides and one page of their reviews, plus what is derived from both. */
 export function useFeedbackData(page: number) {
-  const rides = useQuery(bookingsListOptions({ query: { status: 'past' } }))
+  const rides = useQuery(bookingsListOptions())
   const mine = useQuery({
     ...reviewsMineOptions({ query: { limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
     placeholderData: keepPreviousData,
   })
-  const bookings = (rides.data?.items ?? NONE) as unknown as BookingItem[]
+  const bookings: BookingItem[] = rides.data?.items ?? NONE
   const reviews = (mine.data?.items ?? NONE) as unknown as ReviewItem[]
 
   // Rides taken but not reviewed yet (judged on the loaded page of reviews).

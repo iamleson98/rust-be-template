@@ -8,8 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import {
   UserCircle,
   Gift,
-  Bell,
-  ShieldCheck,
+  KeyRound,
   History,
   ArrowLeft,
   LogOut,
@@ -45,10 +44,7 @@ const NAV_GROUPS = (t: (k: string) => string) => [
   },
   {
     label: t('account.settings'),
-    items: [
-      { title: t('account.notifications'), icon: Bell, url: '/account/notifications' },
-      { title: t('accountPage.securityShort'), icon: ShieldCheck, url: '/account/security' },
-    ],
+    items: [{ title: t('accountPage.passwordShort'), icon: KeyRound, url: '/account/password' }],
   },
 ]
 

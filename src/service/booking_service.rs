@@ -1,13 +1,11 @@
-//! Booking service — business logic for booking CRUD, hold, confirm, cancel.
+//! Bookings from the customer's side: hold seats, place or pay, cancel, and
+//! the ticket history.
 //!
-//! Ported from `booking-rs/logic/bookings.rs`, adapted to the template's
-//! store + `AppError` architecture.
-//!
-//! ## Design
-//! - Uses `CompositeStore` for all DB access (BookingStore, TripStore,
-//!   ScheduleStore, RouteStore, BrandStore, PlaceStore).
-//! - Returns typed DTOs from [`crate::dto::booking`] (no `serde_json::Value`).
-//! - Pure helpers (normalize_phone, gen_booking_code, etc.) are ported as-is.
+//! A booking starts `pending` with its seats held for the checkout. Paying
+//! online confirms it (via the gateway webhook); paying on board places it
+//! for the operator, who phones the customer and confirms it from the admin
+//! console. Holds nobody placed or paid for are released by
+//! [`spawn_hold_sweeper`].
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -18,23 +16,17 @@ use sea_orm::Set;
 use uuid::Uuid;
 
 use crate::dto::booking::{
-    BookingBrandPreview, BookingBusLayoutPreview, BookingCancelResponse, BookingConfirmResponse,
-    BookingHoldResponse, BookingListItem, BookingListResponse, BookingRoutePreview, BookingSeatOut,
-    BookingTripPreview, HoldReq, PassengerReq, PickupPointOut,
+    BookingCancelResponse, BookingConfirmResponse, BookingHoldResponse, BookingListResponse,
+    BookingOut, BookingSeatOut, BookingStop, HoldReq, PassengerReq,
 };
-use crate::entity::{booking, booking_seat, seat, seat_inventory, trip_session};
+use crate::entity::{booking, booking_seat, seat_inventory};
 use crate::error::{AppError, AppResult};
+use crate::payment::providers;
 use crate::payment::statuses as payment_status;
+use crate::service::booking_view::{booking_view, booking_views, departure_of};
 use crate::service::fares::{self, ChildPolicy, FareTable, Passenger};
-use crate::service::trip_time;
-use crate::store::{CompositeStore, ConfirmOutcome};
-
-// Re-export the request DTOs at the service-module root so existing
-// `use crate::service::booking_service::HoldReq` references still resolve.
-pub use crate::dto::booking::{
-    CancelReq as CancelReqDto, ConfirmReq as ConfirmReqDto, HoldReq as HoldReqDto,
-    PassengerReq as PassengerReqDto,
-};
+use crate::service::{trip_stops, trip_time};
+use crate::store::{BookingFilter, CompositeStore, ConfirmOutcome};
 
 /// How long seats are held while the customer fills in the checkout.
 const HOLD_SECS: i64 = 10 * 60;
@@ -100,324 +92,48 @@ impl BookingService {
 
     // ── Reads ────────────────────────────────────────────────────
 
-    /// List the authenticated user's bookings, filtered by status bucket.
+    /// The customer's tickets — bookings they placed or paid for — newest
+    /// first. Checkouts never finished are not tickets.
     pub async fn list(
         &self,
-        user_id: &str,
-        status: &str,
+        user_id: Uuid,
         limit: u64,
         offset: u64,
     ) -> AppResult<BookingListResponse> {
-        let limit = limit.min(200);
-        let status_param = status.trim().to_lowercase();
-        let valid = [
-            "confirmed",
-            "completed",
-            "cancelled",
-            "upcoming",
-            "past",
-            "all",
-        ];
-        if !valid.contains(&status_param.as_str()) {
-            return Err(AppError::BadRequest("invalid status value".into()));
-        }
-
-        let today_prefix = Utc::now().format("%Y-%m-%d").to_string();
-
-        // Build the departure-date filter for the status bucket. Single SQL
-        // JOIN replaces the previous "load all trips departing today →
-        // filter bookings by trip_session_id IN (...)" pattern that
-        // materialised ~18k trip rows on every authenticated /bookings
-        // request after a year of operation.
-        let (date_gte, date_lt): (Option<&str>, Option<&str>) = match status_param.as_str() {
-            "confirmed" | "upcoming" => (Some(&today_prefix), None),
-            "completed" | "past" => (None, Some(&today_prefix)),
-            _ => (None, None),
+        let filter = BookingFilter {
+            user_id: Some(user_id),
+            placed: true,
+            ..Default::default()
         };
-
         let bookings = self
             .store
             .booking_store()
-            .list_bookings_by_user_with_date_filter(
-                user_id,
-                &status_param,
-                date_gte,
-                date_lt,
-                limit,
-                offset,
-            )
+            .list_bookings(&filter, limit.min(200), offset)
             .await?;
-
-        // Batch serialize
-        let items = self.serialize_bookings_batched(&bookings, true).await?;
-
-        // Use `with_total` so the field is omitted from JSON when the count
-        // wasn't computed (matches the OpenAPI schema where `total` is
-        // optional). Previously `total = items.len()` was misleadingly
-        // reporting the page size as the total matching-row count.
-        Ok(BookingListResponse::new(items))
-    }
-
-    /// Full booking detail with seats, pickup points, trip + brand info.
-    ///
-    /// ## Performance
-    ///
-    /// The dependency chain `booking → trip → schedule → route` is
-    /// inherently sequential (each fetch's id comes from the previous
-    /// row). But once we have the `route` + `schedule`, the brand,
-    /// start/end places, bus layout, and pickup points are all
-    /// independent — we fetch them concurrently with `tokio::try_join!`
-    /// to cut latency from ~7 sequential round-trips to ~4.
-    pub async fn detail(&self, user_id: Option<&str>, id: Uuid) -> AppResult<BookingListItem> {
-        let b = self
-            .store
-            .booking_store()
-            .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        self.detail_serialize(user_id, b).await
-    }
-
-    /// Booking detail by id OR code — the frontend's deep links carry the
-    /// human-facing booking code (`/bookings/{code}`), while older callers
-    /// and admin tooling use the UUID. Resolution order: try UUID parse,
-    /// fall back to a code lookup (codes are unique).
-    pub async fn detail_by_id_or_code(
-        &self,
-        user_id: Option<&str>,
-        id_or_code: &str,
-    ) -> AppResult<BookingListItem> {
-        let b = match Uuid::parse_str(id_or_code) {
-            Ok(id) => self
-                .store
-                .booking_store()
-                .find_booking_by_id(id)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?,
-            Err(_) => self
-                .store
-                .booking_store()
-                .find_booking_by_code(id_or_code)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?,
-        }
-        .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        self.detail_serialize(user_id, b).await
-    }
-
-    /// Shared serializer for a resolved booking row — ownership check +
-    /// seats + trip + schedule join. Takes the row by value (the final
-    /// `BookingListItem` moves its scalar fields out).
-    async fn detail_serialize(
-        &self,
-        user_id: Option<&str>,
-        b: booking::Model,
-    ) -> AppResult<BookingListItem> {
-        // Ownership check
-        if let Some(uid) = user_id {
-            if b.user_id.map(|id| id.to_string()).as_deref() != Some(uid) {
-                return Err(AppError::Forbidden("not your booking".into()));
-            }
-        }
-
-        // Fetch booking seats + trip concurrently (independent of each other).
-        let booking_id_str = b.id.to_string();
-        let trip_id = b.trip_session_id;
-
-        let store = self.store.clone();
-        let (seats, trip) = tokio::try_join!(
-            async {
-                store
-                    .booking_store()
-                    .list_booking_seats(&booking_id_str)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))
-            },
-            async {
-                store
-                    .trip_store()
-                    .find_trip_by_id(trip_id)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))?
-                    .ok_or_else(|| AppError::NotFound("trip not found".into()))
-            }
-        )?;
-
-        // Fetch seat definitions (depends on seats).
-        let seat_ids: Vec<String> = seats.iter().map(|s| s.seat_id.to_string()).collect();
-        let seat_defs = self.fetch_seat_defs(&seat_ids).await?;
-
-        // Fetch schedule (depends on trip).
-        let schedule = self
-            .store
-            .schedule_store()
-            .find_schedule_by_id(trip.schedule_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("schedule not found".into()))?;
-
-        // Fetch route (depends on schedule).
-        let route_id = schedule.route_id;
-        let route_model = self
-            .store
-            .route_store()
-            .find_route_by_id(route_id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("route not found".into()))?;
-
-        // ── Concurrent fetch of independent relations ────────────
-        // brand, bus_layout, pickup_points all depend only on
-        // `route_model` / `schedule` (already loaded). Running them in
-        // parallel cuts ~3 sequential round-trips to 1.
-        //
-        // Note: `route.start_location_id` / `route.end_location_id`
-        // are now slug strings (NOT NULL), not UUID FKs to `place`.
-        // The slug → city resolution is synchronous (no DB hit), so
-        // we wrap it in an async block to keep the `tokio::try_join!`
-        // shape uniform with the other futures.
-        let store = self.store.clone();
-        let brand_id = route_model.brand_id;
-        let start_location_slug = route_model.start_location_id.clone();
-        let end_location_slug = route_model.end_location_id.clone();
-        // `Uuid` since the schedule entity fix (was a String that never
-        // matched the BLOB-stored layout ids on SQLite).
-        let bus_layout_id = schedule.bus_layout_id;
-        let route_id_str = route_model.id.to_string();
-
-        let (brand_model, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
-            async {
-                // Brand
-                match brand_id {
-                    Some(uid) => store
-                        .brand_store()
-                        .get_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string())),
-                    None => Ok(None),
-                }
-            },
-            async {
-                // Start city — resolved from the hardcoded slug table.
-                Ok::<_, AppError>(crate::cities::find_by_slug(&start_location_slug))
-            },
-            async {
-                // End city — resolved from the hardcoded slug table.
-                Ok::<_, AppError>(crate::cities::find_by_slug(&end_location_slug))
-            },
-            async {
-                // Bus layout
-                match bus_layout_id {
-                    Some(uid) => store
-                        .schedule_store()
-                        .find_bus_layout_by_id(uid)
-                        .await
-                        .map_err(|e| AppError::Internal(e.to_string())),
-                    None => Ok(None),
-                }
-            },
-            async {
-                // Pickup points
-                store
-                    .route_store()
-                    .list_pickup_points_by_route(&route_id_str)
-                    .await
-                    .map_err(|e| AppError::Internal(e.to_string()))
-            }
-        )?;
-
-        // Build response
-        let seats_json: Vec<BookingSeatOut> = seats
-            .iter()
-            .map(|bs| {
-                let seat = seat_defs.get(&bs.seat_id.to_string());
-                BookingSeatOut {
-                    seat_id: None,
-                    seat_code: seat.map(|s| s.seat_label.clone()),
-                    seat_class: seat.and_then(|s| s.seat_class.clone()),
-                    passenger_name: bs.passenger_name.clone(),
-                    passenger_type: bs.passenger_type.clone(),
-                    passenger_age: bs.passenger_age.map(|n| n as i64),
-                    price: Some(bs.price),
-                }
-            })
-            .collect();
-
-        let pickup_items: Vec<PickupPointOut> = pickup_points
-            .iter()
-            .map(|p| PickupPointOut {
-                id: p.id,
-                name: p.name.clone(),
-                stop_order: Some(p.stop_order),
-                lat: p.lat,
-                lon: p.lon,
-                kind: p.kind.clone(),
-                address: p.address.clone(),
-            })
-            .collect();
-
-        Ok(BookingListItem {
-            id: b.id,
-            code: b.code,
-            status: b.status,
-            adult_count: Some(b.adult_count),
-            child_count: Some(b.child_count),
-            subtotal: b.subtotal,
-            discount: b.discount,
-            fees: b.fees,
-            total: b.total,
-            currency: b.currency,
-            expires_at: b.expires_at,
-            created_at: b.created_at,
-            updated_at: Some(b.updated_at),
-            contact_name: b.contact_name,
-            contact_phone: b.contact_phone,
-            contact_email: b.contact_email,
-            boarding_point_id: b.boarding_point_id.map(|id| id.to_string()),
-            dropping_point_id: b.dropping_point_id.map(|id| id.to_string()),
-            payment_method: None,
-            paid_at: None,
-            seats: seats_json,
-            trip: Some(BookingTripPreview {
-                id: trip.id,
-                departure_at: trip.actual_departure_at,
-                departure_date: Some(trip.departure_date),
-                status: Some(trip.status),
-                route_name: None,
-                brand_name: None,
-                brand_accent: None,
-                brand_logo: None,
-                vehicle_type: None,
-                route: Some(BookingRoutePreview {
-                    name: route_model.name,
-                    from: start_place.map(|c| c.name.to_string()),
-                    to: end_place.map(|c| c.name.to_string()),
-                    brand: BookingBrandPreview {
-                        name: brand_model.as_ref().map(|b| b.name.clone()),
-                        accent_color: brand_model.as_ref().and_then(|b| b.accent_color.clone()),
-                        logo_url: brand_model.as_ref().and_then(|b| b.logo_url.clone()),
-                    },
-                }),
-                bus_layout: Some(BookingBusLayoutPreview {
-                    name: bus_layout.as_ref().and_then(|l| l.name.clone()),
-                    vehicle_type: bus_layout.as_ref().and_then(|l| l.vehicle_type.clone()),
-                }),
-                pickup_points: pickup_items,
-            }),
+        Ok(BookingListResponse {
+            items: booking_views(&self.store, bookings).await?,
         })
     }
 
-    // ── Writes ───────────────────────────────────────────────────
-
-    /// Create a booking (alias of hold). When called from an authenticated
-    /// route, prefer `hold_with_user` so the booking is bound to its owner
-    /// (BOLA defense on subsequent cancel/confirm calls).
-    pub async fn create(&self, req: &HoldReq) -> AppResult<BookingHoldResponse> {
-        self.hold(None, req).await
+    /// One of the customer's bookings, by id or by its code.
+    pub async fn detail(&self, user_id: Uuid, id_or_code: &str) -> AppResult<BookingOut> {
+        let found = match Uuid::parse_str(id_or_code) {
+            Ok(id) => self.store.booking_store().find_booking_by_id(id).await?,
+            Err(_) => {
+                self.store
+                    .booking_store()
+                    .find_booking_by_code(&id_or_code.trim().to_uppercase())
+                    .await?
+            }
+        };
+        let b = found.ok_or_else(|| AppError::NotFound("booking not found".into()))?;
+        if b.user_id != Some(user_id) {
+            return Err(AppError::Forbidden("not your booking".into()));
+        }
+        booking_view(&self.store, b).await
     }
+
+    // ── Writes ───────────────────────────────────────────────────
 
     /// Like `hold` but binds the booking to the authenticated caller.
     /// Use this from any authenticated booking-creation route so that
@@ -507,7 +223,27 @@ impl BookingService {
             None
         };
 
-        self.check_stops(route_model.id, req).await?;
+        // Where the passengers get on and off, copied onto the booking.
+        let stops = trip_stops::trip_stops(&self.store, route_model.id, schedule.id).await?;
+        let chosen = trip_stops::choose(&stops, req.boarding_point_id, req.dropping_point_id)?;
+        let city = |slug: &str| {
+            crate::cities::find_by_slug(slug).map(|c| BookingStop {
+                name: c.name.to_string(),
+                address: None,
+                lat: Some(c.lat),
+                lon: Some(c.lon),
+            })
+        };
+        let (pickup, dropoff) = match &chosen {
+            Some((on, off)) => (Some(on.snapshot()), Some(off.snapshot())),
+            None => (
+                city(&route_model.start_location_id),
+                city(&route_model.end_location_id),
+            ),
+        };
+        // Bookings reference route pickup points; timetable stops live on by name.
+        let point_id =
+            |stop: Option<&trip_stops::Stop>| stop.filter(|s| s.pickup_point).map(|s| s.id);
 
         // Fetch seat inventories
         let seat_uuids: Vec<String> = req.seat_ids.iter().map(|s| s.to_string()).collect();
@@ -646,8 +382,16 @@ impl BookingService {
             // calls can verify `booking.user_id == caller_user_id`.
             user_id: Set(caller_user_id),
             trip_session_id: Set(req.trip_id),
-            boarding_point_id: Set(req.boarding_point_id),
-            dropping_point_id: Set(req.dropping_point_id),
+            boarding_point_id: Set(point_id(chosen.as_ref().map(|(on, _)| on))),
+            dropping_point_id: Set(point_id(chosen.as_ref().map(|(_, off)| off))),
+            pickup_name: Set(pickup.as_ref().map(|s| s.name.clone())),
+            pickup_address: Set(pickup.as_ref().and_then(|s| s.address.clone())),
+            pickup_lat: Set(pickup.as_ref().and_then(|s| s.lat)),
+            pickup_lon: Set(pickup.as_ref().and_then(|s| s.lon)),
+            dropoff_name: Set(dropoff.as_ref().map(|s| s.name.clone())),
+            dropoff_address: Set(dropoff.as_ref().and_then(|s| s.address.clone())),
+            dropoff_lat: Set(dropoff.as_ref().and_then(|s| s.lat)),
+            dropoff_lon: Set(dropoff.as_ref().and_then(|s| s.lon)),
             adult_count: Set(adult_count),
             child_count: Set(child_count),
             subtotal: Set(subtotal),
@@ -832,30 +576,17 @@ impl BookingService {
         })
     }
 
-    /// Cancel a booking.
-    ///
-    /// Refund policy (share of what was actually PAID, by notice before
-    /// departure): more than 24 h → 90 %, more than 4 h → 50 %, less → 0.
-    /// An unpaid booking refunds nothing.
-    ///
-    /// **Authorization**: only the booking's owner may cancel it (BOLA
-    /// defense); staff use the admin routes, which check RBAC instead.
+    /// The customer cancels their booking: the seats go back on sale and
+    /// any completed payment is refunded at the policy rate. Allowed while
+    /// the booking is open and the trip has not left; staff see the
+    /// cancellation in the admin console.
     pub async fn cancel(
         &self,
         caller_user_id: Uuid,
         id: Uuid,
         reason: Option<&str>,
     ) -> AppResult<BookingCancelResponse> {
-        let b = self
-            .store
-            .booking_store()
-            .find_booking_by_id(id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        if b.user_id != Some(caller_user_id) {
-            return Err(AppError::Forbidden("not your booking".into()));
-        }
+        let b = self.owned(caller_user_id, id).await?;
         match b.status.as_str() {
             "pending" | "confirmed" => {}
             "cancelled" => return Err(AppError::BadRequest("booking already cancelled".into())),
@@ -865,8 +596,12 @@ impl BookingService {
                 )))
             }
         }
+        let departs = departure_of(&self.store, &b).await?;
+        if departs.is_some_and(|at| at <= Utc::now()) {
+            return Err(AppError::BadRequest("the trip has already left".into()));
+        }
 
-        let (refund_percent, refund_amount) = self.refund_for(&b).await?;
+        let (refund_percent, refund_amount) = self.refund_for(&b, departs).await?;
 
         // Seats, counter, promo use and pending payments move together or not at all.
         self.store
@@ -888,7 +623,11 @@ impl BookingService {
 
     /// `(percent, amount)` handed back for cancelling `b` now: the policy
     /// share of the completed payments.
-    async fn refund_for(&self, b: &booking::Model) -> AppResult<(i64, i64)> {
+    async fn refund_for(
+        &self,
+        b: &booking::Model,
+        departs: Option<chrono::DateTime<Utc>>,
+    ) -> AppResult<(i64, i64)> {
         let paid: i64 = self
             .store
             .payment_store()
@@ -901,28 +640,6 @@ impl BookingService {
         if paid <= 0 {
             return Ok((0, 0));
         }
-
-        let trip = self
-            .store
-            .trip_store()
-            .find_trip_by_id(b.trip_session_id)
-            .await?;
-        let schedule = match &trip {
-            Some(t) => {
-                self.store
-                    .schedule_store()
-                    .find_schedule_by_id(t.schedule_id)
-                    .await?
-            }
-            None => None,
-        };
-        let departs = trip.as_ref().zip(schedule.as_ref()).and_then(|(t, s)| {
-            trip_time::departure_instant(
-                &t.departure_date,
-                &s.departure_time,
-                t.actual_departure_at.as_deref(),
-            )
-        });
         let percent = match departs {
             Some(at) => trip_time::refund_percent((at - Utc::now()).num_minutes() as f64 / 60.0),
             None => {
@@ -933,26 +650,15 @@ impl BookingService {
         Ok((percent, paid * percent / 100))
     }
 
-    /// Confirm a booking (the customer pays on the bus: held → booked).
-    ///
-    /// **Authorization**: the caller must own the booking — same BOLA
-    /// defense as `cancel`.
-    pub async fn confirm(
+    /// The customer chooses to pay on board. The booking is placed: its
+    /// seats stay held until departure while the operator phones the
+    /// customer and confirms it from the admin console.
+    pub async fn place_cash(
         &self,
         caller_user_id: Uuid,
         id: Uuid,
-        payment_method: &str,
     ) -> AppResult<BookingConfirmResponse> {
-        let b = self
-            .store
-            .booking_store()
-            .find_booking_by_id(id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        if b.user_id != Some(caller_user_id) {
-            return Err(AppError::Forbidden("not your booking".into()));
-        }
+        let b = self.owned(caller_user_id, id).await?;
         if b.status != "pending" {
             return Err(AppError::BadRequest(
                 "booking is not in pending status".into(),
@@ -966,14 +672,50 @@ impl BookingService {
                 .await?;
             return Err(AppError::Gone("booking hold has expired".into()));
         }
-        self.confirm_pending(&b, payment_method).await
+        if !self.hold_until_departure(&b, providers::COD).await? {
+            return Err(AppError::Conflict(
+                "booking was changed by another request".into(),
+            ));
+        }
+        Ok(BookingConfirmResponse {
+            booking_id: b.id,
+            status: "pending".to_string(),
+            payment_method: providers::COD.to_string(),
+        })
+    }
+
+    /// Keep a pending booking's seats until its trip leaves (a pay-on-board
+    /// booking waiting for the operator's call).
+    pub async fn hold_until_departure(&self, b: &booking::Model, method: &str) -> AppResult<bool> {
+        let until = departure_of(&self.store, b)
+            .await?
+            .unwrap_or_else(|| Utc::now() + chrono::Duration::days(1));
+        Ok(self
+            .store
+            .booking_store()
+            .place_pending(
+                b.id,
+                method,
+                &until.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            )
+            .await?)
+    }
+
+    /// Keep a booking's seats while its online payment is in progress: the
+    /// customer needs longer than the checkout hold to finish at a gateway.
+    pub async fn hold_for_payment(&self, id: Uuid, provider: &str) -> AppResult<bool> {
+        Ok(self
+            .store
+            .booking_store()
+            .place_pending(id, provider, &now_plus_iso(PAYMENT_HOLD_SECS))
+            .await?)
     }
 
     /// Confirm after a verified payment (gateway webhook, driver collecting
-    /// cash, admin override). Money has changed hands, so a hold that ran
-    /// past its deadline still converts as long as nothing released the
-    /// seats yet. Idempotent: a repeated notification for a booking that is
-    /// already confirmed succeeds.
+    /// cash). Money has changed hands, so a hold that ran past its deadline
+    /// still converts as long as nothing released the seats yet. Idempotent:
+    /// a repeated notification for a booking that is already confirmed
+    /// succeeds.
     pub async fn confirm_as_system(
         &self,
         id: Uuid,
@@ -1049,219 +791,18 @@ impl BookingService {
         Ok(done)
     }
 
-    /// Keep a booking's seats while its payment is in progress: the
-    /// customer needs longer than the initial hold to finish at a gateway.
-    pub async fn extend_hold_for_payment(&self, id: Uuid) -> AppResult<bool> {
-        Ok(self
+    /// A booking, if `caller` owns it.
+    async fn owned(&self, caller: Uuid, id: Uuid) -> AppResult<booking::Model> {
+        let b = self
             .store
             .booking_store()
-            .extend_hold(id, &now_plus_iso(PAYMENT_HOLD_SECS))
-            .await?)
-    }
-
-    // ── Batched serializer ───────────────────────────────────────
-
-    /// Batched bookings serializer — fetches related data in bulk to avoid N+1.
-    async fn serialize_bookings_batched(
-        &self,
-        bookings: &[booking::Model],
-        include_boarding_dropping_ids: bool,
-    ) -> AppResult<Vec<BookingListItem>> {
-        if bookings.is_empty() {
-            return Ok(Vec::new());
+            .find_booking_by_id(id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
+        if b.user_id != Some(caller) {
+            return Err(AppError::Forbidden("not your booking".into()));
         }
-
-        // Collect trip session IDs (Uuids since the entity column is
-        // typed `Uuid` — see entity/booking.rs for the SQLite FK rationale).
-        let trip_uuids: Vec<Uuid> = bookings.iter().map(|b| b.trip_session_id).collect();
-        let trips: HashMap<String, trip_session::Model> = self
-            .store
-            .trip_store()
-            .list_trips_by_ids(trip_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|t| (t.id.to_string(), t))
-            .collect();
-
-        // Batch fetch schedules
-        let schedule_uuids: Vec<Uuid> = trips.values().map(|t| t.schedule_id).collect();
-        let schedules: HashMap<String, crate::entity::schedule::Model> = self
-            .store
-            .schedule_store()
-            .list_schedules_by_ids(schedule_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|s| (s.id.to_string(), s))
-            .collect();
-
-        // Batch fetch routes
-        let route_uuids: Vec<Uuid> = schedules.values().map(|s| s.route_id).collect();
-        let routes: HashMap<String, crate::entity::route::Model> = self
-            .store
-            .route_store()
-            .list_routes_by_ids(route_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|r| (r.id.to_string(), r))
-            .collect();
-
-        // Batch fetch brands
-        let brand_uuids: Vec<Uuid> = routes.values().filter_map(|r| r.brand_id).collect();
-        let brands: HashMap<String, crate::entity::brand::Model> = self
-            .store
-            .brand_store()
-            .list_brands_by_ids(brand_uuids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .into_iter()
-            .map(|b| (b.id.to_string(), b))
-            .collect();
-
-        // Batch fetch booking seats
-        let booking_ids: Vec<String> = bookings.iter().map(|b| b.id.to_string()).collect();
-        let all_seats: Vec<booking_seat::Model> = self
-            .store
-            .booking_store()
-            .list_booking_seats_by_booking_ids(booking_ids)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut seats_by_booking: HashMap<String, Vec<&booking_seat::Model>> = HashMap::new();
-        for bs in &all_seats {
-            seats_by_booking
-                .entry(bs.booking_id.to_string())
-                .or_default()
-                .push(bs);
-        }
-
-        // Build per-booking DTO
-        let mut items: Vec<BookingListItem> = Vec::with_capacity(bookings.len());
-        for b in bookings {
-            let trip = trips.get(&b.trip_session_id.to_string());
-            let schedule = trip.and_then(|t| schedules.get(&t.schedule_id.to_string()));
-            let route = schedule.and_then(|s| routes.get(&s.route_id.to_string()));
-            let brand = route
-                .and_then(|r| r.brand_id.map(|id| id.to_string()))
-                .as_deref()
-                .and_then(|bid| brands.get(bid));
-
-            let trip_preview = if let (Some(t), Some(s), Some(r)) = (trip, schedule, route) {
-                // `departure_at`: prefer the ACTUAL departure (driver
-                // check-in) but fall back to the SCHEDULED one
-                // (departure_date + schedule.departure_time) so the
-                // frontend's upcoming/past bucketing works before the
-                // driver ever checks in.
-                let departure_at = t
-                    .actual_departure_at
-                    .clone()
-                    .or_else(|| Some(format!("{}T{}", t.departure_date, s.departure_time)));
-                Some(BookingTripPreview {
-                    id: t.id,
-                    departure_at,
-                    departure_date: Some(t.departure_date.clone()),
-                    status: Some(t.status.clone()),
-                    route_name: Some(r.name.clone()),
-                    brand_name: brand.map(|b| b.name.clone()),
-                    brand_accent: brand
-                        .and_then(|b| b.accent_color.clone())
-                        .or_else(|| Some("#0d9488".into())),
-                    brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    vehicle_type: s.bus_layout_id.map(|u| u.to_string()),
-                    route: None,
-                    bus_layout: None,
-                    pickup_points: Vec::new(),
-                })
-            } else {
-                None
-            };
-
-            let booking_seats: &[&booking_seat::Model] = seats_by_booking
-                .get(&b.id.to_string())
-                .map(|v| v.as_slice())
-                .unwrap_or(&[]);
-
-            let seats_json: Vec<BookingSeatOut> = booking_seats
-                .iter()
-                .map(|bs| BookingSeatOut {
-                    seat_id: Some(bs.seat_id),
-                    seat_code: None,
-                    seat_class: None,
-                    passenger_name: bs.passenger_name.clone(),
-                    passenger_type: bs.passenger_type.clone(),
-                    passenger_age: bs.passenger_age.map(|n| n as i64),
-                    price: Some(bs.price),
-                })
-                .collect();
-
-            let paid_at = if b.status == "confirmed" {
-                Some(b.updated_at.clone())
-            } else {
-                None
-            };
-
-            // When `include_boarding_dropping_ids=false` (lookup path),
-            // we omit the boarding/dropping point ids + payment method from
-            // the response — they're considered sensitive/internal.
-            let (boarding_point_id, dropping_point_id, payment_method) =
-                if include_boarding_dropping_ids {
-                    (
-                        b.boarding_point_id.map(|id| id.to_string()),
-                        b.dropping_point_id.map(|id| id.to_string()),
-                        b.payment_method.clone(),
-                    )
-                } else {
-                    (None, None, None)
-                };
-
-            items.push(BookingListItem {
-                id: b.id,
-                code: b.code.clone(),
-                status: b.status.clone(),
-                adult_count: None,
-                child_count: None,
-                subtotal: b.subtotal,
-                discount: b.discount,
-                fees: b.fees,
-                total: b.total,
-                currency: b.currency.clone(),
-                expires_at: b.expires_at.clone(),
-                created_at: b.created_at.clone(),
-                updated_at: Some(b.updated_at.clone()),
-                contact_name: b.contact_name.clone(),
-                contact_phone: b.contact_phone.clone(),
-                contact_email: b.contact_email.clone(),
-                boarding_point_id,
-                dropping_point_id,
-                payment_method,
-                paid_at,
-                seats: seats_json,
-                trip: trip_preview,
-            });
-        }
-
-        Ok(items)
-    }
-
-    // ── Private helpers ─────────────────────────────────────────
-
-    /// Fetch seat definitions by IDs.
-    async fn fetch_seat_defs(
-        &self,
-        seat_ids: &[String],
-    ) -> AppResult<HashMap<String, seat::Model>> {
-        if seat_ids.is_empty() {
-            return Ok(HashMap::new());
-        }
-        let rows = self
-            .store
-            .trip_store()
-            .list_seats_by_ids(seat_ids.to_vec())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        Ok(rows.into_iter().map(|s| (s.id.to_string(), s)).collect())
+        Ok(b)
     }
 }
 
@@ -1338,24 +879,6 @@ pub fn to_base36(mut n: i64) -> String {
     out.into_iter().collect()
 }
 
-/// Parse the `photos` JSON column → `Vec<String>`.
-pub fn parse_photos(raw: &str) -> Vec<String> {
-    if raw.is_empty() {
-        return Vec::new();
-    }
-    let v: serde_json::Value = match serde_json::from_str(raw) {
-        Ok(v) => v,
-        Err(_) => return Vec::new(),
-    };
-    v.as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|x| x.as_str().map(|s| s.to_string()))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 /// Current UTC time as ISO 8601 string.
 fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
@@ -1411,34 +934,6 @@ fn seat_passengers<'a>(
         .collect()
 }
 
-impl BookingService {
-    /// Boarding and drop-off must be stops of the trip's route. A route
-    /// without pickup points takes neither (passengers board at the
-    /// schedule's stops).
-    async fn check_stops(&self, route_id: Uuid, req: &HoldReq) -> AppResult<()> {
-        let points = self
-            .store
-            .route_store()
-            .list_pickup_points_by_route(&route_id.to_string())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        let on_route = |id: Option<Uuid>| id.is_some_and(|id| points.iter().any(|p| p.id == id));
-        let given = [req.boarding_point_id, req.dropping_point_id];
-        let ok = if points.is_empty() {
-            given.iter().all(Option::is_none)
-        } else {
-            given.into_iter().all(on_route)
-        };
-        if ok {
-            Ok(())
-        } else {
-            Err(AppError::BadRequest(
-                "choose a boarding and a drop-off point of this route".into(),
-            ))
-        }
-    }
-}
-
 // ────────────────────────────────────────────────────────────────
 //  Unit tests
 // ────────────────────────────────────────────────────────────────
@@ -1446,6 +941,7 @@ impl BookingService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entity::trip_session;
     use crate::service::test_support::{fixture, hold_req, seed_trip_with_seats};
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
@@ -1517,17 +1013,6 @@ mod tests {
         assert_eq!(to_base36(36), "10");
     }
 
-    #[test]
-    fn parse_photos_valid_json_array() {
-        let v = parse_photos(r#"["a.jpg","b.jpg"]"#);
-        assert_eq!(v, vec!["a.jpg", "b.jpg"]);
-    }
-
-    #[test]
-    fn parse_photos_garbage_is_empty() {
-        assert!(parse_photos("not-json").is_empty());
-    }
-
     // ── hold flow (integration-shaped, in-memory DB) ──────────────
     //
     // Boots the full CompositeStore over a fresh in-memory DB with the
@@ -1550,12 +1035,12 @@ mod tests {
         migrator::Migrator::up(store.db(), None).await.unwrap();
         let svc = BookingService::new(store.clone());
 
-        let (trip_id, seats, point) = seed_trip_with_seats(&store, 3).await;
+        let (trip_id, seats, stops) = seed_trip_with_seats(&store, 3).await;
         let [a, b, c] = [seats[0], seats[1], seats[2]];
 
         // 1) A clean two-seat hold succeeds and writes exactly one
         //    booking with two line items.
-        let resp = svc.hold(None, &hold_req(trip_id, vec![a, b], point)).await;
+        let resp = svc.hold(None, &hold_req(trip_id, vec![a, b], stops)).await;
         let resp = resp.expect("first hold must succeed");
         let booking_count = booking::Entity::find().count(store.db()).await.unwrap();
         assert_eq!(booking_count, 1);
@@ -1579,7 +1064,7 @@ mod tests {
         //    The pre-fix flow inserted the second booking + seats before
         //    discovering the conflict, leaving them forever.
         let err = svc
-            .hold(None, &hold_req(trip_id, vec![a, b], point))
+            .hold(None, &hold_req(trip_id, vec![a, b], stops))
             .await
             .expect_err("duplicate hold must conflict");
         assert!(matches!(err, AppError::Conflict(_)), "got: {err:?}");
@@ -1594,7 +1079,7 @@ mod tests {
         // 3) Partial claim: [a (held), c (free)] — the bulk claim takes
         //    only c, sees 1 != 2, and must RELEASE c on the way out.
         let err = svc
-            .hold(None, &hold_req(trip_id, vec![a, c], point))
+            .hold(None, &hold_req(trip_id, vec![a, c], stops))
             .await
             .expect_err("mixed hold must conflict");
         assert!(matches!(err, AppError::Conflict(_)), "got: {err:?}");
@@ -1652,24 +1137,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn only_the_owner_may_confirm_and_only_while_pending() {
+    async fn paying_on_board_places_the_booking_for_the_operator_to_confirm() {
         let f = fixture(2).await;
         let (owner, stranger) = (f.owner().await, f.owner().await);
         let held = f.hold(owner, 1).await;
 
         let err = f
             .svc
-            .confirm(stranger, held.booking_id, "cod")
+            .place_cash(stranger, held.booking_id)
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::Forbidden(_)), "{err:?}");
-        f.svc.confirm(owner, held.booking_id, "cod").await.unwrap();
-        let err = f
-            .svc
-            .confirm(owner, held.booking_id, "cod")
-            .await
-            .unwrap_err();
-        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+
+        let placed = f.svc.place_cash(owner, held.booking_id).await.unwrap();
+        assert_eq!(
+            (placed.status.as_str(), placed.payment_method.as_str()),
+            ("pending", "cod")
+        );
+        // Still the customer's seat, held until the trip leaves (tomorrow),
+        // well past the checkout hold; the sweep leaves it alone.
+        let b = f.booking(held.booking_id).await;
+        assert_eq!(b.payment_method.as_deref(), Some("cod"));
+        assert!(b.expires_at.unwrap() > now_plus_iso(6 * 3600));
+        f.svc.expire_stale_holds(100).await.unwrap();
+        assert_eq!(f.seats_now().await, (1, 1, 0, 1));
     }
 
     #[tokio::test]
@@ -1703,11 +1194,30 @@ mod tests {
         let f = fixture(2).await;
         let owner = f.owner().await;
         let held = f.hold(owner, 2).await;
-        f.svc.confirm(owner, held.booking_id, "cod").await.unwrap();
+        f.svc
+            .confirm_as_system(held.booking_id, "vnpay")
+            .await
+            .unwrap();
         assert_eq!(f.seats_now().await, (0, 0, 2, 0));
 
         f.svc.cancel(owner, held.booking_id, None).await.unwrap();
         assert_eq!(f.seats_now().await, (2, 0, 0, 2));
+    }
+
+    #[tokio::test]
+    async fn a_trip_that_has_left_cannot_be_cancelled() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        f.svc.place_cash(owner, held.booking_id).await.unwrap();
+        f.depart_in(-1).await;
+        let err = f
+            .svc
+            .cancel(owner, held.booking_id, None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
+        assert_eq!(f.booking(held.booking_id).await.status, "pending");
     }
 
     #[tokio::test]
@@ -1761,12 +1271,12 @@ mod tests {
         let pay = f.payment(&stale, owner, "pending").await;
         let fresh = f
             .svc
-            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[2]], f.point))
+            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[2]], f.stops))
             .await
             .unwrap();
         let paid = f
             .svc
-            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[3]], f.point))
+            .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[3]], f.stops))
             .await
             .unwrap();
         f.svc
@@ -1807,7 +1317,7 @@ mod tests {
         let abandoned = f.hold(first, 1).await;
         let err = f
             .svc
-            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.point))
+            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.stops))
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::Conflict(_)), "{err:?}");
@@ -1815,23 +1325,19 @@ mod tests {
         f.age_hold(abandoned.booking_id, 5).await;
         f.svc.expire_stale_holds(100).await.unwrap();
         f.svc
-            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.point))
+            .hold_with_user(second, &hold_req(f.trip, f.seats.clone(), f.stops))
             .await
             .expect("the seat is on sale again");
     }
 
     #[tokio::test]
-    async fn a_customer_confirming_after_the_deadline_gets_gone_and_the_seats_back() {
+    async fn placing_after_the_deadline_gets_gone_and_the_seats_back() {
         let f = fixture(2).await;
         let owner = f.owner().await;
         let held = f.hold(owner, 2).await;
         f.age_hold(held.booking_id, 5).await;
 
-        let err = f
-            .svc
-            .confirm(owner, held.booking_id, "cod")
-            .await
-            .unwrap_err();
+        let err = f.svc.place_cash(owner, held.booking_id).await.unwrap_err();
         assert!(matches!(err, AppError::Gone(_)), "{err:?}");
         assert_eq!(f.booking(held.booking_id).await.status, "cancelled");
         assert_eq!(f.seats_now().await, (2, 0, 0, 2));
@@ -1868,7 +1374,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn extending_a_hold_moves_the_deadline_out_and_never_in() {
+    async fn starting_a_payment_keeps_the_seats_for_it() {
         let f = fixture(1).await;
         let owner = f.owner().await;
         let held = f.hold(owner, 1).await;
@@ -1876,11 +1382,13 @@ mod tests {
 
         assert!(f
             .svc
-            .extend_hold_for_payment(held.booking_id)
+            .hold_for_payment(held.booking_id, "vnpay")
             .await
             .unwrap());
-        let after = f.booking(held.booking_id).await.expires_at.unwrap();
+        let b = f.booking(held.booking_id).await;
+        let after = b.expires_at.unwrap();
         assert!(after > before, "{before} -> {after}");
+        assert_eq!(b.payment_method.as_deref(), Some("vnpay"));
         let seat = seat_inventory::Entity::find()
             .filter(seat_inventory::Column::HeldByBookingId.eq(held.booking_id))
             .one(f.store.db())
@@ -1889,15 +1397,10 @@ mod tests {
             .unwrap();
         assert_eq!(seat.held_until.as_deref(), Some(after.as_str()));
 
-        // Asking for less than the current deadline changes nothing.
-        let store = f.store.booking_store();
-        assert!(store.extend_hold(held.booking_id, &before).await.unwrap());
-        assert_eq!(f.booking(held.booking_id).await.expires_at.unwrap(), after);
-
         f.svc.cancel(owner, held.booking_id, None).await.unwrap();
         assert!(!f
             .svc
-            .extend_hold_for_payment(held.booking_id)
+            .hold_for_payment(held.booking_id, "vnpay")
             .await
             .unwrap());
     }
@@ -1909,7 +1412,7 @@ mod tests {
         f.depart_in(-2).await;
         let err = f
             .svc
-            .hold_with_user(owner, &hold_req(f.trip, f.seats.clone(), f.point))
+            .hold_with_user(owner, &hold_req(f.trip, f.seats.clone(), f.stops))
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::BadRequest(_)), "{err:?}");
@@ -1945,7 +1448,7 @@ mod tests {
             .await
             .ok();
 
-        let mut req = hold_req(f.trip, vec![f.seats[0]], f.point);
+        let mut req = hold_req(f.trip, vec![f.seats[0]], f.stops);
         req.campaign_code = Some("once".into());
         let first = f.svc.hold_with_user(owner, &req).await.unwrap();
         assert_eq!(

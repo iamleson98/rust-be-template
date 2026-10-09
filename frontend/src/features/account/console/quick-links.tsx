@@ -1,23 +1,10 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  Bell,
-  ChevronRight,
-  Gift,
-  History,
-  MessageSquareHeart,
-  ShieldCheck,
-  Ticket,
-} from 'lucide-react'
+import { ChevronRight, Gift, History, KeyRound, MessageSquareHeart, Ticket } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useT } from '@/lib/i18n'
 
-type LinkTarget =
-  | '/account/trips'
-  | '/account/feedback'
-  | '/account/loyalty'
-  | '/account/notifications'
-  | '/account/security'
+type LinkTarget = '/account/trips' | '/account/feedback' | '/account/loyalty' | '/account/password'
 
 const icon = (Icon: typeof Ticket, color: string): ReactNode => (
   <Icon className={`h-4 w-4 ${color}`} />
@@ -49,16 +36,10 @@ const LINKS: { to: LinkTarget; icon: ReactNode; label: string; desc: string }[] 
     desc: 'accountPage.qkLoyaltyDesc',
   },
   {
-    to: '/account/notifications',
-    icon: icon(Bell, 'text-blue-600'),
-    label: 'account.notifications',
-    desc: 'accountPage.qkNotificationsDesc',
-  },
-  {
-    to: '/account/security',
-    icon: icon(ShieldCheck, 'text-emerald-600'),
-    label: 'accountPage.qkSecurity',
-    desc: 'accountPage.qkSecurityDesc',
+    to: '/account/password',
+    icon: icon(KeyRound, 'text-emerald-600'),
+    label: 'accountPage.passwordShort',
+    desc: 'accountPage.passwordDesc',
   },
 ]
 

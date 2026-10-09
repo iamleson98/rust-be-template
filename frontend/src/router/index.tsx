@@ -60,11 +60,13 @@ const brand = createRoute({
   staticData: { seo: 'brandDetail' },
 })
 
+// Old ticket links (emails, bookmarks) open the ticket in the console.
 const booking = createRoute({
   getParentRoute: () => rootRoute,
   path: '/bookings/$code',
-  component: lazy(() => import('@/features/booking/booking-detail-page'), 'BookingDetailPage'),
-  staticData: { seo: 'bookingDetail' },
+  beforeLoad: ({ params }) => {
+    throw redirect({ to: '/account/trips/$code', params, replace: true })
+  },
 })
 
 const compare = createRoute({
@@ -206,26 +208,26 @@ const accountPages = {
     component: lazy(() => import('@/features/booking/history/my-bookings'), 'MyBookings'),
     staticData: { seo: 'accountTrips' },
   }),
+  ticket: createRoute({
+    getParentRoute: () => account,
+    path: '/trips/$code',
+    component: lazy(
+      () => import('@/features/booking/history/ticket-detail-page'),
+      'TicketDetailPage',
+    ),
+    staticData: { seo: 'accountTicket' },
+  }),
   loyalty: createRoute({
     getParentRoute: () => account,
     path: '/loyalty',
     component: lazy(() => import('@/features/loyalty/loyalty-page'), 'AccountLoyaltyPage'),
     staticData: { seo: 'accountLoyalty' },
   }),
-  notifications: createRoute({
+  password: createRoute({
     getParentRoute: () => account,
-    path: '/notifications',
-    component: lazy(
-      () => import('@/features/notifications/notifications-page'),
-      'AccountNotificationsPage',
-    ),
-    staticData: { seo: 'accountNotifications' },
-  }),
-  security: createRoute({
-    getParentRoute: () => account,
-    path: '/security',
-    component: lazy(() => import('@/features/account/security-page'), 'AccountSecurityPage'),
-    staticData: { seo: 'accountSecurity' },
+    path: '/password',
+    component: lazy(() => import('@/features/account/password-page'), 'AccountPasswordPage'),
+    staticData: { seo: 'accountPassword' },
   }),
   feedback: createRoute({
     getParentRoute: () => account,

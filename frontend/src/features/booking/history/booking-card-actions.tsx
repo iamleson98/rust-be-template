@@ -1,21 +1,16 @@
 'use client'
 
-// Extracted from the original 'booking-card.tsx'.
-
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useNavigate } from '@tanstack/react-router'
 import { Eye, Loader2, Ban, MessageSquare, Star, QrCode, Search } from 'lucide-react'
 import { useT } from '@/lib/i18n'
+import { TicketQrDialog } from './ticket-qr-dialog'
 
-/* ─── Action row ─────────────────────────────────────
-    Both the feedback button (completed bookings) and the
-    directions-to-pickup button (upcoming bookings, added
-    by Subagent A / ROUTE-1) live here. `extraActions`
-    lets other subagents plug in without modifying this
-    component.
-*/
+/** A ticket card's actions: details, QR (shown in place), cancel, review, book again. */
 export function BookingCardActions({
   bookingCode,
+  hasQr,
   canCancel,
   cancelling,
   onCancelClick,
@@ -26,9 +21,9 @@ export function BookingCardActions({
   extraActions,
   onExploreOther,
 }: {
-  /** Booking code — powers the (previously dead) View-details + QR
-   *  buttons, which now deep-link to `/bookings/$code`. */
   bookingCode: string
+  /** The ticket is open, so it has a boarding QR. */
+  hasQr: boolean
   canCancel: boolean
   cancelling?: boolean
   onCancelClick?: () => void
@@ -41,7 +36,8 @@ export function BookingCardActions({
 }) {
   const t = useT()
   const navigate = useNavigate()
-  const goToDetail = () => navigate({ to: '/bookings/$code', params: { code: bookingCode } })
+  const [qrOpen, setQrOpen] = useState(false)
+  const goToDetail = () => navigate({ to: '/account/trips/$code', params: { code: bookingCode } })
   return (
     <div className="flex items-center gap-2 pt-2 flex-wrap">
       <Button
@@ -96,14 +92,13 @@ export function BookingCardActions({
         </Button>
       )}
 
-      {/* The real scannable QR lives on the booking-detail page —
-          this button deep-links there (it was a decorative no-op). */}
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={goToDetail}>
-        <QrCode className="h-3.5 w-3.5" />
-        {t('bookingHistory.qrCode')}
-      </Button>
+      {hasQr && (
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setQrOpen(true)}>
+          <QrCode className="h-3.5 w-3.5" />
+          {t('bookingHistory.qrCode')}
+        </Button>
+      )}
 
-      {/* Extensible slot — Subagent A's directions button goes here. */}
       {extraActions}
 
       <Button
@@ -115,6 +110,8 @@ export function BookingCardActions({
         <Search className="h-3.5 w-3.5" />
         {t('bookingHistory.bookAnotherTrip')}
       </Button>
+
+      <TicketQrDialog code={qrOpen ? bookingCode : null} onOpenChange={setQrOpen} />
     </div>
   )
 }

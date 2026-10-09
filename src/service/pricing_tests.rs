@@ -98,7 +98,7 @@ fn passenger(age: i64, seat: Option<Uuid>, claimed: &str) -> PassengerReq {
 fn two_passengers(f: &Fixture, passengers: Vec<PassengerReq>) -> HoldReq {
     HoldReq {
         passengers,
-        ..hold_req(f.trip, f.seats[..2].to_vec(), f.point)
+        ..hold_req(f.trip, f.seats[..2].to_vec(), f.stops)
     }
 }
 
@@ -109,7 +109,7 @@ async fn class_fares_reprice_unsold_seats_only() {
     // Seat 2 is held before the fare changes and keeps its price.
     let held = f
         .svc
-        .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[1]], f.point))
+        .hold_with_user(owner, &hold_req(f.trip, vec![f.seats[1]], f.stops))
         .await
         .unwrap();
     f.vip_first_seat().await;
@@ -200,11 +200,11 @@ async fn boarding_points_must_be_stops_of_the_route() {
     let owner = f.owner().await;
     let elsewhere = HoldReq {
         boarding_point_id: Some(Uuid::new_v4()),
-        ..hold_req(f.trip, vec![f.seats[0]], f.point)
+        ..hold_req(f.trip, vec![f.seats[0]], f.stops)
     };
     let missing = HoldReq {
         dropping_point_id: None,
-        ..hold_req(f.trip, vec![f.seats[0]], f.point)
+        ..hold_req(f.trip, vec![f.seats[0]], f.stops)
     };
     for req in [elsewhere, missing] {
         let err = f.svc.hold_with_user(owner, &req).await.unwrap_err();
@@ -215,15 +215,25 @@ async fn boarding_points_must_be_stops_of_the_route() {
 #[tokio::test]
 async fn a_route_without_pickup_points_books_without_them() {
     let f = fixture(1).await;
-    pickup_point::Entity::delete_by_id(f.point)
-        .exec(f.store.db())
-        .await
-        .unwrap();
+    for stop in [f.stops.0, f.stops.1] {
+        pickup_point::Entity::delete_by_id(stop)
+            .exec(f.store.db())
+            .await
+            .unwrap();
+    }
     let req = HoldReq {
         boarding_point_id: None,
         dropping_point_id: None,
-        ..hold_req(f.trip, vec![f.seats[0]], f.point)
+        ..hold_req(f.trip, vec![f.seats[0]], f.stops)
     };
     let held = f.svc.hold_with_user(f.owner().await, &req).await.unwrap();
     assert_eq!(held.total, STANDARD);
+    // The ticket names the route's cities instead.
+    let ticket = f
+        .svc
+        .detail(f.owner_of(held.booking_id).await, &held.code)
+        .await
+        .unwrap();
+    assert_eq!(ticket.pickup.unwrap().name, "Hà Nội");
+    assert_eq!(ticket.dropoff.unwrap().name, "Đà Nẵng");
 }

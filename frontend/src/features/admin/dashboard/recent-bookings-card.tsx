@@ -15,14 +15,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MapPin, Ticket, Download } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import { formatVND } from '@/lib/format'
-import type { AdminBookingOut } from '@/api'
-import { BookingStatusBadge } from './booking-status-badge'
+import type { BookingOut } from '@/api'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 
 // ── "Recent bookings" table columns (shared DataTable) ────────
 // Built per render (see `getRecentBookingsColumns`) so column labels
 // follow the active language.
 
-const recentColumnHelper = createColumnHelper<DataTableFeatures, AdminBookingOut>()
+const recentColumnHelper = createColumnHelper<DataTableFeatures, BookingOut>()
 
 const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
   recentColumnHelper.columns([
@@ -48,9 +48,8 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
       id: 'route',
       header: t('adminDash.route'),
       cell: ({ row }) => {
-        const routeLabel = [row.original.pickupName, row.original.dropoffName]
-          .filter(Boolean)
-          .join(' → ')
+        const trip = row.original.trip
+        const routeLabel = trip ? `${trip.fromName ?? '—'} → ${trip.toName ?? '—'}` : ''
         return routeLabel ? (
           <span className="flex items-center gap-1 text-muted-foreground">
             <MapPin className="h-3 w-3 shrink-0 text-blue-500" aria-hidden />
@@ -74,7 +73,7 @@ const getRecentBookingsColumns = (t: ReturnType<typeof useT>) =>
     }),
     recentColumnHelper.accessor('status', {
       header: ({ column }) => <DataTableColumnHeader column={column} title={t('common.status')} />,
-      cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
+      cell: ({ row }) => <TicketStatusBadge booking={row.original} className="text-[10px]" />,
       sortFn: 'text',
       meta: { label: t('common.status'), align: 'center' },
     }),
@@ -103,7 +102,7 @@ export function RecentBookingsCard({
   recentBookings,
   onExportCSV,
 }: {
-  recentBookings: AdminBookingOut[]
+  recentBookings: BookingOut[]
   onExportCSV: () => void
 }) {
   const t = useT()

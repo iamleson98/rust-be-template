@@ -56,6 +56,22 @@ pub fn local_today() -> String {
         .to_string()
 }
 
+/// When the Vietnamese calendar day `date` (`YYYY-MM-DD`) starts, in UTC.
+pub fn local_day_start(date: &str) -> Option<DateTime<Utc>> {
+    let date = NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").ok()?;
+    local_to_utc(date.and_time(NaiveTime::MIN))
+}
+
+/// The Vietnamese calendar day (`YYYY-MM-DD`) an RFC 3339 instant falls on.
+pub fn local_date(instant: &str) -> Option<String> {
+    let t = DateTime::parse_from_rfc3339(instant.trim()).ok()?;
+    Some(
+        t.with_timezone(&local_offset())
+            .format("%Y-%m-%d")
+            .to_string(),
+    )
+}
+
 /// Share of the paid amount handed back when cancelling `hours_until`
 /// hours before departure: more than 24 h → 90 %, more than 4 h → 50 %,
 /// otherwise nothing.
@@ -122,6 +138,21 @@ mod tests {
         assert_eq!(departure_instant("tomorrow", "08:30", None), None);
         assert_eq!(departure_instant("2026-10-10", "late", None), None);
         assert_eq!(departure_instant("", "", None), None);
+    }
+
+    #[test]
+    fn calendar_days_are_vietnamese() {
+        assert_eq!(
+            local_day_start("2026-10-10"),
+            Some(at("2026-10-09T17:00:00Z"))
+        );
+        assert_eq!(local_day_start("10/10/2026"), None);
+        // 23:30 UTC is already the next morning in Vietnam.
+        assert_eq!(
+            local_date("2026-10-09T23:30:00Z").as_deref(),
+            Some("2026-10-10")
+        );
+        assert_eq!(local_date("yesterday"), None);
     }
 
     #[test]

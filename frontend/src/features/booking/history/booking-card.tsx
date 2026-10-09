@@ -3,31 +3,17 @@
 import { memo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { VEHICLE_TYPE_LABELS } from '@/lib/labels'
-import { formatCurrency } from '@/lib/format'
+import { formatCurrency, formatDateVN, formatTimeVN } from '@/lib/format'
 import type { Currency } from '@/lib/format'
 import { useT } from '@/lib/i18n'
-import {
-  Bus,
-  User,
-  Clock,
-  XCircle,
-  CheckCircle2,
-  Tag,
-  Sparkles,
-  Hash,
-  Timer,
-  ArrowRightLeft,
-  Landmark,
-  AlertCircle,
-  Star,
-} from 'lucide-react'
+import { Bus, User, Tag, Sparkles, Hash, Timer, ArrowRightLeft, Star } from 'lucide-react'
 import {
   BookingItem,
-  STATUS_CONFIG,
+  effectiveDeparture,
   isBookingReviewable,
 } from '@/features/booking/history/booking-types'
 import { BookingCardDetails } from './booking-card-details'
+import { TicketStatusBadge } from './ticket-status-badge'
 
 type Props = {
   b: BookingItem
@@ -43,28 +29,11 @@ type Props = {
   feedbackOpen?: boolean
   /** Whether the user has already submitted a review for this booking. */
   hasReview?: boolean
-  /** Optional extra action buttons (rendered in the action row). Used by
-   *  Subagent A (ROUTE-1) for the "Đường đi đến điểm đón" button. */
+  /** Extra action buttons for the action row. */
   extraActions?: React.ReactNode
 }
 
-function StatusIcon({ name }: { name: 'check' | 'clock' | 'xcircle' | 'alert' | 'landmark' }) {
-  if (name === 'check') return <CheckCircle2 className="h-3.5 w-3.5" />
-  if (name === 'clock') return <Clock className="h-3.5 w-3.5" />
-  if (name === 'xcircle') return <XCircle className="h-3.5 w-3.5" />
-  if (name === 'landmark') return <Landmark className="h-3.5 w-3.5" />
-  return <AlertCircle className="h-3.5 w-3.5" />
-}
-
-/**
- * BookingCard — single booking item. Memoized so re-renders of the parent
- * list (e.g. when filtering tabs) don't re-render cards whose props are
- * unchanged.
- *
- * The action row at the bottom of the expanded details supports arbitrary
- * `extraActions` so other subagents (ROUTE-1 directions-to-pickup button)
- * can plug in without modifying this component.
- */
+/** One ticket in the history list; memoized so tab switches re-render only what changed. */
 function BookingCardImpl({
   b,
   currency,
@@ -78,15 +47,13 @@ function BookingCardImpl({
   hasReview,
   extraActions,
 }: Props) {
-  const sc = STATUS_CONFIG[b.status] ?? STATUS_CONFIG.pending
-  const canCancel = b.status === 'held' || b.status === 'pending' || b.status === 'confirmed'
   const canReview = isBookingReviewable(b)
   const t = useT()
-  const depTime = b.trip ? new Date(b.trip.departureAt) : null
-  // Snapshot of 'now' taken once per mount — Date.now() directly in the
-  // render body is impure (breaks memoization under React Compiler).
+  const departs = effectiveDeparture(b)
+  const departure = b.trip?.departureAt ?? b.trip?.departureDate
+  // Snapshot of 'now' taken once per mount — Date.now() in the render body is impure.
   const [now] = useState(Date.now)
-  const isUpcoming = depTime ? depTime.getTime() > now : false
+  const isUpcoming = departs > now
   const accentColor = b.trip?.brandAccent ?? '#2563eb'
 
   return (
@@ -115,11 +82,7 @@ function BookingCardImpl({
                     <code className="text-xl font-mono font-extrabold text-blue-700 tracking-tight">
                       {b.code}
                     </code>
-                    <Badge
-                      className={`text-[11px] gap-1 px-2.5 py-0.5 ${sc.cls} border-0 font-semibold`}
-                    >
-                      <StatusIcon name={sc.icon} /> {t(sc.labelKey)}
-                    </Badge>
+                    <TicketStatusBadge booking={b} className="px-2.5 py-0.5 text-[11px]" />
                     {isUpcoming && b.status !== 'cancelled' && (
                       <Badge className="text-[10px] gap-1 bg-blue-100 text-blue-700 border-0 font-semibold">
                         <Sparkles className="h-3 w-3" /> {t('bookingHistory.upcoming')}
@@ -131,12 +94,6 @@ function BookingCardImpl({
                         {t('bookingHistory.reviewed')}
                       </Badge>
                     )}
-                  </div>
-                  {/* QR placeholder */}
-                  <div className="h-10 w-10 rounded-lg bg-slate-100 ring-1 ring-black/5 flex items-center justify-center shrink-0 group-hover:bg-blue-50 transition-colors">
-                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-blue-500 transition-colors">
-                      QR
-                    </span>
                   </div>
                 </div>
 
@@ -155,10 +112,12 @@ function BookingCardImpl({
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                           <span className="font-medium text-foreground/80">{b.trip.brandName}</span>
-                          <span className="text-muted-foreground/60">•</span>
-                          <span>
-                            {t(VEHICLE_TYPE_LABELS[b.trip.vehicleType] ?? b.trip.vehicleType)}
-                          </span>
+                          {b.trip.busLayoutName && (
+                            <>
+                              <span className="text-muted-foreground/60">•</span>
+                              <span>{b.trip.busLayoutName}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -168,38 +127,26 @@ function BookingCardImpl({
                 {/* Row 3: Date/time + seats + price */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
                   {/* Date/time */}
-                  {b.trip && depTime && (
+                  {departure && (
                     <div className="flex items-center gap-2.5">
-                      <div className="flex flex-col items-center bg-blue-50/80 rounded-lg px-3 py-2 ring-1 ring-blue-100/50">
-                        <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wide">
-                          {new Date(b.trip.departureAt).toLocaleDateString('vi-VN', {
-                            weekday: 'short',
-                            timeZone: 'Asia/Ho_Chi_Minh',
-                          })}
+                      <div className="flex flex-col items-center rounded-lg bg-blue-50/80 px-3 py-2 ring-1 ring-blue-100/50">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                          {formatDateVN(departure, { weekday: 'short' })}
                         </span>
-                        <span className="text-lg font-extrabold text-blue-800 leading-tight">
-                          {new Date(b.trip.departureAt).toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            timeZone: 'Asia/Ho_Chi_Minh',
-                          })}
+                        <span className="text-lg font-extrabold leading-tight text-blue-800">
+                          {formatDateVN(departure, { day: '2-digit' })}
                         </span>
                         <span className="text-[10px] text-blue-600">
-                          {new Date(b.trip.departureAt).toLocaleDateString('vi-VN', {
-                            month: '2-digit',
-                            year: 'numeric',
-                            timeZone: 'Asia/Ho_Chi_Minh',
-                          })}
+                          {formatDateVN(departure, { month: '2-digit', year: 'numeric' })}
                         </span>
                       </div>
                       <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-1.5">
                           <Timer className="h-3.5 w-3.5 text-blue-500" />
                           <span className="text-sm font-bold">
-                            {new Date(b.trip.departureAt).toLocaleTimeString('vi-VN', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              timeZone: 'Asia/Ho_Chi_Minh',
-                            })}
+                            {b.trip?.departureAt
+                              ? formatTimeVN(b.trip.departureAt)
+                              : b.trip?.departureTime}
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -217,7 +164,7 @@ function BookingCardImpl({
                         key={i}
                         className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-medium ring-1 ring-black/5"
                       >
-                        <span className="font-mono font-bold">{s.code}</span>
+                        <span className="font-mono font-bold">{s.seatCode ?? '—'}</span>
                       </span>
                     ))}
                     {b.seats.length > 0 && (
@@ -252,7 +199,6 @@ function BookingCardImpl({
               currency={currency}
               isExpanded={isExpanded}
               onToggleExpand={onToggleExpand}
-              canCancel={canCancel}
               cancelling={cancelling}
               onCancelClick={onCancelClick}
               canReview={canReview}

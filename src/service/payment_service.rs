@@ -159,16 +159,19 @@ impl PaymentService {
         if hold_expired(&booking) {
             return Err(AppError::Gone("booking hold has expired".into()));
         }
-        if req.provider == providers::COD {
-            // Paying on the bus is a commitment, not a pending payment: the
-            // seats are the customer's from now on (the driver collects the
-            // cash at boarding, possibly days away, long past any hold).
+        // Paying on board places the booking: its seats wait until departure
+        // for the operator's confirmation call. A gateway payment needs longer
+        // than the checkout hold; the seats stay put while it runs.
+        let held = if req.provider == providers::COD {
             self.booking
-                .confirm_as_system(booking.id, providers::COD)
-                .await?;
-        } else if !self.booking.extend_hold_for_payment(booking.id).await? {
-            // A gateway payment needs longer than the initial hold; the
-            // seats stay put for as long as it may take.
+                .hold_until_departure(&booking, providers::COD)
+                .await?
+        } else {
+            self.booking
+                .hold_for_payment(booking.id, &req.provider)
+                .await?
+        };
+        if !held {
             return Err(AppError::BadRequest(
                 "booking is not in pending status".into(),
             ));
@@ -1122,7 +1125,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_cash_payment_commits_the_booking_and_collecting_completes_it() {
+    async fn a_cash_payment_places_the_booking_and_collecting_confirms_it() {
         let f = fixture(1).await;
         let owner = f.owner().await;
         let held = f.hold(owner, 1).await;
@@ -1132,14 +1135,16 @@ mod tests {
             .create_payment(&cod(held.booking_id), Some(&id_of(owner)))
             .await
             .unwrap();
-        assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
-        assert_eq!(f.seats_now().await, (0, 0, 1, 0));
+        // Placed: the seat stays held until departure for the operator's call.
+        let b = f.booking(held.booking_id).await;
+        assert_eq!(
+            (b.status.as_str(), b.payment_method.as_deref()),
+            ("pending", Some("cod"))
+        );
+        assert_eq!(f.seats_now().await, (0, 1, 0, 0));
         assert_eq!(f.payment_status(made.payment.id).await, "pending");
-
-        // The booking is no longer pending, so the sweep leaves it alone for good.
-        f.age_hold(held.booking_id, 3600).await;
         f.svc.expire_stale_holds(10).await.unwrap();
-        assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
+        assert_eq!(f.booking(held.booking_id).await.status, "pending");
 
         let admin = Uuid::new_v4();
         f.payments
@@ -1156,7 +1161,6 @@ mod tests {
         let owner = f.owner().await;
         let held = f.hold(owner, 1).await;
         let first = f.payment(&held, owner, "pending").await;
-        // COD would confirm the booking; start a second pending payment directly instead.
         f.payments
             .cancel_prior_pending_payments(held.booking_id)
             .await

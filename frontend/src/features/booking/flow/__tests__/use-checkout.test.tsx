@@ -76,10 +76,14 @@ beforeEach(() => {
 })
 
 describe('useCheckout', () => {
-  it('holds the seats and confirms a cash booking straight away', async () => {
+  it('places a cash booking for the operator to confirm by phone', async () => {
     const api = mockApi({
       'POST /api/bookings': hold,
-      [`POST /api/bookings/${BOOKING}/confirm`]: { bookingId: BOOKING, status: 'confirmed' },
+      [`POST /api/bookings/${BOOKING}/place`]: {
+        bookingId: BOOKING,
+        status: 'pending',
+        paymentMethod: 'cod',
+      },
     })
     const { result } = setup('cod')
 
@@ -90,10 +94,11 @@ describe('useCheckout', () => {
       id: BOOKING,
       code: 'VX-ABC123',
       total: 350000,
+      awaitingCall: true,
     })
     expect(api.calls.map((c) => `${c.method} ${c.url.pathname}`)).toEqual([
       'POST /api/bookings',
-      `POST /api/bookings/${BOOKING}/confirm`,
+      `POST /api/bookings/${BOOKING}/place`,
     ])
     expect(result.current.error).toBe('')
   })

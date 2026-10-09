@@ -84,6 +84,11 @@ pub trait ReviewStore: Send + Sync {
         brand_id: &str,
         status: &str,
     ) -> StoreResult<Vec<review::Model>>;
+    /// Reviews written for these bookings (at most one each).
+    async fn list_reviews_by_bookings(
+        &self,
+        booking_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<review::Model>>;
     async fn insert_review(&self, model: review::ActiveModel) -> StoreResult<()>;
     async fn update_review(&self, model: review::ActiveModel) -> StoreResult<review::Model>;
     async fn delete_review(&self, id: Uuid) -> StoreResult<()>;
@@ -277,6 +282,19 @@ impl ReviewStore for DbReviewStore {
         Ok(review::Entity::find()
             .filter(review::Column::BrandId.eq(bid))
             .filter(review::Column::Status.eq(status.to_string()))
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    async fn list_reviews_by_bookings(
+        &self,
+        booking_ids: Vec<Uuid>,
+    ) -> StoreResult<Vec<review::Model>> {
+        if booking_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok(review::Entity::find()
+            .filter(review::Column::BookingId.is_in(booking_ids))
             .all(self.db.as_ref())
             .await?)
     }

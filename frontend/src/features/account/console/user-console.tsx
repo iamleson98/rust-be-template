@@ -17,11 +17,11 @@ import { RecentPurchasesCard } from './recent-purchases-card'
 
 /** `/account`: the customer's home — hero, headline numbers, tickets, reviews owed, recent purchases, loyalty. */
 export function UserConsole() {
-  const bookingsQuery = useQuery(bookingsListOptions({ query: { status: 'all' } }))
+  const bookingsQuery = useQuery(bookingsListOptions())
   const { data: loyalty } = useLoyalty()
 
-  const bookings = useMemo(
-    () => (bookingsQuery.data?.items ?? []) as unknown as BookingItem[],
+  const bookings: BookingItem[] = useMemo(
+    () => bookingsQuery.data?.items ?? [],
     [bookingsQuery.data],
   )
   const awaiting = useMemo(

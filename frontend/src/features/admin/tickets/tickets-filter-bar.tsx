@@ -19,9 +19,8 @@ import {
   TrendingUp,
   Bus,
   CheckCircle2,
-  Clock,
   Ban,
-  RotateCcw,
+  PhoneCall,
 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
@@ -35,14 +34,14 @@ import { useT } from '@/lib/i18n'
 const STATUS_OPTIONS: { value: string; labelKey: string; icon: React.ReactNode }[] = [
   { value: 'all', labelKey: 'adminTickets.allStatuses', icon: <Filter className="h-3.5 w-3.5" /> },
   {
+    value: 'awaiting',
+    labelKey: 'adminTickets.statusAwaiting',
+    icon: <PhoneCall className="h-3.5 w-3.5 text-amber-600" />,
+  },
+  {
     value: 'confirmed',
     labelKey: 'adminTickets.statusConfirmed',
     icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />,
-  },
-  {
-    value: 'pending',
-    labelKey: 'adminTickets.statusPending',
-    icon: <Clock className="h-3.5 w-3.5 text-amber-600" />,
   },
   {
     value: 'completed',
@@ -53,11 +52,6 @@ const STATUS_OPTIONS: { value: string; labelKey: string; icon: React.ReactNode }
     value: 'cancelled',
     labelKey: 'adminTickets.statusCancelled',
     icon: <Ban className="h-3.5 w-3.5 text-rose-600" />,
-  },
-  {
-    value: 'refunded',
-    labelKey: 'adminTickets.statusRefunded',
-    icon: <RotateCcw className="h-3.5 w-3.5 text-slate-600" />,
   },
 ]
 

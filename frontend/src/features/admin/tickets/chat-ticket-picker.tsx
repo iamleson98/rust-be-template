@@ -20,7 +20,11 @@
  * and accessible (every interactive element has an aria-label).
  */
 
-import { bookingsConfirmMutation, bookingsHoldMutation } from '@/api'
+import {
+  adminBookingsUpdateStatusMutation,
+  bookingsHoldMutation,
+  bookingsPlaceMutation,
+} from '@/api'
 import { useMutation } from '@tanstack/react-query'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import {
@@ -158,7 +162,8 @@ export function ChatTicketPicker({
   )
   const tripDetail = useTripDetail(selectedTrip?.tripId)
   const createBooking = useMutation(bookingsHoldMutation())
-  const confirmBooking = useMutation(bookingsConfirmMutation())
+  const placeBooking = useMutation(bookingsPlaceMutation())
+  const confirmBooking = useMutation(adminBookingsUpdateStatusMutation())
 
   // ── Derived state ──
   const trip = tripDetail.data
@@ -272,12 +277,15 @@ export function ChatTicketPicker({
           contactEmail: contactEmail || undefined,
         },
       })
-      // Sold at the counter: paid in cash, so the seats are booked for good.
+      // Paid on board; staff selling it at the counter can confirm it on the spot.
+      await placeBooking.mutateAsync({ path: { id: held.bookingId } })
       const confirmed = autoConfirm
-        ? await confirmBooking.mutateAsync({
-            path: { id: held.bookingId },
-            body: { paymentMethod: 'cod' },
-          })
+        ? (
+            await confirmBooking.mutateAsync({
+              path: { id: held.bookingId },
+              body: { status: 'confirmed', reason: 'counter sale' },
+            })
+          ).item
         : null
       const payload: CreatedTicketPayload = {
         bookingId: held.bookingId,
@@ -321,6 +329,7 @@ export function ChatTicketPicker({
     boardingPointId,
     droppingPointId,
     createBooking,
+    placeBooking,
     confirmBooking,
     selectedSeats,
     passengers,

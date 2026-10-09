@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Ticket as TicketIcon, Bus, MapPin, Armchair, User as UserIcon } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import type { ChatMessageOut } from '@/api'
-import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 import type { CreatedTicketPayload } from '@/features/admin/tickets/chat-ticket-picker'
 
 const asPayload = (json: string | null | undefined): CreatedTicketPayload | null => {
@@ -57,7 +57,12 @@ export function TicketCardMessage({
             <TicketIcon className="h-3.5 w-3.5" />
             {t('adminChat.eTicket')}
           </div>
-          {payload.status && <BookingStatusBadge status={payload.status} />}
+          {payload.status && (
+            <TicketStatusBadge
+              booking={{ status: payload.status, paymentMethod: 'cod' }}
+              className="text-[10px]"
+            />
+          )}
         </div>
 
         {/* Body */}

@@ -36,9 +36,9 @@ import {
   useBookingsCsvExport,
   type AdminBookingFilter,
 } from './api'
-import type { AdminBookingOut } from '@/api'
+import type { BookingOut } from '@/api'
 
-import { BookingStatusBadge } from '@/features/admin/dashboard/booking-status-badge'
+import { TicketStatusBadge } from '@/features/booking/history/ticket-status-badge'
 import { PAGE_SIZE, formatVND, timeAgo } from './tickets-helpers'
 import { TicketsKpiCards } from './tickets-kpi-cards'
 import { TicketsFilterBar } from './tickets-filter-bar'
@@ -58,7 +58,7 @@ const SORT_API_BY_COLUMN: Record<string, { asc: string; desc: string }> = {
   total: { asc: 'total_asc', desc: 'total_desc' },
 }
 
-const bookingColumnHelper = createColumnHelper<DataTableFeatures, AdminBookingOut>()
+const bookingColumnHelper = createColumnHelper<DataTableFeatures, BookingOut>()
 
 // ── Main panel ───────────────────────────────────────────────
 
@@ -175,7 +175,12 @@ export function TicketsPanel() {
           header: t('adminTickets.route'),
           cell: ({ row }) => (
             <div className="text-xs">
-              {row.original.pickupName ?? '—'} → {row.original.dropoffName ?? '—'}
+              <div>
+                {row.original.trip?.fromName ?? '—'} → {row.original.trip?.toName ?? '—'}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {row.original.seats.map((s) => s.seatCode).join(', ')}
+              </div>
             </div>
           ),
           meta: { label: t('adminTickets.route'), cellClassName: 'hidden xl:table-cell' },
@@ -202,7 +207,7 @@ export function TicketsPanel() {
         }),
         bookingColumnHelper.accessor('status', {
           header: t('common.status'),
-          cell: ({ getValue }) => <BookingStatusBadge status={getValue()} />,
+          cell: ({ row }) => <TicketStatusBadge booking={row.original} className="text-[10px]" />,
           enableSorting: false,
           meta: { label: t('common.status') },
         }),

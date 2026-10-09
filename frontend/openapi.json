@@ -225,6 +225,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -251,6 +252,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -259,6 +261,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -267,6 +270,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -295,6 +299,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -332,6 +337,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -358,6 +364,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -366,6 +373,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -374,6 +382,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -402,6 +411,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -439,6 +449,7 @@
           {
             "name": "status",
             "in": "query",
+            "description": "A booking status, `awaiting` (pay on board, waiting for the phone\ncall) or `all`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -465,6 +476,7 @@
           {
             "name": "dateFrom",
             "in": "query",
+            "description": "First day booked on (`YYYY-MM-DD`, Vietnam).",
             "required": false,
             "schema": {
               "type": "string"
@@ -473,6 +485,7 @@
           {
             "name": "dateTo",
             "in": "query",
+            "description": "Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.",
             "required": false,
             "schema": {
               "type": "string"
@@ -481,6 +494,7 @@
           {
             "name": "search",
             "in": "query",
+            "description": "Code, contact name or phone contains this.",
             "required": false,
             "schema": {
               "type": "string"
@@ -509,6 +523,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`created_desc` (default), `created_asc`, `total_desc` or `total_asc`.",
             "required": false,
             "schema": {
               "type": "string"
@@ -580,7 +595,7 @@
         "tags": [
           "admin"
         ],
-        "summary": "`PATCH /api/admin/bookings/{id}` — update booking status (admin override).",
+        "summary": "`PATCH /api/admin/bookings/{id}` — confirm (after phoning the customer),\ncomplete or cancel a ticket. Completed and cancelled tickets are final.",
         "operationId": "update_status",
         "parameters": [
           {
@@ -610,7 +625,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UpdateBookingStatusResponse"
+                  "$ref": "#/components/schemas/AdminBookingDetailResponse"
                 }
               }
             }
@@ -623,6 +638,9 @@
           },
           "404": {
             "description": "Not found"
+          },
+          "409": {
+            "description": "The ticket is final or changed meanwhile"
           }
         }
       }
@@ -3136,6 +3154,43 @@
         }
       }
     },
+    "/api/auth/password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "`POST /api/auth/password` — change the signed-in user's password. Other\ndevices are signed out; this one gets fresh cookies.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Password changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Current password is incorrect"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        }
+      }
+    },
     "/api/auth/refresh": {
       "post": {
         "tags": [
@@ -3208,20 +3263,9 @@
         "tags": [
           "bookings"
         ],
-        "summary": "`GET /api/bookings` — list the authenticated user's bookings.",
+        "summary": "`GET /api/bookings` — the authenticated customer's tickets, newest first.",
         "operationId": "list",
         "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
           {
             "name": "limit",
             "in": "query",
@@ -3303,8 +3347,7 @@
         "tags": [
           "bookings"
         ],
-        "summary": "`GET /api/bookings/{id}` — get booking detail.",
-        "description": "`{id}` accepts EITHER the booking UUID (legacy/admin callers) or the\nhuman-facing booking code (frontend deep links like `/bookings/{code}`).",
+        "summary": "`GET /api/bookings/{id}` — one of the customer's bookings, by UUID or\nby its code.",
         "operationId": "detail",
         "parameters": [
           {
@@ -3323,7 +3366,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookingListItem"
+                  "$ref": "#/components/schemas/BookingOut"
                 }
               }
             }
@@ -3386,13 +3429,13 @@
         }
       }
     },
-    "/api/bookings/{id}/confirm": {
+    "/api/bookings/{id}/place": {
       "post": {
         "tags": [
           "bookings"
         ],
-        "summary": "`POST /api/bookings/{id}/confirm` — confirm a booking with payment.",
-        "operationId": "confirm",
+        "summary": "`POST /api/bookings/{id}/place` — pay on board: the booking is placed\nand its seats held until departure while the operator phones the\ncustomer to confirm it. Online payments go through `/api/payments`.",
+        "operationId": "place",
         "parameters": [
           {
             "name": "id",
@@ -3405,19 +3448,9 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConfirmReq"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
-            "description": "Booking confirmed",
+            "description": "Booking placed, awaiting the operator",
             "content": {
               "application/json": {
                 "schema": {
@@ -3431,6 +3464,9 @@
           },
           "403": {
             "description": "Forbidden"
+          },
+          "410": {
+            "description": "The seat hold ran out"
           }
         }
       }
@@ -6380,117 +6416,15 @@
           }
         }
       },
-      "AdminBookingDetail": {
-        "type": "object",
-        "description": "Admin booking detail — full shape with seats.",
-        "required": [
-          "id",
-          "code",
-          "status",
-          "subtotal",
-          "discount",
-          "fees",
-          "total",
-          "currency",
-          "createdAt",
-          "updatedAt",
-          "seats"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "contactEmail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactPhone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "discount": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "dropoffName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "fees": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "paymentMethod": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pickupName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "seats": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AdminBookingSeatOut"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "subtotal": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        }
-      },
       "AdminBookingDetailResponse": {
         "type": "object",
-        "description": "Response of `GET /api/admin/bookings/{id}`.",
+        "description": "Response of `GET /api/admin/bookings/{id}` and of a status change.",
         "required": [
           "item"
         ],
         "properties": {
           "item": {
-            "$ref": "#/components/schemas/AdminBookingDetail"
+            "$ref": "#/components/schemas/BookingOut"
           }
         }
       },
@@ -6528,6 +6462,7 @@
         "description": "Response of `GET /api/admin/bookings`.",
         "required": [
           "items",
+          "total",
           "limit",
           "offset"
         ],
@@ -6535,7 +6470,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AdminBookingOut"
+              "$ref": "#/components/schemas/BookingOut"
             }
           },
           "limit": {
@@ -6549,130 +6484,10 @@
             "minimum": 0
           },
           "total": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64",
-            "description": "Total matching-row count (independent of pagination). Omitted when\nthe server didn't compute it (older callers may rely on this).",
+            "description": "Bookings matching the filter, across all pages.",
             "minimum": 0
-          }
-        }
-      },
-      "AdminBookingOut": {
-        "type": "object",
-        "description": "Admin booking list item — slim shape for the table view.",
-        "required": [
-          "id",
-          "code",
-          "status",
-          "total",
-          "currency",
-          "createdAt",
-          "updatedAt"
-        ],
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "contactEmail": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "contactPhone": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "dropoffName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "expiresAt": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "paymentMethod": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pickupName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "updatedAt": {
-            "type": "string"
-          }
-        }
-      },
-      "AdminBookingSeatOut": {
-        "type": "object",
-        "required": [
-          "price"
-        ],
-        "properties": {
-          "passengerAge": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "passengerName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "passengerType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "price": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "seatId": {
-            "type": [
-              "string",
-              "null"
-            ]
           }
         }
       },
@@ -6692,33 +6507,6 @@
           },
           "totals": {
             "$ref": "#/components/schemas/AdminBookingTotals"
-          }
-        }
-      },
-      "AdminBookingStatusUpdate": {
-        "type": "object",
-        "required": [
-          "id",
-          "status",
-          "updatedAt"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "previousStatus": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The original requested status (before normalization). Useful\nwhen the caller sends `paid` and we store `confirmed`."
-          },
-          "status": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "string"
           }
         }
       },
@@ -7833,48 +7621,6 @@
           }
         }
       },
-      "BookingBrandPreview": {
-        "type": "object",
-        "description": "Brand preview embedded in `BookingRoutePreview`.",
-        "properties": {
-          "accentColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "logoUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
-      "BookingBusLayoutPreview": {
-        "type": "object",
-        "description": "Bus layout preview embedded in `BookingTripPreview`.",
-        "properties": {
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "vehicleType": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      },
       "BookingCancelResponse": {
         "type": "object",
         "description": "Response of `POST /api/bookings/{id}/cancel`.",
@@ -7913,7 +7659,7 @@
       },
       "BookingConfirmResponse": {
         "type": "object",
-        "description": "Response of `POST /api/bookings/{id}/confirm`.",
+        "description": "A booking's state after it is placed (`POST /api/bookings/{id}/place`)\nor confirmed.",
         "required": [
           "bookingId",
           "status",
@@ -7990,41 +7736,51 @@
           }
         }
       },
-      "BookingListItem": {
+      "BookingListResponse": {
         "type": "object",
-        "description": "Response of `GET /api/bookings` (list item) and `GET /api/bookings/{id}`\n(detail — same shape, just with the full trip preview filled in).",
+        "description": "Response of `GET /api/bookings`.",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookingOut"
+            }
+          }
+        }
+      },
+      "BookingOut": {
+        "type": "object",
+        "description": "A booking (ticket) as customers and staff see it.\n\n`status`: `pending` (being paid for, or placed and awaiting the\noperator's phone confirmation when `paymentMethod` is `cod`) →\n`confirmed` → `completed`; or `cancelled`. Completed and cancelled are\nfinal.",
         "required": [
           "id",
           "code",
           "status",
+          "adultCount",
+          "childCount",
           "subtotal",
           "discount",
           "fees",
           "total",
           "currency",
+          "seats",
+          "canCancel",
           "createdAt",
-          "seats"
+          "updatedAt"
         ],
         "properties": {
           "adultCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64"
           },
-          "boardingPointId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the list-with-detail shape (`include_boarding_dropping_ids=true`)."
+          "canCancel": {
+            "type": "boolean",
+            "description": "The customer may still cancel (open, and the trip has not left)."
           },
           "childCount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": "integer",
             "format": "int64"
           },
           "code": {
@@ -8058,18 +7814,22 @@
             "type": "integer",
             "format": "int64"
           },
-          "droppingPointId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the list-with-detail shape."
+          "dropoff": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingStop"
+              }
+            ]
           },
           "expiresAt": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "When an unconfirmed booking lets its seats go."
           },
           "fees": {
             "type": "integer",
@@ -8079,17 +7839,31 @@
             "type": "string",
             "format": "uuid"
           },
-          "paidAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Timestamp when the booking was paid (`updated_at` snapshot at status=confirmed)."
-          },
           "paymentMethod": {
             "type": [
               "string",
               "null"
+            ],
+            "description": "`cod` (pay on board) or an online provider; absent while unpaid."
+          },
+          "pickup": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingStop"
+              }
+            ]
+          },
+          "review": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BookingReview"
+              }
             ]
           },
           "seats": {
@@ -8105,6 +7879,13 @@
             "type": "integer",
             "format": "int64"
           },
+          "ticketQr": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Boarding QR (an SVG data URI encoding the code) for an open ticket;\nonly on the single-booking views."
+          },
           "total": {
             "type": "integer",
             "format": "int64"
@@ -8115,63 +7896,56 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/BookingTripPreview"
+                "$ref": "#/components/schemas/BookingTrip"
               }
             ]
           },
           "updatedAt": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         }
       },
-      "BookingListResponse": {
+      "BookingReview": {
         "type": "object",
-        "description": "Response of `GET /api/bookings`.",
+        "description": "The customer's review of a trip they took.",
         "required": [
-          "items"
+          "id",
+          "rating",
+          "tags",
+          "photos",
+          "createdAt"
         ],
         "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/BookingListItem"
-            }
-          },
-          "total": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "description": "Total matching-row count (independent of pagination). Omitted from\nthe JSON when the server didn't compute it. Use `with_total(...)`\nto set it.",
-            "minimum": 0
-          }
-        }
-      },
-      "BookingRoutePreview": {
-        "type": "object",
-        "description": "Route preview embedded in `BookingTripPreview`.",
-        "required": [
-          "name",
-          "brand"
-        ],
-        "properties": {
-          "brand": {
-            "$ref": "#/components/schemas/BookingBrandPreview"
-          },
-          "from": {
+          "content": {
             "type": [
               "string",
               "null"
             ]
           },
-          "name": {
+          "createdAt": {
             "type": "string"
           },
-          "to": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rating": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
             "type": [
               "string",
               "null"
@@ -8181,7 +7955,7 @@
       },
       "BookingSeatOut": {
         "type": "object",
-        "description": "A held seat inside a booking response.",
+        "description": "One ticket of a booking: the seat and who sits in it.",
         "properties": {
           "passengerAge": {
             "type": [
@@ -8200,7 +7974,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "`adult` | `child`."
           },
           "price": {
             "type": [
@@ -8219,7 +7994,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The seat number printed on the ticket (`A01`, `12`, ...)."
           },
           "seatId": {
             "type": [
@@ -8230,52 +8006,99 @@
           }
         }
       },
-      "BookingTripPreview": {
+      "BookingStop": {
         "type": "object",
-        "description": "Slim trip preview embedded in `BookingListItem`.",
+        "description": "Where a passenger gets on or off, as it was when the ticket was sold.",
         "required": [
-          "id"
+          "name"
+        ],
+        "properties": {
+          "address": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lat": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lon": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "BookingTrip": {
+        "type": "object",
+        "description": "The trip a booking is for.",
+        "required": [
+          "id",
+          "departureDate",
+          "status",
+          "routeId",
+          "routeName"
         ],
         "properties": {
           "brandAccent": {
             "type": [
               "string",
               "null"
+            ]
+          },
+          "brandId": {
+            "type": [
+              "string",
+              "null"
             ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            "format": "uuid"
           },
           "brandLogo": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            ]
           },
           "brandName": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            ]
           },
-          "busLayout": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BookingBusLayoutPreview",
-                "description": "Present on the detail payload (not the list payload)."
-              }
+          "busLayoutName": {
+            "type": [
+              "string",
+              "null"
             ]
           },
           "departureAt": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The departure instant (UTC, RFC 3339)."
           },
           "departureDate": {
+            "type": "string",
+            "description": "`YYYY-MM-DD`, local (Vietnam) date."
+          },
+          "departureTime": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`HH:MM`, local time."
+          },
+          "fromName": {
             "type": [
               "string",
               "null"
@@ -8285,43 +8108,21 @@
             "type": "string",
             "format": "uuid"
           },
-          "pickupPoints": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PickupPointOut"
-            },
-            "description": "Present on the detail payload (not the list payload)."
-          },
-          "route": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/BookingRoutePreview",
-                "description": "Present on the detail payload (not the list payload)."
-              }
-            ]
+          "routeId": {
+            "type": "string",
+            "format": "uuid"
           },
           "routeName": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
+            "type": "string"
           },
           "status": {
+            "type": "string"
+          },
+          "toName": {
             "type": [
               "string",
               "null"
             ]
-          },
-          "vehicleType": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Present on the booking-list payload (not the detail payload)."
           }
         }
       },
@@ -8681,6 +8482,25 @@
           "wc"
         ]
       },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "description": "Body of `POST /api/auth/password`.",
+        "required": [
+          "newPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required unless the account has no password yet (social sign-in)."
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        }
+      },
       "ChannelAssignmentResponse": {
         "type": "object",
         "description": "Response of the channel assignment actions (`claim` / `release` /\n`close`) — the channel state after the action.",
@@ -8977,15 +8797,6 @@
               "null"
             ],
             "description": "Click id for Performance Max / App campaigns (web)."
-          }
-        }
-      },
-      "ConfirmReq": {
-        "type": "object",
-        "description": "Request body for `POST /api/bookings/:id/confirm`.",
-        "properties": {
-          "paymentMethod": {
-            "type": "string"
           }
         }
       },
@@ -11045,58 +10856,6 @@
               "null"
             ],
             "format": "uuid"
-          }
-        }
-      },
-      "PickupPointOut": {
-        "type": "object",
-        "description": "Pickup point embedded in `BookingTripPreview.pickup_points`.",
-        "required": [
-          "id"
-        ],
-        "properties": {
-          "address": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "kind": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "lat": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "lon": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "stopOrder": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
           }
         }
       },
@@ -13598,42 +13357,20 @@
       },
       "UpdateBookingStatusRequest": {
         "type": "object",
-        "description": "Request body for `PATCH /api/admin/bookings/{id}`.",
+        "description": "Request body for `PATCH /api/admin/bookings/{id}`.\n\n`confirmed` (after phoning the customer, from `pending`), `completed`\n(from `confirmed`) or `cancelled` (from either). Completed and\ncancelled tickets are final.",
         "required": [
           "status"
         ],
         "properties": {
-          "force": {
-            "type": "boolean",
-            "description": "When `true`, skips the state-machine transition check (admin override)."
-          },
           "reason": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Why, for the audit log (e.g. \"customer did not answer\")."
           },
           "status": {
-            "type": "string",
-            "description": "`pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.\n`paid` is normalized to `confirmed`; `refunded` to `cancelled`."
-          }
-        }
-      },
-      "UpdateBookingStatusResponse": {
-        "type": "object",
-        "description": "Response of `PATCH /api/admin/bookings/{id}`.",
-        "required": [
-          "item"
-        ],
-        "properties": {
-          "item": {
-            "$ref": "#/components/schemas/AdminBookingStatusUpdate"
-          },
-          "reason": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": "string"
           }
         }
       },

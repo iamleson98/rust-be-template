@@ -29,7 +29,7 @@ use crate::error::{AppError, AppResult};
 use crate::service::fares::{self, ChildPolicy, Fare, FareTable};
 use crate::service::place_service::haversine_km;
 use crate::service::seat_plan;
-use crate::service::trip_time;
+use crate::service::{trip_stops, trip_time};
 use crate::store::CompositeStore;
 use crate::store::PickupPointWithRoute;
 
@@ -1437,33 +1437,25 @@ impl PublicService {
                 Ok(None)
             }
         };
-        // Need let bindings so the temporary String + the temporary
-        // `&RouteStore` borrow live long enough for the future (which
-        // borrows them) to be polled.
-        let route_id_str = route.id.to_string();
-        let route_store = self.store.route_store();
-        let pickup_points_fut = route_store.list_pickup_points_by_route(&route_id_str);
+        let (brand, start_place, end_place, bus_layout) =
+            tokio::try_join!(brand_fut, start_place_fut, end_place_fut, bus_layout_fut)?;
 
-        let (brand, start_place, end_place, bus_layout, pickup_points) = tokio::try_join!(
-            brand_fut,
-            start_place_fut,
-            end_place_fut,
-            bus_layout_fut,
-            pickup_points_fut,
-        )?;
-
-        let pickup_items: Vec<TripPickupPoint> = pickup_points
-            .iter()
-            .map(|p| TripPickupPoint {
-                id: p.id,
-                name: p.name.clone(),
-                stop_order: Some(p.stop_order),
-                lat: p.lat,
-                lon: p.lon,
-                kind: p.kind.clone(),
-                address: p.address.clone(),
-            })
-            .collect();
+        // Where passengers can board and alight: the route's pickup points,
+        // else the stops of the schedule's timetable.
+        let pickup_items: Vec<TripPickupPoint> =
+            trip_stops::trip_stops(&self.store, route.id, schedule.id)
+                .await?
+                .into_iter()
+                .map(|s| TripPickupPoint {
+                    id: s.id,
+                    name: Some(s.name),
+                    stop_order: Some(s.order),
+                    lat: s.lat,
+                    lon: s.lon,
+                    kind: s.kind,
+                    address: s.address,
+                })
+                .collect();
 
         // Schedule points — the real per-stop timetable (with arrival
         // times) the admin configured for this trip's schedule. Joined

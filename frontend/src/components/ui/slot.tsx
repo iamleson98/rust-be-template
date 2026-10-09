@@ -1,12 +1,10 @@
 /**
  * Slot — a minimal replacement for `@radix-ui/react-slot`.
  *
- * Merges props onto a single child element. If `asChild` is true, the child
- * is cloned with the parent's props merged (child props win on conflict).
- * If `asChild` is false, renders a `<SlotComp>` (default: 'div') with the props.
- *
- * Used by shadcn/ui components like `Button`, `Badge`, `Breadcrumb` to support
- * the `asChild` prop pattern without depending on Radix.
+ * Renders its single child with the Slot's props merged in: classes are
+ * joined, event handlers both run, refs are composed and otherwise the
+ * child's props win. Components implement `asChild` by rendering a Slot in
+ * place of their own element (`const Comp = asChild ? Slot : 'button'`).
  *
  * Example:
  *   <Button asChild>
@@ -21,9 +19,9 @@ import {
   type ReactNode,
   type Ref,
   RefObject,
+  Children,
   cloneElement,
   forwardRef,
-  isValidElement,
 } from 'react'
 
 function mergeProps(
@@ -57,19 +55,11 @@ function mergeProps(
 
 export interface SlotProps extends HTMLAttributes<HTMLElement> {
   children?: ReactNode
-  asChild?: boolean
 }
 
-export const Slot = forwardRef<HTMLElement, SlotProps>(({ asChild, children, ...props }, ref) => {
-  if (!asChild || !isValidElement(children)) {
-    return (
-      <div ref={ref as Ref<HTMLDivElement>} {...props}>
-        {children}
-      </div>
-    )
-  }
-
-  const child = children as ReactElement<Record<string, unknown>>
+export const Slot = forwardRef<HTMLElement, SlotProps>(({ children, ...props }, ref) => {
+  // Throws on anything but exactly one element: there is nothing to merge onto.
+  const child = Children.only(children) as ReactElement<Record<string, unknown>>
   const mergedProps = mergeProps(props, child.props)
 
   const childRef = child.props.ref as Ref<HTMLElement>

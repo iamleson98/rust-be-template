@@ -34,6 +34,17 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+/// Body of `POST /api/auth/password`.
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangePasswordRequest {
+    /// Required unless the account has no password yet (social sign-in).
+    #[validate(length(max = 255))]
+    pub current_password: Option<String>,
+    #[validate(length(min = 8, max = 128))]
+    pub new_password: String,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 pub struct AuthResponse {
     pub user: crate::auth::SessionUser,
@@ -154,6 +165,42 @@ pub async fn login(
     body.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
     let session = state.auth.login(body.email, body.password).await?;
+    let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
+    Ok((
+        jar,
+        Json(
+            AuthResponse::from_user(&session.user, state.auth.access_ttl_secs())
+                .with_mobile_tokens(&headers, &session),
+        ),
+    ))
+}
+
+/// `POST /api/auth/password` — change the signed-in user's password. Other
+/// devices are signed out; this one gets fresh cookies.
+#[utoipa::path(
+    post,
+    path = "/api/auth/password",
+    tag = "auth",
+    request_body = ChangePasswordRequest,
+    responses(
+        (status = 200, description = "Password changed", body = AuthResponse),
+        (status = 400, description = "Current password is incorrect"),
+        (status = 401, description = "Not signed in"),
+    )
+)]
+pub async fn change_password(
+    State(state): State<AppState>,
+    AuthUser(uid): AuthUser,
+    jar: axum_extra::extract::CookieJar,
+    headers: HeaderMap,
+    Json(body): Json<ChangePasswordRequest>,
+) -> AppResult<(axum_extra::extract::CookieJar, Json<AuthResponse>)> {
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+    let session = state
+        .auth
+        .change_password(uid, body.current_password, body.new_password)
+        .await?;
     let jar = session.set_cookies(jar, state.auth.cookie_config(), state.auth.jwt_config());
     Ok((
         jar,
@@ -365,4 +412,5 @@ pub fn router() -> axum::Router<crate::state::AppState> {
         .route("/refresh", post(refresh))
         .route("/logout", post(logout))
         .route("/me", get(me))
+        .route("/password", post(change_password))
 }

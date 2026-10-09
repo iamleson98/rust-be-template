@@ -22,12 +22,12 @@ fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-/// Seed one trip with `n` bookable seats; returns
-/// (trip_id, seat_ids, pickup_point_id).
+/// Seed one trip with `n` bookable seats on a route with two stops; returns
+/// (trip_id, seat_ids, (boarding stop, drop-off stop)).
 pub(crate) async fn seed_trip_with_seats(
     store: &crate::store::CompositeStore,
     n: usize,
-) -> (Uuid, Vec<Uuid>, Uuid) {
+) -> (Uuid, Vec<Uuid>, (Uuid, Uuid)) {
     use crate::entity::{bus_layout, pickup_point, route, schedule, seat};
     use sea_orm::ActiveModelTrait;
     let now = crate::store::now_iso();
@@ -95,19 +95,22 @@ pub(crate) async fn seed_trip_with_seats(
     .await
     .unwrap();
 
-    let point_id = Uuid::new_v4();
-    pickup_point::ActiveModel {
-        id: Set(point_id),
-        route_id: Set(route_id),
-        name: Set(Some("Bến xe".into())),
-        stop_order: Set(1),
-        kind: Set(Some("boarding".into())),
-        created_at: Set(now.clone()),
-        ..Default::default()
+    let mut stops = Vec::new();
+    for (order, name) in [(1, "Bến xe Giáp Bát"), (2, "Bến xe Trung tâm Đà Nẵng")] {
+        let id = Uuid::new_v4();
+        pickup_point::ActiveModel {
+            id: Set(id),
+            route_id: Set(route_id),
+            name: Set(Some(name.into())),
+            stop_order: Set(order),
+            created_at: Set(now.clone()),
+            ..Default::default()
+        }
+        .insert(db)
+        .await
+        .unwrap();
+        stops.push(id);
     }
-    .insert(db)
-    .await
-    .unwrap();
 
     let schedule_id = Uuid::new_v4();
     schedule::ActiveModel {
@@ -163,10 +166,10 @@ pub(crate) async fn seed_trip_with_seats(
         .await
         .unwrap();
 
-    (trip_id, seat_ids, point_id)
+    (trip_id, seat_ids, (stops[0], stops[1]))
 }
 
-pub(crate) fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, point_id: Uuid) -> HoldReq {
+pub(crate) fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, stops: (Uuid, Uuid)) -> HoldReq {
     use crate::dto::booking::PassengerReq;
     HoldReq {
         trip_id,
@@ -180,8 +183,8 @@ pub(crate) fn hold_req(trip_id: Uuid, seat_ids: Vec<Uuid>, point_id: Uuid) -> Ho
                 seat_id: None,
             })
             .collect(),
-        boarding_point_id: Some(point_id),
-        dropping_point_id: Some(point_id),
+        boarding_point_id: Some(stops.0),
+        dropping_point_id: Some(stops.1),
         contact_name: "Nguyễn Văn A".into(),
         contact_phone: "0912345678".into(),
         contact_email: None,
@@ -195,7 +198,8 @@ pub(crate) struct Fixture {
     pub(crate) payments: PaymentService,
     pub(crate) trip: Uuid,
     pub(crate) seats: Vec<Uuid>,
-    pub(crate) point: Uuid,
+    /// (boarding stop, drop-off stop) of the trip's route.
+    pub(crate) stops: (Uuid, Uuid),
 }
 
 pub(crate) async fn fixture(seats: usize) -> Fixture {
@@ -203,7 +207,7 @@ pub(crate) async fn fixture(seats: usize) -> Fixture {
     let store = CompositeStore::in_memory().await;
     migrator::Migrator::up(store.db(), None).await.unwrap();
     let svc = Arc::new(BookingService::new(store.clone()));
-    let (trip, seats, point) = seed_trip_with_seats(&store, seats).await;
+    let (trip, seats, stops) = seed_trip_with_seats(&store, seats).await;
     let cfg = Arc::new(PaymentConfig {
         cod_enabled: true,
         ..PaymentConfig::default()
@@ -224,7 +228,7 @@ pub(crate) async fn fixture(seats: usize) -> Fixture {
         payments,
         trip,
         seats,
-        point,
+        stops,
     }
 }
 
@@ -248,7 +252,7 @@ impl Fixture {
         self.svc
             .hold_with_user(
                 owner,
-                &hold_req(self.trip, self.seats[..n].to_vec(), self.point),
+                &hold_req(self.trip, self.seats[..n].to_vec(), self.stops),
             )
             .await
             .expect("hold")
@@ -361,6 +365,10 @@ impl Fixture {
 }
 
 impl Fixture {
+    pub(crate) async fn owner_of(&self, booking: Uuid) -> Uuid {
+        self.booking(booking).await.user_id.unwrap()
+    }
+
     pub(crate) async fn brand_of_trip(&self) -> Uuid {
         crate::entity::brand::Entity::find()
             .one(self.store.db())

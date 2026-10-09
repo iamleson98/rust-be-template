@@ -61,17 +61,13 @@ export function MyBookings() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [feedbackOpenId, setFeedbackOpenId] = useState<string | null>(null)
 
-  // ── Bookings: TanStack Query (auto-fetches; the account layout's
-  // requireAuth guard guarantees a signed-in caller here) ──
-  // We fetch status='all' so the upcoming/past/cancelled tabs can all be
-  // filtered client-side from a single cached response.
+  // One fetch of every ticket; the tabs filter it client-side.
   const {
     data: bookingsData,
     isLoading: bookingsLoading,
     refetch: refetchBookings,
-  } = useQuery(bookingsListOptions({ query: { status: 'all' } }))
-  const userBookings: BookingItem[] = (bookingsData?.items ??
-    EMPTY_ITEMS) as unknown as BookingItem[]
+  } = useQuery(bookingsListOptions())
+  const userBookings: BookingItem[] = bookingsData?.items ?? EMPTY_ITEMS
   const bookingsLoaded = !!bookingsData
 
   // Reviews: lazy-loaded only when the user opens the "Đánh giá" tab.
@@ -110,7 +106,7 @@ export function MyBookings() {
   const userTotalAmount = useMemo(
     () =>
       userBookings
-        .filter((b) => b.status === 'paid' || b.status === 'confirmed')
+        .filter((b) => b.status === 'confirmed' || b.status === 'completed')
         .reduce((s, b) => s + b.total, 0),
     [userBookings],
   )
@@ -154,7 +150,7 @@ export function MyBookings() {
           label: t('bookingHistory.statTotalSpend'),
           value: formatCurrency(userTotalAmount, currency),
           accent: 'from-amber-500 to-orange-500',
-          subtitle: t('bookingHistory.statPaidSub'),
+          subtitle: t('bookingHistory.statConfirmedSub'),
         },
       ]}
     />

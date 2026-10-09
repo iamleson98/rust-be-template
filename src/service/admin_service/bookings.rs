@@ -8,345 +8,171 @@ use uuid::Uuid;
 
 use super::{now_iso, AdminService};
 use crate::dto::admin::{
-    AdminBookingDayBucket, AdminBookingDetail, AdminBookingDetailResponse,
-    AdminBookingExportResponse, AdminBookingListResponse, AdminBookingOut, AdminBookingSeatOut,
-    AdminBookingStatsResponse, AdminBookingStatusUpdate, AdminBookingTotals,
-    UpdateBookingStatusRequest, UpdateBookingStatusResponse,
+    AdminBookingDayBucket, AdminBookingDetailResponse, AdminBookingExportResponse,
+    AdminBookingListResponse, AdminBookingStatsResponse, AdminBookingTotals, AdminBookingsQuery,
+    UpdateBookingStatusRequest,
 };
 use crate::entity::{audit_log, booking};
 use crate::error::{AppError, AppResult};
+use crate::payment::providers;
+use crate::service::booking_view::{booking_view, booking_views, departure_of};
+use crate::service::trip_time;
+use crate::store::{BookingFilter, BookingOrder, ConfirmOutcome};
 
 impl AdminService {
-    /// List bookings with admin filters.
-    #[allow(clippy::too_many_arguments)]
+    /// A page of the tickets `q` selects: placed tickets only (no unfinished
+    /// checkouts), by status, brand, route, search and booking days.
     pub async fn list_bookings(
         &self,
-        status: Option<&str>,
-        _brand_id: Option<&str>,
-        _route_id: Option<&str>,
-        _date_from: Option<&str>,
-        _date_to: Option<&str>,
-        _search: Option<&str>,
-        limit: u64,
-        offset: u64,
+        q: &AdminBookingsQuery,
     ) -> AppResult<AdminBookingListResponse> {
-        let limit = limit.min(200);
-        // Total matching-row count (independent of the window) — the
-        // admin tickets table needs it to render "Hiển thị X–Y / N" and
-        // to enable the next/previous page buttons.
-        let total = self
-            .store
-            .booking_store()
-            .count_bookings_by_status(status)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-        // Note: brand_id, route_id, date_from, date_to, search filters are
-        // not supported by the current BookingStore trait; only status is.
-        // For full admin filtering, the store trait would need extension.
-        let bookings = self
-            .store
-            .booking_store()
-            .list_bookings_by_status(status, limit, offset)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        // Previously: `let total = bookings.len();` — that's the page size
-        // (capped by `limit`), NOT the matching-row count, so pagination
-        // showed "Showing 1-50 of 50" on every page. Now omit `total` from
-        // the response until the store gets a proper count_bookings_by_filter
-        // method (tracked separately).
-        let items: Vec<AdminBookingOut> = bookings
-            .iter()
-            .map(|b| AdminBookingOut {
-                id: b.id,
-                code: b.code.clone(),
-                status: b.status.clone(),
-                total: b.total,
-                currency: b.currency.clone(),
-                contact_name: b.contact_name.clone(),
-                contact_phone: b.contact_phone.clone(),
-                contact_email: b.contact_email.clone(),
-                payment_method: b.payment_method.clone(),
-                pickup_name: b.pickup_name.clone(),
-                dropoff_name: b.dropoff_name.clone(),
-                created_at: b.created_at.clone(),
-                updated_at: b.updated_at.clone(),
-                expires_at: b.expires_at.clone(),
-            })
-            .collect();
-
+        let (limit, offset) = (q.limit.unwrap_or(50).min(200), q.offset.unwrap_or(0));
+        let filter = admin_filter(q)?;
+        let store = self.store.booking_store();
+        let total = store.count_bookings(&filter).await?;
+        let bookings = store.list_bookings(&filter, limit, offset).await?;
         Ok(AdminBookingListResponse {
-            items,
-            total: Some(total),
+            items: booking_views(&self.store, bookings).await?,
+            total,
             limit,
             offset,
         })
     }
 
-    /// Get a single booking by id (admin view with full detail).
     pub async fn get_booking(&self, id: Uuid) -> AppResult<AdminBookingDetailResponse> {
-        let b = self
-            .store
-            .booking_store()
-            .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        // Fetch booking seats
-        let seats = self
-            .store
-            .booking_store()
-            .list_booking_seats(&b.id.to_string())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let seats_out: Vec<AdminBookingSeatOut> = seats
-            .iter()
-            .map(|bs| AdminBookingSeatOut {
-                seat_id: Some(bs.seat_id.to_string()),
-                price: bs.price,
-                passenger_name: bs.passenger_name.clone(),
-                passenger_type: bs.passenger_type.clone(),
-                passenger_age: bs.passenger_age,
-            })
-            .collect();
-
+        let b = self.find_booking(id).await?;
         Ok(AdminBookingDetailResponse {
-            item: AdminBookingDetail {
-                id: b.id,
-                code: b.code,
-                status: b.status,
-                subtotal: b.subtotal,
-                discount: b.discount,
-                fees: b.fees,
-                total: b.total,
-                currency: b.currency,
-                contact_name: b.contact_name,
-                contact_phone: b.contact_phone,
-                contact_email: b.contact_email,
-                payment_method: b.payment_method,
-                pickup_name: b.pickup_name,
-                dropoff_name: b.dropoff_name,
-                created_at: b.created_at,
-                updated_at: b.updated_at,
-                expires_at: b.expires_at,
-                seats: seats_out,
-            },
+            item: booking_view(&self.store, b).await?,
         })
     }
 
-    /// Update booking status (admin override with state machine validation).
+    /// Staff move a ticket on: confirm it after phoning the customer
+    /// (`pending` → `confirmed`, the seats become booked), mark it
+    /// `completed` after the trip, or cancel it (the seats go back on sale).
+    /// Completed and cancelled tickets are final.
     pub async fn update_booking_status(
         &self,
+        actor: Uuid,
         id: Uuid,
         body: &UpdateBookingStatusRequest,
-    ) -> AppResult<UpdateBookingStatusResponse> {
-        let new_status = body.status.as_str();
-        let valid = [
-            "pending",
-            "confirmed",
-            "paid",
-            "completed",
-            "cancelled",
-            "refunded",
-        ];
-        if !valid.contains(&new_status) {
-            return Err(AppError::BadRequest("invalid booking status".into()));
-        }
-
-        // Normalize paid → confirmed
-        let canonical = if new_status == "paid" {
-            "confirmed".to_string()
-        } else if new_status == "refunded" {
-            "cancelled".to_string()
-        } else {
-            new_status.to_string()
-        };
-
-        let existing = self
-            .store
-            .booking_store()
-            .find_booking_by_id(id)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?
-            .ok_or_else(|| AppError::NotFound("booking not found".into()))?;
-
-        if existing.status == canonical {
-            return Ok(UpdateBookingStatusResponse {
-                item: AdminBookingStatusUpdate {
-                    id,
-                    status: existing.status,
-                    previous_status: Some(new_status.to_string()),
-                    updated_at: existing.updated_at.clone(),
-                },
-                reason: body.reason.clone(),
-            });
-        }
-
-        // Validate the transition
-        if !body.force {
-            let allowed = matches!(
-                (existing.status.as_str(), canonical.as_str()),
-                ("pending", "confirmed")
-                    | ("pending", "cancelled")
-                    | ("confirmed", "completed")
-                    | ("confirmed", "cancelled")
-                    | ("completed", "cancelled")
-                    | ("refunded", "cancelled")
-                    | ("cancelled", "refunded")
-            );
-            if !allowed {
+    ) -> AppResult<AdminBookingDetailResponse> {
+        let b = self.find_booking(id).await?;
+        let store = self.store.booking_store();
+        match (b.status.as_str(), body.status.as_str()) {
+            ("completed" | "cancelled", _) => {
+                return Err(AppError::Conflict(format!(
+                    "ticket {} is {} and can no longer change",
+                    b.code, b.status
+                )))
+            }
+            ("pending", "confirmed") => {
+                let method = b.payment_method.as_deref().unwrap_or(providers::COD);
+                match store.confirm_pending(id, method).await? {
+                    ConfirmOutcome::Confirmed => {}
+                    ConfirmOutcome::NotPending => return Err(changed()),
+                    ConfirmOutcome::SeatsLost => {
+                        return Err(AppError::Gone(
+                            "the seats of this booking were already released".into(),
+                        ))
+                    }
+                }
+            }
+            ("confirmed", "completed") => {
+                // Completing is final, so only once the trip has actually left.
+                if departure_of(&self.store, &b)
+                    .await?
+                    .is_some_and(|departs| departs > Utc::now())
+                {
+                    return Err(AppError::BadRequest(
+                        "the trip has not left yet; complete the ticket after departure".into(),
+                    ));
+                }
+                if !store.complete_booking(id).await? {
+                    return Err(changed());
+                }
+            }
+            ("pending" | "confirmed", "cancelled") => {
+                store
+                    .cancel_booking(id, &["pending", "confirmed"])
+                    .await?
+                    .ok_or_else(changed)?;
+            }
+            (from, to) => {
                 return Err(AppError::BadRequest(format!(
-                    "cannot transition from '{}' to '{}'. Use force=true for admin override.",
-                    existing.status, canonical
-                )));
+                    "a {from} ticket cannot become {to}"
+                )))
             }
         }
 
-        let now = now_iso();
-        let mut active: booking::ActiveModel = existing.into();
-        active.status = Set(canonical.clone());
-        active.updated_at = Set(now.clone());
-        self.store
-            .booking_store()
-            .update_booking(active)
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
+        // Who did it and why, for the record (best-effort).
+        let _ = self
+            .store
+            .audit_store()
+            .insert_audit_log(audit_log::ActiveModel {
+                id: Set(Uuid::new_v4()),
+                actor_type: Set(Some("staff".to_string())),
+                actor_id: Set(Some(actor)),
+                action: Set(format!("booking_{}", body.status)),
+                target_type: Set(Some("booking".to_string())),
+                target_id: Set(Some(id)),
+                metadata: Set(body.reason.clone()),
+                created_at: Set(now_iso()),
+                ..Default::default()
+            })
+            .await;
 
-        // Audit log (best-effort)
-        let audit_id = Uuid::new_v4();
-        let audit_model = audit_log::ActiveModel {
-            id: Set(audit_id),
-            action: Set(format!("booking_status_{canonical}")),
-            target_type: Set(Some("booking".to_string())),
-            target_id: Set(Some(id)),
-            metadata: Set(body.reason.clone()),
-            ..Default::default()
-        };
-        let _ = self.store.audit_store().insert_audit_log(audit_model).await;
-
-        Ok(UpdateBookingStatusResponse {
-            item: AdminBookingStatusUpdate {
-                id,
-                status: canonical,
-                previous_status: Some(new_status.to_string()),
-                updated_at: now,
-            },
-            reason: body.reason.clone(),
-        })
+        self.get_booking(id).await
     }
 
-    /// Compute booking stats (totals, by-day, by-brand breakdowns).
+    async fn find_booking(&self, id: Uuid) -> AppResult<booking::Model> {
+        self.store
+            .booking_store()
+            .find_booking_by_id(id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("booking not found".into()))
+    }
+
+    /// Ticket counts and revenue for the tickets `q` selects, overall and
+    /// per Vietnamese calendar day. Revenue is what confirmed and completed
+    /// tickets bring in.
     pub async fn booking_stats(
         &self,
-        status: Option<&str>,
-        _date_from: Option<&str>,
-        _date_to: Option<&str>,
+        q: &AdminBookingsQuery,
     ) -> AppResult<AdminBookingStatsResponse> {
-        // SQL-side aggregation — replaces the previous "load ALL bookings
-        // into memory and iterate in Rust" pattern that would OOM at scale.
-        // Two queries: one for status totals, one for per-day breakdown.
-        use crate::entity::booking;
-        use sea_orm::sea_query::Expr;
-        use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
-
-        // ── Status totals: SELECT status, COUNT(*), SUM(total) GROUP BY status
-        let mut totals_q = booking::Entity::find().select_only();
-        totals_q = totals_q
-            .column(booking::Column::Status)
-            .column_as(Expr::col(booking::Column::Id).count(), "count")
-            .column_as(Expr::col(booking::Column::Total).sum(), "revenue")
-            .group_by(booking::Column::Status);
-        if let Some(s) = status {
-            if s != "all" {
-                totals_q = totals_q.filter(booking::Column::Status.eq(s.to_string()));
+        let facts = self
+            .store
+            .booking_store()
+            .booking_facts(&admin_filter(q)?)
+            .await?;
+        let mut totals = Tally::default();
+        let mut by_day: BTreeMap<String, Tally> = BTreeMap::new();
+        for (created_at, status, total) in &facts {
+            totals.add(status, *total);
+            if let Some(day) = trip_time::local_date(created_at) {
+                by_day.entry(day).or_default().add(status, *total);
             }
         }
-        let totals_rows: Vec<(String, i64, Option<i64>)> = totals_q
-            .into_tuple::<(String, i64, Option<i64>)>()
-            .all(self.store.db())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut total = 0i64;
-        let mut revenue = 0i64;
-        let mut confirmed = 0i64;
-        let mut cancelled = 0i64;
-        let mut completed = 0i64;
-        let mut pending = 0i64;
-        for (st, count, rev) in &totals_rows {
-            total += count;
-            revenue += rev.unwrap_or(0);
-            match st.as_str() {
-                "confirmed" | "paid" => confirmed += count,
-                "cancelled" => cancelled += count,
-                "completed" => completed += count,
-                _ => pending += count,
-            }
-        }
-
-        // ── Per-day breakdown: fetch only created_at + status + total
-        // (3 columns instead of the full row) and aggregate in Rust.
-        // At 10k+ bookings this is ~3x smaller payload than loading full
-        // rows. A proper SQL GROUP BY DATE(created_at) would be even
-        // better but requires dialect-specific SUBSTR/DATE handling.
-        let mut day_q = booking::Entity::find()
-            .select_only()
-            .column(booking::Column::CreatedAt)
-            .column(booking::Column::Status)
-            .column(booking::Column::Total);
-        if let Some(s) = status {
-            if s != "all" {
-                day_q = day_q.filter(booking::Column::Status.eq(s.to_string()));
-            }
-        }
-        let day_rows: Vec<(String, String, Option<i64>)> = day_q
-            .into_tuple::<(String, String, Option<i64>)>()
-            .all(self.store.db())
-            .await
-            .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let mut by_day: BTreeMap<String, DayBucket> = BTreeMap::new();
-        for (created_at, st, total_val) in &day_rows {
-            let day = created_at.get(..10).unwrap_or("").to_string();
-            if day.is_empty() {
-                continue;
-            }
-            let entry = by_day.entry(day).or_default();
-            entry.count += 1;
-            entry.revenue += total_val.unwrap_or(0);
-            match st.as_str() {
-                "confirmed" | "paid" => entry.confirmed += 1,
-                "cancelled" => entry.cancelled += 1,
-                "completed" => entry.completed += 1,
-                _ => entry.pending += 1,
-            }
-        }
-
-        let by_day_vec: Vec<AdminBookingDayBucket> = by_day
-            .iter()
-            .map(|(day, b)| AdminBookingDayBucket {
-                date: day.clone(),
-                count: b.count,
-                revenue: b.revenue,
-                confirmed: b.confirmed,
-                cancelled: b.cancelled,
-                completed: b.completed,
-                pending: b.pending,
-            })
-            .collect();
-
         Ok(AdminBookingStatsResponse {
             totals: AdminBookingTotals {
-                total,
-                revenue,
-                confirmed,
-                cancelled,
-                completed,
-                pending,
+                total: totals.count,
+                revenue: totals.revenue,
+                confirmed: totals.confirmed,
+                cancelled: totals.cancelled,
+                completed: totals.completed,
+                pending: totals.pending,
             },
-            by_day: by_day_vec,
+            by_day: by_day
+                .into_iter()
+                .map(|(date, d)| AdminBookingDayBucket {
+                    date,
+                    count: d.count,
+                    revenue: d.revenue,
+                    confirmed: d.confirmed,
+                    cancelled: d.cancelled,
+                    completed: d.completed,
+                    pending: d.pending,
+                })
+                .collect(),
         })
     }
 
@@ -357,32 +183,10 @@ impl AdminService {
     /// the previous approach would use ~50MB of RAM per export request.
     pub async fn booking_export(
         &self,
-        status: Option<&str>,
-        _date_from: Option<&str>,
-        _date_to: Option<&str>,
-        columns: Option<&str>,
+        q: &AdminBookingsQuery,
     ) -> AppResult<AdminBookingExportResponse> {
-        let col_list: Vec<String> = columns
-            .map(|s| {
-                s.split(',')
-                    .map(|x| x.trim().to_string())
-                    .filter(|x| !x.is_empty())
-                    .collect()
-            })
-            .unwrap_or_else(|| {
-                [
-                    "code",
-                    "status",
-                    "contactName",
-                    "contactPhone",
-                    "total",
-                    "paymentMethod",
-                    "createdAt",
-                ]
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-            });
+        let filter = admin_filter(q)?;
+        let col_list: Vec<String> = EXPORT_COLUMNS.iter().map(|c| c.to_string()).collect();
 
         // CSV with UTF-8 BOM (Excel-friendly)
         let mut csv = String::from('\u{feff}');
@@ -396,9 +200,8 @@ impl AdminService {
             let bookings = self
                 .store
                 .booking_store()
-                .list_bookings_by_status(status, PAGE, offset)
-                .await
-                .map_err(|e| AppError::Internal(e.to_string()))?;
+                .list_bookings(&filter, PAGE, offset)
+                .await?;
             if bookings.is_empty() {
                 break;
             }
@@ -436,12 +239,94 @@ impl AdminService {
     }
 }
 
+fn changed() -> AppError {
+    AppError::Conflict("the booking was changed by another request".into())
+}
+
+const EXPORT_COLUMNS: [&str; 7] = [
+    "code",
+    "status",
+    "contactName",
+    "contactPhone",
+    "total",
+    "paymentMethod",
+    "createdAt",
+];
+
+/// What an admin listing selects: tickets only (no unfinished checkouts) by
+/// `status` (or `awaiting`: pay-on-board tickets waiting for the phone call),
+/// brand, route, search and the Vietnamese calendar days `date_from..=date_to`
+/// they were booked on, in the `sort` order.
+fn admin_filter(q: &AdminBookingsQuery) -> AppResult<BookingFilter> {
+    let status = q
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && *s != "all");
+    let awaiting = status == Some("awaiting");
+    // The start of `date`, `days_later` days on, as stored timestamps read.
+    let day_start = |date: &Option<String>, days_later: i64| -> AppResult<Option<String>> {
+        date.as_deref()
+            .map(str::trim)
+            .filter(|d| !d.is_empty())
+            .map(|d| {
+                trip_time::local_day_start(d)
+                    .map(|t| {
+                        (t + chrono::Duration::days(days_later))
+                            .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+                    })
+                    .ok_or_else(|| AppError::BadRequest(format!("{d} is not a YYYY-MM-DD date")))
+            })
+            .transpose()
+    };
+    Ok(BookingFilter {
+        status: if awaiting {
+            Some("pending".into())
+        } else {
+            status.map(str::to_string)
+        },
+        payment_method: awaiting.then(|| providers::COD.to_string()),
+        placed: true,
+        search: q.search.clone(),
+        brand_id: q.brand_id,
+        route_id: q.route_id,
+        created_from: day_start(&q.date_from, 0)?,
+        created_before: day_start(&q.date_to, 1)?,
+        order: match q.sort.as_deref() {
+            Some("created_asc") => BookingOrder::OldestFirst,
+            Some("total_desc") => BookingOrder::TotalDesc,
+            Some("total_asc") => BookingOrder::TotalAsc,
+            _ => BookingOrder::NewestFirst,
+        },
+        ..Default::default()
+    })
+}
+
+/// Tickets by status, and the revenue the confirmed and completed ones bring.
 #[derive(Default)]
-struct DayBucket {
+struct Tally {
     count: i64,
     revenue: i64,
     confirmed: i64,
     cancelled: i64,
     completed: i64,
     pending: i64,
+}
+
+impl Tally {
+    fn add(&mut self, status: &str, total: i64) {
+        self.count += 1;
+        match status {
+            "confirmed" => {
+                self.confirmed += 1;
+                self.revenue += total;
+            }
+            "completed" => {
+                self.completed += 1;
+                self.revenue += total;
+            }
+            "cancelled" => self.cancelled += 1,
+            _ => self.pending += 1,
+        }
+    }
 }

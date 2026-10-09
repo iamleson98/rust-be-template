@@ -2,7 +2,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { Bus, ChevronRight, Ticket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { STATUS_CONFIG, type BookingItem } from '@/features/booking/history/booking-types'
+import {
+  STAGE_CONFIG,
+  ticketStage,
+  type BookingItem,
+} from '@/features/booking/history/booking-types'
 import { formatDay, formatVND } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { BusTile } from '@/components/bus-tile'
@@ -57,7 +61,7 @@ export function RecentPurchasesCard({
                 <div className="shrink-0 text-right">
                   <div className="text-sm font-semibold tabular-nums">{formatVND(b.total)}</div>
                   <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {t((STATUS_CONFIG[b.status] ?? STATUS_CONFIG.confirmed).labelKey)}
+                    {t(STAGE_CONFIG[ticketStage(b)].labelKey)}
                   </div>
                 </div>
               </li>

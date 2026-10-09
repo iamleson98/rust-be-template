@@ -40,34 +40,10 @@ export type AdminBookingDayBucket = {
 };
 
 /**
- * Admin booking detail — full shape with seats.
- */
-export type AdminBookingDetail = {
-    code: string;
-    contactEmail?: string | null;
-    contactName?: string | null;
-    contactPhone?: string | null;
-    createdAt: string;
-    currency: string;
-    discount: number;
-    dropoffName?: string | null;
-    expiresAt?: string | null;
-    fees: number;
-    id: string;
-    paymentMethod?: string | null;
-    pickupName?: string | null;
-    seats: Array<AdminBookingSeatOut>;
-    status: string;
-    subtotal: number;
-    total: number;
-    updatedAt: string;
-};
-
-/**
- * Response of `GET /api/admin/bookings/{id}`.
+ * Response of `GET /api/admin/bookings/{id}` and of a status change.
  */
 export type AdminBookingDetailResponse = {
-    item: AdminBookingDetail;
+    item: BookingOut;
 };
 
 /**
@@ -87,42 +63,13 @@ export type AdminBookingExportResponse = {
  * Response of `GET /api/admin/bookings`.
  */
 export type AdminBookingListResponse = {
-    items: Array<AdminBookingOut>;
+    items: Array<BookingOut>;
     limit: number;
     offset: number;
     /**
-     * Total matching-row count (independent of pagination). Omitted when
-     * the server didn't compute it (older callers may rely on this).
+     * Bookings matching the filter, across all pages.
      */
-    total?: number | null;
-};
-
-/**
- * Admin booking list item — slim shape for the table view.
- */
-export type AdminBookingOut = {
-    code: string;
-    contactEmail?: string | null;
-    contactName?: string | null;
-    contactPhone?: string | null;
-    createdAt: string;
-    currency: string;
-    dropoffName?: string | null;
-    expiresAt?: string | null;
-    id: string;
-    paymentMethod?: string | null;
-    pickupName?: string | null;
-    status: string;
     total: number;
-    updatedAt: string;
-};
-
-export type AdminBookingSeatOut = {
-    passengerAge?: number | null;
-    passengerName?: string | null;
-    passengerType?: string | null;
-    price: number;
-    seatId?: string | null;
 };
 
 /**
@@ -131,17 +78,6 @@ export type AdminBookingSeatOut = {
 export type AdminBookingStatsResponse = {
     byDay: Array<AdminBookingDayBucket>;
     totals: AdminBookingTotals;
-};
-
-export type AdminBookingStatusUpdate = {
-    id: string;
-    /**
-     * The original requested status (before normalization). Useful
-     * when the caller sends `paid` and we store `confirmed`.
-     */
-    previousStatus?: string | null;
-    status: string;
-    updatedAt: string;
 };
 
 export type AdminBookingTotals = {
@@ -557,23 +493,6 @@ export type BankTransferInstructions = {
 };
 
 /**
- * Brand preview embedded in `BookingRoutePreview`.
- */
-export type BookingBrandPreview = {
-    accentColor?: string | null;
-    logoUrl?: string | null;
-    name?: string | null;
-};
-
-/**
- * Bus layout preview embedded in `BookingTripPreview`.
- */
-export type BookingBusLayoutPreview = {
-    name?: string | null;
-    vehicleType?: string | null;
-};
-
-/**
  * Response of `POST /api/bookings/{id}/cancel`.
  */
 export type BookingCancelResponse = {
@@ -586,7 +505,8 @@ export type BookingCancelResponse = {
 };
 
 /**
- * Response of `POST /api/bookings/{id}/confirm`.
+ * A booking's state after it is placed (`POST /api/bookings/{id}/place`)
+ * or confirmed.
  */
 export type BookingConfirmResponse = {
     bookingId: string;
@@ -611,16 +531,27 @@ export type BookingHoldResponse = {
 };
 
 /**
- * Response of `GET /api/bookings` (list item) and `GET /api/bookings/{id}`
- * (detail — same shape, just with the full trip preview filled in).
+ * Response of `GET /api/bookings`.
  */
-export type BookingListItem = {
-    adultCount?: number | null;
+export type BookingListResponse = {
+    items: Array<BookingOut>;
+};
+
+/**
+ * A booking (ticket) as customers and staff see it.
+ *
+ * `status`: `pending` (being paid for, or placed and awaiting the
+ * operator's phone confirmation when `paymentMethod` is `cod`) →
+ * `confirmed` → `completed`; or `cancelled`. Completed and cancelled are
+ * final.
+ */
+export type BookingOut = {
+    adultCount: number;
     /**
-     * Present on the list-with-detail shape (`include_boarding_dropping_ids=true`).
+     * The customer may still cancel (open, and the trip has not left).
      */
-    boardingPointId?: string | null;
-    childCount?: number | null;
+    canCancel: boolean;
+    childCount: number;
     code: string;
     contactEmail?: string | null;
     contactName?: string | null;
@@ -628,96 +559,101 @@ export type BookingListItem = {
     createdAt: string;
     currency: string;
     discount: number;
+    dropoff?: null | BookingStop;
     /**
-     * Present on the list-with-detail shape.
+     * When an unconfirmed booking lets its seats go.
      */
-    droppingPointId?: string | null;
     expiresAt?: string | null;
     fees: number;
     id: string;
     /**
-     * Timestamp when the booking was paid (`updated_at` snapshot at status=confirmed).
+     * `cod` (pay on board) or an online provider; absent while unpaid.
      */
-    paidAt?: string | null;
     paymentMethod?: string | null;
+    pickup?: null | BookingStop;
+    review?: null | BookingReview;
     seats: Array<BookingSeatOut>;
     status: string;
     subtotal: number;
-    total: number;
-    trip?: null | BookingTripPreview;
-    updatedAt?: string | null;
-};
-
-/**
- * Response of `GET /api/bookings`.
- */
-export type BookingListResponse = {
-    items: Array<BookingListItem>;
     /**
-     * Total matching-row count (independent of pagination). Omitted from
-     * the JSON when the server didn't compute it. Use `with_total(...)`
-     * to set it.
+     * Boarding QR (an SVG data URI encoding the code) for an open ticket;
+     * only on the single-booking views.
      */
-    total?: number | null;
+    ticketQr?: string | null;
+    total: number;
+    trip?: null | BookingTrip;
+    updatedAt: string;
 };
 
 /**
- * Route preview embedded in `BookingTripPreview`.
+ * The customer's review of a trip they took.
  */
-export type BookingRoutePreview = {
-    brand: BookingBrandPreview;
-    from?: string | null;
-    name: string;
-    to?: string | null;
+export type BookingReview = {
+    content?: string | null;
+    createdAt: string;
+    id: string;
+    photos: Array<string>;
+    rating: number;
+    tags: Array<string>;
+    title?: string | null;
 };
 
 /**
- * A held seat inside a booking response.
+ * One ticket of a booking: the seat and who sits in it.
  */
 export type BookingSeatOut = {
     passengerAge?: number | null;
     passengerName?: string | null;
+    /**
+     * `adult` | `child`.
+     */
     passengerType?: string | null;
     price?: number | null;
     seatClass?: string | null;
+    /**
+     * The seat number printed on the ticket (`A01`, `12`, ...).
+     */
     seatCode?: string | null;
     seatId?: string | null;
 };
 
 /**
- * Slim trip preview embedded in `BookingListItem`.
+ * Where a passenger gets on or off, as it was when the ticket was sold.
  */
-export type BookingTripPreview = {
-    /**
-     * Present on the booking-list payload (not the detail payload).
-     */
+export type BookingStop = {
+    address?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+    name: string;
+};
+
+/**
+ * The trip a booking is for.
+ */
+export type BookingTrip = {
     brandAccent?: string | null;
-    /**
-     * Present on the booking-list payload (not the detail payload).
-     */
+    brandId?: string | null;
     brandLogo?: string | null;
-    /**
-     * Present on the booking-list payload (not the detail payload).
-     */
     brandName?: string | null;
-    busLayout?: null | BookingBusLayoutPreview;
+    busLayoutName?: string | null;
+    /**
+     * The departure instant (UTC, RFC 3339).
+     */
     departureAt?: string | null;
-    departureDate?: string | null;
+    /**
+     * `YYYY-MM-DD`, local (Vietnam) date.
+     */
+    departureDate: string;
+    /**
+     * `HH:MM`, local time.
+     */
+    departureTime?: string | null;
+    fromName?: string | null;
     id: string;
-    /**
-     * Present on the detail payload (not the list payload).
-     */
-    pickupPoints?: Array<PickupPointOut>;
-    route?: null | BookingRoutePreview;
-    /**
-     * Present on the booking-list payload (not the detail payload).
-     */
-    routeName?: string | null;
-    status?: string | null;
-    /**
-     * Present on the booking-list payload (not the detail payload).
-     */
-    vehicleType?: string | null;
+    routeId: string;
+    routeName: string;
+    status: string;
+    toName?: string | null;
 };
 
 /**
@@ -880,6 +816,17 @@ export type CancelReq = {
 export type CellKind = 'seat' | 'bed' | 'cabin' | 'cabin_double' | 'driver' | 'door' | 'stairs' | 'wc';
 
 /**
+ * Body of `POST /api/auth/password`.
+ */
+export type ChangePasswordRequest = {
+    /**
+     * Required unless the account has no password yet (social sign-in).
+     */
+    currentPassword?: string | null;
+    newPassword: string;
+};
+
+/**
  * Response of the channel assignment actions (`claim` / `release` /
  * `close`) — the channel state after the action.
  */
@@ -1007,13 +954,6 @@ export type ClickIds = {
      * Click id for Performance Max / App campaigns (web).
      */
     wbraid?: string | null;
-};
-
-/**
- * Request body for `POST /api/bookings/:id/confirm`.
- */
-export type ConfirmReq = {
-    paymentMethod?: string;
 };
 
 /**
@@ -2139,19 +2079,6 @@ export type PaymentOut = {
 };
 
 /**
- * Pickup point embedded in `BookingTripPreview.pickup_points`.
- */
-export type PickupPointOut = {
-    address?: string | null;
-    id: string;
-    kind?: string | null;
-    lat?: number | null;
-    lon?: number | null;
-    name?: string | null;
-    stopOrder?: number | null;
-};
-
-/**
  * Response of `GET /api/places`.
  */
 export type PlaceListResponse = {
@@ -3267,26 +3194,17 @@ export type UnregisterDeviceResponse = {
 
 /**
  * Request body for `PATCH /api/admin/bookings/{id}`.
+ *
+ * `confirmed` (after phoning the customer, from `pending`), `completed`
+ * (from `confirmed`) or `cancelled` (from either). Completed and
+ * cancelled tickets are final.
  */
 export type UpdateBookingStatusRequest = {
     /**
-     * When `true`, skips the state-machine transition check (admin override).
+     * Why, for the audit log (e.g. "customer did not answer").
      */
-    force?: boolean;
     reason?: string | null;
-    /**
-     * `pending` | `confirmed` | `paid` | `completed` | `cancelled` | `refunded`.
-     * `paid` is normalized to `confirmed`; `refunded` to `cancelled`.
-     */
     status: string;
-};
-
-/**
- * Response of `PATCH /api/admin/bookings/{id}`.
- */
-export type UpdateBookingStatusResponse = {
-    item: AdminBookingStatusUpdate;
-    reason?: string | null;
 };
 
 /**
@@ -3810,14 +3728,30 @@ export type AdminBookingsListData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * A booking status, `awaiting` (pay on board, waiting for the phone
+         * call) or `all`.
+         */
         status?: string;
         brandId?: string;
         routeId?: string;
+        /**
+         * First day booked on (`YYYY-MM-DD`, Vietnam).
+         */
         dateFrom?: string;
+        /**
+         * Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.
+         */
         dateTo?: string;
+        /**
+         * Code, contact name or phone contains this.
+         */
         search?: string;
         limit?: number;
         offset?: number;
+        /**
+         * `created_desc` (default), `created_asc`, `total_desc` or `total_asc`.
+         */
         sort?: string;
     };
     url: '/api/admin/bookings';
@@ -3847,14 +3781,30 @@ export type AdminBookingsExportData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * A booking status, `awaiting` (pay on board, waiting for the phone
+         * call) or `all`.
+         */
         status?: string;
         brandId?: string;
         routeId?: string;
+        /**
+         * First day booked on (`YYYY-MM-DD`, Vietnam).
+         */
         dateFrom?: string;
+        /**
+         * Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.
+         */
         dateTo?: string;
+        /**
+         * Code, contact name or phone contains this.
+         */
         search?: string;
         limit?: number;
         offset?: number;
+        /**
+         * `created_desc` (default), `created_asc`, `total_desc` or `total_asc`.
+         */
         sort?: string;
     };
     url: '/api/admin/bookings/export';
@@ -3884,14 +3834,30 @@ export type AdminBookingsStatsData = {
     body?: never;
     path?: never;
     query?: {
+        /**
+         * A booking status, `awaiting` (pay on board, waiting for the phone
+         * call) or `all`.
+         */
         status?: string;
         brandId?: string;
         routeId?: string;
+        /**
+         * First day booked on (`YYYY-MM-DD`, Vietnam).
+         */
         dateFrom?: string;
+        /**
+         * Last day booked on (`YYYY-MM-DD`, Vietnam), inclusive.
+         */
         dateTo?: string;
+        /**
+         * Code, contact name or phone contains this.
+         */
         search?: string;
         limit?: number;
         offset?: number;
+        /**
+         * `created_desc` (default), `created_asc`, `total_desc` or `total_asc`.
+         */
         sort?: string;
     };
     url: '/api/admin/bookings/stats';
@@ -3978,13 +3944,17 @@ export type AdminBookingsUpdateStatusErrors = {
      * Not found
      */
     404: unknown;
+    /**
+     * The ticket is final or changed meanwhile
+     */
+    409: unknown;
 };
 
 export type AdminBookingsUpdateStatusResponses = {
     /**
      * Status updated
      */
-    200: UpdateBookingStatusResponse;
+    200: AdminBookingDetailResponse;
 };
 
 export type AdminBookingsUpdateStatusResponse = AdminBookingsUpdateStatusResponses[keyof AdminBookingsUpdateStatusResponses];
@@ -5887,6 +5857,33 @@ export type OauthStartErrors = {
     500: unknown;
 };
 
+export type ChangePasswordData = {
+    body: ChangePasswordRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/password';
+};
+
+export type ChangePasswordErrors = {
+    /**
+     * Current password is incorrect
+     */
+    400: unknown;
+    /**
+     * Not signed in
+     */
+    401: unknown;
+};
+
+export type ChangePasswordResponses = {
+    /**
+     * Password changed
+     */
+    200: AuthResponse;
+};
+
+export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
+
 export type AuthRefreshData = {
     body: RefreshRequest;
     path?: never;
@@ -5930,7 +5927,6 @@ export type BookingsListData = {
     body?: never;
     path?: never;
     query?: {
-        status?: string | null;
         limit?: number | null;
         offset?: number | null;
     };
@@ -6003,7 +5999,7 @@ export type BookingsDetailResponses = {
     /**
      * Booking detail
      */
-    200: BookingListItem;
+    200: BookingOut;
 };
 
 export type BookingsDetailResponse = BookingsDetailResponses[keyof BookingsDetailResponses];
@@ -6040,8 +6036,8 @@ export type BookingsCancelResponses = {
 
 export type BookingsCancelResponse = BookingsCancelResponses[keyof BookingsCancelResponses];
 
-export type BookingsConfirmData = {
-    body: ConfirmReq;
+export type BookingsPlaceData = {
+    body?: never;
     path: {
         /**
          * Booking ID
@@ -6049,10 +6045,10 @@ export type BookingsConfirmData = {
         id: string;
     };
     query?: never;
-    url: '/api/bookings/{id}/confirm';
+    url: '/api/bookings/{id}/place';
 };
 
-export type BookingsConfirmErrors = {
+export type BookingsPlaceErrors = {
     /**
      * Unauthorized
      */
@@ -6061,16 +6057,20 @@ export type BookingsConfirmErrors = {
      * Forbidden
      */
     403: unknown;
+    /**
+     * The seat hold ran out
+     */
+    410: unknown;
 };
 
-export type BookingsConfirmResponses = {
+export type BookingsPlaceResponses = {
     /**
-     * Booking confirmed
+     * Booking placed, awaiting the operator
      */
     200: BookingConfirmResponse;
 };
 
-export type BookingsConfirmResponse = BookingsConfirmResponses[keyof BookingsConfirmResponses];
+export type BookingsPlaceResponse = BookingsPlaceResponses[keyof BookingsPlaceResponses];
 
 export type BrandsData = {
     body?: never;

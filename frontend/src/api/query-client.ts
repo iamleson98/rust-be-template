@@ -16,7 +16,7 @@ const ALSO_REFRESH: Record<string, string[]> = {
   bookings: ['trips', 'loyalty'], // seats return to the pool; points derive from bookings
   payments: ['bookings'], // payment state drives booking state
   adminPayments: ['payments', 'bookings', 'adminBookings'],
-  adminBookings: ['bookings'],
+  adminBookings: ['bookings', 'trips'], // a staff cancel frees seats
   adminReviews: ['reviews'],
   users: ['auth'], // a role change alters the session user
 }

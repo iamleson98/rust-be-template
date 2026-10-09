@@ -34,7 +34,7 @@ import {
   useAdminBookings,
   type AdminBookingFilter,
 } from '@/features/admin/tickets/api'
-import type { AdminBookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/api'
+import type { BookingOut, AdminBookingDayBucket, AdminBookingTotals } from '@/api'
 import type { DateRange } from './types'
 import { formatVNDShort } from './helpers'
 import { KpiCard } from './kpi-card'
@@ -92,7 +92,7 @@ export function StatsOverview({
 
   // Recent bookings table (5 latest)
   const { data: recentBookingsResp } = useAdminBookings(filter)
-  const recentBookings: AdminBookingOut[] = recentBookingsResp?.items ?? []
+  const recentBookings: BookingOut[] = recentBookingsResp?.items ?? []
 
   // Revenue series (in VND) — derived from real byDay buckets
   const revenueSeries = useMemo(() => byDay.map((b) => b.revenue ?? 0), [byDay])

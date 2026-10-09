@@ -30,9 +30,6 @@ export function CancelDialog() {
   const t = useT()
 
   const [step, setStep] = useState<Step>(1)
-  const [refundPercent, setRefundPercent] = useState(0)
-  const [refundAmount, setRefundAmount] = useState(0)
-  const [refCode, setRefCode] = useState('')
 
   const form = useForm<CancelValues>({
     resolver: zodResolver(cancelSchema),
@@ -48,48 +45,16 @@ export function CancelDialog() {
   const selectedReason = form.watch('selectedReason')
   const agreed = form.watch('agreed')
 
-  // Cancel booking mutation — uses the centralized useCancelBooking hook
-  // (POST /api/bookings/:id/cancel). The hook auto-invalidates the
-  // bookings query on success. The refund info (refundPercent,
-  // refundAmount, refCode) returned by the endpoint is captured in
-  // onSuccess to populate the success step.
-  /**
-   * Structural shape of the cancel-booking result the dialog consumes
-   * (the generated SDK models it as a union; only the success payload's
-   * fields are used here).
-   */
-  type CancelResult = {
-    success?: boolean
-    refundPercent?: number
-    refundAmount?: number
-    refCode?: string
-    error?: string
-  }
-
+  // POST /api/bookings/:id/cancel. The mutation cache refreshes the ticket
+  // lists; the response says what, if anything, is refunded.
   const cancelMutation = useMutation({
     ...bookingsCancelMutation(),
-    onSuccess: (data) => {
-      const d =
-        ((data ?? {}) as { data?: CancelResult })?.data ?? (data as CancelResult | undefined)
-      if (d?.success) {
-        setRefundPercent(d.refundPercent ?? 0)
-        setRefundAmount(d.refundAmount ?? 0)
-        // Only show a refund reference when the SERVER provides one —
-        // fabricating `HX-{timestamp}` client-side presented an invented
-        // code as authoritative.
-        setRefCode(d.refCode ?? '')
-        setStep(3)
-        toast.success(t('cancel.successTitle'))
-      } else {
-        toast.error(d?.error || t('common.error'))
-      }
+    onSuccess: () => {
+      setStep(3)
+      toast.success(t('cancel.successTitle'))
     },
-    onError: (err) => {
-      // Surface the backend's reason — e.g. "booking already cancelled"
-      // (double-cancel is blocked server-side; the message tells the
-      // user instead of a generic failure).
-      toast.error(getErrorMessage(err, t('common.error')))
-    },
+    // The server says why, e.g. the trip has already left.
+    onError: (err) => toast.error(getErrorMessage(err, t('common.error'))),
   })
   const loading = cancelMutation.isPending
 
@@ -141,10 +106,10 @@ export function CancelDialog() {
       cancelMutation.mutate({
         path: { id: cancelBookingId },
         body: {
-          reason: values.selectedReason,
-          otherReason: values.selectedReason === 'other' ? values.otherReason : undefined,
+          reason:
+            values.selectedReason === 'other' ? values.otherReason.trim() : values.selectedReason,
         },
-      } as unknown as Parameters<typeof cancelMutation.mutate>[0])
+      })
     }
   }
 
@@ -197,12 +162,8 @@ export function CancelDialog() {
               {step === 2 && <CancelPolicyStep form={form} />}
 
               {/* Step 3: Success */}
-              {step === 3 && (
-                <CancelSuccessStep
-                  refundPercent={refundPercent}
-                  refundAmount={refundAmount}
-                  refCode={refCode}
-                />
+              {step === 3 && cancelMutation.data && (
+                <CancelSuccessStep result={cancelMutation.data} />
               )}
             </div>
 

@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
-  bookingsConfirmMutation,
   bookingsHoldMutation,
+  bookingsPlaceMutation,
   cancelPaymentMutation,
   createPaymentMutation,
   type BookingHoldResponse,
@@ -80,16 +80,16 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
   const [paymentId, setPaymentId] = useState<string | null>(null)
 
   const holdSeats = useMutation(bookingsHoldMutation())
-  const confirm = useMutation(bookingsConfirmMutation())
+  const place = useMutation(bookingsPlaceMutation())
   const createPayment = useMutation(createPaymentMutation())
   const cancelPayment = useMutation(cancelPaymentMutation())
   const payment = usePayment(paymentId ?? undefined, step === 'pay').data
 
   /** The booking is final: remember the customer, report the conversion, refresh what it changed. */
-  const complete = (held: BookingHoldResponse) => {
+  const complete = (held: BookingHoldResponse, awaitingCall: boolean) => {
     if (useBookingFlow.getState().step === 'success') return
     const { contactName, contactPhone } = form.getValues()
-    setLastBooking({ id: held.bookingId, code: held.code, total: held.total })
+    setLastBooking({ id: held.bookingId, code: held.code, total: held.total, awaitingCall })
     setGuestPhone(normalizePhone(contactPhone))
     if (contactName) setGuestName(contactName)
     setStep('success')
@@ -149,12 +149,9 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
       if (!held.bookingId) throw new Error(t('bookingFlow.holdFailed'))
       setHold(held)
       if (method === 'cod') {
-        await orFail(
-          confirm.mutateAsync({ path: { id: held.bookingId }, body: { paymentMethod: 'cod' } }),
-          t('payment.failed'),
-          t,
-        )
-        complete(held)
+        // Pay on board: the operator phones the customer to confirm.
+        await orFail(place.mutateAsync({ path: { id: held.bookingId } }), t('payment.failed'), t)
+        complete(held, true)
       } else {
         await startPayment(held)
       }
@@ -204,7 +201,7 @@ export function useCheckout({ form, context, method, promoCode }: Options) {
       currency: paid.currency,
       transactionId: held.code,
     })
-    complete(held)
+    complete(held, false)
   })
   useEffect(() => {
     if (step === 'pay' && payment?.status === 'completed' && hold) onPaid(payment, hold)

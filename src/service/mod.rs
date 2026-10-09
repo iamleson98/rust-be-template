@@ -35,6 +35,7 @@
 pub mod admin_service;
 pub mod auth_service;
 pub mod booking_service;
+pub mod booking_view;
 pub mod chat_service;
 pub mod fares;
 pub mod job_service;
@@ -57,6 +58,9 @@ pub mod seat_plan_normalize;
 pub mod seat_plan_presets;
 #[cfg(test)]
 pub(crate) mod test_support;
+#[cfg(test)]
+mod ticket_tests;
+pub mod trip_stops;
 pub mod trip_time;
 pub mod users_service;
 
