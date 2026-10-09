@@ -1,46 +1,36 @@
 'use client'
 
-/**
- * BookingSuccess — the success step (step 4) of the BookingDialog.
- *
- * Extracted from the original `booking-dialog.tsx`. Renders:
- *   - The "Đặt vé thành công!" hero with the booking code + copy button
- *   - A boarding-pass ticket stub (the REAL scannable QR lives on the
- *     booking-detail page — a random-noise "QR" here was misleading)
- *   - The booking summary (route, departure, seats, brand)
- *   - Two CTAs: "Đặt vé khác" (closes the dialog) + "Xem vé của tôi"
- *     (navigates to the booking detail page)
- */
-
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { CheckCircle2, Copy, Ticket } from 'lucide-react'
-import { formatDateTimeVN } from '@/lib/format'
-import { formatCurrency } from '@/lib/format'
-import type { Currency } from '@/lib/format'
+import type { TripDetail } from '@/api'
+import { formatDateTimeVN, useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { useNavigate } from '@tanstack/react-router'
-import type { TripDetail, SelectedSeat } from './booking-form'
+import type { SelectedSeat } from './booking-form'
 
 export type LastBooking = {
   code: string
   total: number
 }
 
+/**
+ * The end of the checkout: the booking code (copyable), a ticket stub and a
+ * summary. The scannable QR lives on the booking page the main button opens.
+ */
 export function BookingSuccess({
   trip,
-  lastBooking,
-  selectedSeats,
-  currency,
+  booking: lastBooking,
+  seats: selectedSeats,
   onClose,
 }: {
-  trip: TripDetail | null | undefined
-  lastBooking: LastBooking
-  selectedSeats: SelectedSeat[]
-  currency: Currency
+  trip: TripDetail | undefined
+  booking: LastBooking
+  seats: SelectedSeat[]
   onClose: () => void
 }) {
   const t = useT()
+  const money = useMoney()
   const [copied, setCopied] = useState(false)
   const navigate = useNavigate()
 
@@ -160,9 +150,7 @@ export function BookingSuccess({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {t('bookingFlow.totalDue')}
                 </div>
-                <div className="font-bold text-sm text-primary">
-                  {formatCurrency(lastBooking.total, currency)}
-                </div>
+                <div className="font-bold text-sm text-primary">{money(lastBooking.total)}</div>
               </div>
             </div>
           </div>
@@ -197,7 +185,7 @@ export function BookingSuccess({
           </div>
           <div className="flex justify-between border-t pt-2 font-bold text-base">
             <span>{t('bookingFlow.totalDue')}</span>
-            <span className="text-primary">{formatCurrency(lastBooking.total, currency)}</span>
+            <span className="text-primary">{money(lastBooking.total)}</span>
           </div>
         </div>
       )}

@@ -1,40 +1,20 @@
 'use client'
 
-/**
- * VietQrDisplay — the `vietqr` body of the PaymentDialog: bank name, the
- * QR image (pre-rendered server-side, with a qrserver.com fallback built
- * from the payload) and the bank-transfer instruction rows with
- * copy-to-clipboard buttons.
- *
- * Extracted from the original `payment-dialog.tsx` together with the
- * private `CopyRow` it renders.
- */
-
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Building2, CheckCircle2, Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatCurrency } from '@/lib/format'
-import type { Currency } from '@/lib/format'
-import { useT } from '@/lib/i18n'
 import type { PaymentOut } from '@/api'
+import { formatVND } from '@/lib/format'
+import { useT } from '@/lib/i18n'
 
-export function VietQrDisplay({ payment, currency }: { payment: PaymentOut; currency: Currency }) {
+/**
+ * Bank transfer by VietQR: the server-rendered QR plus every transfer field with
+ * a copy button. Amounts are always VND. The QR is never built by a third-party
+ * service: that would hand the account, amount and booking memo to it.
+ */
+export function VietQrDisplay({ payment }: { payment: PaymentOut }) {
   const t = useT()
   const inst = payment.bankTransferInstructions
-  const qrSrc = useMemo(() => {
-    if (payment.qrImageDataUri) return payment.qrImageDataUri
-    if (payment.qrPayload) {
-      // Fallback: encode the payload string with a client-side QR generator.
-      // We use the public `api.qrserver.com` endpoint to avoid pulling a JS
-      // QR library — but this requires network access. The pre-rendered
-      // `qrImageDataUri` from the server is preferred (offline + no tracking).
-      const url = new URL('https://api.qrserver.com/v1/create-qr-code/')
-      url.searchParams.set('size', '300x300')
-      url.searchParams.set('data', payment.qrPayload)
-      return url.toString()
-    }
-    return null
-  }, [payment.qrImageDataUri, payment.qrPayload])
 
   if (!inst) {
     return (
@@ -51,23 +31,23 @@ export function VietQrDisplay({ payment, currency }: { payment: PaymentOut; curr
         <span className="font-medium text-sm">{inst.bankName}</span>
       </div>
 
-      {/* QR image */}
-      {qrSrc && (
+      {payment.qrImageDataUri && (
         <div className="flex justify-center">
           <div className="rounded-lg border-2 border-slate-200 bg-white p-3">
-            <img src={qrSrc} alt="VietQR" width={240} height={240} />
+            <img src={payment.qrImageDataUri} alt="VietQR" width={240} height={240} />
           </div>
         </div>
       )}
 
-      {/* Bank-transfer instructions */}
       <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
         <CopyRow label={t('payment.vnpayDesc')} value={inst.bankName} />
         <CopyRow label={t('bookingFlow.accountNo')} value={inst.accountNo} />
         <CopyRow label={t('bookingFlow.accountName')} value={inst.accountName} />
         <CopyRow
           label={t('bookingFlow.amount')}
-          value={formatCurrency(inst.amount, currency)}
+          value={formatVND(inst.amount)}
+          // Banking apps want the bare number.
+          copyValue={String(inst.amount)}
           highlight
         />
         <CopyRow label={t('bookingFlow.memoLabel')} value={inst.memo} highlight />
@@ -83,17 +63,19 @@ export function VietQrDisplay({ payment, currency }: { payment: PaymentOut; curr
 function CopyRow({
   label,
   value,
+  copyValue = value,
   highlight,
 }: {
   label: string
   value: string
+  copyValue?: string
   highlight?: boolean
 }) {
   const t = useT()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(value)
+      await navigator.clipboard.writeText(copyValue)
       setCopied(true)
       toast.success(t('bookingFlow.copied'))
       setTimeout(() => setCopied(false), 1500)
@@ -106,9 +88,7 @@ function CopyRow({
       <span className="text-xs text-muted-foreground">{label}</span>
       <div className="flex items-center gap-1.5">
         <span
-          className={`text-sm font-medium ${
-            highlight ? 'text-primary font-bold' : 'text-slate-900'
-          }`}
+          className={`text-sm font-medium ${highlight ? 'text-primary font-bold' : 'text-slate-900'}`}
         >
           {value}
         </span>

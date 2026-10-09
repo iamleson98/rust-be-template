@@ -1,47 +1,28 @@
 'use client'
 
-/**
- * PassengerList — presentational pieces used by the BookingDialog's
- * passenger step (step 1).
- *
- * Extracted from the original `booking-dialog.tsx`. One export:
- *
- *   - `PassengerSummary` — the bottom summary box with passenger-count
- *     badges + the subtotal + validation warnings (unassigned seats,
- *     duplicate seats, all-assigned OK state).
- *
- * The actual passenger-card rendering (with per-passenger name/age/gender
- * inputs + seat-select dropdown) stays inside the main `BookingDialog`
- * because it's tightly coupled to RHF's `useFieldArray` state — moving
- * it out without breaking the form context would require lifting all the
- * form state to a context provider, which is a larger refactor.
- */
-
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AlertTriangle, Baby, CheckCircle2, User, UserCheck } from 'lucide-react'
-import { formatCurrency } from '@/lib/format'
-import type { Currency } from '@/lib/format'
+import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import type { PassengerFormValue } from './booking-form'
 
+/** Head count by passenger type, the seat subtotal, and what still blocks continuing. */
 export function PassengerSummary({
   passengers,
-  selectedSeatCount,
+  seatCount,
   subtotal,
-  currency,
-  unassignedCount,
-  hasDuplicateSeats,
+  unassigned,
+  duplicateSeats,
 }: {
   passengers: PassengerFormValue[]
-  selectedSeatCount: number
+  seatCount: number
   subtotal: number
-  currency: Currency
-  unassignedCount: number
-  hasDuplicateSeats: boolean
+  unassigned: number
+  duplicateSeats: boolean
 }) {
   const t = useT()
-  // Auto-derive the per-type passenger counts (adults / children / infants).
+  const money = useMoney()
   const adult = passengers.filter((p) => p.age >= 12).length
   const child = passengers.filter((p) => p.age >= 2 && p.age < 12).length
   const infant = passengers.filter((p) => p.age < 2).length
@@ -69,32 +50,27 @@ export function PassengerSummary({
         )}
         <Separator orientation="vertical" className="h-4" />
         <span className="text-muted-foreground">{t('bookingFlow.seatSubtotal')}</span>
-        <span className="font-bold text-blue-700">{formatCurrency(subtotal, currency)}</span>
+        <span className="font-bold text-blue-700">{money(subtotal)}</span>
       </div>
-      {unassignedCount > 0 && (
+      {unassigned > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>{t('bookingFlow.unassignedHint', { count: unassignedCount })}</span>
+          <span>{t('bookingFlow.unassignedHint', { count: unassigned })}</span>
         </div>
       )}
-      {hasDuplicateSeats && (
+      {duplicateSeats && (
         <div className="flex items-center gap-1.5 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-2 py-1.5">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
           <span>{t('bookingFlow.duplicateSeatsWarning')}</span>
         </div>
       )}
-      {unassignedCount === 0 && !hasDuplicateSeats && passengers.length > 0 && (
+      {unassigned === 0 && !duplicateSeats && passengers.length > 0 && (
         <div className="flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5">
           <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
           <span>{t('bookingFlow.allSeatsAssigned')}</span>
         </div>
       )}
-      {/* selectedSeatCount is exposed via the title/summary above; kept in
-          the prop list so callers don't have to filter the passengers array
-          to compute it. */}
-      <span className="sr-only">
-        {t('bookingFlow.seatsSelectedCount', { count: selectedSeatCount })}
-      </span>
+      <span className="sr-only">{t('bookingFlow.seatsSelectedCount', { count: seatCount })}</span>
     </div>
   )
 }

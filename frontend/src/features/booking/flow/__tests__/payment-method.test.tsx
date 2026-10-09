@@ -4,26 +4,30 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { PaymentMethodStep } from '@/features/booking/flow/payment-method'
+import type { PromoCode } from '@/features/booking/flow/use-promo-code'
 
 describe('PaymentMethodStep', () => {
+  const promo = (over: Partial<PromoCode> = {}): PromoCode => ({
+    code: '',
+    setCode: vi.fn(),
+    result: null,
+    checking: false,
+    apply: vi.fn(),
+    discount: 0,
+    appliedCode: undefined,
+    ...over,
+  })
+
   const baseProps = {
-    paymentMethod: 'momo' as const,
-    onSetPaymentMethod: vi.fn(),
+    method: 'momo' as const,
+    onMethodChange: vi.fn(),
+    promo: promo(),
     seatCount: 2,
     subtotal: 300000,
-    campaignCode: '',
-    setCampaignCode: vi.fn(),
-    setCampaignResult: vi.fn(),
-    checkingCampaign: false,
-    checkCampaign: vi.fn(),
-    campaignResult: null,
-    discount: 0,
-    fees: 0,
     total: 300000,
-    currency: 'VND' as const,
     error: '',
     submitting: false,
-    onGoBack: vi.fn(),
+    onBack: vi.fn(),
     onSubmit: vi.fn(),
   }
 
@@ -47,9 +51,12 @@ describe('PaymentMethodStep', () => {
     render(
       <PaymentMethodStep
         {...baseProps}
-        campaignCode="summer2024"
-        campaignResult={{ valid: true, discount: 30000 }}
-        discount={30000}
+        promo={promo({
+          code: 'summer2024',
+          result: { valid: true, discount: 30000 },
+          discount: 30000,
+          appliedCode: 'SUMMER2024',
+        })}
         total={270000}
       />,
     )
@@ -59,8 +66,7 @@ describe('PaymentMethodStep', () => {
   })
 
   it('exposes the method picker as a radio group with per-option state', () => {
-    const onSetPaymentMethod = vi.fn()
-    render(<PaymentMethodStep {...baseProps} onSetPaymentMethod={onSetPaymentMethod} />)
+    render(<PaymentMethodStep {...baseProps} />)
     const group = screen.getByRole('radiogroup')
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(4)
@@ -93,11 +99,20 @@ describe('PaymentMethodStep', () => {
     expect(matches.length).toBeGreaterThan(0)
   })
 
-  it('calls onGoBack when back button is clicked', () => {
-    const onGoBack = vi.fn()
-    render(<PaymentMethodStep {...baseProps} onGoBack={onGoBack} />)
+  it('calls onBack when back button is clicked', () => {
+    const onBack = vi.fn()
+    render(<PaymentMethodStep {...baseProps} onBack={onBack} />)
     fireEvent.click(screen.getByText('Quay lại'))
-    expect(onGoBack).toHaveBeenCalled()
+    expect(onBack).toHaveBeenCalled()
+  })
+
+  it('edits and applies the promo code through the promo state', () => {
+    const p = promo({ code: 'TET' })
+    render(<PaymentMethodStep {...baseProps} promo={p} />)
+    fireEvent.change(screen.getByPlaceholderText(/VD: TET2025/), { target: { value: 'TET2026' } })
+    expect(p.setCode).toHaveBeenCalledWith('TET2026')
+    fireEvent.click(screen.getByRole('button', { name: 'Áp dụng' }))
+    expect(p.apply).toHaveBeenCalled()
   })
 
   it('calls onSubmit when pay button is clicked', () => {

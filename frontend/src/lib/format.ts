@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { localeOf, translate } from '@/lib/i18n'
 import { usePrefs, type Currency } from '@/stores/prefs'
 
@@ -29,6 +30,12 @@ export const formatCurrency = (amountVND: number, currency: Currency) =>
         maximumFractionDigits: 2,
       }).format(amountVND / EXCHANGE_RATE)
     : formatVND(amountVND)
+
+/** `formatCurrency` in the visitor's chosen currency, for components. */
+export function useMoney() {
+  const currency = usePrefs((s) => s.currency)
+  return useCallback((amountVND: number) => formatCurrency(amountVND, currency), [currency])
+}
 
 export const exchangeRateNote = () =>
   translate(lang(), 'common.exchangeRateNote', {

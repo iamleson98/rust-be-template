@@ -1,24 +1,13 @@
 'use client'
 
-/**
- * PassengerFormCard — one row of the BookingDialog's passenger step: the
- * passenger pill + type badge, the name / age / gender inputs and the seat
- * assignment dropdown (with per-seat price + already-assigned hints).
- *
- * Extracted from the original `booking-dialog.tsx` — rendered inside a
- * `passengerFields.map(...)` by the passenger step; the RHF `control` is
- * passed down so the form state keeps living in the parent dialog.
- */
-
-import type { Control, FieldArrayWithId } from 'react-hook-form'
+import type { Control } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ComboboxField } from '@/components/ui/combobox'
 import { FormField, FormControl, FormItem, FormMessage } from '@/components/ui/form'
 import { SEAT_CLASS_LABELS } from '@/lib/labels'
-import { formatCurrency } from '@/lib/format'
-import type { Currency } from '@/lib/format'
+import { useMoney } from '@/lib/format'
 import { useT } from '@/lib/i18n'
 import { User, Trash2, Armchair } from 'lucide-react'
 import {
@@ -29,29 +18,27 @@ import {
   PASSENGER_TYPE_META,
 } from './booking-form'
 
+/** One passenger: name, age, gender and the seat they take (seats taken by others are disabled). */
 export function PassengerFormCard({
-  p,
-  i,
+  index: i,
+  passenger,
   passengers,
-  passengerFields,
-  selectedSeatCodes,
+  seats,
   control,
-  currency,
-  removePassenger,
+  onRemove,
 }: {
-  p: FieldArrayWithId<BookingValues, 'passengers'>
-  i: number
+  index: number
+  passenger: PassengerFormValue
   passengers: PassengerFormValue[]
-  passengerFields: FieldArrayWithId<BookingValues, 'passengers'>[]
-  selectedSeatCodes: SelectedSeat[]
+  seats: SelectedSeat[]
   control: Control<BookingValues>
-  currency: Currency
-  removePassenger: (index: number) => void
+  /** Absent for the last remaining passenger. */
+  onRemove?: () => void
 }) {
   const t = useT()
-  const passenger = passengers[i] ?? (p as PassengerFormValue)
+  const money = useMoney()
   const typeMeta = PASSENGER_TYPE_META[getPassengerType(passenger.age)]
-  const assignedSeat = selectedSeatCodes.find((s) => s.id === passenger.seatId)
+  const assignedSeat = seats.find((s) => s.id === passenger.seatId)
   return (
     <div
       className={`rounded-xl border-2 bg-linear-to-br ${typeMeta.gradient} ${typeMeta.border} p-3 space-y-2.5`}
@@ -75,12 +62,12 @@ export function PassengerFormCard({
             )}
           </Badge>
         </div>
-        {passengerFields.length > 1 && (
+        {onRemove && (
           <Button
             variant="ghost"
             size="sm"
             className="h-7 w-7 p-0 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 shrink-0"
-            onClick={() => removePassenger(i)}
+            onClick={onRemove}
             aria-label={t('bookingFlow.removePassenger')}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -88,12 +75,6 @@ export function PassengerFormCard({
         )}
       </div>
 
-      {/* Inputs: name + age + gender — each field gets a small label
-          above it so validation errors stay in context, and the icon sits
-          INSIDE the input's wrapper (not the whole FormItem) so it stays
-          vertically centered on the input even when an error message
-          appears below. items-start keeps the row aligned when one
-          field's error makes it taller than its neighbours. */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_90px_120px] gap-2 items-start">
         <FormField
           control={control}
@@ -174,7 +155,6 @@ export function PassengerFormCard({
         />
       </div>
 
-      {/* Seat assignment dropdown */}
       <div className="flex items-center gap-2">
         <Armchair className="h-4 w-4 text-muted-foreground shrink-0" />
         <FormField
@@ -186,12 +166,12 @@ export function PassengerFormCard({
                 <ComboboxField
                   value={field.value}
                   onValueChange={field.onChange}
-                  items={selectedSeatCodes.map((s) => {
+                  items={seats.map((s) => {
                     const assignedTo = passengers.find((pp, j) => pp.seatId === s.id && j !== i)
                     const assignedToIdx = assignedTo ? passengers.indexOf(assignedTo) + 1 : null
                     return {
                       value: s.id,
-                      label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)} • ${formatCurrency(s.price, currency)}${
+                      label: `${s.code} • ${t(SEAT_CLASS_LABELS[s.class] ?? s.class)} • ${money(s.price)}${
                         assignedTo
                           ? ` • ${t('bookingFlow.seatTakenBy', { index: assignedToIdx ?? 0 })}`
                           : ''
@@ -211,7 +191,7 @@ export function PassengerFormCard({
         />
         {assignedSeat && (
           <Badge variant="outline" className="font-mono text-[10px] shrink-0 gap-1">
-            {formatCurrency(assignedSeat.price, currency)}
+            {money(assignedSeat.price)}
           </Badge>
         )}
       </div>

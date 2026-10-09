@@ -149,7 +149,7 @@ export function PaymentDialog({
             {p.provider === 'vnpay' || p.provider === 'momo' || p.provider === 'zalopay' ? (
               <GatewayRedirect provider={p.provider} gatewayUrl={p.gatewayUrl} status={p.status} />
             ) : p.provider === 'vietqr' ? (
-              <VietQrDisplay payment={p} currency={currency} />
+              <VietQrDisplay payment={p} />
             ) : p.provider === 'cod' ? (
               <CodDisplay payment={p} />
             ) : null}

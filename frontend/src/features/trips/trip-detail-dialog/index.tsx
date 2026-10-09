@@ -41,7 +41,7 @@ import { PriceSummary } from './price-summary'
 import { RouteScheduleMap } from '@/features/map/route-schedule-map'
 import { RouteTimeline } from './route-timeline'
 import { PolicyBlock } from './policy-block'
-import { BookingFlow } from '@/features/booking/flow/booking-dialog'
+import { BookingFlow } from '@/features/booking/flow/booking-flow'
 
 export function TripDetailDialog({ tripId, onClose }: { tripId: string; onClose: () => void }) {
   const bookingStep = useBookingFlow((s) => s.step)

@@ -1,16 +1,5 @@
 'use client'
 
-/**
- * SeatSelector — the mini seat-preview shown in the BookingDialog's
- * passenger step.
- *
- * Extracted from the original `booking-dialog.tsx`. Renders the selected
- * seats as a grid of color-coded pills — each pill shows the seat code
- * + the index of the passenger it's assigned to (or "chưa gắn" when
- * unassigned). The colors come from `PASSENGER_TYPE_META` keyed by
- * each passenger's auto-detected `PassengerType`.
- */
-
 import { Armchair } from 'lucide-react'
 import { useT } from '@/lib/i18n'
 import {
@@ -20,6 +9,7 @@ import {
   type SelectedSeat,
 } from './booking-form'
 
+/** The picked seats as chips, coloured by the passenger type sitting in each. */
 export function SeatSelector({
   selectedSeats,
   passengers,
