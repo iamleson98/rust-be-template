@@ -188,7 +188,7 @@ export function RegisterForm() {
                 <FormControl>
                   <Input
                     {...field}
-                    placeholder={t('authPage.passwordMin6')}
+                    placeholder={t('authPage.passwordMinHint')}
                     type={showPwd ? 'text' : 'password'}
                     className="pl-10 pr-10 h-11"
                   />

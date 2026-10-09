@@ -24,19 +24,20 @@ function CallSurface({ embedded, children }: { embedded: boolean; children: Reac
 /** Staff's persistent button for noticing and answering calls while the panel is closed. */
 function AgentButton({ call }: { call: AudioCall }) {
   const t = useT()
+  const path = useRouterState({ select: (s) => s.location.pathname })
   // Customer pages and the account console have a bottom bar on phones; the admin console doesn't.
-  const inConsole = useRouterState({
-    select: (s) => /^\/admin(\/|$)/.test(s.location.pathname),
-  })
+  const inAdmin = /^\/admin(\/|$)/.test(path)
+  // Wider customer pages keep the SupportFab in the corner; sit left of it there.
+  const besideFab = !inAdmin && !/^\/account(\/|$)/.test(path)
   return (
     <button
       type="button"
       onClick={() => call.setOpen(true)}
       aria-label={t('layout.call.support')}
       className={cn(
-        // Left of the SupportFab, which owns the bottom-right corner.
-        'fixed right-17 z-40 flex h-10 w-10 items-center justify-center rounded-full border text-white md:right-21 md:h-12 md:w-12',
-        inConsole
+        'fixed right-4 z-40 flex h-10 w-10 items-center justify-center rounded-full border text-white md:h-12 md:w-12',
+        besideFab ? 'md:right-21' : 'md:right-6',
+        inAdmin
           ? 'bottom-[calc(1rem+env(safe-area-inset-bottom))] md:bottom-6'
           : 'bottom-[calc(5rem+env(safe-area-inset-bottom))] md:bottom-6',
         'transition-all hover:scale-105 active:scale-95',

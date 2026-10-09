@@ -25,6 +25,8 @@ export interface DataTableColumnMeta {
   cellClassName?: string
   /** Human-friendly column name for the column-visibility menu. */
   label?: string
+  /** Title of the row's phone card (default: the first labelled column). */
+  cardTitle?: boolean
 }
 
 export const dataTableFeatures = tableFeatures({

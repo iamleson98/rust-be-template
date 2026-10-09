@@ -31,9 +31,12 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { EmptyState, Panel } from '@/components/console/panel'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { CronJobCardsSkeleton } from '@/features/admin/cron-jobs/cron-job-cards-skeleton'
 import { RunHistorySkeleton } from '@/features/admin/cron-jobs/run-history-skeleton'
 import { Switch } from '@/components/ui/switch'
@@ -391,55 +394,55 @@ export function CronJobsPanel() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <CalendarClock className="h-5 w-5 text-blue-600" />
-            {t('admin.cronJobs')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminCronJobs.subtitle')}</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            jobsQuery.refetch()
-            runsQuery.refetch()
-          }}
-          disabled={jobsQuery.isFetching}
-        >
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${jobsQuery.isFetching ? 'animate-spin' : ''}`} />
-          {t('common.refresh')}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('admin.cronJobs')}
+        description={t('adminCronJobs.subtitle')}
+        actions={
+          <Button
+            variant="outline"
+            onClick={() => {
+              jobsQuery.refetch()
+              runsQuery.refetch()
+            }}
+            disabled={jobsQuery.isFetching}
+          >
+            <RefreshCw className={jobsQuery.isFetching ? 'animate-spin' : undefined} />
+            {t('common.refresh')}
+          </Button>
+        }
+      />
 
-      {/* Scheduler offline banner */}
       {!schedulerEnabled && !jobsQuery.isLoading ? (
-        <div className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <p>
-            {t('adminCronJobs.schedulerOffLead')}
-            <code>SCHEDULER_ENABLED=false</code>
-            {t('adminCronJobs.schedulerOffTail')}
-          </p>
-        </div>
+        <Alert variant="warning">
+          <AlertTriangle aria-hidden />
+          <AlertDescription>
+            <p>
+              {t('adminCronJobs.schedulerOffLead')}
+              <code>SCHEDULER_ENABLED=false</code>
+              {t('adminCronJobs.schedulerOffTail')}
+            </p>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       {/* Jobs */}
       {jobsQuery.isLoading ? (
         <CronJobCardsSkeleton count={3} />
       ) : jobs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 flex flex-col items-center text-center gap-2">
-            <div className="h-11 w-11 rounded-full bg-blue-50 flex items-center justify-center">
-              <CalendarClock className="h-5 w-5 text-blue-600" />
-            </div>
-            <p className="font-medium">{t('adminCronJobs.emptyTitle')}</p>
-            <p className="text-sm text-muted-foreground max-w-sm">{t('adminCronJobs.emptyDesc')}</p>
-          </CardContent>
-        </Card>
+        <Panel>
+          <EmptyState
+            icon={<CalendarClock />}
+            text={
+              <>
+                <span className="block font-medium text-foreground">
+                  {t('adminCronJobs.emptyTitle')}
+                </span>
+                {t('adminCronJobs.emptyDesc')}
+              </>
+            }
+          />
+        </Panel>
       ) : (
         <div className="grid gap-3" data-testid="cron-jobs-list">
           {jobs.map((job) => (
@@ -460,30 +463,27 @@ export function CronJobsPanel() {
       )}
 
       {/* Run history */}
-      <Card className="overflow-hidden">
-        <CardHeader className="py-3 border-b">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            {t('adminCronJobs.runHistory')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {runsQuery.isLoading ? (
-            <RunHistorySkeleton rows={5} />
-          ) : (
-            /* The Card provides the surface — render the table unbordered. */
-            <DataTable
-              bordered={false}
-              columns={runHistoryColumns}
-              data={runs}
-              rowNoun={t('adminCronJobs.rowNoun')}
-              hidePagination
-              emptyTitle={t('adminCronJobs.noRuns')}
-              emptyDescription={t('adminCronJobs.noRunsDesc')}
-              emptyIcon={<CalendarClock className="h-5 w-5" aria-hidden />}
-            />
-          )}
-        </CardContent>
-      </Card>
+      <Panel
+        title={t('adminCronJobs.runHistory')}
+        className="overflow-hidden"
+        bodyClassName="mt-3 border-t p-0"
+      >
+        {runsQuery.isLoading ? (
+          <RunHistorySkeleton rows={5} />
+        ) : (
+          /* The panel provides the surface — render the table unbordered. */
+          <DataTable
+            bordered={false}
+            columns={runHistoryColumns}
+            data={runs}
+            rowNoun={t('adminCronJobs.rowNoun')}
+            hidePagination
+            emptyTitle={t('adminCronJobs.noRuns')}
+            emptyDescription={t('adminCronJobs.noRunsDesc')}
+            emptyIcon={<CalendarClock className="h-5 w-5" aria-hidden />}
+          />
+        )}
+      </Panel>
 
       <ScheduleEditDialog
         job={editJob}
@@ -497,6 +497,6 @@ export function CronJobsPanel() {
         <CalendarClock className="h-3.5 w-3.5 animate-pulse" aria-hidden />
         {t('adminCronJobs.autoRefresh')}
       </p>
-    </div>
+    </ConsolePage>
   )
 }

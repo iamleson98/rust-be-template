@@ -42,7 +42,7 @@ export const AdminDashboard = memo(function AdminDashboard() {
   const t = useT()
   const [dateRange, setDateRange] = useState<DateRange>('7d')
   const statsQuery = useQuery(statsOptions())
-  const csvExport = useBookingsCsvExport()
+  const csvExport = useBookingsCsvExport({ range: dateRange })
 
   if (statsQuery.isLoading) {
     return <AdminDashboardSkeleton />

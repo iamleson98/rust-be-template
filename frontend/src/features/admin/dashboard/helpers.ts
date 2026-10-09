@@ -5,7 +5,7 @@
  *     returned by `/api/admin/bookings/export`.
  *   - formatVNDShort / formatVNDMillions: compact VND labels for chart
  *     cards.
- *   - periodDays / previousPeriod / percentChange / revenueBars: the
+ *   - periodDays / previousPeriod / percentChange / dayBars: the
  *     reporting period, the one before it, and the revenue chart's bars.
  */
 
@@ -63,13 +63,13 @@ export function percentChange(now: number, before: number): number | null {
 }
 
 /**
- * Daily revenue over `days` (missing days count as 0), in at most `maxBars`
+ * A per-day value over `days` (missing days count as 0), in at most `maxBars`
  * bars: one per day while they fit, else consecutive days summed per bar,
  * each labelled by its first day.
  */
-export function revenueBars(
+export function dayBars(
   days: string[],
-  revenueByDay: Map<string, number>,
+  valueByDay: Map<string, number>,
   maxBars: number,
   label: (day: string) => string,
 ): { label: string; value: number; date: string }[] {
@@ -79,7 +79,7 @@ export function revenueBars(
     const slice = days.slice(i, i + size)
     bars.push({
       label: label(slice[0]),
-      value: slice.reduce((sum, day) => sum + (revenueByDay.get(day) ?? 0), 0),
+      value: slice.reduce((sum, day) => sum + (valueByDay.get(day) ?? 0), 0),
       date: slice[0],
     })
   }

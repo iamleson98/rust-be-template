@@ -10,18 +10,7 @@ import { Input } from '@/components/ui/input'
 import { ComboboxField } from '@/components/ui/combobox'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import {
-  Search,
-  Download,
-  Filter,
-  X,
-  CalendarRange,
-  TrendingUp,
-  Bus,
-  CheckCircle2,
-  Ban,
-  PhoneCall,
-} from 'lucide-react'
+import { CalendarRange, Download, Search, TrendingUp, X } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { enUS, vi } from 'date-fns/locale'
 import type { AdminBrandsListResponse } from '@/api'
@@ -31,28 +20,12 @@ import { useT } from '@/lib/i18n'
 
 // ── Constants ────────────────────────────────────────────────
 
-const STATUS_OPTIONS: { value: string; labelKey: string; icon: React.ReactNode }[] = [
-  { value: 'all', labelKey: 'adminTickets.allStatuses', icon: <Filter className="h-3.5 w-3.5" /> },
-  {
-    value: 'awaiting',
-    labelKey: 'adminTickets.statusAwaiting',
-    icon: <PhoneCall className="h-3.5 w-3.5 text-amber-600" />,
-  },
-  {
-    value: 'confirmed',
-    labelKey: 'adminTickets.statusConfirmed',
-    icon: <CheckCircle2 className="h-3.5 w-3.5 text-blue-600" />,
-  },
-  {
-    value: 'completed',
-    labelKey: 'adminTickets.statusCompleted',
-    icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />,
-  },
-  {
-    value: 'cancelled',
-    labelKey: 'adminTickets.statusCancelled',
-    icon: <Ban className="h-3.5 w-3.5 text-rose-600" />,
-  },
+const STATUS_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'all', labelKey: 'adminTickets.allStatuses' },
+  { value: 'awaiting', labelKey: 'adminTickets.statusAwaiting' },
+  { value: 'confirmed', labelKey: 'adminTickets.statusConfirmed' },
+  { value: 'completed', labelKey: 'adminTickets.statusCompleted' },
+  { value: 'cancelled', labelKey: 'adminTickets.statusCancelled' },
 ]
 
 const RANGE_OPTIONS: { value: string; labelKey: string }[] = [
@@ -72,6 +45,7 @@ export function TicketsFilterBar({
   setSearchInput,
   onSearchChange,
   setRangeFilter,
+  showStats,
   setShowStats,
   handleExport,
   exporting,
@@ -88,6 +62,7 @@ export function TicketsFilterBar({
   setSearchInput: Dispatch<SetStateAction<string>>
   onSearchChange: (v: string) => void
   setRangeFilter: (range: string) => void
+  showStats: boolean
   setShowStats: Dispatch<SetStateAction<boolean>>
   handleExport: () => void
   exporting: boolean
@@ -101,163 +76,142 @@ export function TicketsFilterBar({
   const t = useT()
   return (
     <Card>
-      <CardContent className="p-3 sm:p-4">
-        <div className="flex flex-col gap-3">
-          {/* Row 1: search + range + sort */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-            <div className="relative flex-1 min-w-50">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={searchInput}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder={t('adminTickets.searchPlaceholder')}
-                className="pl-8 h-9"
-              />
-            </div>
+      <CardContent className="space-y-3 p-3 sm:p-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchInput}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={t('adminTickets.searchPlaceholder')}
+            className="pl-9"
+          />
+        </div>
 
-            <div className="flex items-center gap-1.5">
-              <CalendarRange className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <ComboboxField
-                value={filter.range}
-                onValueChange={setRangeFilter}
-                items={RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-                className="h-9 w-full sm:w-35"
-                placeholder={t('adminTickets.timeRange')}
-                searchPlaceholder={t('combobox.search')}
-                aria-label={t('adminTickets.timeRange')}
-                data-testid="tickets-range-filter"
-              />
-            </div>
+        {/* Phones: two filters to a row, the actions sharing the last one. */}
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <ComboboxField
+            value={filter.range}
+            onValueChange={setRangeFilter}
+            items={RANGE_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+            className="min-w-0 sm:w-36"
+            placeholder={t('adminTickets.timeRange')}
+            searchPlaceholder={t('combobox.search')}
+            aria-label={t('adminTickets.timeRange')}
+            data-testid="tickets-range-filter"
+          />
+          <ComboboxField
+            value={filter.status ?? 'all'}
+            onValueChange={setStatusFilter}
+            items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+            className="min-w-0 sm:w-40"
+            placeholder={t('common.status')}
+            searchPlaceholder={t('combobox.search')}
+            aria-label={t('adminTickets.filterStatus')}
+            data-testid="tickets-status-filter"
+          />
+          <ComboboxField
+            value={filter.brandId ?? 'all'}
+            onValueChange={setBrandFilter}
+            items={[
+              { value: 'all', label: t('adminTickets.allBrands') },
+              ...(brandsQuery.data?.items ?? []).map((b) => ({
+                value: b.id,
+                label: b.name ?? t('admin.brands'),
+              })),
+            ]}
+            className="col-span-2 min-w-0 sm:w-48"
+            placeholder={t('adminTickets.allBrands')}
+            searchPlaceholder={t('adminTickets.searchBrand')}
+            aria-label={t('adminTickets.filterBrand')}
+            data-testid="tickets-brand-filter"
+          />
 
-            <div className="flex gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5"
-                onClick={() => setShowStats((v) => !v)}
-              >
-                <TrendingUp className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{t('adminTickets.chart')}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 gap-1.5 border-blue-300 text-blue-700 hover:bg-blue-50"
-                onClick={handleExport}
-                disabled={exporting}
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">
-                  {exporting ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
-                </span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Row 2: brand + status + custom date range + reset */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Bus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <ComboboxField
-                value={filter.brandId ?? 'all'}
-                onValueChange={setBrandFilter}
-                items={[
-                  { value: 'all', label: t('adminTickets.allBrands') },
-                  ...(brandsQuery.data?.items ?? []).map((b) => ({
-                    value: b.id,
-                    label: b.name ?? t('admin.brands'),
-                  })),
-                ]}
-                className="h-9 w-full sm:w-45"
-                placeholder={t('adminTickets.allBrands')}
-                searchPlaceholder={t('adminTickets.searchBrand')}
-                aria-label={t('adminTickets.filterBrand')}
-                data-testid="tickets-brand-filter"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <Filter className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
-              <ComboboxField
-                value={filter.status ?? 'all'}
-                onValueChange={setStatusFilter}
-                items={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
-                className="h-9 w-full sm:w-40"
-                placeholder={t('common.status')}
-                searchPlaceholder={t('combobox.search')}
-                aria-label={t('adminTickets.filterStatus')}
-                data-testid="tickets-status-filter"
-              />
-            </div>
-
-            {filter.range === 'custom' && (
+          {filter.range === 'custom' && (
+            <div className="col-span-2">
               <CustomDateRange
                 dateFrom={filter.dateFrom}
                 dateTo={filter.dateTo}
                 onChange={setDateRange}
               />
-            )}
-
-            {activeFilterCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-9 gap-1.5 text-muted-foreground ml-auto"
-                onClick={resetFilters}
-              >
-                <X className="h-3.5 w-3.5" />
-                {t('adminTickets.clearFiltersCount', { count: activeFilterCount })}
-              </Button>
-            )}
-          </div>
-
-          {/* Active filter chips */}
-          {activeFilterCount > 0 && (
-            <div className="flex flex-wrap gap-1.5 pt-1 border-t">
-              {filter.brandId && (
-                <FilterChip
-                  label={t('adminTickets.chipBrand', {
-                    value:
-                      brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ??
-                      filter.brandId,
-                  })}
-                  onClear={() => setBrandFilter('all')}
-                />
-              )}
-              {filter.status && filter.status !== 'all' && (
-                <FilterChip
-                  label={t('adminTickets.chipStatus', {
-                    value:
-                      STATUS_OPTIONS.find((o) => o.value === filter.status) !== undefined
-                        ? t(STATUS_OPTIONS.find((o) => o.value === filter.status)!.labelKey)
-                        : filter.status,
-                  })}
-                  onClear={() => setStatusFilter('all')}
-                />
-              )}
-              {filter.search && (
-                <FilterChip
-                  label={t('adminTickets.chipSearch', { value: filter.search })}
-                  onClear={() => {
-                    setSearchInput('')
-                    setFilter((f) => ({ ...f, search: undefined, offset: 0 }))
-                  }}
-                />
-              )}
-              {filter.range && filter.range !== '30d' && (
-                <FilterChip
-                  label={t('adminTickets.chipRange', {
-                    value:
-                      RANGE_OPTIONS.find((o) => o.value === filter.range) !== undefined
-                        ? t(RANGE_OPTIONS.find((o) => o.value === filter.range)!.labelKey)
-                        : filter.range,
-                  })}
-                  onClear={() => setRangeFilter('30d')}
-                />
-              )}
             </div>
           )}
+
+          <div className="col-span-2 flex gap-2 sm:ml-auto">
+            <Button
+              variant={showStats ? 'secondary' : 'outline'}
+              className="flex-1 sm:flex-none"
+              aria-pressed={showStats}
+              onClick={() => setShowStats((v) => !v)}
+            >
+              <TrendingUp />
+              {t('adminTickets.chart')}
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1 sm:flex-none"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              <Download />
+              {exporting ? t('adminTickets.exporting') : t('adminTickets.exportCsv')}
+            </Button>
+          </div>
         </div>
+
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
+            {filter.brandId && (
+              <FilterChip
+                label={t('adminTickets.chipBrand', {
+                  value:
+                    brandsQuery.data?.items?.find((b) => b.id === filter.brandId)?.name ??
+                    filter.brandId,
+                })}
+                onClear={() => setBrandFilter('all')}
+              />
+            )}
+            {filter.status && filter.status !== 'all' && (
+              <FilterChip
+                label={t('adminTickets.chipStatus', {
+                  value:
+                    STATUS_OPTIONS.find((o) => o.value === filter.status) !== undefined
+                      ? t(STATUS_OPTIONS.find((o) => o.value === filter.status)!.labelKey)
+                      : filter.status,
+                })}
+                onClear={() => setStatusFilter('all')}
+              />
+            )}
+            {filter.search && (
+              <FilterChip
+                label={t('adminTickets.chipSearch', { value: filter.search })}
+                onClear={() => {
+                  setSearchInput('')
+                  setFilter((f) => ({ ...f, search: undefined, offset: 0 }))
+                }}
+              />
+            )}
+            {filter.range && filter.range !== '30d' && (
+              <FilterChip
+                label={t('adminTickets.chipRange', {
+                  value:
+                    RANGE_OPTIONS.find((o) => o.value === filter.range) !== undefined
+                      ? t(RANGE_OPTIONS.find((o) => o.value === filter.range)!.labelKey)
+                      : filter.range,
+                })}
+                onClear={() => setRangeFilter('30d')}
+              />
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              onClick={resetFilters}
+            >
+              <X />
+              {t('adminTickets.clearFiltersCount', { count: activeFilterCount })}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -268,11 +222,12 @@ export function TicketsFilterBar({
 function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
   const t = useT()
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700 border border-blue-200">
+    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pr-0.5 pl-2.5 text-xs text-primary">
       {label}
       <button
+        type="button"
         onClick={onClear}
-        className="ml-0.5 rounded-full hover:bg-blue-100 p-0.5"
+        className="grid size-6 place-items-center rounded-full hover:bg-primary/15"
         aria-label={t('adminTickets.clearFilter')}
       >
         <X className="h-3 w-3" />

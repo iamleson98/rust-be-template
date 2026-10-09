@@ -47,16 +47,21 @@ export function rangeDays(
   }
 }
 
-/** `status: 'all'` means unfiltered; paging defaults to the first 50. */
-const toQuery = (f: AdminBookingFilter) => ({
+/** Which bookings `f` selects (`status: 'all'` means unfiltered), without paging. */
+const filterQuery = (f: AdminBookingFilter) => ({
   brandId: f.brandId,
   routeId: f.routeId,
   status: f.status && f.status !== 'all' ? f.status : undefined,
   ...rangeDays(f),
   search: f.search,
+  sort: f.sort,
+})
+
+/** One page of the selection; paging defaults to the first 50. */
+const toQuery = (f: AdminBookingFilter) => ({
+  ...filterQuery(f),
   limit: f.limit ?? 50,
   offset: f.offset ?? 0,
-  sort: f.sort,
 })
 
 /** Admin bookings; `live` re-polls every 30 s (queues staff watch). */
@@ -70,15 +75,17 @@ export function useAdminBookings(filter: AdminBookingFilter, { live = false } = 
   })
 }
 
+/** Totals over the whole selection — the same whichever page is shown. */
 export function useAdminBookingStats(filter: AdminBookingFilter) {
-  return useQuery(adminBookingsStatsOptions({ query: toQuery(filter) }))
+  return useQuery(adminBookingsStatsOptions({ query: filterQuery(filter) }))
 }
 
-/** Downloads every booking as CSV and toasts the outcome. */
-export function useBookingsCsvExport() {
+/** Downloads the bookings `filter` selects (all of them by default) as CSV and toasts the outcome. */
+export function useBookingsCsvExport(filter: AdminBookingFilter = {}) {
   const t = useT()
   const { mutateAsync, isPending } = useMutation({
-    mutationFn: async () => (await adminBookingsExport({ throwOnError: true })).data,
+    mutationFn: async () =>
+      (await adminBookingsExport({ query: filterQuery(filter), throwOnError: true })).data,
   })
 
   const exportCsv = async () => {

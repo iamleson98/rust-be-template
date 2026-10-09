@@ -10,7 +10,7 @@ export function PillTabs({ children }: { children: ReactNode }) {
   )
 }
 
-/** One pill tab: icon, label and an optional count. */
+/** One pill tab: an optional icon, the label and an optional count. */
 export function PillTab({
   value,
   icon,
@@ -18,7 +18,7 @@ export function PillTab({
   count,
 }: {
   value: string
-  icon: ReactNode
+  icon?: ReactNode
   label: string
   count?: number
 }) {

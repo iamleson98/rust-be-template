@@ -277,6 +277,21 @@ pub struct AdminPaymentListResponse {
     pub total: Option<u64>,
 }
 
+/// Response of `GET /api/admin/payments/summary`: totals over every payment.
+#[derive(Debug, Default, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminPaymentSummary {
+    /// Every payment started, whatever its status.
+    pub total: u64,
+    pub pending: u64,
+    pub completed: u64,
+    pub failed: u64,
+    pub cancelled: u64,
+    pub refunded: u64,
+    /// Money actually received: the amounts of completed payments (VND).
+    pub collected: i64,
+}
+
 #[derive(Debug, Deserialize, utoipa::IntoParams, ToSchema)]
 #[serde(rename_all = "camelCase")]
 #[into_params(parameter_in = Query)]

@@ -56,6 +56,7 @@ use utoipa::OpenApi;
         crate::routes::payments::momo_ipn,
         crate::routes::payments::zalopay_callback,
         crate::routes::payments::list_admin_payments,
+        crate::routes::payments::admin_payment_summary,
         crate::routes::payments::update_payment_status,
         // vitals + seo
         crate::routes::vitals::report_vitals,
@@ -255,6 +256,7 @@ use utoipa::OpenApi;
         crate::dto::payment::IpnResponse,
         crate::dto::payment::AdminPaymentOut,
         crate::dto::payment::AdminPaymentListResponse,
+        crate::dto::payment::AdminPaymentSummary,
         crate::dto::payment::AdminPaymentsQuery,
         crate::dto::payment::UpdatePaymentStatusReq,
         crate::dto::payment::UpdatePaymentStatusResponse,

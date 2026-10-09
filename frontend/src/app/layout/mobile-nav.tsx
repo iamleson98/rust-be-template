@@ -1,4 +1,4 @@
-import { useSession } from '@/stores/session'
+import { isStaffUser, useSession } from '@/stores/session'
 import { useUi } from '@/stores/ui'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
@@ -51,8 +51,10 @@ export function MobileNav() {
         navigate({ to: consoleTab ? '/account' : '/login' })
         break
       case 'support':
-        if (user) setChatOpen(true)
-        else navigate({ to: '/login' })
+        if (!user) navigate({ to: '/login' })
+        // Staff answer support from the admin inbox, not the customer widget.
+        else if (isStaffUser(user)) navigate({ to: '/admin/chat' })
+        else setChatOpen(true)
         break
     }
   }

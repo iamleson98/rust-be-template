@@ -3,7 +3,7 @@ import {
   percentChange,
   periodDays,
   previousPeriod,
-  revenueBars,
+  dayBars,
 } from '@/features/admin/dashboard/helpers'
 
 describe('reporting periods', () => {
@@ -26,11 +26,11 @@ describe('reporting periods', () => {
       ['2026-10-02', 100],
       ['2026-10-04', 50],
     ])
-    const daily = revenueBars(days, revenue, 10, (d) => d.slice(8))
+    const daily = dayBars(days, revenue, 10, (d) => d.slice(8))
     expect(daily).toHaveLength(9)
     expect(daily.map((b) => b.value)).toEqual([0, 100, 0, 50, 0, 0, 0, 0, 0])
 
-    const grouped = revenueBars(days, revenue, 3, (d) => d.slice(8))
+    const grouped = dayBars(days, revenue, 3, (d) => d.slice(8))
     expect(grouped.map((b) => [b.label, b.value])).toEqual([
       ['01', 100],
       ['04', 50],

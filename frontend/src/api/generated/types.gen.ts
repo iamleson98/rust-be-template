@@ -218,6 +218,25 @@ export type AdminPaymentOut = {
     userId?: string | null;
 };
 
+/**
+ * Response of `GET /api/admin/payments/summary`: totals over every payment.
+ */
+export type AdminPaymentSummary = {
+    cancelled: number;
+    /**
+     * Money actually received: the amounts of completed payments (VND).
+     */
+    collected: number;
+    completed: number;
+    failed: number;
+    pending: number;
+    refunded: number;
+    /**
+     * Every payment started, whatever its status.
+     */
+    total: number;
+};
+
 export type AdminPaymentsQuery = {
     limit?: number | null;
     offset?: number | null;
@@ -4635,6 +4654,33 @@ export type ListAdminPaymentsResponses = {
 };
 
 export type ListAdminPaymentsResponse = ListAdminPaymentsResponses[keyof ListAdminPaymentsResponses];
+
+export type AdminPaymentSummaryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/admin/payments/summary';
+};
+
+export type AdminPaymentSummaryErrors = {
+    /**
+     * Unauthorized
+     */
+    401: unknown;
+    /**
+     * Forbidden
+     */
+    403: unknown;
+};
+
+export type AdminPaymentSummaryResponses = {
+    /**
+     * Payment totals
+     */
+    200: AdminPaymentSummary;
+};
+
+export type AdminPaymentSummaryResponse = AdminPaymentSummaryResponses[keyof AdminPaymentSummaryResponses];
 
 export type UpdatePaymentStatusData = {
     body: UpdatePaymentStatusReq;

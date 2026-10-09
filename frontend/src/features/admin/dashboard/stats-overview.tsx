@@ -42,7 +42,7 @@ import {
   percentChange,
   periodDays,
   previousPeriod,
-  revenueBars,
+  dayBars,
   type Period,
 } from './helpers'
 import { StatGrid, StatTile } from '@/components/console/stat-tile'
@@ -114,7 +114,7 @@ export function StatsOverview({ dateRange }: { dateRange: DateRange }) {
       dateRange === '7d'
         ? (day: string) => weekdays[new Date(`${day}T00:00:00`).getDay()]
         : (day: string) => `${day.slice(8, 10)}/${day.slice(5, 7)}`
-    return revenueBars(periodDays(period), revenueByDay, 10, label)
+    return dayBars(periodDays(period), revenueByDay, 10, label)
   }, [byDay, dateRange, period, t])
 
   const totalRangeRevenue = totals?.revenue ?? 0

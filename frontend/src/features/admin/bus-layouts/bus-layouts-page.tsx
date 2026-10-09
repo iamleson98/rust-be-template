@@ -33,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { ConsolePage, PageHeader } from '@/components/console/page'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ComboboxField } from '@/components/ui/combobox'
@@ -250,21 +251,17 @@ export function AdminBusLayoutsPage() {
   )
 
   return (
-    <div className="page-transition p-4 md:p-6 space-y-4 bus-layouts">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <LayoutGrid className="h-5 w-5 text-blue-600" />
-            {t('busLayouts.title')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {t('adminBusLayouts.pageSubtitle')}
-          </p>
-        </div>
-        <Button size="sm" onClick={openCreate}>
-          <Plus className="h-4 w-4" /> {t('busLayouts.add')}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('busLayouts.title')}
+        description={t('adminBusLayouts.pageSubtitle')}
+        actions={
+          <Button onClick={openCreate}>
+            <Plus />
+            {t('busLayouts.add')}
+          </Button>
+        }
+      />
 
       {/* Brand filter */}
       <div className="w-full sm:w-64">
@@ -373,6 +370,6 @@ export function AdminBusLayoutsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ConsolePage>
   )
 }

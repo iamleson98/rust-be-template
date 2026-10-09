@@ -153,8 +153,10 @@ export function BrandTreeTable({
 
   return (
     <div className="overflow-hidden rounded-lg border bg-card">
-      <div className="overflow-x-auto">
-        <Table className="min-w-210">
+      {/* Phones: no sideways table — the header hides and every row (brand,
+          route, schedule) becomes a wrapping line of its cells. */}
+      <div className="md:overflow-x-auto">
+        <Table className="md:min-w-210 max-md:block max-md:[&_tbody]:block max-md:[&_thead]:hidden max-md:[&_tr]:flex max-md:[&_tr]:flex-wrap max-md:[&_tr]:items-center max-md:[&_tr]:gap-x-1 max-md:[&_tr]:px-1 max-md:[&_tr]:py-1.5 max-md:[&_td]:block max-md:[&_td]:px-1.5 max-md:[&_td]:py-1 max-md:[&_td:empty]:hidden">
           <TableHeader>
             <TableRow className="border-border/60 bg-muted/50 hover:bg-muted/50">
               <TableHead

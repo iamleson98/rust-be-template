@@ -40,9 +40,9 @@ use uuid::Uuid;
 
 use crate::config::PaymentConfig;
 use crate::dto::payment::{
-    AdminPaymentListResponse, AdminPaymentOut, BankTransferInstructions, CancelPaymentResponse,
-    CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse, MarkCodCollectedResponse,
-    PaymentOut, UpdatePaymentStatusResponse,
+    AdminPaymentListResponse, AdminPaymentOut, AdminPaymentSummary, BankTransferInstructions,
+    CancelPaymentResponse, CreatePaymentReq, CreatePaymentResponse, ListPaymentsResponse,
+    MarkCodCollectedResponse, PaymentOut, UpdatePaymentStatusResponse,
 };
 use crate::entity::payment::{self};
 use crate::error::{AppError, AppResult};
@@ -706,6 +706,33 @@ impl PaymentService {
         })
     }
 
+    /// Totals over every payment: how many per status and the money collected.
+    pub async fn admin_summary(&self) -> AppResult<AdminPaymentSummary> {
+        let rows = self
+            .store
+            .payment_store()
+            .status_totals()
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        let mut summary = AdminPaymentSummary::default();
+        for (status, count, amount) in rows {
+            let count = u64::try_from(count).unwrap_or(0);
+            summary.total += count;
+            match status.as_str() {
+                statuses::PENDING => summary.pending = count,
+                statuses::COMPLETED => {
+                    summary.completed = count;
+                    summary.collected = amount.unwrap_or(0);
+                }
+                statuses::FAILED => summary.failed = count,
+                statuses::CANCELLED => summary.cancelled = count,
+                statuses::REFUNDED => summary.refunded = count,
+                _ => {}
+            }
+        }
+        Ok(summary)
+    }
+
     pub async fn get_admin(&self, id: Uuid) -> AppResult<AdminPaymentOut> {
         let p = self
             .store
@@ -1153,6 +1180,29 @@ mod tests {
             .unwrap();
         assert_eq!(f.payment_status(made.payment.id).await, "completed");
         assert_eq!(f.booking(held.booking_id).await.status, "confirmed");
+    }
+
+    #[tokio::test]
+    async fn the_admin_summary_counts_every_payment_and_the_money_collected() {
+        let f = fixture(1).await;
+        let owner = f.owner().await;
+        let held = f.hold(owner, 1).await;
+        for status in ["completed", "completed", "pending", "failed"] {
+            f.payment(&held, owner, status).await;
+        }
+
+        let summary = f.payments.admin_summary().await.unwrap();
+        assert_eq!(
+            summary,
+            AdminPaymentSummary {
+                total: 4,
+                pending: 1,
+                completed: 2,
+                failed: 1,
+                collected: 2 * held.total,
+                ..Default::default()
+            }
+        );
     }
 
     #[tokio::test]

@@ -14,7 +14,7 @@ import { adminVehicleTypesDeleteMutation, adminVehicleTypesListOptions } from '@
 import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import { Bus, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { Bus, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -31,6 +31,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
+import { ConsolePage, PageHeader } from '@/components/console/page'
 import { DataTable, DataTableColumnHeader, type DataTableFeatures } from '@/components/data-table'
 import type { AdminVehicleTypeOut } from '@/api'
 
@@ -116,7 +117,7 @@ export function VehicleTypesPanel() {
             </div>
           ),
           sortFn: 'text',
-          meta: { label: t('adminVehicleTypes.displayName') },
+          meta: { label: t('adminVehicleTypes.displayName'), cardTitle: true },
         }),
         columnHelper.accessor('code', {
           header: ({ column }) => (
@@ -198,48 +199,37 @@ export function VehicleTypesPanel() {
   )
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <Bus className="h-5 w-5 text-blue-600" />
-            {t('admin.vehicleTypes')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminVehicleTypes.subtitle')}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => query.refetch()}
-            disabled={query.isFetching}
-            aria-label={t('common.refresh')}
-          >
-            {query.isFetching ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Bus className="h-3.5 w-3.5" />
-            )}
-          </Button>
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="h-4 w-4 mr-1.5" />
-            {t('adminVehicleTypes.add')}
-          </Button>
-        </div>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('admin.vehicleTypes')}
+        description={t('adminVehicleTypes.subtitle')}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => query.refetch()}
+              disabled={query.isFetching}
+              aria-label={t('common.refresh')}
+            >
+              <RefreshCw className={query.isFetching ? 'animate-spin' : undefined} />
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus />
+              {t('adminVehicleTypes.add')}
+            </Button>
+          </>
+        }
+      />
 
-      {/* Search bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t('busLayouts.search')}
-            className="pl-9"
-          />
-        </div>
+      <div className="relative w-full sm:max-w-xs">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={t('busLayouts.search')}
+          className="pl-9"
+        />
       </div>
 
       {/* Table — the DataTable renders its own bordered surface. */}
@@ -311,6 +301,6 @@ export function VehicleTypesPanel() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </ConsolePage>
   )
 }

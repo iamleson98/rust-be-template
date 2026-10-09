@@ -18,9 +18,11 @@ import { useMutation, useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useSession } from '@/stores/session'
 import { useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import { Bot, Loader2, RefreshCw, ShieldCheck, User as UserIcon, Users } from 'lucide-react'
+import { Bot, RefreshCw, ShieldCheck, User as UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { ConsolePage, PageHeader } from '@/components/console/page'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -203,36 +205,28 @@ export function UsersPanel() {
   )
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2">
-            <Users className="h-5 w-5 text-blue-600" />
-            {t('admin.users')}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{t('adminUsers.subtitle')}</p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => query.refetch()}
-          disabled={query.isFetching}
-          aria-label={t('common.refresh')}
-        >
-          {query.isFetching ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-        </Button>
-      </div>
+    <ConsolePage>
+      <PageHeader
+        title={t('admin.users')}
+        description={t('adminUsers.subtitle')}
+        actions={
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => query.refetch()}
+            disabled={query.isFetching}
+            aria-label={t('common.refresh')}
+          >
+            <RefreshCw className={query.isFetching ? 'animate-spin' : undefined} />
+          </Button>
+        }
+      />
 
       {me?.type === 'admin' ? (
-        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs text-amber-800">
-          <ShieldCheck className="h-4 w-4 shrink-0" />
-          <span>{t('adminUsers.adminNote')}</span>
-        </div>
+        <Alert variant="warning">
+          <ShieldCheck />
+          <AlertDescription>{t('adminUsers.adminNote')}</AlertDescription>
+        </Alert>
       ) : null}
 
       {/* Table — the DataTable renders its own bordered surface. */}
@@ -254,6 +248,6 @@ export function UsersPanel() {
         emptyDescription={t('adminUsers.emptyDesc')}
         emptyIcon={<UserIcon className="h-5 w-5" aria-hidden />}
       />
-    </div>
+    </ConsolePage>
   )
 }
