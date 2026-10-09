@@ -19,6 +19,7 @@ pub struct Model {
     pub wbraid: Option<String>,
     #[sea_orm(column_type = "Text", nullable)]
     pub gbraid: Option<String>,
+    #[sea_orm(default_value = "pending")]
     pub status: String,
     #[sea_orm(column_type = "Text")]
     pub created_at: String,
