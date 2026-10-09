@@ -210,7 +210,7 @@ function JobCard({
           </div>
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-lg border p-3 space-y-1">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {t('adminCronJobs.nextRun')}

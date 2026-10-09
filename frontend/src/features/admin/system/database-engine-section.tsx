@@ -74,7 +74,7 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
       </h2>
 
       {/* ── Memory / Capacity / Throughput summary row ───────────── */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Memory */}
         <Card data-testid="engine-memory-card">
           <CardHeader className="pb-2">
@@ -243,7 +243,7 @@ export function DatabaseEngineSection({ engine }: { engine: EngineStatsOut }) {
 
       {/* ── Per-file engine detail ─────────────────────────────────── */}
       {engine.files.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {engine.files.map((f) => {
             const fHit = Math.min(Math.max(f.hitRatePct, 0), 100)
             return (

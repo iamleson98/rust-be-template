@@ -82,6 +82,8 @@ export function useAdminChat() {
       setActive(channel)
       markRead({ path: { id: channel.id } })
     },
+    /** Back to the queue (phones show one pane at a time). */
+    back: () => setActive(null),
     // Blocking is a stub: it only tells the staff member and leaves the conversation.
     block: () => {
       toast.success(tSync('chat.blocked'), { description: tSync('chat.blockedDesc') })

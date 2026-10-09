@@ -366,7 +366,7 @@ export function ScheduleFormDialog({
 
               {/* Compact fields pair up on the widened (max-w-4xl)
                   dialog so everything stays visible without scrolling. */}
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <ScheduleBasicsFields
                   form={form}
                   busLayouts={busLayouts}

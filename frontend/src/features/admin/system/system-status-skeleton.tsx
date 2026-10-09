@@ -11,7 +11,7 @@ import { Shimmer } from '@/components/ui/shimmer'
 export const SystemStatusSkeleton = memo(function SystemStatusSkeleton() {
   return (
     <div
-      className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+      className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4"
       aria-hidden
       data-testid="system-status-skeleton"
     >

@@ -8,7 +8,7 @@ import type { PlanEditorApi } from './use-plan-editor'
 /** Palette · canvas · inspector. State lives in `usePlanEditor` so the host dialog can read and replace the plan. */
 export function PlanEditor({ editor }: { editor: PlanEditorApi }) {
   return (
-    <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)_260px]">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[auto_minmax(0,1fr)_260px]">
       <Palette
         tool={editor.state.tool}
         onPick={(tool) => editor.dispatch({ type: 'tool', tool })}

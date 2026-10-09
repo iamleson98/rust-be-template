@@ -43,7 +43,7 @@ export function AdminSystemPage() {
         ) : !data ? (
           <p className="text-sm text-muted-foreground">Failed to load system status</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
             <UptimeCard data={data} />
             <WebSocketCard data={data} />
             <CallCard data={data} />

@@ -21,7 +21,7 @@ export const SeatMapSkeleton = memo(function SeatMapSkeleton() {
         ))}
       </div>
       {/* Boarding / dropping selects */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Shimmer className="h-9 w-full rounded-md" />
         <Shimmer className="h-9 w-full rounded-md" />
       </div>

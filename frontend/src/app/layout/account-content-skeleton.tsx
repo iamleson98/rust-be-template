@@ -8,7 +8,7 @@ export const AccountContentSkeleton = memo(function AccountContentSkeleton() {
         <Shimmer className="h-6 w-48" />
         <Shimmer className="h-3.5 w-72 max-w-full" />
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="rounded-lg border bg-card p-4 space-y-3">
             <div className="flex items-center gap-3">

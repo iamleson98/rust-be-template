@@ -9,7 +9,7 @@ export function AdminLayout() {
   return (
     <AdminShell>
       <Suspense fallback={<AdminContentSkeleton />}>
-        <div key={pathname} className="page-transition">
+        <div key={pathname} className="page-transition h-full">
           <Outlet />
         </div>
       </Suspense>

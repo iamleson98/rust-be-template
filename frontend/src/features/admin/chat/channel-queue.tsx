@@ -9,7 +9,6 @@ import { useT } from '@/lib/i18n'
 import type { AdminChat } from './use-admin-chat'
 import { ChannelRow } from './channel-row'
 import { ChatChannelListSkeleton } from './chat-channel-list-skeleton'
-import { PANES_HEIGHT } from './layout'
 import { StaffPresenceStrip } from './staff-presence-strip'
 
 type Props = {
@@ -39,31 +38,33 @@ export function ChannelQueue({ queue, activeId, onOpen }: Props) {
   })
 
   return (
-    <Card className="xl:col-span-2 flex flex-col xl:h-160">
-      <CardHeader className="pb-2 shrink-0 space-y-2">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-blue-600" />
-          {t('chat.queue')}
-          <span className="text-xs font-normal text-muted-foreground ml-auto">
-            {queue.channels.length}
-            {queue.total !== queue.channels.length ? `/${queue.total}` : ''}{' '}
-            {t('adminChat.channelNoun')}
-          </span>
+    <Card className="flex h-full min-h-0 flex-col gap-0 py-0">
+      <CardHeader className="shrink-0 space-y-2 px-4 pt-3 pb-2">
+        <div className="flex items-center gap-2">
+          <CardTitle className="flex min-w-0 items-center gap-2 text-sm">
+            <MessageSquare className="size-4 shrink-0 text-muted-foreground" />
+            <span className="truncate">{t('chat.queue')}</span>
+            <span className="shrink-0 text-xs font-normal text-muted-foreground tabular-nums">
+              {queue.channels.length}
+              {queue.total !== queue.channels.length ? `/${queue.total}` : ''}
+            </span>
+          </CardTitle>
           <Button
             variant={queue.mineOnly ? 'default' : 'outline'}
             size="sm"
-            className={`h-7 gap-1 text-xs ${queue.mineOnly ? 'bg-blue-600 hover:bg-blue-700' : ''}`}
+            className="ml-auto h-8 shrink-0 gap-1 text-xs"
             onClick={() => queue.setMineOnly(!queue.mineOnly)}
             title={t('adminChat.mineFilterTitle')}
+            aria-pressed={queue.mineOnly}
           >
-            <Filter className="h-3 w-3" />
+            <Filter className="size-3.5" />
             {t('adminChat.mine')}
           </Button>
-        </CardTitle>
+        </div>
         <StaffPresenceStrip presence={queue.staffPresence} />
       </CardHeader>
       <CardContent className="p-0 flex-1 min-h-0">
-        <ScrollArea viewportRef={viewport} className={`${PANES_HEIGHT} xl:h-full`}>
+        <ScrollArea viewportRef={viewport} className="h-full">
           <div className="divide-y">
             {queue.loading ? (
               <ChatChannelListSkeleton count={6} />

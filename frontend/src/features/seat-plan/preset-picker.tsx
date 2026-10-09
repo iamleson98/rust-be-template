@@ -26,7 +26,7 @@ export function PresetPicker({
   const card =
     'flex flex-col gap-2 rounded-lg border p-3 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40 disabled:pointer-events-none disabled:opacity-60'
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {onBlank && (
         <button
           type="button"

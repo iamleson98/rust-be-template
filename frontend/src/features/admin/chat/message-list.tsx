@@ -3,7 +3,6 @@ import { dayBreak } from '@/features/chat/format'
 import { TypingDots } from '@/features/chat/typing-dots'
 import { useMessageScroll } from '@/features/chat/use-message-scroll'
 import { useT } from '@/lib/i18n'
-import { PANES_HEIGHT } from './layout'
 import { MessageRow } from './message-row'
 import type { AdminChat } from './use-admin-chat'
 
@@ -34,10 +33,7 @@ export function MessageList({ conversation: c, onViewTicket }: Props) {
   })
 
   return (
-    <ScrollArea
-      viewportRef={scrollRef}
-      className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 xl:min-h-0 p-4`}
-    >
+    <ScrollArea viewportRef={scrollRef} className="min-h-0 flex-1 bg-muted/30 p-4">
       <div className="space-y-2.5">
         {c.loadingMore && (
           <div className="flex items-center justify-center py-3">

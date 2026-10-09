@@ -77,7 +77,7 @@ export function SystemMetricsSection() {
       ) : metricsQuery.data ? (
         <div className="space-y-3">
           {/* CPU / Memory / This Process summary row */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <CpuCard
               cpuUsagePercent={metricsQuery.data.cpuUsagePercent}
               logicalCores={metricsQuery.data.logicalCores}

@@ -9,7 +9,7 @@ export function AccountLayout() {
   return (
     <AccountShell>
       <Suspense fallback={<AccountContentSkeleton />}>
-        <div key={pathname} className="page-transition">
+        <div key={pathname} className="page-transition h-full">
           <Outlet />
         </div>
       </Suspense>

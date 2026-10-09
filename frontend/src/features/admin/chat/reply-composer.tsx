@@ -23,7 +23,7 @@ type Props = {
 export function ReplyComposer({ value, onChange, onSend, sending }: Props) {
   const t = useT()
   return (
-    <div className="px-4 py-2 border-t bg-slate-50/50 shrink-0">
+    <div className="shrink-0 border-t bg-background px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:px-4">
       <div className="flex gap-1.5 mb-2 overflow-x-auto pb-1">
         {QUICK_REPLIES.map((key) => {
           const text = t(key)
@@ -31,7 +31,7 @@ export function ReplyComposer({ value, onChange, onSend, sending }: Props) {
             <button
               key={key}
               onClick={() => onChange(text)}
-              className="shrink-0 rounded-full px-2.5 py-1 text-[11px] border bg-white hover:bg-blue-50 hover:border-blue-300 transition-colors"
+              className="shrink-0 rounded-full border bg-background px-2.5 py-1 text-[11px] transition-colors hover:border-primary/40 hover:bg-primary/5"
             >
               {text.length > PREVIEW_CHARS ? text.slice(0, PREVIEW_CHARS) + '…' : text}
             </button>
@@ -55,7 +55,7 @@ export function ReplyComposer({ value, onChange, onSend, sending }: Props) {
           onClick={onSend}
           disabled={!value.trim() || sending}
           size="icon"
-          className="bg-blue-600 hover:bg-blue-700 shrink-0"
+          className="shrink-0"
         >
           <Send className="h-4 w-4" />
         </Button>

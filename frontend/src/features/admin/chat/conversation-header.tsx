@@ -1,4 +1,13 @@
-import { Ban, CheckCircle2, Hand, Mail, Phone, Ticket as TicketIcon, Undo2 } from 'lucide-react'
+import {
+  Ban,
+  CheckCircle2,
+  Hand,
+  Mail,
+  Phone,
+  Ticket as TicketIcon,
+  Undo2,
+  ArrowLeft,
+} from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ChatChannelOut } from '@/api'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -33,6 +42,8 @@ function Action({ label, title, icon, className, disabled, onClick }: ActionProp
 }
 
 type Props = {
+  /** Back to the queue — phones and tablets show one pane at a time. */
+  onBack?: () => void
   channel: ChatChannelOut
   userOnline: boolean
   typingUser: { name: string } | null
@@ -58,6 +69,7 @@ export function ConversationHeader({
   onRelease,
   onClose,
   onBlock,
+  onBack,
 }: Props) {
   const t = useT()
   const { user } = channel
@@ -72,10 +84,20 @@ export function ConversationHeader({
       : t('adminChat.waitingShort')
 
   return (
-    <div className="px-4 py-3 border-b bg-linear-to-r from-blue-50 to-blue-50 flex items-center justify-between shrink-0">
-      <div className="flex items-center gap-2 min-w-0">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b bg-background px-2 py-2.5 sm:px-4">
+      <div className="flex min-w-0 items-center gap-2">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted xl:hidden"
+            aria-label={t('common.back')}
+          >
+            <ArrowLeft className="size-5" />
+          </button>
+        )}
         <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
+          <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
             {customerInitial(channel)}
           </AvatarFallback>
         </Avatar>
@@ -116,9 +138,8 @@ export function ConversationHeader({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <Button
-          variant="default"
           size="sm"
-          className="h-8 gap-1.5 bg-blue-600 hover:bg-blue-700"
+          className="h-8 gap-1.5"
           onClick={onBook}
           title={t('chat.bookForCustomer')}
         >

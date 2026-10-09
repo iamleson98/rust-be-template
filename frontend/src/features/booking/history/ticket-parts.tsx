@@ -10,7 +10,7 @@ type Stop = BookingOut['pickup']
 export function TicketStops({ pickup, dropoff }: { pickup: Stop; dropoff: Stop }) {
   const t = useT()
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <StopTile label={t('bookingHistory.pickupPoint')} stop={pickup} tone="text-blue-600" />
       <StopTile label={t('bookingHistory.dropoffPoint')} stop={dropoff} tone="text-rose-600" />
     </div>

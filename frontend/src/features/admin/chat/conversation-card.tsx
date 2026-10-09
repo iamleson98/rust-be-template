@@ -2,7 +2,6 @@ import { Headset } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { useT } from '@/lib/i18n'
 import { ConversationHeader } from './conversation-header'
-import { PANES_HEIGHT } from './layout'
 import { MessageList } from './message-list'
 import { ReplyComposer } from './reply-composer'
 import type { AdminChat } from './use-admin-chat'
@@ -20,7 +19,7 @@ export function ConversationCard({ chat, canRelease, onBook, onViewTicket }: Pro
   const { active, conversation } = chat
 
   return (
-    <Card className="xl:col-span-3 flex flex-col xl:h-160">
+    <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden py-0">
       {active ? (
         <>
           <ConversationHeader
@@ -34,6 +33,7 @@ export function ConversationCard({ chat, canRelease, onBook, onViewTicket }: Pro
             onRelease={chat.release}
             onClose={chat.close}
             onBlock={chat.block}
+            onBack={chat.back}
           />
           <MessageList key={active.id} conversation={conversation} onViewTicket={onViewTicket} />
           <ReplyComposer
@@ -44,10 +44,10 @@ export function ConversationCard({ chat, canRelease, onBook, onViewTicket }: Pro
           />
         </>
       ) : (
-        <div className={`${PANES_HEIGHT} xl:h-auto xl:flex-1 flex items-center justify-center p-8`}>
+        <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-center">
-            <div className="inline-flex h-16 w-16 rounded-full bg-slate-100 items-center justify-center mb-4">
-              <Headset className="h-8 w-8 text-slate-400" />
+            <div className="mb-4 inline-flex size-14 items-center justify-center rounded-full bg-muted">
+              <Headset className="size-7 text-muted-foreground" />
             </div>
             <h3 className="font-semibold text-sm">{t('chat.selectChannel')}</h3>
             <p className="text-xs text-muted-foreground mt-1">{t('chat.selectChannelDesc')}</p>
