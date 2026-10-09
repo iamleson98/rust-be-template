@@ -5358,6 +5358,50 @@
         }
       }
     },
+    "/api/reviews/stats": {
+      "get": {
+        "tags": [
+          "reviews"
+        ],
+        "summary": "`GET /api/reviews/stats` — count, average, stars and top tags of the\napproved reviews of a brand and/or route (at least one is required).",
+        "operationId": "stats",
+        "parameters": [
+          {
+            "name": "brand_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "route_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Review stats for the scope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStats"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Neither brand_id nor route_id given"
+          }
+        }
+      }
+    },
     "/api/reviews/tags": {
       "get": {
         "tags": [
@@ -6618,7 +6662,6 @@
           "slug",
           "name",
           "status",
-          "totalTrips",
           "createdAt",
           "updatedAt",
           "routeCount",
@@ -6685,7 +6728,8 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
           },
           "routeCount": {
             "type": "integer",
@@ -6696,10 +6740,6 @@
           },
           "status": {
             "type": "string"
-          },
-          "totalTrips": {
-            "type": "integer",
-            "format": "int64"
           },
           "updatedAt": {
             "type": "string"
@@ -8231,8 +8271,7 @@
         "required": [
           "id",
           "slug",
-          "name",
-          "totalTrips"
+          "name"
         ],
         "properties": {
           "accentColor": {
@@ -8277,14 +8316,11 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
           },
           "slug": {
             "type": "string"
-          },
-          "totalTrips": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -8310,7 +8346,7 @@
           "id",
           "slug",
           "name",
-          "totalTrips"
+          "routeCount"
         ],
         "properties": {
           "accentColor": {
@@ -8337,14 +8373,16 @@
               "number",
               "null"
             ],
-            "format": "double"
+            "format": "double",
+            "description": "Mean of the approved reviews; absent while there are none."
+          },
+          "routeCount": {
+            "type": "integer",
+            "description": "Active routes the brand runs.",
+            "minimum": 0
           },
           "slug": {
             "type": "string"
-          },
-          "totalTrips": {
-            "type": "integer",
-            "format": "int64"
           }
         }
       },
@@ -11804,6 +11842,46 @@
           }
         }
       },
+      "ReviewStats": {
+        "type": "object",
+        "description": "What the approved reviews in a scope (a brand, a route) add up to —\n`GET /api/reviews/stats`.",
+        "required": [
+          "count",
+          "byRating",
+          "topTags"
+        ],
+        "properties": {
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean rating; absent while there are no reviews."
+          },
+          "byRating": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "Reviews per star rating, five entries: 1 star first, 5 stars last."
+          },
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "topTags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagCount"
+            },
+            "description": "The most mentioned tags, most first (at most five)."
+          }
+        }
+      },
       "ReviewTagsResponse": {
         "type": "object",
         "description": "Response of `GET /api/reviews/tags`. Returns the distinct set of\ntags across all reviews (used by the frontend to render tag filters).",
@@ -12578,6 +12656,24 @@
           }
         }
       },
+      "TagCount": {
+        "type": "object",
+        "description": "One review tag and how many reviews mention it.",
+        "required": [
+          "tag",
+          "count"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "tag": {
+            "type": "string"
+          }
+        }
+      },
       "TripAmenity": {
         "type": "object",
         "required": [
@@ -12595,9 +12691,6 @@
       },
       "TripBrandDetail": {
         "type": "object",
-        "required": [
-          "rating"
-        ],
         "properties": {
           "accentColor": {
             "type": [
@@ -12624,8 +12717,12 @@
             ]
           },
           "rating": {
-            "type": "number",
-            "format": "double"
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean of the brand's approved reviews; absent while there are none."
           },
           "slug": {
             "type": [
@@ -13046,7 +13143,6 @@
           "routeName",
           "brandName",
           "brandSlug",
-          "brandRating",
           "brandAccent",
           "fromName",
           "fromLat",
@@ -13099,8 +13195,12 @@
             "type": "string"
           },
           "brandRating": {
-            "type": "number",
-            "format": "double"
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Mean of the brand's approved reviews; absent while there are none."
           },
           "brandSlug": {
             "type": "string"
@@ -13767,13 +13867,6 @@
               "string",
               "null"
             ]
-          },
-          "rating": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "double"
           },
           "slug": {
             "type": [

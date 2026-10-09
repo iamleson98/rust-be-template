@@ -319,9 +319,8 @@ function BrandNode({
             )}
           </div>
         </TableCell>
-        <TableCell className="px-3 py-3 text-xs text-muted-foreground">
-          {t('brands.tripsCount', { count: brand.totalTrips })}
-        </TableCell>
+        {/* Routes load when the brand expands; each shows its own schedules. */}
+        <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3" />
         <TableCell className="px-3 py-3">

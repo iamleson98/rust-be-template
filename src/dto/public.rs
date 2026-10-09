@@ -28,9 +28,11 @@ pub struct BrandOut {
     pub logo_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
-    pub total_trips: i64,
+    /// Active routes the brand runs.
+    pub route_count: usize,
 }
 
 /// Brand detail returned by `GET /api/brands/{slug}`.
@@ -50,9 +52,9 @@ pub struct BrandDetailOut {
     pub contact_email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
+    /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
-    pub total_trips: i64,
 }
 
 /// Response of `GET /api/brands`.
@@ -140,7 +142,9 @@ pub struct TripResult {
     pub brand_slug: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub brand_logo: Option<String>,
-    pub brand_rating: f64,
+    /// Mean of the brand's approved reviews; absent while there are none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub brand_rating: Option<f64>,
     pub brand_accent: String,
     pub from_name: String,
     pub from_lat: f64,
@@ -290,7 +294,9 @@ pub struct TripBrandDetail {
     pub slug: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub logo_url: Option<String>,
-    pub rating: f64,
+    /// Mean of the brand's approved reviews; absent while there are none.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rating: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accent_color: Option<String>,
 }

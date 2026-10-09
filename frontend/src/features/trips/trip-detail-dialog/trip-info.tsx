@@ -36,11 +36,15 @@ export function TripInfo({ detail, onShare }: { detail: TripDetail; onShare: () 
             <div className="min-w-0">
               <div className="font-bold truncate">{brandName}</div>
               <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="flex shrink-0 items-center gap-0.5 text-amber-500">
-                  <Star className="h-3 w-3 fill-current" />
-                  {detail.brand.rating.toFixed(1)}
-                </span>
-                <span aria-hidden>•</span>
+                {detail.brand.rating != null && (
+                  <>
+                    <span className="flex shrink-0 items-center gap-0.5 text-amber-500">
+                      <Star className="h-3 w-3 fill-current" />
+                      {detail.brand.rating.toFixed(1)}
+                    </span>
+                    <span aria-hidden>•</span>
+                  </>
+                )}
                 <span className="truncate">{bus}</span>
               </div>
             </div>

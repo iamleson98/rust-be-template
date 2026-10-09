@@ -95,7 +95,8 @@ export function FilterPanel({
           className="grid grid-cols-2 gap-1.5"
         >
           {RATINGS.map((min) => {
-            const n = min === 0 ? results.length : count(results, (r) => r.brandRating >= min)
+            const n =
+              min === 0 ? results.length : count(results, (r) => (r.brandRating ?? 0) >= min)
             return (
               <label
                 key={min}

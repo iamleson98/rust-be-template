@@ -44,13 +44,14 @@ export function TripCardBrand({
         >
           {trip.brandName}
         </button>
-        {/* Real rating straight from the API — shown alone, no invented
-            review count next to it. */}
-        <div className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
-          <Star className="h-3 w-3 fill-current" />
-          <span className="font-semibold text-slate-700">{trip.brandRating.toFixed(1)}</span>
-          <span className="text-[10px] text-muted-foreground">/ 5</span>
-        </div>
+        {/* The average of approved reviews; nothing while there are none. */}
+        {trip.brandRating != null && (
+          <div className="flex items-center gap-1 text-xs text-amber-500 mt-0.5">
+            <Star className="h-3 w-3 fill-current" />
+            <span className="font-semibold text-foreground">{trip.brandRating.toFixed(1)}</span>
+            <span className="text-[10px] text-muted-foreground">/ 5</span>
+          </div>
+        )}
         <Badge variant="secondary" className="mt-1.5 text-[10px] font-medium px-1.5">
           {trip.vehicleTypeLabel}
         </Badge>

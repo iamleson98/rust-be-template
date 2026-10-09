@@ -57,13 +57,17 @@ export const COMPARE_ROWS: CompareRow[] = [
   {
     labelKey: 'searchPage.rating',
     icon: icon(Star),
-    render: (t) => (
-      <span className="inline-flex items-center gap-1">
-        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-        <span className="font-medium">{t.brandRating.toFixed(1)}</span>
-      </span>
-    ),
-    score: (t) => -t.brandRating,
+    render: (t) =>
+      t.brandRating != null ? (
+        <span className="inline-flex items-center gap-1">
+          <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+          <span className="font-medium">{t.brandRating.toFixed(1)}</span>
+        </span>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      ),
+    // No reviews yet ranks below any rating.
+    score: (t) => -(t.brandRating ?? 0),
   },
   {
     labelKey: 'common.fromPrice',

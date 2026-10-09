@@ -17,8 +17,6 @@ export const BrandShowcase = memo(function BrandShowcase() {
   const { data, isLoading, isError, refetch } = useQuery(brandsOptions())
   const navigate = useNavigate()
   const t = useT()
-  // Map the API brand shape to what the card UI expects.
-  // `BrandOut` doesn't expose `routeCount`, so we fall back to `totalTrips`.
   const brands: BrandOut[] = data?.items ?? []
 
   /** Get initials from brand name (up to 2 chars) */
@@ -46,7 +44,7 @@ export const BrandShowcase = memo(function BrandShowcase() {
   }
 
   return (
-    <section className="bg-white">
+    <section className="bg-background">
       <div className="container mx-auto px-4 py-12 md:py-16">
         {isLoading ? (
           <BrandShowcaseSkeleton count={5} />
@@ -56,24 +54,12 @@ export const BrandShowcase = memo(function BrandShowcase() {
           <>
             {/* Header */}
             <div className="mb-8">
-              <div className="flex items-end justify-between">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
-                    {t('brandDetail.partnersTitle')}
-                  </h2>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {t('brandDetail.partnersSubtitle')}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-blue-600 hover:text-blue-700 hidden sm:flex"
-                >
-                  {t('common.viewAll')}
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+              <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+                {t('brandDetail.partnersTitle')}
+              </h2>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t('brandDetail.partnersSubtitle')}
+              </p>
             </div>
 
             {/* Horizontally scrollable brand cards */}
@@ -104,12 +90,18 @@ export const BrandShowcase = memo(function BrandShowcase() {
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="font-bold text-base truncate">{brand.name}</div>
-                            <div className="flex items-center gap-1 mt-0.5">
-                              {renderStars(brand.rating ?? 0)}
-                              <span className="text-xs font-medium text-amber-600 ml-1">
-                                {(brand.rating ?? 0).toFixed(1)}
-                              </span>
-                            </div>
+                            {brand.rating != null ? (
+                              <div className="flex items-center gap-1 mt-0.5">
+                                {renderStars(brand.rating)}
+                                <span className="text-xs font-medium text-amber-600 ml-1">
+                                  {brand.rating.toFixed(1)}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="mt-0.5 text-xs text-muted-foreground">
+                                {t('brandDetail.noReviewsYet')}
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -120,14 +112,14 @@ export const BrandShowcase = memo(function BrandShowcase() {
                             className="text-xs gap-1 bg-blue-50 text-blue-700 border-blue-200/60 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/40"
                           >
                             <Bus className="h-3 w-3" />
-                            {t('brands.routesCount', { count: brand.totalTrips })}
+                            {t('brands.routesCount', { count: brand.routeCount })}
                           </Badge>
                         </div>
 
                         {/* "Xem chuyến" button — navigates to /brands/$slug */}
                         <Button
                           size="sm"
-                          className="mt-auto w-full bg-blue-600 hover:bg-blue-700 text-white"
+                          className="mt-auto w-full"
                           onClick={() =>
                             navigate({
                               to: '/brands/$slug',

@@ -835,7 +835,6 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .create_brand(&backend::dto::admin::UpsertBrandRequest {
             name: Some("Sort Test A".into()),
             slug: Some("sort-test-a".into()),
-            rating: Some(3.0),
             ..Default::default()
         })
         .await?;
@@ -844,10 +843,22 @@ async fn search_sorts_by_price_and_rating() -> anyhow::Result<()> {
         .create_brand(&backend::dto::admin::UpsertBrandRequest {
             name: Some("Sort Test B".into()),
             slug: Some("sort-test-b".into()),
-            rating: Some(5.0),
             ..Default::default()
         })
         .await?;
+    // A brand's rating is the average of its approved reviews; stand in for
+    // those reviews by writing the averages directly.
+    {
+        use backend::entity::brand;
+        use sea_orm::{sea_query::Expr, ColumnTrait, EntityTrait, QueryFilter};
+        for (id, rating) in [(b1.id, 3.0), (b2.id, 5.0)] {
+            brand::Entity::update_many()
+                .col_expr(brand::Column::Rating, Expr::value(rating))
+                .filter(brand::Column::Id.eq(id))
+                .exec(st.db.as_ref())
+                .await?;
+        }
+    }
 
     let route = st
         .admin

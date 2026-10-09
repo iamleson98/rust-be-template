@@ -13,6 +13,7 @@ import { Star, ThumbsUp, Quote, Images } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { formatDateTimeVN } from '@/lib/format'
 import { useT } from '@/lib/i18n'
+import { REVIEW_TAG_LABELS } from '@/features/booking/history/booking-types'
 
 export type Review = {
   id: string
@@ -27,18 +28,6 @@ export type Review = {
   reply: string | null
   repliedAt: string | null
   createdAt: string
-}
-
-// Map tag slug → i18n labelKey + emoji (label rendered via t()).
-const TAG_LABELS: Record<string, { labelKey: string; emoji: string }> = {
-  on_time: { labelKey: 'bookingHistory.tagOnTime', emoji: '⏱️' },
-  clean: { labelKey: 'bookingHistory.tagClean', emoji: '✨' },
-  friendly_driver: { labelKey: 'bookingHistory.tagFriendlyDriver', emoji: '😊' },
-  comfortable: { labelKey: 'bookingHistory.tagComfortable', emoji: '🛋️' },
-  value: { labelKey: 'reviews.tagValue', emoji: '💰' },
-  easy_booking: { labelKey: 'bookingHistory.tagEasyBooking', emoji: '🎟️' },
-  good_wifi: { labelKey: 'bookingHistory.tagGoodWifi', emoji: '📶' },
-  safe_drive: { labelKey: 'reviews.tagSafeDrive', emoji: '🛡️' },
 }
 
 export function ReviewCard({
@@ -94,7 +83,7 @@ export function ReviewCard({
           {(r.tags?.length ?? 0) > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {(r.tags ?? []).map((tag) => {
-                const tl = TAG_LABELS[tag]
+                const tl = REVIEW_TAG_LABELS[tag]
                 return (
                   <Badge
                     key={tag}

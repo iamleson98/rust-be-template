@@ -354,7 +354,7 @@ export const Footer = memo(function Footer() {
         <div className="mt-10 pt-6 border-t border-slate-800 flex flex-col md:flex-row items-center justify-between gap-3">
           <div className="flex flex-col items-center md:items-start gap-1">
             <div className="flex items-center gap-1 text-sm text-slate-400">
-              {t('layout.footer.copyright')}
+              {t('layout.footer.copyright', { year: new Date().getFullYear() })}
               <Heart className="h-3 w-3 text-rose-500 inline mx-0.5" />
             </div>
             <div className="text-xs text-slate-500">{t('layout.footer.registration')}</div>

@@ -34,6 +34,7 @@ use utoipa::OpenApi;
         crate::routes::health::ready,
         // reviews
         crate::routes::reviews::list,
+        crate::routes::reviews::stats,
         crate::routes::reviews::get,
         crate::routes::reviews::create,
         crate::routes::reviews::update,
@@ -276,6 +277,8 @@ use utoipa::OpenApi;
         // public catalog
         crate::dto::public::BrandOut,
         crate::dto::public::BrandDetailOut,
+        crate::dto::review::ReviewStats,
+        crate::dto::review::TagCount,
         crate::dto::public::BrandListResponse,
         crate::dto::public::RouteOut,
         crate::dto::public::RouteBrandPreview,

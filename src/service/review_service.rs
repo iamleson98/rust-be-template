@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::dto::admin::{AdminReviewBrandSummary, AdminReviewBrandSummaryListResponse};
 use crate::dto::review::{
     CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
-    ReviewTagsResponse, UpdateReviewInput,
+    ReviewStats, ReviewTagsResponse, UpdateReviewInput,
 };
 use crate::entity::review;
 use crate::error::{AppError, AppResult};
@@ -530,6 +530,21 @@ impl ReviewService {
     }
 
     /// List available review tags (distinct tags from all reviews).
+    /// What the approved reviews of a brand and/or route add up to.
+    pub async fn stats(
+        &self,
+        brand_id: Option<Uuid>,
+        route_id: Option<Uuid>,
+    ) -> AppResult<ReviewStats> {
+        let rows = self
+            .store
+            .review_store()
+            .approved_ratings_and_tags(brand_id, route_id)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        Ok(ReviewStats::tally(&rows))
+    }
+
     pub async fn tags_index(&self) -> AppResult<ReviewTagsResponse> {
         // Single SQL projection (only the `tags` column) instead of loading
         // every review row in full. At 10k reviews this saves several MB
@@ -577,19 +592,7 @@ pub(crate) async fn recompute_brand_rating(
     store: &CompositeStore,
     brand_id: &str,
 ) -> AppResult<()> {
-    let reviews = store
-        .review_store()
-        .list_reviews_by_brand(brand_id, "approved")
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-    let avg = if reviews.is_empty() {
-        None
-    } else {
-        let sum: i64 = reviews.iter().map(|r| r.rating).sum();
-        Some(sum as f64 / reviews.len() as f64)
-    };
-
+    let avg = approved_average(store, brand_id).await?;
     let brand_id_uuid = Uuid::parse_str(brand_id).map_err(|e| AppError::Internal(e.to_string()))?;
     store
         .brand_store()
@@ -598,6 +601,56 @@ pub(crate) async fn recompute_brand_rating(
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     Ok(())
+}
+
+/// The mean of a brand's approved reviews; `None` while it has none.
+async fn approved_average(store: &CompositeStore, brand_id: &str) -> AppResult<Option<f64>> {
+    let reviews = store
+        .review_store()
+        .list_reviews_by_brand(brand_id, "approved")
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    if reviews.is_empty() {
+        return Ok(None);
+    }
+    let sum: i64 = reviews.iter().map(|r| r.rating).sum();
+    Ok(Some(sum as f64 / reviews.len() as f64))
+}
+
+/// Brings every brand's stored rating back in line with its approved
+/// reviews — e.g. a rating typed into the old brand form, which showed
+/// customers "4.6 (0 reviews)". Writes only the brands that differ, so a
+/// routine boot touches nothing. Returns how many were corrected.
+pub(crate) async fn reconcile_brand_ratings(store: &CompositeStore) -> AppResult<usize> {
+    const PAGE: u64 = 200;
+    let mut corrected = 0;
+    let mut offset = 0;
+    loop {
+        let brands = store
+            .brand_store()
+            .list_all(PAGE, offset)
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+        for b in &brands {
+            let avg = approved_average(store, &b.id.to_string()).await?;
+            let same = match (b.rating, avg) {
+                (Some(stored), Some(real)) => (stored - real).abs() < 1e-9,
+                (stored, real) => stored.is_none() && real.is_none(),
+            };
+            if !same {
+                store
+                    .brand_store()
+                    .update_brand_rating(b.id, avg)
+                    .await
+                    .map_err(|e| AppError::Internal(e.to_string()))?;
+                corrected += 1;
+            }
+        }
+        if (brands.len() as u64) < PAGE {
+            return Ok(corrected);
+        }
+        offset += PAGE;
+    }
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -647,4 +700,33 @@ pub fn review_to_dto(r: &review::Model) -> ReviewOut {
 /// Current UTC time as ISO 8601 string.
 fn now_iso() -> String {
     Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::service::test_support::fixture;
+
+    #[tokio::test]
+    async fn a_typed_in_brand_rating_gives_way_to_the_reviews() {
+        let f = fixture(1).await;
+        let brand = f.brand_of_trip().await;
+        f.store
+            .brand_store()
+            .update_brand_rating(brand, Some(4.6))
+            .await
+            .unwrap();
+
+        // No approved reviews, so no rating; a second pass finds nothing to fix.
+        assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 1);
+        assert_eq!(reconcile_brand_ratings(&f.store).await.unwrap(), 0);
+        let stored = f
+            .store
+            .brand_store()
+            .get_by_id(brand)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(stored.rating, None);
+    }
 }

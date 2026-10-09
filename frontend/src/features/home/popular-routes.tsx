@@ -116,10 +116,12 @@ export const PopularRoutes = memo(function PopularRoutes() {
                           <Bus className="h-3 w-3" />
                           {r.brand.name ?? '—'}
                         </span>
-                        <div className="flex items-center gap-1 text-xs text-amber-500">
-                          <Star className="h-3 w-3 fill-current" />
-                          {(r.brand.rating ?? 0).toFixed(1)}
-                        </div>
+                        {r.brand.rating != null && (
+                          <div className="flex items-center gap-1 text-xs text-amber-500">
+                            <Star className="h-3 w-3 fill-current" />
+                            {r.brand.rating.toFixed(1)}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2">

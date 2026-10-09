@@ -53,6 +53,7 @@ pub struct AdminBrandOut {
     pub contact_phone: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contact_email: Option<String>,
+    /// Mean of the approved reviews; absent while there are none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rating: Option<f64>,
     pub status: String,
@@ -61,7 +62,6 @@ pub struct AdminBrandOut {
     /// Child tickets; absent = children pay the adult fare.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub child_fare: Option<ChildFarePolicy>,
-    pub total_trips: i64,
     pub created_at: String,
     pub updated_at: String,
     pub route_count: i64,
@@ -94,8 +94,6 @@ pub struct UpsertBrandRequest {
     #[validate(email, length(max = 255))]
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub contact_email: Option<String>,
-    #[validate(range(min = 0.0, max = 5.0))]
-    pub rating: Option<f64>,
     #[validate(length(max = 30))]
     pub status: Option<String>,
     #[validate(length(max = 9))]

@@ -30,7 +30,7 @@ impl AdminService {
         let route_count_map = self
             .store
             .route_store()
-            .count_routes_by_brand_map(brand_id_strings.clone())
+            .count_routes_by_brand_map(brand_id_strings.clone(), None)
             .await
             .unwrap_or_default();
         let layout_count_map = self
@@ -57,7 +57,6 @@ impl AdminService {
                 status: b.status.clone(),
                 accent_color: b.accent_color.clone(),
                 child_fare: ChildPolicy::of(b).map(Into::into),
-                total_trips: b.total_trips,
                 created_at: b.created_at.clone(),
                 updated_at: b.updated_at.clone(),
                 route_count: route_count as i64,
@@ -116,7 +115,8 @@ impl AdminService {
             description: Set(body.description.clone()),
             contact_phone: Set(body.contact_phone.clone()),
             contact_email: Set(body.contact_email.clone()),
-            rating: Set(body.rating),
+            // Computed from approved reviews, never typed in.
+            rating: Set(None),
             status: Set(body.status.clone().unwrap_or_else(|| "active".to_string())),
             accent_color: Set(accent_color),
             total_trips: Set(0),
@@ -182,9 +182,6 @@ impl AdminService {
         }
         if let Some(ref v) = body.status {
             active.status = Set(v.clone());
-        }
-        if let Some(v) = body.rating {
-            active.rating = Set(Some(v));
         }
         if let Some(policy) = body.child_fare {
             let policy = policy.map(valid_child_fare).transpose()?;

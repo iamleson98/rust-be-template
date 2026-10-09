@@ -364,6 +364,12 @@ pub async fn bootstrap() -> anyhow::Result<AppState> {
     // ---- New domain services (booking logic) -------------------------
     let admin_service = Arc::new(AdminService::new(store.clone()));
     let review_service = Arc::new(ReviewService::new(store.clone()));
+    // Before serving, so no review moderation can interleave with it.
+    match crate::service::review_service::reconcile_brand_ratings(&store).await {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(n, "brand ratings recomputed from approved reviews"),
+        Err(e) => tracing::warn!(%e, "brand rating reconcile failed (non-fatal)"),
+    }
     let booking_service = Arc::new(BookingService::new(store.clone()));
     crate::service::booking_service::spawn_hold_sweeper(booking_service.clone());
     let loyalty_service = Arc::new(LoyaltyService::new(store.clone()));

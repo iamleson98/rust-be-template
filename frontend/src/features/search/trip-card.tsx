@@ -157,7 +157,7 @@ export const TripCard = memo(function TripCard({
       departureTime: trip.departureTime ?? undefined,
       brandName: trip.brandName,
       brandAccent: trip.brandAccent,
-      brandRating: trip.brandRating,
+      brandRating: trip.brandRating ?? undefined,
       minPrice: trip.minPrice,
       vehicleTypeLabel: trip.vehicleTypeLabel,
     })

@@ -6,7 +6,7 @@ use validator::Validate;
 
 use crate::dto::review::{
     CreateReviewInput, ReviewDeleteResponse, ReviewListResponse, ReviewMutationResponse, ReviewOut,
-    ReviewTagsResponse, UpdateReviewInput,
+    ReviewStats, ReviewTagsResponse, UpdateReviewInput,
 };
 use crate::error::AppError;
 use crate::middleware::AuthUser;
@@ -62,6 +62,37 @@ pub async fn list(
         }
     }
     Ok(Json(st.reviews.list(&public_list_filter(&q)).await?))
+}
+
+#[derive(Deserialize, utoipa::IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct StatsQuery {
+    pub brand_id: Option<Uuid>,
+    pub route_id: Option<Uuid>,
+}
+
+/// `GET /api/reviews/stats` — count, average, stars and top tags of the
+/// approved reviews of a brand and/or route (at least one is required).
+#[utoipa::path(
+    get,
+    path = "/api/reviews/stats",
+    tag = "reviews",
+    params(StatsQuery),
+    responses(
+        (status = 200, description = "Review stats for the scope", body = ReviewStats),
+        (status = 400, description = "Neither brand_id nor route_id given"),
+    )
+)]
+pub async fn stats(
+    State(st): State<AppState>,
+    Query(q): Query<StatsQuery>,
+) -> Result<Json<ReviewStats>, AppError> {
+    if q.brand_id.is_none() && q.route_id.is_none() {
+        return Err(AppError::Validation(
+            "brand_id or route_id is required".into(),
+        ));
+    }
+    Ok(Json(st.reviews.stats(q.brand_id, q.route_id).await?))
 }
 
 /// Build the public list filter. Kept as a pure function so the
@@ -235,6 +266,7 @@ pub fn router() -> axum::Router<crate::state::AppState> {
     use axum::routing::get as rget;
     axum::Router::new()
         .route("/tags", rget(tags))
+        .route("/stats", rget(stats))
         .route("/mine", rget(mine))
         .route("/", rget(list).post(create))
         .route("/{id}", rget(get).patch(update).delete(remove))

@@ -110,11 +110,13 @@ export type AdminBrandOut = {
     layoutCount: number;
     logoUrl?: string | null;
     name: string;
+    /**
+     * Mean of the approved reviews; absent while there are none.
+     */
     rating?: number | null;
     routeCount: number;
     slug: string;
     status: string;
-    totalTrips: number;
     updatedAt: string;
 };
 
@@ -686,9 +688,11 @@ export type BrandDetailOut = {
     id: string;
     logoUrl?: string | null;
     name: string;
+    /**
+     * Mean of the approved reviews; absent while there are none.
+     */
     rating?: number | null;
     slug: string;
-    totalTrips: number;
 };
 
 /**
@@ -706,9 +710,15 @@ export type BrandOut = {
     id: string;
     logoUrl?: string | null;
     name: string;
+    /**
+     * Mean of the approved reviews; absent while there are none.
+     */
     rating?: number | null;
+    /**
+     * Active routes the brand runs.
+     */
+    routeCount: number;
     slug: string;
-    totalTrips: number;
 };
 
 /**
@@ -2527,6 +2537,26 @@ export type ReviewOut = {
 };
 
 /**
+ * What the approved reviews in a scope (a brand, a route) add up to —
+ * `GET /api/reviews/stats`.
+ */
+export type ReviewStats = {
+    /**
+     * Mean rating; absent while there are no reviews.
+     */
+    average?: number | null;
+    /**
+     * Reviews per star rating, five entries: 1 star first, 5 stars last.
+     */
+    byRating: Array<number>;
+    count: number;
+    /**
+     * The most mentioned tags, most first (at most five).
+     */
+    topTags: Array<TagCount>;
+};
+
+/**
  * Response of `GET /api/reviews/tags`. Returns the distinct set of
  * tags across all reviews (used by the frontend to render tag filters).
  */
@@ -2933,6 +2963,14 @@ export type SystemUptime = {
     seconds: number;
 };
 
+/**
+ * One review tag and how many reviews mention it.
+ */
+export type TagCount = {
+    count: number;
+    tag: string;
+};
+
 export type TripAmenity = {
     key: string;
     label: string;
@@ -2943,7 +2981,10 @@ export type TripBrandDetail = {
     id?: string | null;
     logoUrl?: string | null;
     name?: string | null;
-    rating: number;
+    /**
+     * Mean of the brand's approved reviews; absent while there are none.
+     */
+    rating?: number | null;
     slug?: string | null;
 };
 
@@ -3091,7 +3132,10 @@ export type TripResult = {
     brandId?: string | null;
     brandLogo?: string | null;
     brandName: string;
-    brandRating: number;
+    /**
+     * Mean of the brand's approved reviews; absent while there are none.
+     */
+    brandRating?: number | null;
     brandSlug: string;
     busLayoutId?: string | null;
     capacity?: number | null;
@@ -3348,7 +3392,6 @@ export type UpsertBrandRequest = {
     description?: string | null;
     logoUrl?: string | null;
     name?: string | null;
-    rating?: number | null;
     slug?: string | null;
     status?: string | null;
 };
@@ -7392,6 +7435,32 @@ export type ReviewsMineResponses = {
 };
 
 export type ReviewsMineResponse = ReviewsMineResponses[keyof ReviewsMineResponses];
+
+export type ReviewsStatsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        brand_id?: string;
+        route_id?: string;
+    };
+    url: '/api/reviews/stats';
+};
+
+export type ReviewsStatsErrors = {
+    /**
+     * Neither brand_id nor route_id given
+     */
+    400: unknown;
+};
+
+export type ReviewsStatsResponses = {
+    /**
+     * Review stats for the scope
+     */
+    200: ReviewStats;
+};
+
+export type ReviewsStatsResponse = ReviewsStatsResponses[keyof ReviewsStatsResponses];
 
 export type ReviewsTagsData = {
     body?: never;

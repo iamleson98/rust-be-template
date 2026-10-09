@@ -223,6 +223,16 @@ impl PublicService {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
+        let route_counts = self
+            .store
+            .route_store()
+            .count_routes_by_brand_map(
+                brands.iter().map(|b| b.id.to_string()).collect(),
+                Some("active"),
+            )
+            .await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+
         let items: Vec<BrandOut> = brands
             .iter()
             .map(|b| BrandOut {
@@ -232,7 +242,7 @@ impl PublicService {
                 logo_url: b.logo_url.clone(),
                 accent_color: b.accent_color.clone(),
                 rating: b.rating,
-                total_trips: b.total_trips,
+                route_count: route_counts.get(&b.id.to_string()).copied().unwrap_or(0),
             })
             .collect();
         Ok(BrandListResponse { items })
@@ -248,7 +258,6 @@ impl PublicService {
             .map_err(|e| AppError::Internal(e.to_string()))?
             .filter(|b| b.status == "active")
             .ok_or_else(|| AppError::NotFound("brand not found".into()))?;
-
         Ok(BrandDetailOut {
             id: b.id,
             slug: b.slug,
@@ -259,7 +268,6 @@ impl PublicService {
             contact_email: b.contact_email,
             accent_color: b.accent_color,
             rating: b.rating,
-            total_trips: b.total_trips,
         })
     }
 
@@ -859,7 +867,7 @@ impl PublicService {
                     brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                     brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                     brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                    brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                    brand_rating: brand.and_then(|b| b.rating),
                     brand_accent: brand
                         .and_then(|b| b.accent_color.clone())
                         .unwrap_or_else(|| "#0d9488".into()),
@@ -1301,7 +1309,7 @@ impl PublicService {
                     .and_then(|b| b.logo_url.clone())
                     .unwrap_or_default()
                     .into(),
-                brand_rating: brand.and_then(|b| b.rating).unwrap_or_default(),
+                brand_rating: brand.and_then(|b| b.rating),
                 brand_accent: brand
                     .and_then(|b| b.accent_color.clone())
                     .unwrap_or_default(),
@@ -1697,7 +1705,7 @@ impl PublicService {
                 name: brand.as_ref().map(|b| b.name.clone()),
                 slug: brand.as_ref().map(|b| b.slug.clone()),
                 logo_url: brand.as_ref().and_then(|b| b.logo_url.clone()),
-                rating: brand.as_ref().and_then(|b| b.rating).unwrap_or(0.0),
+                rating: brand.as_ref().and_then(|b| b.rating),
                 accent_color: brand.as_ref().and_then(|b| b.accent_color.clone()),
             },
             from: TripEndpoint {
@@ -1869,7 +1877,7 @@ impl PublicService {
                         brand_name: brand.map(|b| b.name.clone()).unwrap_or_default(),
                         brand_slug: brand.map(|b| b.slug.clone()).unwrap_or_default(),
                         brand_logo: brand.and_then(|b| b.logo_url.clone()),
-                        brand_rating: brand.and_then(|b| b.rating).unwrap_or(0.0),
+                        brand_rating: brand.and_then(|b| b.rating),
                         brand_accent: brand
                             .and_then(|b| b.accent_color.clone())
                             .unwrap_or_else(|| "#0d9488".into()),

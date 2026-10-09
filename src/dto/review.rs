@@ -115,6 +115,69 @@ pub struct ReviewTagsResponse {
     pub items: Vec<String>,
 }
 
+/// What the approved reviews in a scope (a brand, a route) add up to —
+/// `GET /api/reviews/stats`.
+#[derive(Debug, Default, PartialEq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewStats {
+    pub count: u64,
+    /// Mean rating; absent while there are no reviews.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub average: Option<f64>,
+    /// Reviews per star rating, five entries: 1 star first, 5 stars last.
+    pub by_rating: Vec<u64>,
+    /// The most mentioned tags, most first (at most five).
+    pub top_tags: Vec<TagCount>,
+}
+
+/// One review tag and how many reviews mention it.
+#[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TagCount {
+    pub tag: String,
+    pub count: u64,
+}
+
+impl ReviewStats {
+    /// Counts `(rating, tags JSON)` rows; ratings outside 1–5 are ignored.
+    pub fn tally(rows: &[(i64, Option<String>)]) -> Self {
+        let mut by_rating = vec![0u64; 5];
+        let mut tags: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        let (mut count, mut sum) = (0u64, 0i64);
+        for (rating, tag_json) in rows {
+            let Some(bucket) = usize::try_from(*rating)
+                .ok()
+                .and_then(|r| r.checked_sub(1))
+                .and_then(|slot| by_rating.get_mut(slot))
+            else {
+                continue;
+            };
+            *bucket += 1;
+            count += 1;
+            sum += rating;
+            let parsed: Vec<String> = tag_json
+                .as_deref()
+                .and_then(|j| serde_json::from_str(j).ok())
+                .unwrap_or_default();
+            for tag in parsed {
+                *tags.entry(tag).or_default() += 1;
+            }
+        }
+        let mut top_tags: Vec<TagCount> = tags
+            .into_iter()
+            .map(|(tag, count)| TagCount { tag, count })
+            .collect();
+        top_tags.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.tag.cmp(&b.tag)));
+        top_tags.truncate(5);
+        Self {
+            count,
+            average: (count > 0).then(|| sum as f64 / count as f64),
+            by_rating,
+            top_tags,
+        }
+    }
+}
+
 // ────────────────────────────────────────────────────────────────
 //  Input DTOs
 // ────────────────────────────────────────────────────────────────
@@ -161,4 +224,38 @@ pub struct UpdateReviewInput {
     #[validate(length(max = 20))]
     pub tags: Option<Vec<String>>,
     pub photos: Option<Vec<String>>,
+}
+
+#[cfg(test)]
+mod stats_tests {
+    use super::*;
+
+    #[test]
+    fn review_stats_count_stars_and_tags_exactly() {
+        let tags = |t: &str| Some(t.to_string());
+        let stats = ReviewStats::tally(&[
+            (5, tags(r#"["clean","on_time"]"#)),
+            (5, tags(r#"["clean"]"#)),
+            (4, None),
+            (1, tags("not json")),
+            (9, tags(r#"["ignored"]"#)),
+        ]);
+        assert_eq!(stats.count, 4);
+        assert_eq!(stats.average, Some(15.0 / 4.0));
+        assert_eq!(stats.by_rating, [1, 0, 0, 1, 2]);
+        assert_eq!(
+            stats.top_tags,
+            [
+                TagCount {
+                    tag: "clean".into(),
+                    count: 2
+                },
+                TagCount {
+                    tag: "on_time".into(),
+                    count: 1
+                },
+            ]
+        );
+        assert_eq!(ReviewStats::tally(&[]).average, None);
+    }
 }

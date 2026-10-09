@@ -54,6 +54,13 @@ describe('TripCardBrand', () => {
     expect(screen.getByText('/ 5')).toBeInTheDocument()
   })
 
+  it('shows no rating for a brand nobody has reviewed yet', () => {
+    const { brandRating: _, ...unrated } = baseTrip
+    render(<TripCardBrand trip={unrated} onBrandClick={onBrandClick} />)
+    expect(screen.queryByText('/ 5')).not.toBeInTheDocument()
+    expect(screen.queryByText('0.0')).not.toBeInTheDocument()
+  })
+
   it('does NOT render a fabricated review count', () => {
     // Old component: rating * 250 = 1125 → "1.1k" in parentheses.
     render(<TripCardBrand trip={baseTrip} onBrandClick={onBrandClick} />)

@@ -70,7 +70,7 @@ export function applyFilters(
     if (r.minPrice < pLo || r.minPrice > pHi) return false
     if (f.timeRanges.length && !f.timeRanges.some((t) => inTimeRange(departureHour(r), t)))
       return false
-    if (f.minRating > 0 && r.brandRating < f.minRating) return false
+    if (f.minRating > 0 && (r.brandRating ?? 0) < f.minRating) return false
     if (f.brands.length && !f.brands.includes(r.brandSlug)) return false
     if (f.availableOnly && r.availableSeats <= FEW_SEATS) return false
     // `?? []`: minimal trip rows may arrive before enrichment fills amenities.

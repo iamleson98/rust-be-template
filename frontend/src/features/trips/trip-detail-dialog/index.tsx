@@ -170,7 +170,7 @@ function TripView({ detail }: { detail: TripDetail }) {
             departureTime: detail.trip.departureTime ?? undefined,
             brandName: detail.brand.name ?? '',
             brandAccent: detail.brand.accentColor ?? undefined,
-            brandRating: detail.brand.rating,
+            brandRating: detail.brand.rating ?? undefined,
             minPrice: detail.pricing.fares[0]?.priceAdult ?? detail.pricing.basePriceAdult,
             vehicleTypeLabel: detail.busLayout.vehicleTypeLabel,
           })
