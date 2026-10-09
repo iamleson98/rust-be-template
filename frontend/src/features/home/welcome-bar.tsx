@@ -4,9 +4,8 @@ import { useSession } from '@/stores/session'
 import { useMemo } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useT } from '@/lib/i18n'
-import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { CalendarClock, ChevronRight, LayoutDashboard, Sparkles } from 'lucide-react'
+import { CalendarClock, ChevronRight, Sparkles } from 'lucide-react'
 import { isBookingUpcoming } from '@/features/booking/history/booking-types'
 
 export function WelcomeBar() {
@@ -42,50 +41,29 @@ export function WelcomeBar() {
 
   // ── Signed in: personal greeting + real active-ticket count — a slim
   // pill row, not a banner: the search widget below is the star. ──
+  // One slim pill: who you are, your upcoming tickets, one tap to your console.
   return (
-    <div className="mt-6 flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-full bg-white/10 px-3 py-1.5 ring-1 ring-white/20 backdrop-blur-md sm:px-3.5">
-      <Avatar className="size-8 shrink-0 ring-1 ring-white/40">
-        <AvatarFallback className="bg-linear-to-br from-blue-400 to-blue-500 text-[11px] font-bold text-white">
+    <button
+      type="button"
+      onClick={() => navigate({ to: '/account' })}
+      title={t('nav.myConsole')}
+      className="mt-6 inline-flex max-w-full items-center gap-2 rounded-full bg-white/10 py-1 pr-3 pl-1 text-sm text-white ring-1 ring-white/20 backdrop-blur-md transition-colors hover:bg-white/15"
+    >
+      <Avatar className="size-7 shrink-0">
+        <AvatarFallback className="bg-white/20 text-[11px] font-semibold text-white">
           {firstName ? firstName[0].toUpperCase() : 'U'}
         </AvatarFallback>
       </Avatar>
-      <span className="min-w-0 truncate text-sm font-semibold text-white">
+      <span className="min-w-0 truncate font-medium">
         {t('home.welcomeBack', { name: firstName || (user?.name ?? '') })}
       </span>
-
-      {bookingsQuery.isLoading ? (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-blue-100">
-          <CalendarClock className="size-3.5" aria-hidden />
-          {t('home.welcomeLoading')}
-        </span>
-      ) : activeCount > 0 ? (
-        <button
-          type="button"
-          onClick={() => navigate({ to: '/account' })}
-          className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/20 px-2.5 py-1 text-[11px] font-bold text-emerald-100 ring-1 ring-emerald-300/40 transition-colors hover:bg-emerald-400/30"
-          title={t('nav.myConsole')}
-        >
+      {activeCount > 0 && (
+        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-200">
           <CalendarClock className="size-3.5" aria-hidden />
           {t('home.welcomeActiveTickets', { count: activeCount })}
-        </button>
-      ) : (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-blue-100">
-          <Sparkles className="size-3.5 text-amber-300" aria-hidden />
-          {t('home.welcomeNoActive')}
         </span>
       )}
-
-      {/* One tap to the personal console */}
-      <Button
-        size="sm"
-        variant="ghost"
-        className="ml-auto h-8 gap-1.5 rounded-full bg-white/15 px-3 text-xs font-semibold text-white ring-1 ring-white/25 transition-colors hover:bg-white/25 hover:text-white"
-        onClick={() => navigate({ to: '/account' })}
-      >
-        <LayoutDashboard className="size-3.5" aria-hidden />
-        <span className="hidden sm:inline">{t('nav.myConsole')}</span>
-        <ChevronRight className="size-3.5" aria-hidden />
-      </Button>
-    </div>
+      <ChevronRight className="size-4 shrink-0 text-white/70" aria-hidden />
+    </button>
   )
 }

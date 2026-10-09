@@ -36,11 +36,6 @@ export function BrandDialogHeader({
             background: `linear-gradient(135deg, ${accent} 0%, transparent 60%)`,
           }}
         />
-        {/* Accent color bar */}
-        <div
-          className="h-1.5 w-full"
-          style={{ background: `linear-gradient(90deg, ${accent}, transparent)` }}
-        />
         {/* pr-12 keeps the name/badge row clear of the dialog's close (X)
             button in the top-right corner. */}
         <div className="px-5 py-4 pr-12 relative">

@@ -510,8 +510,11 @@ pub struct CampaignValidateResponse {
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StatsResponse {
+    /// Active brands.
     pub brands: u64,
+    /// Active routes.
     pub routes: u64,
+    /// Scheduled trips departing today (Vietnam) or later.
     pub trips: u64,
 }
 

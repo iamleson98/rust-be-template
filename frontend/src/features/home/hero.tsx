@@ -63,7 +63,7 @@ export function Hero() {
 
         {/* Stats — real numbers from the platform */}
         {statsData && (
-          <div className="mt-10 grid grid-cols-3 gap-4 text-white">
+          <div className="mt-8 grid grid-cols-3 gap-2 text-white sm:gap-4 md:mt-10">
             <HeroStat value={Number(statsData.brands) || 0} label={t('home.statBrands')} />
             <HeroStat value={Number(statsData.routes) || 0} label={t('home.statRoutes')} />
             <HeroStat value={Number(statsData.trips) || 0} label={t('home.statTrips')} />

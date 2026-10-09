@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatNum } from '@/lib/format'
 
-/* Stat — animated count-up on mount, with a soft glowing background card */
+/* Stat — the exact backend number, counted up when it scrolls into view */
 export function HeroStat({ value, label }: { value: number; label: string }) {
   const [display, setDisplay] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
@@ -40,22 +40,12 @@ export function HeroStat({ value, label }: { value: number; label: string }) {
   return (
     <div
       ref={ref}
-      className="relative overflow-hidden rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-md px-4 py-3 hover:bg-white/15 hover:ring-white/30 transition-all hover:-translate-y-0.5"
+      className="rounded-xl bg-white/10 px-2 py-3 text-center ring-1 ring-white/15 backdrop-blur-md sm:px-4 md:text-left"
     >
-      {/* soft glow behind the number */}
-      <div
-        className="absolute -top-6 left-1/2 -translate-x-1/2 h-16 w-16 rounded-full blur-2xl opacity-50"
-        style={{ background: 'radial-gradient(circle, rgba(252,211,77,0.45), transparent 70%)' }}
-      />
-      <div className="relative text-center md:text-left">
-        <div className="text-2xl md:text-3xl font-extrabold text-white tabular-nums">
-          {formatNum(display)}
-          <span className="text-amber-300">+</span>
-        </div>
-        <div className="text-xs text-blue-100 font-semibold mt-0.5 uppercase tracking-wide">
-          {label}
-        </div>
+      <div className="text-2xl font-bold text-white tabular-nums md:text-3xl">
+        {formatNum(display)}
       </div>
+      <div className="mt-0.5 text-xs leading-tight text-balance text-blue-100">{label}</div>
     </div>
   )
 }

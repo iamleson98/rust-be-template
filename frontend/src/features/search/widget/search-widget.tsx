@@ -186,7 +186,7 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
     <div
       className={cn(
         'relative z-50 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200',
-        compact ? 'p-2.5 md:p-3' : 'p-4 md:p-5',
+        compact ? 'p-2.5 md:p-3' : 'p-3 sm:p-4 md:p-5',
       )}
     >
       <Form {...form}>
@@ -246,21 +246,24 @@ export function SearchWidget({ compact = false }: { compact?: boolean }) {
                     : 'md:grid-cols-[1fr_auto_1fr_1fr_1fr]',
                 )}
               >
-                <SearchRouteFields form={form} swap={swap} />
+                <SearchRouteFields form={form} swap={swap} layout="auto" />
 
-                <SearchDateFields
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                />
+                {/* Phones: date and passengers side by side; md: grid cells. */}
+                <div className="grid grid-cols-2 gap-3 md:contents">
+                  <SearchDateFields
+                    form={form}
+                    searchParams={searchParams}
+                    setSearchParams={setSearchParams}
+                  />
 
-                <SearchPassengerPicker
-                  form={form}
-                  searchParams={searchParams}
-                  setSearchParams={setSearchParams}
-                  paxOpen={paxOpen}
-                  setPaxOpen={setPaxOpen}
-                />
+                  <SearchPassengerPicker
+                    form={form}
+                    searchParams={searchParams}
+                    setSearchParams={setSearchParams}
+                    paxOpen={paxOpen}
+                    setPaxOpen={setPaxOpen}
+                  />
+                </div>
               </div>
 
               <SearchActionsRow

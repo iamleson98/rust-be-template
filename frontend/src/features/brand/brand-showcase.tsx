@@ -83,14 +83,6 @@ export const BrandShowcase = memo(function BrandShowcase() {
                 {brands.map((brand) => (
                   <div key={brand.id} className="snap-start shrink-0 w-65 sm:w-70">
                     <Card className="group overflow-hidden border-border/60 hover:border-blue-400 transition-all duration-300 h-full">
-                      {/* Accent color top bar */}
-                      <div
-                        className="h-1.5"
-                        style={{
-                          background: `linear-gradient(90deg, ${brand.accentColor ?? '#2563eb'}, transparent)`,
-                        }}
-                      />
-
                       <div className="p-4 flex flex-col gap-3">
                         {/* BrandOut logo/initials + name */}
                         <div className="flex items-center gap-3">

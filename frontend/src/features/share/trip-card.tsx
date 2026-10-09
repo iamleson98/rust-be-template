@@ -44,8 +44,6 @@ export function ShareTripCard({
 
         {/* White card */}
         <div className="bg-white rounded-xl overflow-hidden relative z-10">
-          {/* Top accent stripe */}
-          <div className="h-1.5" style={{ background: shareTripData.brandAccent || '#2563eb' }} />
           <div className="p-4">
             {/* Brand + rating */}
             <div className="flex items-center justify-between mb-3">

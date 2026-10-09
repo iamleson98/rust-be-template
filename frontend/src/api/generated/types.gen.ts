@@ -2801,8 +2801,17 @@ export type StaffPresenceResponse = {
  * Public homepage stats returned by `GET /api/stats`.
  */
 export type StatsResponse = {
+    /**
+     * Active brands.
+     */
     brands: number;
+    /**
+     * Active routes.
+     */
     routes: number;
+    /**
+     * Scheduled trips departing today (Vietnam) or later.
+     */
     trips: number;
 };
 

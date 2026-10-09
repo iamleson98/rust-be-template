@@ -33,8 +33,9 @@ export function SearchActionsRow({
   const t = useT()
 
   return (
-    <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mt-3 flex flex-col items-stretch justify-between gap-3 sm:mt-4 sm:flex-row sm:items-center">
+      {/* Phones: one row that scrolls sideways instead of wrapping into three. */}
+      <div className="-mx-3 flex items-center gap-2 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
         {VEHICLE_TYPES.map((v) => {
           const active = searchParams.vehicleTypes.includes(v.key)
           return (
@@ -51,7 +52,7 @@ export function SearchActionsRow({
                     setSearchParams({ vehicleTypes: next })
                   }}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold border transition-all duration-200 whitespace-nowrap',
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold border transition-all duration-200 whitespace-nowrap',
                     active
                       ? 'bg-primary text-primary-foreground border-primary'
                       : 'bg-white text-foreground border-border hover:border-primary/40 hover:text-primary hover:bg-primary/5',

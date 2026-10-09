@@ -86,7 +86,7 @@ export function TagStatsSection({
                 <div
                   className="h-full rounded-full"
                   style={{
-                    background: `linear-gradient(90deg, ${accentColor}, ${accentColor}cc)`,
+                    background: accentColor,
                   }}
                 />
               </div>

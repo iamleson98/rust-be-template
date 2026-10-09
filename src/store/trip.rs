@@ -175,7 +175,8 @@ pub trait TripStore: Send + Sync {
         &self,
         bus_layout_id: &str,
     ) -> StoreResult<Vec<seat::Model>>;
-    async fn count_trips_by_status(&self, status: &str) -> StoreResult<u64>;
+    /// Scheduled trips departing on `date_gte` (`YYYY-MM-DD`) or later.
+    async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64>;
     async fn list_upcoming_trips(
         &self,
         date_gte: &str,
@@ -599,9 +600,10 @@ impl TripStore for DbTripStore {
             .await?)
     }
 
-    async fn count_trips_by_status(&self, status: &str) -> StoreResult<u64> {
+    async fn count_upcoming_trips(&self, date_gte: &str) -> StoreResult<u64> {
         Ok(trip_session::Entity::find()
-            .filter(trip_session::Column::Status.eq(status.to_string()))
+            .filter(trip_session::Column::Status.eq("scheduled"))
+            .filter(trip_session::Column::DepartureDate.gte(date_gte.to_string()))
             .count(self.db.as_ref())
             .await?)
     }

@@ -12291,16 +12291,19 @@
           "brands": {
             "type": "integer",
             "format": "int64",
+            "description": "Active brands.",
             "minimum": 0
           },
           "routes": {
             "type": "integer",
             "format": "int64",
+            "description": "Active routes.",
             "minimum": 0
           },
           "trips": {
             "type": "integer",
             "format": "int64",
+            "description": "Scheduled trips departing today (Vietnam) or later.",
             "minimum": 0
           }
         }

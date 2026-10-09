@@ -23,10 +23,6 @@ import {
   Send,
   Headphones,
   Stamp,
-  Sparkles,
-  Users,
-  Route as RouteIcon,
-  Building2,
   Ticket,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -150,35 +146,8 @@ export const Footer = memo(function Footer() {
         </svg>
       </div>
 
-      {/* ── Animated gradient top border (shifting colors) ── */}
-      <div className="h-1 bg-linear-to-r from-blue-500 via-amber-400 to-blue-500" />
-
       {/* ── Main Footer Content ── */}
       <div className="container mx-auto px-4 py-12">
-        {/* ── Quick stats mini-section ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10 pb-10 border-b border-slate-800/60">
-          <QuickStat
-            icon={<Users className="h-4 w-4" />}
-            value="125K+"
-            label={t('layout.footer.statCustomers')}
-          />
-          <QuickStat
-            icon={<RouteIcon className="h-4 w-4" />}
-            value="680+"
-            label={t('admin.routes')}
-          />
-          <QuickStat
-            icon={<Building2 className="h-4 w-4" />}
-            value="42"
-            label={t('admin.brands')}
-          />
-          <QuickStat
-            icon={<Sparkles className="h-4 w-4" />}
-            value="4.8/5"
-            label={t('adminFeedback.rating')}
-          />
-        </div>
-
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
@@ -417,25 +386,3 @@ export const Footer = memo(function Footer() {
     </footer>
   )
 })
-
-function QuickStat({
-  icon,
-  value,
-  label,
-}: {
-  icon: React.ReactNode
-  value: string
-  label: string
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl bg-slate-900/60 ring-1 ring-slate-800/60 px-3 py-2.5 hover:ring-blue-500/30 hover:bg-slate-900 transition-all">
-      <div className="h-8 w-8 rounded-lg bg-blue-500/15 flex items-center justify-center text-blue-400 shrink-0">
-        {icon}
-      </div>
-      <div className="leading-tight min-w-0">
-        <div className="text-base font-bold text-white truncate">{value}</div>
-        <div className="text-[11px] text-slate-400 truncate">{label}</div>
-      </div>
-    </div>
-  )
-}

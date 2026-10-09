@@ -119,12 +119,6 @@ export function RouteDirectory() {
               className="group text-left"
             >
               <Card className="group overflow-hidden border-border/60 hover:border-blue-400 hover:-translate-y-0.5 transition-all duration-200">
-                <div
-                  className="h-1"
-                  style={{
-                    background: `linear-gradient(90deg, ${r.brand.accentColor ?? '#64748b'}, transparent)`,
-                  }}
-                />
                 <div className="p-4 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">

@@ -104,8 +104,6 @@ export const Testimonials = memo(function Testimonials() {
                 <Card className="group h-full border-slate-100 relative overflow-hidden">
                   {/* Quote mark decoration */}
                   <Quote className="absolute -top-2 -right-2 h-16 w-16 text-blue-50 rotate-0 group-hover:text-blue-100 transition-colors" />
-                  {/* Top gradient stripe (subtle) */}
-                  <div className="absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-blue-400 via-blue-400 to-amber-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                   <CardContent className="p-5 relative">
                     {/* Top row: avatar + name + date */}

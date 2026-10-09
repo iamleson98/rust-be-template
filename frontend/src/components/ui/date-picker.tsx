@@ -22,7 +22,10 @@ import { CalendarIcon, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
+import { LunarDayButton, LunarFooter } from '@/components/ui/lunar-day'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { useT } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -53,6 +56,8 @@ type DatePickerProps = {
   /** Extra classes for the trigger button (heights, backgrounds…). */
   triggerClassName?: string
   id?: string
+  /** Show the Vietnamese lunar date under each day, and the holidays. */
+  lunar?: boolean
 }
 
 export function DatePicker({
@@ -67,8 +72,10 @@ export function DatePicker({
   clearable = true,
   triggerClassName,
   id,
+  lunar = false,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false)
+  const isMobile = useIsMobile()
   const selected = parseIsoDate(value)
   const t = useT()
   // Calendar locale + weekday names follow the VI/EN app language.
@@ -83,41 +90,77 @@ export function DatePicker({
     return (d: Date) => (min ? d < startOfDay(min) : false) || (max ? d > endOfDay(max) : false)
   }, [minDate, maxDate])
 
+  const trigger = (
+    <Button
+      id={id}
+      type="button"
+      variant="outline"
+      disabled={disabled}
+      // Phones open the sheet; larger screens let the popover trigger handle it.
+      onClick={isMobile ? () => setOpen(true) : undefined}
+      className={cn(
+        'w-full justify-start text-left font-normal h-9',
+        !selected && 'text-muted-foreground',
+        triggerClassName,
+      )}
+    >
+      <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
+      {selected ? format(selected, effectiveFormat, { locale: dateLocale }) : effectivePlaceholder}
+    </Button>
+  )
+
+  const calendar = (
+    <Calendar
+      mode="single"
+      locale={dateLocale}
+      className={cn(
+        // Lunar days need a second line: taller cells (also better touch targets).
+        lunar && '[--cell-size:--spacing(11)]',
+        isMobile && 'p-0 [--cell-size:--spacing(12)]',
+      )}
+      classNames={isMobile ? { root: 'w-full' } : undefined}
+      components={lunar ? { DayButton: LunarDayButton } : undefined}
+      footer={lunar ? <LunarFooter date={selected} /> : undefined}
+      selected={selected ?? undefined}
+      onSelect={(d) => {
+        if (!d) return
+        onChange(format(d, ISO_FMT))
+        setOpen(false)
+      }}
+      disabled={disabledDays}
+      initialFocus
+    />
+  )
+
   return (
     <div className={cn('flex items-center gap-1.5', className)}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild disabled={disabled}>
-          <Button
-            id={id}
-            type="button"
-            variant="outline"
-            className={cn(
-              'w-full justify-start text-left font-normal h-9',
-              !selected && 'text-muted-foreground',
-              triggerClassName,
-            )}
-          >
-            <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" />
-            {selected
-              ? format(selected, effectiveFormat, { locale: dateLocale })
-              : effectivePlaceholder}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            locale={dateLocale}
-            selected={selected ?? undefined}
-            onSelect={(d) => {
-              if (!d) return
-              onChange(format(d, ISO_FMT))
-              setOpen(false)
-            }}
-            disabled={disabledDays}
-            initialFocus
-          />
-        </PopoverContent>
-      </Popover>
+      {/* Phones: a bottom sheet with a full-width calendar (a popover runs
+          off the screen); larger screens: a popover under the field. */}
+      {isMobile ? (
+        <>
+          {trigger}
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent
+              side="bottom"
+              className="gap-2 rounded-t-2xl px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+              <SheetHeader className="p-0">
+                <SheetTitle className="text-base">{effectivePlaceholder}</SheetTitle>
+              </SheetHeader>
+              {calendar}
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild disabled={disabled}>
+            {trigger}
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            {calendar}
+          </PopoverContent>
+        </Popover>
+      )}
       {clearable && selected ? (
         <button
           type="button"

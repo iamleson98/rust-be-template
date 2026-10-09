@@ -39,22 +39,19 @@ const REASON_LABELS: Record<Reason, string> = {
 
 const REASON_STYLES: Record<
   Reason,
-  { gradient: string; badgeBg: string; badgeText: string; icon: typeof TrendingUp }
+  { badgeBg: string; badgeText: string; icon: typeof TrendingUp }
 > = {
   recent: {
-    gradient: 'from-violet-500 to-fuchsia-500',
     badgeBg: 'bg-violet-100',
     badgeText: 'text-violet-700',
     icon: History,
   },
   booking: {
-    gradient: 'from-blue-500 to-blue-500',
     badgeBg: 'bg-blue-100',
     badgeText: 'text-blue-700',
     icon: Compass,
   },
   trending: {
-    gradient: 'from-amber-500 to-orange-500',
     badgeBg: 'bg-amber-100',
     badgeText: 'text-amber-700',
     icon: TrendingUp,
@@ -181,7 +178,6 @@ export function Recommendations() {
                 >
                   <Card className="flex h-full flex-col overflow-hidden">
                     {/* Gradient accent header */}
-                    <div className={`h-1.5 bg-linear-to-r ${style.gradient}`} />
                     <div className="p-4 flex-1 flex flex-col gap-3">
                       {/* Reason badge */}
                       <div className="flex items-center justify-between">
@@ -205,9 +201,7 @@ export function Recommendations() {
                             {t('search.from')}
                           </div>
                         </div>
-                        <div
-                          className={`shrink-0 h-8 w-8 rounded-full bg-linear-to-br ${style.gradient} text-white flex items-center justify-center`}
-                        >
+                        <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                           <ArrowRight className="h-4 w-4" />
                         </div>
                         <div className="min-w-0 flex-1 text-right">
@@ -231,11 +225,7 @@ export function Recommendations() {
                             {formatCurrency(rec.minPrice, currency)}
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => handleView(rec)}
-                          className={`gap-1 bg-linear-to-r ${style.gradient} text-white hover:opacity-90`}
-                        >
+                        <Button size="sm" onClick={() => handleView(rec)} className="gap-1">
                           {t('home.viewTrip')}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </Button>

@@ -1965,7 +1965,8 @@ impl PublicService {
 
     // ── Stats ───────────────────────────────────────────────────
 
-    /// Public stats for the homepage.
+    /// Public stats for the homepage: active brands and routes, and the
+    /// scheduled trips departing today (Vietnam) or later.
     pub async fn stats(&self) -> AppResult<StatsResponse> {
         let brand_count = self
             .store
@@ -1982,7 +1983,7 @@ impl PublicService {
         let trip_count = self
             .store
             .trip_store()
-            .count_trips_by_status("scheduled")
+            .count_upcoming_trips(&trip_time::local_today())
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 

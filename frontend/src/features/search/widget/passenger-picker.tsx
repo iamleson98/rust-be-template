@@ -14,7 +14,7 @@ import type { SearchFormValues } from './schema'
 /** Shared label style — darker than muted-foreground so the tiny
  *  uppercase labels stay readable on the white widget card. */
 const LABEL_CLASS =
-  'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+  'h-5 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 export function SearchPassengerPicker({
   form,
@@ -82,7 +82,10 @@ export function SearchPassengerPicker({
                 </PopoverContent>
               </Popover>
             </div>
-            <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+            <div
+              className={compact ? 'min-h-4 max-md:min-h-0' : 'min-h-5 max-md:min-h-0'}
+              aria-live="polite"
+            >
               <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
             </div>
           </FormItem>

@@ -114,10 +114,8 @@ export function MobileSearchSummary({
                 noValidate
                 aria-label={t('search.title')}
               >
-                {/* stackedSwap: the swap button is normally desktop-only
-                    (hidden in the stacked mobile layout) — in the sheet it
-                    gets its own centered row between the two fields. */}
-                <SearchRouteFields form={form} swap={swap} compact stackedSwap />
+                {/* Stacked: one compact group, the swap button between the fields. */}
+                <SearchRouteFields form={form} swap={swap} compact layout="stacked" />
                 <div className="grid grid-cols-2 gap-3">
                   <SearchDateFields
                     form={form}

@@ -21,9 +21,21 @@ const LABEL_CLASS =
  *  SAME height whether or not an error is showing, so an error on one
  *  field never staggers the row (the old bug: From/To inputs jumped
  *  ~30px apart when only one had a red message under it). */
-function MessageSlot({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+function MessageSlot({
+  compact,
+  collapseOnPhones = false,
+  children,
+}: {
+  compact: boolean
+  /** Reserve the space only where fields share a row (md up). */
+  collapseOnPhones?: boolean
+  children: React.ReactNode
+}) {
   return (
-    <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+    <div
+      className={cn(compact ? 'min-h-4' : 'min-h-5', collapseOnPhones && 'max-md:min-h-0')}
+      aria-live="polite"
+    >
       {children}
     </div>
   )
@@ -33,28 +45,40 @@ export function SearchRouteFields({
   form,
   swap,
   compact = false,
-  stackedSwap = false,
+  layout = 'row',
 }: {
   form: UseFormReturn<SearchFormValues>
   swap: () => void
   compact?: boolean
-  /** The phone bottom-sheet layout: the two fields stacked as one group,
-   *  the swap button between them, labels for screen readers only. */
-  stackedSwap?: boolean
+  /**
+   * `row`: three grid cells (from, swap, to) with labels. `stacked`: the two
+   * fields as one compact group, the swap button between them, labels for
+   * screen readers only (the phone bottom sheet). `auto`: stacked on
+   * phones, row from md up (the home widget).
+   */
+  layout?: 'row' | 'stacked' | 'auto'
 }) {
   const t = useT()
+  const stacked = layout === 'stacked'
+  const auto = layout === 'auto'
   const setSearchParams = useSearchForm((s) => s.setSearchParams)
 
-  const Group = stackedSwap ? 'div' : Fragment
+  // Stacked: one positioned group (the swap button sits between the fields).
+  // Auto: the same group on phones; `md:contents` dissolves it into the row grid.
+  const Group = layout === 'row' ? Fragment : 'div'
   return (
-    <Group {...(stackedSwap ? { className: 'relative space-y-2' } : {})}>
+    <Group
+      {...(layout === 'row'
+        ? {}
+        : { className: cn('relative space-y-2', auto && 'md:contents md:space-y-0') })}
+    >
       {/* From */}
       <FormField
         control={form.control}
         name="from"
         render={({ field }) => (
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={stackedSwap ? 'sr-only' : LABEL_CLASS}>
+            <FormLabel className={stacked ? 'sr-only' : cn(LABEL_CLASS, auto && 'max-md:sr-only')}>
               {t('search.from')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -89,10 +113,10 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            {stackedSwap ? (
+            {stacked ? (
               <FormMessage className="text-xs leading-4" />
             ) : (
-              <MessageSlot compact>
+              <MessageSlot compact={compact} collapseOnPhones={auto}>
                 <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
               </MessageSlot>
             )}
@@ -100,15 +124,16 @@ export function SearchRouteFields({
         )}
       />
 
-      {/* Swap — round icon straddling the two city fields (desktop grid
-          column; below md it only appears in the bottom-sheet layout via
-          `stackedSwap`, centered on its own row). */}
+      {/* Swap — a grid cell between the fields in the row layout; in the
+          stacked layout a round button straddling the two fields. */}
       <div
         className={cn(
-          stackedSwap
+          stacked
             ? 'absolute right-12 top-11 z-10 -translate-y-1/2'
-            : 'hidden md:flex items-center justify-center',
-          !stackedSwap && (compact ? 'pb-0.5' : 'pb-1'),
+            : auto
+              ? 'absolute right-12 top-11 z-10 -translate-y-1/2 md:static md:flex md:translate-y-0 md:items-center md:justify-center md:pb-1'
+              : 'hidden md:flex items-center justify-center',
+          layout === 'row' && (compact ? 'pb-0.5' : 'pb-1'),
         )}
       >
         <button
@@ -116,7 +141,11 @@ export function SearchRouteFields({
           onClick={swap}
           className={cn(
             'relative flex items-center justify-center rounded-full border bg-white text-blue-600 transition-all duration-300 hover:rotate-180 hover:border-blue-300 hover:bg-blue-50',
-            stackedSwap ? 'size-9 rotate-90 hover:rotate-270' : 'size-10',
+            stacked
+              ? 'size-9 rotate-90 hover:rotate-270'
+              : auto
+                ? 'size-9 rotate-90 hover:rotate-270 md:size-10 md:rotate-0 md:hover:rotate-180'
+                : 'size-10',
           )}
           title={t('home.swapDirection')}
           aria-label={t('home.swapDirection')}
@@ -131,7 +160,7 @@ export function SearchRouteFields({
         name="to"
         render={({ field }) => (
           <FormItem className={compact ? 'space-y-1' : 'space-y-1.5'}>
-            <FormLabel className={stackedSwap ? 'sr-only' : LABEL_CLASS}>
+            <FormLabel className={stacked ? 'sr-only' : cn(LABEL_CLASS, auto && 'max-md:sr-only')}>
               {t('search.to')}{' '}
               <span className="text-destructive" aria-hidden="true">
                 *
@@ -162,10 +191,10 @@ export function SearchRouteFields({
                 className="[&_input]:h-10"
               />
             </FormControl>
-            {stackedSwap ? (
+            {stacked ? (
               <FormMessage className="text-xs leading-4" />
             ) : (
-              <MessageSlot compact>
+              <MessageSlot compact={compact} collapseOnPhones={auto}>
                 <FormMessage className={compact ? 'text-xs leading-4' : undefined} />
               </MessageSlot>
             )}

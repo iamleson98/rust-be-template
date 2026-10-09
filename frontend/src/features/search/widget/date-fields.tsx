@@ -12,13 +12,17 @@ import type { SearchFormValues } from './schema'
 /** Shared label style — darker than muted-foreground so the tiny
  *  uppercase labels stay readable on the white widget card. */
 const LABEL_CLASS =
-  'text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
+  'h-5 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 pl-1'
 
 /** Reserved error slot — see search-route-fields.tsx (keeps every field
  *  the same height with or without a validation message). */
 function MessageSlot({ compact, children }: { compact: boolean; children: React.ReactNode }) {
+  // Phones stack or pair these fields, so only md+ rows need the reserve.
   return (
-    <div className={compact ? 'min-h-4' : 'min-h-5'} aria-live="polite">
+    <div
+      className={compact ? 'min-h-4 max-md:min-h-0' : 'min-h-5 max-md:min-h-0'}
+      aria-live="polite"
+    >
       {children}
     </div>
   )
@@ -72,6 +76,7 @@ export function SearchDateFields({
               placeholder={t('home.chooseDatePh')}
               displayFormat="EEEE, dd/MM"
               clearable={false}
+              lunar
               triggerClassName="h-10 bg-white/95"
             />
             <MessageSlot compact>
@@ -105,6 +110,7 @@ export function SearchDateFields({
                 placeholder={t('home.chooseReturnDatePh')}
                 displayFormat="EEEE, dd/MM"
                 clearable={false}
+                lunar
                 triggerClassName="h-10 bg-white/95"
               />
               <MessageSlot compact>
