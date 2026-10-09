@@ -12,6 +12,8 @@ import App from './app/app'
 import { QueryProvider } from './app/providers'
 import { ErrorBoundary } from './components/error-boundary'
 import { configureApiClient } from './api/client'
+import { loadLanguage } from './lib/i18n'
+import { usePrefs } from './stores/prefs'
 import './styles.css'
 import { bootstrapWebVitals } from './lib/web-vitals'
 import { initConsoleProtection } from './lib/console-protection'
@@ -23,6 +25,9 @@ import { captureClickIds } from './lib/analytics'
 captureClickIds()
 
 configureApiClient()
+
+// A returning English visitor gets the English strings before the first paint.
+await loadLanguage(usePrefs.getState().lang)
 
 const rootEl = document.getElementById('root')!
 

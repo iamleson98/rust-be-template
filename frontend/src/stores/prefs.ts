@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { loadLanguage } from '@/lib/i18n/dictionaries'
 import type { Lang } from '@/lib/i18n/types'
 import { storage } from './storage'
 
@@ -27,7 +28,8 @@ export const usePrefs = create<PrefsState>((set) => ({
     if (typeof document !== 'undefined') {
       document.cookie = `bus_lang=${lang}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`
     }
-    set({ lang })
+    // Switch once the strings have arrived, so nothing renders half-translated.
+    void loadLanguage(lang).then(() => set({ lang }))
   },
   currency: storage.get('bus_currency') === 'USD' ? 'USD' : 'VND',
   setCurrency: (currency) => {

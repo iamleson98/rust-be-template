@@ -1,18 +1,16 @@
 import { useCallback } from 'react'
 import { usePrefs } from '@/stores/prefs'
+import { dictionary, fallbackDictionary } from './dictionaries'
 import type { Lang, TranslationMap } from './types'
-import { vi } from './vi'
-import { en } from './en'
 
+export { loadLanguage } from './dictionaries'
 export type { Lang, TranslationMap }
 
 type Params = Record<string, string | number>
 
-const dictionaries: Record<Lang, TranslationMap> = { vi, en }
-
-/** `{name}` placeholders are interpolated; a missing key falls back to English, then to the key. */
+/** `{name}` placeholders are interpolated; a missing key falls back to Vietnamese, then to the key. */
 export function translate(lang: Lang, key: string, params?: Params): string {
-  let text = dictionaries[lang][key] ?? dictionaries.en[key] ?? key
+  let text = dictionary(lang)[key] ?? fallbackDictionary[key] ?? key
   for (const [name, value] of Object.entries(params ?? {})) {
     text = text.replaceAll(`{${name}}`, String(value))
   }
